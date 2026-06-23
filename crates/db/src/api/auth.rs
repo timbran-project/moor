@@ -18,6 +18,8 @@
 //! principal's current object flags, and it owns checks that depend on object, property, or verb
 //! metadata.
 
+use std::sync::LazyLock;
+
 use moor_common::{
     model::{
         CapabilityGrant, CapabilityGrants, ObjFlag, PropFlag, PropPerms, VerbFlag, WorldStateError,
@@ -26,6 +28,8 @@ use moor_common::{
 };
 use moor_var::{Obj, Symbol};
 use uuid::Uuid;
+
+static EMPTY_CAPABILITY_GRANTS: LazyLock<CapabilityGrants> = LazyLock::new(CapabilityGrants::empty);
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 struct DbAuthPrincipal {
@@ -47,9 +51,9 @@ impl DbAuthPrincipal {
 /// `WorldState` method is being executed; callers provide an `AuthRule` built from already-resolved
 /// object, property, or verb metadata.
 #[derive(Debug, Clone)]
-pub(super) struct AuthContext {
+pub(super) struct AuthContext<'a> {
     principal: DbAuthPrincipal,
-    grants: CapabilityGrants,
+    grants: &'a CapabilityGrants,
 }
 
 /// A storage-layer authorization rule evaluated against a resolved DB principal.
@@ -336,13 +340,21 @@ impl AuthRule<'_> {
     }
 }
 
-impl AuthContext {
+impl AuthContext<'static> {
     /// Build DB-local authorization context from a resolved principal and its current flags.
     #[inline]
-    pub(super) fn new(
+    pub(super) fn new(principal: Obj, principal_flags: BitEnum<ObjFlag>) -> Self {
+        Self::with_grants(principal, principal_flags, &EMPTY_CAPABILITY_GRANTS)
+    }
+}
+
+impl<'a> AuthContext<'a> {
+    /// Build DB-local authorization context with task-local capability grants.
+    #[inline]
+    pub(super) fn with_grants(
         principal: Obj,
         principal_flags: BitEnum<ObjFlag>,
-        grants: CapabilityGrants,
+        grants: &'a CapabilityGrants,
     ) -> Self {
         Self {
             principal: DbAuthPrincipal::new(principal, principal_flags),
@@ -559,20 +571,17 @@ impl AuthContext {
 mod tests {
     use super::*;
 
-    fn context(principal: i32, flags: BitEnum<ObjFlag>) -> AuthContext {
-        AuthContext::new(Obj::mk_id(principal), flags, CapabilityGrants::empty())
+    fn context(principal: i32, flags: BitEnum<ObjFlag>) -> AuthContext<'static> {
+        AuthContext::new(Obj::mk_id(principal), flags)
     }
 
     fn context_with_grants(
         principal: i32,
         flags: BitEnum<ObjFlag>,
         grants: Vec<CapabilityGrant>,
-    ) -> AuthContext {
-        AuthContext::new(
-            Obj::mk_id(principal),
-            flags,
-            CapabilityGrants::from_vec(grants),
-        )
+    ) -> AuthContext<'static> {
+        let grants = Box::leak(Box::new(CapabilityGrants::from_vec(grants)));
+        AuthContext::with_grants(Obj::mk_id(principal), flags, grants)
     }
 
     #[test]

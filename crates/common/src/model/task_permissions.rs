@@ -11,8 +11,6 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::Arc;
-
 use crate::{model::ObjFlag, util::BitEnum};
 use moor_var::{Obj, Symbol};
 use uuid::Uuid;
@@ -46,7 +44,7 @@ pub enum CapabilityGrant {
 /// Additive runtime capability grants attached to an activation's task permissions.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CapabilityGrants {
-    grants: Arc<[CapabilityGrant]>,
+    grants: Option<Box<[CapabilityGrant]>>,
 }
 
 impl CapabilityGrants {
@@ -59,20 +57,23 @@ impl CapabilityGrants {
     #[inline]
     #[must_use]
     pub fn from_vec(grants: Vec<CapabilityGrant>) -> Self {
+        if grants.is_empty() {
+            return Self::empty();
+        }
         Self {
-            grants: Arc::from(grants.into_boxed_slice()),
+            grants: Some(grants.into_boxed_slice()),
         }
     }
 
     #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.grants.is_empty()
+        self.grants.as_ref().is_none_or(|grants| grants.is_empty())
     }
 
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = CapabilityGrant> + '_ {
-        self.grants.iter().copied()
+        self.grants.as_deref().unwrap_or(&[]).iter().copied()
     }
 }
 
@@ -209,5 +210,35 @@ impl TaskPermissions {
             return Ok(());
         }
         Err(crate::model::WorldStateError::ObjectPermissionDenied)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_grants_have_no_entries() {
+        let grants = CapabilityGrants::empty();
+
+        assert!(grants.is_empty());
+        assert_eq!(grants.iter().count(), 0);
+    }
+
+    #[test]
+    fn from_empty_vec_uses_empty_grants() {
+        let grants = CapabilityGrants::from_vec(Vec::new());
+
+        assert!(grants.is_empty());
+        assert_eq!(grants.iter().count(), 0);
+    }
+
+    #[test]
+    fn non_empty_grants_iterate_entries() {
+        let grant = CapabilityGrant::ObjectRead(Obj::mk_id(7));
+        let grants = CapabilityGrants::from_vec(vec![grant]);
+
+        assert!(!grants.is_empty());
+        assert_eq!(grants.iter().collect::<Vec<_>>(), vec![grant]);
     }
 }

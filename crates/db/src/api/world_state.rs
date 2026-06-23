@@ -89,19 +89,31 @@ impl DbWorldState {
     pub fn from_transaction(tx: WorldStateTransaction) -> Self {
         Self { tx }
     }
-    fn auth_context(&self, permissions: &TaskPermissions) -> Result<AuthContext, WorldStateError> {
+    fn auth_context<'a>(
+        &self,
+        permissions: &'a TaskPermissions,
+    ) -> Result<AuthContext<'a>, WorldStateError> {
         let principal = permissions.principal();
         let flags = self.flags_of(&principal)?;
-        Ok(AuthContext::new(
+        Ok(AuthContext::with_grants(
             principal,
             flags,
-            permissions.grants().clone(),
+            permissions.grants(),
         ))
     }
 
-    fn auth_context_for_principal(&self, who: &Obj) -> Result<AuthContext, WorldStateError> {
+    #[inline]
+    fn cached_auth_context<'a>(&self, permissions: &'a TaskPermissions) -> AuthContext<'a> {
+        AuthContext::with_grants(
+            permissions.principal(),
+            permissions.principal_flags(),
+            permissions.grants(),
+        )
+    }
+
+    fn auth_context_for_principal(&self, who: &Obj) -> Result<AuthContext<'_>, WorldStateError> {
         let flags = self.flags_of(who)?;
-        Ok(AuthContext::new(*who, flags, Default::default()))
+        Ok(AuthContext::new(*who, flags))
     }
 
     fn update_property_internal(
@@ -1072,7 +1084,7 @@ impl WorldState for DbWorldState {
             return Ok(None);
         }
 
-        let auth = self.auth_context(permissions)?;
+        let auth = self.cached_auth_context(permissions);
         let tx = self.get_tx();
 
         let vh = match tx.resolve_verb_handle(
@@ -1083,6 +1095,9 @@ impl WorldState for DbWorldState {
         ) {
             Ok(vh) => vh,
             Err(WorldStateError::VerbNotFound(_, _)) => {
+                if permissions.grants().is_empty() {
+                    return Ok(None);
+                }
                 let candidate = match tx.resolve_verb_handle(
                     dispatch.lookup.object,
                     dispatch.lookup.verb_name,
