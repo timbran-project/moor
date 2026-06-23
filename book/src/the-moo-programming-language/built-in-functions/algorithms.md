@@ -448,3 +448,68 @@ dimensions or out-of-bounds start/goal coordinates raise `E_INVARG`.
 `astar()` consumes the running task's normal tick budget as it searches. Large or difficult path
 requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search finishes, or
 if the optional `max_nodes` limit is reached.
+
+## Grid helper functions
+
+The grid helpers use the same flat `tile_map` and `solid_tiles` representation as `astar()`.
+Coordinates are zero-based and `tile_map` is row-major. Missing map entries are treated as walkable,
+and extra entries are ignored.
+
+```moo
+LIST grid_line(INT width, INT height,
+               INT x0, INT y0,
+               INT x1, INT y1)
+```
+
+Returns the inclusive Bresenham line between two in-bounds grid coordinates. Both endpoints are
+included in the returned list.
+
+```moo
+grid_line(5, 5, 0, 0, 4, 2)
+=> {{0, 0}, {1, 1}, {2, 1}, {3, 2}, {4, 2}}
+```
+
+```moo
+BOOL grid_los(INT width, INT height,
+              INT x0, INT y0,
+              INT x1, INT y1,
+              LIST tile_map, LIST solid_tiles)
+```
+
+Returns true if every tile on the inclusive line between the two points is walkable. A solid start
+or end tile blocks line of sight.
+
+```moo
+LIST grid_reachable(INT width, INT height,
+                    INT start_x, INT start_y,
+                    LIST tile_map, LIST solid_tiles
+                    [, MAP options])
+```
+
+Returns every coordinate reachable from the start tile, excluding the start tile itself. If the
+start tile is solid, it returns `{}`.
+
+```moo
+LIST grid_flood(INT width, INT height,
+                INT start_x, INT start_y,
+                LIST tile_map, LIST solid_tiles
+                [, MAP options])
+```
+
+Returns the flood-filled region reachable from the start tile, including the start tile. This is the
+same search as `grid_reachable()`, but with the origin included for callers that want the full
+component.
+
+`grid_reachable()` and `grid_flood()` accept:
+
+```moo
+[
+  'directions -> 8,
+  'corner_cutting -> false,
+  'max_nodes -> 1000
+]
+```
+
+`directions`, `corner_cutting`, and `max_nodes` have the same meaning as the `astar()` options.
+These searches consume the running task's normal tick budget and may raise `E_MAXREC` if the task
+runs out of ticks or `max_nodes` is reached.

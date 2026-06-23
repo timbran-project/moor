@@ -1055,6 +1055,66 @@ fn mk_builtin_table() -> Vec<Builtin> {
             ],
             true,
         ),
+        mk_builtin(
+            "grid_reachable",
+            Q(6),
+            Q(7),
+            vec![
+                Typed(TYPE_INT),  // width
+                Typed(TYPE_INT),  // height
+                Typed(TYPE_INT),  // start_x
+                Typed(TYPE_INT),  // start_y
+                Typed(TYPE_LIST), // tile_map
+                Typed(TYPE_LIST), // solid_tiles
+                Typed(TYPE_MAP),  // options
+            ],
+            true,
+        ),
+        mk_builtin(
+            "grid_line",
+            Q(6),
+            Q(6),
+            vec![
+                Typed(TYPE_INT), // width
+                Typed(TYPE_INT), // height
+                Typed(TYPE_INT), // x0
+                Typed(TYPE_INT), // y0
+                Typed(TYPE_INT), // x1
+                Typed(TYPE_INT), // y1
+            ],
+            true,
+        ),
+        mk_builtin(
+            "grid_los",
+            Q(8),
+            Q(8),
+            vec![
+                Typed(TYPE_INT),  // width
+                Typed(TYPE_INT),  // height
+                Typed(TYPE_INT),  // x0
+                Typed(TYPE_INT),  // y0
+                Typed(TYPE_INT),  // x1
+                Typed(TYPE_INT),  // y1
+                Typed(TYPE_LIST), // tile_map
+                Typed(TYPE_LIST), // solid_tiles
+            ],
+            true,
+        ),
+        mk_builtin(
+            "grid_flood",
+            Q(6),
+            Q(7),
+            vec![
+                Typed(TYPE_INT),  // width
+                Typed(TYPE_INT),  // height
+                Typed(TYPE_INT),  // start_x
+                Typed(TYPE_INT),  // start_y
+                Typed(TYPE_LIST), // tile_map
+                Typed(TYPE_LIST), // solid_tiles
+                Typed(TYPE_MAP),  // options
+            ],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "algorithms");

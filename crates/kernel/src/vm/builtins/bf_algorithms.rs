@@ -17,7 +17,7 @@
 //! symbols, and objects. They do not inspect world state or task permissions.
 
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::sync::LazyLock;
 
 use ahash::HashMap;
@@ -142,6 +142,23 @@ struct AstarResult {
     path: Vec<Var>,
     cost: i64,
     visited: usize,
+}
+
+#[derive(Clone, Copy)]
+struct GridOptions {
+    directions: u8,
+    corner_cutting: bool,
+    max_nodes: Option<usize>,
+}
+
+impl Default for GridOptions {
+    fn default() -> Self {
+        Self {
+            directions: 8,
+            corner_cutting: false,
+            max_nodes: None,
+        }
+    }
 }
 
 #[inline]
@@ -299,6 +316,113 @@ fn parse_astar_options(value: Option<&Var>) -> Result<AstarOptions, BfErr> {
     }
 
     Ok(options)
+}
+
+fn parse_grid_options(value: Option<&Var>) -> Result<GridOptions, BfErr> {
+    let mut options = GridOptions::default();
+    let Some(value) = value else {
+        return Ok(options);
+    };
+    let Some(map) = value.as_map() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("grid helper options must be a map"),
+        ));
+    };
+
+    for (key, value) in map.iter_ref() {
+        let key = option_key_symbol(key)?;
+        if key == *DIRECTIONS_SYM {
+            let Some(directions) = value.as_integer() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("directions option must be an integer"),
+                ));
+            };
+            if directions != 4 && directions != 8 {
+                return Err(BfErr::ErrValue(
+                    E_INVARG.msg("directions option must be 4 or 8"),
+                ));
+            }
+            options.directions = directions as u8;
+        } else if key == *CORNER_CUTTING_SYM {
+            options.corner_cutting = value.is_true();
+        } else if key == *MAX_NODES_SYM {
+            options.max_nodes = Some(positive_usize_option(value, "max_nodes")?);
+        } else {
+            return Err(BfErr::ErrValue(
+                E_INVARG.msg(format!("unknown grid helper option: {key}")),
+            ));
+        }
+    }
+
+    Ok(options)
+}
+
+fn positive_dimension(value: &Var, name: &str) -> Result<usize, BfErr> {
+    match value.variant() {
+        Variant::Int(i) if i > 0 => Ok(i as usize),
+        _ => Err(BfErr::ErrValue(
+            E_INVARG.msg(format!("{name} must be a positive integer")),
+        )),
+    }
+}
+
+fn integer_coordinate(value: &Var, name: &str) -> Result<i32, BfErr> {
+    match value.variant() {
+        Variant::Int(i) => Ok(i as i32),
+        _ => Err(BfErr::ErrValue(
+            E_TYPE.msg(format!("{name} must be an integer")),
+        )),
+    }
+}
+
+fn check_grid_position(
+    width: usize,
+    height: usize,
+    x: i32,
+    y: i32,
+    name: &str,
+) -> Result<(), BfErr> {
+    if x < 0 || x >= width as i32 || y < 0 || y >= height as i32 {
+        return Err(BfErr::ErrValue(
+            E_INVARG.msg(format!("{name} position out of bounds")),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_passable_grid(
+    width: usize,
+    height: usize,
+    tile_map: &Var,
+    solid_tiles: &Var,
+) -> Result<Vec<bool>, BfErr> {
+    let tile_map_list = tile_map
+        .as_list()
+        .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("tile_map must be a list")))?;
+    let solid_tiles_list = solid_tiles
+        .as_list()
+        .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("solid_tiles must be a list")))?;
+
+    let grid_size = width * height;
+    let mut solid_ids = std::collections::HashSet::new();
+    for item in solid_tiles_list.iter() {
+        if let Variant::Int(id) = item.variant() {
+            solid_ids.insert(id);
+        }
+    }
+
+    let mut passable = vec![true; grid_size];
+    for (i, item) in tile_map_list.iter().enumerate() {
+        if i >= grid_size {
+            break;
+        }
+        if let Variant::Int(tile_id) = item.variant()
+            && solid_ids.contains(&tile_id)
+        {
+            passable[i] = false;
+        }
+    }
+    Ok(passable)
 }
 
 fn load_bindings(value: Option<&Var>, max_bindings: usize) -> Result<TermBindings, BfErr> {
@@ -1311,6 +1435,154 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
     })
 }
 
+fn grid_coord(x: i32, y: i32) -> Var {
+    v_list(&[v_int(x as i64), v_int(y as i64)])
+}
+
+fn grid_line_points(
+    width: usize,
+    height: usize,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<(i32, i32)>, BfErr> {
+    check_grid_position(width, height, x0, y0, "start")?;
+    check_grid_position(width, height, x1, y1, "end")?;
+
+    let mut points = Vec::new();
+    let mut x = x0;
+    let mut y = y0;
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+
+    loop {
+        if let Some(tick_budget) = tick_budget.as_mut() {
+            tick_budget.consume_ticks(1)?;
+        }
+        points.push((x, y));
+        if x == x1 && y == y1 {
+            return Ok(points);
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+fn grid_index(width: usize, x: i32, y: i32) -> usize {
+    y as usize * width + x as usize
+}
+
+fn grid_is_passable(width: usize, height: usize, passable: &[bool], x: i32, y: i32) -> bool {
+    x >= 0 && x < width as i32 && y >= 0 && y < height as i32 && passable[grid_index(width, x, y)]
+}
+
+fn grid_neighbors(
+    width: usize,
+    height: usize,
+    passable: &[bool],
+    x: i32,
+    y: i32,
+    options: GridOptions,
+    out: &mut Vec<(i32, i32)>,
+) {
+    const DIRS: [(i32, i32); 8] = [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+    ];
+
+    out.clear();
+    for &(dx, dy) in &DIRS {
+        if options.directions == 4 && dx != 0 && dy != 0 {
+            continue;
+        }
+        let nx = x + dx;
+        let ny = y + dy;
+        if !grid_is_passable(width, height, passable, nx, ny) {
+            continue;
+        }
+        if !options.corner_cutting
+            && dx != 0
+            && dy != 0
+            && (!grid_is_passable(width, height, passable, x + dx, y)
+                || !grid_is_passable(width, height, passable, x, y + dy))
+        {
+            continue;
+        }
+        out.push((nx, ny));
+    }
+}
+
+fn grid_flood_points(
+    width: usize,
+    height: usize,
+    start_x: i32,
+    start_y: i32,
+    passable: &[bool],
+    options: GridOptions,
+    include_start: bool,
+    mut tick_budget: Option<BuiltinTickBudget<'_>>,
+) -> Result<Vec<Var>, BfErr> {
+    check_grid_position(width, height, start_x, start_y, "start")?;
+    if !grid_is_passable(width, height, passable, start_x, start_y) {
+        return Ok(Vec::new());
+    }
+
+    let mut seen = vec![false; width * height];
+    let mut queue = VecDeque::new();
+    let mut neighbors = Vec::with_capacity(8);
+    let mut result = Vec::new();
+    seen[grid_index(width, start_x, start_y)] = true;
+    queue.push_back((start_x, start_y));
+    let mut visited = 0;
+
+    while let Some((x, y)) = queue.pop_front() {
+        if let Some(tick_budget) = tick_budget.as_mut() {
+            tick_budget.consume_ticks(1)?;
+        }
+        if let Some(max_nodes) = options.max_nodes
+            && visited >= max_nodes
+        {
+            return Err(BfErr::ErrValue(
+                E_MAXREC.msg("grid flood exceeded max_nodes"),
+            ));
+        }
+        visited += 1;
+        if include_start || x != start_x || y != start_y {
+            result.push(grid_coord(x, y));
+        }
+
+        grid_neighbors(width, height, passable, x, y, options, &mut neighbors);
+        for &(nx, ny) in &neighbors {
+            let idx = grid_index(width, nx, ny);
+            if seen[idx] {
+                continue;
+            }
+            seen[idx] = true;
+            queue.push_back((nx, ny));
+        }
+    }
+
+    Ok(result)
+}
+
 /// Usage: `list|int|map astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles [, map options])`
 ///
 /// A* pathfinding on a tile grid. Returns a list of `{x, y}` waypoints from
@@ -1416,8 +1688,115 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(value))
 }
 
+/// Usage: `list grid_line(int width, int height, int x0, int y0, int x1, int y1)`
+///
+/// Returns the inclusive Bresenham line between two in-bounds grid coordinates.
+fn bf_grid_line(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 6 {
+        return Err(BfErr::ErrValue(E_ARGS.msg("grid_line() takes 6 arguments")));
+    }
+
+    let width = positive_dimension(&bf_args.args[0], "width")?;
+    let height = positive_dimension(&bf_args.args[1], "height")?;
+    let x0 = integer_coordinate(&bf_args.args[2], "x0")?;
+    let y0 = integer_coordinate(&bf_args.args[3], "y0")?;
+    let x1 = integer_coordinate(&bf_args.args[4], "x1")?;
+    let y1 = integer_coordinate(&bf_args.args[5], "y1")?;
+
+    let points = grid_line_points(width, height, x0, y0, x1, y1, Some(bf_args.tick_budget()))?
+        .into_iter()
+        .map(|(x, y)| grid_coord(x, y))
+        .collect::<Vec<_>>();
+    Ok(Ret(v_list_iter(points)))
+}
+
+/// Usage: `bool grid_los(int width, int height, int x0, int y0, int x1, int y1, list tile_map, list solid_tiles)`
+///
+/// Tests line of sight over a tile grid using the inclusive Bresenham line.
+fn bf_grid_los(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 8 {
+        return Err(BfErr::ErrValue(E_ARGS.msg("grid_los() takes 8 arguments")));
+    }
+
+    let width = positive_dimension(&bf_args.args[0], "width")?;
+    let height = positive_dimension(&bf_args.args[1], "height")?;
+    let x0 = integer_coordinate(&bf_args.args[2], "x0")?;
+    let y0 = integer_coordinate(&bf_args.args[3], "y0")?;
+    let x1 = integer_coordinate(&bf_args.args[4], "x1")?;
+    let y1 = integer_coordinate(&bf_args.args[5], "y1")?;
+    let passable = parse_passable_grid(width, height, &bf_args.args[6], &bf_args.args[7])?;
+    let points = grid_line_points(width, height, x0, y0, x1, y1, Some(bf_args.tick_budget()))?;
+
+    let clear = points
+        .into_iter()
+        .all(|(x, y)| grid_is_passable(width, height, &passable, x, y));
+    Ok(Ret(bf_args.v_bool(clear)))
+}
+
+/// Usage: `list grid_reachable(int width, int height, int start_x, int start_y, list tile_map, list solid_tiles [, map options])`
+///
+/// Returns reachable coordinates from a start tile, excluding the start tile.
+fn bf_grid_reachable(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 6 || bf_args.args.len() > 7 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("grid_reachable() takes 6 or 7 arguments"),
+        ));
+    }
+
+    let width = positive_dimension(&bf_args.args[0], "width")?;
+    let height = positive_dimension(&bf_args.args[1], "height")?;
+    let start_x = integer_coordinate(&bf_args.args[2], "start_x")?;
+    let start_y = integer_coordinate(&bf_args.args[3], "start_y")?;
+    let passable = parse_passable_grid(width, height, &bf_args.args[4], &bf_args.args[5])?;
+    let options = parse_grid_options(bf_args.args.iter_ref().nth(6))?;
+    let points = grid_flood_points(
+        width,
+        height,
+        start_x,
+        start_y,
+        &passable,
+        options,
+        false,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(v_list_iter(points)))
+}
+
+/// Usage: `list grid_flood(int width, int height, int start_x, int start_y, list tile_map, list solid_tiles [, map options])`
+///
+/// Returns the flood-filled region from a start tile, including the start tile.
+fn bf_grid_flood(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 6 || bf_args.args.len() > 7 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("grid_flood() takes 6 or 7 arguments"),
+        ));
+    }
+
+    let width = positive_dimension(&bf_args.args[0], "width")?;
+    let height = positive_dimension(&bf_args.args[1], "height")?;
+    let start_x = integer_coordinate(&bf_args.args[2], "start_x")?;
+    let start_y = integer_coordinate(&bf_args.args[3], "start_y")?;
+    let passable = parse_passable_grid(width, height, &bf_args.args[4], &bf_args.args[5])?;
+    let options = parse_grid_options(bf_args.args.iter_ref().nth(6))?;
+    let points = grid_flood_points(
+        width,
+        height,
+        start_x,
+        start_y,
+        &passable,
+        options,
+        true,
+        Some(bf_args.tick_budget()),
+    )?;
+    Ok(Ret(v_list_iter(points)))
+}
+
 pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("astar")] = bf_astar;
+    builtins[offset_for_builtin("grid_reachable")] = bf_grid_reachable;
+    builtins[offset_for_builtin("grid_line")] = bf_grid_line;
+    builtins[offset_for_builtin("grid_los")] = bf_grid_los;
+    builtins[offset_for_builtin("grid_flood")] = bf_grid_flood;
     builtins[offset_for_builtin("term_unify")] = bf_term_unify;
     builtins[offset_for_builtin("term_substitute")] = bf_term_substitute;
     builtins[offset_for_builtin("term_query")] = bf_term_query;
@@ -1549,6 +1928,44 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
+    }
+
+    #[test]
+    fn grid_line_returns_inclusive_bresenham_points() {
+        let points = grid_line_points(5, 5, 0, 0, 4, 2, None).unwrap();
+        assert_eq!(points, vec![(0, 0), (1, 1), (2, 1), (3, 2), (4, 2)]);
+    }
+
+    #[test]
+    fn grid_los_line_detects_solid_tile() {
+        let passable = vec![true, true, true, true, false, true, true, true, true];
+        let points = grid_line_points(3, 3, 0, 0, 2, 2, None).unwrap();
+        let clear = points
+            .into_iter()
+            .all(|(x, y)| grid_is_passable(3, 3, &passable, x, y));
+
+        assert!(!clear);
+    }
+
+    #[test]
+    fn grid_flood_respects_cardinal_movement() {
+        let passable = vec![true, false, true, false, true, false, true, false, true];
+        let points = grid_flood_points(
+            3,
+            3,
+            1,
+            1,
+            &passable,
+            GridOptions {
+                directions: 4,
+                ..GridOptions::default()
+            },
+            true,
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(points, vec![grid_coord(1, 1)]);
     }
 
     #[test]
