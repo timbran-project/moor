@@ -1014,7 +1014,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin(
             "astar",
             Q(8),
-            Q(8),
+            Q(9),
             vec![
                 Typed(TYPE_INT),  // width
                 Typed(TYPE_INT),  // height
@@ -1024,6 +1024,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
                 Typed(TYPE_INT),  // goal_y
                 Typed(TYPE_LIST), // tile_map
                 Typed(TYPE_LIST), // solid_tiles
+                Typed(TYPE_MAP),  // options
             ],
             true,
         ),

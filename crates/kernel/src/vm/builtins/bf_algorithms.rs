@@ -41,6 +41,15 @@ static MAX_SOLUTIONS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_so
 static MAX_STEPS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_steps"));
 static DEDUPE_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("dedupe"));
 static NOT_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("not"));
+static DIRECTIONS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("directions"));
+static CORNER_CUTTING_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("corner_cutting"));
+static RETURN_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("return"));
+static PATH_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("path"));
+static COST_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("cost"));
+static DETAIL_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("detail"));
+static VISITED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("visited"));
+static FOUND_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("found"));
+static MAX_NODES_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_nodes"));
 
 const DEFAULT_TERM_MAX_DEPTH: usize = 64;
 const DEFAULT_TERM_MAX_BINDINGS: usize = 256;
@@ -100,6 +109,39 @@ impl Default for QueryOptions {
 struct QueryRule {
     head: Var,
     body: Vec<Var>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum AstarReturn {
+    Path,
+    Cost,
+    Detail,
+}
+
+#[derive(Clone, Copy)]
+struct AstarOptions {
+    directions: u8,
+    corner_cutting: bool,
+    return_mode: AstarReturn,
+    max_nodes: Option<usize>,
+}
+
+impl Default for AstarOptions {
+    fn default() -> Self {
+        Self {
+            directions: 8,
+            corner_cutting: false,
+            return_mode: AstarReturn::Path,
+            max_nodes: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct AstarResult {
+    path: Vec<Var>,
+    cost: i64,
+    visited: usize,
 }
 
 #[inline]
@@ -202,6 +244,56 @@ fn parse_query_options(value: Option<&Var>) -> Result<QueryOptions, BfErr> {
         } else {
             return Err(BfErr::ErrValue(
                 E_INVARG.msg(format!("unknown term_query() option: {key}")),
+            ));
+        }
+    }
+
+    Ok(options)
+}
+
+fn parse_astar_options(value: Option<&Var>) -> Result<AstarOptions, BfErr> {
+    let mut options = AstarOptions::default();
+    let Some(value) = value else {
+        return Ok(options);
+    };
+    let Some(map) = value.as_map() else {
+        return Err(BfErr::ErrValue(E_TYPE.msg("astar() options must be a map")));
+    };
+
+    for (key, value) in map.iter_ref() {
+        let key = option_key_symbol(key)?;
+        if key == *DIRECTIONS_SYM {
+            let Some(directions) = value.as_integer() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("directions option must be an integer"),
+                ));
+            };
+            if directions != 4 && directions != 8 {
+                return Err(BfErr::ErrValue(
+                    E_INVARG.msg("directions option must be 4 or 8"),
+                ));
+            }
+            options.directions = directions as u8;
+        } else if key == *CORNER_CUTTING_SYM {
+            options.corner_cutting = value.is_true();
+        } else if key == *RETURN_SYM {
+            let mode = option_value_symbol(value, "return")?;
+            if mode == *PATH_SYM {
+                options.return_mode = AstarReturn::Path;
+            } else if mode == *COST_SYM {
+                options.return_mode = AstarReturn::Cost;
+            } else if mode == *DETAIL_SYM {
+                options.return_mode = AstarReturn::Detail;
+            } else {
+                return Err(BfErr::ErrValue(
+                    E_INVARG.msg("return option must be 'path, 'cost, or 'detail"),
+                ));
+            }
+        } else if key == *MAX_NODES_SYM {
+            options.max_nodes = Some(positive_usize_option(value, "max_nodes")?);
+        } else {
+            return Err(BfErr::ErrValue(
+                E_INVARG.msg(format!("unknown astar() option: {key}")),
             ));
         }
     }
@@ -1063,10 +1155,11 @@ struct AstarPathArgs<'grid, 'budget> {
     goal_x: i32,
     goal_y: i32,
     passable: &'grid [bool],
+    options: AstarOptions,
     tick_budget: Option<BuiltinTickBudget<'budget>>,
 }
 
-fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
+fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<AstarResult, BfErr> {
     let AstarPathArgs {
         width,
         height,
@@ -1075,6 +1168,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
         goal_x,
         goal_y,
         passable,
+        options,
         ref mut tick_budget,
     } = args;
 
@@ -1094,12 +1188,20 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
 
     // Check goal is passable.
     if !passable[(goal_y as usize) * width + (goal_x as usize)] {
-        return Ok(v_empty_list());
+        return Ok(AstarResult {
+            path: Vec::new(),
+            cost: -1,
+            visited: 0,
+        });
     }
 
     // Already there.
     if start_x == goal_x && start_y == goal_y {
-        return Ok(v_empty_list());
+        return Ok(AstarResult {
+            path: Vec::new(),
+            cost: 0,
+            visited: 0,
+        });
     }
 
     let is_passable = |x: i32, y: i32| -> bool {
@@ -1118,6 +1220,7 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
     g_score[start_idx] = 0;
     let h0 = (goal_x - start_x).abs().max((goal_y - start_y).abs()); // Chebyshev
     open.push(Reverse((h0, 0, start_x, start_y)));
+    let mut visited = 0;
 
     // 8-directional neighbors.
     const DIRS: [(i32, i32); 8] = [
@@ -1135,6 +1238,12 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
         if let Some(tick_budget) = tick_budget.as_mut() {
             tick_budget.consume_ticks(1)?;
         }
+        if let Some(max_nodes) = options.max_nodes
+            && visited >= max_nodes
+        {
+            return Err(BfErr::ErrValue(E_MAXREC.msg("astar() exceeded max_nodes")));
+        }
+        visited += 1;
 
         let cidx = (cy as usize) * width + (cx as usize);
 
@@ -1155,12 +1264,19 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
                 idx = came_from[idx] as usize;
             }
             path.reverse();
-            return Ok(v_list_iter(path));
+            return Ok(AstarResult {
+                path,
+                cost: g as i64,
+                visited,
+            });
         }
 
         let ng = g + 1;
 
         for &(dx, dy) in &DIRS {
+            if options.directions == 4 && dx != 0 && dy != 0 {
+                continue;
+            }
             let nx = cx + dx;
             let ny = cy + dy;
 
@@ -1169,7 +1285,11 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
             }
 
             // Diagonal corner-cutting check.
-            if dx != 0 && dy != 0 && (!is_passable(cx + dx, cy) || !is_passable(cx, cy + dy)) {
+            if !options.corner_cutting
+                && dx != 0
+                && dy != 0
+                && (!is_passable(cx + dx, cy) || !is_passable(cx, cy + dy))
+            {
                 continue;
             }
 
@@ -1184,10 +1304,14 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
     }
 
     // No path found.
-    Ok(v_empty_list())
+    Ok(AstarResult {
+        path: Vec::new(),
+        cost: -1,
+        visited,
+    })
 }
 
-/// Usage: `list astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles)`
+/// Usage: `list|int|map astar(int width, int height, int start_x, int start_y, int goal_x, int goal_y, list tile_map, list solid_tiles [, map options])`
 ///
 /// A* pathfinding on a tile grid. Returns a list of `{x, y}` waypoints from
 /// the start to the goal (excluding the start position), or an empty list if
@@ -1201,8 +1325,10 @@ fn astar_path(mut args: AstarPathArgs<'_, '_>) -> Result<Var, BfErr> {
 ///
 /// Uses Chebyshev distance as the heuristic (diagonal cost = cardinal cost).
 fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 8 {
-        return Err(BfErr::ErrValue(E_ARGS.msg("astar() takes 8 arguments")));
+    if bf_args.args.len() < 8 || bf_args.args.len() > 9 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("astar() takes 8 or 9 arguments"),
+        ));
     }
 
     let width = match bf_args.args[0].variant() {
@@ -1244,6 +1370,7 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let solid_tiles_list = bf_args.args[7]
         .as_list()
         .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("solid_tiles must be a list")))?;
+    let options = parse_astar_options(bf_args.args.iter_ref().nth(8))?;
 
     let grid_size = width * height;
     let mut solid_ids = std::collections::HashSet::new();
@@ -1265,7 +1392,7 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
-    let path = astar_path(AstarPathArgs {
+    let result = astar_path(AstarPathArgs {
         width,
         height,
         start_x,
@@ -1273,9 +1400,20 @@ fn bf_astar(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         goal_x,
         goal_y,
         passable: &passable,
+        options,
         tick_budget: Some(bf_args.tick_budget()),
     })?;
-    Ok(Ret(path))
+    let value = match options.return_mode {
+        AstarReturn::Path => v_list_iter(result.path),
+        AstarReturn::Cost => v_int(result.cost),
+        AstarReturn::Detail => v_map(&[
+            (v_sym(*PATH_SYM), v_list_iter(result.path)),
+            (v_sym(*COST_SYM), v_int(result.cost)),
+            (v_sym(*VISITED_SYM), v_int(result.visited as i64)),
+            (v_sym(*FOUND_SYM), bf_args.v_bool(result.cost >= 0)),
+        ]),
+    };
+    Ok(Ret(value))
 }
 
 pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
@@ -1359,12 +1497,58 @@ mod tests {
             goal_x: 4,
             goal_y: 4,
             passable: &passable,
+            options: AstarOptions::default(),
             tick_budget: Some(BuiltinTickBudget::new(&mut tick_count, 2)),
         })
         .unwrap_err();
 
         assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
         assert_eq!(tick_count, 2);
+    }
+
+    #[test]
+    fn astar_can_restrict_to_cardinal_movement() {
+        let passable = vec![true; 9];
+        let result = astar_path(AstarPathArgs {
+            width: 3,
+            height: 3,
+            start_x: 0,
+            start_y: 0,
+            goal_x: 2,
+            goal_y: 2,
+            passable: &passable,
+            options: AstarOptions {
+                directions: 4,
+                ..AstarOptions::default()
+            },
+            tick_budget: None,
+        })
+        .unwrap();
+
+        assert_eq!(result.cost, 4);
+        assert_eq!(result.path.len(), 4);
+    }
+
+    #[test]
+    fn astar_respects_max_nodes_option() {
+        let passable = vec![true; 25];
+        let err = astar_path(AstarPathArgs {
+            width: 5,
+            height: 5,
+            start_x: 0,
+            start_y: 0,
+            goal_x: 4,
+            goal_y: 4,
+            passable: &passable,
+            options: AstarOptions {
+                max_nodes: Some(2),
+                ..AstarOptions::default()
+            },
+            tick_budget: None,
+        })
+        .unwrap_err();
+
+        assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_MAXREC));
     }
 
     #[test]

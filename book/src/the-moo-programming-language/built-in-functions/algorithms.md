@@ -339,11 +339,14 @@ route across an overworld. Writing a pathfinder in MOO is possible but slow for 
 LIST astar(INT width, INT height,
            INT start_x, INT start_y,
            INT goal_x, INT goal_y,
-           LIST tile_map, LIST solid_tiles)
+           LIST tile_map, LIST solid_tiles
+           [, MAP options])
 ```
 
 Returns a list of `{x, y}` waypoints from the start to the goal, excluding the start position. If no
-path exists, it returns `{}`.
+path exists, it returns `{}`. With `['return -> 'cost]`, it returns the path cost instead, or `-1`
+when no path exists. With `['return -> 'detail]`, it returns a map with `'path`, `'cost`,
+`'visited`, and `'found` entries.
 
 ### The tile map
 
@@ -399,6 +402,23 @@ first, then down to `(1, 1)`.
 
 Without that restriction, the path would cut through the corner of the wall tile.
 
+The optional `options` map accepts:
+
+```moo
+[
+  'directions -> 8,
+  'corner_cutting -> false,
+  'return -> 'path,
+  'max_nodes -> 1000
+]
+```
+
+`directions` may be `4` or `8`. Four-directional movement only uses north, south, east, and west.
+Eight-directional movement is the default and includes diagonals. `corner_cutting` controls whether
+diagonal movement may pass between two blocked cardinal neighbors. `return` may be `'path`, `'cost`,
+or `'detail`. `max_nodes`, when present, limits the number of grid nodes the search may visit before
+raising `E_MAXREC`.
+
 ### Example
 
 A 3-by-3 open grid with start at `(0, 0)` and goal at `(2, 2)`:
@@ -426,4 +446,5 @@ acceptable. If the goal tile is solid, or no route reaches it, the function retu
 dimensions or out-of-bounds start/goal coordinates raise `E_INVARG`.
 
 `astar()` consumes the running task's normal tick budget as it searches. Large or difficult path
-requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search finishes.
+requests can therefore raise `E_MAXREC` if the task runs out of ticks before the search finishes, or
+if the optional `max_nodes` limit is reached.
