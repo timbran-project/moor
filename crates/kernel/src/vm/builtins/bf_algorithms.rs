@@ -668,6 +668,54 @@ fn bf_term_substitute(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(result))
 }
 
+/// Usage: `list term_variables(any term [, map options])`
+///
+/// Returns the unique `{'var, symbol}` names in traversal order.
+fn bf_term_variables(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 2 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("term_variables() takes 1 or 2 arguments"),
+        ));
+    }
+
+    let options = parse_term_options(bf_args.args.iter_ref().nth(1))?;
+    let mut variables = Vec::new();
+    collect_variables_inner(&bf_args.args[0], &mut variables, &options, 0)?;
+    Ok(Ret(v_list_iter(variables.into_iter().map(v_sym))))
+}
+
+/// Usage: `bool term_ground(any term [, map options])`
+///
+/// Returns true when a term contains no `{'var, symbol}` markers.
+fn bf_term_ground(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 2 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("term_ground() takes 1 or 2 arguments"),
+        ));
+    }
+
+    let options = parse_term_options(bf_args.args.iter_ref().nth(1))?;
+    let ground = term_is_ground_inner(&bf_args.args[0], &options, 0)?;
+    Ok(Ret(bf_args.v_bool(ground)))
+}
+
+/// Usage: `any term_normalize(any term [, map bindings [, map options]])`
+///
+/// Resolves supplied bindings and canonicalizes remaining variables by encounter order.
+fn bf_term_normalize(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("term_normalize() takes 1 to 3 arguments"),
+        ));
+    }
+
+    let options = parse_term_options(bf_args.args.iter_ref().nth(2))?;
+    let bindings = load_bindings(bf_args.args.iter_ref().nth(1), options.max_bindings)?;
+    let mut names = TermBindings::default();
+    let normalized = term_normalize_inner(&bf_args.args[0], &bindings, &mut names, &options, 0)?;
+    Ok(Ret(normalized))
+}
+
 #[inline]
 fn variable_term(name: Symbol) -> Var {
     v_list(&[v_sym(*VAR_SYM), v_sym(name)])
@@ -678,7 +726,14 @@ fn is_internal_query_var(name: Symbol) -> bool {
     name.as_str().starts_with(INTERNAL_QUERY_VAR_PREFIX)
 }
 
-fn collect_variables(term: &Var, variables: &mut Vec<Symbol>) -> Result<(), BfErr> {
+fn collect_variables_inner(
+    term: &Var,
+    variables: &mut Vec<Symbol>,
+    options: &TermOptions,
+    depth: usize,
+) -> Result<(), BfErr> {
+    check_depth(depth, options)?;
+
     if let Some(name) = variable_marker(term)? {
         if !variables.contains(&name) {
             variables.push(name);
@@ -689,18 +744,49 @@ fn collect_variables(term: &Var, variables: &mut Vec<Symbol>) -> Result<(), BfEr
     match term.variant() {
         Variant::List(list) => {
             for item in list.iter_ref() {
-                collect_variables(item, variables)?;
+                collect_variables_inner(item, variables, options, depth + 1)?;
             }
         }
         Variant::Map(map) => {
             for (_, value) in map.iter_ref() {
-                collect_variables(value, variables)?;
+                collect_variables_inner(value, variables, options, depth + 1)?;
             }
         }
         _ => {}
     }
 
     Ok(())
+}
+
+fn collect_variables(term: &Var, variables: &mut Vec<Symbol>) -> Result<(), BfErr> {
+    collect_variables_inner(term, variables, &TermOptions::default(), 0)
+}
+
+fn term_is_ground_inner(term: &Var, options: &TermOptions, depth: usize) -> Result<bool, BfErr> {
+    check_depth(depth, options)?;
+    if variable_marker(term)?.is_some() {
+        return Ok(false);
+    }
+
+    match term.variant() {
+        Variant::List(list) => {
+            for item in list.iter_ref() {
+                if !term_is_ground_inner(item, options, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Variant::Map(map) => {
+            for (_, value) in map.iter_ref() {
+                if !term_is_ground_inner(value, options, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(true),
+    }
 }
 
 fn body_term_is_negative(term: &Var) -> bool {
@@ -939,6 +1025,53 @@ fn resolve_query_term(
             } else {
                 Ok(resolved)
             }
+        }
+        _ => Ok(resolved),
+    }
+}
+
+fn term_normalize_inner(
+    term: &Var,
+    bindings: &TermBindings,
+    names: &mut TermBindings,
+    options: &TermOptions,
+    depth: usize,
+) -> Result<Var, BfErr> {
+    check_depth(depth, options)?;
+
+    let resolved = resolve_top_variable(term, bindings, options)?;
+    if let Some(name) = variable_marker(&resolved)? {
+        if let Some(canonical) = names.get(&name) {
+            return Ok(canonical.clone());
+        }
+        let canonical = variable_term(Symbol::mk(&format!("V{}", names.len() + 1)));
+        names.insert(name, canonical.clone());
+        return Ok(canonical);
+    }
+
+    match resolved.variant() {
+        Variant::List(list) => {
+            let mut items = Vec::with_capacity(list.len());
+            for item in list.iter_ref() {
+                items.push(term_normalize_inner(
+                    item,
+                    bindings,
+                    names,
+                    options,
+                    depth + 1,
+                )?);
+            }
+            Ok(v_list(&items))
+        }
+        Variant::Map(map) => {
+            let mut pairs = Vec::with_capacity(map.len());
+            for (key, value) in map.iter_ref() {
+                pairs.push((
+                    key.clone(),
+                    term_normalize_inner(value, bindings, names, options, depth + 1)?,
+                ));
+            }
+            Ok(v_map(&pairs))
         }
         _ => Ok(resolved),
     }
@@ -1800,6 +1933,9 @@ pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("term_unify")] = bf_term_unify;
     builtins[offset_for_builtin("term_substitute")] = bf_term_substitute;
     builtins[offset_for_builtin("term_query")] = bf_term_query;
+    builtins[offset_for_builtin("term_variables")] = bf_term_variables;
+    builtins[offset_for_builtin("term_ground")] = bf_term_ground;
+    builtins[offset_for_builtin("term_normalize")] = bf_term_normalize;
 }
 
 #[cfg(test)]
@@ -2077,6 +2213,46 @@ mod tests {
     fn term_unify_rejects_malformed_variable_marker() {
         let err = unify(v_list(&[v_sym("var"), v_str("X")]), v_int(1)).unwrap_err();
         assert!(matches!(err, BfErr::ErrValue(error) if error.err_type() == E_INVARG));
+    }
+
+    #[test]
+    fn term_variables_reports_unique_names_in_traversal_order() {
+        let mut variables = Vec::new();
+        collect_variables(
+            &v_list(&[
+                var("From"),
+                v_map(&[(v_sym("nested"), v_list(&[var("To"), var("From")]))]),
+            ]),
+            &mut variables,
+        )
+        .unwrap();
+
+        assert_eq!(variables, vec![Symbol::mk("From"), Symbol::mk("To")]);
+    }
+
+    #[test]
+    fn term_ground_detects_variable_markers() {
+        let options = TermOptions::default();
+        assert!(term_is_ground_inner(&v_list(&[v_sym("edge"), v_int(1)]), &options, 0).unwrap());
+        assert!(!term_is_ground_inner(&v_list(&[v_sym("edge"), var("X")]), &options, 0).unwrap());
+    }
+
+    #[test]
+    fn term_normalize_resolves_bindings_and_canonicalizes_variables() {
+        let mut bindings = TermBindings::default();
+        bindings.insert(Symbol::mk("X"), v_int(10));
+        bindings.insert(Symbol::mk("Y"), var("Z"));
+        let mut names = TermBindings::default();
+        let normalized = term_normalize_inner(
+            &v_list(&[var("Y"), var("X"), var("Z")]),
+            &bindings,
+            &mut names,
+            &TermOptions::default(),
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(normalized, v_list(&[var("V1"), v_int(10), var("V1")]));
     }
 
     #[test]

@@ -1115,6 +1115,21 @@ fn mk_builtin_table() -> Vec<Builtin> {
             ],
             true,
         ),
+        mk_builtin(
+            "term_variables",
+            Q(1),
+            Q(2),
+            vec![Any, Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin("term_ground", Q(1), Q(2), vec![Any, Typed(TYPE_MAP)], true),
+        mk_builtin(
+            "term_normalize",
+            Q(1),
+            Q(3),
+            vec![Any, Typed(TYPE_MAP), Typed(TYPE_MAP)],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "algorithms");

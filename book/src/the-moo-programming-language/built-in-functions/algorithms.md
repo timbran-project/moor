@@ -290,9 +290,52 @@ term_substitute({"property_write", {'var, 'Missing}},
 => {"property_write", {'var, 'Missing}}
 ```
 
+## Term inspection helpers
+
+```moo
+LIST term_variables(ANY term [, MAP options])
+```
+
+Returns the unique variable names in a term, in traversal order. Variable names are returned as
+symbols.
+
+```moo
+term_variables({'edge, {'var, 'From}, {'var, 'To}, {'var, 'From}})
+=> {'From, 'To}
+```
+
+```moo
+BOOL term_ground(ANY term [, MAP options])
+```
+
+Returns true if the term contains no `{'var, symbol}` markers.
+
+```moo
+term_ground({'edge, #10, #11})
+=> 1
+
+term_ground({'edge, #10, {'var, 'To}})
+=> 0
+```
+
+```moo
+ANY term_normalize(ANY term [, MAP bindings [, MAP options]])
+```
+
+Resolves any supplied bindings, then canonicalizes remaining variables by first encounter:
+`{'var, 'V1}`, `{'var, 'V2}`, and so on. This is useful when comparing two terms while ignoring the
+specific variable names chosen by the caller.
+
+```moo
+term_normalize({'edge, {'var, 'Y}, {'var, 'X}, {'var, 'Y}},
+               ['X -> #10])
+=> {'edge, {'var, 'V1}, #10, {'var, 'V1}}
+```
+
 ## Options
 
-`term_unify()` and `term_substitute()` accept:
+`term_unify()`, `term_substitute()`, `term_variables()`, `term_ground()`, and `term_normalize()`
+accept:
 
 ```moo
 [
