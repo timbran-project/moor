@@ -151,9 +151,11 @@ excludes:
   - node_modules/*
   - development-export/*
   - crates/daemon/debian/*
+  - crates/server/debian/*
   - crates/telnet-host/debian/*
   - crates/web-host/debian/*
   - tools/example-python-worker/moor_schema/*
   - generated/*
   - web-client/public/*
-  - .*\.(md|rst|txt|yml|yaml|png|jpg|gif|db|pem|lock|json|toml|in|out|html|moot|edn|node|css|gz|tgz|tar|zip|awk|data|conf|nix|el|ttf|otf|wasm|cfg)
+  - clients/meadow_flutter/*
+  - .*\.(md|rst|txt|yml|yaml|png|jpg|gif|db|pem|lock|json|toml|in|out|html|moot|edn|node|css|gz|tgz|tar|zip|awk|data|conf|nix|el|ttf|otf|wasm|cfg|pem)
