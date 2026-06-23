@@ -71,7 +71,7 @@ use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 pub use curve_keys::CurveKeyPair;
 pub use runtime::{
     LocalClientBroadcastSubscription, LocalClientEventSubscription, LocalEventBus,
-    LocalHostEventSubscription, LocalRuntimeClient, LocalRuntimeServices,
+    LocalHostEventSubscription, LocalRuntimeClient, LocalRuntimeServices, LocalWorkerServices,
 };
 
 pub type ReadySignal = Arc<Mutex<Option<oneshot::Sender<()>>>>;
@@ -138,6 +138,8 @@ pub struct DaemonRuntime {
     pub ready_signal: Option<ReadySignal>,
     pub local_event_bus: Option<Arc<LocalEventBus>>,
     pub local_runtime_services_sender: Option<flume::Sender<LocalRuntimeServices>>,
+    pub local_worker_services_sender:
+        Option<flume::Sender<Arc<dyn moor_runtime_api::WorkerServices>>>,
 }
 
 impl Default for DaemonRuntime {
@@ -149,6 +151,7 @@ impl Default for DaemonRuntime {
             ready_signal: None,
             local_event_bus: None,
             local_runtime_services_sender: None,
+            local_worker_services_sender: None,
         }
     }
 }
@@ -504,6 +507,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         ready_signal,
         local_event_bus,
         local_runtime_services_sender,
+        local_worker_services_sender,
     } = runtime;
     let DaemonRuntimeConfig {
         version,
@@ -741,19 +745,26 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
     let (workers_sender, worker_scheduler_recv, worker_info_source) = if workers_enabled {
         let (worker_scheduler_send, worker_scheduler_recv) = flume::unbounded();
-        let workers_message_handler = Arc::new(
-            workers::WorkersMessageHandlerImpl::new(
-                zmq_ctx.clone(),
-                &endpoints.workers_request_listen,
+        let using_local_workers = local_worker_services_sender.is_some();
+        let workers_message_handler = if using_local_workers {
+            Arc::new(workers::WorkersMessageHandlerImpl::new_local(
                 worker_scheduler_send,
-                if use_curve_for_workers {
-                    Some(daemon_curve_keypair.secret.clone())
-                } else {
-                    None
-                },
+            ))
+        } else {
+            Arc::new(
+                workers::WorkersMessageHandlerImpl::new_zmq(
+                    zmq_ctx.clone(),
+                    &endpoints.workers_request_listen,
+                    worker_scheduler_send,
+                    if use_curve_for_workers {
+                        Some(daemon_curve_keypair.secret.clone())
+                    } else {
+                        None
+                    },
+                )
+                .map_err(|e| eyre!("Failed to create workers message handler: {e}"))?,
             )
-            .map_err(|e| eyre!("Failed to create workers message handler: {e}"))?,
-        );
+        };
 
         let mut workers_server = WorkersServer::new(
             kill_switch.clone(),
@@ -773,15 +784,22 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
             )
         })?;
 
-        let workers_listen_addr = endpoints.workers_response_listen.clone();
-        spawn_efficient("moor-workers-listen", move || {
-            if let Err(e) = workers_server.listen(&workers_listen_addr) {
-                error!(
-                    "Workers server failed to listen on {}: {}",
-                    workers_listen_addr, e
-                );
-            }
-        })?;
+        if let Some(local_worker_services_sender) = local_worker_services_sender {
+            let worker_services =
+                Arc::new(LocalWorkerServices::new(workers_message_handler.clone()))
+                    as Arc<dyn moor_runtime_api::WorkerServices>;
+            let _ = local_worker_services_sender.send(worker_services);
+        } else {
+            let workers_listen_addr = endpoints.workers_response_listen.clone();
+            spawn_efficient("moor-workers-listen", move || {
+                if let Err(e) = workers_server.listen(&workers_listen_addr) {
+                    error!(
+                        "Workers server failed to listen on {}: {}",
+                        workers_listen_addr, e
+                    );
+                }
+            })?;
+        }
 
         (
             Some(workers_sender),

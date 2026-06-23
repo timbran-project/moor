@@ -285,13 +285,11 @@ Use fixed internal endpoints for the first pass:
 ```text
 inproc://moor-services-rpc
 inproc://moor-services-events
-inproc://moor-services-workers-request
-inproc://moor-services-workers-response
 ```
 
-RPC and events should use `inproc://` endpoints. Worker endpoints can either use `inproc://` or be
-disabled for the first single-process binary. Do not expose enrollment/CURVE for these internal
-endpoints:
+RPC and events should use `inproc://` endpoints until the remaining daemon RPC loop is replaced by
+typed local services. Embedded workers should use typed local worker services, not internal worker
+endpoints. Do not expose enrollment/CURVE for these internal endpoints:
 
 - no CURVE/ZAP for daemon-to-host traffic
 - no enrollment server for the internal host listeners
@@ -750,8 +748,7 @@ Avoid dropping the shared ZeroMQ context while daemon/host tasks are still runni
 
 - Keep external worker clustering in the split deployment path.
 - Enable selected embedded workers in the single-process binary behind explicit config flags.
-- Run embedded workers over the same shared ZeroMQ context and internal `inproc://` worker
-  endpoints.
+- Run embedded workers through typed local worker services.
 - Keep embedded curl worker disabled by default.
 
 Do not leave worker behavior implicit.
@@ -920,10 +917,10 @@ Do not remove host registration semantics from split mode.
 
 Single-process deployment should not require external worker clustering. The first worker supported
 inside `moor` is curl, behind `services.curl_worker.enabled` and `--enable-curl-worker`. When
-enabled, the daemon starts its worker transport on internal `inproc://` endpoints and the embedded
-curl worker attaches through the same shared ZeroMQ context. The flag defaults off so deployments
-that do not need outbound HTTP keep the smaller runtime surface. Development and example commands
-opt in so the bundled stack exercises the worker path.
+enabled, the daemon publishes local worker services and the embedded curl worker attaches through
+that typed in-process API. The standalone curl worker still uses the ZeroMQ worker transport. The
+flag defaults off so deployments that do not need outbound HTTP keep the smaller runtime surface.
+Development and example commands opt in so the bundled stack exercises the worker path.
 
 ### API Churn
 

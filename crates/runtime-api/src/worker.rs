@@ -13,6 +13,12 @@
 
 use uuid::Uuid;
 
+use async_trait::async_trait;
+use moor_common::tasks::WorkerError;
+use moor_var::{Obj, Symbol, Var};
+
+use crate::RpcError;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DaemonToWorkerReply {
     Ack,
@@ -23,4 +29,48 @@ pub enum DaemonToWorkerReply {
     InvalidPayload(String),
     UnknownRequest(Uuid),
     NotRegistered(Uuid),
+}
+
+#[derive(Debug, Clone)]
+pub enum DaemonToWorkerEvent {
+    Ping,
+    Request {
+        request_id: Uuid,
+        authority_principal: Obj,
+        request: Vec<Var>,
+        timeout: Option<std::time::Duration>,
+    },
+    PleaseDie,
+}
+
+#[async_trait]
+pub trait WorkerEventSubscription: Send {
+    async fn recv(&mut self) -> Result<DaemonToWorkerEvent, RpcError>;
+}
+
+#[async_trait]
+pub trait WorkerServices: Send + Sync {
+    async fn attach_worker(
+        &self,
+        worker_id: Uuid,
+        worker_type: Symbol,
+    ) -> Result<Box<dyn WorkerEventSubscription>, RpcError>;
+
+    async fn detach_worker(&self, worker_id: Uuid) -> Result<(), RpcError>;
+
+    async fn worker_pong(&self, worker_id: Uuid, worker_type: Symbol) -> Result<(), RpcError>;
+
+    async fn request_result(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        result: Var,
+    ) -> Result<(), RpcError>;
+
+    async fn request_error(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        error: WorkerError,
+    ) -> Result<(), RpcError>;
 }

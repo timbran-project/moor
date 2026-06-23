@@ -22,9 +22,10 @@ use moor_schema::{
 
 use moor_kernel::tasks::workers::{WorkerRequest, WorkerResponse};
 use moor_runtime_api::{
-    StrErr, WORKER_BROADCAST_TOPIC, mk_ping_workers_msg, mk_worker_ack_reply,
-    mk_worker_attached_reply, mk_worker_invalid_payload_reply, mk_worker_not_registered_reply,
-    mk_worker_request_msg, mk_worker_unknown_request_reply, worker_error_from_ref,
+    DaemonToWorkerEvent, RpcError, StrErr, WORKER_BROADCAST_TOPIC, mk_ping_workers_msg,
+    mk_worker_ack_reply, mk_worker_attached_reply, mk_worker_invalid_payload_reply,
+    mk_worker_not_registered_reply, mk_worker_request_msg, mk_worker_unknown_request_reply,
+    worker_error_from_ref,
 };
 use moor_var::{Obj, Symbol, Var};
 use planus::Builder;
@@ -46,6 +47,12 @@ struct Worker {
     worker_type: Symbol,
     /// The set of pending requests for this worker, that we are waiting on responses for.
     requests: Vec<(Uuid, Obj, Vec<Var>)>,
+    local_events: Option<flume::Sender<DaemonToWorkerEvent>>,
+}
+
+enum WorkerEventSink {
+    Zmq(Arc<Mutex<Socket>>),
+    Local,
 }
 
 /// Trait for handling workers message business logic
@@ -74,11 +81,11 @@ pub trait WorkersMessageHandler: Send + Sync {
 pub struct WorkersMessageHandlerImpl {
     workers: Arc<RwLock<HashMap<Uuid, Worker>>>,
     scheduler_send: flume::Sender<WorkerResponse>,
-    workers_publish: Arc<Mutex<Socket>>,
+    event_sink: WorkerEventSink,
 }
 
 impl WorkersMessageHandlerImpl {
-    pub fn new(
+    pub fn new_zmq(
         zmq_context: zmq::Context,
         workers_broadcast: &str,
         scheduler_send: flume::Sender<WorkerResponse>,
@@ -119,8 +126,85 @@ impl WorkersMessageHandlerImpl {
         Ok(Self {
             workers: Arc::new(RwLock::new(HashMap::new())),
             scheduler_send,
-            workers_publish,
+            event_sink: WorkerEventSink::Zmq(workers_publish),
         })
+    }
+
+    pub fn new_local(scheduler_send: flume::Sender<WorkerResponse>) -> Self {
+        Self {
+            workers: Arc::new(RwLock::new(HashMap::new())),
+            scheduler_send,
+            event_sink: WorkerEventSink::Local,
+        }
+    }
+
+    pub fn attach_local_worker(
+        &self,
+        worker_id: Uuid,
+        worker_type: Symbol,
+    ) -> flume::Receiver<DaemonToWorkerEvent> {
+        let (send, recv) = flume::unbounded();
+        let mut workers = self.workers.write().unwrap();
+        workers.insert(
+            worker_id,
+            Worker {
+                last_ping_time: Instant::now(),
+                worker_type,
+                id: worker_id,
+                requests: vec![],
+                local_events: Some(send),
+            },
+        );
+        info!(
+            "Local worker {} of type {} attached",
+            worker_id, worker_type
+        );
+        recv
+    }
+
+    pub fn detach_local_worker(&self, worker_id: Uuid) {
+        self.abort_worker(worker_id);
+    }
+
+    pub fn local_worker_pong(&self, worker_id: Uuid, worker_type: Symbol) {
+        let mut workers = self.workers.write().unwrap();
+        if let Some(worker) = workers.get_mut(&worker_id) {
+            worker.last_ping_time = Instant::now();
+            return;
+        }
+
+        warn!("Received pong from unknown local worker; re-establishing...");
+        let (send, _) = flume::unbounded();
+        workers.insert(
+            worker_id,
+            Worker {
+                last_ping_time: Instant::now(),
+                worker_type,
+                id: worker_id,
+                requests: vec![],
+                local_events: Some(send),
+            },
+        );
+    }
+
+    pub fn local_request_result(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        result: Var,
+    ) -> Result<(), RpcError> {
+        self.complete_worker_request(worker_id, request_id, Ok(result))
+            .map_err(RpcError::Recoverable)
+    }
+
+    pub fn local_request_error(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        error: WorkerError,
+    ) -> Result<(), RpcError> {
+        self.complete_worker_request(worker_id, request_id, Err(error))
+            .map_err(RpcError::Recoverable)
     }
 }
 
@@ -194,17 +278,30 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
     }
 
     fn ping_workers(&self) -> Result<(), eyre::Error> {
-        // Create flatbuffer message
-        let fb_message = mk_ping_workers_msg();
+        match &self.event_sink {
+            WorkerEventSink::Zmq(publish) => {
+                let fb_message = mk_ping_workers_msg();
+                let mut builder = Builder::new();
+                let event_bytes = builder.finish(&fb_message, None);
+                let payload = vec![WORKER_BROADCAST_TOPIC.to_vec(), event_bytes.to_vec()];
 
-        let mut builder = Builder::new();
-        let event_bytes = builder.finish(&fb_message, None);
-        let payload = vec![WORKER_BROADCAST_TOPIC.to_vec(), event_bytes.to_vec()];
-
-        let publish = self.workers_publish.lock().unwrap();
-        publish
-            .send_multipart(payload, 0)
-            .context("Unable to send ping to workers")?;
+                let publish = publish.lock().unwrap();
+                publish
+                    .send_multipart(payload, 0)
+                    .context("Unable to send ping to workers")?;
+            }
+            WorkerEventSink::Local => {
+                let workers = self.workers.read().unwrap();
+                for worker in workers.values() {
+                    let Some(local_events) = worker.local_events.as_ref() else {
+                        continue;
+                    };
+                    local_events
+                        .send(DaemonToWorkerEvent::Ping)
+                        .context("Unable to send ping to local worker")?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -240,31 +337,52 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
                     return Ok(());
                 };
 
-                // Then send the message out on the workers broadcast channel
-                // Convert request parameters to flatbuffer Var
-                let request_fb: Result<Vec<_>, _> = request.iter().map(var_to_flatbuffer).collect();
-                let request_vars =
-                    request_fb.context("Failed to serialize request variables to flatbuffer")?;
+                match &self.event_sink {
+                    WorkerEventSink::Zmq(publish) => {
+                        let request_fb: Result<Vec<_>, _> =
+                            request.iter().map(var_to_flatbuffer).collect();
+                        let request_vars = request_fb
+                            .context("Failed to serialize request variables to flatbuffer")?;
+                        let timeout_ms = timeout.map(|d| d.as_millis() as u64).unwrap_or(0);
+                        let fb_message = mk_worker_request_msg(
+                            worker.id,
+                            request_id,
+                            &authority_principal,
+                            request_vars,
+                            timeout_ms,
+                        );
 
-                let timeout_ms = timeout.map(|d| d.as_millis() as u64).unwrap_or(0);
+                        let mut builder = Builder::new();
+                        let event_bytes = builder.finish(&fb_message, None);
+                        let payload = vec![WORKER_BROADCAST_TOPIC.to_vec(), event_bytes.to_vec()];
 
-                let fb_message = mk_worker_request_msg(
-                    worker.id,
-                    request_id,
-                    &authority_principal,
-                    request_vars,
-                    timeout_ms,
-                );
-
-                let mut builder = Builder::new();
-                let event_bytes = builder.finish(&fb_message, None);
-                let payload = vec![WORKER_BROADCAST_TOPIC.to_vec(), event_bytes.to_vec()];
-
-                {
-                    let publish = self.workers_publish.lock().unwrap();
-                    publish
-                        .send_multipart(payload, 0)
-                        .context("Unable to send request to worker")?;
+                        let publish = publish.lock().unwrap();
+                        publish
+                            .send_multipart(payload, 0)
+                            .context("Unable to send request to worker")?;
+                    }
+                    WorkerEventSink::Local => {
+                        let Some(local_events) = worker.local_events.as_ref() else {
+                            self.scheduler_send
+                                .send(WorkerResponse::Error {
+                                    request_id,
+                                    error: WorkerError::WorkerDetached(format!(
+                                        "{} worker {} has no local event channel",
+                                        worker.worker_type, worker.id
+                                    )),
+                                })
+                                .ok();
+                            return Ok(());
+                        };
+                        local_events
+                            .send(DaemonToWorkerEvent::Request {
+                                request_id,
+                                authority_principal,
+                                request: request.clone(),
+                                timeout,
+                            })
+                            .context("Unable to send request to local worker")?;
+                    }
                 }
 
                 info!(
@@ -337,6 +455,72 @@ fn extract_worker_error(
 }
 
 impl WorkersMessageHandlerImpl {
+    fn abort_worker(&self, worker_id: Uuid) {
+        let mut workers = self.workers.write().unwrap();
+        let Some(worker) = workers.remove(&worker_id) else {
+            error!("Received detach from unknown or old worker");
+            return;
+        };
+
+        for (id, _, _) in worker.requests {
+            self.scheduler_send
+                .send(WorkerResponse::Error {
+                    request_id: id,
+                    error: WorkerError::WorkerDetached(format!(
+                        "{} worker {} detached",
+                        worker.worker_type, worker_id
+                    )),
+                })
+                .ok();
+        }
+    }
+
+    fn complete_worker_request(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        result: Result<Var, WorkerError>,
+    ) -> Result<(), String> {
+        let mut workers = self.workers.write().unwrap();
+        let Some(worker) = workers.get_mut(&worker_id) else {
+            error!(
+                "Received response from unknown or old worker ({}), ignoring",
+                worker_id
+            );
+            return Err(format!("Worker {worker_id} is not registered"));
+        };
+
+        let found_request_idx = worker
+            .requests
+            .iter()
+            .position(|(pending_request_id, _, _)| request_id == *pending_request_id);
+
+        let Some(idx) = found_request_idx else {
+            error!("Received response for unknown or old request");
+            return Err(format!("Worker request {request_id} is not pending"));
+        };
+
+        worker.requests.remove(idx);
+
+        match result {
+            Ok(response) => {
+                self.scheduler_send
+                    .send(WorkerResponse::Response {
+                        request_id,
+                        response,
+                    })
+                    .ok();
+            }
+            Err(error) => {
+                self.scheduler_send
+                    .send(WorkerResponse::Error { request_id, error })
+                    .ok();
+            }
+        }
+
+        Ok(())
+    }
+
     /// Handle AttachWorker message
     fn handle_attach_worker(
         &self,
@@ -353,6 +537,7 @@ impl WorkersMessageHandlerImpl {
                 worker_type,
                 id: worker_id,
                 requests: vec![],
+                local_events: None,
             },
         );
         info!("Worker {} of type {} attached", worker_id, worker_type);
@@ -381,6 +566,7 @@ impl WorkersMessageHandlerImpl {
                     worker_type,
                     id: worker_id,
                     requests: vec![],
+                    local_events: None,
                 },
             );
             info!("Worker {} of type {} re-attached", worker_id, worker_type);
@@ -394,23 +580,7 @@ impl WorkersMessageHandlerImpl {
         &self,
         worker_id: Uuid,
     ) -> Result<moor_rpc::DaemonToWorkerReply, String> {
-        let mut workers = self.workers.write().unwrap();
-        if let Some(worker) = workers.remove(&worker_id) {
-            for (id, _, _) in worker.requests {
-                self.scheduler_send
-                    .send(WorkerResponse::Error {
-                        request_id: id,
-                        error: WorkerError::WorkerDetached(format!(
-                            "{} worker {} detached",
-                            worker.worker_type, worker_id
-                        )),
-                    })
-                    .ok();
-            }
-        } else {
-            error!("Received detach from unknown or old worker");
-        }
-
+        self.abort_worker(worker_id);
         Ok(mk_worker_ack_reply())
     }
 
@@ -424,35 +594,16 @@ impl WorkersMessageHandlerImpl {
 
         let result_var = result.result().str_err().and_then(var_from_ref)?;
 
-        let mut workers = self.workers.write().unwrap();
-        let Some(worker) = workers.get_mut(&worker_id) else {
-            error!(
-                "Received result from unknown or old worker ({}), ignoring",
-                worker_id
-            );
-            return Ok(mk_worker_not_registered_reply(worker_id));
-        };
-
-        let found_request_idx = worker
-            .requests
-            .iter()
-            .position(|(pending_request_id, _, _)| request_id == *pending_request_id);
-
-        let Some(idx) = found_request_idx else {
-            error!("Received result from unknown or old request");
-            return Ok(mk_worker_unknown_request_reply(request_id));
-        };
-
-        worker.requests.remove(idx);
-
-        // Send back the result
-        self.scheduler_send
-            .send(WorkerResponse::Response {
-                request_id,
-                response: result_var,
-            })
-            .ok();
-        Ok(mk_worker_ack_reply())
+        match self.complete_worker_request(worker_id, request_id, Ok(result_var)) {
+            Ok(()) => Ok(mk_worker_ack_reply()),
+            Err(_) => {
+                if self.workers.read().unwrap().contains_key(&worker_id) {
+                    Ok(mk_worker_unknown_request_reply(request_id))
+                } else {
+                    Ok(mk_worker_not_registered_reply(worker_id))
+                }
+            }
+        }
     }
 
     /// Handle RequestError message
@@ -464,31 +615,15 @@ impl WorkersMessageHandlerImpl {
         let request_id = error.request_id().str_err().and_then(uuid_from_ref)?;
         let worker_error = extract_worker_error(error.error())?;
 
-        let mut workers = self.workers.write().unwrap();
-        let Some(worker) = workers.get_mut(&worker_id) else {
-            error!("Received error from unknown or old worker");
-            return Ok(mk_worker_not_registered_reply(worker_id));
-        };
-
-        // Search for the request corresponding to the given request_id
-        let found_request_idx = worker
-            .requests
-            .iter()
-            .position(|(worker_request_id, _, _)| request_id == *worker_request_id);
-
-        let Some(idx) = found_request_idx else {
-            error!("Received error for an unknown or old request");
-            return Ok(mk_worker_unknown_request_reply(request_id));
-        };
-
-        worker.requests.remove(idx);
-
-        self.scheduler_send
-            .send(WorkerResponse::Error {
-                request_id,
-                error: worker_error,
-            })
-            .ok();
-        Ok(mk_worker_ack_reply())
+        match self.complete_worker_request(worker_id, request_id, Err(worker_error)) {
+            Ok(()) => Ok(mk_worker_ack_reply()),
+            Err(_) => {
+                if self.workers.read().unwrap().contains_key(&worker_id) {
+                    Ok(mk_worker_unknown_request_reply(request_id))
+                } else {
+                    Ok(mk_worker_not_registered_reply(worker_id))
+                }
+            }
+        }
     }
 }

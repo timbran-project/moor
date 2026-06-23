@@ -13,14 +13,19 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use moor_common::tasks::WorkerError;
 use moor_runtime_api::{
-    RpcError,
+    DaemonToWorkerEvent, RpcError, WorkerEventSubscription, WorkerServices,
     api::{
         ClientBroadcastSubscription, ClientEventSubscription, HostEventSubscription, HostServices,
         RuntimeClient,
     },
 };
+use moor_var::{Symbol, Var};
 use uuid::Uuid;
+
+use crate::workers::WorkersMessageHandlerImpl;
 
 use super::LocalEventBus;
 
@@ -53,5 +58,74 @@ impl HostServices for LocalRuntimeServices {
 
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError> {
         Ok(Box::new(self.event_bus.subscribe_host_events()))
+    }
+}
+
+pub struct LocalWorkerServices {
+    message_handler: Arc<WorkersMessageHandlerImpl>,
+}
+
+impl LocalWorkerServices {
+    pub fn new(message_handler: Arc<WorkersMessageHandlerImpl>) -> Self {
+        Self { message_handler }
+    }
+}
+
+struct LocalWorkerEventSubscription {
+    recv: flume::Receiver<DaemonToWorkerEvent>,
+}
+
+#[async_trait]
+impl WorkerEventSubscription for LocalWorkerEventSubscription {
+    async fn recv(&mut self) -> Result<DaemonToWorkerEvent, RpcError> {
+        self.recv
+            .recv_async()
+            .await
+            .map_err(|e| RpcError::ConnectionLost(e.to_string()))
+    }
+}
+
+#[async_trait]
+impl WorkerServices for LocalWorkerServices {
+    async fn attach_worker(
+        &self,
+        worker_id: Uuid,
+        worker_type: Symbol,
+    ) -> Result<Box<dyn WorkerEventSubscription>, RpcError> {
+        let recv = self
+            .message_handler
+            .attach_local_worker(worker_id, worker_type);
+        Ok(Box::new(LocalWorkerEventSubscription { recv }))
+    }
+
+    async fn detach_worker(&self, worker_id: Uuid) -> Result<(), RpcError> {
+        self.message_handler.detach_local_worker(worker_id);
+        Ok(())
+    }
+
+    async fn worker_pong(&self, worker_id: Uuid, worker_type: Symbol) -> Result<(), RpcError> {
+        self.message_handler
+            .local_worker_pong(worker_id, worker_type);
+        Ok(())
+    }
+
+    async fn request_result(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        result: Var,
+    ) -> Result<(), RpcError> {
+        self.message_handler
+            .local_request_result(worker_id, request_id, result)
+    }
+
+    async fn request_error(
+        &self,
+        worker_id: Uuid,
+        request_id: Uuid,
+        error: WorkerError,
+    ) -> Result<(), RpcError> {
+        self.message_handler
+            .local_request_error(worker_id, request_id, error)
     }
 }

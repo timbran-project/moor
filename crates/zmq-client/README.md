@@ -8,4 +8,4 @@ Downstream uses:
 - Used by standalone hosts, workers, MCP tooling, and load tools that communicate with a separate
   runtime process.
 - Implements the transport for contracts defined in `moor-runtime-api`.
-- Single-process daemon paths can use local runtime services instead of this transport.
+- Single-process daemon paths can use local runtime and worker services instead of this transport.

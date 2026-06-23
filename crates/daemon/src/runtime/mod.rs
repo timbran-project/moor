@@ -24,4 +24,4 @@ pub use local_events::{
     LocalClientBroadcastSubscription, LocalClientEventSubscription, LocalEventBus,
     LocalHostEventSubscription,
 };
-pub use services::LocalRuntimeServices;
+pub use services::{LocalRuntimeServices, LocalWorkerServices};

@@ -52,8 +52,6 @@ static GLOBAL: MiMalloc = MiMalloc;
 const INPROC_RPC_ENDPOINT: &str = "inproc://moor-services-rpc";
 const INPROC_EVENTS_ENDPOINT: &str = "inproc://moor-services-events";
 const INPROC_ENROLLMENT_ENDPOINT: &str = "inproc://moor-services-enrollment";
-const INPROC_WORKERS_RESPONSE_ENDPOINT: &str = "inproc://moor-services-workers-response";
-const INPROC_WORKERS_REQUEST_ENDPOINT: &str = "inproc://moor-services-workers-request";
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Format {
@@ -383,6 +381,7 @@ async fn main() -> Result<(), Report> {
 
     let (ready_sender, ready_receiver) = oneshot::channel();
     let (local_runtime_services_sender, local_runtime_services_receiver) = flume::bounded(1);
+    let (local_worker_services_sender, local_worker_services_receiver) = flume::bounded(1);
     let ready_signal = Arc::new(Mutex::new(Some(ready_sender)));
     let local_event_bus = Arc::new(LocalEventBus::new());
     let runtime_config = DaemonRuntimeConfig {
@@ -410,16 +409,8 @@ async fn main() -> Result<(), Report> {
         endpoints: DaemonEndpoints {
             rpc_listen: INPROC_RPC_ENDPOINT.to_string(),
             events_listen: INPROC_EVENTS_ENDPOINT.to_string(),
-            workers_request_listen: if services_config.curl_worker.enabled {
-                INPROC_WORKERS_REQUEST_ENDPOINT.to_string()
-            } else {
-                String::new()
-            },
-            workers_response_listen: if services_config.curl_worker.enabled {
-                INPROC_WORKERS_RESPONSE_ENDPOINT.to_string()
-            } else {
-                String::new()
-            },
+            workers_request_listen: String::new(),
+            workers_response_listen: String::new(),
             enrollment_listen: INPROC_ENROLLMENT_ENDPOINT.to_string(),
         },
         keys: DaemonKeys {
@@ -444,6 +435,10 @@ async fn main() -> Result<(), Report> {
         ready_signal: Some(ready_signal),
         local_event_bus: Some(local_event_bus),
         local_runtime_services_sender: Some(local_runtime_services_sender),
+        local_worker_services_sender: services_config
+            .curl_worker
+            .enabled
+            .then_some(local_worker_services_sender),
     };
 
     let daemon_handle =
@@ -458,16 +453,8 @@ async fn main() -> Result<(), Report> {
     let connection_config = RpcClientConfig {
         rpc_address: INPROC_RPC_ENDPOINT.to_string(),
         events_address: INPROC_EVENTS_ENDPOINT.to_string(),
-        workers_response_address: if services_config.curl_worker.enabled {
-            INPROC_WORKERS_RESPONSE_ENDPOINT.to_string()
-        } else {
-            String::new()
-        },
-        workers_request_address: if services_config.curl_worker.enabled {
-            INPROC_WORKERS_REQUEST_ENDPOINT.to_string()
-        } else {
-            String::new()
-        },
+        workers_response_address: String::new(),
+        workers_request_address: String::new(),
         enrollment_address: INPROC_ENROLLMENT_ENDPOINT.to_string(),
         data_dir: args.data_dir.join("hosts"),
         enrollment_token_file: None,
@@ -516,19 +503,19 @@ async fn main() -> Result<(), Report> {
     }
 
     if services_config.curl_worker.enabled {
-        let curl_worker_config = moor_curl_worker::CurlWorkerConfig {
-            connection: RpcClientConfig {
-                data_dir: args.data_dir.join("curl-worker"),
-                ..connection_config.clone()
-            },
-            health_check_port: services_config.curl_worker.health_check_port,
-        };
-        let curl_worker_runtime = moor_curl_worker::WorkerRuntime {
-            zmq_context: zmq_context.clone(),
+        let worker_services = local_worker_services_receiver
+            .recv()
+            .map_err(|e| eyre!("Daemon did not publish local worker services: {e}"))?;
+        let curl_worker_runtime = moor_curl_worker::LocalWorkerRuntime {
             kill_switch: kill_switch.clone(),
         };
         host_tasks.push(tokio::spawn(async move {
-            moor_curl_worker::run(curl_worker_config, curl_worker_runtime).await
+            moor_curl_worker::run_with_services(
+                services_config.curl_worker.health_check_port,
+                curl_worker_runtime,
+                worker_services,
+            )
+            .await
         }));
     }
 

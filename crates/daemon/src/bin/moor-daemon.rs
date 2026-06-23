@@ -129,6 +129,7 @@ fn main() -> Result<(), Report> {
         ready_signal: None,
         local_event_bus: None,
         local_runtime_services_sender: None,
+        local_worker_services_sender: None,
     };
 
     moor_daemon::run(runtime_config, runtime)

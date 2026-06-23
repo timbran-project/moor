@@ -20,14 +20,16 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
+    time::Duration,
 };
 
 use eyre::{Result, eyre};
 use moor_common::tasks::WorkerError;
-use moor_runtime_api::client_args::RpcClientConfig;
+use moor_runtime_api::{DaemonToWorkerEvent, WorkerServices, client_args::RpcClientConfig};
 use moor_var::{Obj, Symbol, Var, Variant, v_int, v_list, v_list_iter, v_str};
 use moor_zmq_client::worker_loop_with_context;
 use reqwest::Url;
+use tokio::time::timeout;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -41,6 +43,11 @@ pub struct CurlWorkerConfig {
 #[derive(Clone)]
 pub struct WorkerRuntime {
     pub zmq_context: tmq::Context,
+    pub kill_switch: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+pub struct LocalWorkerRuntime {
     pub kill_switch: Arc<AtomicBool>,
 }
 
@@ -90,6 +97,103 @@ pub async fn run(config: CurlWorkerConfig, runtime: WorkerRuntime) -> Result<()>
     )
     .await
     .map_err(|e| eyre!("Worker loop for {worker_id} exited with error: {e}"))
+}
+
+pub async fn run_with_services(
+    health_check_port: Option<u16>,
+    runtime: LocalWorkerRuntime,
+    worker_services: Arc<dyn WorkerServices>,
+) -> Result<()> {
+    let worker_id = Uuid::new_v4();
+    let worker_type = Symbol::mk("curl");
+    let last_daemon_ping = Arc::new(AtomicU64::new(0));
+
+    if let Some(health_check_port) = health_check_port {
+        spawn_health_check(
+            format!("0.0.0.0:{health_check_port}"),
+            runtime.kill_switch.clone(),
+            last_daemon_ping.clone(),
+        );
+    }
+
+    let mut events = worker_services
+        .attach_worker(worker_id, worker_type)
+        .await
+        .map_err(|e| eyre!("Failed to attach local curl worker {worker_id}: {e}"))?;
+    let perform = Arc::new(perform_http_request);
+
+    loop {
+        if runtime.kill_switch.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let event = match timeout(Duration::from_millis(250), events.recv()).await {
+            Ok(Ok(event)) => event,
+            Ok(Err(e)) => return Err(eyre!("Local curl worker event stream failed: {e}")),
+            Err(_) => continue,
+        };
+
+        match event {
+            DaemonToWorkerEvent::Ping => {
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                last_daemon_ping.store(timestamp, Ordering::Relaxed);
+                worker_services
+                    .worker_pong(worker_id, worker_type)
+                    .await
+                    .map_err(|e| eyre!("Unable to send local curl worker pong: {e}"))?;
+            }
+            DaemonToWorkerEvent::Request {
+                request_id,
+                authority_principal,
+                request,
+                timeout,
+            } => {
+                let worker_services = worker_services.clone();
+                let perform = perform.clone();
+                tokio::spawn(async move {
+                    let result = perform(
+                        request_id,
+                        worker_type,
+                        authority_principal,
+                        request,
+                        timeout,
+                    )
+                    .await;
+                    match result {
+                        Ok(result) => {
+                            if let Err(e) = worker_services
+                                .request_result(worker_id, request_id, result)
+                                .await
+                            {
+                                error!("Unable to send local curl worker result: {}", e);
+                            }
+                        }
+                        Err(error) => {
+                            if let Err(e) = worker_services
+                                .request_error(worker_id, request_id, error)
+                                .await
+                            {
+                                error!("Unable to send local curl worker error: {}", e);
+                            }
+                        }
+                    }
+                });
+            }
+            DaemonToWorkerEvent::PleaseDie => {
+                runtime.kill_switch.store(true, Ordering::Relaxed);
+                break;
+            }
+        }
+    }
+
+    worker_services
+        .detach_worker(worker_id)
+        .await
+        .map_err(|e| eyre!("Unable to detach local curl worker {worker_id}: {e}"))?;
+    Ok(())
 }
 
 fn spawn_health_check(

@@ -29,7 +29,9 @@ pub use tokens::{
     AuthToken, ClientToken, KeyError, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER,
     load_keypair, parse_keypair,
 };
-pub use worker::DaemonToWorkerReply;
+pub use worker::{
+    DaemonToWorkerEvent, DaemonToWorkerReply, WorkerEventSubscription, WorkerServices,
+};
 
 pub use tokens::{auth_token_from_ref, client_token_from_ref};
 

@@ -28,5 +28,5 @@ Libraries:
   Pure types with no host/scheduler dependencies.
 - `kernel` - the kernel of the MOO driver: task scheduler, builtin functions, and host services that
   wire the VM into the transactional database
-- `runtime-api` - typed host/runtime API, shared message types, and wire codec helpers
-- `zmq-client` - ZeroMQ-backed runtime client and host service implementation
+- `runtime-api` - typed host/runtime and worker API, shared message types, and wire codec helpers
+- `zmq-client` - ZeroMQ-backed runtime client, host service, and worker transport implementation
