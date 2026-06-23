@@ -124,6 +124,8 @@ pub struct Task {
     player: Obj,
     /// The object on behalf of which task permissions are evaluated.
     authority_principal: Obj,
+    /// Cached flags for the authority principal.
+    authority_principal_flags: BitEnum<ObjFlag>,
     /// The actual VM host which is managing the execution of this task.
     pub(crate) vm_host: VmHost,
     /// True if the task should die.
@@ -212,6 +214,7 @@ impl Task {
             state,
             vm_host,
             authority_principal,
+            authority_principal_flags: BitEnum::new(),
             kill_switch,
             retries: 0,
             retry_state,
@@ -233,7 +236,7 @@ impl Task {
 
     #[inline]
     fn task_permissions(&self) -> TaskPermissions {
-        TaskPermissions::new(self.authority_principal, BitEnum::new())
+        TaskPermissions::new(self.authority_principal, self.authority_principal_flags)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -244,6 +247,7 @@ impl Task {
         state: TaskState,
         vm_host: VmHost,
         authority_principal: Obj,
+        authority_principal_flags: BitEnum<ObjFlag>,
         kill_switch: Arc<AtomicBool>,
         retries: u8,
         retry_state: ExecState,
@@ -258,6 +262,7 @@ impl Task {
             state,
             vm_host,
             authority_principal,
+            authority_principal_flags,
             kill_switch,
             retries,
             retry_state,
@@ -312,7 +317,14 @@ impl Task {
         let authority_principal = self.vm_host.vm_exec_state().task_authority_principal();
         if !authority_principal.is_nothing() {
             self.authority_principal = authority_principal;
+            self.refresh_authority_principal_flags();
         }
+    }
+
+    fn refresh_authority_principal_flags(&mut self) {
+        self.authority_principal_flags =
+            with_current_transaction(|ws| ws.flags_of(&self.authority_principal))
+                .unwrap_or_default();
     }
 
     fn collect_live_program_ptrs_from_state(
@@ -894,6 +906,7 @@ impl Task {
     pub(crate) fn setup_task_start(&mut self, tsc: &TaskSchedulerClient, config: &Config) -> bool {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::SetupTask);
+        self.refresh_authority_principal_flags();
         match self.state.task_start() {
             // We've been asked to start a command.
             // We need to set up the VM and then execute it.
@@ -1229,10 +1242,10 @@ impl Task {
         let (player_location, parsed_command) = {
             let perfc = sched_counters();
             let _t = perfc.timers.start(SchedulerOp::ParseCommand);
-            let player_permissions = TaskPermissions::new(*player, BitEnum::new());
+            let task_permissions = self.task_permissions();
 
             // We need the player's location, and we'll just die if we can't get it.
-            let player_location = match world_state.location_of(&player_permissions, player) {
+            let player_location = match world_state.location_of(&task_permissions, player) {
                 Ok(loc) => loc,
                 Err(WorldStateError::VerbPermissionDenied)
                 | Err(WorldStateError::ObjectPermissionDenied)
@@ -1245,7 +1258,7 @@ impl Task {
             };
 
             // Parse the command in the current environment.
-            let me = WsMatchEnv::new(world_state, *player);
+            let me = WsMatchEnv::with_permissions(world_state, task_permissions);
             let matcher = ComplexObjectNameMatcher {
                 env: me,
                 player: *player,
@@ -1266,8 +1279,13 @@ impl Task {
         };
 
         // Look for the verb...
-        let parse_results =
-            find_verb_for_command(player, &player_location, &parsed_command, world_state)?;
+        let parse_results = find_verb_for_command(
+            &self.task_permissions(),
+            player,
+            &player_location,
+            &parsed_command,
+            world_state,
+        )?;
         let ((program, verbdef, permissions_flags), target) = match parse_results {
             // If we have a successful match, that's what we'll call into
             Some((verb_info, target)) => (verb_info, target),
@@ -1377,6 +1395,7 @@ impl Drop for Task {
 
 #[allow(clippy::type_complexity)]
 fn find_verb_for_command(
+    permissions: &TaskPermissions,
     player: &Obj,
     player_location: &Obj,
     pc: &ParsedCommand,
@@ -1392,11 +1411,10 @@ fn find_verb_for_command(
     ];
     let dobj = pc.dobj.unwrap_or(NOTHING);
     let iobj = pc.iobj.unwrap_or(NOTHING);
-    let player_permissions = TaskPermissions::new(*player, BitEnum::new());
     for target in targets_to_search {
         let argspec = command_verb_argspec(&target, &dobj, pc.prep, &iobj);
         let match_result = ws.dispatch_verb(
-            &player_permissions,
+            permissions,
             VerbDispatch::new(
                 VerbLookup::command(&target, pc.verb, argspec),
                 DispatchFlagsSource::VerbOwner,
@@ -1417,7 +1435,7 @@ fn find_verb_for_command(
             return Ok(Some((
                 (
                     ws.retrieve_verb(
-                        &player_permissions,
+                        permissions,
                         &verb_result.program_key.verb_definer,
                         verb_result.program_key.verb_uuid,
                     )

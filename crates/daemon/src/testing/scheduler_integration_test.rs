@@ -51,10 +51,14 @@ mod tests {
         let start_time = Instant::now();
         loop {
             if start_time.elapsed() > Duration::from_secs(timeout_secs) {
+                let narrative_events = transport.get_narrative_events();
+                let client_events = transport.get_client_events();
                 panic!(
-                    "No expected {} after {}s",
+                    "No expected {} after {}s\n\nNarrative events:\n{:#?}\n\nClient events:\n{:#?}",
                     description,
-                    start_time.elapsed().as_secs_f32()
+                    start_time.elapsed().as_secs_f32(),
+                    narrative_events,
+                    client_events
                 );
             }
 

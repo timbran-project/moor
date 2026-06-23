@@ -1995,6 +1995,7 @@ pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConve
         task_state,
         vm_host,
         authority_principal,
+        moor_common::util::BitEnum::new(),
         std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         retries,
         retry_state,
