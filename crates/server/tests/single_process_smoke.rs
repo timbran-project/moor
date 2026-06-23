@@ -295,4 +295,5 @@ fn minimal_core_path() -> std::path::PathBuf {
         .and_then(Path::parent)
         .expect("workspace root")
         .join("cores/minimal-core")
+        .join("src")
 }
