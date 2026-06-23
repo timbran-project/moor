@@ -19,51 +19,21 @@
 #[cfg(test)]
 mod tests {
     use std::{
-        path::PathBuf,
-        sync::{Arc, atomic::AtomicBool},
+        sync::Arc,
         time::{Duration, Instant},
     };
-    use tempfile::TempDir;
     use uuid::Uuid;
 
-    use crate::{
-        connections::ConnectionRegistryFactory,
-        rpc::RpcServer,
-        testing::{MockEventLog, MockTransport},
-    };
+    use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
-    use moor_common::{model::CommitResult, tasks::Event};
-    use moor_db::{Database, DatabaseConfig, TxDB};
-    use moor_kernel::{
-        config::Config,
-        tasks::{NoopTasksDb, scheduler::Scheduler},
-    };
+    use moor_common::tasks::Event;
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
         mk_connection_establish_msg, mk_login_command_msg, ws_list_objects,
         ws_request_system_property, ws_resolve_object,
     };
     use moor_schema::rpc as moor_rpc;
-    use moor_textdump::{TextdumpImportOptions, textdump_load};
     use moor_var::{Obj, SYSTEM_OBJECT};
-    use rusty_paseto::prelude::Key;
-    use semver::Version;
-
-    /// Wait for the scheduler to be ready by attempting simple operations
-    fn wait_for_scheduler_ready(scheduler_client: &moor_kernel::SchedulerClient) {
-        let start = Instant::now();
-        let timeout = Duration::from_secs(10);
-
-        while start.elapsed() < timeout {
-            if scheduler_client.check_status().is_ok() {
-                return;
-            }
-            // Short sleep to avoid busy waiting, but not load-bearing
-            std::thread::sleep(Duration::from_millis(1));
-        }
-
-        panic!("Scheduler failed to become ready within timeout");
-    }
 
     /// Wait for an event with content matching the given predicate
     ///
@@ -163,184 +133,14 @@ mod tests {
         );
     }
 
-    fn create_test_keys() -> (Key<32>, Key<64>) {
-        // Use the fixed test keys from rpc_integration_test
-        const SIGNING_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEILrkKmddHFUDZqRCnbQsPoW/Wsp0fLqhnv5KNYbcQXtk
------END PRIVATE KEY-----
-"#;
+    type TestEnvironment = test_env::TestEnvironment<MockTransport>;
 
-        const VERIFYING_KEY: &str = r#"-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
------END PUBLIC KEY-----
-"#;
-
-        let (private_key, public_key) = moor_runtime_api::parse_keypair(VERIFYING_KEY, SIGNING_KEY)
-            .expect("Failed to parse test keypair");
-        (public_key, private_key)
-    }
-
-    /// Create a temporary database with JHCore loaded
-    fn setup_test_db_with_core() -> (Box<dyn Database>, TempDir) {
-        // Create temporary directory for database
-        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
-        let db_path = temp_dir.path().join("test.db");
-
-        // Create database
-        let (db, _) = TxDB::try_open(Some(&db_path), DatabaseConfig::default()).unwrap();
-        let db = Box::new(db) as Box<dyn Database>;
-
-        // Load JHCore
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let jhcore = manifest_dir.join("../../cores/JHCore-DEV-2.db");
-
-        let mut loader = db.loader_client().unwrap();
-        let config = Config::default();
-        textdump_load(
-            loader.as_mut(),
-            jhcore,
-            Version::new(0, 1, 0),
-            config.features.compile_options(),
-            TextdumpImportOptions::default(),
-        )
-        .expect("Failed to load textdump");
-        assert!(matches!(loader.commit(), Ok(CommitResult::Success { .. })));
-
-        (db, temp_dir)
-    }
-
-    struct TestEnvironment {
-        message_handler: Arc<dyn crate::rpc::MessageHandler>,
-        transport: Arc<MockTransport>,
-        event_log: Arc<MockEventLog>,
-        scheduler_client: moor_kernel::SchedulerClient,
-        kill_switch: Arc<AtomicBool>,
-        _temp_dir: TempDir,
-        _temp_output_dir: Option<TempDir>,
-        output_dir_path: Option<PathBuf>,
-        scheduler_thread: Option<std::thread::JoinHandle<()>>,
-        rpc_thread: Option<std::thread::JoinHandle<()>>,
-    }
-
-    impl Drop for TestEnvironment {
-        fn drop(&mut self) {
-            // Signal shutdown
-            self.kill_switch
-                .store(true, std::sync::atomic::Ordering::SeqCst);
-
-            // Send shutdown message to scheduler
-            let _ = self.scheduler_client.submit_shutdown("Test complete");
-
-            // Wait for scheduler thread to finish (with timeout)
-            if let Some(thread) = self.scheduler_thread.take() {
-                // Give it a reasonable time to shut down
-                let _ = thread.join();
-            }
-
-            // Wait for RPC thread to finish
-            if let Some(thread) = self.rpc_thread.take() {
-                let _ = thread.join();
-            }
-        }
+    fn wait_for_scheduler_ready(scheduler_client: &moor_kernel::SchedulerClient) {
+        test_env::wait_for_scheduler_ready(scheduler_client);
     }
 
     fn setup_test_environment_with_checkpoint_output() -> TestEnvironment {
-        // Set up tracing to capture scheduler logs
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .with_test_writer()
-            .try_init();
-
-        let (public_key, private_key) = create_test_keys();
-
-        // Create a config with a proper output path for checkpoints
-        let temp_output_dir = tempfile::tempdir().expect("Failed to create temp output dir");
-        let output_path = temp_output_dir.path().to_path_buf();
-
-        let mut config = Config::default();
-        config.import_export.output_path = Some(output_path.clone());
-        // Enable anonymous objects for GC tests
-        config.features = Arc::new(moor_kernel::config::FeaturesConfig {
-            anonymous_objects: true,
-            ..config.features.as_ref().clone()
-        });
-        let config = Arc::new(config);
-
-        // Create real database with core
-        let (db, temp_dir) = setup_test_db_with_core();
-
-        // Create kill switch
-        let kill_switch = Arc::new(AtomicBool::new(false));
-
-        // Create mock components
-        let connections = ConnectionRegistryFactory::in_memory_only().unwrap();
-        let transport = Arc::new(MockTransport::new());
-        let event_log = Arc::new(MockEventLog::new());
-
-        // Create RpcServer with MockTransport - this will be the single source of truth!
-        let (rpc_server, task_monitor, system_control) = RpcServer::new(
-            kill_switch.clone(),
-            public_key,
-            private_key,
-            connections,
-            event_log.clone(),
-            transport.clone(),
-            config.clone(),
-            None,
-            Arc::new(crate::system_control::NoopWorkerInfoSource),
-        );
-
-        // Get the message handler from the RpcServer for direct testing
-        let message_handler = rpc_server.message_handler().clone();
-
-        // Create real scheduler with our test database
-        let tasks_db = Box::new(NoopTasksDb {});
-        let scheduler = Scheduler::new(
-            Version::new(0, 1, 0),
-            db,
-            tasks_db,
-            config,
-            Arc::new(system_control),
-            None, // No workers for testing
-            None, // No worker receiver for testing
-        );
-
-        // Get scheduler client before starting scheduler
-        let scheduler_client = scheduler.client().expect("Failed to get scheduler client");
-
-        let rpc_server_arc = Arc::new(rpc_server);
-
-        // Start the RPC server's request loop (handles SessionActions messages)
-        let rpc_server_for_loop = rpc_server_arc.clone();
-        let scheduler_client_for_rpc = scheduler_client.clone();
-        let rpc_thread = std::thread::Builder::new()
-            .name("test-rpc-server".to_string())
-            .spawn(move || {
-                if let Err(e) = rpc_server_for_loop.request_loop(
-                    "mock://test".to_string(),
-                    scheduler_client_for_rpc,
-                    task_monitor,
-                ) {
-                    eprintln!("RPC server request loop error: {e:?}");
-                }
-            })
-            .expect("Failed to spawn RPC server thread");
-
-        // Start scheduler (spawns timer + worker threads internally)
-        let scheduler_thread = scheduler.start(rpc_server_arc);
-
-        TestEnvironment {
-            message_handler,
-            transport,
-            event_log,
-            scheduler_client,
-            kill_switch,
-            _temp_dir: temp_dir,
-            _temp_output_dir: Some(temp_output_dir),
-            output_dir_path: Some(output_path),
-            scheduler_thread: Some(scheduler_thread),
-            rpc_thread: Some(rpc_thread),
-        }
+        test_env::setup_test_environment_with_checkpoint_output(Arc::new(MockTransport::new()))
     }
 
     fn setup_test_environment_with_real_scheduler() -> TestEnvironment {

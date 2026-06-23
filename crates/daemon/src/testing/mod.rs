@@ -13,8 +13,12 @@
 
 //! Testing utilities for the daemon
 
+#[cfg(test)]
+mod backend_parity_test;
 pub mod mock_event_log;
 pub mod mock_transport;
+#[cfg(test)]
+pub mod test_env;
 
 #[cfg(test)]
 mod rpc_integration_test;
