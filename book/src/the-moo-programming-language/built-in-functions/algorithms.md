@@ -1,9 +1,18 @@
 # Structured Data Matching and Pathfinding
 
-These mooR extensions provide kernel-side algorithms for structured MOO values. They are intended
-for cases where MOO code would otherwise spend a large amount of time walking nested lists, maps, or
-list-backed data structures in tight loops. Two kinds of algorithms are provided: pattern matching
-for structured data, and pathfinding for tile-based maps.
+These mooR extensions provide MOO-side algorithms for structured MOO values in the form of lists or
+maps that would be typically used for games and/or logic programming.
+
+They are intended for cases where MOO code would otherwise spend a large amount of time walking
+nested lists, maps, or list-backed data structures in tight loops. They do not inspect the object
+database or call back into MOO verbs; instead, callers supply ordinary values such as terms, tile
+maps, and edge lists, and the server performs bounded search or traversal over those values more
+efficiently than MOO code would.
+
+The functions fall into three related groups. The `term_*` builtins match and transform nested list
+and map structures, including small rule queries over caller-supplied facts. The grid functions work
+with flat tile maps for pathfinding, line-of-sight checks, and flood fills. The graph functions work
+over explicit edge lists for shortest paths, reachability, and topological ordering.
 
 ## Pattern matching for structured data
 
