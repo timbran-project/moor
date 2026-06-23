@@ -121,6 +121,12 @@ pub struct PendingOAuth2Store {
     pending_codes: RwLock<HashMap<String, PendingEntry>>,
 }
 
+impl Default for PendingOAuth2Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PendingOAuth2Store {
     pub fn new() -> Self {
         Self {

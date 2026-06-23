@@ -354,6 +354,11 @@ pub trait ClientBroadcastSubscription: Send {
     async fn recv_client_broadcast(&mut self) -> Result<BroadcastEventMessage, RpcError>;
 }
 
+pub type ClientSubscriptions = (
+    Box<dyn ClientEventSubscription>,
+    Box<dyn ClientBroadcastSubscription>,
+);
+
 /// Host broadcast event subscription.
 #[async_trait]
 pub trait HostEventSubscription: Send {
@@ -364,16 +369,7 @@ pub trait HostEventSubscription: Send {
 pub trait HostServices: Send + Sync {
     fn runtime_client(&self) -> Arc<dyn RuntimeClient>;
 
-    fn client_subscriptions(
-        &self,
-        client_id: Uuid,
-    ) -> Result<
-        (
-            Box<dyn ClientEventSubscription>,
-            Box<dyn ClientBroadcastSubscription>,
-        ),
-        RpcError,
-    >;
+    fn client_subscriptions(&self, client_id: Uuid) -> Result<ClientSubscriptions, RpcError>;
 
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError>;
 }

@@ -781,7 +781,7 @@ fn decode_client_reply_ref(
                             .name()
                             .ok()
                             .flatten()
-                            .and_then(|s| s.value().ok().map(|v| moor_var::Symbol::mk(v))),
+                            .and_then(|s| s.value().ok().map(moor_var::Symbol::mk)),
                         parent: o.parent().ok().flatten().and_then(|p| obj_from_ref(p).ok()),
                         owner: obj_from_ref(o.owner().ok()?).unwrap_or(moor_var::SYSTEM_OBJECT),
                         flags: o.flags().unwrap_or(0),
@@ -1400,7 +1400,7 @@ fn encode_batch_action(action: api::BatchAction) -> moor_rpc::WorldStateActionUn
             obj,
             property,
             value,
-        } => ws_update_property(&obj, &property, &value).unwrap_or_else(|| ws_list_objects()),
+        } => ws_update_property(&obj, &property, &value).unwrap_or_else(ws_list_objects),
         api::BatchAction::ProgramVerb {
             obj,
             verb_name,

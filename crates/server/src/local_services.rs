@@ -17,10 +17,7 @@ use async_trait::async_trait;
 use moor_common::tasks::WorkerError;
 use moor_runtime_api::{
     DaemonToWorkerEvent, RpcError, WorkerEventSubscription, WorkerServices,
-    api::{
-        ClientBroadcastSubscription, ClientEventSubscription, HostEventSubscription, HostServices,
-        RuntimeClient,
-    },
+    api::{ClientSubscriptions, HostEventSubscription, HostServices, RuntimeClient},
 };
 use moor_var::{Symbol, Var};
 use uuid::Uuid;
@@ -40,16 +37,7 @@ impl HostServices for LocalRuntimeServices {
         self.runtime_client.clone()
     }
 
-    fn client_subscriptions(
-        &self,
-        client_id: Uuid,
-    ) -> Result<
-        (
-            Box<dyn ClientEventSubscription>,
-            Box<dyn ClientBroadcastSubscription>,
-        ),
-        RpcError,
-    > {
+    fn client_subscriptions(&self, client_id: Uuid) -> Result<ClientSubscriptions, RpcError> {
         Ok((
             Box::new(self.event_bus.subscribe_client_events(client_id)),
             Box::new(self.event_bus.subscribe_client_broadcasts()),

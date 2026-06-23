@@ -263,9 +263,11 @@ impl RuntimeApi for RpcMessageHandler {
                     scheduler_client,
                     client_id,
                     &connection,
-                    connect_args,
-                    do_attach,
-                    event_log_pubkey,
+                    TypedLoginCommand {
+                        args: connect_args,
+                        attach: do_attach,
+                        event_log_pubkey,
+                    },
                 )
             }
 
@@ -807,6 +809,12 @@ impl RuntimeApi for RpcMessageHandler {
 // Helper methods for the typed path
 // ---------------------------------------------------------------------------
 
+struct TypedLoginCommand {
+    args: Vec<String>,
+    attach: bool,
+    event_log_pubkey: Option<String>,
+}
+
 impl RpcMessageHandler {
     fn request_sys_prop_typed(
         &self,
@@ -838,13 +846,11 @@ impl RpcMessageHandler {
         scheduler_client: SchedulerClient,
         client_id: Uuid,
         connection: &Obj,
-        args: Vec<String>,
-        attach: bool,
-        event_log_pubkey: Option<String>,
+        command: TypedLoginCommand,
     ) -> Result<ClientReply, RpcMessageError> {
         use moor_kernel::tasks::TaskNotification;
 
-        let connect_type = if args.first() == Some(&"create".to_string()) {
+        let connect_type = if command.args.first().is_some_and(|arg| arg == "create") {
             ConnectType::Created
         } else {
             ConnectType::Connected
@@ -864,8 +870,8 @@ impl RpcMessageHandler {
             connection,
             &ObjectRef::Id(*handler_object),
             *DO_LOGIN_COMMAND,
-            args.iter().map(|s| v_str(s)).collect(),
-            v_string(args.join(" ")),
+            command.args.iter().map(|s| v_str(s)).collect(),
+            v_string(command.args.join(" ")),
             &SYSTEM_OBJECT,
             session,
         ) {
@@ -911,11 +917,11 @@ impl RpcMessageHandler {
             ));
         };
 
-        if let Some(pubkey) = event_log_pubkey {
+        if let Some(pubkey) = command.event_log_pubkey {
             self.event_log.set_pubkey(player, pubkey);
         }
 
-        if attach {
+        if command.attach {
             let fb_connect_type = match connect_type {
                 ConnectType::Connected => moor_rpc::ConnectType::Connected,
                 ConnectType::Reconnected => moor_rpc::ConnectType::Reconnected,

@@ -17,10 +17,7 @@ use std::sync::Arc;
 
 use moor_runtime_api::{
     CLIENT_BROADCAST_TOPIC, HOST_BROADCAST_TOPIC, RpcError,
-    api::{
-        ClientBroadcastSubscription, ClientEventSubscription, HostEventSubscription, HostServices,
-        RuntimeClient,
-    },
+    api::{ClientSubscriptions, HostEventSubscription, HostServices, RuntimeClient},
 };
 use tmq::subscribe;
 use uuid::Uuid;
@@ -101,16 +98,7 @@ impl HostServices for ZmqHostServices {
         Arc::new(self.rpc_client())
     }
 
-    fn client_subscriptions(
-        &self,
-        client_id: Uuid,
-    ) -> Result<
-        (
-            Box<dyn ClientEventSubscription>,
-            Box<dyn ClientBroadcastSubscription>,
-        ),
-        RpcError,
-    > {
+    fn client_subscriptions(&self, client_id: Uuid) -> Result<ClientSubscriptions, RpcError> {
         let events_sub = self
             .subscriber()?
             .connect(self.events_address.as_str())

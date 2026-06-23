@@ -1841,13 +1841,13 @@ fn grid_neighbors(
 fn grid_flood_points(
     width: usize,
     height: usize,
-    start_x: i32,
-    start_y: i32,
+    start: (i32, i32),
     passable: &[bool],
     options: GridOptions,
     include_start: bool,
     mut tick_budget: Option<BuiltinTickBudget<'_>>,
 ) -> Result<Vec<Var>, BfErr> {
+    let (start_x, start_y) = start;
     check_grid_position(width, height, start_x, start_y, "start")?;
     if !grid_is_passable(width, height, passable, start_x, start_y) {
         return Ok(Vec::new());
@@ -2264,8 +2264,7 @@ fn bf_grid_reachable(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let points = grid_flood_points(
         width,
         height,
-        start_x,
-        start_y,
+        (start_x, start_y),
         &passable,
         options,
         false,
@@ -2293,8 +2292,7 @@ fn bf_grid_flood(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let points = grid_flood_points(
         width,
         height,
-        start_x,
-        start_y,
+        (start_x, start_y),
         &passable,
         options,
         true,
@@ -2531,8 +2529,7 @@ mod tests {
         let points = grid_flood_points(
             3,
             3,
-            1,
-            1,
+            (1, 1),
             &passable,
             GridOptions {
                 directions: 4,

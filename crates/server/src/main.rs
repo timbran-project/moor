@@ -259,20 +259,11 @@ impl CombinedConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 struct ServicesConfig {
     telnet: TelnetServiceConfig,
     web: WebServiceConfig,
     curl_worker: CurlWorkerServiceConfig,
-}
-
-impl Default for ServicesConfig {
-    fn default() -> Self {
-        Self {
-            telnet: TelnetServiceConfig::default(),
-            web: WebServiceConfig::default(),
-            curl_worker: CurlWorkerServiceConfig::default(),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -331,18 +322,10 @@ impl Default for WebServiceConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 struct CurlWorkerServiceConfig {
     enabled: bool,
     health_check_port: Option<u16>,
-}
-
-impl Default for CurlWorkerServiceConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            health_check_port: None,
-        }
-    }
 }
 
 #[tokio::main]
