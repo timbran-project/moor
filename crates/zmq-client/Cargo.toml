@@ -14,9 +14,9 @@ description = "ZeroMQ-backed mooR runtime client and host service utilities."
 [dependencies]
 # Internal Dependencies
 moor-common = { path = "../common" }
+moor-runtime-api = { path = "../runtime-api" }
 moor-schema = { path = "../schema" }
 moor-var = { path = "../var" }
-moor-runtime-api = { path = "../runtime-api" }
 
 # Serialization & Data Formats
 planus.workspace = true

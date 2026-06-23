@@ -12,7 +12,7 @@ command = [
     "cargo",
     "run",
     "-p",
-    "moor-daemon",
+    "moor-server",
     "--bin",
     "moor",
     "--",

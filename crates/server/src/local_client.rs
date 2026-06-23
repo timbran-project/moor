@@ -23,7 +23,7 @@ use moor_runtime_api::{
 };
 use uuid::Uuid;
 
-use super::RuntimeApi;
+use moor_daemon::RuntimeApi;
 
 /// A host-side client that calls the runtime APIs directly.
 pub struct LocalRuntimeClient {
@@ -41,7 +41,7 @@ impl Clone for LocalRuntimeClient {
 }
 
 impl LocalRuntimeClient {
-    pub(crate) fn new(api: Arc<dyn RuntimeApi>, scheduler_client: SchedulerClient) -> Self {
+    pub fn new(api: Arc<dyn RuntimeApi>, scheduler_client: SchedulerClient) -> Self {
         Self {
             api,
             scheduler_client: Some(scheduler_client),
@@ -90,7 +90,8 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use super::{LocalRuntimeClient, RuntimeApi};
+    use super::LocalRuntimeClient;
+    use moor_daemon::RuntimeApi;
 
     struct MockRuntimeApi;
 

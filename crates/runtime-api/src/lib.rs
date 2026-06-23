@@ -24,6 +24,7 @@ use thiserror::Error;
 // Re-export domain types
 pub mod api;
 pub mod api_codec;
+#[cfg(feature = "task-client")]
 pub mod task_client;
 pub use host::{HostType, extract_host_type};
 pub use tokens::{

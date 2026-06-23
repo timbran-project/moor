@@ -45,7 +45,7 @@ echo "======================================"
 echo "Building required packages (release-fast profile)"
 echo "======================================"
 echo "Using CARGO_BUILD_JOBS=2 to limit memory usage..."
-CARGO_BUILD_JOBS=2 cargo build --profile release-fast -p moor-daemon -p moor-telnet-host -p moor-web-host -p moor-curl-worker -p moorc -p moor-emh
+CARGO_BUILD_JOBS=2 cargo build --profile release-fast -p moor-server -p moor-daemon -p moor-telnet-host -p moor-web-host -p moor-curl-worker -p moorc -p moor-emh
 echo ""
 
 # Build daemon package
@@ -59,7 +59,7 @@ echo ""
 echo "======================================"
 echo "Building moor package"
 echo "======================================"
-cargo deb -p moor-daemon --variant moor --profile release-fast --no-build
+cargo deb -p moor-server --profile release-fast --no-build
 echo ""
 
 # Build telnet-host package

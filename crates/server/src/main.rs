@@ -28,7 +28,7 @@ use eyre::{Report, bail, eyre};
 use mimalloc::MiMalloc;
 use moor_common::{build, tracing, util::config_path};
 use moor_daemon::{
-    DaemonEndpoints, DaemonKeys, DaemonPaths, DaemonRuntime, DaemonRuntimeConfig, LocalEventBus,
+    DaemonEndpoints, DaemonKeys, DaemonPaths, DaemonRuntime, DaemonRuntimeConfig,
     VERSION_BANNER_MSG, ensure_enrollment_token, generate_keypair,
     load_or_generate_daemon_curve_keypair,
 };
@@ -45,6 +45,10 @@ use moor_web_host::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::{task::JoinHandle, time::timeout};
+
+mod local_runtime;
+
+use local_runtime::{LocalEventBus, LocalRuntimeClient, LocalRuntimeServices, LocalWorkerServices};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -380,8 +384,8 @@ async fn main() -> Result<(), Report> {
     signal_hook::flag::register(signal_hook::consts::SIGUSR1, emergency_checkpoint.clone())?;
 
     let (ready_sender, ready_receiver) = oneshot::channel();
-    let (local_runtime_services_sender, local_runtime_services_receiver) = flume::bounded(1);
-    let (local_worker_services_sender, local_worker_services_receiver) = flume::bounded(1);
+    let (local_runtime_sender, local_runtime_receiver) = flume::bounded(1);
+    let (local_worker_handler_sender, local_worker_handler_receiver) = flume::bounded(1);
     let ready_signal = Arc::new(Mutex::new(Some(ready_sender)));
     let local_event_bus = Arc::new(LocalEventBus::new());
     let runtime_config = DaemonRuntimeConfig {
@@ -433,21 +437,28 @@ async fn main() -> Result<(), Report> {
         kill_switch: kill_switch.clone(),
         emergency_checkpoint: Some(emergency_checkpoint),
         ready_signal: Some(ready_signal),
-        local_event_bus: Some(local_event_bus),
-        local_runtime_services_sender: Some(local_runtime_services_sender),
-        local_worker_services_sender: services_config
+        local_transport: Some(local_event_bus.clone()),
+        local_runtime_sender: Some(local_runtime_sender),
+        local_worker_handler_sender: services_config
             .curl_worker
             .enabled
-            .then_some(local_worker_services_sender),
+            .then_some(local_worker_handler_sender),
     };
 
     let daemon_handle =
         tokio::task::spawn_blocking(move || moor_daemon::run(runtime_config, daemon_runtime));
 
     wait_for_daemon_ready(&ready_receiver, &daemon_handle).await?;
-    let local_runtime_services = local_runtime_services_receiver
+    let local_runtime_init = local_runtime_receiver
         .recv()
         .map_err(|e| eyre!("Daemon did not publish local runtime services: {e}"))?;
+    let local_runtime_services = LocalRuntimeServices {
+        runtime_client: Arc::new(LocalRuntimeClient::new(
+            local_runtime_init.runtime_api,
+            local_runtime_init.scheduler_client,
+        )),
+        event_bus: local_event_bus,
+    };
     let host_services = Arc::new(local_runtime_services) as Arc<dyn HostServices>;
 
     let mut host_tasks = Vec::new();
@@ -489,9 +500,11 @@ async fn main() -> Result<(), Report> {
     }
 
     if services_config.curl_worker.enabled {
-        let worker_services = local_worker_services_receiver
+        let worker_handler = local_worker_handler_receiver
             .recv()
             .map_err(|e| eyre!("Daemon did not publish local worker services: {e}"))?;
+        let worker_services = Arc::new(LocalWorkerServices::new(worker_handler))
+            as Arc<dyn moor_runtime_api::WorkerServices>;
         let curl_worker_runtime = moor_curl_worker::LocalWorkerRuntime {
             kill_switch: kill_switch.clone(),
         };

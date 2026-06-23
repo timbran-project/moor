@@ -13,9 +13,9 @@ description = "A worker for initiating outbound HTTP or related requests"
 
 [dependencies]
 moor-common = { path = "../common" }
+moor-runtime-api = { path = "../runtime-api" }
 moor-var = { path = "../var" }
 moor-zmq-client = { path = "../zmq-client" }
-moor-runtime-api = { path = "../runtime-api" }
 
 ## Command line arguments parsing.
 clap.workspace = true

@@ -72,17 +72,15 @@ echo ""
 
 # Build x86_64 binaries
 echo "Building x86_64 binaries (release profile, limited to $BUILD_CORES cores)..."
-CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS cargo build --release -p moor-daemon -p moor-telnet-host -p moor-web-host -p moor-curl-worker -p moorc -p moor-emh -j $BUILD_CORES
+CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS cargo build --release -p moor-server -p moor-daemon -p moor-telnet-host -p moor-web-host -p moor-curl-worker -p moorc -p moor-emh -j $BUILD_CORES
 echo ""
 
 # Build x86_64 Debian packages
 echo "Building x86_64 Debian packages..."
-for pkg in moor-daemon moor-telnet-host moor-web-host moor-curl-worker moorc moor-emh; do
+for pkg in moor-server moor-daemon moor-telnet-host moor-web-host moor-curl-worker moorc moor-emh; do
     echo "  Building $pkg..."
     cargo deb -p "$pkg" --profile release --no-build
 done
-echo "  Building moor..."
-cargo deb -p moor-daemon --variant moor --profile release --no-build
 echo ""
 
 # Copy x86_64 packages to output

@@ -32,7 +32,7 @@ use moor_var::Obj;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::rpc::{MessageHandler, Transport};
+use moor_daemon::{MessageHandler, Transport};
 
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
 
@@ -111,7 +111,7 @@ impl Transport for LocalEventBus {
     fn publish_narrative_events(
         &self,
         events: &[(Obj, Box<NarrativeEvent>)],
-        connections: &dyn crate::connections::ConnectionRegistry,
+        connections: &dyn moor_daemon::connections::ConnectionRegistry,
     ) -> Result<(), eyre::Error> {
         for (player, event) in events {
             let client_ids = connections.client_ids_for(*player)?;
@@ -223,7 +223,8 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use super::{LocalEventBus, Transport};
+    use super::LocalEventBus;
+    use moor_daemon::Transport;
 
     #[tokio::test]
     async fn delivers_client_event_to_client_subscription() {

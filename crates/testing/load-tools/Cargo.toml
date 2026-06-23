@@ -68,9 +68,9 @@ moor-var = { path = "../../var" }
 # Other binaries still need these
 moor-compiler = { path = "../../compiler" }
 moor-kernel = { path = "../../kernel" }
+moor-runtime-api = { path = "../../runtime-api" }
 moor-schema = { path = "../../schema" }
 moor-zmq-client = { path = "../../zmq-client" }
-moor-runtime-api = { path = "../../runtime-api" }
 
 # Command Line & Configuration
 clap.workspace = true

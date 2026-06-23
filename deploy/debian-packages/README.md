@@ -93,7 +93,7 @@ This will create .deb files in `target/debian/`:
 cargo build --release --workspace
 
 # Build single-process package
-cargo deb -p moor-daemon --variant moor --no-build
+cargo deb -p moor-server --no-build
 
 # Build daemon package
 cargo deb -p moor-daemon --no-build

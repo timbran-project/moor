@@ -127,9 +127,9 @@ fn main() -> Result<(), Report> {
         kill_switch,
         emergency_checkpoint: Some(emergency_checkpoint),
         ready_signal: None,
-        local_event_bus: None,
-        local_runtime_services_sender: None,
-        local_worker_services_sender: None,
+        local_transport: None,
+        local_runtime_sender: None,
+        local_worker_handler_sender: None,
     };
 
     moor_daemon::run(runtime_config, runtime)

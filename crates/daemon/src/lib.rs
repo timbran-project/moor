@@ -25,7 +25,7 @@ use std::{
 use crate::{
     connections::ConnectionRegistryFactory,
     event_log::{EventLog, EventLogConfig, EventLogOps, NoOpEventLog},
-    rpc::{RpcServer, Transport, transport::RpcTransport},
+    rpc::transport::RpcTransport,
     workers::WorkersServer,
 };
 use ::tracing::{debug, error, info, warn};
@@ -44,7 +44,6 @@ use moor_kernel::{
     tasks::{NoopTasksDb, TasksDb, scheduler::Scheduler},
 };
 use moor_objdef::ObjectDefinitionLoader;
-use moor_runtime_api::api::RuntimeClient;
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_empty_str};
 use rand::RngExt;
@@ -52,7 +51,7 @@ use rusty_paseto::core::Key;
 use sha2::{Digest, Sha256};
 
 mod allowed_hosts;
-mod connections;
+pub mod connections;
 mod curve_keys;
 mod enrollment;
 mod event_log;
@@ -69,10 +68,9 @@ use crate::tasks::tasks_db_fjall::FjallTasksDB;
 use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 
 pub use curve_keys::CurveKeyPair;
-pub use runtime::{
-    LocalClientBroadcastSubscription, LocalClientEventSubscription, LocalEventBus,
-    LocalHostEventSubscription, LocalRuntimeClient, LocalRuntimeServices, LocalWorkerServices,
-};
+pub use rpc::{MessageHandler, RpcServer, Transport};
+pub use runtime::RuntimeApi;
+pub use workers::WorkersMessageHandlerImpl;
 
 pub type ReadySignal = Arc<Mutex<Option<oneshot::Sender<()>>>>;
 
@@ -136,10 +134,9 @@ pub struct DaemonRuntime {
     pub kill_switch: Arc<AtomicBool>,
     pub emergency_checkpoint: Option<Arc<AtomicBool>>,
     pub ready_signal: Option<ReadySignal>,
-    pub local_event_bus: Option<Arc<LocalEventBus>>,
-    pub local_runtime_services_sender: Option<flume::Sender<LocalRuntimeServices>>,
-    pub local_worker_services_sender:
-        Option<flume::Sender<Arc<dyn moor_runtime_api::WorkerServices>>>,
+    pub local_transport: Option<Arc<dyn Transport>>,
+    pub local_runtime_sender: Option<flume::Sender<LocalRuntimeInit>>,
+    pub local_worker_handler_sender: Option<flume::Sender<Arc<WorkersMessageHandlerImpl>>>,
 }
 
 impl Default for DaemonRuntime {
@@ -149,11 +146,16 @@ impl Default for DaemonRuntime {
             kill_switch: Arc::new(AtomicBool::new(false)),
             emergency_checkpoint: None,
             ready_signal: None,
-            local_event_bus: None,
-            local_runtime_services_sender: None,
-            local_worker_services_sender: None,
+            local_transport: None,
+            local_runtime_sender: None,
+            local_worker_handler_sender: None,
         }
     }
+}
+
+pub struct LocalRuntimeInit {
+    pub runtime_api: Arc<dyn RuntimeApi>,
+    pub scheduler_client: SchedulerClient,
 }
 
 pub const VERSION_BANNER_MSG: &str = r#"
@@ -505,9 +507,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         kill_switch,
         emergency_checkpoint,
         ready_signal,
-        local_event_bus,
-        local_runtime_services_sender,
-        local_worker_services_sender,
+        local_transport,
+        local_runtime_sender,
+        local_worker_handler_sender,
     } = runtime;
     let DaemonRuntimeConfig {
         version,
@@ -710,14 +712,11 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         info!("IPC endpoints detected - CURVE encryption disabled (using filesystem permissions)");
     }
 
-    let using_local_transport = local_event_bus.is_some();
-    let (rpc_transport, local_event_bus) = if let Some(local_event_bus) = local_event_bus {
-        (
-            local_event_bus.clone() as Arc<dyn Transport>,
-            Some(local_event_bus),
-        )
+    let using_local_transport = local_transport.is_some();
+    let rpc_transport = if let Some(local_transport) = local_transport {
+        local_transport
     } else {
-        let transport = create_rpc_transport(
+        create_rpc_transport(
             zmq_ctx.clone(),
             kill_switch.clone(),
             endpoints.events_listen.as_str(),
@@ -728,8 +727,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                 None
             },
             ready_signal.clone(),
-        )?;
-        (transport, None)
+        )?
     };
 
     // Create the event log based on configuration
@@ -745,7 +743,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
     let (workers_sender, worker_scheduler_recv, worker_info_source) = if workers_enabled {
         let (worker_scheduler_send, worker_scheduler_recv) = flume::unbounded();
-        let using_local_workers = local_worker_services_sender.is_some();
+        let using_local_workers = local_worker_handler_sender.is_some();
         let workers_message_handler = if using_local_workers {
             Arc::new(workers::WorkersMessageHandlerImpl::new_local(
                 worker_scheduler_send,
@@ -784,11 +782,8 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
             )
         })?;
 
-        if let Some(local_worker_services_sender) = local_worker_services_sender {
-            let worker_services =
-                Arc::new(LocalWorkerServices::new(workers_message_handler.clone()))
-                    as Arc<dyn moor_runtime_api::WorkerServices>;
-            let _ = local_worker_services_sender.send(worker_services);
+        if let Some(local_worker_handler_sender) = local_worker_handler_sender {
+            let _ = local_worker_handler_sender.send(workers_message_handler.clone());
         } else {
             let workers_listen_addr = endpoints.workers_response_listen.clone();
             spawn_efficient("moor-workers-listen", move || {
@@ -910,14 +905,10 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     // Invoke server_started hook if it exists
     invoke_server_started_hook(&scheduler_client, &rpc_server)?;
 
-    if let (Some(local_event_bus), Some(local_runtime_services_sender)) =
-        (local_event_bus.clone(), local_runtime_services_sender)
-    {
-        let runtime_client = Arc::new(rpc_server.local_runtime_client(scheduler_client.clone()))
-            as Arc<dyn RuntimeClient>;
-        let _ = local_runtime_services_sender.send(LocalRuntimeServices {
-            runtime_client,
-            event_bus: local_event_bus,
+    if let Some(local_runtime_sender) = local_runtime_sender {
+        let _ = local_runtime_sender.send(LocalRuntimeInit {
+            runtime_api: rpc_server.runtime_api(),
+            scheduler_client: scheduler_client.clone(),
         });
     }
 

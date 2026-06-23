@@ -35,6 +35,11 @@ thiserror.workspace = true
 
 # Utilities & Helpers
 async-trait.workspace = true
-tokio.workspace = true
-tracing.workspace = true
 uuid.workspace = true
+
+tokio = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+
+[features]
+default = ["task-client"]
+task-client = ["tokio", "tracing"]

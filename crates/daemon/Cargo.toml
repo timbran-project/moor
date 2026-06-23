@@ -9,7 +9,7 @@ license.workspace = true
 readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Server binaries for the MooR virtual machine."
+description = "Split-process daemon binary for the MooR virtual machine."
 
 [package.metadata.deb]
 maintainer = "Ryan Daum, operating as Timbran Consulting <ryan.daum@gmail.com>"
@@ -35,34 +35,10 @@ assets = [
     ],
 ]
 maintainer-scripts = "debian/scripts"
-systemd-units = { enable = false }
-
-[package.metadata.deb.variants.moor]
-name = "moor"
-depends = "$auto, systemd, openssl"
-conflicts = "moor-daemon"
-replaces = "moor-daemon"
-extended-description = "Single-process MooR server. This package runs the daemon runtime, telnet host, and web host in one process."
-assets = [
-    ["target/release/moor", "/usr/bin/moor", "755"],
-    ["debian/moor.service", "/lib/systemd/system/moor.service", "644"],
-    ["debian/moor-config.yaml", "/etc/moor/moor-config.yaml", "644"],
-    [
-        "../../cores/lambda-moor/**/*",
-        "/usr/share/moor/cores/lambda-moor/",
-        "644",
-    ],
-]
-maintainer-scripts = "debian/moor-scripts"
-systemd-units = { enable = false }
 
 [[bin]]
 name = "moor-daemon"
 path = "src/bin/moor-daemon.rs"
-
-[[bin]]
-name = "moor"
-path = "src/bin/moor.rs"
 
 [dependencies]
 # Telemetry
@@ -71,16 +47,13 @@ fast-telemetry.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }
-moor-curl-worker = { path = "../curl-worker" }
 moor-db = { path = "../db" }
 moor-kernel = { path = "../kernel" }
 moor-objdef = { path = "../objdef" }
+moor-runtime-api = { path = "../runtime-api", default-features = false }
 moor-schema = { path = "../schema" }
-moor-telnet-host = { path = "../telnet-host" }
 moor-textdump = { path = "../textdump" }
 moor-var = { path = "../var" }
-moor-web-host = { path = "../web-host" }
-moor-runtime-api = { path = "../runtime-api" }
 
 # Core Runtime & System
 mimalloc.workspace = true
@@ -99,15 +72,12 @@ fs2.workspace = true
 zerocopy.workspace = true
 
 # Networking & Communication
-tmq.workspace = true
 zmq.workspace = true
 
 # Async Runtime & Concurrency
-async-trait.workspace = true
 flume.workspace = true
 oneshot.workspace = true
 papaya.workspace = true
-tokio.workspace = true
 
 # Authentication & Security
 age.workspace = true
@@ -124,7 +94,6 @@ tracing-subscriber.workspace = true
 
 # Utilities & Helpers
 ahash.workspace = true
-byteview.workspace = true
 chrono.workspace = true
 rand.workspace = true
 semver.workspace = true
@@ -132,9 +101,6 @@ uuid.workspace = true
 
 # Testing & Development
 tempfile.workspace = true
-
-[dev-dependencies]
-libc.workspace = true
 
 [features]
 trace_events = ["moor-kernel/trace_events"]

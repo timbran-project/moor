@@ -16,19 +16,14 @@
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
-        future::Future,
-        sync::{Arc, Mutex},
+        sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     };
 
     use moor_common::tasks::Event;
     use moor_runtime_api::{
-        AuthToken, ClientToken, HostType, RpcError, RpcMessageError,
-        api::{
-            ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, HostReply,
-            HostRequest, ListenerInfo, RuntimeClient,
-        },
+        AuthToken, ClientToken, HostType, RpcMessageError,
+        api::{ClientReply, ClientRequest, HostReply, HostRequest, ListenerInfo},
         mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg, mk_host_pong_msg,
         mk_login_command_msg, mk_register_host_msg, obj_fb,
     };
@@ -36,10 +31,7 @@ mod tests {
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
     use uuid::Uuid;
 
-    use crate::{
-        runtime::LocalEventBus,
-        testing::{MockTransport, test_env},
-    };
+    use crate::testing::{MockTransport, test_env};
 
     trait DaemonTestBackend {
         fn name(&self) -> &'static str;
@@ -138,22 +130,14 @@ mod tests {
     }
 
     struct LocalRuntimeBackend {
-        env: test_env::TestEnvironment<LocalEventBus>,
-        subscriptions: Mutex<HashMap<Uuid, Box<dyn ClientEventSubscription>>>,
+        env: test_env::TestEnvironment<MockTransport>,
     }
 
     impl LocalRuntimeBackend {
         fn new() -> Self {
             Self {
-                env: test_env::setup_test_environment(Arc::new(LocalEventBus::new()), |_| {}),
-                subscriptions: Mutex::new(HashMap::new()),
+                env: test_env::setup_test_environment(Arc::new(MockTransport::new()), |_| {}),
             }
-        }
-
-        fn runtime_client(&self) -> crate::runtime::LocalRuntimeClient {
-            self.env
-                .rpc_server
-                .local_runtime_client(self.env.scheduler_client.clone())
         }
     }
 
@@ -163,7 +147,11 @@ mod tests {
         }
 
         fn host_call(&self, host_id: Uuid, request: HostRequest) -> Result<HostReply, String> {
-            block_on(self.runtime_client().host_call(host_id, request)).map_err(rpc_error_string)
+            self.env
+                .rpc_server
+                .runtime_api()
+                .handle_host_request(host_id, request)
+                .map_err(|e| e.to_string())
         }
 
         fn client_call(
@@ -171,15 +159,11 @@ mod tests {
             client_id: Uuid,
             request: ClientRequest,
         ) -> Result<ClientReply, String> {
-            block_on(self.runtime_client().client_call(client_id, request))
-                .map_err(rpc_error_string)
-        }
-
-        fn track_client(&self, client_id: Uuid) {
-            let mut subscriptions = self.subscriptions.lock().unwrap();
-            subscriptions
-                .entry(client_id)
-                .or_insert_with(|| Box::new(self.env.transport.subscribe_client_events(client_id)));
+            self.env
+                .rpc_server
+                .runtime_api()
+                .handle_client_request(self.env.scheduler_client.clone(), client_id, request)
+                .map_err(|e| e.to_string())
         }
 
         fn wait_for_narrative_event(
@@ -189,46 +173,17 @@ mod tests {
             description: &str,
         ) {
             let start = Instant::now();
-            let mut observed_events = Vec::new();
             loop {
                 if start.elapsed() > Duration::from_secs(5) {
                     panic!(
                         "{} backend timed out waiting for {description}; observed events: {}",
                         self.name(),
-                        describe_client_events(&observed_events)
+                        describe_events(self.env.transport.get_narrative_events())
                     );
                 }
 
-                let mut client_ids = self
-                    .subscriptions
-                    .lock()
-                    .unwrap()
-                    .keys()
-                    .copied()
-                    .collect::<Vec<_>>();
-                client_ids.sort_unstable();
-
-                for client_id in client_ids {
-                    let Some(mut sub) = self.subscriptions.lock().unwrap().remove(&client_id)
-                    else {
-                        continue;
-                    };
-
-                    let recv = block_on(async {
-                        tokio::time::timeout(Duration::from_millis(50), sub.recv_client_event())
-                            .await
-                    });
-                    self.subscriptions.lock().unwrap().insert(client_id, sub);
-
-                    let Ok(Ok(event_msg)) = recv else {
-                        continue;
-                    };
-
-                    let ClientEvent::Narrative { player: p, event } = event_msg.event else {
-                        continue;
-                    };
-                    observed_events.push((p, event.clone()));
-                    if player.is_some_and(|player| p != player) {
+                for (event_player, event) in self.env.transport.get_narrative_events() {
+                    if player.is_some_and(|player| event_player != player) {
                         continue;
                     }
                     assert!(
@@ -240,6 +195,8 @@ mod tests {
                         return;
                     }
                 }
+
+                std::thread::sleep(Duration::from_millis(10));
             }
         }
     }
@@ -453,14 +410,6 @@ mod tests {
         format!("{events:?}")
     }
 
-    fn describe_client_events(events: &[(Obj, moor_common::tasks::NarrativeEvent)]) -> String {
-        let events = events
-            .iter()
-            .map(|(player, event)| format!("player={player:?} event={:?}", event.event()))
-            .collect::<Vec<_>>();
-        format!("{events:?}")
-    }
-
     fn encode_host_request(
         host_id: Uuid,
         request: HostRequest,
@@ -645,20 +594,5 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64
-    }
-
-    fn block_on<T>(future: impl Future<Output = T>) -> T {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .unwrap()
-            .block_on(future)
-    }
-
-    fn rpc_error_string(error: RpcError) -> String {
-        match error {
-            RpcError::Daemon(error) => error.to_string(),
-            other => other.to_string(),
-        }
     }
 }

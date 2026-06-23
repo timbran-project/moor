@@ -2,9 +2,12 @@ Directory layout for `crates/`
 
 Binaries:
 
-- `daemon` - the actual server runtime. Brings up the database, VM, task scheduler, etc, and
-  provides an interface to them over a 0MQ based RPC interface, not exposing any external network
-  protocol to the outside world. Instead, that functionality is provided by...
+- `daemon` - the split-process daemon. Brings up the database, VM, task scheduler, worker routing,
+  and ZeroMQ/FlatBuffer RPC interface. It does not expose player-facing network protocols directly;
+  those are provided by host processes.
+- `server` - the single-process `moor` binary. Runs the daemon runtime plus telnet/web hosts and
+  selected embedded workers in one process, using typed in-process runtime services instead of
+  ZeroMQ between local components.
 - `telnet-host` - a binary which connects to `daemon` and provides a classic LambdaMOO-style telnet
   interface. The idea being that the `daemon` can go up and down, or be located on a different
   physical machine from the\

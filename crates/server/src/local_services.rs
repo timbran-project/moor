@@ -25,7 +25,7 @@ use moor_runtime_api::{
 use moor_var::{Symbol, Var};
 use uuid::Uuid;
 
-use crate::workers::WorkersMessageHandlerImpl;
+use moor_daemon::WorkersMessageHandlerImpl;
 
 use super::LocalEventBus;
 

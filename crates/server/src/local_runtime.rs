@@ -11,8 +11,15 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runtime-facing typed APIs.
+//! In-process host/runtime service adapters for the single-process server.
 
-mod api;
+#[path = "local_client.rs"]
+mod local_client;
+#[path = "local_events.rs"]
+mod local_events;
+#[path = "local_services.rs"]
+mod local_services;
 
-pub use api::RuntimeApi;
+pub use local_client::LocalRuntimeClient;
+pub use local_events::LocalEventBus;
+pub use local_services::{LocalRuntimeServices, LocalWorkerServices};

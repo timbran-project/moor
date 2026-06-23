@@ -1,11 +1,15 @@
 # moor-daemon
 
-TLDR: Top-level server/runtime assembly crate for the mooR daemon binaries.
+TLDR: Split-process daemon runtime crate for the mooR database, scheduler, VM, workers, and
+ZeroMQ/FlatBuffer RPC server.
 
 Downstream uses:
 
-- Produces the daemon entry points that wire together the database, scheduler, VM, runtime services,
-  workers, and host listeners.
-- No workspace crate should depend on this as a library boundary; it is the process assembly layer.
+- Produces the `moor-daemon` binary for deployments where hosts and workers run as separate
+  processes.
+- Provides the daemon runtime assembly used by `moor-server`, without depending on telnet/web host
+  crates or Tokio in its normal dependency graph.
+- Owns the database, scheduler, VM, event log, connection registry, worker routing, and ZMQ/RPC
+  transport.
 - Host protocol implementations belong in `moor-telnet-host`, `moor-web-host`, and related host
   crates rather than in daemon internals.

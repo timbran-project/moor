@@ -30,8 +30,7 @@ use super::{
 };
 use crate::{
     connections::ConnectionRegistry, event_log::EventLogOps, rpc::MessageHandler,
-    runtime::LocalRuntimeClient, system_control::SystemControlHandle,
-    tasks::task_monitor::TaskMonitor,
+    runtime::RuntimeApi, system_control::SystemControlHandle, tasks::task_monitor::TaskMonitor,
 };
 use moor_common::tasks::{Session, SessionError, SessionFactory};
 use moor_common::threading::spawn_efficient;
@@ -214,8 +213,8 @@ impl RpcServer {
         &self.message_handler
     }
 
-    pub fn local_runtime_client(&self, scheduler_client: SchedulerClient) -> LocalRuntimeClient {
-        LocalRuntimeClient::new(self.message_handler.clone(), scheduler_client)
+    pub fn runtime_api(&self) -> Arc<dyn RuntimeApi> {
+        self.message_handler.clone()
     }
 }
 
