@@ -23,8 +23,8 @@ use std::sync::LazyLock;
 use ahash::HashMap;
 use moor_compiler::offset_for_builtin;
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_MAXREC, E_TYPE, Symbol, Var, Variant, v_empty_list, v_int,
-    v_list, v_list_iter, v_map, v_sym,
+    Associative, E_ARGS, E_INVARG, E_MAXREC, E_TYPE, Symbol, Var, Variant, v_int, v_list,
+    v_list_iter, v_map, v_sym,
 };
 
 use crate::vm::builtins::{
@@ -2378,7 +2378,7 @@ pub(crate) fn register_bf_algorithms(builtins: &mut [BuiltinFunction]) {
 
 #[cfg(test)]
 mod tests {
-    use moor_var::{Associative, v_int, v_str};
+    use moor_var::{Associative, v_empty_list, v_int, v_str};
 
     use super::*;
 
