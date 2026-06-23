@@ -31,8 +31,10 @@ use ipnet::IpNet;
 use listeners::Listeners;
 use moor_var::SYSTEM_OBJECT;
 use routes::{CorsConfig, RateLimitConfig};
-use rpc_async_client::{process_hosts_events, start_host_session};
-use rpc_common::{HostType, client_args::RpcClientConfig};
+use rpc_async_client::{
+    ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
+};
+use rpc_common::{HostType, api::HostServices, client_args::RpcClientConfig};
 use tokio::select;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -74,6 +76,29 @@ pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
     )
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
 
+    let host_services = Arc::new(ZmqHostServices::new(
+        runtime.zmq_context.clone(),
+        config.connection.rpc_address.clone(),
+        config.connection.events_address.clone(),
+        curve_keys.clone(),
+    )) as Arc<dyn HostServices>;
+    run_with_host_services(config, runtime, curve_keys, host_services).await
+}
+
+pub async fn run_with_services(
+    config: WebHostConfig,
+    runtime: HostRuntime,
+    host_services: Arc<dyn HostServices>,
+) -> Result<()> {
+    run_with_host_services(config, runtime, None, host_services).await
+}
+
+async fn run_with_host_services(
+    config: WebHostConfig,
+    runtime: HostRuntime,
+    curve_keys: Option<(String, String, String)>,
+    host_services: Arc<dyn HostServices>,
+) -> Result<()> {
     let oauth2_manager = init_oauth2_manager(&config.oauth2);
     let trusted_proxy_cidrs = Arc::new(parse_trusted_proxy_cidrs(&config.trusted_proxy_cidrs));
 
@@ -87,6 +112,7 @@ pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
         runtime.kill_switch.clone(),
         oauth2_manager,
         curve_keys.clone(),
+        host_services.clone(),
         config.enable_webhooks,
         last_daemon_ping.clone(),
         config.cors.clone(),
@@ -109,27 +135,23 @@ pub async fn run(config: WebHostConfig, runtime: HostRuntime) -> Result<()> {
     listeners.add_listener(&SYSTEM_OBJECT, listen_addr).await?;
 
     info!("Starting host session....");
-    let (rpc_client, host_id) = start_host_session(
+    let host_id = start_host_session_with_services(
         host_id,
-        runtime.zmq_context.clone(),
-        config.connection.rpc_address.clone(),
         runtime.kill_switch.clone(),
         listeners.clone(),
-        curve_keys.clone(),
+        HostType::TCP,
+        host_services.clone(),
     )
     .await
     .map_err(|e| eyre!("Unable to establish initial host session: {e}"))?;
 
-    let host_listen_loop = process_hosts_events(
-        rpc_client,
+    let host_listen_loop = process_hosts_events_with_services(
         host_id,
-        runtime.zmq_context.clone(),
-        config.connection.events_address.clone(),
         config.listen_address.clone(),
         runtime.kill_switch.clone(),
         listeners.clone(),
         HostType::TCP,
-        curve_keys,
+        host_services,
         Some(last_daemon_ping),
     );
 

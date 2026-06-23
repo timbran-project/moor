@@ -26,7 +26,10 @@ use moor_schema::{
     fb_read, rpc,
 };
 
-use crate::helpers::{obj_fb, objectref_fb, symbol_fb};
+use crate::{
+    RpcMessageError,
+    helpers::{obj_fb, objectref_fb, symbol_fb},
+};
 use std::time::Duration;
 
 /// Convert from WorkerError to flatbuffer WorkerError struct
@@ -255,7 +258,7 @@ pub fn world_state_error_to_flatbuffer_struct(
 }
 
 /// Convert from FlatBuffer VerbProgramErrorRef to VerbProgramError
-fn verb_program_error_from_ref(
+pub fn verb_program_error_from_ref(
     error_ref: rpc::VerbProgramErrorRef<'_>,
 ) -> Result<VerbProgramError, String> {
     match fb_read!(error_ref, error) {
@@ -263,9 +266,9 @@ fn verb_program_error_from_ref(
         rpc::VerbProgramErrorUnionRef::VerbPermissionDenied(_) => {
             Ok(VerbProgramError::PermissionDenied)
         }
-        rpc::VerbProgramErrorUnionRef::VerbCompilationError(_compile_error) => {
-            // TODO: Implement CompileError conversion if needed
-            Err("VerbCompilationError conversion not yet implemented".to_string())
+        rpc::VerbProgramErrorUnionRef::VerbCompilationError(compile_error) => {
+            let error = compilation_error_from_ref(fb_read!(compile_error, error))?;
+            Ok(VerbProgramError::CompilationError(error))
         }
         rpc::VerbProgramErrorUnionRef::VerbDatabaseError(_) => Ok(VerbProgramError::DatabaseError),
     }
@@ -358,6 +361,36 @@ pub fn scheduler_error_from_rpc_error(
         .ok_or_else(|| "Scheduler error is None".to_string())?;
     scheduler_error_from_ref(scheduler_err_ref)
         .map_err(|e| format!("Failed to decode scheduler error: {e}"))
+}
+
+pub fn rpc_message_error_from_ref(
+    error_ref: rpc::RpcMessageErrorRef<'_>,
+) -> Result<RpcMessageError, String> {
+    let message = error_ref
+        .message()
+        .ok()
+        .flatten()
+        .map(str::to_string)
+        .unwrap_or_default();
+
+    match fb_read!(error_ref, error_code) {
+        rpc::RpcMessageErrorCode::AlreadyConnected => Ok(RpcMessageError::AlreadyConnected),
+        rpc::RpcMessageErrorCode::InvalidRequest => Ok(RpcMessageError::InvalidRequest(message)),
+        rpc::RpcMessageErrorCode::NoConnection => Ok(RpcMessageError::NoConnection),
+        rpc::RpcMessageErrorCode::ErrorCouldNotRetrieveSysProp => {
+            Ok(RpcMessageError::ErrorCouldNotRetrieveSysProp(message))
+        }
+        rpc::RpcMessageErrorCode::LoginTaskFailed => Ok(RpcMessageError::LoginTaskFailed(message)),
+        rpc::RpcMessageErrorCode::CreateSessionFailed => Ok(RpcMessageError::CreateSessionFailed),
+        rpc::RpcMessageErrorCode::PermissionDenied => Ok(RpcMessageError::PermissionDenied),
+        rpc::RpcMessageErrorCode::TaskError => Ok(RpcMessageError::TaskError(
+            scheduler_error_from_rpc_error(error_ref)?,
+        )),
+        rpc::RpcMessageErrorCode::EntityRetrievalError => {
+            Ok(RpcMessageError::EntityRetrievalError(message))
+        }
+        rpc::RpcMessageErrorCode::InternalError => Ok(RpcMessageError::InternalError(message)),
+    }
 }
 
 /// Convert from FlatBuffer CommandErrorRef to CommandError

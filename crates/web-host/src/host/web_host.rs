@@ -34,13 +34,15 @@ use eyre::eyre;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
 use ipnet::IpNet;
 use moor_common::model::ObjectRef;
-use moor_schema::{convert::obj_from_ref, rpc as moor_rpc};
+use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, Symbol};
-use rpc_async_client::{rpc_client::RpcClient, zmq};
 use rpc_common::{
-    AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, mk_attach_msg, mk_call_system_verb_msg,
-    mk_connection_establish_msg, mk_eval_msg, mk_get_server_features_msg, mk_reattach_msg,
-    mk_request_sys_prop_msg, mk_resolve_msg, read_reply_result,
+    AuthToken, ClientToken,
+    api::{
+        ClientReply, ClientRequest, ConnectType, HostReply, HostRequest, HostServices,
+        RuntimeClient,
+    },
+    api_codec::{encode_client_success_bytes, encode_host_success_bytes},
 };
 use std::{
     net::{IpAddr, SocketAddr},
@@ -50,7 +52,6 @@ use std::{
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tmq::subscribe;
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -217,71 +218,29 @@ fn extract_ws_attach_info(headers: &HeaderMap) -> Result<WsAttachInfo, StatusCod
     })
 }
 
-fn failure_message(failure: moor_rpc::FailureRef<'_>) -> String {
-    failure
-        .error()
-        .ok()
-        .and_then(|e| e.message().ok().flatten())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "unknown error".to_string())
-}
-
-fn decode_attach_result(
-    attach_result: moor_rpc::AttachResultRef<'_>,
-) -> Result<(ClientToken, Obj), WsHostError> {
-    let success = attach_result
-        .success()
-        .map_err(|e| WsHostError::RpcError(eyre!("AttachResult missing success flag: {}", e)))?;
-    if !success {
-        return Err(WsHostError::AuthenticationFailed);
+fn connect_type_from_rpc(connect_type: moor_rpc::ConnectType) -> ConnectType {
+    match connect_type {
+        moor_rpc::ConnectType::Connected => ConnectType::Connected,
+        moor_rpc::ConnectType::Reconnected => ConnectType::Reconnected,
+        moor_rpc::ConnectType::Created => ConnectType::Created,
+        moor_rpc::ConnectType::NoConnect => ConnectType::NoConnect,
     }
-
-    let client_token_ref = attach_result
-        .client_token()
-        .ok()
-        .flatten()
-        .ok_or_else(|| WsHostError::RpcError(eyre!("AttachResult missing client_token")))?;
-    let client_token_value = client_token_ref.token().map_err(|e| {
-        WsHostError::RpcError(eyre!(
-            "AttachResult client token missing token string: {}",
-            e
-        ))
-    })?;
-
-    let player_ref = attach_result
-        .player()
-        .ok()
-        .flatten()
-        .ok_or_else(|| WsHostError::RpcError(eyre!("AttachResult missing player")))?;
-    let player = obj_from_ref(player_ref)
-        .map_err(|e| WsHostError::RpcError(eyre!("Failed to decode player: {}", e)))?;
-
-    Ok((ClientToken(client_token_value.to_string()), player))
 }
 
-fn decode_new_connection_token(
-    new_conn: moor_rpc::NewConnectionRef<'_>,
-) -> Result<ClientToken, WsHostError> {
-    let client_token_ref = new_conn
-        .client_token()
-        .ok()
-        .ok_or_else(|| WsHostError::RpcError(eyre!("NewConnection missing client_token")))?;
-    let client_token_value = client_token_ref.token().map_err(|e| {
-        WsHostError::RpcError(eyre!(
-            "NewConnection client token missing token string: {}",
-            e
-        ))
-    })?;
+fn websocket_content_types() -> Vec<Symbol> {
+    vec![
+        Symbol::mk("text_html"),
+        Symbol::mk("text_djot"),
+        Symbol::mk("text_plain"),
+    ]
+}
 
-    let objid_ref = new_conn
-        .connection_obj()
-        .ok()
-        .ok_or_else(|| WsHostError::RpcError(eyre!("NewConnection missing connection_obj")))?;
-    let objid = obj_from_ref(objid_ref)
-        .map_err(|e| WsHostError::RpcError(eyre!("Failed to decode connection_obj: {}", e)))?;
-    info!("Connection established, connection ID: {}", objid);
-
-    Ok(ClientToken(client_token_value.to_string()))
+fn http_content_types() -> Vec<Symbol> {
+    vec![
+        Symbol::mk("text_plain"),
+        Symbol::mk("text_html"),
+        Symbol::mk("text_djot"),
+    ]
 }
 
 /// Cached DNS resolver to avoid recreating on every connection
@@ -368,6 +327,7 @@ pub struct WebHost {
     curve_keys: Option<(String, String, String)>, // (client_secret, client_public, server_public) - Z85 encoded
     pub(crate) host_id: Uuid,
     last_daemon_ping: Arc<AtomicU64>,
+    host_services: Arc<dyn HostServices>,
     pub(crate) trusted_proxy_cidrs: Arc<Vec<IpNet>>,
     /// Cached server features response (features don't change at runtime).
     features_cache: Arc<tokio::sync::OnceCell<Vec<u8>>>,
@@ -392,6 +352,7 @@ impl WebHost {
         curve_keys: Option<(String, String, String)>,
         host_id: Uuid,
         last_daemon_ping: Arc<AtomicU64>,
+        host_services: Arc<dyn HostServices>,
         trusted_proxy_cidrs: Arc<Vec<IpNet>>,
         webrtc_config: Arc<WebRtcConfig>,
     ) -> Self {
@@ -404,6 +365,7 @@ impl WebHost {
             curve_keys,
             host_id,
             last_daemon_ping,
+            host_services,
             trusted_proxy_cidrs,
             features_cache: Arc::new(tokio::sync::OnceCell::new()),
             webrtc_config,
@@ -412,16 +374,18 @@ impl WebHost {
 }
 
 impl WebHost {
-    pub fn create_rpc_client(&self) -> RpcClient {
-        self.build_rpc_client()
+    pub fn create_rpc_client(&self) -> Arc<dyn RuntimeClient> {
+        self.create_daemon_client()
     }
 
-    pub fn new_stateless_client(&self) -> (Uuid, RpcClient) {
-        (Uuid::new_v4(), self.create_rpc_client())
+    pub fn create_daemon_client(&self) -> Arc<dyn RuntimeClient> {
+        self.host_services.runtime_client()
     }
 
-    /// Build a `TaskClientConfig` for the given auth token, using this host's
-    /// shared ZMQ context, RPC/PubSub addresses, and CURVE keys.
+    pub fn new_stateless_client(&self) -> (Uuid, Arc<dyn RuntimeClient>) {
+        (Uuid::new_v4(), self.create_daemon_client())
+    }
+
     pub fn task_client_config(
         &self,
         auth_token: rpc_common::AuthToken,
@@ -447,21 +411,18 @@ impl WebHost {
         }
     }
 
-    fn build_rpc_client(&self) -> RpcClient {
-        let zmq_ctx = self.zmq_context.clone();
-        RpcClient::new_with_defaults(
-            Arc::new(zmq_ctx.clone()),
-            self.rpc_addr.clone(),
-            self.curve_keys
-                .as_ref()
-                .map(|(client_secret, client_public, server_public)| {
-                    rpc_async_client::rpc_client::CurveKeys {
-                        client_secret: client_secret.clone(),
-                        client_public: client_public.clone(),
-                        server_public: server_public.clone(),
-                    }
-                }),
+    pub async fn task_client(
+        &self,
+        auth_token: rpc_common::AuthToken,
+    ) -> Result<
+        rpc_async_client::task_client::TaskClient,
+        rpc_async_client::task_client::TaskClientError,
+    > {
+        rpc_async_client::task_client::TaskClient::connect_with_services(
+            self.task_client_config(auth_token),
+            self.host_services.clone(),
         )
+        .await
     }
 
     /// Contact the RPC server to validate an auth token, and return the object ID of the player
@@ -471,9 +432,9 @@ impl WebHost {
         auth_token: AuthToken,
         connect_type: Option<moor_rpc::ConnectType>,
         peer_addr: SocketAddr,
-    ) -> Result<(Obj, Uuid, ClientToken, RpcClient), WsHostError> {
+    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>), WsHostError> {
         let client_id = Uuid::new_v4();
-        let rpc_client = self.build_rpc_client();
+        let rpc_client = self.create_daemon_client();
 
         // Perform reverse DNS lookup for hostname
         debug!(
@@ -500,86 +461,46 @@ impl WebHost {
         };
         debug!("attach_authenticated: DNS lookup complete, continuing with attach");
 
-        let content_types = vec![
-            moor_rpc::Symbol {
-                value: "text_html".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_djot".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_plain".to_string(),
-            },
-        ];
+        let request = ClientRequest::Attach {
+            auth_token,
+            connect_type: connect_type
+                .map(connect_type_from_rpc)
+                .unwrap_or(ConnectType::Connected),
+            handler_object: self.handler_object,
+            peer_addr: hostname,
+            local_port: self.local_port,
+            remote_port: peer_addr.port(),
+            acceptable_content_types: Some(websocket_content_types()),
+        };
 
-        let attach_msg = mk_attach_msg(
-            &auth_token,
-            connect_type,
-            &self.handler_object,
-            hostname,
-            self.local_port,
-            peer_addr.port(),
-            Some(content_types),
-        );
-
-        let reply_bytes = match rpc_client.make_client_rpc_call(client_id, attach_msg).await {
-            Ok(bytes) => bytes,
+        let reply = match rpc_client.client_call(client_id, request).await {
+            Ok(reply) => reply,
             Err(e) => {
                 error!("Unable to attach: {}", e);
                 return Err(WsHostError::RpcError(eyre!(e)));
             }
         };
 
-        let reply = read_reply_result(&reply_bytes)
-            .map_err(|e| WsHostError::RpcError(eyre!("Failed to parse reply: {}", e)))?;
-
-        let (client_token, player) = match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-                let daemon_reply = client_success.reply().ok().ok_or_else(|| {
-                    WsHostError::RpcError(eyre!("Attach response missing daemon reply"))
-                })?;
-                match daemon_reply.reply().map_err(|e| {
-                    WsHostError::RpcError(eyre!(
-                        "Attach response missing daemon reply union: {}",
-                        e
-                    ))
-                })? {
-                    moor_rpc::DaemonToClientReplyUnionRef::AttachResult(attach_result) => {
-                        match decode_attach_result(attach_result) {
-                            Ok((client_token, player)) => {
-                                debug!("Connection authenticated, player: {}", player);
-                                (client_token, player)
-                            }
-                            Err(WsHostError::AuthenticationFailed) => {
-                                warn!("Connection authentication failed from {}", peer_addr);
-                                return Err(WsHostError::AuthenticationFailed);
-                            }
-                            Err(e) => return Err(e),
-                        }
-                    }
-                    _ => {
-                        error!("Unexpected response from RPC server");
-                        return Err(WsHostError::RpcError(eyre!(
-                            "Unexpected response from RPC server"
-                        )));
-                    }
-                }
+        let (client_token, player) = match reply {
+            ClientReply::AttachResult {
+                success: true,
+                client_token: Some(client_token),
+                player: Some(player),
+                ..
+            } => {
+                debug!("Connection authenticated, player: {}", player);
+                (client_token, player)
             }
-            Ok(moor_rpc::ReplyResultUnionRef::Failure(failure)) => {
-                let msg = failure_message(failure);
-                debug!("Attach rejected: {}", msg);
+            ClientReply::AttachResult { success: false, .. } => {
+                warn!("Connection authentication failed from {}", peer_addr);
                 return Err(WsHostError::AuthenticationFailed);
             }
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(_)) => {
-                error!("Unexpected host success response");
-                return Err(WsHostError::RpcError(eyre!("Unexpected host success")));
-            }
-            Err(e) => {
+            ClientReply::AttachResult { .. } => {
                 return Err(WsHostError::RpcError(eyre!(
-                    "Attach response missing top-level result: {}",
-                    e
+                    "Attach response missing client token or player"
                 )));
             }
+            _ => return Err(WsHostError::RpcError(eyre!("Unexpected attach reply"))),
         };
 
         Ok((player, client_id, client_token, rpc_client))
@@ -591,8 +512,8 @@ impl WebHost {
         client_id: Uuid,
         client_token: ClientToken,
         peer_addr: SocketAddr,
-    ) -> Result<(Obj, Uuid, ClientToken, RpcClient), WsHostError> {
-        let rpc_client = self.build_rpc_client();
+    ) -> Result<(Obj, Uuid, ClientToken, Arc<dyn RuntimeClient>), WsHostError> {
+        let rpc_client = self.create_daemon_client();
 
         debug!(
             "reattach_authenticated: About to call resolve_hostname for {}",
@@ -618,88 +539,41 @@ impl WebHost {
         };
         debug!("reattach_authenticated: DNS lookup complete, continuing with reattach");
 
-        let content_types = vec![
-            moor_rpc::Symbol {
-                value: "text_html".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_djot".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_plain".to_string(),
-            },
-        ];
+        let request = ClientRequest::Reattach {
+            client_token,
+            auth_token,
+            peer_addr: Some(hostname),
+            local_port: Some(self.local_port),
+            remote_port: Some(peer_addr.port()),
+            acceptable_content_types: Some(websocket_content_types()),
+            connection_attributes: None,
+        };
 
-        let reattach_msg = mk_reattach_msg(
-            &client_token,
-            &auth_token,
-            Some(hostname),
-            Some(self.local_port),
-            Some(peer_addr.port()),
-            Some(content_types),
-            None,
-        );
-
-        let reply_bytes = match rpc_client
-            .make_client_rpc_call(client_id, reattach_msg)
-            .await
-        {
-            Ok(bytes) => bytes,
+        let reply = match rpc_client.client_call(client_id, request).await {
+            Ok(reply) => reply,
             Err(e) => {
                 error!("Unable to reattach: {}", e);
                 return Err(WsHostError::RpcError(eyre!(e)));
             }
         };
 
-        let reply = read_reply_result(&reply_bytes)
-            .map_err(|e| WsHostError::RpcError(eyre!("Failed to parse reply: {}", e)))?;
-
-        let (client_token, player) = match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-                let daemon_reply = client_success.reply().ok().ok_or_else(|| {
-                    WsHostError::RpcError(eyre!("Reattach response missing daemon reply"))
-                })?;
-                match daemon_reply.reply().map_err(|e| {
-                    WsHostError::RpcError(eyre!(
-                        "Reattach response missing daemon reply union: {}",
-                        e
-                    ))
-                })? {
-                    moor_rpc::DaemonToClientReplyUnionRef::AttachResult(attach_result) => {
-                        match decode_attach_result(attach_result) {
-                            Ok((confirmed_client_token, player)) => {
-                                (confirmed_client_token, player)
-                            }
-                            Err(WsHostError::AuthenticationFailed) => {
-                                warn!("Connection reattach failed from {}", peer_addr);
-                                return Err(WsHostError::AuthenticationFailed);
-                            }
-                            Err(e) => return Err(e),
-                        }
-                    }
-                    _ => {
-                        error!("Unexpected response from RPC server");
-                        return Err(WsHostError::RpcError(eyre!(
-                            "Unexpected response from RPC server"
-                        )));
-                    }
-                }
-            }
-            Ok(moor_rpc::ReplyResultUnionRef::Failure(failure)) => {
-                let msg = failure_message(failure);
-                debug!("Reattach rejected: {}", msg);
+        let (client_token, player) = match reply {
+            ClientReply::AttachResult {
+                success: true,
+                client_token: Some(client_token),
+                player: Some(player),
+                ..
+            } => (client_token, player),
+            ClientReply::AttachResult { success: false, .. } => {
+                warn!("Connection reattach failed from {}", peer_addr);
                 return Err(WsHostError::AuthenticationFailed);
             }
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(_)) => {
-                error!("Unexpected host success response");
-                return Err(WsHostError::RpcError(eyre!("Unexpected host success")));
-            }
-            Err(e) => {
+            ClientReply::AttachResult { .. } => {
                 return Err(WsHostError::RpcError(eyre!(
-                    "Reattach response missing top-level result: {}",
-                    e
+                    "Reattach response missing client token or player"
                 )));
             }
+            _ => return Err(WsHostError::RpcError(eyre!("Unexpected reattach reply"))),
         };
 
         Ok((player, client_id, client_token, rpc_client))
@@ -713,66 +587,13 @@ impl WebHost {
         client_id: Uuid,
         client_token: ClientToken,
         auth_token: AuthToken,
-        rpc_client: RpcClient,
+        daemon_client: Arc<dyn RuntimeClient>,
         peer_addr: SocketAddr,
     ) -> Result<ClientSession, eyre::Error> {
-        let zmq_ctx = self.zmq_context.clone();
-
-        // We'll need to subscribe to the narrative & broadcast messages for this connection.
-        let mut narrative_socket_builder = subscribe(&zmq_ctx);
-
-        // Configure CURVE encryption if keys provided
-        if let Some((client_secret, client_public, server_public)) = &self.curve_keys {
-            // Decode Z85 keys to bytes
-            let client_secret_bytes = zmq::z85_decode(client_secret)
-                .map_err(|_| eyre::eyre!("Invalid client secret key"))?;
-            let client_public_bytes = zmq::z85_decode(client_public)
-                .map_err(|_| eyre::eyre!("Invalid client public key"))?;
-            let server_public_bytes = zmq::z85_decode(server_public)
-                .map_err(|_| eyre::eyre!("Invalid server public key"))?;
-
-            narrative_socket_builder = narrative_socket_builder
-                .set_curve_secretkey(&client_secret_bytes)
-                .set_curve_publickey(&client_public_bytes)
-                .set_curve_serverkey(&server_public_bytes);
-        }
-
-        let narrative_sub = narrative_socket_builder
-            .connect(self.pubsub_addr.as_str())
-            .map_err(|e| eyre::eyre!("Unable to connect narrative subscriber: {}", e))?;
-        let narrative_sub = narrative_sub
-            .subscribe(&client_id.as_bytes()[..])
-            .map_err(|e| eyre::eyre!("Unable to subscribe to narrative messages: {}", e))?;
-
-        let mut broadcast_socket_builder = subscribe(&zmq_ctx);
-
-        // Configure CURVE encryption if keys provided
-        if let Some((client_secret, client_public, server_public)) = &self.curve_keys {
-            // Decode Z85 keys to bytes
-            let client_secret_bytes = zmq::z85_decode(client_secret)
-                .map_err(|_| eyre::eyre!("Invalid client secret key"))?;
-            let client_public_bytes = zmq::z85_decode(client_public)
-                .map_err(|_| eyre::eyre!("Invalid client public key"))?;
-            let server_public_bytes = zmq::z85_decode(server_public)
-                .map_err(|_| eyre::eyre!("Invalid server public key"))?;
-
-            broadcast_socket_builder = broadcast_socket_builder
-                .set_curve_secretkey(&client_secret_bytes)
-                .set_curve_publickey(&client_public_bytes)
-                .set_curve_serverkey(&server_public_bytes);
-        }
-
-        let broadcast_sub = broadcast_socket_builder
-            .connect(self.pubsub_addr.as_str())
-            .map_err(|e| eyre::eyre!("Unable to connect broadcast subscriber: {}", e))?;
-        let broadcast_sub = broadcast_sub
-            .subscribe(CLIENT_BROADCAST_TOPIC)
-            .map_err(|e| eyre::eyre!("Unable to subscribe to broadcast messages: {}", e))?;
-
-        info!(
-            "Subscribed on pubsub socket for {:?}, socket addr {}",
-            client_id, self.pubsub_addr
-        );
+        let (narrative_sub, broadcast_sub) = self
+            .host_services
+            .client_subscriptions(client_id)
+            .map_err(|e| eyre::eyre!("Unable to subscribe to client events: {}", e))?;
 
         let realtime_domains: std::collections::HashSet<String> = self
             .webrtc_config
@@ -789,7 +610,7 @@ impl WebHost {
             client_id,
             client_token,
             auth_token,
-            rpc_client,
+            daemon_client,
             pending_task: None,
             close_code: None,
             is_logout: false,
@@ -804,8 +625,8 @@ impl WebHost {
     pub async fn establish_client_connection(
         &self,
         addr: SocketAddr,
-    ) -> Result<(Uuid, RpcClient, ClientToken), WsHostError> {
-        let rpc_client = self.build_rpc_client();
+    ) -> Result<(Uuid, Arc<dyn RuntimeClient>, ClientToken), WsHostError> {
+        let rpc_client = self.create_daemon_client();
 
         let client_id = Uuid::new_v4();
 
@@ -821,74 +642,34 @@ impl WebHost {
             }
         };
 
-        let content_types = vec![
-            moor_rpc::Symbol {
-                value: "text_plain".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_html".to_string(),
-            },
-            moor_rpc::Symbol {
-                value: "text_djot".to_string(),
-            },
-        ];
+        let request = ClientRequest::ConnectionEstablish {
+            peer_addr: hostname,
+            local_port: self.local_port,
+            remote_port: addr.port(),
+            acceptable_content_types: Some(http_content_types()),
+            connection_attributes: Some(vec![]),
+        };
 
-        let establish_msg = mk_connection_establish_msg(
-            hostname,
-            self.local_port,
-            addr.port(),
-            Some(content_types),
-            Some(vec![]),
-        );
-
-        let reply_bytes = match rpc_client
-            .make_client_rpc_call(client_id, establish_msg)
-            .await
-        {
-            Ok(bytes) => bytes,
+        let reply = match rpc_client.client_call(client_id, request).await {
+            Ok(reply) => reply,
             Err(e) => {
                 error!("Unable to establish connection: {}", e);
                 return Err(WsHostError::RpcError(eyre!(e)));
             }
         };
 
-        let reply = read_reply_result(&reply_bytes)
-            .map_err(|e| WsHostError::RpcError(eyre!("Failed to parse reply: {}", e)))?;
-
-        let client_token = match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success)) => {
-                let daemon_reply = client_success.reply().ok().ok_or_else(|| {
-                    WsHostError::RpcError(eyre!("Connection establishment missing daemon reply"))
-                })?;
-                match daemon_reply.reply().map_err(|e| {
-                    WsHostError::RpcError(eyre!(
-                        "Connection establishment missing daemon reply union: {}",
-                        e
-                    ))
-                })? {
-                    moor_rpc::DaemonToClientReplyUnionRef::NewConnection(new_conn) => {
-                        decode_new_connection_token(new_conn)?
-                    }
-                    _ => {
-                        error!("Unexpected response from RPC server");
-                        return Err(WsHostError::RpcError(eyre!(
-                            "Unexpected response from RPC server"
-                        )));
-                    }
-                }
+        let client_token = match reply {
+            ClientReply::NewConnection {
+                client_token,
+                connection_obj,
+            } => {
+                info!("Connection established, connection ID: {}", connection_obj);
+                client_token
             }
-            Ok(moor_rpc::ReplyResultUnionRef::Failure(_)) => {
-                error!("RPC failure in connection establishment");
-                return Err(WsHostError::RpcError(eyre!("RPC failure")));
-            }
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(_)) => {
-                error!("Unexpected host success response");
-                return Err(WsHostError::RpcError(eyre!("Unexpected host success")));
-            }
-            Err(e) => {
+            _ => {
+                error!("Unexpected response from RPC server");
                 return Err(WsHostError::RpcError(eyre!(
-                    "Connection establishment missing top-level result: {}",
-                    e
+                    "Unexpected response from RPC server"
                 )));
             }
         };
@@ -897,16 +678,15 @@ impl WebHost {
     }
 
     pub async fn fetch_server_features(&self) -> Result<Vec<u8>, StatusCode> {
-        let rpc_client = self.build_rpc_client();
-        let request_msg = mk_get_server_features_msg();
+        let rpc_client = self.create_daemon_client();
 
-        let reply_bytes = match timeout(
+        let reply = match timeout(
             Duration::from_secs(5),
-            rpc_client.make_host_rpc_call(self.host_id, request_msg),
+            rpc_client.host_call(self.host_id, HostRequest::GetServerFeatures),
         )
         .await
         {
-            Ok(Ok(bytes)) => bytes,
+            Ok(Ok(reply)) => reply,
             Ok(Err(e)) => {
                 error!("Failed to fetch server features: {}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -917,57 +697,25 @@ impl WebHost {
             }
         };
 
-        let reply = match read_reply_result(&reply_bytes) {
-            Ok(reply) => reply,
-            Err(e) => {
-                error!("Failed to parse server feature reply: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let host_success = match reply.result() {
-            Ok(moor_rpc::ReplyResultUnionRef::HostSuccess(host_success)) => host_success,
-            Ok(_) => {
-                error!("Unexpected reply union for server features");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-            Err(e) => {
-                error!("Missing result in server features reply: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        let daemon_reply = match host_success.reply() {
-            Ok(reply) => reply,
-            Err(e) => {
-                error!("Missing host reply for features: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-        };
-
-        match daemon_reply.reply() {
-            Ok(moor_rpc::DaemonToHostReplyUnionRef::ServerFeatures(_)) => {}
-            Ok(_) => {
-                error!("Unexpected host reply variant for features");
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
-            Err(e) => {
-                error!("Missing reply union for features: {}", e);
-                return Err(StatusCode::INTERNAL_SERVER_ERROR);
-            }
+        if !matches!(&reply, HostReply::ServerFeatures(_)) {
+            error!("Unexpected host reply variant for features");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
 
-        Ok(reply_bytes)
+        Ok(encode_host_success_bytes(reply))
     }
 }
 
 pub(crate) async fn rpc_call(
     client_id: Uuid,
-    rpc_client: &RpcClient,
-    request: moor_rpc::HostClientToDaemonMessage,
+    rpc_client: &Arc<dyn RuntimeClient>,
+    request: ClientRequest,
 ) -> Result<Vec<u8>, StatusCode> {
-    match rpc_client.make_client_rpc_call(client_id, request).await {
-        Ok(bytes) => Ok(bytes),
+    match rpc_client.client_call(client_id, request).await {
+        Ok(reply) => encode_client_success_bytes(reply).map_err(|e| {
+            error!("RPC reply encode failure: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }),
         Err(e) => {
             error!("RPC failure: {:?}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -1020,7 +768,7 @@ pub async fn system_property_handler(
     };
 
     let auth_token = auth::extract_auth_token_header(&header_map).ok();
-    let rpc_client = host.create_rpc_client();
+    let rpc_client = host.create_daemon_client();
     let client_id = Uuid::new_v4();
 
     let path_parts: Vec<&str> = path.split('/').collect();
@@ -1032,11 +780,11 @@ pub async fn system_property_handler(
         (obj_parts.iter().map(|&s| Symbol::mk(s)).collect(), prop)
     };
 
-    let sysprop_msg = mk_request_sys_prop_msg(
-        auth_token.as_ref(),
-        &ObjectRef::SysObj(obj_path),
-        &Symbol::mk(property_name),
-    );
+    let sysprop_msg = ClientRequest::RequestSysProp {
+        auth_token,
+        object: ObjectRef::SysObj(obj_path),
+        property: Symbol::mk(property_name),
+    };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, sysprop_msg).await {
         Ok(bytes) => bytes,
@@ -1273,7 +1021,7 @@ pub async fn resolve_objref_handler(
         Some(oref) => oref,
     };
 
-    let resolve_msg = mk_resolve_msg(&auth_token, &objref);
+    let resolve_msg = ClientRequest::Resolve { auth_token, objref };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, resolve_msg).await {
         Ok(bytes) => bytes,
@@ -1318,7 +1066,11 @@ pub async fn eval_handler(
 
     let expression = String::from_utf8_lossy(&expression).to_string();
 
-    let eval_msg = mk_eval_msg(&client_token, &auth_token, expression);
+    let eval_msg = ClientRequest::Eval {
+        client_token,
+        auth_token,
+        expression,
+    };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, eval_msg).await {
         Ok(bytes) => bytes,
@@ -1350,18 +1102,13 @@ pub async fn invoke_welcome_message_handler(
         Err(status) => return status.into_response(),
     };
 
-    let rpc_client = host.create_rpc_client();
+    let rpc_client = host.create_daemon_client();
     let client_id = Uuid::new_v4();
 
-    let verb = Symbol::mk("do_login_command");
-    let args: Vec<&moor_var::Var> = vec![];
-
-    let call_system_verb_msg = match mk_call_system_verb_msg(None, &verb, args) {
-        Some(msg) => msg,
-        None => {
-            error!("Failed to create CallSystemVerb message");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    let call_system_verb_msg = ClientRequest::CallSystemVerb {
+        auth_token: None,
+        verb: Symbol::mk("do_login_command"),
+        args: Vec::new(),
     };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, call_system_verb_msg).await {

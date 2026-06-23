@@ -30,10 +30,7 @@ use axum::{
 };
 use moor_common::model::ObjectRef;
 use moor_var::Symbol;
-use rpc_common::{
-    BatchAction, mk_batch_world_state_msg, mk_list_objects_msg, mk_update_property_msg,
-    ws_query_objects,
-};
+use rpc_common::api::{BatchAction, BatchActionEntry, ClientRequest};
 use serde::Deserialize;
 use tracing::error;
 
@@ -63,7 +60,7 @@ pub async fn list_objects_handler(
         Err(status) => return status.into_response(),
     };
 
-    let list_msg = mk_list_objects_msg(&auth_token);
+    let list_msg = ClientRequest::ListObjects { auth_token };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, list_msg).await {
         Ok(bytes) => bytes,
@@ -121,22 +118,20 @@ pub async fn query_objects_handler(
             _ => None,
         });
 
-    let action = ws_query_objects(
-        parent.as_ref(),
-        location.as_ref(),
-        owner.as_ref(),
-        query.flags_all.unwrap_or(0),
-        query.flags_any.unwrap_or(0),
-    );
-
-    let batch_msg = mk_batch_world_state_msg(
-        &auth_token,
-        vec![BatchAction {
+    let batch_msg = ClientRequest::BatchWorldState {
+        auth_token,
+        actions: vec![BatchActionEntry {
             id: "query".to_string(),
-            action,
+            action: BatchAction::QueryObjects {
+                parent,
+                location,
+                owner,
+                flags_all: query.flags_all.unwrap_or(0),
+                flags_any: query.flags_any.unwrap_or(0),
+            },
         }],
-        true, // Read-only
-    );
+        rollback: true,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, batch_msg).await {
         Ok(bytes) => bytes,
@@ -199,10 +194,11 @@ pub async fn update_property_handler(
         }
     };
 
-    let Some(update_msg) = mk_update_property_msg(&auth_token, &object_ref, &prop_symbol, &value)
-    else {
-        error!("Failed to create update_property message");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    let update_msg = ClientRequest::UpdateProperty {
+        auth_token,
+        object: object_ref,
+        property: prop_symbol,
+        value,
     };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, update_msg).await {

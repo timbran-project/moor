@@ -25,51 +25,11 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use moor_schema::rpc as moor_rpc;
-use rpc_common::{
-    mk_dismiss_presentation_msg, mk_request_current_presentations_msg, mk_request_history_msg,
-    read_reply_result,
-};
+use rpc_common::api::{ClientReply, ClientRequest, HistoryRecall};
 use serde_derive::Deserialize;
 use serde_json::json;
 use tracing::error;
 use uuid::Uuid;
-
-/// Helper function to extract the daemon reply from an RPC response
-/// Handles the common boilerplate of unwrapping the nested RPC structures
-fn extract_daemon_reply(
-    reply_bytes: &[u8],
-) -> Result<moor_rpc::DaemonToClientReplyUnionRef<'_>, Box<Response>> {
-    let reply = match read_reply_result(reply_bytes) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("Failed to parse reply: {}", e);
-            return Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()));
-        }
-    };
-
-    let Ok(result) = reply.result() else {
-        error!("Missing result in RPC reply");
-        return Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()));
-    };
-
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(host_success) = result else {
-        error!("RPC failure");
-        return Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()));
-    };
-
-    let Ok(daemon_reply) = host_success.reply() else {
-        error!("Missing daemon reply");
-        return Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()));
-    };
-
-    let Ok(reply_union) = daemon_reply.reply() else {
-        error!("Missing reply union");
-        return Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()));
-    };
-
-    Ok(reply_union)
-}
 
 #[derive(Deserialize)]
 pub struct HistoryQuery {
@@ -97,69 +57,36 @@ pub async fn history_handler(
         Err(status) => return status.into_response(),
     };
 
-    let history_recall_union = if let Some(since_seconds) = query.since_seconds {
-        moor_rpc::HistoryRecallUnion::HistoryRecallSinceSeconds(Box::new(
-            moor_rpc::HistoryRecallSinceSeconds {
-                seconds_ago: since_seconds,
-                limit: query.limit.unwrap_or(0) as u64,
-            },
-        ))
+    let recall = if let Some(since_seconds) = query.since_seconds {
+        HistoryRecall::SinceSeconds {
+            seconds_ago: since_seconds,
+            limit: query.limit,
+        }
     } else if let Some(since_event_str) = query.since_event {
         match Uuid::parse_str(&since_event_str) {
-            Ok(uuid) => {
-                let uuid_bytes = uuid.as_bytes().to_vec();
-                moor_rpc::HistoryRecallUnion::HistoryRecallSinceEvent(Box::new(
-                    moor_rpc::HistoryRecallSinceEvent {
-                        event_id: Box::new(moor_rpc::Uuid { data: uuid_bytes }),
-                        limit: query.limit.unwrap_or(0) as u64,
-                    },
-                ))
-            }
+            Ok(event_id) => HistoryRecall::SinceEvent {
+                event_id,
+                limit: query.limit,
+            },
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),
         }
     } else if let Some(until_event_str) = query.until_event {
         match Uuid::parse_str(&until_event_str) {
-            Ok(uuid) => {
-                let uuid_bytes = uuid.as_bytes().to_vec();
-                moor_rpc::HistoryRecallUnion::HistoryRecallUntilEvent(Box::new(
-                    moor_rpc::HistoryRecallUntilEvent {
-                        event_id: Box::new(moor_rpc::Uuid { data: uuid_bytes }),
-                        limit: query.limit.unwrap_or(0) as u64,
-                    },
-                ))
-            }
+            Ok(event_id) => HistoryRecall::UntilEvent {
+                event_id,
+                limit: query.limit,
+            },
             Err(_) => return StatusCode::BAD_REQUEST.into_response(),
         }
     } else {
-        moor_rpc::HistoryRecallUnion::HistoryRecallNone(Box::new(moor_rpc::HistoryRecallNone {}))
+        HistoryRecall::None
     };
 
-    let history_msg = mk_request_history_msg(
-        &auth_token,
-        Box::new(moor_rpc::HistoryRecall {
-            recall: history_recall_union,
-        }),
-    );
+    let history_msg = ClientRequest::RequestHistory { auth_token, recall };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, history_msg).await {
         Ok(bytes) => bytes,
         Err(status) => return status.into_response(),
-    };
-
-    let reply_union = match extract_daemon_reply(&reply_bytes) {
-        Ok(r) => r,
-        Err(response) => return *response,
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::HistoryResponseReply(history_ref) = reply_union
-    else {
-        error!("Unexpected response type: expected HistoryResponseReply");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-
-    let Ok(_history_response) = history_ref.response() else {
-        error!("Missing history response");
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
 
     match format {
@@ -178,29 +105,24 @@ pub async fn get_pubkey_handler(
         rpc_client,
     }: StatelessAuth,
 ) -> Response {
-    let get_pubkey_msg = rpc_common::mk_get_event_log_pubkey_msg(&auth_token);
-
-    let reply_bytes = match rpc_call(client_id, &rpc_client, get_pubkey_msg).await {
-        Ok(bytes) => bytes,
-        Err(status) => return status.into_response(),
+    let reply = match rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::GetEventLogPublicKey { auth_token },
+        )
+        .await
+    {
+        Ok(reply) => reply,
+        Err(e) => {
+            error!("RPC failure: {:?}", e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
 
-    let reply_union = match extract_daemon_reply(&reply_bytes) {
-        Ok(r) => r,
-        Err(response) => return *response,
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::EventLogPublicKey(pubkey_ref) = reply_union else {
+    let ClientReply::EventLogPublicKey { public_key } = reply else {
         error!("Unexpected response type: expected EventLogPublicKey");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-
-    let public_key = pubkey_ref
-        .public_key()
-        .ok()
-        .flatten()
-        .unwrap_or_default()
-        .to_string();
 
     let response = Json(json!({
         "public_key": public_key
@@ -217,25 +139,24 @@ pub async fn delete_history_handler(
         rpc_client,
     }: StatelessAuth,
 ) -> Response {
-    let delete_msg = rpc_common::mk_delete_event_log_history_msg(&auth_token);
-
-    let reply_bytes = match rpc_call(client_id, &rpc_client, delete_msg).await {
-        Ok(bytes) => bytes,
-        Err(status) => return status.into_response(),
+    let reply = match rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::DeleteEventLogHistory { auth_token },
+        )
+        .await
+    {
+        Ok(reply) => reply,
+        Err(e) => {
+            error!("RPC failure: {:?}", e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
 
-    let reply_union = match extract_daemon_reply(&reply_bytes) {
-        Ok(r) => r,
-        Err(response) => return *response,
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::EventLogHistoryDeleted(deleted_ref) = reply_union
-    else {
+    let ClientReply::EventLogHistoryDeleted { success } = reply else {
         error!("Unexpected response type: expected EventLogHistoryDeleted");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-
-    let success = deleted_ref.success().unwrap_or(false);
 
     let response = Json(json!({
         "success": success
@@ -262,37 +183,27 @@ pub async fn set_pubkey_handler(
         }
     };
 
-    let set_pubkey_msg = rpc_common::mk_set_event_log_pubkey_msg(&auth_token, public_key);
-
-    let reply_bytes = match rpc_call(client_id, &rpc_client, set_pubkey_msg).await {
-        Ok(bytes) => bytes,
-        Err(status) => return status.into_response(),
-    };
-
-    let _ = match read_reply_result(&reply_bytes) {
-        Ok(r) => r,
+    let reply = match rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::SetEventLogPublicKey {
+                auth_token,
+                public_key,
+            },
+        )
+        .await
+    {
+        Ok(reply) => reply,
         Err(e) => {
-            error!("Failed to parse reply: {}", e);
+            error!("RPC failure: {:?}", e);
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
-    let reply_union = match extract_daemon_reply(&reply_bytes) {
-        Ok(r) => r,
-        Err(response) => return *response,
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::EventLogPublicKey(pubkey_ref) = reply_union else {
+    let ClientReply::EventLogPublicKey { public_key } = reply else {
         error!("Unexpected response type: expected EventLogPublicKey");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-
-    let public_key = pubkey_ref
-        .public_key()
-        .ok()
-        .flatten()
-        .unwrap_or_default()
-        .to_string();
 
     let response = Json(json!({
         "public_key": public_key,
@@ -311,19 +222,24 @@ pub async fn dismiss_presentation_handler(
     }: StatelessAuth,
     Path(presentation_id): Path<String>,
 ) -> Response {
-    let dismiss_msg = mk_dismiss_presentation_msg(&auth_token, presentation_id.clone());
-
-    let reply_bytes = match rpc_call(client_id, &rpc_client, dismiss_msg).await {
-        Ok(bytes) => bytes,
-        Err(status) => return status.into_response(),
+    let reply = match rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::DismissPresentation {
+                auth_token,
+                presentation_id: presentation_id.clone(),
+            },
+        )
+        .await
+    {
+        Ok(reply) => reply,
+        Err(e) => {
+            error!("RPC failure: {:?}", e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
     };
 
-    let reply_union = match extract_daemon_reply(&reply_bytes) {
-        Ok(r) => r,
-        Err(response) => return *response,
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::PresentationDismissed(_) = reply_union else {
+    let ClientReply::PresentationDismissed = reply else {
         error!("Unexpected response type: expected PresentationDismissed");
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
@@ -353,7 +269,7 @@ pub async fn presentations_handler(
         Err(status) => return status.into_response(),
     };
 
-    let presentations_msg = mk_request_current_presentations_msg(&auth_token);
+    let presentations_msg = ClientRequest::RequestCurrentPresentations { auth_token };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, presentations_msg).await {
         Ok(bytes) => bytes,

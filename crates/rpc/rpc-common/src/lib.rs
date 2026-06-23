@@ -22,6 +22,8 @@ use planus::ReadAsRoot;
 use thiserror::Error;
 
 // Re-export domain types
+pub mod api;
+pub mod api_codec;
 pub use host::{HostType, extract_host_type};
 pub use tokens::{
     AuthToken, ClientToken, KeyError, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER,
@@ -142,6 +144,8 @@ pub enum RpcError {
     Fatal(String),
     #[error("unexpected reply: {0}")]
     UnexpectedReply(String),
+    #[error("daemon returned error: {0}")]
+    Daemon(RpcMessageError),
 }
 
 // Re-export from moor-schema

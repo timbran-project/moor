@@ -3409,6 +3409,7 @@ version = "2.0.0-dev"
 dependencies = [
  "age",
  "ahash",
+ "async-trait",
  "base64",
  "byteview",
  "chrono",
@@ -5158,6 +5159,7 @@ dependencies = [
 name = "rpc-async-client"
 version = "2.0.0-dev"
 dependencies = [
+ "async-trait",
  "chrono",
  "eyre",
  "futures-util",
@@ -5182,6 +5184,7 @@ dependencies = [
 name = "rpc-common"
 version = "2.0.0-dev"
 dependencies = [
+ "async-trait",
  "byteview",
  "clap",
  "clap_derive",

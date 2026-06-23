@@ -18,7 +18,7 @@ use std::{
     net::SocketAddr,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
@@ -26,6 +26,7 @@ use axum::Router;
 use ipnet::IpNet;
 use moor_var::Obj;
 use rpc_async_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
+use rpc_common::api::HostServices;
 use tokio::{net::TcpListener, select};
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -44,6 +45,7 @@ pub struct Listeners {
     kill_switch: Arc<AtomicBool>,
     oauth2_manager: Option<Arc<OAuth2Manager>>,
     curve_keys: Option<(String, String, String)>,
+    host_services: Arc<dyn HostServices>,
     enable_webhooks: bool,
     last_daemon_ping: Arc<AtomicU64>,
     cors_config: CorsConfig,
@@ -62,6 +64,7 @@ impl Listeners {
         kill_switch: Arc<AtomicBool>,
         oauth2_manager: Option<Arc<OAuth2Manager>>,
         curve_keys: Option<(String, String, String)>,
+        host_services: Arc<dyn HostServices>,
         enable_webhooks: bool,
         last_daemon_ping: Arc<AtomicU64>,
         cors_config: CorsConfig,
@@ -83,6 +86,7 @@ impl Listeners {
             kill_switch,
             oauth2_manager,
             curve_keys,
+            host_services,
             enable_webhooks,
             last_daemon_ping,
             cors_config,
@@ -104,12 +108,15 @@ impl Listeners {
         }
 
         loop {
-            if self.kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
-                info!("Host kill switch activated, stopping...");
-                return;
-            }
+            let message = select! {
+                _ = wait_for_kill_switch(self.kill_switch.clone()) => {
+                    info!("Host kill switch activated, stopping...");
+                    return;
+                }
+                message = listeners_channel.recv() => message,
+            };
 
-            match listeners_channel.recv().await {
+            match message {
                 Some(ListenersMessage::AddTlsListener(handler, addr, reply)) => {
                     error!(?addr, "TLS listeners not supported by web-host");
                     let _ = reply.send(Err(ListenersError::AddListenerFailed(handler, addr)));
@@ -124,7 +131,11 @@ impl Listeners {
                     self.send_listeners(tx);
                 }
                 None => {
-                    warn!("Listeners channel closed, stopping...");
+                    if self.kill_switch.load(Ordering::Relaxed) {
+                        info!("Listeners channel closed during shutdown, stopping...");
+                    } else {
+                        warn!("Listeners channel closed, stopping...");
+                    }
                     return;
                 }
             }
@@ -163,6 +174,7 @@ impl Listeners {
             self.curve_keys.clone(),
             self.host_id,
             self.last_daemon_ping.clone(),
+            self.host_services.clone(),
             self.trusted_proxy_cidrs.clone(),
             self.webrtc_config.clone(),
         );
@@ -251,6 +263,12 @@ impl Listeners {
         if let Err(e) = tx.send(listeners) {
             error!("Unable to send listeners list: {:?}", e);
         }
+    }
+}
+
+async fn wait_for_kill_switch(kill_switch: Arc<AtomicBool>) {
+    while !kill_switch.load(Ordering::Relaxed) {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 }
 

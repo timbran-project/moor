@@ -19,7 +19,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::PathBuf,
-    sync::{Arc, atomic::AtomicBool, mpsc},
+    sync::{Arc, Mutex, atomic::AtomicBool},
 };
 
 use crate::{
@@ -47,6 +47,7 @@ use moor_objdef::ObjectDefinitionLoader;
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_empty_str};
 use rand::RngExt;
+use rpc_common::api::RuntimeClient;
 use rusty_paseto::core::Key;
 use sha2::{Digest, Sha256};
 
@@ -56,6 +57,7 @@ mod curve_keys;
 mod enrollment;
 mod event_log;
 mod rpc;
+mod runtime;
 mod system_control;
 mod tasks;
 #[cfg(test)]
@@ -67,6 +69,26 @@ use crate::tasks::tasks_db_fjall::FjallTasksDB;
 use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 
 pub use curve_keys::CurveKeyPair;
+pub use runtime::{
+    LocalClientBroadcastSubscription, LocalClientEventSubscription, LocalEventBus,
+    LocalHostEventSubscription, LocalRuntimeClient, LocalRuntimeServices,
+};
+
+pub type ReadySignal = Arc<Mutex<Option<oneshot::Sender<()>>>>;
+
+pub(crate) fn signal_ready(ready_signal: &Option<ReadySignal>) {
+    let Some(ready_signal) = ready_signal else {
+        return;
+    };
+
+    let Ok(mut sender) = ready_signal.lock() else {
+        return;
+    };
+
+    if let Some(sender) = sender.take() {
+        let _ = sender.send(());
+    }
+}
 
 #[derive(Clone)]
 pub struct DaemonPaths {
@@ -113,7 +135,9 @@ pub struct DaemonRuntime {
     pub zmq_context: zmq::Context,
     pub kill_switch: Arc<AtomicBool>,
     pub emergency_checkpoint: Option<Arc<AtomicBool>>,
-    pub ready_sender: Option<mpsc::Sender<()>>,
+    pub ready_signal: Option<ReadySignal>,
+    pub local_event_bus: Option<Arc<LocalEventBus>>,
+    pub local_runtime_services_sender: Option<flume::Sender<LocalRuntimeServices>>,
 }
 
 impl Default for DaemonRuntime {
@@ -122,16 +146,40 @@ impl Default for DaemonRuntime {
             zmq_context: zmq::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
             emergency_checkpoint: None,
-            ready_sender: None,
+            ready_signal: None,
+            local_event_bus: None,
+            local_runtime_services_sender: None,
         }
     }
 }
+
+pub const VERSION_BANNER_MSG: &str = r#"
+                                   ███████████
+                                  ░░███░░░░░███
+ █████████████    ██████   ██████  ░███    ░███
+░░███░░███░░███  ███░░███ ███░░███ ░██████████
+ ░███ ░███ ░███ ░███ ░███░███ ░███ ░███░░░░░███
+ ░███ ░███ ░███ ░███ ░███░███ ░███ ░███    ░███
+ █████░███ █████░░██████ ░░██████  █████   █████
+░░░░░ ░░░ ░░░░░  ░░░░░░   ░░░░░░  ░░░░░   ░░░░░
+
+
+
+        ████████        █████
+       ███░░░░███     ███░░░███
+      ░░░    ░███    ███   ░░███
+         ███████    ░███    ░███
+        ███░░░░     ░███    ░███
+       ███      █   ░░███   ███
+      ░██████████ ██ ░░░█████░
+      ░░░░░░░░░░ ░░    ░░░░░░
+ "#;
 
 /// Acquire an exclusive lock on the data directory to prevent multiple daemon instances
 /// from operating on the same data.
 fn acquire_data_directory_lock(data_dir: &PathBuf) -> Result<File, Report> {
     // Create the data directory if it doesn't exist
-    std::fs::create_dir_all(data_dir)?;
+    fs::create_dir_all(data_dir)?;
 
     // Create a lock file in the data directory
     let lock_file_path = data_dir.join(".moor-daemon.lock");
@@ -354,7 +402,7 @@ fn create_rpc_transport(
     events_listen: &str,
     rpc_listen: &str,
     curve_secret_key: Option<String>,
-    ready_sender: Option<mpsc::Sender<()>>,
+    ready_signal: Option<ReadySignal>,
 ) -> Result<Arc<dyn Transport>, Report> {
     let transport = Arc::new(
         RpcTransport::new(
@@ -363,7 +411,7 @@ fn create_rpc_transport(
             events_listen,
             rpc_listen,
             curve_secret_key,
-            ready_sender,
+            ready_signal,
         )
         .map_err(|e| eyre!("Failed to create RPC transport: {}", e))?,
     ) as Arc<dyn Transport>;
@@ -453,7 +501,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         zmq_context,
         kill_switch,
         emergency_checkpoint,
-        ready_sender,
+        ready_signal,
+        local_event_bus,
+        local_runtime_services_sender,
     } = runtime;
     let DaemonRuntimeConfig {
         version,
@@ -568,9 +618,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                 // We don't want to delete the entire data directory as it may contain other databases
                 // (connections, tasks, event logs) and system data (keys, enrollment tokens).
                 let cleanup_result = if paths.db_path.is_dir() {
-                    std::fs::remove_dir_all(&paths.db_path)
+                    fs::remove_dir_all(&paths.db_path)
                 } else {
-                    std::fs::remove_file(&paths.db_path)
+                    fs::remove_file(&paths.db_path)
                 };
 
                 if let Err(e) = cleanup_result {
@@ -656,19 +706,27 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         info!("IPC endpoints detected - CURVE encryption disabled (using filesystem permissions)");
     }
 
-    // Create the RPC transport with optional CURVE encryption
-    let rpc_transport = create_rpc_transport(
-        zmq_ctx.clone(),
-        kill_switch.clone(),
-        endpoints.events_listen.as_str(),
-        endpoints.rpc_listen.as_str(),
-        if use_curve {
-            Some(daemon_curve_keypair.secret.clone())
-        } else {
-            None
-        },
-        ready_sender,
-    )?;
+    let using_local_transport = local_event_bus.is_some();
+    let (rpc_transport, local_event_bus) = if let Some(local_event_bus) = local_event_bus {
+        (
+            local_event_bus.clone() as Arc<dyn Transport>,
+            Some(local_event_bus),
+        )
+    } else {
+        let transport = create_rpc_transport(
+            zmq_ctx.clone(),
+            kill_switch.clone(),
+            endpoints.events_listen.as_str(),
+            endpoints.rpc_listen.as_str(),
+            if use_curve {
+                Some(daemon_curve_keypair.secret.clone())
+            } else {
+                None
+            },
+            ready_signal.clone(),
+        )?;
+        (transport, None)
+    };
 
     // Create the event log based on configuration
     let event_log: Arc<dyn EventLogOps> = if config.features.enable_eventlog {
@@ -834,6 +892,17 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     // Invoke server_started hook if it exists
     invoke_server_started_hook(&scheduler_client, &rpc_server)?;
 
+    if let (Some(local_event_bus), Some(local_runtime_services_sender)) =
+        (local_event_bus.clone(), local_runtime_services_sender)
+    {
+        let runtime_client = Arc::new(rpc_server.local_runtime_client(scheduler_client.clone()))
+            as Arc<dyn RuntimeClient>;
+        let _ = local_runtime_services_sender.send(LocalRuntimeServices {
+            runtime_client,
+            event_bus: local_event_bus,
+        });
+    }
+
     let rpc_loop_scheduler_client = scheduler_client.clone();
     let rpc_listen = endpoints.rpc_listen.clone();
     let rpc_loop_thread = spawn_efficient("moor-rpc", move || {
@@ -843,6 +912,10 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
             error!("RPC server failed on {}: {}", rpc_listen, e);
         }
     })?;
+
+    if using_local_transport {
+        signal_ready(&ready_signal);
+    }
 
     if let Some(emergency_checkpoint) = emergency_checkpoint {
         let sigusr1_kill_switch = kill_switch.clone();

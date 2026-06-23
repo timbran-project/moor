@@ -22,11 +22,15 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use moor_common::model::ObjectRef;
-use moor_schema::rpc as moor_rpc;
-use rpc_common::{mk_login_command_msg, read_reply_result};
+use moor_var::Obj;
+use rpc_common::{
+    AuthToken, ClientToken,
+    api::{ClientReply, ClientRequest, RuntimeClient},
+};
 use serde_derive::{Deserialize, Serialize};
 use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 const OAUTH2_NONCE_COOKIE: &str = "moor_oauth_nonce";
 const OAUTH2_NONCE_COOKIE_MAX_AGE: u64 = 600;
@@ -109,6 +113,60 @@ pub struct OAuth2LoginResponse {
     pub client_token: Option<String>,
     pub client_id: Option<String>,
     pub error: Option<String>,
+}
+
+struct OAuthLoginSuccess {
+    auth_token: AuthToken,
+    player: Obj,
+    player_flags: u16,
+}
+
+async fn call_oauth_login(
+    rpc_client: &Arc<dyn RuntimeClient>,
+    client_id: Uuid,
+    client_token: &ClientToken,
+    web_host: &WebHost,
+    args: Vec<String>,
+    do_attach: bool,
+) -> Result<ClientReply, rpc_common::RpcError> {
+    rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::LoginCommand {
+                client_token: client_token.clone(),
+                handler_object: web_host.handler_object,
+                connect_args: args,
+                do_attach,
+                event_log_pubkey: None,
+                registration_data: None,
+            },
+        )
+        .await
+}
+
+fn oauth_login_success(reply: ClientReply) -> Result<Option<OAuthLoginSuccess>, &'static str> {
+    let ClientReply::LoginResult {
+        success,
+        auth_token,
+        player,
+        player_flags,
+        ..
+    } = reply
+    else {
+        return Err("Unexpected reply type from daemon");
+    };
+
+    if !success {
+        return Ok(None);
+    }
+
+    let auth_token = auth_token.ok_or("Missing auth_token in login result")?;
+    let player = player.ok_or("Missing player in login result")?;
+    Ok(Some(OAuthLoginSuccess {
+        auth_token,
+        player,
+        player_flags,
+    }))
 }
 
 /// Request body for code exchange (both existing-user auth and new-user identity)
@@ -343,98 +401,41 @@ pub async fn oauth2_callback_handler(
         user_info.external_id.clone(),
     ];
 
-    let login_msg = mk_login_command_msg(
+    let reply = match call_oauth_login(
+        &rpc_client,
+        client_id,
         &client_token,
-        &oauth2_state.web_host.handler_object,
+        &oauth2_state.web_host,
         check_args,
-        false, // just checking, not attaching yet
-        None,
-        None,
-    );
-
-    let reply_bytes = match rpc_client.make_client_rpc_call(client_id, login_msg).await {
-        Ok(bytes) => bytes,
+        false,
+    )
+    .await
+    {
+        Ok(reply) => reply,
         Err(e) => {
             error!("RPC call failed: {}", e);
             return Redirect::to("/?error=internal_error").into_response();
         }
     };
 
-    let reply = match read_reply_result(&reply_bytes) {
-        Ok(r) => r,
+    if let Some(login) = match oauth_login_success(reply) {
+        Ok(login) => login,
         Err(e) => {
-            error!("Failed to parse reply: {}", e);
-            return Redirect::to("/?error=internal_error").into_response();
+            error!("{}", e);
+            return Redirect::to("/?error=unexpected_reply").into_response();
         }
-    };
-
-    let Ok(result) = reply.result() else {
-        error!("Missing result in reply");
-        return Redirect::to("/?error=internal_error").into_response();
-    };
-
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        error!("Login check failed");
-        return Redirect::to("/?error=login_check_failed").into_response();
-    };
-
-    let Ok(daemon_reply) = client_success.reply() else {
-        error!("Missing daemon reply");
-        return Redirect::to("/?error=internal_error").into_response();
-    };
-
-    let Ok(reply_union) = daemon_reply.reply() else {
-        error!("Missing reply union");
-        return Redirect::to("/?error=internal_error").into_response();
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result) = reply_union else {
-        error!("Unexpected reply type from daemon");
-        return Redirect::to("/?error=unexpected_reply").into_response();
-    };
-
-    let Ok(success) = login_result.success() else {
-        error!("Missing success field in login result");
-        return Redirect::to("/?error=internal_error").into_response();
-    };
-
-    if success {
+    } {
         // Existing user — store auth session server-side, redirect with one-time code
-        let Ok(Some(token_ref)) = login_result.auth_token() else {
-            error!("Missing auth_token in login result");
-            return Redirect::to("/?error=internal_error").into_response();
-        };
-
-        let Ok(auth_token) = token_ref.token() else {
-            error!("Missing token string");
-            return Redirect::to("/?error=internal_error").into_response();
-        };
-
-        let Ok(Some(player_ref)) = login_result.player() else {
-            error!("Missing player in login result");
-            return Redirect::to("/?error=internal_error").into_response();
-        };
-
-        let Ok(player_obj) = moor_schema::convert::obj_from_ref(player_ref) else {
-            error!("Failed to decode player");
-            return Redirect::to("/?error=internal_error").into_response();
-        };
-
-        let Ok(player_flags) = login_result.player_flags() else {
-            error!("Missing player_flags in login result");
-            return Redirect::to("/?error=internal_error").into_response();
-        };
-
         info!(
             "Existing OAuth2 user logged in: {} (flags: {})",
-            player_obj, player_flags
+            login.player, login.player_flags
         );
 
-        let player_curie = ObjectRef::Id(player_obj).to_curie();
+        let player_curie = ObjectRef::Id(login.player).to_curie();
         let pending = PendingOAuth2Code::AuthSession {
-            auth_token: rpc_common::AuthToken(auth_token.to_string()),
+            auth_token: login.auth_token,
             player_curie,
-            player_flags,
+            player_flags: login.player_flags,
             client_token,
             client_id,
         };
@@ -725,17 +726,17 @@ pub async fn oauth2_account_choice_handler(
         }
     };
 
-    let login_msg = mk_login_command_msg(
+    let reply = match call_oauth_login(
+        &rpc_client,
+        client_id,
         &client_token,
-        &oauth2_state.web_host.handler_object,
+        &oauth2_state.web_host,
         final_args,
-        true, // do_attach
-        None,
-        None,
-    );
-
-    let reply_bytes = match rpc_client.make_client_rpc_call(client_id, login_msg).await {
-        Ok(bytes) => bytes,
+        true,
+    )
+    .await
+    {
+        Ok(reply) => reply,
         Err(e) => {
             error!("RPC call failed: {}", e);
             return (
@@ -746,157 +747,49 @@ pub async fn oauth2_account_choice_handler(
         }
     };
 
-    let reply = match read_reply_result(&reply_bytes) {
-        Ok(r) => r,
+    let login = match oauth_login_success(reply) {
+        Ok(Some(login)) => login,
+        Ok(None) => {
+            error!("Account choice failed");
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(OAuth2LoginResponse {
+                    success: false,
+                    auth_token: None,
+                    player: None,
+                    player_flags: None,
+                    client_token: None,
+                    client_id: None,
+                    error: Some("Authentication failed".to_string()),
+                }),
+            )
+                .into_response();
+        }
         Err(e) => {
-            error!("Failed to parse reply: {}", e);
+            error!("{}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to parse reply"})),
+                Json(serde_json::json!({"error": "Internal error"})),
             )
                 .into_response();
         }
     };
 
-    let Ok(result) = reply.result() else {
-        error!("Missing result in reply");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
+    info!(
+        "OAuth2 account {} successful (player: {}, flags: {})",
+        choice.mode, login.player, login.player_flags
+    );
 
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        error!("Account choice failed");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(OAuth2LoginResponse {
-                success: false,
-                auth_token: None,
-                player: None,
-                player_flags: None,
-                client_token: None,
-                client_id: None,
-                error: Some("Authentication failed".to_string()),
-            }),
-        )
-            .into_response();
-    };
-
-    let Ok(daemon_reply) = client_success.reply() else {
-        error!("Missing daemon reply");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    let Ok(reply_union) = daemon_reply.reply() else {
-        error!("Missing reply union");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result) = reply_union else {
-        error!("Unexpected reply type from daemon");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Unexpected reply type"})),
-        )
-            .into_response();
-    };
-
-    let Ok(success) = login_result.success() else {
-        error!("Missing success field in login result");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    if success {
-        let Ok(Some(token_ref)) = login_result.auth_token() else {
-            error!("Missing auth_token in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(auth_token) = token_ref.token() else {
-            error!("Missing token string");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(Some(player_ref)) = login_result.player() else {
-            error!("Missing player in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(player_obj) = moor_schema::convert::obj_from_ref(player_ref) else {
-            error!("Failed to decode player");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(player_flags) = login_result.player_flags() else {
-            error!("Missing player_flags in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        info!(
-            "OAuth2 account {} successful (player: {}, flags: {})",
-            choice.mode, player_obj, player_flags
-        );
-
-        Json(OAuth2LoginResponse {
-            success: true,
-            auth_token: Some(auth_token.to_string()),
-            player: Some(ObjectRef::Id(player_obj).to_curie()),
-            player_flags: Some(player_flags),
-            client_token: Some(client_token.0.clone()),
-            client_id: Some(client_id.to_string()),
-            error: None,
-        })
-        .into_response()
-    } else {
-        warn!("OAuth2 account {} failed", choice.mode);
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(OAuth2LoginResponse {
-                success: false,
-                auth_token: None,
-                player: None,
-                player_flags: None,
-                client_token: None,
-                client_id: None,
-                error: Some("Authentication failed".to_string()),
-            }),
-        )
-            .into_response()
-    }
+    Json(OAuth2LoginResponse {
+        success: true,
+        auth_token: Some(login.auth_token.0),
+        player: Some(ObjectRef::Id(login.player).to_curie()),
+        player_flags: Some(login.player_flags),
+        client_token: Some(client_token.0.clone()),
+        client_id: Some(client_id.to_string()),
+        error: None,
+    })
+    .into_response()
 }
 
 /// POST /auth/oauth2/app/account
@@ -992,17 +885,17 @@ pub async fn oauth2_app_account_choice_handler(
         }
     };
 
-    let login_msg = mk_login_command_msg(
+    let reply = match call_oauth_login(
+        &rpc_client,
+        client_id,
         &client_token,
-        &oauth2_state.web_host.handler_object,
+        &oauth2_state.web_host,
         final_args,
         true,
-        None,
-        None,
-    );
-
-    let reply_bytes = match rpc_client.make_client_rpc_call(client_id, login_msg).await {
-        Ok(bytes) => bytes,
+    )
+    .await
+    {
+        Ok(reply) => reply,
         Err(e) => {
             error!("RPC call failed: {}", e);
             return (
@@ -1013,157 +906,49 @@ pub async fn oauth2_app_account_choice_handler(
         }
     };
 
-    let reply = match read_reply_result(&reply_bytes) {
-        Ok(r) => r,
+    let login = match oauth_login_success(reply) {
+        Ok(Some(login)) => login,
+        Ok(None) => {
+            error!("Account choice failed");
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(OAuth2LoginResponse {
+                    success: false,
+                    auth_token: None,
+                    player: None,
+                    player_flags: None,
+                    client_token: None,
+                    client_id: None,
+                    error: Some("Authentication failed".to_string()),
+                }),
+            )
+                .into_response();
+        }
         Err(e) => {
-            error!("Failed to parse reply: {}", e);
+            error!("{}", e);
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to parse reply"})),
+                Json(serde_json::json!({"error": "Internal error"})),
             )
                 .into_response();
         }
     };
 
-    let Ok(result) = reply.result() else {
-        error!("Missing result in reply");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
+    info!(
+        "OAuth2 app account {} successful (player: {}, flags: {})",
+        choice.mode, login.player, login.player_flags
+    );
 
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        error!("Account choice failed");
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(OAuth2LoginResponse {
-                success: false,
-                auth_token: None,
-                player: None,
-                player_flags: None,
-                client_token: None,
-                client_id: None,
-                error: Some("Authentication failed".to_string()),
-            }),
-        )
-            .into_response();
-    };
-
-    let Ok(daemon_reply) = client_success.reply() else {
-        error!("Missing daemon reply");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    let Ok(reply_union) = daemon_reply.reply() else {
-        error!("Missing reply union");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result) = reply_union else {
-        error!("Unexpected reply type from daemon");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Unexpected reply type"})),
-        )
-            .into_response();
-    };
-
-    let Ok(success) = login_result.success() else {
-        error!("Missing success field in login result");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal error"})),
-        )
-            .into_response();
-    };
-
-    if success {
-        let Ok(Some(token_ref)) = login_result.auth_token() else {
-            error!("Missing auth_token in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(auth_token) = token_ref.token() else {
-            error!("Missing token string");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(Some(player_ref)) = login_result.player() else {
-            error!("Missing player in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(player_obj) = moor_schema::convert::obj_from_ref(player_ref) else {
-            error!("Failed to decode player");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        let Ok(player_flags) = login_result.player_flags() else {
-            error!("Missing player_flags in login result");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal error"})),
-            )
-                .into_response();
-        };
-
-        info!(
-            "OAuth2 app account {} successful (player: {}, flags: {})",
-            choice.mode, player_obj, player_flags
-        );
-
-        Json(OAuth2LoginResponse {
-            success: true,
-            auth_token: Some(auth_token.to_string()),
-            player: Some(ObjectRef::Id(player_obj).to_curie()),
-            player_flags: Some(player_flags),
-            client_token: Some(client_token.0.clone()),
-            client_id: Some(client_id.to_string()),
-            error: None,
-        })
-        .into_response()
-    } else {
-        warn!("OAuth2 app account {} failed", choice.mode);
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(OAuth2LoginResponse {
-                success: false,
-                auth_token: None,
-                player: None,
-                player_flags: None,
-                client_token: None,
-                client_id: None,
-                error: Some("Authentication failed".to_string()),
-            }),
-        )
-            .into_response()
-    }
+    Json(OAuth2LoginResponse {
+        success: true,
+        auth_token: Some(login.auth_token.0),
+        player: Some(ObjectRef::Id(login.player).to_curie()),
+        player_flags: Some(login.player_flags),
+        client_token: Some(client_token.0.clone()),
+        client_id: Some(client_id.to_string()),
+        error: None,
+    })
+    .into_response()
 }
 
 /// GET /v1/oauth2/config

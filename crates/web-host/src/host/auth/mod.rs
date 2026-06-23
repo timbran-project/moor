@@ -35,10 +35,13 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_schema::rpc as moor_rpc;
-use rpc_async_client::rpc_client::RpcClient;
-use rpc_common::{AuthToken, ClientToken, mk_detach_msg, mk_login_command_msg, read_reply_result};
+use rpc_common::{
+    AuthToken, ClientToken,
+    api::{ClientReply, ClientRequest, RuntimeClient},
+    api_codec::encode_client_success_bytes,
+};
 use serde_derive::Deserialize;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, warn};
 use uuid::Uuid;
 
@@ -67,7 +70,7 @@ pub fn extract_client_credentials(header_map: &HeaderMap) -> Option<(Uuid, Clien
 pub struct StatelessAuth {
     pub auth_token: AuthToken,
     pub client_id: Uuid,
-    pub rpc_client: RpcClient,
+    pub rpc_client: Arc<dyn RuntimeClient>,
 }
 
 impl FromRequestParts<WebHost> for StatelessAuth {
@@ -100,8 +103,15 @@ impl Drop for DetachGuard {
         let client_id = self.client_id;
         let client_token = self.client_token.clone();
         tokio::spawn(async move {
-            let detach = mk_detach_msg(&client_token, true);
-            let _ = rpc_client.make_client_rpc_call(client_id, detach).await;
+            let _ = rpc_client
+                .client_call(
+                    client_id,
+                    ClientRequest::Detach {
+                        client_token,
+                        disconnected: true,
+                    },
+                )
+                .await;
         });
     }
 }
@@ -113,7 +123,7 @@ pub struct EphemeralAuth {
     pub auth_token: AuthToken,
     pub client_id: Uuid,
     pub client_token: ClientToken,
-    pub rpc_client: RpcClient,
+    pub rpc_client: Arc<dyn RuntimeClient>,
     _guard: DetachGuard,
 }
 
@@ -242,35 +252,34 @@ async fn auth_handler(
     };
 
     let words = vec![auth_verb.to_string(), player, password];
-    let login_msg = mk_login_command_msg(
-        &client_token,
-        &host.handler_object,
-        words,
-        false,
+    let login_msg = ClientRequest::LoginCommand {
+        client_token: client_token.clone(),
+        handler_object: host.handler_object,
+        connect_args: words,
+        do_attach: false,
         event_log_pubkey,
-        None,
-    );
+        registration_data: None,
+    };
 
-    let reply_bytes = rpc_client.make_client_rpc_call(client_id, login_msg).await;
-    let reply_bytes = match reply_bytes {
-        Ok(reply_bytes) => reply_bytes,
+    let reply = match rpc_client.client_call(client_id, login_msg).await {
+        Ok(reply) => reply,
         Err(e) => {
             error!("Unable to send login request to RPC server: {}", e);
             return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
     };
 
-    let reply = match read_reply_result(&reply_bytes) {
-        Ok(reply) => reply,
-        Err(e) => {
-            error!("Failed to parse login reply: {}", e);
-            return StatusCode::BAD_GATEWAY.into_response();
-        }
-    };
-
-    let auth_token = match auth_token_from_login_reply(reply) {
+    let auth_token = match auth_token_from_login_reply(&reply) {
         Ok(auth_token) => auth_token,
         Err(status) => return status.into_response(),
+    };
+
+    let reply_bytes = match encode_client_success_bytes(reply) {
+        Ok(reply_bytes) => reply_bytes,
+        Err(e) => {
+            error!("Failed to encode login reply: {}", e);
+            return StatusCode::BAD_GATEWAY.into_response();
+        }
     };
 
     // Keep the connection alive - WebSocket will reattach to it, preserving the connection ID
@@ -291,52 +300,15 @@ async fn auth_handler(
     }
 }
 
-fn auth_token_from_login_reply(
-    reply: moor_rpc::ReplyResultRef<'_>,
-) -> Result<AuthToken, StatusCode> {
-    let result = match reply.result() {
-        Ok(result) => result,
-        Err(e) => {
-            error!("Login response missing top-level result: {}", e);
-            return Err(StatusCode::BAD_GATEWAY);
-        }
-    };
-
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        error!("Login failed");
-        return Err(StatusCode::UNAUTHORIZED);
-    };
-
-    let Ok(daemon_reply) = client_success.reply() else {
-        error!("Login response missing daemon reply");
-        return Err(StatusCode::BAD_GATEWAY);
-    };
-
-    let reply_union = match daemon_reply.reply() {
-        Ok(reply_union) => reply_union,
-        Err(e) => {
-            error!("Login response missing daemon reply union: {}", e);
-            return Err(StatusCode::BAD_GATEWAY);
-        }
-    };
-
-    let moor_rpc::DaemonToClientReplyUnionRef::LoginResult(login_result) = reply_union else {
+fn auth_token_from_login_reply(reply: &ClientReply) -> Result<AuthToken, StatusCode> {
+    let ClientReply::LoginResult {
+        success,
+        auth_token,
+        ..
+    } = reply
+    else {
         error!("Unexpected reply type");
         return Err(StatusCode::BAD_GATEWAY);
-    };
-
-    auth_token_from_login_result(login_result)
-}
-
-fn auth_token_from_login_result(
-    login_result: moor_rpc::LoginResultRef<'_>,
-) -> Result<AuthToken, StatusCode> {
-    let success = match login_result.success() {
-        Ok(success) => success,
-        Err(e) => {
-            error!("LoginResult missing success flag: {}", e);
-            return Err(StatusCode::BAD_GATEWAY);
-        }
     };
 
     if !success {
@@ -344,17 +316,12 @@ fn auth_token_from_login_result(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let Ok(Some(auth_token_ref)) = login_result.auth_token() else {
+    let Some(auth_token) = auth_token else {
         error!("LoginResult missing auth token");
         return Err(StatusCode::BAD_GATEWAY);
     };
 
-    let Ok(token) = auth_token_ref.token() else {
-        error!("LoginResult auth token missing token string");
-        return Err(StatusCode::BAD_GATEWAY);
-    };
-
-    Ok(AuthToken(token.to_string()))
+    Ok(auth_token.clone())
 }
 
 /// Validate an auth token by round-tripping to the daemon.
@@ -391,11 +358,18 @@ pub async fn logout_handler(
 
     debug!("Processing explicit logout for client: {}", client_id);
 
-    // Send detach message with disconnected=true to trigger user_disconnected
-    let detach_msg = mk_detach_msg(&client_token, true);
     let rpc_client = host.create_rpc_client();
 
-    match rpc_client.make_client_rpc_call(client_id, detach_msg).await {
+    match rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::Detach {
+                client_token,
+                disconnected: true,
+            },
+        )
+        .await
+    {
         Ok(_) => {
             debug!("Logout detach sent successfully");
             StatusCode::OK.into_response()

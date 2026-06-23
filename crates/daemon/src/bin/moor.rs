@@ -14,9 +14,8 @@
 use std::{
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
     time::Duration,
 };
@@ -29,8 +28,9 @@ use eyre::{Report, bail, eyre};
 use mimalloc::MiMalloc;
 use moor_common::{build, tracing, util::config_path};
 use moor_daemon::{
-    DaemonEndpoints, DaemonKeys, DaemonPaths, DaemonRuntime, DaemonRuntimeConfig,
-    ensure_enrollment_token, generate_keypair, load_or_generate_daemon_curve_keypair,
+    DaemonEndpoints, DaemonKeys, DaemonPaths, DaemonRuntime, DaemonRuntimeConfig, LocalEventBus,
+    VERSION_BANNER_MSG, ensure_enrollment_token, generate_keypair,
+    load_or_generate_daemon_curve_keypair,
 };
 use moor_db::DatabaseConfig;
 use moor_kernel::config::{
@@ -42,28 +42,12 @@ use moor_web_host::{
     host::{OAuth2Config, WebRtcConfig},
     routes::{CorsConfig, RateLimitConfig},
 };
-use rpc_common::{client_args::RpcClientConfig, load_keypair};
+use rpc_common::{api::HostServices, client_args::RpcClientConfig, load_keypair};
 use serde::{Deserialize, Serialize};
 use tokio::{task::JoinHandle, time::timeout};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
-
-const BANNER_MSG: &str = r#"
-███╗   ███╗ ██████╗  ██████╗ ██████╗
-████╗ ████║██╔═══██╗██╔═══██╗██╔══██╗
-██╔████╔██║██║   ██║██║   ██║██████╔╝
-██║╚██╔╝██║██║   ██║██║   ██║██╔══██╗
-██║ ╚═╝ ██║╚██████╔╝╚██████╔╝██║  ██║
-╚═╝     ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-
- ██╗   ██╗      ██████╗ ███████╗██╗   ██╗
-███║  ███║      ██╔══██╗██╔════╝██║   ██║
-╚██║  ╚██║█████╗██║  ██║█████╗  ██║   ██║
- ██║   ██║╚════╝██║  ██║██╔══╝  ╚██╗ ██╔╝
- ██║██╗██║      ██████╔╝███████╗ ╚████╔╝
- ╚═╝╚═╝╚═╝      ╚═════╝ ╚══════╝  ╚═══╝
- "#;
 
 const INPROC_RPC_ENDPOINT: &str = "inproc://moor-services-rpc";
 const INPROC_EVENTS_ENDPOINT: &str = "inproc://moor-services-events";
@@ -364,7 +348,7 @@ async fn main() -> Result<(), Report> {
     color_eyre::install()?;
 
     let args = Args::parse();
-    eprintln!("Initializing...\n{BANNER_MSG}");
+    eprintln!("Initializing...\n{VERSION_BANNER_MSG}");
     tracing::init_tracing(args.debug).map_err(|e| eyre!("Unable to configure logging: {e}"))?;
 
     let version = semver::Version::parse(build::PKG_VERSION)
@@ -397,7 +381,10 @@ async fn main() -> Result<(), Report> {
     signal_hook::flag::register(signal_hook::consts::SIGINT, kill_switch.clone())?;
     signal_hook::flag::register(signal_hook::consts::SIGUSR1, emergency_checkpoint.clone())?;
 
-    let (ready_sender, ready_receiver) = mpsc::channel();
+    let (ready_sender, ready_receiver) = oneshot::channel();
+    let (local_runtime_services_sender, local_runtime_services_receiver) = flume::bounded(1);
+    let ready_signal = Arc::new(Mutex::new(Some(ready_sender)));
+    let local_event_bus = Arc::new(LocalEventBus::new());
     let runtime_config = DaemonRuntimeConfig {
         version,
         config,
@@ -454,13 +441,19 @@ async fn main() -> Result<(), Report> {
         zmq_context: zmq_context.clone(),
         kill_switch: kill_switch.clone(),
         emergency_checkpoint: Some(emergency_checkpoint),
-        ready_sender: Some(ready_sender),
+        ready_signal: Some(ready_signal),
+        local_event_bus: Some(local_event_bus),
+        local_runtime_services_sender: Some(local_runtime_services_sender),
     };
 
     let daemon_handle =
         tokio::task::spawn_blocking(move || moor_daemon::run(runtime_config, daemon_runtime));
 
     wait_for_daemon_ready(&ready_receiver, &daemon_handle).await?;
+    let local_runtime_services = local_runtime_services_receiver
+        .recv()
+        .map_err(|e| eyre!("Daemon did not publish local runtime services: {e}"))?;
+    let host_services = Arc::new(local_runtime_services) as Arc<dyn HostServices>;
 
     let connection_config = RpcClientConfig {
         rpc_address: INPROC_RPC_ENDPOINT.to_string(),
@@ -495,8 +488,9 @@ async fn main() -> Result<(), Report> {
             zmq_context: zmq_context.clone(),
             kill_switch: kill_switch.clone(),
         };
+        let host_services = host_services.clone();
         host_tasks.push(tokio::spawn(async move {
-            moor_telnet_host::run(telnet_config, telnet_runtime).await
+            moor_telnet_host::run_with_services(telnet_config, telnet_runtime, host_services).await
         }));
     }
 
@@ -515,8 +509,9 @@ async fn main() -> Result<(), Report> {
             zmq_context: zmq_context.clone(),
             kill_switch: kill_switch.clone(),
         };
+        let host_services = host_services.clone();
         host_tasks.push(tokio::spawn(async move {
-            moor_web_host::run(web_config, web_runtime).await
+            moor_web_host::run_with_services(web_config, web_runtime, host_services).await
         }));
     }
 
@@ -637,7 +632,7 @@ async fn wait_for_exit(
 }
 
 async fn wait_for_daemon_ready(
-    ready_receiver: &mpsc::Receiver<()>,
+    ready_receiver: &oneshot::Receiver<()>,
     daemon_handle: &JoinHandle<Result<(), Report>>,
 ) -> Result<(), Report> {
     let started = std::time::Instant::now();
@@ -646,8 +641,8 @@ async fn wait_for_daemon_ready(
     loop {
         match ready_receiver.try_recv() {
             Ok(()) => return Ok(()),
-            Err(mpsc::TryRecvError::Empty) => {}
-            Err(mpsc::TryRecvError::Disconnected) => {
+            Err(oneshot::TryRecvError::Empty) => {}
+            Err(oneshot::TryRecvError::Disconnected) => {
                 return Err(eyre!("Daemon exited before reporting RPC readiness"));
             }
         }

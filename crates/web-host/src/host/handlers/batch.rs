@@ -29,7 +29,10 @@ use axum::{
 };
 use moor_schema::rpc as moor_rpc;
 use planus::ReadAsRoot;
-use rpc_common::BatchAction;
+use rpc_common::{
+    api::{BatchActionEntry, ClientRequest},
+    api_codec::{decode_batch_action, decode_owned_batch_action},
+};
 use tracing::error;
 
 pub async fn batch_handler(
@@ -52,81 +55,83 @@ pub async fn batch_handler(
 
     let content_type = header_map.get(header::CONTENT_TYPE);
 
-    let (actions, rollback) = if let Ok(()) =
-        require_content_type(content_type, &[FLATBUFFERS_CONTENT_TYPE], false)
-    {
-        match moor_rpc::BatchWorldStateRef::read_as_root(&body) {
-            Ok(batch_ref) => {
-                let actions_ref = match batch_ref.actions() {
-                    Ok(a) => a,
-                    Err(e) => {
-                        error!("Failed to get actions from BatchWorldState: {}", e);
-                        return StatusCode::BAD_REQUEST.into_response();
+    let (actions, rollback) =
+        if let Ok(()) = require_content_type(content_type, &[FLATBUFFERS_CONTENT_TYPE], false) {
+            match moor_rpc::BatchWorldStateRef::read_as_root(&body) {
+                Ok(batch_ref) => {
+                    let actions_ref = match batch_ref.actions() {
+                        Ok(a) => a,
+                        Err(e) => {
+                            error!("Failed to get actions from BatchWorldState: {}", e);
+                            return StatusCode::BAD_REQUEST.into_response();
+                        }
+                    };
+                    let mut actions = Vec::new();
+                    for entry_ref_result in actions_ref.iter() {
+                        let Ok(entry_ref) = entry_ref_result else {
+                            continue;
+                        };
+                        let Ok(id) = entry_ref.id() else {
+                            continue;
+                        };
+                        let Ok(action_union_ref) = entry_ref.action() else {
+                            continue;
+                        };
+                        let Ok(action) = decode_batch_action(action_union_ref) else {
+                            continue;
+                        };
+                        actions.push(BatchActionEntry {
+                            id: id.into(),
+                            action,
+                        });
                     }
-                };
-                let mut actions = Vec::new();
-                for entry_ref_result in actions_ref.iter() {
-                    let Ok(entry_ref) = entry_ref_result else {
-                        continue;
-                    };
-                    let Ok(id) = entry_ref.id() else {
-                        continue;
-                    };
-                    let Ok(action_union_ref) = entry_ref.action() else {
-                        continue;
-                    };
-                    let Ok(action) = moor_rpc::WorldStateActionUnion::try_from(action_union_ref)
-                    else {
-                        continue;
-                    };
-                    actions.push(BatchAction {
-                        id: id.into(),
-                        action,
-                    });
+                    let rollback = batch_ref.rollback().unwrap_or(false);
+                    (actions, rollback)
                 }
-                let rollback = batch_ref.rollback().unwrap_or(false);
-                (actions, rollback)
+                Err(e) => {
+                    error!("Failed to parse BatchWorldState FlatBuffer: {}", e);
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
             }
-            Err(e) => {
-                error!("Failed to parse BatchWorldState FlatBuffer: {}", e);
-                return StatusCode::BAD_REQUEST.into_response();
+        } else if let Ok(()) = require_content_type(content_type, &[JSON_CONTENT_TYPE], false) {
+            #[derive(serde::Deserialize)]
+            struct BatchRequest {
+                actions: Vec<BatchActionJson>,
+                #[serde(default)]
+                rollback: bool,
             }
-        }
-    } else if let Ok(()) = require_content_type(content_type, &[JSON_CONTENT_TYPE], false) {
-        #[derive(serde::Deserialize)]
-        struct BatchRequest {
-            actions: Vec<BatchActionJson>,
-            #[serde(default)]
-            rollback: bool,
-        }
-        #[derive(serde::Deserialize)]
-        struct BatchActionJson {
-            id: String,
-            action: moor_rpc::WorldStateActionUnion,
-        }
+            #[derive(serde::Deserialize)]
+            struct BatchActionJson {
+                id: String,
+                action: moor_rpc::WorldStateActionUnion,
+            }
 
-        match serde_json::from_slice::<BatchRequest>(&body) {
-            Ok(req) => {
-                let actions = req
-                    .actions
-                    .into_iter()
-                    .map(|a| BatchAction {
-                        id: a.id,
-                        action: a.action,
-                    })
-                    .collect();
-                (actions, req.rollback)
+            match serde_json::from_slice::<BatchRequest>(&body) {
+                Ok(req) => {
+                    let actions = req
+                        .actions
+                        .into_iter()
+                        .filter_map(|a| {
+                            let action = decode_owned_batch_action(a.action).ok()?;
+                            Some(BatchActionEntry { id: a.id, action })
+                        })
+                        .collect();
+                    (actions, req.rollback)
+                }
+                Err(e) => {
+                    error!("Failed to parse BatchWorldState JSON: {}", e);
+                    return StatusCode::BAD_REQUEST.into_response();
+                }
             }
-            Err(e) => {
-                error!("Failed to parse BatchWorldState JSON: {}", e);
-                return StatusCode::BAD_REQUEST.into_response();
-            }
-        }
-    } else {
-        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+        } else {
+            return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
+        };
+
+    let batch_msg = ClientRequest::BatchWorldState {
+        auth_token,
+        actions,
+        rollback,
     };
-
-    let batch_msg = rpc_common::mk_batch_world_state_msg(&auth_token, actions, rollback);
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, batch_msg).await {
         Ok(bytes) => bytes,

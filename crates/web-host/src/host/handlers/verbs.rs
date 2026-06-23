@@ -39,9 +39,10 @@ use moor_schema::{
 };
 use moor_var::Symbol;
 use planus::ReadAsRoot;
-use rpc_async_client::task_client::{SessionEvent, TaskClient, TaskResult};
+use rpc_async_client::task_client::{SessionEvent, TaskResult};
 use rpc_common::{
-    mk_program_msg, mk_retrieve_msg, mk_verbs_msg, scheduler_error_to_flatbuffer_struct,
+    api::{ClientRequest, EntityType},
+    scheduler_error_to_flatbuffer_struct,
 };
 use serde::Deserialize;
 use tracing::{debug, error};
@@ -75,7 +76,12 @@ pub async fn verb_retrieval_handler(
 
     let name = Symbol::mk(&name);
 
-    let retrieve_msg = mk_retrieve_msg(&auth_token, &object_ref, moor_rpc::EntityType::Verb, &name);
+    let retrieve_msg = ClientRequest::Retrieve {
+        auth_token,
+        object: object_ref,
+        entity_type: EntityType::Verb,
+        name,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, retrieve_msg).await {
         Ok(bytes) => bytes,
@@ -115,7 +121,11 @@ pub async fn verbs_handler(
 
     let inherited = query.inherited.unwrap_or(false);
 
-    let verbs_msg = mk_verbs_msg(&auth_token, &object_ref, inherited);
+    let verbs_msg = ClientRequest::Verbs {
+        auth_token,
+        object: object_ref,
+        inherited,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, verbs_msg).await {
         Ok(bytes) => bytes,
@@ -198,7 +208,7 @@ pub async fn invoke_verb_handler(
     };
 
     // Create a per-request TaskClient (session cache optimization can come later)
-    let task_client = match TaskClient::connect(host.task_client_config(auth_token)).await {
+    let task_client = match host.task_client(auth_token).await {
         Ok(tc) => tc,
         Err(e) => {
             error!("Failed to create TaskClient: {}", e);
@@ -354,7 +364,13 @@ pub async fn verb_program_handler(
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    let program_msg = mk_program_msg(&client_token, &auth_token, &object_ref, &name, code);
+    let program_msg = ClientRequest::Program {
+        client_token,
+        auth_token,
+        object: object_ref,
+        verb: name,
+        code,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, program_msg).await {
         Ok(bytes) => bytes,

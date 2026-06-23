@@ -21,11 +21,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_common::tasks::SchedulerError;
-use moor_schema::{convert::var_from_flatbuffer_ref, rpc as moor_rpc};
 use moor_var::{List, SYSTEM_OBJECT, Var, Variant};
-use rpc_common::{
-    mk_detach_msg, mk_invoke_system_handler_msg, read_reply_result, scheduler_error_from_ref,
-};
+use rpc_common::api::{ClientReply, ClientRequest, SystemHandlerResponse};
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 use tracing::{debug, error};
 
@@ -33,17 +30,6 @@ use tracing::{debug, error};
 fn internal_server_error(msg: &str) -> Response {
     error!(msg);
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
-}
-
-/// Helper function to handle FlatBuffer conversion errors
-fn handle_conversion_error<T>(
-    result: Result<T, impl std::fmt::Display>,
-    context: &str,
-) -> Result<T, Box<Response>> {
-    result.map_err(|e| {
-        error!("{}: {}", context, e);
-        Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response())
-    })
 }
 
 #[derive(Debug)]
@@ -183,24 +169,15 @@ pub async fn web_hook_handler(
         }
     };
 
-    // Prepare system handler invocation
-    let args_refs: Vec<&Var> = args.iter().collect();
     debug!(
         "Preparing system handler invocation for webhook with {} args",
-        args_refs.len()
+        args.len()
     );
-    let invoke_msg = match mk_invoke_system_handler_msg(
-        &host.host_id,
-        "http",
-        args_refs,
-        None, // No auth token - will run as system user
-    ) {
-        Some(msg) => msg,
-        None => {
-            return internal_server_error(
-                "Failed to create invoke_system_handler message for web hook",
-            );
-        }
+    let request = ClientRequest::InvokeSystemHandler {
+        host_id: host.host_id,
+        handler_type: "http".to_string(),
+        args,
+        auth_token: None,
     };
     debug!("System handler message created successfully");
 
@@ -210,20 +187,17 @@ pub async fn web_hook_handler(
         "Making RPC call with timeout: {}ms",
         timeout_duration.as_millis()
     );
-    let invoke_result = tokio::time::timeout(
-        timeout_duration,
-        crate::host::web_host::rpc_call(client_id, &rpc_client, invoke_msg),
-    )
-    .await;
+    let invoke_result =
+        tokio::time::timeout(timeout_duration, rpc_client.client_call(client_id, request)).await;
 
-    let reply_bytes = match invoke_result {
-        Ok(Ok(bytes)) => {
-            debug!("RPC call succeeded, response size: {} bytes", bytes.len());
-            bytes
+    let reply = match invoke_result {
+        Ok(Ok(reply)) => {
+            debug!("RPC call succeeded");
+            reply
         }
-        Ok(Err(status)) => {
-            error!("RPC call failed for web hook: {:?}", status);
-            return status.into_response();
+        Ok(Err(e)) => {
+            error!("RPC call failed for web hook: {:?}", e);
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
         Err(_) => {
             error!("Web hook execution timed out");
@@ -231,190 +205,72 @@ pub async fn web_hook_handler(
         }
     };
 
-    let reply = match read_reply_result(&reply_bytes) {
-        Ok(reply) => reply,
-        Err(e) => {
-            return internal_server_error(&format!("Failed to parse web hook reply: {e}"));
+    let response = match reply {
+        ClientReply::SystemHandlerResponseReply { response } => {
+            handle_system_handler_response(response)
         }
-    };
-
-    // Handle the response
-    let result = match reply.result() {
-        Ok(result) => result,
-        Err(e) => {
-            return internal_server_error(&format!("Failed to get result from webhook reply: {e}"));
-        }
-    };
-
-    let response = match result {
-        moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) => {
-            handle_client_success_response(client_success)
-        }
-        moor_rpc::ReplyResultUnionRef::Failure(failure) => handle_failure_response(failure),
-        moor_rpc::ReplyResultUnionRef::HostSuccess(_) => {
-            error!("Unexpected host success for web hook");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
+        _ => internal_server_error("Unexpected daemon to client reply for web hook"),
     };
 
     debug!("Response: {response:?}");
 
     // Hard detach for ephemeral HTTP connections - immediate cleanup
-    let detach_msg = mk_detach_msg(&client_token, true);
-    let _ = rpc_client.make_client_rpc_call(client_id, detach_msg).await;
+    let _ = rpc_client
+        .client_call(
+            client_id,
+            ClientRequest::Detach {
+                client_token,
+                disconnected: true,
+            },
+        )
+        .await;
 
     response
 }
 
-/// Handle client success response from daemon
-fn handle_client_success_response(client_success: moor_rpc::ClientSuccessRef<'_>) -> Response {
-    let daemon_reply = match handle_conversion_error(
-        client_success.reply(),
-        "Failed to get reply from client success",
-    ) {
-        Ok(reply) => reply,
-        Err(response) => return *response,
-    };
-
-    let reply_union = match handle_conversion_error(
-        daemon_reply.reply(),
-        "Failed to get reply union from daemon reply",
-    ) {
-        Ok(union) => union,
-        Err(response) => return *response,
-    };
-
-    match reply_union {
-        moor_rpc::DaemonToClientReplyUnionRef::SystemHandlerResponseReply(reply) => {
-            handle_system_handler_response(reply)
-        }
-        _ => internal_server_error("Unexpected daemon to client reply for web hook"),
-    }
-}
-
 /// Handle system handler response
-fn handle_system_handler_response(reply: moor_rpc::SystemHandlerResponseReplyRef<'_>) -> Response {
-    let response_union = match handle_conversion_error(
-        reply.response(),
-        "Failed to get response union from system handler",
-    ) {
-        Ok(union) => union,
-        Err(response) => return *response,
-    };
-
-    match response_union {
-        moor_rpc::SystemHandlerResponseUnionRef::SystemHandlerSuccess(success) => {
-            // Convert FlatBuffer Var to moor_var::Var
-            let result_ref = match handle_conversion_error(
-                success.result(),
-                "Failed to get result from system handler success",
-            ) {
-                Ok(result) => result,
-                Err(response) => return *response,
-            };
-
-            let result_var = match var_from_flatbuffer_ref(result_ref) {
-                Ok(var) => var,
-                Err(e) => {
-                    return internal_server_error(&format!(
-                        "Failed to convert FlatBuffer Var: {e}"
-                    ));
-                }
-            };
-
-            // Handle the result based on its variant
-            match handle_webhook_result(&result_var) {
-                Ok(response) => {
-                    debug!("Webhook task completed successfully");
-                    response
-                }
-                Err(e) => {
-                    error!("Failed to handle webhook result: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
-                }
+fn handle_system_handler_response(response: SystemHandlerResponse) -> Response {
+    match response {
+        SystemHandlerResponse::Success { result } => match handle_webhook_result(&result) {
+            Ok(response) => {
+                debug!("Webhook task completed successfully");
+                response
             }
-        }
-        moor_rpc::SystemHandlerResponseUnionRef::SystemHandlerError(error) => {
-            handle_system_handler_error(error)
-        }
+            Err(e) => {
+                error!("Failed to handle webhook result: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        },
+        SystemHandlerResponse::Error { error } => handle_system_handler_error(error),
     }
 }
 
 /// Handle system handler error
-fn handle_system_handler_error(error: moor_rpc::SystemHandlerErrorRef<'_>) -> Response {
-    let scheduler_error_ref = match handle_conversion_error(
-        error.error(),
-        "Failed to get scheduler error from system handler error",
-    ) {
-        Ok(error_ref) => error_ref,
-        Err(response) => return *response,
-    };
-
-    match scheduler_error_from_ref(scheduler_error_ref) {
-        Ok(scheduler_error) => {
-            // Map scheduler errors to appropriate HTTP status codes
-            let status_code = match &scheduler_error {
-                SchedulerError::TaskAbortedVerbNotFound(_, _)
-                | SchedulerError::ObjectResolutionFailed(_) => {
-                    debug!("Resource not found - returning 404: {:?}", scheduler_error);
-                    StatusCode::NOT_FOUND
-                }
-                SchedulerError::TaskAbortedLimit(_)
-                | SchedulerError::TaskAbortedCancelled
-                | SchedulerError::SchedulerNotResponding
-                | SchedulerError::CouldNotStartTask
-                | SchedulerError::GarbageCollectionFailed(_) => {
-                    debug!("Service unavailable error: {:?}", scheduler_error);
-                    StatusCode::SERVICE_UNAVAILABLE
-                }
-                SchedulerError::CompilationError(_) | SchedulerError::CommandExecutionError(_) => {
-                    debug!("Bad request error: {:?}", scheduler_error);
-                    StatusCode::BAD_REQUEST
-                }
-                _ => {
-                    error!("Internal server error for web hook: {:?}", scheduler_error);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
-            };
-            status_code.into_response()
+fn handle_system_handler_error(scheduler_error: SchedulerError) -> Response {
+    let status_code = match &scheduler_error {
+        SchedulerError::TaskAbortedVerbNotFound(_, _)
+        | SchedulerError::ObjectResolutionFailed(_) => {
+            debug!("Resource not found - returning 404: {:?}", scheduler_error);
+            StatusCode::NOT_FOUND
         }
-        Err(e) => internal_server_error(&format!(
-            "Failed to parse scheduler error for web hook: {e}"
-        )),
-    }
-}
-
-/// Handle failure response from daemon
-fn handle_failure_response(failure: moor_rpc::FailureRef<'_>) -> Response {
-    let error_ref =
-        match handle_conversion_error(failure.error(), "Failed to get error from failure response")
-        {
-            Ok(error_ref) => error_ref,
-            Err(response) => return *response,
-        };
-
-    let error_code = match handle_conversion_error(
-        error_ref.error_code(),
-        "Failed to get error code from failure",
-    ) {
-        Ok(error_code) => error_code,
-        Err(response) => return *response,
-    };
-
-    let error_msg = match error_ref.message() {
-        Ok(Some(error_msg)) => error_msg,
-        Ok(None) => {
-            return internal_server_error("Missing error message in failure");
+        SchedulerError::TaskAbortedLimit(_)
+        | SchedulerError::TaskAbortedCancelled
+        | SchedulerError::SchedulerNotResponding
+        | SchedulerError::CouldNotStartTask
+        | SchedulerError::GarbageCollectionFailed(_) => {
+            debug!("Service unavailable error: {:?}", scheduler_error);
+            StatusCode::SERVICE_UNAVAILABLE
         }
-        Err(e) => {
-            return internal_server_error(&format!(
-                "Failed to get error message from failure: {e}"
-            ));
+        SchedulerError::CompilationError(_) | SchedulerError::CommandExecutionError(_) => {
+            debug!("Bad request error: {:?}", scheduler_error);
+            StatusCode::BAD_REQUEST
+        }
+        _ => {
+            error!("Internal server error for web hook: {:?}", scheduler_error);
+            StatusCode::INTERNAL_SERVER_ERROR
         }
     };
-
-    error!(?error_code, ?error_msg, "RPC error for web hook");
-    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    status_code.into_response()
 }
 
 /// Handle webhook result and convert it to appropriate HTTP response

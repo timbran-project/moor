@@ -17,14 +17,11 @@ use crate::session::{BoxedAsyncIo, TelnetConnection, codec::ConnectionCodec};
 use eyre::bail;
 use futures_util::StreamExt;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
-use moor_schema::{convert::var_to_flatbuffer, rpc as moor_rpc};
 use moor_var::{Obj, Symbol};
-use rpc_async_client::{
-    ListenerInfo, ListenersClient, ListenersError, ListenersMessage, rpc_client::RpcClient, zmq,
-};
+use rpc_async_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
 use rpc_common::{
-    CLIENT_BROADCAST_TOPIC, ClientToken, extract_obj, mk_connection_establish_msg,
-    read_reply_result,
+    ClientToken,
+    api::{ClientReply, ClientRequest, ConnectionAttribute, HostServices, RuntimeClient},
 };
 use rustls_pemfile::{certs, private_key};
 use std::{
@@ -34,10 +31,11 @@ use std::{
     net::{IpAddr, SocketAddr},
     os::fd::{AsRawFd, RawFd},
     path::Path,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
-use tmq::subscribe;
-use tmq::subscribe::Subscribe;
 use tokio::{
     net::{TcpListener, TcpStream},
     select,
@@ -99,34 +97,11 @@ async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
     }
 }
 
-/// Configure CURVE encryption on a SUB socket builder
-fn configure_curve_subscriber(
-    mut builder: tmq::SocketBuilder<tmq::subscribe::SubscribeWithoutTopic>,
-    curve_keys: &Option<(String, String, String)>,
-) -> tmq::SocketBuilder<tmq::subscribe::SubscribeWithoutTopic> {
-    if let Some((client_secret, client_public, server_public)) = curve_keys {
-        let client_secret_bytes =
-            zmq::z85_decode(client_secret).expect("Failed to decode client secret key");
-        let client_public_bytes =
-            zmq::z85_decode(client_public).expect("Failed to decode client public key");
-        let server_public_bytes =
-            zmq::z85_decode(server_public).expect("Failed to decode server public key");
-
-        builder = builder
-            .set_curve_secretkey(&client_secret_bytes)
-            .set_curve_publickey(&client_public_bytes)
-            .set_curve_serverkey(&server_public_bytes);
-    }
-    builder
-}
-
 pub struct Listeners {
     listeners: HashMap<SocketAddr, Listener>,
     zmq_ctx: tmq::Context,
-    rpc_address: String,
-    events_address: String,
     kill_switch: Arc<AtomicBool>,
-    curve_keys: Option<(String, String, String)>, // (client_secret, client_public, server_public)
+    host_services: Arc<dyn HostServices>,
     tls_config: Option<Arc<ServerConfig>>,
 }
 
@@ -141,20 +116,18 @@ struct AcceptedConnection {
 
 #[derive(Clone)]
 struct ConnectionBootstrap {
-    zmq_ctx: tmq::Context,
-    rpc_address: String,
-    events_address: String,
     kill_switch: Arc<AtomicBool>,
-    curve_keys: Option<(String, String, String)>,
+    host_services: Arc<dyn HostServices>,
 }
 
 impl Listeners {
     pub fn new(
         zmq_ctx: tmq::Context,
-        rpc_address: String,
-        events_address: String,
+        _rpc_address: String,
+        _events_address: String,
         kill_switch: Arc<AtomicBool>,
-        curve_keys: Option<(String, String, String)>,
+        _curve_keys: Option<(String, String, String)>,
+        host_services: Arc<dyn HostServices>,
         tls_config: Option<Arc<ServerConfig>>,
     ) -> (
         Self,
@@ -165,10 +138,8 @@ impl Listeners {
         let listeners = Self {
             listeners: HashMap::new(),
             zmq_ctx,
-            rpc_address,
-            events_address,
             kill_switch,
-            curve_keys,
+            host_services,
             tls_config,
         };
         let listeners_client = ListenersClient::new(tx);
@@ -198,11 +169,7 @@ impl Listeners {
         let tls_label = if is_tls { " (TLS)" } else { "" };
         info!("Listening @ {}{}", addr, tls_label);
 
-        let zmq_ctx = self.zmq_ctx.clone();
-        let rpc_address = self.rpc_address.clone();
-        let events_address = self.events_address.clone();
         let kill_switch = self.kill_switch.clone();
-        let curve_keys = self.curve_keys.clone();
         let tls_acceptor = if is_tls {
             self.tls_config
                 .as_ref()
@@ -220,11 +187,8 @@ impl Listeners {
             .unwrap_or(addr.port());
 
         let bootstrap = ConnectionBootstrap {
-            zmq_ctx,
-            rpc_address,
-            events_address,
             kill_switch,
-            curve_keys,
+            host_services: self.host_services.clone(),
         };
         tokio::spawn(run_listener_accept_loop(
             listener,
@@ -246,15 +210,22 @@ impl Listeners {
             .expect("Unable to set ZMQ IO threads");
 
         loop {
-            if self.kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
-                info!("Host kill switch activated, stopping...");
-                return;
-            }
+            let message = select! {
+                _ = wait_for_kill_switch(self.kill_switch.clone()) => {
+                    info!("Host kill switch activated, stopping...");
+                    return;
+                }
+                message = listeners_channel.recv() => message,
+            };
 
-            match listeners_channel.recv().await {
+            match message {
                 Some(message) => self.handle_listener_message(message).await,
                 None => {
-                    warn!("Listeners channel closed, stopping...");
+                    if self.kill_switch.load(Ordering::Relaxed) {
+                        info!("Listeners channel closed during shutdown, stopping...");
+                    } else {
+                        warn!("Listeners channel closed, stopping...");
+                    }
                     return;
                 }
             }
@@ -316,6 +287,12 @@ impl Listeners {
     }
 }
 
+async fn wait_for_kill_switch(kill_switch: Arc<AtomicBool>) {
+    while !kill_switch.load(Ordering::Relaxed) {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
 pub struct Listener {
     pub(crate) handler_object: Obj,
     pub(crate) terminate: tokio::sync::watch::Sender<bool>,
@@ -345,19 +322,7 @@ impl Listener {
                 "Accepted connection for listener"
             );
 
-            let rpc_client = RpcClient::new_with_defaults(
-                std::sync::Arc::new(bootstrap.zmq_ctx.clone()),
-                bootstrap.rpc_address.clone(),
-                bootstrap.curve_keys.as_ref().map(
-                    |(client_secret, client_public, server_public)| {
-                        rpc_async_client::rpc_client::CurveKeys {
-                            client_secret: client_secret.clone(),
-                            client_public: client_public.clone(),
-                            server_public: server_public.clone(),
-                        }
-                    },
-                ),
-            );
+            let daemon_client = bootstrap.host_services.runtime_client();
 
             let mut connection_attributes = initial_connection_attributes();
 
@@ -366,7 +331,7 @@ impl Listener {
                 .unwrap_or_else(|_| accepted.peer_addr.to_string());
 
             let (client_token, connection_oid) = establish_connection(
-                &rpc_client,
+                &daemon_client,
                 client_id,
                 &hostname,
                 accepted.listener_port,
@@ -376,7 +341,10 @@ impl Listener {
             .await?;
             debug!(client_id = ?client_id, connection = ?connection_oid, "Connection established");
 
-            let (events_sub, broadcast_sub) = subscribe_for_client(&bootstrap, client_id)?;
+            let (narrative_sub, broadcast_sub) = bootstrap
+                .host_services
+                .client_subscriptions(client_id)
+                .map_err(|e| eyre::eyre!("Unable to subscribe for client events: {}", e))?;
 
             let is_tls = accepted.tls_acceptor.is_some();
             let boxed_stream = boxed_stream_from_accepted(
@@ -403,9 +371,9 @@ impl Listener {
                 read,
                 kill_switch: bootstrap.kill_switch,
                 broadcast_sub,
-                narrative_sub: events_sub,
+                narrative_sub,
                 auth_token: None,
-                rpc_client,
+                daemon_client,
                 pending_task: None,
                 output_prefix: None,
                 output_suffix: None,
@@ -481,141 +449,65 @@ fn initial_connection_attributes() -> HashMap<Symbol, moor_var::Var> {
 }
 
 async fn establish_connection(
-    rpc_client: &RpcClient,
+    daemon_client: &Arc<dyn RuntimeClient>,
     client_id: Uuid,
     hostname: &str,
     listener_port: u16,
     peer_port: u16,
     connection_attributes: &HashMap<Symbol, moor_var::Var>,
 ) -> Result<(ClientToken, Obj), eyre::Error> {
-    let conn_establish_msg = mk_connection_establish_msg(
-        hostname.to_string(),
-        listener_port,
-        peer_port,
-        Some(acceptable_content_types()),
-        Some(connection_attributes_fb(connection_attributes)),
-    );
-
-    let bytes = rpc_client
-        .make_client_rpc_call(client_id, conn_establish_msg)
+    let reply = daemon_client
+        .client_call(
+            client_id,
+            ClientRequest::ConnectionEstablish {
+                peer_addr: hostname.to_string(),
+                local_port: listener_port,
+                remote_port: peer_port,
+                acceptable_content_types: Some(acceptable_content_types()),
+                connection_attributes: Some(connection_attributes_api(connection_attributes)),
+            },
+        )
         .await
         .map_err(|e| eyre::eyre!("Unable to establish connection: {}", e))?;
-    let reply_ref =
-        read_reply_result(&bytes).map_err(|e| eyre::eyre!("Invalid flatbuffer: {}", e))?;
 
     let (client_token, connection_oid) =
-        new_connection_from_reply(reply_ref, connection_attributes.len())?;
+        new_connection_from_reply(reply, connection_attributes.len())?;
     Ok((client_token, connection_oid))
 }
 
-fn acceptable_content_types() -> Vec<moor_rpc::Symbol> {
-    vec![
-        moor_rpc::Symbol {
-            value: "text_djot".to_string(),
-        },
-        moor_rpc::Symbol {
-            value: "text_plain".to_string(),
-        },
-    ]
+fn acceptable_content_types() -> Vec<Symbol> {
+    vec![Symbol::mk("text_djot"), Symbol::mk("text_plain")]
 }
 
-fn connection_attributes_fb(
+fn connection_attributes_api(
     connection_attributes: &HashMap<Symbol, moor_var::Var>,
-) -> Vec<moor_rpc::ConnectionAttribute> {
+) -> Vec<ConnectionAttribute> {
     connection_attributes
         .iter()
-        .filter_map(|(key, value)| {
-            let var_fb = var_to_flatbuffer(value).ok()?;
-            Some(moor_rpc::ConnectionAttribute {
-                key: Box::new(moor_rpc::Symbol {
-                    value: key.as_string(),
-                }),
-                value: Box::new(var_fb),
-            })
+        .map(|(key, value)| ConnectionAttribute {
+            key: *key,
+            value: value.clone(),
         })
         .collect()
 }
 
-fn subscribe_for_client(
-    bootstrap: &ConnectionBootstrap,
-    client_id: Uuid,
-) -> Result<(Subscribe, Subscribe), eyre::Error> {
-    let events_sub =
-        configure_curve_subscriber(subscribe(&bootstrap.zmq_ctx), &bootstrap.curve_keys)
-            .connect(bootstrap.events_address.as_str())
-            .map_err(|e| eyre::eyre!("Unable to connect narrative subscriber: {}", e))?;
-    let events_sub = events_sub
-        .subscribe(&client_id.as_bytes()[..])
-        .map_err(|e| eyre::eyre!("Unable to subscribe to narrative messages: {}", e))?;
-
-    let broadcast_sub =
-        configure_curve_subscriber(subscribe(&bootstrap.zmq_ctx), &bootstrap.curve_keys)
-            .connect(bootstrap.events_address.as_str())
-            .map_err(|e| eyre::eyre!("Unable to connect broadcast subscriber: {}", e))?;
-    let broadcast_sub = broadcast_sub
-        .subscribe(CLIENT_BROADCAST_TOPIC)
-        .map_err(|e| eyre::eyre!("Unable to subscribe to broadcast messages: {}", e))?;
-
-    info!(
-        "Subscribed on pubsub events socket for {:?}, socket addr {}",
-        client_id, bootstrap.events_address
-    );
-    Ok((events_sub, broadcast_sub))
-}
-
 fn new_connection_from_reply(
-    reply_ref: moor_rpc::ReplyResultRef<'_>,
+    reply: ClientReply,
     attribute_count: usize,
 ) -> Result<(ClientToken, Obj), eyre::Error> {
-    let result = reply_ref
-        .result()
-        .map_err(|e| eyre::eyre!("Missing result: {}", e))?;
-
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        if let moor_rpc::ReplyResultUnionRef::Failure(failure) = result {
-            let error_ref = failure
-                .error()
-                .map_err(|e| eyre::eyre!("Missing error: {}", e))?;
-            let error_msg = error_ref
-                .message()
-                .unwrap_or(Some("Unknown error"))
-                .unwrap_or("Unknown error");
-            bail!("RPC failure in connection establishment: {}", error_msg);
-        }
-        bail!("Unexpected response type");
-    };
-
-    let daemon_reply = client_success
-        .reply()
-        .map_err(|e| eyre::eyre!("Missing reply: {}", e))?;
-    let reply_union = daemon_reply
-        .reply()
-        .map_err(|e| eyre::eyre!("Missing reply union: {}", e))?;
-
-    let moor_rpc::DaemonToClientReplyUnionRef::NewConnection(new_conn) = reply_union else {
+    let ClientReply::NewConnection {
+        client_token,
+        connection_obj,
+    } = reply
+    else {
         bail!("Unexpected response from RPC server");
     };
 
-    let token_ref = new_conn
-        .client_token()
-        .map_err(|e| eyre::eyre!("Missing client_token: {}", e))?;
-    let token = ClientToken(
-        token_ref
-            .token()
-            .map_err(|e| eyre::eyre!("Missing token: {}", e))?
-            .to_string(),
-    );
-
-    let objid = extract_obj(&new_conn, "connection_obj", |new_conn| {
-        new_conn.connection_obj()
-    })
-    .map_err(|e| eyre::eyre!("{}", e))?;
-
     info!(
         "Connection established with {} attributes, connection ID: {}",
-        attribute_count, objid
+        attribute_count, connection_obj
     );
-    Ok((token, objid))
+    Ok((client_token, connection_obj))
 }
 
 async fn boxed_stream_from_accepted(

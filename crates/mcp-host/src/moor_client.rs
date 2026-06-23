@@ -216,6 +216,9 @@ impl MoorClient {
             | RpcError::UnexpectedReply(msg) => {
                 format!("{} failed: {}", operation, msg)
             }
+            RpcError::Daemon(error) => {
+                format!("{} failed: daemon returned error: {}", operation, error)
+            }
         }
     }
 

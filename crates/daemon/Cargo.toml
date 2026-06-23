@@ -58,7 +58,7 @@ systemd-units = { enable = false }
 
 [[bin]]
 name = "moor-daemon"
-path = "src/main.rs"
+path = "src/bin/moor-daemon.rs"
 
 [[bin]]
 name = "moor"
@@ -103,6 +103,7 @@ tmq.workspace = true
 zmq.workspace = true
 
 # Async Runtime & Concurrency
+async-trait.workspace = true
 flume.workspace = true
 oneshot.workspace = true
 papaya.workspace = true

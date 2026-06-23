@@ -34,4 +34,5 @@ rusty_paseto.workspace = true
 thiserror.workspace = true
 
 # Utilities & Helpers
+async-trait.workspace = true
 uuid.workspace = true

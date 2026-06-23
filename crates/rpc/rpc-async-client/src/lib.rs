@@ -13,7 +13,11 @@
 
 #![allow(clippy::too_many_arguments)]
 
-pub use host::{process_hosts_events, start_host_session};
+pub use host::{
+    process_hosts_events, process_hosts_events_with_services, start_host_session,
+    start_host_session_with_services,
+};
+pub use host_services::ZmqHostServices;
 pub use listeners::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
 pub use worker::attach_worker;
 pub use worker_loop::{WorkerRpcError, worker_loop, worker_loop_with_context};
@@ -23,9 +27,11 @@ pub use zmq;
 pub mod curve_keys;
 pub mod enrollment_client;
 mod host;
+mod host_services;
 mod listeners;
 pub mod pubsub_client;
 pub mod rpc_client;
+mod runtime_client_impl;
 pub mod task_client;
 mod worker;
 mod worker_loop;

@@ -19,7 +19,6 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
     time::Duration,
 };
@@ -28,6 +27,7 @@ use uuid::Uuid;
 use zmq::Socket;
 
 use super::message_handler::MessageHandler;
+use crate::{ReadySignal, signal_ready};
 use moor_common::tasks::{Event, NarrativeEvent};
 use moor_common::threading::spawn_efficient;
 use moor_kernel::SchedulerClient;
@@ -81,7 +81,7 @@ pub struct RpcTransport {
     ipc_rpc_endpoints: Vec<String>,
     /// TCP endpoints for RPC (with CURVE)
     tcp_rpc_endpoints: Vec<String>,
-    ready_sender: Option<mpsc::Sender<()>>,
+    ready_signal: Option<ReadySignal>,
 }
 
 impl RpcTransport {
@@ -112,7 +112,7 @@ impl RpcTransport {
         events_endpoints: &str,
         rpc_endpoints: &str,
         curve_secret_key: Option<String>,
-        ready_sender: Option<mpsc::Sender<()>>,
+        ready_signal: Option<ReadySignal>,
     ) -> Result<Self, eyre::Error> {
         // Parse endpoints into IPC and TCP groups
         let (ipc_events_endpoints, tcp_events_endpoints) = Self::parse_endpoints(events_endpoints);
@@ -178,7 +178,7 @@ impl RpcTransport {
             curve_secret_key,
             ipc_rpc_endpoints,
             tcp_rpc_endpoints,
-            ready_sender,
+            ready_signal,
         })
     }
 
@@ -243,9 +243,7 @@ impl RpcTransport {
             info!("Inproc RPC endpoint bound at {}", endpoint);
         }
 
-        if let Some(ready_sender) = self.ready_sender.as_ref() {
-            let _ = ready_sender.send(());
-        }
+        signal_ready(&self.ready_signal);
 
         loop {
             if self.kill_switch.load(Ordering::Relaxed) {
@@ -713,9 +711,7 @@ impl Transport for RpcTransport {
             None
         };
 
-        if let Some(ready_sender) = self.ready_sender.as_ref() {
-            let _ = ready_sender.send(());
-        }
+        signal_ready(&self.ready_signal);
 
         loop {
             if self.kill_switch.load(Ordering::Relaxed) {

@@ -28,6 +28,7 @@ tmq.workspace = true
 zmq.workspace = true
 
 # Async Runtime & Concurrency
+async-trait.workspace = true
 futures-util.workspace = true
 tokio.workspace = true
 

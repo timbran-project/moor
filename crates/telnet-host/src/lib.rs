@@ -31,8 +31,10 @@ use std::{
 use eyre::{Result, bail, eyre};
 use listeners::{Listeners, load_tls_config};
 use moor_var::SYSTEM_OBJECT;
-use rpc_async_client::{process_hosts_events, start_host_session};
-use rpc_common::{HostType, client_args::RpcClientConfig};
+use rpc_async_client::{
+    ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
+};
+use rpc_common::{HostType, api::HostServices, client_args::RpcClientConfig};
 use tokio::select;
 use tracing::info;
 use uuid::Uuid;
@@ -66,11 +68,6 @@ impl Default for HostRuntime {
 }
 
 pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
-    let listen_addr = format!("{}:{}", config.telnet_address, config.telnet_port);
-    let telnet_sockaddr = listen_addr
-        .parse::<SocketAddr>()
-        .map_err(|e| eyre!("Failed to parse telnet socket address {listen_addr}: {e}"))?;
-
     let curve_keys = rpc_async_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
@@ -79,6 +76,34 @@ pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
         &config.connection.data_dir,
     )
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
+
+    let host_services = Arc::new(ZmqHostServices::new(
+        runtime.zmq_context.clone(),
+        config.connection.rpc_address.clone(),
+        config.connection.events_address.clone(),
+        curve_keys.clone(),
+    )) as Arc<dyn HostServices>;
+    run_with_host_services(config, runtime, curve_keys, host_services).await
+}
+
+pub async fn run_with_services(
+    config: TelnetHostConfig,
+    runtime: HostRuntime,
+    host_services: Arc<dyn HostServices>,
+) -> Result<()> {
+    run_with_host_services(config, runtime, None, host_services).await
+}
+
+async fn run_with_host_services(
+    config: TelnetHostConfig,
+    runtime: HostRuntime,
+    curve_keys: Option<(String, String, String)>,
+    host_services: Arc<dyn HostServices>,
+) -> Result<()> {
+    let listen_addr = format!("{}:{}", config.telnet_address, config.telnet_port);
+    let telnet_sockaddr = listen_addr
+        .parse::<SocketAddr>()
+        .map_err(|e| eyre!("Failed to parse telnet socket address {listen_addr}: {e}"))?;
 
     let host_id = Uuid::new_v4();
     let last_daemon_ping = Arc::new(AtomicU64::new(0));
@@ -90,6 +115,7 @@ pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
         config.connection.events_address.clone(),
         runtime.kill_switch.clone(),
         curve_keys.clone(),
+        host_services.clone(),
         tls_config,
     );
 
@@ -119,27 +145,23 @@ pub async fn run(config: TelnetHostConfig, runtime: HostRuntime) -> Result<()> {
     );
 
     info!("Starting host session...");
-    let (rpc_client, host_id) = start_host_session(
+    let host_id = start_host_session_with_services(
         host_id,
-        runtime.zmq_context.clone(),
-        config.connection.rpc_address.clone(),
         runtime.kill_switch.clone(),
         listeners.clone(),
-        curve_keys.clone(),
+        HostType::TCP,
+        host_services.clone(),
     )
     .await
     .map_err(|e| eyre!("Unable to establish initial host session: {e}"))?;
 
-    let host_listen_loop = process_hosts_events(
-        rpc_client,
+    let host_listen_loop = process_hosts_events_with_services(
         host_id,
-        runtime.zmq_context.clone(),
-        config.connection.events_address.clone(),
         config.telnet_address.clone(),
         runtime.kill_switch.clone(),
         listeners.clone(),
         HostType::TCP,
-        curve_keys,
+        host_services,
         Some(last_daemon_ping),
     );
 

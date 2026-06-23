@@ -21,40 +21,20 @@ use mimalloc::MiMalloc;
 use moor_common::{build, tracing};
 use moor_daemon::{
     DaemonEndpoints, DaemonKeys, DaemonPaths, DaemonRuntime, DaemonRuntimeConfig,
-    ensure_enrollment_token, generate_keypair, load_or_generate_daemon_curve_keypair,
-    rotate_enrollment_token,
+    VERSION_BANNER_MSG, ensure_enrollment_token, generate_keypair,
+    load_or_generate_daemon_curve_keypair, rotate_enrollment_token,
 };
 use rpc_common::load_keypair;
 
+#[path = "../args.rs"]
 mod args;
+#[path = "../feature_args.rs"]
 mod feature_args;
 
 use crate::args::Args;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
-
-const BANNER_MSG: &str = r#"
-                                   ███████████
-                                  ░░███░░░░░███
- █████████████    ██████   ██████  ░███    ░███
-░░███░░███░░███  ███░░███ ███░░███ ░██████████
- ░███ ░███ ░███ ░███ ░███░███ ░███ ░███░░░░░███
- ░███ ░███ ░███ ░███ ░███░███ ░███ ░███    ░███
- █████░███ █████░░██████ ░░██████  █████   █████
-░░░░░ ░░░ ░░░░░  ░░░░░░   ░░░░░░  ░░░░░   ░░░░░
-
-
-
-        ████████        █████
-       ███░░░░███     ███░░░███
-      ░░░    ░███    ███   ░░███
-         ███████    ░███    ░███
-        ███░░░░     ░███    ░███
-       ███      █   ░░███   ███
-      ░██████████ ██ ░░░█████░
-      ░░░░░░░░░░ ░░    ░░░░░░
- "#;
 
 fn main() -> Result<(), Report> {
     color_eyre::install()?;
@@ -64,7 +44,7 @@ fn main() -> Result<(), Report> {
     let version = semver::Version::parse(build::PKG_VERSION)
         .map_err(|e| eyre!("Invalid moor version '{}': {}", build::PKG_VERSION, e))?;
 
-    eprintln!("Initializing...\n{BANNER_MSG}");
+    eprintln!("Initializing...\n{VERSION_BANNER_MSG}");
     tracing::init_tracing(args.debug).map_err(|e| eyre!("Unable to configure logging: {e}"))?;
 
     if args.rotate_enrollment_token {
@@ -146,7 +126,9 @@ fn main() -> Result<(), Report> {
         zmq_context: zmq::Context::new(),
         kill_switch,
         emergency_checkpoint: Some(emergency_checkpoint),
-        ready_sender: None,
+        ready_signal: None,
+        local_event_bus: None,
+        local_runtime_services_sender: None,
     };
 
     moor_daemon::run(runtime_config, runtime)

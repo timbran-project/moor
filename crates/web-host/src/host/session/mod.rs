@@ -18,19 +18,19 @@ mod websocket;
 
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{SinkExt, StreamExt, stream::SplitSink};
+use moor_common::tasks::Event as NarrativeEventKind;
 use moor_schema::{
-    common as moor_common, convert::uuid_from_ref, convert::var_from_flatbuffer_ref,
-    rpc as moor_rpc, var as moor_var_schema,
+    common as moor_common_fb, convert::var_from_flatbuffer_ref, rpc as moor_rpc,
+    var as moor_var_schema,
 };
 use moor_var::{Obj, Var, v_str};
 use planus::ReadAsRoot;
-use rpc_async_client::{
-    pubsub_client::{broadcast_recv, events_recv},
-    rpc_client::RpcClient,
-};
 use rpc_common::{
-    AuthToken, ClientToken, mk_client_pong_msg, mk_command_msg, mk_detach_msg,
-    mk_requested_input_msg, read_reply_result,
+    AuthToken, ClientToken, HostType,
+    api::{
+        BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
+        ClientReply, ClientRequest, RuntimeClient,
+    },
 };
 use std::{
     collections::{HashSet, VecDeque},
@@ -38,7 +38,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
-use tmq::subscribe::Subscribe;
 use tokio::select;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
@@ -57,25 +56,15 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(15);
 const HEARTBEAT_REQUEST: u8 = 0x02;
 
-fn log_rpc_failure(failure: moor_rpc::FailureRef<'_>) {
-    match failure.error() {
-        Ok(error_ref) => match error_ref.error_code() {
-            Ok(error_code) => warn!("RPC error: {:?}", error_code),
-            Err(e) => warn!("RPC failure missing error code: {}", e),
-        },
-        Err(e) => warn!("RPC failure missing error payload: {}", e),
-    }
-}
-
 pub struct ClientSession {
     pub(crate) player: Obj,
     pub(crate) peer_addr: SocketAddr,
-    pub(crate) broadcast_sub: Subscribe,
-    pub(crate) narrative_sub: Subscribe,
+    pub(crate) broadcast_sub: Box<dyn ClientBroadcastSubscription>,
+    pub(crate) narrative_sub: Box<dyn ClientEventSubscription>,
     pub(crate) client_id: Uuid,
     pub(crate) client_token: ClientToken,
     pub(crate) auth_token: AuthToken,
-    pub(crate) rpc_client: RpcClient,
+    pub(crate) daemon_client: Arc<dyn RuntimeClient>,
     pub(crate) handler_object: Obj,
     pub(crate) pending_task: Option<PendingTask>,
     pub(crate) close_code: Option<u16>,
@@ -97,7 +86,7 @@ impl ClientSession {
         let event = moor_rpc::ClientEvent {
             event: moor_rpc::ClientEventUnion::CredentialsUpdatedEvent(Box::new(
                 moor_rpc::CredentialsUpdatedEvent {
-                    client_id: Box::new(moor_common::Uuid {
+                    client_id: Box::new(moor_common_fb::Uuid {
                         data: self.client_id.as_bytes().to_vec(),
                     }),
                     client_token: Box::new(moor_rpc::ClientToken {
@@ -234,17 +223,10 @@ impl ClientSession {
                         break;
                     }
                 }
-                Ok(event_msg) = broadcast_recv(&mut self.broadcast_sub) => {
-                    let event = match event_msg.event() {
-                        Ok(event) => event,
-                        Err(e) => {
-                            warn!("Failed to parse broadcast event: {}", e);
-                            continue;
-                        }
-                    };
+                Ok(event_msg) = self.broadcast_sub.recv_client_broadcast() => {
                     trace!("broadcast_event");
-                    match event.event() {
-                        Ok(moor_rpc::ClientsBroadcastEventUnionRef::ClientsBroadcastPingPong(_server_time)) => {
+                    match event_msg.event {
+                        BroadcastEvent::PingPong => {
                             let timestamp = match SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
                                 Ok(duration) => duration.as_nanos() as u64,
                                 Err(e) => {
@@ -252,62 +234,28 @@ impl ClientSession {
                                     0
                                 }
                             };
-                            let pong_msg = mk_client_pong_msg(
-                                &self.client_token,
-                                timestamp,
-                                &self.player,
-                                moor_rpc::HostType::WebSocket,
-                                self.peer_addr.to_string(),
-                            );
-                            if let Err(e) = self.rpc_client.make_client_rpc_call(self.client_id, pong_msg).await {
+                            let request = ClientRequest::ClientPong {
+                                client_token: self.client_token.clone(),
+                                client_sys_time: timestamp,
+                                player: self.player,
+                                host_type: HostType::WebSocket,
+                                socket_addr: self.peer_addr.to_string(),
+                            };
+                            if let Err(e) = self.daemon_client.client_call(self.client_id, request).await {
                                 warn!("Unable to send pong to RPC server: {}", e);
                                 break;
                             }
                         }
-                        Err(e) => {
-                            warn!("Broadcast event missing event union: {}", e);
-                            continue;
-                        }
                     }
                 }
-                Ok(event_msg) = events_recv(self.client_id, &mut self.narrative_sub) => {
-                    // Parse to check for input requests and task completions
-                    let event = match event_msg.event() {
-                        Ok(event) => event,
-                        Err(e) => {
-                            warn!("Failed to parse client event: {}", e);
-                            continue;
+                Ok(event_msg) = self.narrative_sub.recv_client_event() => {
+                    match &event_msg.event {
+                        ClientEvent::RequestInput { request_id, .. } => {
+                            expecting_input.push_back(*request_id);
                         }
-                    };
-                    let event_ref = match event.event() {
-                        Ok(event_ref) => event_ref,
-                        Err(e) => {
-                            warn!("Client event missing event union: {}", e);
-                            continue;
-                        }
-                    };
-
-                    match event_ref {
-                        moor_rpc::ClientEventUnionRef::RequestInputEvent(input_request) => {
-                            let request_id_ref = match input_request.request_id() {
-                                Ok(request_id_ref) => request_id_ref,
-                                Err(e) => {
-                                    warn!("RequestInputEvent missing request_id: {}", e);
-                                    continue;
-                                }
-                            };
-                            let request_id = match uuid_from_ref(request_id_ref) {
-                                Ok(request_id) => request_id,
-                                Err(e) => {
-                                    warn!("Failed to convert request_id UUID: {}", e);
-                                    continue;
-                                }
-                            };
-                            expecting_input.push_back(request_id);
-                        }
-                        moor_rpc::ClientEventUnionRef::TaskSuccessEvent(_) |
-                        moor_rpc::ClientEventUnionRef::TaskErrorEvent(_) |
-                        moor_rpc::ClientEventUnionRef::TaskSuspendedEvent(_) => {
+                        ClientEvent::TaskSuccess { .. } |
+                        ClientEvent::TaskError { .. } |
+                        ClientEvent::TaskSuspended { .. } => {
                             // Clear the pending task so we can process the next command
                             self.pending_task = None;
                         }
@@ -318,7 +266,7 @@ impl ClientSession {
                     // and route over data channel if available.
                     let dc_open = self.webrtc_peer.as_ref().is_some_and(|p| p.is_open());
                     let is_realtime = !self.realtime_domains.is_empty()
-                        && is_realtime_eligible(&event_ref, &self.realtime_domains);
+                        && is_realtime_eligible(&event_msg.event, &self.realtime_domains);
                     if is_realtime {
                         debug!("Realtime event: dc_open={dc_open} peer={}", self.webrtc_peer.is_some());
                     }
@@ -341,9 +289,14 @@ impl ClientSession {
             "Detaching connection: close_code={:?}, is_logout={}, disconnected={}",
             self.close_code, self.is_logout, self.is_logout
         );
-        let detach_msg = mk_detach_msg(&self.client_token, self.is_logout);
-        self.rpc_client
-            .make_client_rpc_call(self.client_id, detach_msg)
+        self.daemon_client
+            .client_call(
+                self.client_id,
+                ClientRequest::Detach {
+                    client_token: self.client_token.clone(),
+                    disconnected: self.is_logout,
+                },
+            )
             .await
             .map_err(|e| warn!("Unable to send detach event to RPC server: {}", e))
             .ok();
@@ -359,41 +312,31 @@ impl ClientSession {
         };
         let cmd = line.trim().to_string();
 
-        let command_msg = mk_command_msg(
-            &self.client_token,
-            &self.auth_token,
-            &self.handler_object,
-            cmd,
-        );
-
-        let reply_bytes = self
-            .rpc_client
-            .make_client_rpc_call(self.client_id, command_msg)
+        let reply = self
+            .daemon_client
+            .client_call(
+                self.client_id,
+                ClientRequest::Command {
+                    client_token: self.client_token.clone(),
+                    auth_token: self.auth_token.clone(),
+                    handler_object: self.handler_object,
+                    command: cmd,
+                },
+            )
             .await;
-        let reply_bytes = match reply_bytes {
-            Ok(reply_bytes) => reply_bytes,
+        let reply = match reply {
+            Ok(reply) => reply,
             Err(e) => {
                 warn!("Unable to send command to RPC server: {}", e);
                 return;
             }
         };
 
-        let reply = match read_reply_result(&reply_bytes) {
-            Ok(reply) => reply,
-            Err(e) => {
-                warn!("Failed to parse command reply: {}", e);
-                return;
+        match reply {
+            ClientReply::TaskSubmitted { task_id } => {
+                self.set_pending_task(task_id as usize);
             }
-        };
-        let Some(reply_union) = daemon_reply_union(reply, "Command") else {
-            return;
-        };
-
-        match reply_union {
-            moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) => {
-                self.set_pending_task_from_reply(task_submitted);
-            }
-            moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_) => {
+            ClientReply::InputThanks => {
                 warn!("Received input thanks unprovoked, out of order")
             }
             _ => {
@@ -423,45 +366,32 @@ impl ClientSession {
             return;
         };
 
-        let Some(input_msg) = mk_requested_input_msg(
-            &self.client_token,
-            &self.auth_token,
-            *input_request_id,
-            &cmd,
-        ) else {
-            warn!("Failed to create requested input message");
-            return;
-        };
-
-        let reply_bytes = self
-            .rpc_client
-            .make_client_rpc_call(self.client_id, input_msg)
+        let reply = self
+            .daemon_client
+            .client_call(
+                self.client_id,
+                ClientRequest::RequestedInput {
+                    client_token: self.client_token.clone(),
+                    auth_token: self.auth_token.clone(),
+                    request_id: *input_request_id,
+                    input: cmd,
+                },
+            )
             .await;
-        let reply_bytes = match reply_bytes {
-            Ok(reply_bytes) => reply_bytes,
+        let reply = match reply {
+            Ok(reply) => reply,
             Err(e) => {
                 warn!("Unable to send input to RPC server: {}", e);
                 return;
             }
         };
 
-        let reply = match read_reply_result(&reply_bytes) {
-            Ok(reply) => reply,
-            Err(e) => {
-                warn!("Failed to parse input reply: {}", e);
-                return;
-            }
-        };
-        let Some(reply_union) = daemon_reply_union(reply, "Input") else {
-            return;
-        };
-
-        match reply_union {
-            moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) => {
-                self.set_pending_task_from_reply(task_submitted);
+        match reply {
+            ClientReply::TaskSubmitted { task_id } => {
+                self.set_pending_task(task_id as usize);
                 warn!("Got TaskSubmitted when expecting input-thanks")
             }
-            moor_rpc::DaemonToClientReplyUnionRef::InputThanks(_) => {
+            ClientReply::InputThanks => {
                 expecting_input.pop_front();
             }
             _ => {
@@ -581,61 +511,13 @@ impl ClientSession {
         true
     }
 
-    fn set_pending_task_from_reply(
-        &mut self,
-        task_submitted: moor_rpc::TaskSubmittedRef<'_>,
-    ) -> bool {
-        let task_id = match task_submitted.task_id() {
-            Ok(task_id) => task_id as usize,
-            Err(e) => {
-                warn!("TaskSubmitted missing task_id: {}", e);
-                return false;
-            }
-        };
-
+    fn set_pending_task(&mut self, task_id: usize) -> bool {
         self.pending_task = Some(PendingTask {
             task_id,
             start_time: Instant::now(),
         });
         true
     }
-}
-
-fn daemon_reply_union<'a>(
-    reply: moor_rpc::ReplyResultRef<'a>,
-    context: &str,
-) -> Option<moor_rpc::DaemonToClientReplyUnionRef<'a>> {
-    let result = match reply.result() {
-        Ok(result) => result,
-        Err(e) => {
-            warn!("{context} reply missing top-level result: {e}");
-            return None;
-        }
-    };
-
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result else {
-        match result {
-            moor_rpc::ReplyResultUnionRef::Failure(failure) => log_rpc_failure(failure),
-            moor_rpc::ReplyResultUnionRef::HostSuccess(_) => error!("Unexpected host success"),
-            moor_rpc::ReplyResultUnionRef::ClientSuccess(_) => unreachable!(),
-        }
-        return None;
-    };
-
-    let Ok(daemon_reply) = client_success.reply() else {
-        warn!("{context} reply missing daemon reply");
-        return None;
-    };
-
-    let reply_union = match daemon_reply.reply() {
-        Ok(reply_union) => reply_union,
-        Err(e) => {
-            warn!("{context} reply missing daemon reply union: {e}");
-            return None;
-        }
-    };
-
-    Some(reply_union)
 }
 
 fn var_from_input_message(message: Message) -> Option<Var> {
@@ -668,30 +550,12 @@ fn var_from_binary_input(bytes: &[u8]) -> Option<Var> {
 }
 
 /// Check if a client event is a DataEvent whose domain is in the realtime set.
-fn is_realtime_eligible(
-    event_ref: &moor_rpc::ClientEventUnionRef<'_>,
-    realtime_domains: &HashSet<String>,
-) -> bool {
-    let moor_rpc::ClientEventUnionRef::NarrativeEventMessage(narrative) = event_ref else {
+fn is_realtime_eligible(event: &ClientEvent, realtime_domains: &HashSet<String>) -> bool {
+    let ClientEvent::Narrative { event, .. } = event else {
         return false;
     };
-    let Ok(narrative_event) = narrative.event() else {
+    let NarrativeEventKind::Data { namespace, .. } = &event.event else {
         return false;
     };
-    let Ok(event) = narrative_event.event() else {
-        return false;
-    };
-    let Ok(event_union) = event.event() else {
-        return false;
-    };
-    let moor_common::EventUnionRef::DataEvent(data_event) = event_union else {
-        return false;
-    };
-    let Ok(domain_sym) = data_event.domain() else {
-        return false;
-    };
-    let Ok(domain) = domain_sym.value() else {
-        return false;
-    };
-    realtime_domains.contains(domain)
+    realtime_domains.contains(&namespace.as_string())
 }

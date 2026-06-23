@@ -25,9 +25,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_common::model::ObjectRef;
-use moor_schema::rpc as moor_rpc;
 use moor_var::Symbol;
-use rpc_common::{mk_properties_msg, mk_retrieve_msg};
+use rpc_common::api::{ClientRequest, EntityType};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -60,7 +59,11 @@ pub async fn properties_handler(
 
     let inherited = query.inherited.unwrap_or(false);
 
-    let props_msg = mk_properties_msg(&auth_token, &object_ref, inherited);
+    let props_msg = ClientRequest::Properties {
+        auth_token,
+        object: object_ref,
+        inherited,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, props_msg).await {
         Ok(bytes) => bytes,
@@ -99,12 +102,12 @@ pub async fn property_retrieval_handler(
 
     let prop_name = Symbol::mk(&prop_name);
 
-    let retrieve_msg = mk_retrieve_msg(
-        &auth_token,
-        &object_ref,
-        moor_rpc::EntityType::Property,
-        &prop_name,
-    );
+    let retrieve_msg = ClientRequest::Retrieve {
+        auth_token,
+        object: object_ref,
+        entity_type: EntityType::Property,
+        name: prop_name,
+    };
 
     let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, retrieve_msg).await {
         Ok(bytes) => bytes,

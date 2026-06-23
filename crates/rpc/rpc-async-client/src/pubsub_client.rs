@@ -12,6 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 /// RPC related functions, for talking to/from the RPC daemon over ZMQ.
+use async_trait::async_trait;
 use futures_util::StreamExt;
 use tmq::subscribe::Subscribe;
 use uuid::Uuid;
@@ -23,6 +24,9 @@ use moor_schema::{
 use moor_var::{Obj, Var};
 use planus::ReadAsRoot;
 use rpc_common::RpcError;
+use rpc_common::api::{
+    ClientBroadcastSubscription, ClientEventSubscription, HostBroadcastEvent, HostEventSubscription,
+};
 use std::time::Duration;
 
 /// Type alias for the complex return type of worker request extraction
@@ -157,6 +161,15 @@ impl ClientEventMessage {
     pub fn consume(self) -> Vec<u8> {
         self.buffer
     }
+
+    pub fn decode(&self) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+        let event = self.event()?;
+        let event = rpc_common::api_codec::decode_client_event_ref(event)?;
+        Ok(rpc_common::api::ClientEventMessage {
+            event,
+            raw_bytes: self.buffer.clone(),
+        })
+    }
 }
 
 pub async fn events_recv(
@@ -210,6 +223,15 @@ impl BroadcastEventMessage {
         rpc::ClientsBroadcastEventRef::read_as_root(&self.buffer)
             .map_err(|e| RpcError::CouldNotDecode(format!("Failed to parse flatbuffer: {e}")))
     }
+
+    pub fn decode(&self) -> Result<rpc_common::api::BroadcastEventMessage, RpcError> {
+        let event = self.event()?;
+        let event = rpc_common::api_codec::decode_broadcast_event_ref(event)?;
+        Ok(rpc_common::api::BroadcastEventMessage {
+            event,
+            raw_bytes: self.buffer.clone(),
+        })
+    }
 }
 
 pub async fn broadcast_recv(subscribe: &mut Subscribe) -> Result<BroadcastEventMessage, RpcError> {
@@ -262,6 +284,69 @@ impl HostBroadcastMessage {
     pub fn event(&self) -> Result<rpc::HostBroadcastEventRef<'_>, RpcError> {
         rpc::HostBroadcastEventRef::read_as_root(&self.buffer)
             .map_err(|e| RpcError::CouldNotDecode(format!("Failed to parse flatbuffer: {e}")))
+    }
+
+    pub fn decode(&self) -> Result<HostBroadcastEvent, RpcError> {
+        rpc_common::api_codec::decode_host_broadcast_event_ref(self.event()?)
+    }
+}
+
+pub struct ZmqClientEventSubscription {
+    client_id: Uuid,
+    subscribe: Subscribe,
+}
+
+impl ZmqClientEventSubscription {
+    pub fn new(client_id: Uuid, subscribe: Subscribe) -> Self {
+        Self {
+            client_id,
+            subscribe,
+        }
+    }
+}
+
+#[async_trait]
+impl ClientEventSubscription for ZmqClientEventSubscription {
+    async fn recv_client_event(&mut self) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+        events_recv(self.client_id, &mut self.subscribe)
+            .await?
+            .decode()
+    }
+}
+
+pub struct ZmqClientBroadcastSubscription {
+    subscribe: Subscribe,
+}
+
+impl ZmqClientBroadcastSubscription {
+    pub fn new(subscribe: Subscribe) -> Self {
+        Self { subscribe }
+    }
+}
+
+#[async_trait]
+impl ClientBroadcastSubscription for ZmqClientBroadcastSubscription {
+    async fn recv_client_broadcast(
+        &mut self,
+    ) -> Result<rpc_common::api::BroadcastEventMessage, RpcError> {
+        broadcast_recv(&mut self.subscribe).await?.decode()
+    }
+}
+
+pub struct ZmqHostEventSubscription {
+    subscribe: Subscribe,
+}
+
+impl ZmqHostEventSubscription {
+    pub fn new(subscribe: Subscribe) -> Self {
+        Self { subscribe }
+    }
+}
+
+#[async_trait]
+impl HostEventSubscription for ZmqHostEventSubscription {
+    async fn recv_host_event(&mut self) -> Result<HostBroadcastEvent, RpcError> {
+        hosts_events_recv(&mut self.subscribe).await?.decode()
     }
 }
 

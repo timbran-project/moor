@@ -134,6 +134,7 @@ zmq = "0.10"
 
 # Async Runtime & Concurrency
 arc-swap = "1.9"
+async-trait = "0.1"
 boxcar = "0.2"
 flume = "0.12"
 futures = "0.3"

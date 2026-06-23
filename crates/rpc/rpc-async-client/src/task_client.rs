@@ -24,20 +24,19 @@ use std::time::Duration;
 
 use moor_common::model::ObjectRef;
 use moor_common::tasks::{NarrativeEvent, SchedulerError};
-use moor_schema::{
-    convert::{narrative_event_from_ref, obj_from_ref, uuid_from_ref, var_from_flatbuffer_ref},
-    rpc as moor_rpc,
-};
 use moor_var::{Obj, Symbol, Var};
 use rpc_common::{
-    AuthToken, ClientToken, RpcError, mk_attach_msg, mk_detach_msg, mk_invoke_verb_msg,
-    read_reply_result, scheduler_error_from_ref,
+    AuthToken, ClientToken, RpcError,
+    api::{
+        ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, ConnectType,
+        HostServices, RuntimeClient,
+    },
 };
 use tokio::sync::{broadcast, oneshot};
 use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
 
-use crate::pubsub_client::events_recv;
+use crate::ZmqHostServices;
 use crate::rpc_client::{CurveKeys, RpcClient};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -124,7 +123,7 @@ type WaiterMap = Mutex<HashMap<u64, oneshot::Sender<TaskResult>>>;
 /// # }
 /// ```
 pub struct TaskClient {
-    rpc: RpcClient,
+    rpc: Arc<dyn RuntimeClient>,
     client_id: Uuid,
     client_token: ClientToken,
     auth_token: AuthToken,
@@ -179,48 +178,64 @@ impl TaskClient {
     /// Attach message, sets up the PubSub subscription, and spawns the
     /// background event dispatcher.
     pub async fn connect(config: TaskClientConfig) -> Result<Self, TaskClientError> {
-        let rpc = RpcClient::new_with_defaults(
-            config.zmq_context.clone(),
-            config.rpc_addr,
-            config.curve_keys.clone(),
-        );
+        let curve_keys = config.curve_keys.as_ref().map(|keys| {
+            (
+                keys.client_secret.clone(),
+                keys.client_public.clone(),
+                keys.server_public.clone(),
+            )
+        });
+        let services = Arc::new(ZmqHostServices::new(
+            (*config.zmq_context).clone(),
+            config.rpc_addr.clone(),
+            config.pubsub_addr.clone(),
+            curve_keys,
+        ));
+        Self::connect_with_services(config, services).await
+    }
 
+    pub async fn connect_with_services(
+        config: TaskClientConfig,
+        services: Arc<dyn HostServices>,
+    ) -> Result<Self, TaskClientError> {
+        let rpc = services.runtime_client();
         let client_id = Uuid::new_v4();
 
-        // Attach to the daemon
-        let attach_msg = mk_attach_msg(
-            &config.auth_token,
-            Some(moor_rpc::ConnectType::NoConnect),
-            &config.handler_object,
-            config.peer_addr,
-            config.local_port,
-            0, // remote_port not relevant for programmatic clients
-            None,
-        );
-
-        let reply_bytes = rpc
-            .make_client_rpc_call(client_id, attach_msg)
+        let reply = rpc
+            .client_call(
+                client_id,
+                ClientRequest::Attach {
+                    auth_token: config.auth_token.clone(),
+                    connect_type: ConnectType::NoConnect,
+                    handler_object: config.handler_object,
+                    peer_addr: config.peer_addr,
+                    local_port: config.local_port,
+                    remote_port: 0,
+                    acceptable_content_types: None,
+                },
+            )
             .await
             .map_err(TaskClientError::Rpc)?;
 
-        let client_token = decode_attach_reply(&reply_bytes)?;
+        let ClientReply::AttachResult {
+            success: true,
+            client_token: Some(client_token),
+            ..
+        } = reply
+        else {
+            return Err(TaskClientError::AttachFailed(format!(
+                "unexpected attach reply: {reply:?}"
+            )));
+        };
 
-        // Set up PubSub subscription for this client_id
-        let subscribe = create_events_subscription(
-            &config.zmq_context,
-            &config.pubsub_addr,
-            client_id,
-            config.curve_keys.as_ref(),
-        )?;
-
-        // Brief pause for ZMQ slow-joiner (subscription propagation)
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        let (subscribe, _) = services
+            .client_subscriptions(client_id)
+            .map_err(TaskClientError::Rpc)?;
 
         let waiters = Arc::new(Mutex::new(HashMap::new()));
         let (session_events_tx, _) = broadcast::channel(SESSION_EVENT_CHANNEL_CAPACITY);
 
         let dispatcher_handle = tokio::spawn(dispatcher_loop(
-            client_id,
             subscribe,
             waiters.clone(),
             session_events_tx.clone(),
@@ -255,24 +270,34 @@ impl TaskClient {
         curve_keys: Option<&CurveKeys>,
         default_timeout: Duration,
     ) -> Result<Self, TaskClientError> {
-        let subscribe =
-            create_events_subscription(zmq_context, pubsub_addr, client_id, curve_keys)?;
-
-        // Brief pause for ZMQ slow-joiner
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        let curve_keys = curve_keys.map(|keys| {
+            (
+                keys.client_secret.clone(),
+                keys.client_public.clone(),
+                keys.server_public.clone(),
+            )
+        });
+        let services = ZmqHostServices::new(
+            zmq_context.clone(),
+            String::new(),
+            pubsub_addr.to_string(),
+            curve_keys,
+        );
+        let (subscribe, _) = services
+            .client_subscriptions(client_id)
+            .map_err(TaskClientError::Rpc)?;
 
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_events_tx, _) = broadcast::channel(SESSION_EVENT_CHANNEL_CAPACITY);
 
         let dispatcher_handle = tokio::spawn(dispatcher_loop(
-            client_id,
             subscribe,
             waiters.clone(),
             session_events_tx.clone(),
         ));
 
         Ok(Self {
-            rpc,
+            rpc: Arc::new(rpc),
             client_id,
             client_token,
             auth_token,
@@ -304,24 +329,25 @@ impl TaskClient {
         args: Vec<&Var>,
         timeout_duration: Duration,
     ) -> Result<TaskResult, TaskClientError> {
-        // Build the InvokeVerb message
-        let msg = mk_invoke_verb_msg(
-            &self.client_token,
-            &self.auth_token,
-            object,
-            verb_name,
-            args,
-        )
-        .ok_or(TaskClientError::ArgEncoding)?;
-
-        // Send RPC, get TaskSubmitted reply
-        let reply_bytes = self
+        let args = args.into_iter().cloned().collect();
+        let reply = self
             .rpc
-            .make_client_rpc_call(self.client_id, msg)
+            .client_call(
+                self.client_id,
+                ClientRequest::InvokeVerb {
+                    client_token: self.client_token.clone(),
+                    auth_token: self.auth_token.clone(),
+                    object: object.clone(),
+                    verb: *verb_name,
+                    args,
+                },
+            )
             .await
             .map_err(TaskClientError::Rpc)?;
 
-        let task_id = extract_task_id(&reply_bytes)?;
+        let ClientReply::TaskSubmitted { task_id } = reply else {
+            return Err(TaskClientError::UnexpectedReply(format!("{reply:?}")));
+        };
 
         trace!("Task {} submitted for {}:{}", task_id, object, verb_name);
 
@@ -367,11 +393,15 @@ impl TaskClient {
 
     /// Gracefully shut down the client, detaching from the daemon.
     pub async fn shutdown(self) {
-        // Detach from daemon
-        let detach_msg = mk_detach_msg(&self.client_token, true);
         if let Err(e) = self
             .rpc
-            .make_client_rpc_call(self.client_id, detach_msg)
+            .client_call(
+                self.client_id,
+                ClientRequest::Detach {
+                    client_token: self.client_token.clone(),
+                    disconnected: true,
+                },
+            )
             .await
         {
             warn!("Failed to send detach on shutdown: {}", e);
@@ -397,77 +427,37 @@ impl Drop for TaskClient {
 // ---------------------------------------------------------------------------
 
 async fn dispatcher_loop(
-    client_id: Uuid,
-    mut subscribe: tmq::subscribe::Subscribe,
+    mut subscribe: Box<dyn ClientEventSubscription>,
     waiters: Arc<WaiterMap>,
     session_tx: broadcast::Sender<SessionEvent>,
 ) {
     loop {
-        let event_msg = match events_recv(client_id, &mut subscribe).await {
+        let event_msg = match subscribe.recv_client_event().await {
             Ok(msg) => msg,
             Err(e) => {
-                error!("TaskClient PubSub error, dispatcher exiting: {}", e);
+                error!(
+                    "TaskClient event subscription error, dispatcher exiting: {}",
+                    e
+                );
                 break;
             }
         };
 
-        let Ok(event) = event_msg.event() else {
-            continue;
-        };
-        let Ok(event_union) = event.event() else {
-            continue;
-        };
-
-        match event_union {
+        match event_msg.event {
             // ----- Task-correlated events → resolve waiters -----
-            moor_rpc::ClientEventUnionRef::TaskSuccessEvent(success) => {
-                let Ok(task_id) = success.task_id() else {
-                    continue;
-                };
+            ClientEvent::TaskSuccess { task_id, result } => {
                 let sender = waiters.lock().unwrap().remove(&task_id);
                 if let Some(sender) = sender {
-                    let result = match success.result() {
-                        Ok(result_ref) => match var_from_flatbuffer_ref(result_ref) {
-                            Ok(var) => TaskResult::Success(var),
-                            Err(e) => {
-                                error!("Failed to decode task {} result: {}", task_id, e);
-                                continue;
-                            }
-                        },
-                        Err(e) => {
-                            error!("Failed to read task {} result ref: {}", task_id, e);
-                            continue;
-                        }
-                    };
-                    let _ = sender.send(result);
+                    let _ = sender.send(TaskResult::Success(result));
                 }
             }
-            moor_rpc::ClientEventUnionRef::TaskErrorEvent(error_event) => {
-                let Ok(task_id) = error_event.task_id() else {
-                    continue;
-                };
+            ClientEvent::TaskError { task_id, error } => {
                 let sender = waiters.lock().unwrap().remove(&task_id);
                 if let Some(sender) = sender {
-                    let result = match error_event.error() {
-                        Ok(error_ref) => match scheduler_error_from_ref(error_ref) {
-                            Ok(sched_err) => TaskResult::Error(sched_err),
-                            Err(e) => {
-                                error!("Failed to decode task {} error: {}", task_id, e);
-                                continue;
-                            }
-                        },
-                        Err(e) => {
-                            error!("Failed to read task {} error ref: {}", task_id, e);
-                            continue;
-                        }
-                    };
-                    let _ = sender.send(result);
+                    let _ = sender.send(TaskResult::Error(error));
                 }
             }
-            moor_rpc::ClientEventUnionRef::TaskSuspendedEvent(suspended) => {
-                let Ok(task_id) = suspended.task_id() else {
-                    continue;
-                };
+            ClientEvent::TaskSuspended { task_id } => {
                 let sender = waiters.lock().unwrap().remove(&task_id);
                 if let Some(sender) = sender {
                     let _ = sender.send(TaskResult::Suspended(task_id));
@@ -475,85 +465,46 @@ async fn dispatcher_loop(
             }
 
             // ----- Session-level events → broadcast channel -----
-            moor_rpc::ClientEventUnionRef::NarrativeEventMessage(narrative) => {
-                let session_event = (|| {
-                    let player_obj = obj_from_ref(narrative.player().ok()?).ok()?;
-                    let event_ref = narrative.event().ok()?;
-                    let event = narrative_event_from_ref(event_ref).ok()?;
-                    Some(SessionEvent::Narrative(player_obj, event))
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::Narrative { player, event } => {
+                let _ = session_tx.send(SessionEvent::Narrative(player, event));
             }
-            moor_rpc::ClientEventUnionRef::SystemMessageEvent(sys_msg) => {
-                let session_event = (|| {
-                    let player_obj = obj_from_ref(sys_msg.player().ok()?).ok()?;
-                    let message = sys_msg.message().ok()?.to_string();
-                    Some(SessionEvent::SystemMessage(player_obj, message))
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::SystemMessage { player, message } => {
+                let _ = session_tx.send(SessionEvent::SystemMessage(player, message));
             }
-            moor_rpc::ClientEventUnionRef::RequestInputEvent(input_request) => {
-                let session_event = (|| {
-                    let request_id_ref = input_request.request_id().ok()?;
-                    let request_id = uuid_from_ref(request_id_ref).ok()?;
-                    Some(SessionEvent::RequestInput(request_id))
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::RequestInput { request_id, .. } => {
+                let _ = session_tx.send(SessionEvent::RequestInput(request_id));
             }
-            moor_rpc::ClientEventUnionRef::DisconnectEvent(_) => {
+            ClientEvent::Disconnect => {
                 let _ = session_tx.send(SessionEvent::Disconnect);
             }
-            moor_rpc::ClientEventUnionRef::PlayerSwitchedEvent(switch) => {
-                let session_event = (|| {
-                    let player_obj = obj_from_ref(switch.new_player().ok()?).ok()?;
-                    let auth_ref = switch.new_auth_token().ok()?;
-                    let token = auth_ref.token().ok()?.to_string();
-                    Some(SessionEvent::PlayerSwitched {
-                        player: player_obj,
-                        auth_token: AuthToken(token),
-                    })
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::PlayerSwitched {
+                new_player,
+                new_auth_token,
+            } => {
+                let _ = session_tx.send(SessionEvent::PlayerSwitched {
+                    player: new_player,
+                    auth_token: new_auth_token,
+                });
             }
-            moor_rpc::ClientEventUnionRef::SetConnectionOptionEvent(opt) => {
-                let session_event = (|| {
-                    let conn_obj = obj_from_ref(opt.connection_obj().ok()?).ok()?;
-                    let option_ref = opt.option_name().ok()?;
-                    let option = Symbol::mk(option_ref.value().ok()?);
-                    let value_ref = opt.value().ok()?;
-                    let value = var_from_flatbuffer_ref(value_ref).ok()?;
-                    Some(SessionEvent::SetConnectionOption {
-                        connection_obj: conn_obj,
-                        option,
-                        value,
-                    })
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::SetConnectionOption {
+                connection_obj,
+                option_name,
+                value,
+            } => {
+                let _ = session_tx.send(SessionEvent::SetConnectionOption {
+                    connection_obj,
+                    option: option_name,
+                    value,
+                });
             }
-            moor_rpc::ClientEventUnionRef::CredentialsUpdatedEvent(creds) => {
-                let session_event = (|| {
-                    let client_id_ref = creds.client_id().ok()?;
-                    let cid = uuid_from_ref(client_id_ref).ok()?;
-                    let token_ref = creds.client_token().ok()?;
-                    let token = token_ref.token().ok()?.to_string();
-                    Some(SessionEvent::CredentialsUpdated {
-                        client_id: cid,
-                        client_token: ClientToken(token),
-                    })
-                })();
-                if let Some(evt) = session_event {
-                    let _ = session_tx.send(evt);
-                }
+            ClientEvent::CredentialsUpdated {
+                client_id,
+                client_token,
+            } => {
+                let _ = session_tx.send(SessionEvent::CredentialsUpdated {
+                    client_id,
+                    client_token,
+                });
             }
         }
     }
@@ -564,15 +515,16 @@ async fn dispatcher_loop(
 // ---------------------------------------------------------------------------
 
 /// Extract task_id from a TaskSubmitted RPC reply.
+#[cfg(test)]
 fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
-    let reply = read_reply_result(reply_bytes)
+    let reply = rpc_common::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::UnexpectedReply(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
         .result()
         .map_err(|e| TaskClientError::UnexpectedReply(format!("missing result: {e}")))?;
 
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result_union else {
+    let moor_schema::rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result_union else {
         return Err(TaskClientError::UnexpectedReply(
             "expected ClientSuccess".into(),
         ));
@@ -586,7 +538,8 @@ fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
         .reply()
         .map_err(|e| TaskClientError::UnexpectedReply(format!("missing reply union: {e}")))?;
 
-    let moor_rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) = reply_union else {
+    let moor_schema::rpc::DaemonToClientReplyUnionRef::TaskSubmitted(task_submitted) = reply_union
+    else {
         return Err(TaskClientError::UnexpectedReply(
             "expected TaskSubmitted".into(),
         ));
@@ -598,15 +551,16 @@ fn extract_task_id(reply_bytes: &[u8]) -> Result<u64, TaskClientError> {
 }
 
 /// Decode the attach reply, extracting the client token.
+#[cfg(test)]
 fn decode_attach_reply(reply_bytes: &[u8]) -> Result<ClientToken, TaskClientError> {
-    let reply = read_reply_result(reply_bytes)
+    let reply = rpc_common::read_reply_result(reply_bytes)
         .map_err(|e| TaskClientError::AttachFailed(format!("bad flatbuffer: {e}")))?;
 
     let result_union = reply
         .result()
         .map_err(|e| TaskClientError::AttachFailed(format!("missing result: {e}")))?;
 
-    let moor_rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result_union else {
+    let moor_schema::rpc::ReplyResultUnionRef::ClientSuccess(client_success) = result_union else {
         return Err(TaskClientError::AttachFailed(
             "expected ClientSuccess".into(),
         ));
@@ -620,7 +574,8 @@ fn decode_attach_reply(reply_bytes: &[u8]) -> Result<ClientToken, TaskClientErro
         .reply()
         .map_err(|e| TaskClientError::AttachFailed(format!("missing reply union: {e}")))?;
 
-    let moor_rpc::DaemonToClientReplyUnionRef::AttachResult(attach_result) = reply_union else {
+    let moor_schema::rpc::DaemonToClientReplyUnionRef::AttachResult(attach_result) = reply_union
+    else {
         return Err(TaskClientError::AttachFailed(
             "expected AttachResult".into(),
         ));
@@ -648,43 +603,11 @@ fn decode_attach_reply(reply_bytes: &[u8]) -> Result<ClientToken, TaskClientErro
     Ok(ClientToken(token_str.to_string()))
 }
 
-/// Create a PubSub subscription for receiving events for a specific client_id.
-fn create_events_subscription(
-    zmq_ctx: &tmq::Context,
-    pubsub_addr: &str,
-    client_id: Uuid,
-    curve_keys: Option<&CurveKeys>,
-) -> Result<tmq::subscribe::Subscribe, TaskClientError> {
-    let mut socket_builder = tmq::subscribe(zmq_ctx);
-
-    if let Some(keys) = curve_keys {
-        let client_secret_bytes = zmq::z85_decode(&keys.client_secret)
-            .map_err(|_| TaskClientError::AttachFailed("invalid CURVE client secret".into()))?;
-        let client_public_bytes = zmq::z85_decode(&keys.client_public)
-            .map_err(|_| TaskClientError::AttachFailed("invalid CURVE client public".into()))?;
-        let server_public_bytes = zmq::z85_decode(&keys.server_public)
-            .map_err(|_| TaskClientError::AttachFailed("invalid CURVE server public".into()))?;
-
-        socket_builder = socket_builder
-            .set_curve_secretkey(&client_secret_bytes)
-            .set_curve_publickey(&client_public_bytes)
-            .set_curve_serverkey(&server_public_bytes);
-    }
-
-    let sub = socket_builder
-        .connect(pubsub_addr)
-        .map_err(|e| TaskClientError::Rpc(RpcError::CouldNotInitiateSession(e.to_string())))?;
-
-    sub.subscribe(&client_id.as_bytes()[..])
-        .map_err(|e| TaskClientError::Rpc(RpcError::CouldNotInitiateSession(e.to_string())))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_schema::{convert::var_to_flatbuffer, rpc as moor_rpc};
+    use moor_schema::rpc as moor_rpc;
     use moor_var::v_int;
-    use rpc_common::scheduler_error_to_flatbuffer_struct;
 
     /// Helper: build a ReplyResult containing a ClientSuccess with a DaemonToClientReply.
     fn build_reply_result(reply: moor_rpc::DaemonToClientReply) -> Vec<u8> {
@@ -695,12 +618,6 @@ mod tests {
         };
         let mut builder = planus::Builder::new();
         builder.finish(&reply_result, None).to_vec()
-    }
-
-    /// Helper: build a serialized ClientEvent.
-    fn build_client_event(event: moor_rpc::ClientEvent) -> Vec<u8> {
-        let mut builder = planus::Builder::new();
-        builder.finish(&event, None).to_vec()
     }
 
     // -----------------------------------------------------------------------
@@ -789,59 +706,65 @@ mod tests {
         assert!(matches!(err, TaskClientError::AttachFailed(_)));
     }
 
+    struct TestSubscription {
+        rx: tokio::sync::mpsc::Receiver<rpc_common::api::ClientEventMessage>,
+    }
+
+    #[async_trait::async_trait]
+    impl ClientEventSubscription for TestSubscription {
+        async fn recv_client_event(
+            &mut self,
+        ) -> Result<rpc_common::api::ClientEventMessage, RpcError> {
+            self.rx
+                .recv()
+                .await
+                .ok_or_else(|| RpcError::CouldNotReceive("test subscription closed".to_string()))
+        }
+    }
+
+    fn test_subscription() -> (
+        tokio::sync::mpsc::Sender<rpc_common::api::ClientEventMessage>,
+        Box<dyn ClientEventSubscription>,
+    ) {
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        (tx, Box::new(TestSubscription { rx }))
+    }
+
+    async fn send_test_event(
+        tx: &tokio::sync::mpsc::Sender<rpc_common::api::ClientEventMessage>,
+        event: ClientEvent,
+    ) {
+        tx.send(rpc_common::api::ClientEventMessage {
+            event,
+            raw_bytes: Vec::new(),
+        })
+        .await
+        .expect("send test event");
+    }
+
     // -----------------------------------------------------------------------
-    // Integration test: dispatcher_loop with real ZMQ PubSub
+    // Unit tests for typed dispatcher_loop
     // -----------------------------------------------------------------------
 
     #[tokio::test]
     async fn test_dispatcher_loop_success_event() {
-        let client_id = Uuid::new_v4();
         let task_id: u64 = 99;
-
-        // Bind a PUB socket
-        let zmq_ctx = tmq::Context::new();
-        let addr = format!("inproc://test-dispatcher-success-{}", Uuid::new_v4());
-        let publisher = tmq::publish(&zmq_ctx).bind(&addr).expect("bind PUB");
-
-        // Create SUB socket
-        let sub = tmq::subscribe(&zmq_ctx)
-            .connect(&addr)
-            .expect("connect SUB");
-        let sub = sub.subscribe(&client_id.as_bytes()[..]).expect("subscribe");
-
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let (event_tx, sub) = test_subscription();
 
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_tx, _) = broadcast::channel(16);
         let (tx, rx) = oneshot::channel();
         waiters.lock().unwrap().insert(task_id, tx);
 
-        let handle = tokio::spawn(dispatcher_loop(client_id, sub, waiters.clone(), session_tx));
-
-        // Publish a TaskSuccessEvent
-        let value_fb = var_to_flatbuffer(&v_int(42)).unwrap();
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(
-                moor_rpc::TaskSuccessEvent {
-                    task_id,
-                    result: Box::new(value_fb),
-                },
-            )),
-        };
-        let event_bytes = build_client_event(event);
-
-        use futures_util::SinkExt;
-        let multipart = vec![client_id.as_bytes().to_vec(), event_bytes];
-        let mut publisher = publisher;
-        publisher
-            .send(
-                multipart
-                    .into_iter()
-                    .map(zmq::Message::from)
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .expect("publish");
+        let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
+        send_test_event(
+            &event_tx,
+            ClientEvent::TaskSuccess {
+                task_id,
+                result: v_int(42),
+            },
+        )
+        .await;
 
         let result = tokio::time::timeout(Duration::from_secs(5), rx)
             .await
@@ -858,50 +781,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatcher_loop_error_event() {
-        let client_id = Uuid::new_v4();
         let task_id: u64 = 100;
-
-        let zmq_ctx = tmq::Context::new();
-        let addr = format!("inproc://test-dispatcher-error-{}", Uuid::new_v4());
-        let publisher = tmq::publish(&zmq_ctx).bind(&addr).expect("bind PUB");
-
-        let sub = tmq::subscribe(&zmq_ctx)
-            .connect(&addr)
-            .expect("connect SUB");
-        let sub = sub.subscribe(&client_id.as_bytes()[..]).expect("subscribe");
-
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let (event_tx, sub) = test_subscription();
 
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_tx, _) = broadcast::channel(16);
         let (tx, rx) = oneshot::channel();
         waiters.lock().unwrap().insert(task_id, tx);
 
-        let handle = tokio::spawn(dispatcher_loop(client_id, sub, waiters.clone(), session_tx));
+        let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
 
-        // Publish a TaskErrorEvent
         let sched_err = SchedulerError::TaskAbortedError;
-        let error_fb = scheduler_error_to_flatbuffer_struct(&sched_err).unwrap();
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(moor_rpc::TaskErrorEvent {
+        send_test_event(
+            &event_tx,
+            ClientEvent::TaskError {
                 task_id,
-                error: Box::new(error_fb),
-            })),
-        };
-        let event_bytes = build_client_event(event);
-
-        use futures_util::SinkExt;
-        let multipart = vec![client_id.as_bytes().to_vec(), event_bytes];
-        let mut publisher = publisher;
-        publisher
-            .send(
-                multipart
-                    .into_iter()
-                    .map(zmq::Message::from)
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .expect("publish");
+                error: sched_err,
+            },
+        )
+        .await;
 
         let result = tokio::time::timeout(Duration::from_secs(5), rx)
             .await
@@ -924,51 +822,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatcher_loop_unmatched_event_ignored() {
-        let client_id = Uuid::new_v4();
         let task_id_registered: u64 = 200;
         let task_id_unmatched: u64 = 999;
-
-        let zmq_ctx = tmq::Context::new();
-        let addr = format!("inproc://test-dispatcher-unmatched-{}", Uuid::new_v4());
-        let publisher = tmq::publish(&zmq_ctx).bind(&addr).expect("bind PUB");
-
-        let sub = tmq::subscribe(&zmq_ctx)
-            .connect(&addr)
-            .expect("connect SUB");
-        let sub = sub.subscribe(&client_id.as_bytes()[..]).expect("subscribe");
-
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let (event_tx, sub) = test_subscription();
 
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_tx, _) = broadcast::channel(16);
         let (tx, rx) = oneshot::channel();
         waiters.lock().unwrap().insert(task_id_registered, tx);
 
-        let handle = tokio::spawn(dispatcher_loop(client_id, sub, waiters.clone(), session_tx));
+        let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
 
-        // First: publish event for a different task_id — should be ignored
-        let value_fb = var_to_flatbuffer(&v_int(0)).unwrap();
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(
-                moor_rpc::TaskSuccessEvent {
-                    task_id: task_id_unmatched,
-                    result: Box::new(value_fb),
-                },
-            )),
-        };
-        let event_bytes = build_client_event(event);
-
-        use futures_util::SinkExt;
-        let mut publisher = publisher;
-        publisher
-            .send(
-                vec![client_id.as_bytes().to_vec(), event_bytes]
-                    .into_iter()
-                    .map(zmq::Message::from)
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .expect("publish unmatched");
+        send_test_event(
+            &event_tx,
+            ClientEvent::TaskSuccess {
+                task_id: task_id_unmatched,
+                result: v_int(0),
+            },
+        )
+        .await;
 
         // Brief sleep to ensure the unmatched event is processed
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -976,27 +848,14 @@ mod tests {
         // The registered waiter should still be pending
         assert_eq!(waiters.lock().unwrap().len(), 1);
 
-        // Now: publish event for the registered task_id
-        let value_fb = var_to_flatbuffer(&v_int(7)).unwrap();
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(
-                moor_rpc::TaskSuccessEvent {
-                    task_id: task_id_registered,
-                    result: Box::new(value_fb),
-                },
-            )),
-        };
-        let event_bytes = build_client_event(event);
-
-        publisher
-            .send(
-                vec![client_id.as_bytes().to_vec(), event_bytes]
-                    .into_iter()
-                    .map(zmq::Message::from)
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .expect("publish matched");
+        send_test_event(
+            &event_tx,
+            ClientEvent::TaskSuccess {
+                task_id: task_id_registered,
+                result: v_int(7),
+            },
+        )
+        .await;
 
         let result = tokio::time::timeout(Duration::from_secs(5), rx)
             .await
@@ -1013,43 +872,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_dispatcher_loop_session_events() {
-        let client_id = Uuid::new_v4();
-
-        let zmq_ctx = tmq::Context::new();
-        let addr = format!("inproc://test-dispatcher-session-{}", Uuid::new_v4());
-        let publisher = tmq::publish(&zmq_ctx).bind(&addr).expect("bind PUB");
-
-        let sub = tmq::subscribe(&zmq_ctx)
-            .connect(&addr)
-            .expect("connect SUB");
-        let sub = sub.subscribe(&client_id.as_bytes()[..]).expect("subscribe");
-
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let (event_tx, sub) = test_subscription();
 
         let waiters = Arc::new(WaiterMap::new(HashMap::new()));
         let (session_tx, mut session_rx) = broadcast::channel(16);
 
-        let handle = tokio::spawn(dispatcher_loop(client_id, sub, waiters.clone(), session_tx));
-
-        // Publish a DisconnectEvent (simplest session event to construct)
-        let event = moor_rpc::ClientEvent {
-            event: moor_rpc::ClientEventUnion::DisconnectEvent(Box::new(
-                moor_rpc::DisconnectEvent {},
-            )),
-        };
-        let event_bytes = build_client_event(event);
-
-        use futures_util::SinkExt;
-        let mut publisher = publisher;
-        publisher
-            .send(
-                vec![client_id.as_bytes().to_vec(), event_bytes]
-                    .into_iter()
-                    .map(zmq::Message::from)
-                    .collect::<Vec<_>>(),
-            )
-            .await
-            .expect("publish");
+        let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
+        send_test_event(&event_tx, ClientEvent::Disconnect).await;
 
         let session_event = tokio::time::timeout(Duration::from_secs(5), session_rx.recv())
             .await
