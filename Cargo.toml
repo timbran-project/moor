@@ -108,6 +108,7 @@ clap_derive = "4.5"
 csv = "1.4"
 edn-format = "3.3"
 humantime = "2.3"
+minicbor = { version = "2", features = ["alloc", "derive"] }
 planus = "1.3"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_derive = "1.0"
@@ -159,6 +160,7 @@ ed25519-dalek = { version = "2.2", features = ["pkcs8", "pem", "signature"] }
 hmac = "0.13"
 md-5 = "0.11" # For MOO's "string_hash"
 oauth2 = { version = "5.0", features = ["reqwest"] }
+ripemd = "0.2"
 rusty_paseto = { version = "0.10" }
 sha1 = "0.11"
 sha2 = "0.11"

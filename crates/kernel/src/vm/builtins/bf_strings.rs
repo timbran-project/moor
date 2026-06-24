@@ -15,20 +15,10 @@
 
 use arrayvec::ArrayVec;
 use base64::{Engine, engine::general_purpose};
-use md5::Digest;
 use moor_compiler::offset_for_builtin;
 use moor_var::{E_ARGS, E_INVARG, E_TYPE, Variant, v_binary, v_int, v_list, v_str, v_string};
 
-use crate::vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction};
-
-fn uppercase_hex(bytes: &[u8]) -> String {
-    let mut hex = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write as _;
-        write!(&mut hex, "{byte:02X}").expect("writing to String cannot fail");
-    }
-    hex
-}
+use crate::vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, hash};
 
 /// Usage: `str strsub(str subject, str what, str with [, bool case_matters])`
 /// Replaces all occurrences of 'what' in 'subject' with 'with'. Occurrences are found
@@ -150,32 +140,43 @@ fn bf_strcmp(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 }
 
-/// Usage: `str string_hash(str text)`
-/// Returns MD5 hash of the given string in uppercase hexadecimal format.
+/// Usage: `str string_hash(str text [, str algorithm [, bool binary]])`
+/// Returns a hash of the given string.
 fn bf_string_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 1 {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
         return Err(BfErr::Code(E_ARGS));
     }
-    match bf_args.args[0].variant() {
-        Variant::Str(s) => {
-            let hash_digest = md5::Md5::digest(s.as_str().as_bytes());
-            Ok(Ret(v_str(&uppercase_hex(hash_digest.as_slice()))))
-        }
-        _ => Err(BfErr::Code(E_INVARG)),
-    }
+    let Variant::Str(s) = bf_args.args[0].variant() else {
+        return Err(BfErr::Code(E_INVARG));
+    };
+
+    let algo = if bf_args.args.len() > 1 {
+        hash::hash_algorithm_arg(&bf_args.args[1])?
+    } else {
+        "sha256".to_string()
+    };
+    let binary = bf_args.args.len() > 2 && bf_args.args[2].is_true();
+    let digest = hash::hash_bytes(&algo, s.as_str().as_bytes())?;
+    Ok(Ret(hash::hash_output(digest, binary)))
 }
 
-/// Usage: `str binary_hash(binary data)`
-/// Returns MD5 hash of the given binary data in uppercase hexadecimal format.
+/// Usage: `str binary_hash(binary data [, str algorithm [, bool binary]])`
+/// Returns a hash of the given binary data.
 fn bf_binary_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 1 {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
         return Err(BfErr::Code(E_ARGS));
     }
     let Variant::Binary(b) = bf_args.args[0].variant() else {
         return Err(BfErr::Code(E_INVARG));
     };
-    let hash_digest = md5::Md5::digest(b.as_bytes());
-    Ok(Ret(v_str(&uppercase_hex(hash_digest.as_slice()))))
+    let algo = if bf_args.args.len() > 1 {
+        hash::hash_algorithm_arg(&bf_args.args[1])?
+    } else {
+        "sha256".to_string()
+    };
+    let binary = bf_args.args.len() > 2 && bf_args.args[2].is_true();
+    let digest = hash::hash_bytes(&algo, b.as_bytes())?;
+    Ok(Ret(hash::hash_output(digest, binary)))
 }
 
 /// Usage: `str encode_base64(str|binary data [, bool url_safe] [, bool no_padding])`

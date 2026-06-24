@@ -39,6 +39,7 @@ harness = false
 
 [dependencies]
 # Serialization & Data Formats
+minicbor.workspace = true
 serde.workspace = true
 
 # Async Runtime & Concurrency

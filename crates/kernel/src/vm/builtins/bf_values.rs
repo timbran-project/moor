@@ -15,13 +15,14 @@
 
 use crate::{
     task_context::with_current_transaction,
-    vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, world_state_bf_err},
+    vm::builtins::{
+        BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, hash, world_state_bf_err,
+    },
 };
-use md5::Digest;
 use moor_compiler::{offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
-    ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, Variant, v_err, v_float, v_int, v_obj, v_objid,
-    v_str, v_sym,
+    ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, Variant, decode_var_cbor, encode_var_cbor,
+    v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str, v_sym,
 };
 use std::fmt::Write;
 use uuid::Uuid;
@@ -324,21 +325,56 @@ fn bf_value_bytes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_int(count as i64)))
 }
 
-/// Usage: `str value_hash(any value)`
-/// Returns an MD5 hash of the value's literal representation.
+/// Usage: `str value_hash(any value [, str algorithm [, bool binary]])`
+/// Returns a hash of the value's canonical CBOR representation.
 fn bf_value_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 1 {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
         return Err(BfErr::ErrValue(
-            E_ARGS.msg("value_hash() requires exactly 1 argument"),
+            E_ARGS.msg("value_hash() requires 1 to 3 arguments"),
         ));
     }
-    let s = to_literal(&bf_args.args[0]);
-    let hash_digest = md5::Md5::digest(s.as_bytes());
-    let mut hex = String::with_capacity(hash_digest.len() * 2);
-    for byte in hash_digest {
-        write!(&mut hex, "{byte:02X}").map_err(|_| BfErr::Code(E_INVARG))?;
+
+    let algo = if bf_args.args.len() > 1 {
+        hash::hash_algorithm_arg(&bf_args.args[1])?
+    } else {
+        "sha256".to_string()
+    };
+    let binary = bf_args.args.len() > 2 && bf_args.args[2].is_true();
+    let bytes = encode_var_cbor(&bf_args.args[0])
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
+    let digest = hash::hash_bytes(&algo, &bytes)?;
+    Ok(Ret(hash::hash_output(digest, binary)))
+}
+
+/// Usage: `binary encode_cbor(any value)`
+/// Encodes a value as mooR's canonical CBOR representation.
+fn bf_encode_cbor(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("encode_cbor() requires exactly 1 argument"),
+        ));
     }
-    Ok(Ret(v_str(&hex)))
+
+    let bytes = encode_var_cbor(&bf_args.args[0])
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
+    Ok(Ret(v_binary(bytes)))
+}
+
+/// Usage: `any decode_cbor(binary value)`
+/// Decodes a value from mooR's canonical CBOR representation.
+fn bf_decode_cbor(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("decode_cbor() requires exactly 1 argument"),
+        ));
+    }
+
+    let Variant::Binary(bytes) = bf_args.args[0].variant() else {
+        return Err(BfErr::Code(E_INVARG));
+    };
+    let value = decode_var_cbor(bytes.as_bytes())
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
+    Ok(Ret(value))
 }
 
 /// Usage: `int length(list|map|str|binary value)`
@@ -477,4 +513,6 @@ pub(crate) fn register_bf_values(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("error_message")] = bf_error_message;
     builtins[offset_for_builtin("uuid")] = bf_uuid;
     builtins[offset_for_builtin("tobool")] = bf_tobool;
+    builtins[offset_for_builtin("encode_cbor")] = bf_encode_cbor;
+    builtins[offset_for_builtin("decode_cbor")] = bf_decode_cbor;
 }

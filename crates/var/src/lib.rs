@@ -12,6 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod binary;
+mod cbor;
 pub mod encode;
 mod error;
 mod flyweight;
@@ -26,6 +27,7 @@ mod symbol;
 mod variant;
 
 pub use binary::Binary;
+pub use cbor::{CborVarError, decode_var_cbor, encode_var_cbor};
 pub use error::{Error, ErrorCode, ErrorCode::*};
 pub use flyweight::Flyweight;
 pub use lambda::Lambda;

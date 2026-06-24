@@ -382,7 +382,13 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("equal", Q(2), Q(2), vec![Any, Any], true),
         mk_builtin("value_bytes", Q(1), Q(1), vec![Any], true),
         mk_builtin("object_bytes", Q(1), Q(1), vec![Typed(TYPE_OBJ)], true),
-        mk_builtin("value_hash", Q(1), Q(1), vec![Any], true),
+        mk_builtin(
+            "value_hash",
+            Q(1),
+            Q(3),
+            vec![Any, Typed(TYPE_STR), Any],
+            true,
+        ),
         mk_builtin("length", Q(1), Q(1), vec![Any], true),
         mk_builtin("error_code", Q(1), Q(1), vec![Typed(TYPE_ERR)], true),
         mk_builtin("error_message", Q(1), Q(1), vec![Typed(TYPE_ERR)], true),
@@ -394,6 +400,8 @@ fn mk_builtin_table() -> Vec<Builtin> {
             true,
         ),
         mk_builtin("tobool", Q(1), Q(1), vec![Any], true),
+        mk_builtin("encode_cbor", Q(1), Q(1), vec![Any], true),
+        mk_builtin("decode_cbor", Q(1), Q(1), vec![Typed(TYPE_BINARY)], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "value conversion/introspection");
@@ -429,8 +437,20 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_STR), Typed(TYPE_STR)],
             true,
         ),
-        mk_builtin("string_hash", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
-        mk_builtin("binary_hash", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
+        mk_builtin(
+            "string_hash",
+            Q(1),
+            Q(3),
+            vec![Typed(TYPE_STR), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "binary_hash",
+            Q(1),
+            Q(3),
+            vec![Typed(TYPE_BINARY), Typed(TYPE_STR), Any],
+            true,
+        ),
         mk_builtin("encode_base64", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
         mk_builtin("decode_base64", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
         mk_builtin("binary_to_str", Q(1), Q(2), vec![Any, Any], true),

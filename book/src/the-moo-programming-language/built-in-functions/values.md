@@ -246,6 +246,43 @@ parse_json("{\"#1|obj\":2}", "embedded-types")              =>   [#1 -> 2]
 
 **Returns:** The size of the value in bytes
 
+### `value_hash`
+
+**Description**: Returns a hash of the value's canonical mooR CBOR representation.\
+**Arguments**:
+
+- `value`: The value to hash
+- `algorithm`: Optional hash algorithm name. Defaults to `sha256`
+- `binary`: Optional truth value. If true, returns raw digest bytes as a binary value
+
+**Returns:** An uppercase hexadecimal string by default, or a binary value when `binary` is true
+
+**Note:** This is a mooR extension. It hashes the same binary value representation produced by
+`encode_cbor()`, not the result of `toliteral()`.
+
+### `encode_cbor`
+
+**Description**: Encodes a value as mooR's canonical CBOR representation. CBOR is a binary
+serialization format; see [Manipulating MOO Values](./manipulating-moo-values.md#encode_cbor) for
+examples and usage guidance.\
+**Arguments**:
+
+- `value`: The value to encode
+
+**Returns:** A binary value containing the encoded bytes
+
+**Note:** This is a mooR extension. Use it when preserving MOO value structure matters more than
+human-readable output.
+
+### `decode_cbor`
+
+**Description**: Decodes a value from mooR's canonical CBOR representation.\
+**Arguments**:
+
+- `value`: A binary value produced by `encode_cbor()`
+
+**Returns:** The decoded value
+
 ### `object_bytes`
 
 **Description**: Returns the size of an object in bytes.\

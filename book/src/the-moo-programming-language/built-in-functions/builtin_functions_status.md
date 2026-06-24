@@ -144,7 +144,9 @@ open an issue on the
 | Name                                        | Complete | Notes                                                                              |
 | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
 | [`value_bytes`](values.md#value_bytes)      | &check;  |                                                                                    |
-| [`value_hash`](values.md#value_hash)        |          |                                                                                    |
+| [`value_hash`](values.md#value_hash)        | &check;  | mooR CBOR value representation                                                     |
+| [`encode_cbor`](values.md#encode_cbor)      | &check;  | mooR extension                                                                     |
+| [`decode_cbor`](values.md#decode_cbor)      | &check;  | mooR extension                                                                     |
 | [`string_hash`](values.md#string_hash)      | &check;  |                                                                                    |
 | [`binary_hash`](values.md#binary_hash)      | &check;  |                                                                                    |
 | [`decode_binary`](strings.md#decode_binary) |          | Binary encoding will likely work differently in moor. See README.md for more info. |

@@ -257,44 +257,53 @@ This is a more secure way to hash passwords than the `crypt()` builtin.
 ### `value_hash`
 
 ```
-str value_hash(value)
+str|binary value_hash(value [, str algorithm] [, int binary])
 ```
 
-Computes an MD5 hash of a value's literal representation.
+Computes a hash of a value's canonical mooR CBOR representation.
 
-Returns an uppercase hexadecimal string representing the MD5 hash of the value's literal
-representation (as if `toliteral()` were applied first).
+By default this returns an uppercase hexadecimal SHA256 digest. The optional `algorithm` parameter
+selects a different digest. Supported values are `md5`, `sha1`, `sha224`, `sha256`, `sha384`,
+`sha512`, and `ripemd160`. Algorithm names are case-insensitive.
 
-> Note: MD5 is cryptographically broken but is included for compatibility. For secure applications,
-> use `string_hash()` with SHA256 or better algorithms.
+If `binary` is true, the result is a mooR binary value containing the raw digest bytes.
+
+This is a mooR extension. It is not the same as `string_hash(toliteral(value))`; it hashes the
+stored value structure, including distinctions such as strings versus symbols and integers versus
+objects. Lambda values are not currently supported by this canonical CBOR representation and raise
+`E_INVARG`.
+
+CBOR is a binary serialization format, not a programmer-facing MOO syntax. See
+[`encode_cbor()`](./manipulating-moo-values.md#encode_cbor) for a gentler introduction to CBOR and
+examples of where this representation is useful.
 
 ### `string_hash`
 
 ```
-str string_hash(str string [, str algorithm] [, int binary])
+str|binary string_hash(str string [, str algorithm] [, int binary])
 ```
 
-Returns a string encoding the result of applying the SHA256 cryptographically secure hash function
-to the contents of the string text.
+Returns a hash of the string's UTF-8 bytes.
 
-The `algorithm` parameter can be used to specify different hash algorithms. Supported algorithms may
-include "MD5", "SHA1", "SHA256", "SHA512", etc., depending on the server build.
+By default this returns an uppercase hexadecimal SHA256 digest. The optional `algorithm` parameter
+selects `md5`, `sha1`, `sha224`, `sha256`, `sha384`, `sha512`, or `ripemd160`. Algorithm names are
+case-insensitive.
 
-If `binary` is true, returns the raw binary hash instead of a hex-encoded string.
+If `binary` is true, the result is a mooR binary value containing the raw digest bytes.
 
 ### `binary_hash`
 
 ```
-str binary_hash(str bin_string [, str algorithm] [, int binary])
+str|binary binary_hash(binary data [, str algorithm] [, int binary])
 ```
 
-Returns a string encoding the result of applying the SHA256 cryptographically secure hash function
-to the contents of the binary string bin_string.
+Returns a hash of the bytes in a mooR binary value.
 
-The `algorithm` parameter can be used to specify different hash algorithms. Supported algorithms may
-include "MD5", "SHA1", "SHA256", "SHA512", etc., depending on the server build.
+By default this returns an uppercase hexadecimal SHA256 digest. The optional `algorithm` parameter
+selects `md5`, `sha1`, `sha224`, `sha256`, `sha384`, `sha512`, or `ripemd160`. Algorithm names are
+case-insensitive.
 
-If `binary` is true, returns the raw binary hash instead of a hex-encoded string.
+If `binary` is true, the result is a mooR binary value containing the raw digest bytes.
 
 Note that the MD5 hash algorithm is broken from a cryptographic standpoint, as is SHA1. Both are
 included for interoperability with existing applications (both are still popular).

@@ -71,6 +71,7 @@ mod docs;
 mod bf_algorithms;
 mod bf_connection;
 mod bf_task;
+mod hash;
 #[cfg(test)]
 #[path = "test_function_help.rs"]
 mod test_function_help;

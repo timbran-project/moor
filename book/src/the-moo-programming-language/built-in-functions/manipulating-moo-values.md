@@ -192,12 +192,67 @@ Returns the number of bytes of the server's memory required to store the given v
 ### `value_hash`
 
 ```
-str value_hash(value, [, str algo] [, binary])
+str|binary value_hash(value [, str algorithm] [, int binary])
 ```
 
-Returns the same string as `string_hash(toliteral(value))`.
+Returns a hash of the value's canonical mooR CBOR representation.
 
-See the description of `string_hash()` for details.
+By default this returns an uppercase hexadecimal SHA256 digest. If `binary` is true, the return
+value is a binary value containing the raw digest bytes. See the description of `string_hash()` for
+the supported algorithms.
+
+This is useful when you want to tell whether two MOO values have the same stored structure without
+keeping the whole value around. For example, a package loader might record the hash of an imported
+property value and later compare it with the current value to see whether that property has changed.
+
+`value_hash()` is a mooR extension. It is not part of the original LambdaMOO builtin set.
+
+### `encode_cbor`
+
+```
+binary encode_cbor(value)
+```
+
+Encodes a value as mooR's canonical CBOR representation and returns the encoded bytes as a binary
+value.
+
+[CBOR](https://en.wikipedia.org/wiki/CBOR) stands for Concise Binary Object Representation. It is a
+binary serialization format: instead of turning a value into human-readable text, it turns the value
+into bytes that another program can store, transmit, or decode later. It is roughly in the same
+family of ideas as JSON, but it is binary rather than text.
+
+mooR uses a specific CBOR representation for MOO values. That representation preserves mooR-specific
+distinctions such as strings versus symbols and integers versus objects. It is also the
+representation used by `value_hash()`, so the following two values will only have the same
+`value_hash()` result if their encoded structure is the same.
+
+Use `encode_cbor()` when you want a compact, round-trippable form of a MOO value and you do not need
+people to read or edit it directly. Typical uses include storing an opaque value blob in another
+property, writing values to an external file or service, passing values to a non-MOO tool that knows
+mooR's CBOR layout, or recording the exact value that was hashed by `value_hash()`.
+
+```
+blob = encode_cbor({#17, "score", 42});
+decode_cbor(blob)   =>   {#17, "score", 42}
+```
+
+CBOR is not a replacement for every textual representation. Use `toliteral()` and `fromliteral()`
+when you want a small value format that programmers can read or type. Use objdef output when you
+want to dump or restore objects. Use JSON when you are talking to software that expects ordinary
+JSON data. Use CBOR when preserving the MOO value structure matters more than readability.
+
+Lambda values are not currently supported by this representation and raise `E_INVARG`.
+
+These functions are mooR extensions. They are not part of the original LambdaMOO builtin set.
+
+### `decode_cbor`
+
+```
+any decode_cbor(binary value)
+```
+
+Decodes a binary value produced by `encode_cbor()` and returns the original value. Invalid CBOR,
+unsupported representation versions, and trailing bytes raise `E_INVARG`.
 
 ### `value_hmac`
 

@@ -26,6 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     and `graph_topsort(edges [, options])` operate on caller-supplied directed edge lists.
 - New `fromliteral()` builtin for parsing one MOO literal value from a string without evaluating MOO
   code
+- New `encode_cbor()` and `decode_cbor()` builtins for serializing MOO values to and from mooR's
+  canonical CBOR binary representation. This representation is intended for compact value
+  round-trips, external storage, and value fingerprints; lambdas are not currently supported.
 - New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small, bounded
   building blocks for pattern matching over MOO values and for implementing Datalog/Prolog-like rule
   evaluation in MOO code without writing custom search loops:
@@ -93,6 +96,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   opcode loop, unwind, stack ops, exec state) from kernel host services via a `WorldStateCallback`
   trait; kernel provides `KernelHost` impl forwarding to TLS with zero vtable overhead
   (monomorphized generics)
+- `value_hash()` now hashes mooR's canonical CBOR representation instead of a literal string form,
+  defaults to SHA256, supports additional algorithms (`md5`, `sha1`, `sha224`, `sha256`, `sha384`,
+  `sha512`, and `ripemd160`), and can return the raw digest as a binary value.
 
 `daemon`:
 
