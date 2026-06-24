@@ -1,0 +1,37 @@
+; add_property($system, "metadata_obj", create($nothing), {player, "rwc"});
+; set_object_metadata($metadata_obj, "package", "core"); return object_metadata($metadata_obj, "package");
+"core"
+
+; return object_metadata($metadata_obj, "missing");
+{}
+
+; return object_metadata($metadata_obj)["package"];
+"core"
+
+; add_property($metadata_obj, "version", "1.0", {player, "rwc"});
+; set_property_metadata($metadata_obj, "version", "revision", "2026.06.24"); return property_metadata($metadata_obj, "version", "revision");
+"2026.06.24"
+
+; return property_metadata($metadata_obj, "version")["revision"];
+"2026.06.24"
+
+; add_verb($metadata_obj, {player, "rxd", "look"}, {"this", "none", "this"});
+; set_verb_code($metadata_obj, "look", {"return this.name;"});
+; set_verb_metadata($metadata_obj, "look", "modified_by", player); return verb_metadata($metadata_obj, "look", "modified_by");
+#3
+
+; return verb_metadata($metadata_obj, "look")["modified_by"];
+#3
+
+; delete_property($metadata_obj, "version");
+; return eval("return property_metadata($metadata_obj, \"version\", \"revision\");");
+E_PROPNF
+
+; delete_verb($metadata_obj, "look");
+; return eval("return verb_metadata($metadata_obj, \"look\", \"modified_by\");");
+E_VERBNF
+
+; recycle($metadata_obj);
+; delete_property($system, "metadata_obj");
+; return 1;
+1

@@ -72,7 +72,7 @@ Each object definition describes a complete MOO object.
 ### Basic Structure
 
 ```moo
-object OBJECT_IDENTIFIER
+object OBJECT_IDENTIFIER [ object_metadata -> "optional" ]
   // Required attributes
   name: "Object Name"
   parent: PARENT_OBJECT
@@ -88,14 +88,19 @@ object OBJECT_IDENTIFIER
   writeable: BOOLEAN
 
   // Properties and verbs
-  property prop_name (owner: OWNER, flags: "FLAGS") = VALUE;
-  override prop_name = NEW_VALUE;
+  property prop_name (owner: OWNER, flags: "FLAGS") [ property_metadata -> "optional" ] = VALUE;
+  override prop_name [ override_metadata -> "optional" ] = NEW_VALUE;
 
-  verb "verb_name" (ARGSPEC) owner: OWNER flags: "FLAGS"
+  verb "verb_name" (ARGSPEC) owner: OWNER flags: "FLAGS" [ verb_metadata -> "optional" ]
     // MOO code here
   endverb
 endobject
 ```
+
+Metadata maps are optional and are a mooR objdef extension. They preserve entity metadata during
+objdef dump and reimport, but they are not part of classic LambdaMOO textdump syntax or the original
+MOO object model. See [Entity Metadata](../the-database/entity-metadata.md) for the metadata
+builtins, permissions, and lifecycle rules.
 
 ## Object Identifiers
 

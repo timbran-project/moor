@@ -15,7 +15,7 @@ use crate::ObjdefLoaderError;
 use moor_common::{
     model::{
         HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
-        loader::LoaderInterface,
+        WorldStateError, loader::LoaderInterface,
     },
     util::BitEnum,
 };
@@ -353,6 +353,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             self.object_definitions.len()
         );
         self.apply_attributes(&options)?;
+        self.apply_object_metadata()?;
         info!("Defining {} properties...", num_loaded_property_definitions);
         self.define_properties(&options)?;
         info!(
@@ -572,6 +573,17 @@ impl<'a> ObjectDefinitionLoader<'a> {
         Ok(())
     }
 
+    fn apply_object_metadata(&mut self) -> Result<(), ObjdefLoaderError> {
+        for (obj, (path, def)) in &self.object_definitions {
+            for (key, value) in &def.metadata {
+                self.loader
+                    .set_object_metadata(obj, *key, value.clone())
+                    .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn define_verbs(&mut self, options: &ObjDefLoaderOptions) -> Result<(), ObjdefLoaderError> {
         // First phase: collect conflicts and determine actions
         let mut verb_actions = Vec::new();
@@ -669,10 +681,22 @@ impl<'a> ObjectDefinitionLoader<'a> {
                                     wse,
                                 )
                             })?;
+                        for (key, value) in &v.metadata {
+                            self.loader
+                                .set_verb_metadata(obj, existing_uuid, *key, value.clone())
+                                .map_err(|wse| {
+                                    ObjdefLoaderError::CouldNotDefineVerb(
+                                        path.clone(),
+                                        *obj,
+                                        v.names.clone(),
+                                        wse,
+                                    )
+                                })?;
+                        }
                     }
                 } else {
                     // Verb doesn't exist, add it
-                    verb_actions.push((*obj, v, path.clone()));
+                    verb_actions.push((*obj, v.clone(), path.clone()));
                 }
             }
         }
@@ -696,6 +720,37 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            let Some((uuid, _)) = self
+                .loader
+                .get_existing_verb_by_names(&obj, &verb.names)
+                .map_err(|wse| {
+                    ObjdefLoaderError::CouldNotDefineVerb(
+                        path.clone(),
+                        obj,
+                        verb.names.clone(),
+                        wse,
+                    )
+                })?
+            else {
+                return Err(ObjdefLoaderError::CouldNotDefineVerb(
+                    path.clone(),
+                    obj,
+                    verb.names.clone(),
+                    WorldStateError::VerbNotFound(obj, verb.names[0].to_string()),
+                ));
+            };
+            for (key, value) in &verb.metadata {
+                self.loader
+                    .set_verb_metadata(&obj, uuid, *key, value.clone())
+                    .map_err(|wse| {
+                        ObjdefLoaderError::CouldNotDefineVerb(
+                            path.clone(),
+                            obj,
+                            verb.names.clone(),
+                            wse,
+                        )
+                    })?;
+            }
         }
         Ok(())
     }
@@ -758,11 +813,11 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
                     if should_proceed {
                         // Property exists and we should proceed (Clobber mode) - use update
-                        update_actions.push((*obj, pd, path.clone()));
+                        update_actions.push((*obj, pd.clone(), path.clone()));
                     }
                 } else {
                     // Property doesn't exist, define it
-                    create_actions.push((*obj, pd, path.clone()));
+                    create_actions.push((*obj, pd.clone(), path.clone()));
                 }
             }
         }
@@ -786,6 +841,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            self.apply_property_metadata(&path, &obj, prop_def.name, &prop_def.metadata)?;
         }
 
         // Apply update actions using set_property
@@ -806,8 +862,31 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            self.apply_property_metadata(&path, &obj, prop_def.name, &prop_def.metadata)?;
         }
 
+        Ok(())
+    }
+
+    fn apply_property_metadata(
+        &mut self,
+        path: &str,
+        obj: &Obj,
+        propname: Symbol,
+        metadata: &[(Symbol, Var)],
+    ) -> Result<(), ObjdefLoaderError> {
+        for (key, value) in metadata {
+            self.loader
+                .set_property_metadata(obj, propname, *key, value.clone())
+                .map_err(|wse| {
+                    ObjdefLoaderError::CouldNotDefineProperty(
+                        path.to_string(),
+                        *obj,
+                        propname.as_arc_str().to_string(),
+                        wse,
+                    )
+                })?;
+        }
         Ok(())
     }
 
@@ -867,7 +946,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 }
 
                 if should_proceed {
-                    override_actions.push((*obj, pv, path.clone()));
+                    override_actions.push((*obj, pv.clone(), path.clone()));
                 }
             }
         }
@@ -891,6 +970,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            self.apply_property_metadata(&path, &obj, prop_override.name, &prop_override.metadata)?;
         }
         Ok(())
     }
@@ -982,6 +1062,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         // Use the conflict-aware methods instead of inline logic
         self.apply_attributes(&options)?;
+        self.apply_object_metadata()?;
         self.define_properties(&options)?;
         self.set_properties(&options)?;
         self.define_verbs(&options)?;
@@ -1166,6 +1247,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         };
 
         self.apply_attributes(&apply_options)?;
+        self.apply_object_metadata()?;
         self.define_properties(&apply_options)?;
         self.set_properties(&apply_options)?;
         self.define_verbs(&apply_options)?;

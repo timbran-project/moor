@@ -48,6 +48,23 @@ pub trait SnapshotInterface: Send {
         uuid: Uuid,
     ) -> Result<(Option<Var>, PropPerms), WorldStateError>;
 
+    /// Get metadata attached directly to an object.
+    fn get_object_metadata(&self, objid: &Obj) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
+    /// Get metadata attached to a resolved property entity.
+    fn get_property_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
+    /// Get metadata attached to a resolved verb entity.
+    fn get_verb_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
     /// Returns all the property common from the root of the inheritance hierarchy down to the
     /// bottom, for the given object.
     #[allow(clippy::type_complexity)]
@@ -136,6 +153,32 @@ pub trait LoaderInterface: Send {
         owner: Option<Obj>,
         flags: Option<BitEnum<PropFlag>>,
         value: Option<Var>,
+    ) -> Result<(), WorldStateError>;
+
+    /// Set metadata attached directly to an object.
+    fn set_object_metadata(
+        &mut self,
+        objid: &Obj,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError>;
+
+    /// Set metadata attached to a property resolved on an object.
+    fn set_property_metadata(
+        &mut self,
+        objid: &Obj,
+        propname: Symbol,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError>;
+
+    /// Set metadata attached to a verb resolved by UUID.
+    fn set_verb_metadata(
+        &mut self,
+        objid: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
     ) -> Result<(), WorldStateError>;
 
     /// Get the highest-numbered object in the database

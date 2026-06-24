@@ -375,6 +375,66 @@ pub trait WorldState: Send {
         attrs: PropAttrs,
     ) -> Result<(), WorldStateError>;
 
+    fn object_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
+    fn get_object_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError>;
+
+    fn set_object_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError>;
+
+    fn clear_object_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+    ) -> Result<(), WorldStateError>;
+
+    fn property_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
+    fn get_property_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError>;
+
+    fn set_property_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError>;
+
+    fn clear_property_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+    ) -> Result<(), WorldStateError>;
+
     /// Update a property on the given object.
     fn update_property(
         &mut self,
@@ -468,6 +528,38 @@ pub trait WorldState: Send {
         obj: &Obj,
         uuid: Uuid,
         verb_attrs: VerbAttrs,
+    ) -> Result<(), WorldStateError>;
+
+    fn verb_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
+
+    fn get_verb_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError>;
+
+    fn set_verb_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError>;
+
+    fn clear_verb_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
     ) -> Result<(), WorldStateError>;
 
     /// Get the verbdef with the given name on the given object. Without doing inheritance resolution.

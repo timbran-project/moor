@@ -91,6 +91,7 @@ pub fn collect_object(
         owner: obj_attrs.owner().unwrap_or(NOTHING),
         location: obj_attrs.location().unwrap_or(NOTHING),
         flags: obj_attrs.flags(),
+        metadata: loader.get_object_metadata(o)?,
         verbs: vec![],
         property_definitions: vec![],
         property_overrides: vec![],
@@ -105,6 +106,7 @@ pub fn collect_object(
             owner: v.owner(),
             flags: v.flags(),
             program: binary,
+            metadata: loader.get_verb_metadata(o, v.uuid())?,
         };
         od.verbs.push(ov);
         num_verbdefs += 1;
@@ -117,6 +119,7 @@ pub fn collect_object(
                 name: p.name(),
                 perms: perms.clone(),
                 value: value.clone(),
+                metadata: loader.get_property_metadata(o, p.uuid())?,
             };
             od.property_definitions.push(pd);
             num_propdefs += 1;
@@ -141,8 +144,10 @@ pub fn collect_object(
                 }
             }
 
-            // Just inheriting?  Move on.
-            if perms_update.is_none() && override_value.is_none() {
+            let metadata = loader.get_property_metadata(o, p.uuid())?;
+
+            // Just inheriting? Move on unless local metadata needs preserving.
+            if perms_update.is_none() && override_value.is_none() && metadata.is_empty() {
                 continue;
             }
 
@@ -150,6 +155,7 @@ pub fn collect_object(
                 name: p.name(),
                 perms_update,
                 value: override_value,
+                metadata,
             };
             od.property_overrides.push(ps);
             num_propoverrides += 1;
@@ -446,6 +452,54 @@ mod tests {
 
     fn system_permissions() -> TaskPermissions {
         TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
+
+    #[test]
+    fn objdef_metadata_load_dump_round_trip() {
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+
+        {
+            let mut loader = db.loader_client().unwrap();
+            let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
+            let spec = r#"
+                object #42 [ package -> "core" ]
+                    name: "Metadata Test"
+                    owner: #42
+                    parent: #-1
+                    location: #-1
+
+                    property version (owner: #42, flags: "rc") [ revision -> 7 ] = "1.0";
+
+                    verb "look" (this none none) owner: #42 flags: "rxd" [ modified_by -> #42 ]
+                        return "ok";
+                    endverb
+                endobject"#;
+
+            parser
+                .load_single_object(spec, CompileOptions::default(), Default::default())
+                .unwrap();
+            assert!(matches!(loader.commit(), Ok(CommitResult::Success { .. })));
+        }
+
+        let snapshot = db.create_snapshot().unwrap();
+        let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
+        let index_names = super::extract_index_names(&object_defs);
+        let object_def = object_defs
+            .iter()
+            .find(|def| def.oid == Obj::mk_id(42))
+            .unwrap();
+        let lines = super::dump_object(&index_names, object_def).unwrap();
+        let text = lines
+            .iter()
+            .map(|line| line.as_string().unwrap().to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(text.contains(r#"object #42 [ package -> "core" ]"#));
+        assert!(text.contains(r#"property version (owner: #42, flags: "rc") [ revision -> 7 ]"#));
+        assert!(text.contains(r#"verb look (this none none) owner: #42 flags: "rxd" ["#));
+        assert!(text.contains("modified_by -> #42"));
     }
 
     /// 1. Load from a classical textdump

@@ -41,7 +41,7 @@ use moor_var::{
     E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, E_VERBNF, Error, IndexMode, List, Obj, Sequence,
     Symbol, Var, Variant,
     program::{ProgramType, names::GlobalName},
-    v_empty_list, v_list, v_list_iter, v_obj, v_str, v_string, v_sym,
+    v_empty_list, v_list, v_list_iter, v_map_iter, v_obj, v_str, v_string, v_sym,
 };
 
 /// Usage: `list verb_info(obj object, str|int verb_desc)`
@@ -229,6 +229,89 @@ fn bf_set_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
     }
 
+    Ok(RetNil)
+}
+
+fn metadata_key_var(bf_args: &BfCallState<'_>, key: Symbol) -> Var {
+    if bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type {
+        v_sym(key)
+    } else {
+        v_str(&key.as_string())
+    }
+}
+
+fn metadata_pairs_to_var(bf_args: &BfCallState<'_>, pairs: Vec<(Symbol, Var)>) -> Var {
+    let pairs = pairs
+        .into_iter()
+        .map(|(key, value)| (metadata_key_var(bf_args, key), value))
+        .collect::<Vec<_>>();
+    v_map_iter(pairs.iter())
+}
+
+/// Usage: `map verb_metadata(obj object, str|int|sym verb_desc)`,
+/// `any verb_metadata(obj object, str|int|sym verb_desc, str|sym key)`
+/// Returns all metadata for a verb, or the value for a single key.
+/// Missing keys return `{}`.
+fn bf_verb_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 2 && bf_args.args.len() != 3 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    if bf_args.args.len() == 2 {
+        let pairs = with_current_transaction(|world_state| {
+            world_state.verb_metadata(&bf_args.task_permissions(), &obj, verb.uuid())
+        })
+        .map_err(world_state_bf_err)?;
+        return Ok(Ret(metadata_pairs_to_var(bf_args, pairs)));
+    }
+    let key = bf_args.args[2].as_symbol().map_err(BfErr::ErrValue)?;
+    let value = with_current_transaction(|world_state| {
+        world_state.get_verb_metadata(&bf_args.task_permissions(), &obj, verb.uuid(), key)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(Ret(value.unwrap_or_else(v_empty_list)))
+}
+
+/// Usage: `none set_verb_metadata(obj object, str|int|sym verb_desc, str|sym key, value)`
+fn bf_set_verb_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 4 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let key = bf_args.args[2].as_symbol().map_err(BfErr::ErrValue)?;
+    let value = bf_args.args[3].clone();
+    with_current_transaction_mut(|world_state| {
+        world_state.set_verb_metadata(&bf_args.task_permissions(), &obj, verb.uuid(), key, value)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(RetNil)
+}
+
+/// Usage: `none clear_verb_metadata(obj object, str|int|sym verb_desc, str|sym key)`
+fn bf_clear_verb_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 3 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let key = bf_args.args[2].as_symbol().map_err(BfErr::ErrValue)?;
+    with_current_transaction_mut(|world_state| {
+        world_state.clear_verb_metadata(&bf_args.task_permissions(), &obj, verb.uuid(), key)
+    })
+    .map_err(world_state_bf_err)?;
     Ok(RetNil)
 }
 
@@ -894,6 +977,9 @@ fn bf_prepositions(_bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 pub(crate) fn register_bf_verbs(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("verb_info")] = bf_verb_info;
     builtins[offset_for_builtin("set_verb_info")] = bf_set_verb_info;
+    builtins[offset_for_builtin("verb_metadata")] = bf_verb_metadata;
+    builtins[offset_for_builtin("set_verb_metadata")] = bf_set_verb_metadata;
+    builtins[offset_for_builtin("clear_verb_metadata")] = bf_clear_verb_metadata;
     builtins[offset_for_builtin("verb_args")] = bf_verb_args;
     builtins[offset_for_builtin("set_verb_args")] = bf_set_verb_args;
     builtins[offset_for_builtin("verb_code")] = bf_verb_code;

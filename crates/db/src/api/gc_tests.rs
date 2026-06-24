@@ -330,6 +330,50 @@ mod tests {
     }
 
     #[test]
+    fn test_entity_metadata_anonymous_object_references() {
+        let db = test_db();
+
+        let mut tx = db.new_world_state().unwrap();
+        let anon = tx
+            .create_object(
+                &permissions(WIZARD),
+                &NOTHING,
+                &WIZARD,
+                BitEnum::new(),
+                ObjectKind::Anonymous,
+            )
+            .unwrap();
+        let obj = tx
+            .create_object(
+                &permissions(WIZARD),
+                &NOTHING,
+                &WIZARD,
+                BitEnum::new(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        tx.set_object_metadata(
+            &permissions(WIZARD),
+            &obj,
+            Symbol::mk("anon_ref"),
+            v_obj(anon),
+        )
+        .unwrap();
+        assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
+
+        let references = {
+            let mut gc = db.gc_interface().unwrap();
+            gc.scan_anonymous_object_references().unwrap()
+        };
+
+        let obj_refs = references
+            .iter()
+            .find(|(ref_obj, _)| *ref_obj == obj)
+            .expect("Should find metadata references from our test object");
+        assert!(obj_refs.1.contains(&anon));
+    }
+
+    #[test]
     fn test_gc_collection_operations() {
         let db = test_db();
 

@@ -30,7 +30,7 @@ pub use transaction::{RelationTransaction, WorkingSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use crate::model::{AnonymousObjectMetadata, ObjAndUUIDHolder, StringHolder};
+use crate::model::{AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder};
 use moor_common::model::{ObjFlag, PropDefs, PropPerms, VerbDefs};
 use moor_common::util::BitEnum;
 use moor_var::{Associative, Obj, Var, program::ProgramType};
@@ -185,7 +185,8 @@ impl_relation_codomain!(
     PropDefs,
     PropPerms,
     AnonymousObjectMetadata,
-    ObjAndUUIDHolder
+    ObjAndUUIDHolder,
+    EntityMetadataKey
 );
 
 // We also need to implement for TestCodomain used in tests

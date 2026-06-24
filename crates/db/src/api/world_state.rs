@@ -680,6 +680,136 @@ impl WorldState for DbWorldState {
         Ok(())
     }
 
+    fn object_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        if !self.valid(obj)? {
+            return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
+        }
+        let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
+        self.auth_context(permissions)?
+            .require(AuthRule::object_allows(
+                obj,
+                &owner,
+                flags,
+                ObjFlag::Read.into(),
+            ))?;
+        self.get_tx().object_metadata(obj)
+    }
+
+    fn get_object_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        if !self.valid(obj)? {
+            return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
+        }
+        let (flags, owner) = (self.flags_of(obj)?, self.owner_of(obj)?);
+        self.auth_context(permissions)?
+            .require(AuthRule::object_allows(
+                obj,
+                &owner,
+                flags,
+                ObjFlag::Read.into(),
+            ))?;
+        self.get_tx().get_object_metadata(obj, key)
+    }
+
+    fn set_object_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        if !self.valid(obj)? {
+            return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
+        }
+        let owner = self.owner_of(obj)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
+        self.get_tx_mut().set_object_metadata(obj, key, value)
+    }
+
+    fn clear_object_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        if !self.valid(obj)? {
+            return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
+        }
+        let owner = self.owner_of(obj)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::object_owner_or_wizard(&owner))?;
+        self.get_tx_mut().clear_object_metadata(obj, key)
+    }
+
+    fn property_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        let (pdef, _) = self.get_property_info(permissions, obj, pname)?;
+        self.get_tx().property_metadata(obj, pdef.uuid())
+    }
+
+    fn get_property_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        let (pdef, _) = self.get_property_info(permissions, obj, pname)?;
+        self.get_tx().get_property_metadata(obj, pdef.uuid(), key)
+    }
+
+    fn set_property_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        let (pdef, propperms) = self.get_property_info(permissions, obj, pname)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::property_allows(
+                obj,
+                pname,
+                &propperms,
+                PropFlag::Write,
+            ))?;
+        self.get_tx_mut()
+            .set_property_metadata(obj, pdef.uuid(), key, value)
+    }
+
+    fn clear_property_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        pname: Symbol,
+        key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        let (pdef, propperms) = self.get_property_info(permissions, obj, pname)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::property_allows(
+                obj,
+                pname,
+                &propperms,
+                PropFlag::Write,
+            ))?;
+        self.get_tx_mut()
+            .clear_property_metadata(obj, pdef.uuid(), key)
+    }
+
     fn update_property(
         &mut self,
         permissions: &TaskPermissions,
@@ -914,6 +1044,74 @@ impl WorldState for DbWorldState {
             .find(&uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
         self.do_update_verb(obj, permissions, &vh, verb_attrs)
+    }
+
+    fn verb_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        let _ = self.get_verb_by_id(permissions, obj, uuid)?;
+        self.get_tx().verb_metadata(obj, uuid)
+    }
+
+    fn get_verb_metadata(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        let _ = self.get_verb_by_id(permissions, obj, uuid)?;
+        self.get_tx().get_verb_metadata(obj, uuid, key)
+    }
+
+    fn set_verb_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        let vh = self
+            .get_tx()
+            .get_verbs(obj)?
+            .find(&uuid)
+            .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
+        self.auth_context(permissions)?
+            .require(AuthRule::verb_allows(
+                obj,
+                vh.uuid(),
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Write,
+            ))?;
+        self.get_tx_mut().set_verb_metadata(obj, uuid, key, value)
+    }
+
+    fn clear_verb_metadata(
+        &mut self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        let vh = self
+            .get_tx()
+            .get_verbs(obj)?
+            .find(&uuid)
+            .ok_or_else(|| WorldStateError::VerbNotFound(*obj, uuid.to_string()))?;
+        self.auth_context(permissions)?
+            .require(AuthRule::verb_allows(
+                obj,
+                vh.uuid(),
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Write,
+            ))?;
+        self.get_tx_mut().clear_verb_metadata(obj, uuid, key)
     }
 
     fn get_verb(

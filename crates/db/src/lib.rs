@@ -43,8 +43,8 @@ pub use cache::{
 };
 pub use config::{DatabaseConfig, TableConfig};
 pub use model::{
-    AnonymousObjectMetadata, BytesHolder, ObjAndUUIDHolder, StringHolder, SystemTimeHolder,
-    UUIDHolder,
+    AnonymousObjectMetadata, BytesHolder, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
+    SystemTimeHolder, UUIDHolder,
 };
 pub use provider::Provider;
 pub use tx::{

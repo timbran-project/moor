@@ -19,8 +19,8 @@ use moor_common::{
 };
 use moor_compiler::offset_for_builtin;
 use moor_var::{
-    E_ARGS, E_INVARG, E_TYPE, List, Sequence, Symbol, Variant, v_empty_list, v_list, v_obj,
-    v_string,
+    E_ARGS, E_INVARG, E_TYPE, List, Sequence, Symbol, Variant, v_empty_list, v_list, v_map_iter,
+    v_obj, v_str, v_string, v_sym,
 };
 
 use crate::{
@@ -136,6 +136,87 @@ fn bf_set_property_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_empty_list()))
 }
 
+fn metadata_key_var(bf_args: &BfCallState<'_>, key: Symbol) -> moor_var::Var {
+    if bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type {
+        v_sym(key)
+    } else {
+        v_str(&key.as_string())
+    }
+}
+
+fn metadata_pairs_to_var(
+    bf_args: &BfCallState<'_>,
+    pairs: Vec<(Symbol, moor_var::Var)>,
+) -> moor_var::Var {
+    let pairs = pairs
+        .into_iter()
+        .map(|(key, value)| (metadata_key_var(bf_args, key), value))
+        .collect::<Vec<_>>();
+    v_map_iter(pairs.iter())
+}
+
+/// Usage: `map property_metadata(obj object, symbol prop_name)`,
+/// `any property_metadata(obj object, symbol prop_name, str|sym key)`
+/// Returns all metadata for a property, or the value for a single key.
+/// Missing keys return `{}`.
+fn bf_property_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 2 && bf_args.args.len() != 3 {
+        return Err(Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    if bf_args.args.len() == 2 {
+        let pairs = with_current_transaction(|world_state| {
+            world_state.property_metadata(&bf_args.task_permissions(), &obj, prop_name)
+        })
+        .map_err(world_state_bf_err)?;
+        return Ok(Ret(metadata_pairs_to_var(bf_args, pairs)));
+    }
+    let key = bf_args.args[2].as_symbol().map_err(ErrValue)?;
+    let value = with_current_transaction(|world_state| {
+        world_state.get_property_metadata(&bf_args.task_permissions(), &obj, prop_name, key)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(Ret(value.unwrap_or_else(v_empty_list)))
+}
+
+/// Usage: `none set_property_metadata(obj object, symbol prop_name, str|sym key, value)`
+fn bf_set_property_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 4 {
+        return Err(Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    let key = bf_args.args[2].as_symbol().map_err(ErrValue)?;
+    let value = bf_args.args[3].clone();
+    with_current_transaction_mut(|world_state| {
+        world_state.set_property_metadata(&bf_args.task_permissions(), &obj, prop_name, key, value)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(Ret(v_empty_list()))
+}
+
+/// Usage: `none clear_property_metadata(obj object, symbol prop_name, str|sym key)`
+fn bf_clear_property_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 3 {
+        return Err(Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    let key = bf_args.args[2].as_symbol().map_err(ErrValue)?;
+    with_current_transaction_mut(|world_state| {
+        world_state.clear_property_metadata(&bf_args.task_permissions(), &obj, prop_name, key)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(Ret(v_empty_list()))
+}
+
 /// Usage: `bool is_clear_property(obj object, symbol prop_name)`
 /// Returns true if the property has no local value and inherits from its parent.
 fn bf_is_clear_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -233,6 +314,9 @@ fn bf_delete_property(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 pub(crate) fn register_bf_properties(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("property_info")] = bf_property_info;
     builtins[offset_for_builtin("set_property_info")] = bf_set_property_info;
+    builtins[offset_for_builtin("property_metadata")] = bf_property_metadata;
+    builtins[offset_for_builtin("set_property_metadata")] = bf_set_property_metadata;
+    builtins[offset_for_builtin("clear_property_metadata")] = bf_clear_property_metadata;
     builtins[offset_for_builtin("is_clear_property")] = bf_is_clear_property;
     builtins[offset_for_builtin("clear_property")] = bf_clear_property;
     builtins[offset_for_builtin("add_property")] = bf_add_property;

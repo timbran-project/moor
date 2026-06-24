@@ -913,6 +913,7 @@ impl<'a> LiteralParser<'a> {
             owner: NOTHING,
             location: NOTHING,
             flags: Default::default(),
+            metadata: self.parse_optional_metadata_map()?,
             verbs: Vec::new(),
             property_definitions: Vec::new(),
             property_overrides: Vec::new(),
@@ -992,6 +993,8 @@ impl<'a> LiteralParser<'a> {
         self.skip_trivia();
         let perms = self.parse_propinfo()?;
         self.skip_trivia();
+        let metadata = self.parse_optional_metadata_map()?;
+        self.skip_trivia();
         let value = if self.eat_char('=') {
             self.skip_trivia();
             Some(self.parse_literal()?)
@@ -1000,7 +1003,12 @@ impl<'a> LiteralParser<'a> {
         };
         self.skip_trivia();
         let _ = self.eat_char(';');
-        Ok(ObjPropDef { name, perms, value })
+        Ok(ObjPropDef {
+            name,
+            perms,
+            value,
+            metadata,
+        })
     }
 
     fn parse_prop_override(&mut self) -> Result<ObjPropOverride, ObjDefParseError> {
@@ -1011,6 +1019,8 @@ impl<'a> LiteralParser<'a> {
         } else {
             None
         };
+        self.skip_trivia();
+        let metadata = self.parse_optional_metadata_map()?;
         self.skip_trivia();
         let value = if self.eat_char('=') {
             self.skip_trivia();
@@ -1024,7 +1034,63 @@ impl<'a> LiteralParser<'a> {
             name,
             perms_update,
             value,
+            metadata,
         })
+    }
+
+    fn parse_optional_metadata_map(&mut self) -> Result<Vec<(Symbol, Var)>, ObjDefParseError> {
+        self.skip_horizontal_whitespace();
+        if self.peek_char() != Some('[') {
+            return Ok(Vec::new());
+        }
+
+        self.bump_char();
+        self.skip_trivia();
+        let mut entries = Vec::new();
+        if self.eat_char(']') {
+            return Ok(entries);
+        }
+
+        loop {
+            let key = self.parse_metadata_key()?;
+            self.skip_trivia();
+            if !self.remaining().starts_with("->") {
+                return Err(self.parse_error("expected '->' in metadata map"));
+            }
+            self.pos += 2;
+            self.skip_trivia();
+            let value = self.parse_literal()?;
+            entries.push((key, value));
+
+            self.skip_trivia();
+            if self.eat_char(',') {
+                self.skip_trivia();
+                if self.eat_char(']') {
+                    break;
+                }
+                continue;
+            }
+            self.expect_char(']', "expected ']' to close metadata map")?;
+            break;
+        }
+
+        Ok(entries)
+    }
+
+    fn parse_metadata_key(&mut self) -> Result<Symbol, ObjDefParseError> {
+        self.skip_trivia();
+        match self.peek_char() {
+            Some('"') => {
+                let key = self.parse_string_value()?;
+                Ok(Symbol::mk(&key))
+            }
+            Some('\'') => {
+                self.bump_char();
+                Ok(Symbol::mk(self.parse_ident()?))
+            }
+            Some(_) => Ok(Symbol::mk(self.parse_ident()?)),
+            None => Err(self.parse_error("expected metadata key")),
+        }
     }
 
     fn parse_verb_body_until_end_keyword(
@@ -1184,6 +1250,7 @@ impl<'a> LiteralParser<'a> {
         self.expect_char(':', "expected ':' after flags")?;
         self.skip_trivia();
         let flags = self.parse_verb_flags_value()?;
+        let metadata = self.parse_optional_metadata_map()?;
 
         let (statements_text, verb_start_line) = self.parse_verb_body_until_endverb()?;
         let program = compile(statements_text.as_str(), compile_options.clone()).map_err(|e| {
@@ -1199,6 +1266,7 @@ impl<'a> LiteralParser<'a> {
             owner,
             flags,
             program: ProgramType::MooR(program),
+            metadata,
         })
     }
 
@@ -1246,6 +1314,7 @@ impl<'a> LiteralParser<'a> {
                 VerbFlag::rxd()
             }
         };
+        let metadata = self.parse_optional_metadata_map()?;
 
         let (statements_text, verb_start_line) =
             self.parse_verb_body_until_end_keyword("endmethod", "missing endmethod")?;
@@ -1262,6 +1331,7 @@ impl<'a> LiteralParser<'a> {
             owner,
             flags,
             program: ProgramType::MooR(program),
+            metadata,
         })
     }
 

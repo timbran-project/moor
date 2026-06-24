@@ -31,8 +31,8 @@ use moor_common::{
 use moor_compiler::offset_for_builtin;
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_NACC, E_PERM, E_TYPE, E_VERBNF, List, NOTHING, Obj, Sequence,
-    Symbol, Variant, v_arc_str, v_empty_str, v_int, v_list, v_list_iter, v_map_iter, v_obj, v_str,
-    v_string, v_sym,
+    Symbol, Variant, v_arc_str, v_empty_list, v_empty_str, v_int, v_list, v_list_iter, v_map_iter,
+    v_obj, v_str, v_string, v_sym,
 };
 
 use crate::{
@@ -2083,6 +2083,82 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
     }
 }
 
+fn metadata_key_var(bf_args: &BfCallState<'_>, key: Symbol) -> moor_var::Var {
+    if bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type {
+        v_sym(key)
+    } else {
+        v_str(&key.as_string())
+    }
+}
+
+fn metadata_pairs_to_var(
+    bf_args: &BfCallState<'_>,
+    pairs: Vec<(Symbol, moor_var::Var)>,
+) -> moor_var::Var {
+    let pairs = pairs
+        .into_iter()
+        .map(|(key, value)| (metadata_key_var(bf_args, key), value))
+        .collect::<Vec<_>>();
+    v_map_iter(pairs.iter())
+}
+
+/// Usage: `map object_metadata(obj object)`, `any object_metadata(obj object, str|sym key)`
+/// Returns all metadata for an object, or the value for a single key. Missing keys return `{}`.
+fn bf_object_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 && bf_args.args.len() != 2 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if bf_args.args.len() == 1 {
+        let pairs = with_current_transaction(|world_state| {
+            world_state.object_metadata(&bf_args.task_permissions(), &obj)
+        })
+        .map_err(world_state_bf_err)?;
+        return Ok(BfRet::Ret(metadata_pairs_to_var(bf_args, pairs)));
+    }
+    let key = bf_args.args[1].as_symbol().map_err(BfErr::ErrValue)?;
+    let value = with_current_transaction(|world_state| {
+        world_state.get_object_metadata(&bf_args.task_permissions(), &obj, key)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(BfRet::Ret(value.unwrap_or_else(v_empty_list)))
+}
+
+/// Usage: `none set_object_metadata(obj object, str|sym key, value)`
+fn bf_set_object_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 3 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let key = bf_args.args[1].as_symbol().map_err(BfErr::ErrValue)?;
+    let value = bf_args.args[2].clone();
+    with_current_transaction_mut(|world_state| {
+        world_state.set_object_metadata(&bf_args.task_permissions(), &obj, key, value)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(BfRet::Ret(v_empty_list()))
+}
+
+/// Usage: `none clear_object_metadata(obj object, str|sym key)`
+fn bf_clear_object_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 2 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let key = bf_args.args[1].as_symbol().map_err(BfErr::ErrValue)?;
+    with_current_transaction_mut(|world_state| {
+        world_state.clear_object_metadata(&bf_args.task_permissions(), &obj, key)
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(BfRet::Ret(v_empty_list()))
+}
+
 pub(crate) fn register_bf_objects(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("create")] = bf_create;
     builtins[offset_for_builtin("create_at")] = bf_create_at;
@@ -2109,4 +2185,7 @@ pub(crate) fn register_bf_objects(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("parse_command")] = bf_parse_command;
     builtins[offset_for_builtin("find_command_verb")] = bf_find_command_verb;
     builtins[offset_for_builtin("dispatch_command_verb")] = bf_dispatch_command_verb;
+    builtins[offset_for_builtin("object_metadata")] = bf_object_metadata;
+    builtins[offset_for_builtin("set_object_metadata")] = bf_set_object_metadata;
+    builtins[offset_for_builtin("clear_object_metadata")] = bf_clear_object_metadata;
 }

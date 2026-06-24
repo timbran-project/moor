@@ -702,6 +702,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Typed(TYPE_MAP)],
             true,
         ),
+        mk_builtin(
+            "object_metadata",
+            Q(1),
+            Q(2),
+            vec![Typed(TYPE_OBJ), Any],
+            true,
+        ),
+        mk_builtin(
+            "set_object_metadata",
+            Q(3),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Any, Any],
+            true,
+        ),
+        mk_builtin(
+            "clear_object_metadata",
+            Q(2),
+            Q(2),
+            vec![Typed(TYPE_OBJ), Any],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "object/command");
@@ -786,6 +807,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("disassemble", Q(2), Q(2), vec![Typed(TYPE_OBJ), Any], true),
         mk_builtin("respond_to", Q(2), Q(2), vec![Typed(TYPE_OBJ), Any], true),
         mk_builtin("prepositions", Q(0), Q(0), vec![], true),
+        mk_builtin(
+            "verb_metadata",
+            Q(2),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Any, Any],
+            true,
+        ),
+        mk_builtin(
+            "set_verb_metadata",
+            Q(4),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Any, Any, Any],
+            true,
+        ),
+        mk_builtin(
+            "clear_verb_metadata",
+            Q(3),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Any, Any],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "verbs");
@@ -833,6 +875,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
             Q(2),
             Q(2),
             vec![Typed(TYPE_OBJ), Typed(TYPE_STR)],
+            true,
+        ),
+        mk_builtin(
+            "property_metadata",
+            Q(2),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "set_property_metadata",
+            Q(4),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any, Any],
+            true,
+        ),
+        mk_builtin(
+            "clear_property_metadata",
+            Q(3),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any],
             true,
         ),
     ]);

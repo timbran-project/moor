@@ -73,6 +73,7 @@ impl ObjFileContext {
     }
 }
 
+#[derive(Clone)]
 pub struct ObjectDefinition {
     pub oid: Obj,
     pub name: String,
@@ -80,30 +81,37 @@ pub struct ObjectDefinition {
     pub owner: Obj,
     pub location: Obj,
     pub flags: BitEnum<ObjFlag>,
+    pub metadata: Vec<(Symbol, Var)>,
 
     pub verbs: Vec<ObjVerbDef>,
     pub property_definitions: Vec<ObjPropDef>,
     pub property_overrides: Vec<ObjPropOverride>,
 }
 
+#[derive(Clone)]
 pub struct ObjVerbDef {
     pub names: Vec<Symbol>,
     pub argspec: VerbArgsSpec,
     pub owner: Obj,
     pub flags: BitEnum<VerbFlag>,
     pub program: ProgramType,
+    pub metadata: Vec<(Symbol, Var)>,
 }
 
+#[derive(Clone)]
 pub struct ObjPropDef {
     pub name: Symbol,
     pub perms: PropPerms,
     pub value: Option<Var>,
+    pub metadata: Vec<(Symbol, Var)>,
 }
 
+#[derive(Clone)]
 pub struct ObjPropOverride {
     pub name: Symbol,
     pub perms_update: Option<PropPerms>,
     pub value: Option<Var>,
+    pub metadata: Vec<(Symbol, Var)>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -277,6 +285,46 @@ mod tests {
         assert!(odef.flags.contains(ObjFlag::Fertile));
         assert!(odef.flags.contains(ObjFlag::Read));
         assert!(!odef.flags.contains(ObjFlag::Write));
+    }
+
+    #[test]
+    fn object_def_metadata() {
+        let spec = r#"
+        object #1 [ package -> "core", revision -> 42 ]
+            name: "Test Object"
+            owner: #2
+
+            property version (owner: #2, flags: "rc") [ package -> "core" ] = "1.0";
+            override inherited [ revision -> 5 ] = "local";
+
+            verb "look" (this none none) owner: #2 flags: "rxd" [ modified_by -> #2 ]
+                return 5;
+            endverb
+        endobject
+        "#;
+
+        let odef = compile_single_object(spec);
+        assert_eq!(odef.metadata.len(), 2);
+        assert_eq!(odef.metadata[0], (Symbol::mk("package"), v_str("core")));
+        assert_eq!(odef.metadata[1], (Symbol::mk("revision"), v_int(42)));
+
+        assert_eq!(odef.property_definitions[0].metadata.len(), 1);
+        assert_eq!(
+            odef.property_definitions[0].metadata[0],
+            (Symbol::mk("package"), v_str("core"))
+        );
+
+        assert_eq!(odef.property_overrides[0].metadata.len(), 1);
+        assert_eq!(
+            odef.property_overrides[0].metadata[0],
+            (Symbol::mk("revision"), v_int(5))
+        );
+
+        assert_eq!(odef.verbs[0].metadata.len(), 1);
+        assert_eq!(
+            odef.verbs[0].metadata[0],
+            (Symbol::mk("modified_by"), v_obj(Obj::mk_id(2)))
+        );
     }
 
     // Verify that verb definitions are working

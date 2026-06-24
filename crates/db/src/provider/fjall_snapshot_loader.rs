@@ -16,7 +16,7 @@ use fjall::{Readable, Slice};
 use uuid::Uuid;
 
 use crate::{
-    AnonymousObjectMetadata, ObjAndUUIDHolder, StringHolder,
+    AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
     provider::fjall_provider::FjallCodec,
     tx::{EncodeFor, Error, Timestamp},
 };
@@ -27,7 +27,7 @@ use moor_common::{
     },
     util::BitEnum,
 };
-use moor_var::{NOTHING, Obj, Var, program::ProgramType};
+use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 
 /// A snapshot-based implementation of LoaderInterface for read-only database access
 pub struct FjallSnapshotLoader {
@@ -42,6 +42,7 @@ pub struct FjallSnapshotLoader {
     pub object_propdefs_keyspace: fjall::Keyspace,
     pub object_propvalues_keyspace: fjall::Keyspace,
     pub object_propflags_keyspace: fjall::Keyspace,
+    pub entity_metadata_keyspace: fjall::Keyspace,
     pub anonymous_object_metadata_keyspace: fjall::Keyspace,
 }
 
@@ -115,6 +116,26 @@ impl SnapshotInterface for FjallSnapshotLoader {
         uuid: Uuid,
     ) -> Result<(Option<Var>, PropPerms), WorldStateError> {
         self.retrieve_property(obj, uuid)
+    }
+
+    fn get_object_metadata(&self, objid: &Obj) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_object_key_for(*objid))
+    }
+
+    fn get_property_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_property_key_for(*objid, uuid))
+    }
+
+    fn get_verb_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_verb_key_for(*objid, uuid))
     }
 
     #[allow(clippy::type_complexity)]
@@ -201,6 +222,29 @@ impl SnapshotInterface for FjallSnapshotLoader {
 
             if !anon_refs.is_empty() {
                 references.push((key_holder.obj(), anon_refs));
+            }
+        }
+
+        // Metadata values can contain anonymous object references too. The metadata key itself
+        // is not a root; otherwise metadata attached to an anonymous object would keep that object
+        // alive solely by existing.
+        for entry in self.snapshot.iter(&self.entity_metadata_keyspace) {
+            let (key, value) = entry
+                .into_inner()
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+
+            let metadata_key: EntityMetadataKey =
+                FjallCodec.decode(ByteView::from(key)).map_err(|_| {
+                    WorldStateError::DatabaseError("Failed to decode metadata key".to_string())
+                })?;
+
+            let (_ts, metadata_value) = self
+                .decode::<Var>(value)
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+
+            let anon_refs = self.extract_anonymous_refs(&metadata_value);
+            if !anon_refs.is_empty() {
+                references.push((metadata_key.obj(), anon_refs));
             }
         }
 
@@ -329,6 +373,36 @@ impl FjallSnapshotLoader {
         };
 
         Ok((value, perms))
+    }
+
+    fn metadata_scan<F>(&self, predicate: F) -> Result<Vec<(Symbol, Var)>, WorldStateError>
+    where
+        F: Fn(&EntityMetadataKey) -> bool,
+    {
+        let mut values = Vec::new();
+
+        for entry in self.snapshot.iter(&self.entity_metadata_keyspace) {
+            let (key, value) = entry
+                .into_inner()
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+
+            let metadata_key: EntityMetadataKey =
+                FjallCodec.decode(ByteView::from(key)).map_err(|_| {
+                    WorldStateError::DatabaseError("Failed to decode metadata key".to_string())
+                })?;
+
+            if !predicate(&metadata_key) {
+                continue;
+            }
+
+            let (_ts, metadata_value) = self
+                .decode::<Var>(value)
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            values.push((metadata_key.key(), metadata_value));
+        }
+
+        values.sort_by_key(|(key, _)| key.as_string());
+        Ok(values)
     }
 
     /// Get the ancestor hierarchy for an object (including the object itself if include_self is true)

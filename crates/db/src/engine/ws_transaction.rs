@@ -18,7 +18,7 @@
 //! caches.
 
 use crate::{
-    Error, ObjAndUUIDHolder, StringHolder,
+    EntityMetadataKey, Error, ObjAndUUIDHolder, StringHolder,
     api::world_state::db_counters,
     engine::moor_db::{Caches, SEQUENCE_MAX_OBJECT, WorldStateTransaction},
     provider::fjall_provider::FjallProvider,
@@ -453,6 +453,7 @@ impl WorldStateTransaction {
         self.object_location.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object location: {e:?}"))
         })?;
+        self.delete_metadata_for_obj(obj)?;
         self.object_verbdefs.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
         })?;
@@ -550,6 +551,7 @@ impl WorldStateTransaction {
             self.object_owner.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object owner: {e:?}"))
             })?;
+            self.delete_metadata_for_obj(obj)?;
             self.object_verbdefs.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
             })?;
@@ -1268,6 +1270,7 @@ impl WorldStateTransaction {
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting verb binary: {e:?}"))
             })?;
+        self.delete_verb_metadata_for_holder(location, uuid)?;
         self.invalidate_verb_cache_for_branch(location)?;
         Ok(())
     }
@@ -1277,6 +1280,219 @@ impl WorldStateTransaction {
             WorldStateError::DatabaseError(format!("Error getting properties: {e:?}"))
         })?;
         Ok(r.unwrap_or_else(PropDefs::empty))
+    }
+
+    fn metadata_scan<F>(&self, predicate: F) -> Result<Vec<(Symbol, Var)>, WorldStateError>
+    where
+        F: Fn(&EntityMetadataKey) -> bool,
+    {
+        let mut values = self
+            .entity_metadata
+            .scan(&|metadata_key, _| predicate(metadata_key))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, value)| (metadata_key.key(), value))
+            .collect::<Vec<_>>();
+        values.sort_by_key(|(key, _)| key.as_string());
+        Ok(values)
+    }
+
+    pub fn object_metadata(&self, obj: &Obj) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_object_key_for(*obj))
+    }
+
+    pub fn get_object_metadata(
+        &self,
+        obj: &Obj,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        self.entity_metadata
+            .get(&EntityMetadataKey::object(*obj, key))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+    }
+
+    pub fn set_object_metadata(
+        &mut self,
+        obj: &Obj,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        upsert(
+            &mut self.entity_metadata,
+            EntityMetadataKey::object(*obj, key),
+            value,
+        )
+        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    pub fn clear_object_metadata(&mut self, obj: &Obj, key: Symbol) -> Result<(), WorldStateError> {
+        self.entity_metadata
+            .delete(&EntityMetadataKey::object(*obj, key))
+            .map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
+            })?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    pub fn property_metadata(
+        &self,
+        holder: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_property_key_for(*holder, uuid))
+    }
+
+    pub fn get_property_metadata(
+        &self,
+        holder: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        self.entity_metadata
+            .get(&EntityMetadataKey::property(*holder, uuid, key))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+    }
+
+    pub fn set_property_metadata(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        upsert(
+            &mut self.entity_metadata,
+            EntityMetadataKey::property(*holder, uuid, key),
+            value,
+        )
+        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    pub fn clear_property_metadata(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        self.entity_metadata
+            .delete(&EntityMetadataKey::property(*holder, uuid, key))
+            .map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
+            })?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    pub fn verb_metadata(
+        &self,
+        location: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.metadata_scan(|metadata_key| metadata_key.is_verb_key_for(*location, uuid))
+    }
+
+    pub fn get_verb_metadata(
+        &self,
+        location: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<Option<Var>, WorldStateError> {
+        self.entity_metadata
+            .get(&EntityMetadataKey::verb(*location, uuid, key))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+    }
+
+    pub fn set_verb_metadata(
+        &mut self,
+        location: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        upsert(
+            &mut self.entity_metadata,
+            EntityMetadataKey::verb(*location, uuid, key),
+            value,
+        )
+        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    pub fn clear_verb_metadata(
+        &mut self,
+        location: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        self.entity_metadata
+            .delete(&EntityMetadataKey::verb(*location, uuid, key))
+            .map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
+            })?;
+        self.has_mutations = true;
+        Ok(())
+    }
+
+    fn delete_metadata_for_obj(&mut self, obj: &Obj) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.references_obj(*obj))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
+        }
+        Ok(())
+    }
+
+    fn delete_property_metadata_for_holder(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.is_property_key_for(*holder, uuid))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
+        }
+        Ok(())
+    }
+
+    fn delete_verb_metadata_for_holder(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.is_verb_key_for(*holder, uuid))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
+        }
+        Ok(())
     }
 
     pub fn set_property(
@@ -1486,6 +1702,7 @@ impl WorldStateTransaction {
                 })?;
             self.invalidate_known_propflags_for_holder(&location, uuid);
             self.invalidate_cached_prop_perms_for_holder(&location, uuid);
+            self.delete_property_metadata_for_holder(&location, uuid)?;
         }
         self.clear_cached_prop_perms();
         self.has_mutations = true;
@@ -2253,6 +2470,24 @@ impl WorldStateTransaction {
         }
         self.clear_cached_prop_perms();
 
+        let metadata_entries = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.references_obj(*old_obj))
+            .map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}"))
+            })?;
+        for (old_key, value) in metadata_entries {
+            let Some(new_key) = old_key.rehome_obj(*old_obj, new_obj) else {
+                continue;
+            };
+            self.entity_metadata.delete(&old_key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting old metadata: {e:?}"))
+            })?;
+            self.entity_metadata.upsert(new_key, value).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error setting new metadata: {e:?}"))
+            })?;
+        }
+
         self.has_mutations = true;
 
         // Update max_object if the new object ID is higher
@@ -2292,6 +2527,17 @@ impl WorldStateTransaction {
             let obj = holder.obj;
             let obj_refs = reference_map.entry(obj).or_insert_with(HashSet::new);
             crate::model::extract_anonymous_refs(&prop_value, obj_refs);
+        }
+
+        let all_metadata = self
+            .entity_metadata
+            .get_all()
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+
+        for (metadata_key, metadata_value) in all_metadata {
+            let obj = metadata_key.obj();
+            let obj_refs = reference_map.entry(obj).or_insert_with(HashSet::new);
+            crate::model::extract_anonymous_refs(&metadata_value, obj_refs);
         }
 
         // Get all objects for remaining checks (parent, location, verbdefs, propdefs metadata)

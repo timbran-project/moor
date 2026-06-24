@@ -30,6 +30,7 @@ pub struct DatabaseConfig {
     pub object_propdefs: Option<TableConfig>,
     pub object_propvalues: Option<TableConfig>,
     pub object_propflags: Option<TableConfig>,
+    pub entity_metadata: Option<TableConfig>,
     pub object_last_move: Option<TableConfig>,
     pub anonymous_object_metadata: Option<TableConfig>,
 }
@@ -57,6 +58,7 @@ impl Default for DatabaseConfig {
                 max_memtable_size: Some(LARGE_MEMTABLE_SIZE),
             }),
             object_propflags: None,
+            entity_metadata: None,
             object_last_move: None,
             anonymous_object_metadata: None,
         }

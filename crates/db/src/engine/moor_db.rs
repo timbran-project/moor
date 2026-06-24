@@ -18,7 +18,7 @@
 
 use crate::provider::fjall_provider;
 use crate::{
-    AnonymousObjectMetadata, DatabaseOpenError, ObjAndUUIDHolder, StringHolder,
+    AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -72,6 +72,7 @@ define_relations! {
     object_propdefs => Obj, PropDefs,
     object_propvalues => ObjAndUUIDHolder, Var,
     object_propflags => ObjAndUUIDHolder, PropPerms,
+    entity_metadata => EntityMetadataKey, Var,
     object_last_move => Obj, Var,
     anonymous_object_metadata => Obj, AnonymousObjectMetadata,
 }
@@ -191,6 +192,7 @@ impl MoorDB {
                 .partition()
                 .clone(),
             object_propflags_keyspace: self.relations.object_propflags.source().partition().clone(),
+            entity_metadata_keyspace: self.relations.entity_metadata.source().partition().clone(),
             anonymous_object_metadata_keyspace: self
                 .relations
                 .anonymous_object_metadata

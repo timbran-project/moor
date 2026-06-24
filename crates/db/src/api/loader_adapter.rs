@@ -182,6 +182,37 @@ impl LoaderInterface for DbWorldState {
         Ok(())
     }
 
+    fn set_object_metadata(
+        &mut self,
+        objid: &Obj,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        self.get_tx_mut().set_object_metadata(objid, key, value)
+    }
+
+    fn set_property_metadata(
+        &mut self,
+        objid: &Obj,
+        propname: Symbol,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        let (propdef, _, _, _) = self.get_tx().resolve_property(objid, propname)?;
+        self.get_tx_mut()
+            .set_property_metadata(objid, propdef.uuid(), key, value)
+    }
+
+    fn set_verb_metadata(
+        &mut self,
+        objid: &Obj,
+        uuid: Uuid,
+        key: Symbol,
+        value: Var,
+    ) -> Result<(), WorldStateError> {
+        self.get_tx_mut().set_verb_metadata(objid, uuid, key, value)
+    }
+
     fn max_object(&self) -> Result<Obj, WorldStateError> {
         self.get_tx().get_max_object()
     }
@@ -348,6 +379,26 @@ impl SnapshotInterface for DbWorldState {
         uuid: Uuid,
     ) -> Result<(Option<Var>, PropPerms), WorldStateError> {
         self.get_tx().retrieve_property(obj, uuid)
+    }
+
+    fn get_object_metadata(&self, objid: &Obj) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.get_tx().object_metadata(objid)
+    }
+
+    fn get_property_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.get_tx().property_metadata(objid, uuid)
+    }
+
+    fn get_verb_metadata(
+        &self,
+        objid: &Obj,
+        uuid: Uuid,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        self.get_tx().verb_metadata(objid, uuid)
     }
 
     #[allow(clippy::type_complexity)]

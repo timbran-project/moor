@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_var::{ByteSized, EncodingError, Obj, Var};
+use moor_var::{ByteSized, EncodingError, Obj, Symbol, Var};
 use std::{cmp::Ordering, collections::HashSet};
 use uuid::Uuid;
 use zerocopy::{FromBytes, Immutable, IntoBytes};
@@ -137,6 +137,16 @@ pub struct ObjAndUUIDHolder {
     pub obj: Obj,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, IntoBytes, FromBytes, Immutable)]
+#[repr(C)]
+pub struct EntityMetadataKey {
+    tag: u8,
+    _padding: [u8; 7],
+    obj: Obj,
+    uuid: [u8; 16],
+    key: Symbol,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, IntoBytes, FromBytes, Immutable)]
 #[repr(C, packed)]
 pub struct AnonymousObjectMetadata {
@@ -175,9 +185,108 @@ impl ObjAndUUIDHolder {
     }
 }
 
+impl EntityMetadataKey {
+    const OBJECT: u8 = 0;
+    const PROPERTY: u8 = 1;
+    const VERB: u8 = 2;
+
+    pub fn object(obj: Obj, key: Symbol) -> Self {
+        Self {
+            tag: Self::OBJECT,
+            _padding: [0; 7],
+            obj,
+            uuid: [0; 16],
+            key,
+        }
+    }
+
+    pub fn property(holder: Obj, uuid: Uuid, key: Symbol) -> Self {
+        Self {
+            tag: Self::PROPERTY,
+            _padding: [0; 7],
+            obj: holder,
+            uuid: *uuid.as_bytes(),
+            key,
+        }
+    }
+
+    pub fn verb(location: Obj, uuid: Uuid, key: Symbol) -> Self {
+        Self {
+            tag: Self::VERB,
+            _padding: [0; 7],
+            obj: location,
+            uuid: *uuid.as_bytes(),
+            key,
+        }
+    }
+
+    pub fn obj(&self) -> Obj {
+        self.obj
+    }
+
+    pub fn uuid(&self) -> Option<Uuid> {
+        match self.tag {
+            Self::PROPERTY | Self::VERB => Some(Uuid::from_bytes(self.uuid)),
+            _ => None,
+        }
+    }
+
+    pub fn key(&self) -> Symbol {
+        self.key
+    }
+
+    pub fn is_object_key_for(&self, obj: Obj) -> bool {
+        self.tag == Self::OBJECT && self.obj == obj
+    }
+
+    pub fn is_property_key_for(&self, holder: Obj, uuid: Uuid) -> bool {
+        self.tag == Self::PROPERTY && self.obj == holder && self.uuid == *uuid.as_bytes()
+    }
+
+    pub fn is_verb_key_for(&self, location: Obj, uuid: Uuid) -> bool {
+        self.tag == Self::VERB && self.obj == location && self.uuid == *uuid.as_bytes()
+    }
+
+    pub fn references_obj(&self, obj: Obj) -> bool {
+        self.obj == obj
+    }
+
+    pub fn rehome_obj(&self, old_obj: Obj, new_obj: Obj) -> Option<Self> {
+        if self.obj != old_obj {
+            return None;
+        }
+        let mut rehomed = self.clone();
+        rehomed.obj = new_obj;
+        Some(rehomed)
+    }
+}
+
 impl std::hash::Hash for ObjAndUUIDHolder {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         state.write(IntoBytes::as_bytes(self));
+    }
+}
+
+impl std::fmt::Display for EntityMetadataKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.tag {
+            Self::OBJECT => write!(f, "object:{}:{}", self.obj, self.key.as_string()),
+            Self::PROPERTY => write!(
+                f,
+                "property:{}:{}:{}",
+                self.obj,
+                Uuid::from_bytes(self.uuid),
+                self.key.as_string()
+            ),
+            Self::VERB => write!(
+                f,
+                "verb:{}:{}:{}",
+                self.obj,
+                Uuid::from_bytes(self.uuid),
+                self.key.as_string()
+            ),
+            other => write!(f, "unknown:{other}:{}", self.key.as_string()),
+        }
     }
 }
 
@@ -266,6 +375,12 @@ impl ByteSized for AnonymousObjectMetadata {
 impl ByteSized for ObjAndUUIDHolder {
     fn size_bytes(&self) -> usize {
         24
+    }
+}
+
+impl ByteSized for EntityMetadataKey {
+    fn size_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 }
 

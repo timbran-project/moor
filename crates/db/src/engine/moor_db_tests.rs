@@ -4031,6 +4031,8 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(obj, Obj::mk_id(0));
+            tx.set_object_metadata(&obj, Symbol::mk("package"), v_str("core"))
+                .unwrap();
 
             // Renumber to explicit target #5
             let new_obj = tx
@@ -4042,6 +4044,15 @@ mod tests {
             assert!(!tx.object_valid(&obj).unwrap());
             assert!(tx.object_valid(&new_obj).unwrap());
             assert_eq!(tx.get_object_name(&new_obj).unwrap(), "test_obj");
+            assert_eq!(
+                tx.get_object_metadata(&new_obj, Symbol::mk("package"))
+                    .unwrap(),
+                Some(v_str("core"))
+            );
+            assert_eq!(
+                tx.get_object_metadata(&obj, Symbol::mk("package")).unwrap(),
+                None
+            );
 
             assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
         }

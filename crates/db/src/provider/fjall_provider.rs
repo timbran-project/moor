@@ -438,7 +438,9 @@ pub(crate) struct FjallCodec;
 // ============================================================================
 // Each type gets its own EncodeFor impl, allowing custom encoding logic
 
-use crate::{AnonymousObjectMetadata, ObjAndUUIDHolder, StringHolder, provider::Provider};
+use crate::{
+    AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder, provider::Provider,
+};
 use moor_common::{
     model::{ObjFlag, ObjSet, PropDefs, PropPerms, VerbDefs},
     util::BitEnum,
@@ -499,6 +501,7 @@ macro_rules! impl_byteview_wrapper_encode {
 // Zerocopy types - direct byte access, no serialization overhead
 impl_zerocopy_encode!(Obj);
 impl_zerocopy_encode!(ObjAndUUIDHolder);
+impl_zerocopy_encode!(EntityMetadataKey);
 impl_zerocopy_encode!(AnonymousObjectMetadata);
 impl_zerocopy_encode!(BitEnum<ObjFlag>);
 

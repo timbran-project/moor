@@ -160,7 +160,10 @@ pub(crate) fn write_dump_object<W: Write>(
     o: &ObjectDefinition,
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
-    writeln!(writer, "object {}", canon_name(&o.oid, index_names))?;
+    let object_decl = format!("object {}", canon_name(&o.oid, index_names));
+    write!(writer, "{object_decl}")?;
+    write_metadata_suffix(index_names, "", object_decl.len(), &o.metadata, writer)?;
+    writeln!(writer)?;
     write_dump_object_header(index_names, o, "  ", writer)?;
     if !o.property_definitions.is_empty() {
         writeln!(writer)?;
@@ -265,15 +268,15 @@ fn write_verb<W: Write>(
 
     if is_method {
         let default_flags = VerbFlag::rxd();
-        if v.flags == default_flags {
-            writeln!(writer, "{indent}method {names} owner: {owner}")?;
+        let header = if v.flags == default_flags {
+            format!("{indent}method {names} owner: {owner}")
         } else {
             let vflags = verb_perms_string(v.flags);
-            writeln!(
-                writer,
-                "{indent}method {names} owner: {owner} flags: \"{vflags}\""
-            )?;
-        }
+            format!("{indent}method {names} owner: {owner} flags: \"{vflags}\"")
+        };
+        write!(writer, "{header}")?;
+        write_metadata_suffix(index_names, indent, header.len(), &v.metadata, writer)?;
+        writeln!(writer)?;
         for line in unparsed {
             writeln!(writer, "{indent}{indent}{line}")?;
         }
@@ -291,10 +294,11 @@ fn write_verb<W: Write>(
             prepspec,
             v.argspec.iobj.to_string(),
         );
-        writeln!(
-            writer,
-            "{indent}verb {names} ({verbargsspec}) owner: {owner} flags: \"{vflags}\""
-        )?;
+        let header =
+            format!("{indent}verb {names} ({verbargsspec}) owner: {owner} flags: \"{vflags}\"");
+        write!(writer, "{header}")?;
+        write_metadata_suffix(index_names, indent, header.len(), &v.metadata, writer)?;
+        writeln!(writer)?;
         for line in unparsed {
             writeln!(writer, "{indent}{indent}{line}")?;
         }
@@ -313,10 +317,9 @@ fn write_property_definition<W: Write>(
     let flags = prop_flags_string(pd.perms.flags());
     let name = propname(pd.name);
 
-    write!(
-        writer,
-        "{indent}property {name} (owner: {owner}, flags: \"{flags}\")"
-    )?;
+    let header = format!("{indent}property {name} (owner: {owner}, flags: \"{flags}\")");
+    write!(writer, "{header}")?;
+    write_metadata_suffix(index_names, indent, header.len(), &pd.metadata, writer)?;
     if let Some(value) = &pd.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
@@ -332,16 +335,73 @@ fn write_property_override<W: Write>(
     writer: &mut W,
 ) -> Result<(), std::io::Error> {
     let name = propname(ps.name);
-    write!(writer, "{indent}override {name}")?;
+    let mut header = format!("{indent}override {name}");
     if let Some(perms) = &ps.perms_update {
         let flags = prop_flags_string(perms.flags());
         let owner = canon_name(&perms.owner(), index_names);
-        write!(writer, " (owner: {owner}, flags: \"{flags}\")")?;
+        header.push_str(&format!(" (owner: {owner}, flags: \"{flags}\")"));
     }
+    write!(writer, "{header}")?;
+    write_metadata_suffix(index_names, indent, header.len(), &ps.metadata, writer)?;
     if let Some(value) = &ps.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
     }
     writeln!(writer, ";")?;
     Ok(())
+}
+
+fn write_metadata_suffix<W: Write>(
+    index_names: &HashMap<Obj, String>,
+    indent: &str,
+    current_len: usize,
+    metadata: &[(Symbol, Var)],
+    writer: &mut W,
+) -> Result<(), std::io::Error> {
+    if metadata.is_empty() {
+        return Ok(());
+    }
+
+    let entries = metadata
+        .iter()
+        .map(|(key, value)| {
+            format!(
+                "{} -> {}",
+                metadata_key(key),
+                to_literal_objsub(value, index_names, 2)
+            )
+        })
+        .collect::<Vec<_>>();
+    let inline = format!(" [ {} ]", entries.join(", "));
+    if current_len + inline.len() <= 100 {
+        write!(writer, "{inline}")?;
+        return Ok(());
+    }
+
+    writeln!(writer, " [")?;
+    for (idx, entry) in entries.iter().enumerate() {
+        let comma = if idx + 1 == entries.len() { "" } else { "," };
+        writeln!(writer, "{indent}  {entry}{comma}")?;
+    }
+    write!(writer, "{indent}]")?;
+    Ok(())
+}
+
+fn metadata_key(key: &Symbol) -> String {
+    let text = key.as_arc_str();
+    if is_bare_metadata_key(&text) {
+        return text.to_string();
+    }
+    to_literal(&v_str(&text))
+}
+
+fn is_bare_metadata_key(text: &str) -> bool {
+    let mut chars = text.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !(first == '_' || first.is_ascii_alphabetic()) {
+        return false;
+    }
+    chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
 }
