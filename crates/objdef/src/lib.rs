@@ -69,6 +69,8 @@ pub enum ObjdefLoaderError {
     CouldNotSetObjectLocation(String, WorldStateError),
     #[error("Could not set object owner from {0}: {1}")]
     CouldNotSetObjectOwner(String, WorldStateError),
+    #[error("Could not set object metadata from {0}: {1}:{2}: {3}")]
+    CouldNotSetObjectMetadata(String, Obj, String, WorldStateError),
     #[error("Could not define property from {0}: {1}:{2}: {3}")]
     CouldNotDefineProperty(String, Obj, String, WorldStateError),
     #[error("Could not override property from {0}: {1}:{2}: {3}")]
@@ -90,6 +92,7 @@ impl ObjdefLoaderError {
             | ObjdefLoaderError::CouldNotSetObjectParent(source, _)
             | ObjdefLoaderError::CouldNotSetObjectLocation(source, _)
             | ObjdefLoaderError::CouldNotSetObjectOwner(source, _)
+            | ObjdefLoaderError::CouldNotSetObjectMetadata(source, _, _, _)
             | ObjdefLoaderError::CouldNotDefineProperty(source, _, _, _)
             | ObjdefLoaderError::CouldNotOverrideProperty(source, _, _, _)
             | ObjdefLoaderError::CouldNotDefineVerb(source, _, _, _)

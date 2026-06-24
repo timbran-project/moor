@@ -406,7 +406,7 @@ pub fn read_textdump<T: io::Read>(
     }
     info!("Verbs defined.");
 
-    // Create import_export_id properties from sysrefs (properties on #0 that point to objects).
+    // Create import_export_id metadata from sysrefs (properties on #0 that point to objects).
     // This enables proper constant generation when dumping to objdef format.
     info!("Creating import_export_id from sysrefs...");
     let import_export_id_sym = Symbol::mk("import_export_id");
@@ -415,14 +415,6 @@ pub fn read_textdump<T: io::Read>(
         info!("Import complete.");
         return Ok(());
     };
-
-    // Find the root object (#1 typically) - it's #0's parent
-    let root_obj = sysobj.parent;
-    if root_obj == NOTHING {
-        warn!("System object #0 has no parent, cannot define import_export_id");
-        info!("Import complete.");
-        return Ok(());
-    }
 
     // Collect sysrefs: properties on #0 that have object values
     let mut sysrefs: Vec<(Symbol, Obj)> = Vec::new();
@@ -448,32 +440,14 @@ pub fn read_textdump<T: io::Read>(
         return Ok(());
     }
 
-    // Define import_export_id property on root object (will be inherited by all)
-    let flags = BitEnum::new_with(PropFlag::Read) | PropFlag::Chown;
     loader
-        .define_property(
-            &root_obj,
-            &root_obj,
-            import_export_id_sym,
-            &root_obj,
-            flags,
-            None,
-        )
+        .set_object_metadata(&SYSTEM_OBJECT, import_export_id_sym, v_str("sysobj"))
         .map_err(|e| {
             TextdumpReaderError::LoadError(
-                format!("defining import_export_id on {root_obj}"),
+                "setting import_export_id metadata on #0".to_string(),
                 e.clone(),
             )
         })?;
-
-    // Set import_export_id="sysobj" on #0 itself
-    let _ = loader.set_property(
-        &SYSTEM_OBJECT,
-        import_export_id_sym,
-        None,
-        None,
-        Some(v_str("sysobj")),
-    );
 
     // Set import_export_id on each sysref target object
     let mut created = 1; // Count #0
@@ -483,12 +457,10 @@ pub fn read_textdump<T: io::Read>(
             continue;
         }
         if loader
-            .set_property(
+            .set_object_metadata(
                 &target_obj,
                 import_export_id_sym,
-                None,
-                None,
-                Some(v_str(&prop_name.as_arc_str())),
+                v_str(&prop_name.as_arc_str()),
             )
             .is_ok()
         {
@@ -496,7 +468,7 @@ pub fn read_textdump<T: io::Read>(
             trace!(target = ?target_obj, sysref = %prop_name, "Created import_export_id from sysref");
         }
     }
-    info!("Created {created} import_export_id properties from sysrefs");
+    info!("Created {created} import_export_id metadata entries from sysrefs");
 
     info!("Import complete.");
 

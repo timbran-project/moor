@@ -162,7 +162,7 @@ pub(crate) fn write_dump_object<W: Write>(
 ) -> Result<(), ObjectDumpError> {
     let object_decl = format!("object {}", canon_name(&o.oid, index_names));
     write!(writer, "{object_decl}")?;
-    write_metadata_suffix(index_names, "", object_decl.len(), &o.metadata, writer)?;
+    write_object_metadata_suffix(index_names, &o.metadata, writer)?;
     writeln!(writer)?;
     write_dump_object_header(index_names, o, "  ", writer)?;
     if !o.property_definitions.is_empty() {
@@ -362,16 +362,7 @@ fn write_metadata_suffix<W: Write>(
         return Ok(());
     }
 
-    let entries = metadata
-        .iter()
-        .map(|(key, value)| {
-            format!(
-                "{} -> {}",
-                metadata_key(key),
-                to_literal_objsub(value, index_names, 2)
-            )
-        })
-        .collect::<Vec<_>>();
+    let entries = metadata_entries(index_names, metadata.iter());
     let inline = format!(" [ {} ]", entries.join(", "));
     if current_len + inline.len() <= 100 {
         write!(writer, "{inline}")?;
@@ -385,6 +376,54 @@ fn write_metadata_suffix<W: Write>(
     }
     write!(writer, "{indent}]")?;
     Ok(())
+}
+
+fn write_object_metadata_suffix<W: Write>(
+    index_names: &HashMap<Obj, String>,
+    metadata: &[(Symbol, Var)],
+    writer: &mut W,
+) -> Result<(), std::io::Error> {
+    if metadata.is_empty() {
+        return Ok(());
+    }
+
+    let mut ordered = metadata.iter().enumerate().collect::<Vec<_>>();
+    ordered.sort_by_key(|(idx, (key, _))| (object_metadata_order_key(key), *idx));
+    let entries = metadata_entries(
+        index_names,
+        ordered.into_iter().map(|(_, metadata)| metadata),
+    );
+
+    writeln!(writer, " [")?;
+    for (idx, entry) in entries.iter().enumerate() {
+        let comma = if idx + 1 == entries.len() { "" } else { "," };
+        writeln!(writer, "  {entry}{comma}")?;
+    }
+    write!(writer, "]")?;
+    Ok(())
+}
+
+fn metadata_entries<'a>(
+    index_names: &HashMap<Obj, String>,
+    metadata: impl Iterator<Item = &'a (Symbol, Var)>,
+) -> Vec<String> {
+    metadata
+        .map(|(key, value)| {
+            format!(
+                "{} -> {}",
+                metadata_key(key),
+                to_literal_objsub(value, index_names, 2)
+            )
+        })
+        .collect()
+}
+
+fn object_metadata_order_key(key: &Symbol) -> u8 {
+    match key.as_arc_str().as_ref() {
+        "import_export_id" => 0,
+        "import_export_hierarchy" => 1,
+        _ => 2,
+    }
 }
 
 fn metadata_key(key: &Symbol) -> String {

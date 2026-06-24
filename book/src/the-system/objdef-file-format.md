@@ -216,16 +216,17 @@ property config (owner: WIZARD, flags: "rc") = ["debug" -> true, "level" -> 5];
 property parent_ref (owner: WIZARD, flags: "rc") = ROOM;
 ```
 
-### Special Property: import_export_id
+### Special Metadata: import_export_id
 
-The `import_export_id` property is a special property that controls how objects are named during
-export:
+The `import_export_id` object metadata key controls how objects are named during export:
 
 ```moo
-property import_export_id (owner: WIZARD, flags: "rc") = "my_object_name";
+object #789 [
+  import_export_id -> "my_object_name"
+]
 ```
 
-**Purpose**: This property establishes stable identity for objects across import/export cycles.
+**Purpose**: This metadata establishes stable identity for objects across import/export cycles.
 
 **Behavior**:
 
@@ -235,23 +236,23 @@ property import_export_id (owner: WIZARD, flags: "rc") = "my_object_name";
 
 **Type**: Must be a String or Symbol
 
-**Recommended Flags**: `"rc"` (readable, chown) - should be immutable after creation
+Legacy objdefs may still use an ordinary `import_export_id` property. mooR reads object metadata
+first and falls back to the legacy property form for older cores.
 
 **Example**:
 
 ```moo
-object #789
+object #789 [
+  import_export_id -> "thing"
+]
   name: "Generic Thing"
   parent: ROOT
   owner: WIZARD
-
-  // This makes it export as thing.moo
-  property import_export_id (owner: WIZARD, flags: "rc") = "thing";
 endobject
 ```
 
 See [Object Identity and Export Names](object-packaging.md#object-identity-and-export-names) for
-more details on how this property is used.
+more details on how this metadata is used.
 
 ## Verb Definitions
 

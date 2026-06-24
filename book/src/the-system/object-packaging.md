@@ -230,21 +230,22 @@ code can use readable names instead of magic numbers.
 
 #### Object Identity and Export Names
 
-mooR uses a special property called `import_export_id` to determine how objects are named in exports
-and referenced in `constants.moo`. This property establishes a stable identity for objects across
+mooR uses object metadata called `import_export_id` to determine how objects are named in exports
+and referenced in `constants.moo`. This metadata establishes a stable identity for objects across
 import/export cycles.
 
 **How It Works:**
 
-The system works differently depending on whether objects have `import_export_id` properties:
+The system works differently depending on whether objects have `import_export_id` metadata:
 
 **During Export:**
 
-If objects have `import_export_id` properties, mooR uses those values for filenames and constants:
+If objects have `import_export_id` metadata, mooR uses those values for filenames and constants:
 
 ```moo
-// Object has this property:
-#789.import_export_id = "thing"
+object #789 [
+  import_export_id -> "thing"
+]
 
 // Exports as:
 thing.moo
@@ -253,7 +254,8 @@ thing.moo
 define THING = #789;
 ```
 
-If objects **don't** have `import_export_id` properties, mooR falls back to the #0 heuristic for
+If objects **don't** have `import_export_id` metadata, mooR falls back to legacy `import_export_id`
+properties. If neither metadata nor legacy properties exist, it can use the #0 heuristic for
 backward compatibility:
 
 1. **Examines system object (#0)**: Looks for properties that directly reference other objects
@@ -277,16 +279,16 @@ Objects export as:
 
 **During Import:**
 
-When importing an objdef created with the #0 heuristic (no `import_export_id` properties), mooR
-automatically creates these properties in the database:
+When importing an objdef created with the #0 heuristic (no `import_export_id` metadata or legacy
+properties), mooR automatically creates object metadata in the database:
 
 ```moo
-#789.import_export_id = "thing"
-#456.import_export_id = "room"
-#123.import_export_id = "player"
+object_metadata(#789, 'import_export_id) == "thing"
+object_metadata(#456, 'import_export_id) == "room"
+object_metadata(#123, 'import_export_id) == "player"
 ```
 
-This ensures that **subsequent exports** will use the `import_export_id` properties directly,
+This ensures that **subsequent exports** will use the `import_export_id` metadata directly,
 maintaining stable filenames across export cycles without needing to analyze #0 properties again.
 
 #### Benefits of This System
@@ -300,11 +302,11 @@ portable between databases.
 **Stable Identity**: Objects maintain their identity across import/export cycles, making version
 control meaningful.
 
-**Automatic Maintenance**: The first import automatically creates `import_export_id` properties, and
-subsequent exports just read them.
+**Automatic Maintenance**: The first import automatically creates `import_export_id` metadata, and
+subsequent exports just read it.
 
 **Backward Compatibility**: Imports from legacy textdumps or objdefs without `import_export_id`
-properties work seamlessly using the #0 heuristic.
+metadata work seamlessly using legacy property fallback and the #0 heuristic.
 
 #### The Special `sysobj.moo` File
 
@@ -319,13 +321,13 @@ property player (owner: WIZARD, flags: "rc") = PLAYER;
 ```
 
 **Note**: While these #0 properties provide a convenient way to access core objects, they are not
-required for the import/export system. The `import_export_id` property on each object controls
+required for the import/export system. The `import_export_id` metadata on each object controls
 export naming, not references from #0.
 
 #### Creating New Objects with Stable Names
 
 When creating objects that you want to have stable names across import/export cycles, you need to
-give them an `import_export_id` property:
+give them `import_export_id` metadata:
 
 **Step 1: Choose an Object Number** Pick an unused object ID that won't conflict with existing
 objects. Check your current database to see what numbers are in use:
@@ -343,25 +345,23 @@ define MY_NEW_OBJECT = #12345;
 ```
 
 **Step 3: Create the Object File** Create your object file with the desired name and include the
-`import_export_id` property:
+`import_export_id` metadata:
 
 ```moo
 // File: my_new_object.moo
-object MY_NEW_OBJECT
+object MY_NEW_OBJECT [
+  import_export_id -> "my_new_object"
+]
   name: "My New Object"
   parent: THING
   owner: WIZARD
-
-  // This property makes the object export as my_new_object.moo
-  // Use 'override' if parent has this property, 'property' if defining for first time
-  override import_export_id = "my_new_object";
 
   // ... other properties and verbs
 endobject
 ```
 
-**Step 4: Maintain the Pattern** The `import_export_id` property ensures stable filenames across
-import/export cycles. Without this property, the object will be exported as `12345.moo` (using its
+**Step 4: Maintain the Pattern** The `import_export_id` metadata ensures stable filenames across
+import/export cycles. Without this metadata, the object will be exported as `12345.moo` (using its
 object number).
 
 #### Example: Adding a New Utility Object
@@ -377,15 +377,13 @@ Let's say you want to add a new string manipulation utility object:
 
 3. **Create `string_formatter.moo`**:
    ```moo
-   object STRING_FORMATTER
+   object STRING_FORMATTER [
+     import_export_id -> "string_formatter"
+   ]
      name: "String Formatting Utilities"
      parent: THING
      owner: WIZARD
      flags: "upw"
-
-     // This property controls the export filename
-     // Use 'override' if parent (THING) has this property defined
-     override import_export_id = "string_formatter";
 
      // ... properties and verbs would go here
    endobject
@@ -393,12 +391,12 @@ Let's say you want to add a new string manipulation utility object:
 
 4. **Import and Export Test**: After importing this objdef directory and then exporting it again,
    the object will continue to be exported as `string_formatter.moo` because it has an
-   `import_export_id` property.
+   `import_export_id` metadata value.
 
 #### Common Mistakes to Avoid
 
 - **Wrong filename**: The filename should match the `import_export_id` value
-- **Missing import_export_id**: Without this property, exports use object number (e.g., `98765.moo`)
+- **Missing import_export_id**: Without this metadata, exports use object number (e.g., `98765.moo`)
 - **Case mismatch**: Filenames are lowercase - use `"string_formatter"` not `"STRING_FORMATTER"`
 - **Inconsistent naming**: Ensure constants.moo, filename, and import_export_id all match
 

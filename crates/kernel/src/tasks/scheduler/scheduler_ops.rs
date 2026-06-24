@@ -18,7 +18,7 @@ impl Scheduler {
     ///
     /// Creates a database snapshot to avoid blocking ongoing operations, collects
     /// the object definition, and optionally builds index names from import_export_id
-    /// properties when `use_constants` is true.
+    /// metadata when `use_constants` is true.
     ///
     /// # Arguments
     /// * `obj` - The object to dump
@@ -40,7 +40,7 @@ impl Scheduler {
         let (_, _, _, object_def) = collect_object(snapshot.as_ref(), &obj)
             .map_err(|e| E_INVARG.with_msg(|| format!("Failed to collect object {obj}: {e:?}")))?;
 
-        // Build index_names from import_export_id properties if requested
+        // Build index_names from import_export_id metadata if requested
         let index_names = if use_constants {
             let all_objects = collect_object_definitions(snapshot.as_ref()).map_err(|e| {
                 E_INVARG.with_msg(|| format!("Failed to collect object definitions: {e:?}"))

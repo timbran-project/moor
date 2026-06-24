@@ -26,6 +26,10 @@ use super::helpers::format_var;
 // Tool Definitions
 // ============================================================================
 
+fn auto_constants_builder() -> &'static str {
+    r#"constants = []; for o in (objects()) id = object_metadata(o, 'import_export_id); if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#
+}
+
 pub fn tool_moo_dump_object() -> Tool {
     Tool {
         name: "moo_dump_object".to_string(),
@@ -47,7 +51,7 @@ pub fn tool_moo_dump_object() -> Tool {
                 },
                 "use_constants": {
                     "type": "boolean",
-                    "description": "When true, emits symbolic constant names (e.g., ROOM, PLAYER) instead of raw object numbers (#7, #5). Constants are derived from objects' import_export_id properties. Defaults to true.",
+                    "description": "When true, emits symbolic constant names (e.g., ROOM, PLAYER) instead of raw object numbers (#7, #5). Constants are derived from import_export_id object metadata. Defaults to true.",
                     "default": true
                 }
             },
@@ -77,7 +81,7 @@ pub fn tool_moo_load_object() -> Tool {
                 },
                 "auto_constants": {
                     "type": "boolean",
-                    "description": "Automatically build constants map from objects with import_export_id property. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
+                    "description": "Automatically build constants map from import_export_id object metadata. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
                     "default": true
                 }
             },
@@ -106,7 +110,7 @@ pub fn tool_moo_reload_object() -> Tool {
                 },
                 "auto_constants": {
                     "type": "boolean",
-                    "description": "Automatically build constants map from objects with import_export_id property. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
+                    "description": "Automatically build constants map from import_export_id object metadata. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
                     "default": true
                 }
             },
@@ -178,7 +182,7 @@ pub fn tool_moo_load_objdef_file() -> Tool {
                 },
                 "auto_constants": {
                     "type": "boolean",
-                    "description": "Automatically build constants map from objects with import_export_id property. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
+                    "description": "Automatically build constants map from import_export_id object metadata. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
                     "default": true
                 }
             },
@@ -206,7 +210,7 @@ pub fn tool_moo_reload_objdef_file() -> Tool {
                 },
                 "auto_constants": {
                     "type": "boolean",
-                    "description": "Automatically build constants map from objects with import_export_id property. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
+                    "description": "Automatically build constants map from import_export_id object metadata. This allows symbolic names like HENRI, ACTOR, etc. in objdef files to be resolved. Defaults to true.",
                     "default": true
                 }
             },
@@ -239,7 +243,7 @@ pub fn tool_moo_apply_patch_objdef() -> Tool {
                 },
                 "auto_constants": {
                     "type": "boolean",
-                    "description": "Automatically build constants map from import_export_id properties. Defaults to true.",
+                    "description": "Automatically build constants map from import_export_id object metadata. Defaults to true.",
                     "default": true
                 },
                 "target": {
@@ -378,9 +382,9 @@ pub async fn execute_moo_load_object(
     );
 
     // Build the MOO expression
-    // If auto_constants is enabled, build constants map from import_export_id properties
+    // If auto_constants is enabled, build constants map from import_export_id metadata.
     let expr = if auto_constants {
-        let constants_builder = r#"constants = []; for o in (objects()) id = `o.import_export_id ! E_PROPNF => 0'; if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#;
+        let constants_builder = auto_constants_builder();
         if let Some(spec) = object_spec {
             format!(
                 "{} return load_object({}, constants, {});",
@@ -435,9 +439,9 @@ pub async fn execute_moo_reload_object(
     );
 
     // Build the MOO expression: reload_object(lines [, constants] [, target])
-    // If auto_constants is enabled, build constants map from import_export_id properties
+    // If auto_constants is enabled, build constants map from import_export_id metadata.
     let expr = if auto_constants {
-        let constants_builder = r#"constants = []; for o in (objects()) id = `o.import_export_id ! E_PROPNF => 0'; if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#;
+        let constants_builder = auto_constants_builder();
         if let Some(target_obj) = target {
             format!(
                 "{} return reload_object({}, constants, {});",
@@ -561,9 +565,9 @@ pub async fn execute_moo_load_objdef_file(
     );
 
     // Build the MOO expression
-    // If auto_constants is enabled, build constants map from import_export_id properties
+    // If auto_constants is enabled, build constants map from import_export_id metadata.
     let expr = if auto_constants {
-        let constants_builder = r#"constants = []; for o in (objects()) id = `o.import_export_id ! E_PROPNF => 0'; if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#;
+        let constants_builder = auto_constants_builder();
         if let Some(spec) = object_spec {
             format!(
                 "{} return load_object({}, constants, {});",
@@ -630,9 +634,9 @@ pub async fn execute_moo_reload_objdef_file(
     );
 
     // Build the MOO expression: reload_object(lines [, constants] [, target])
-    // If auto_constants is enabled, build constants map from import_export_id properties
+    // If auto_constants is enabled, build constants map from import_export_id metadata.
     let expr = if auto_constants {
-        let constants_builder = r#"constants = []; for o in (objects()) id = `o.import_export_id ! E_PROPNF => 0'; if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#;
+        let constants_builder = auto_constants_builder();
         if let Some(target_obj) = target {
             format!(
                 "{} return reload_object({}, constants, {});",
@@ -730,7 +734,7 @@ pub async fn execute_moo_apply_patch_objdef(
     );
 
     let reload_expr = if auto_constants {
-        let constants_builder = r#"constants = []; for o in (objects()) id = `o.import_export_id ! E_PROPNF => 0'; if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#;
+        let constants_builder = auto_constants_builder();
         if let Some(target_obj) = target {
             format!(
                 "{} return reload_object({}, constants, {});",
