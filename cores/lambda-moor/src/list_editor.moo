@@ -1,4 +1,6 @@
-object LIST_EDITOR
+object LIST_EDITOR [
+  import_export_id -> "list_editor"
+]
   name: "List Editor"
   parent: GENERIC_EDITOR
   owner: #96
@@ -31,7 +33,6 @@ object LIST_EDITOR
     {"w*hat", "abort", "q*uit,done,pause"}
   };
   override depart_msg = "%N heads off to edit some properties.";
-  override import_export_id = "list_editor";
   override no_littering_msg = {
     "Partially edited list value will be here when you get back.",
     "To return, give the `@pedit' command with no arguments.",

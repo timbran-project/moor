@@ -1,4 +1,6 @@
-object GUEST_LOG
+object GUEST_LOG [
+  import_export_id -> "guest_log"
+]
   name: "Guest Log"
   parent: ROOT_CLASS
   owner: #2
@@ -7,7 +9,6 @@ object GUEST_LOG
   property max_entries (owner: #2, flags: "") = 511;
 
   override aliases = {"Guest Log"};
-  override import_export_id = "guest_log";
   override object_size = {3738, 1084848672};
 
   method enter owner: #2

@@ -1,4 +1,6 @@
-object MATRIX_UTILS
+object MATRIX_UTILS [
+  import_export_id -> "matrix_utils"
+]
   name: "Vector and Matrix Utils"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -72,7 +74,6 @@ object MATRIX_UTILS
     ":is_partial_ordering (M) => 1 if M is a reflexive, asymmetric, transitive",
     "                            relation."
   };
-  override import_export_id = "matrix_utils";
   override object_size = {29765, 1084848672};
 
   method "vector_add vector_sub vector_mul vector_div" owner: HACKER

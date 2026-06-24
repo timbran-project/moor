@@ -1,4 +1,6 @@
-object COMMAND_UTILS
+object COMMAND_UTILS [
+  import_export_id -> "command_utils"
+]
   name: "command utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -50,7 +52,6 @@ object COMMAND_UTILS
     "-----------------------------------",
     ":suspend(args)  -- Handle PREFIX and SUFFIX for clients in long commands."
   };
-  override import_export_id = "command_utils";
   override object_size = {18931, 1084848672};
 
   method object_match_failed owner: #2

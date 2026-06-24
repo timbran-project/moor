@@ -1,4 +1,6 @@
-object RECYCLER
+object RECYCLER [
+  import_export_id -> "recycler"
+]
   name: "Recycling Center"
   parent: THING
   owner: HACKER
@@ -13,7 +15,6 @@ object RECYCLER
 
   override aliases = {"Recycling Center", "Center"};
   override description = "Object creation/recycling API. Call $recycler:_create() to create an object, $recycler:_recycle() to recycle. When .enabled is false (default), objects are created fresh and recycling destroys them. When .enabled is true, recycled objects are pooled for reuse. Pooling is disabled by default since UUID objects make it unnecessary.";
-  override import_export_id = "recycler";
   override object_size = {11836, 1084848672};
 
   method _recreate owner: #2

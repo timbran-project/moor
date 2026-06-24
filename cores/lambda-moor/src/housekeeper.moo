@@ -1,4 +1,6 @@
-object HOUSEKEEPER
+object HOUSEKEEPER [
+  import_export_id -> "housekeeper"
+]
   name: "housekeeper"
   parent: PROG
   owner: HOUSEKEEPER
@@ -27,7 +29,6 @@ object HOUSEKEEPER
   override aliases (owner: #2, flags: "r") = {"housekeeper"};
   override description = "A very clean, neat, tidy person who doesn't mind lugging players and their gear all over the place.";
   override features = {PASTING_FEATURE, STAGE_TALK};
-  override import_export_id = "housekeeper";
   override last_disconnect_time = 2147483647;
   override linelen = -80;
   override mail_forward = {#2};

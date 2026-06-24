@@ -1,4 +1,6 @@
-object GUEST
+object GUEST [
+  import_export_id -> "guest"
+]
   name: "Generic Guest"
   parent: FRAND_CLASS
   owner: HACKER
@@ -13,7 +15,6 @@ object GUEST
   override aliases (owner: #2, flags: "r") = {"Generic Guest"};
   override description = {"By definition, guests appear nondescript."};
   override features = {PASTING_FEATURE, STAGE_TALK};
-  override import_export_id = "guest";
   override linelen = 79;
   override lines = 30;
   override mail_forward = "%t (%[#t]) is a guest character.";

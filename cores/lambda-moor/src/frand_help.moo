@@ -1,4 +1,6 @@
-object FRAND_HELP
+object FRAND_HELP [
+  import_export_id -> "frand_help"
+]
   name: "Frand Help DB"
   parent: GENERIC_HELP
   owner: HACKER
@@ -386,7 +388,6 @@ object FRAND_HELP
   };
 
   override aliases = {"Frand Help DB"};
-  override import_export_id = "frand_help";
   override index_cache = {"frand-index"};
   override object_size = {26603, 1084848672};
 endobject

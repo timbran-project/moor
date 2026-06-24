@@ -1,4 +1,6 @@
-object ROOT_CLASS
+object ROOT_CLASS [
+  import_export_id -> "root_class"
+]
   name: "Root Class"
   owner: #2
   fertile: true
@@ -6,7 +8,6 @@ object ROOT_CLASS
 
   property aliases (owner: #2, flags: "rc") = {};
   property description (owner: #2, flags: "rc") = "";
-  property import_export_id (owner: #2, flags: "r") = "root_class";
   property key (owner: #2, flags: "c") = 0;
   property object_size (owner: HACKER, flags: "r") = {22038, 1084848672};
 

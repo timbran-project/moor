@@ -1,4 +1,6 @@
-object LETTER
+object LETTER [
+  import_export_id -> "letter"
+]
   name: "generic letter"
   parent: NOTE
   owner: #2
@@ -13,7 +15,6 @@ object LETTER
   override aliases (owner: HACKER, flags: "rc") = {"generic letter"};
   override description (owner: HACKER, flags: "rc") = "Some writing on the letter explains that you should 'read letter', and when you've finished, 'burn letter'.";
   override encryption_key (owner: HACKER, flags: "c");
-  override import_export_id = "letter";
   override key (owner: HACKER, flags: "c");
   override object_size = {2373, 1084848672};
   override otake_failed_msg (owner: HACKER, flags: "rc");

@@ -1,4 +1,6 @@
-object WIZ_HELP
+object WIZ_HELP [
+  import_export_id -> "wiz_help"
+]
   name: "Wizard Help"
   parent: GENERIC_HELP
   owner: HACKER
@@ -477,7 +479,6 @@ object WIZ_HELP
 
   override aliases = {"Wizard Help"};
   override description = {"This describes the various commands available on $wiz."};
-  override import_export_id = "wiz_help";
   override index_cache = {"wiz-index"};
   override object_size = {31466, 1084848672};
 endobject

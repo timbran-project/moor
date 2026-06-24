@@ -1,4 +1,6 @@
-object QUOTA_LOG
+object QUOTA_LOG [
+  import_export_id -> "quota_log"
+]
   name: "Quota-Log"
   parent: MAIL_RECIPIENT
   location: MAIL_AGENT
@@ -6,7 +8,6 @@ object QUOTA_LOG
 
   override aliases (owner: HACKER, flags: "r") = {"Quota-Log", "Quota_Log", "QL", "Quota"};
   override description = "Record of whose quota has been messed with and why.";
-  override import_export_id = "quota_log";
   override mail_forward = {};
   override mail_notify = {#2};
   override moderated = 1;

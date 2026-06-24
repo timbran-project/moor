@@ -1,9 +1,9 @@
-object FIRST_ROOM
+object FIRST_ROOM [
+  import_export_id -> "first_room"
+]
   name: "The First Room"
   parent: ROOT
   owner: WIZARD
-
-  override import_export_id = "first_room";
 
   verb eval (any any any) owner: WIZARD flags: "rd"
     set_task_perms(player);

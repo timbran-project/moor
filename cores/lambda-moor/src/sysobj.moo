@@ -1,4 +1,6 @@
-object SYSOBJ
+object SYSOBJ [
+  import_export_id -> "sysobj"
+]
   name: "The System Object"
   parent: ROOT_CLASS
   owner: #2
@@ -172,7 +174,6 @@ object SYSOBJ
 
   override aliases = {"The System Object"};
   override description = "The known universe.";
-  override import_export_id = "sysobj";
   override object_size = {23528, 1084848672};
 
   method do_login_command owner: #2

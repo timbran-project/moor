@@ -1,4 +1,6 @@
-object ERROR
+object ERROR [
+  import_export_id -> "error"
+]
   name: "Error Generator"
   parent: ROOT_CLASS
   owner: HACKER
@@ -47,7 +49,6 @@ object ERROR
     "",
     "raise(error) actually raises the error."
   };
-  override import_export_id = "error";
   override object_size = {7458, 1084848672};
 
   method raise owner: HACKER

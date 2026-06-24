@@ -1,11 +1,12 @@
-object PLAYER_START
+object PLAYER_START [
+  import_export_id -> "player_start"
+]
   name: "The First Room"
   parent: ROOM
   owner: HACKER
   readable: true
 
   override description = "This is all there is right now.";
-  override import_export_id = "player_start";
   override object_size = {4407, 1084848672};
 
   method disfunc owner: #2

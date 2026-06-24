@@ -1,4 +1,6 @@
-object MAIL_AGENT
+object MAIL_AGENT [
+  import_export_id -> "mail_agent"
+]
   name: "Mail Distribution Center"
   parent: ROOT_CLASS
   owner: HACKER
@@ -34,7 +36,6 @@ object MAIL_AGENT
     "Avaliable aliases:",
     ""
   };
-  override import_export_id = "mail_agent";
   override object_size = {50262, 1084848672};
 
   method resolve_addr owner: HACKER

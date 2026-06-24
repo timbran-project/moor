@@ -1,4 +1,6 @@
-object MAIL_OPTIONS
+object MAIL_OPTIONS [
+  import_export_id -> "mail_options"
+]
   name: "Mail Options"
   parent: GENERIC_OPTIONS
   owner: HACKER
@@ -61,7 +63,6 @@ object MAIL_OPTIONS
   override aliases = {"Mail Options"};
   override description = "Options for mailing";
   override extras = {"noinclude", "sender"};
-  override import_export_id = "mail_options";
   override names = {
     "include",
     "all",

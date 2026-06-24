@@ -1,4 +1,6 @@
-object SERVER_OPTIONS
+object SERVER_OPTIONS [
+  import_export_id -> "server_options"
+]
   name: "Server Options"
   parent: ROOT_CLASS
   owner: #2
@@ -56,7 +58,6 @@ object SERVER_OPTIONS
   property support_numeric_verbname_strings (owner: HACKER, flags: "r") = 0;
 
   override aliases = {"Server Options"};
-  override import_export_id = "server_options";
   override object_size = {6853, 1084848672};
 
   method help_msg owner: HACKER

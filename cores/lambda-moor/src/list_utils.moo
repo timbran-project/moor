@@ -1,4 +1,6 @@
-object LIST_UTILS
+object LIST_UTILS [
+  import_export_id -> "list_utils"
+]
   name: "list utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -57,7 +59,6 @@ object LIST_UTILS
     "sort_suspended          iassoc_suspended          sort_alist_suspended",
     "reverse_suspended       randomly_permute_suspended"
   };
-  override import_export_id = "list_utils";
   override object_size = {29031, 1084848672};
 
   method make owner: HACKER

@@ -1,4 +1,6 @@
-object OBJECT_QUOTA_UTILS
+object OBJECT_QUOTA_UTILS [
+  import_export_id -> "object_quota_utils"
+]
   name: "Object Quota Utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -11,7 +13,6 @@ object OBJECT_QUOTA_UTILS
     "This is the Object Quota Utilities utility package.  See `help $object_quota_utils' for more details."
   };
   override help_msg = "This is the default package that interfaces to the $player/$prog quota manipulation verbs.";
-  override import_export_id = "object_quota_utils";
   override object_size = {6728, 1084848672};
 
   method initialize_quota owner: HACKER

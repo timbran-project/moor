@@ -1,4 +1,6 @@
-object BUILDING_UTILS
+object BUILDING_UTILS [
+  import_export_id -> "building_utils"
+]
   name: "building utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -39,7 +41,6 @@ object BUILDING_UTILS
     "recreate(object, newparent) - effectively recycle and recreate object",
     "          as a child of newparent"
   };
-  override import_export_id = "building_utils";
   override object_size = {12705, 1084848672};
 
   method make_exit owner: #2

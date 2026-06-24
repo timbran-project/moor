@@ -1,4 +1,6 @@
-object PASSWORD_VERIFIER
+object PASSWORD_VERIFIER [
+  import_export_id -> "password_verifier"
+]
   name: "password verifier"
   parent: THING
   owner: #2
@@ -25,7 +27,6 @@ object PASSWORD_VERIFIER
 
   override aliases = {"password verifier", "password", "verifier", "pwd"};
   override description = "The password verifier verifies passwords.";
-  override import_export_id = "password_verifier";
   override object_size = {10921, 1084848672};
 
   method help_msg owner: HACKER

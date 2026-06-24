@@ -1,4 +1,6 @@
-object MAIL_RECIPIENT_CLASS
+object MAIL_RECIPIENT_CLASS [
+  import_export_id -> "mail_recipient_class"
+]
   name: "Generic Mail Receiving Player"
   parent: PLAYER
   owner: #2
@@ -18,7 +20,6 @@ object MAIL_RECIPIENT_CLASS
 
   override aliases = {"Generic Mail Receiving Player"};
   override help = MAIL_HELP;
-  override import_export_id = "mail_recipient_class";
   override object_size = {71323, 1084848672};
 
   method mail_forward owner: #2

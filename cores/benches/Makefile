@@ -22,19 +22,33 @@ TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = cargo run --release -p moorc -- $(OPTIONS)
 
-bench: $(wildcard src/*.moo)
+.PHONY: rebuild bench bench-game-update bench-write-stress bench-combat-stress clean
+
+SRC_FILES := $(wildcard src/*.moo src/*/*.moo)
+
+gen.objdir: $(SRC_FILES)
+	rm -rf gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
+
+rebuild: gen.objdir
+	test -d gen.objdir
+	rm -rf src
+	mkdir -p src
+	cp -r gen.objdir/* ./src/
+
+bench: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=2 --test-player=4 --run-tests true
 
-bench-game-update: $(wildcard src/*.moo)
+bench-game-update: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_run_bench"
 
-bench-write-stress: $(wildcard src/*.moo)
+bench-write-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(APPEND_MODE)}"
 
-bench-combat-stress: $(wildcard src/*.moo)
+bench-combat-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_combat_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(FANOUT), $(CHECKS_PER_TICK), $(STATE_WRITES), $(DELAY_RATIO), $(UPDATE_HZ)}"
 

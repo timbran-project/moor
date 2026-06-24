@@ -1,4 +1,6 @@
-object PROG_OPTIONS
+object PROG_OPTIONS [
+  import_export_id -> "prog_options"
+]
   name: "Programmer Options"
   parent: GENERIC_OPTIONS
   owner: HACKER
@@ -28,7 +30,6 @@ object PROG_OPTIONS
   override aliases = {"Programmer Options"};
   override description = {"Option package for $prog commands.  See `help @prog-options'."};
   override extras = {"list_numbers"};
-  override import_export_id = "prog_options";
   override names = {
     "list_all_parens",
     "list_no_numbers",

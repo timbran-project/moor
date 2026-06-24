@@ -1,4 +1,6 @@
-object WIZ_UTILS
+object WIZ_UTILS [
+  import_export_id -> "wiz_utils"
+]
   name: "Wizard Utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -214,7 +216,6 @@ object WIZ_UTILS
     "    *all descendants*.  property ownership is changed on descendants ",
     "    where necessary."
   };
-  override import_export_id = "wiz_utils";
   override object_size = {55744, 1084848672};
 
   method set_programmer owner: #2

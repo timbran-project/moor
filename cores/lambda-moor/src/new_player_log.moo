@@ -1,4 +1,6 @@
-object NEW_PLAYER_LOG
+object NEW_PLAYER_LOG [
+  import_export_id -> "new_player_log"
+]
   name: "Player-Creation-Log"
   parent: BIG_MAIL_RECIPIENT
   location: MAIL_AGENT
@@ -6,7 +8,6 @@ object NEW_PLAYER_LOG
 
   override aliases (owner: HACKER, flags: "r") = {"Player-Creation-Log", "PCL"};
   override description = "Log of player creations.";
-  override import_export_id = "new_player_log";
   override mail_forward = {};
   override mail_notify = {#2};
   override moderated = {NEW_PLAYER_LOG};

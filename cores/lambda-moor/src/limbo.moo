@@ -1,11 +1,12 @@
-object LIMBO
+object LIMBO [
+  import_export_id -> "limbo"
+]
   name: "Limbo"
   parent: ROOT_CLASS
   owner: #2
   readable: true
 
   override aliases = {"The Body Bag"};
-  override import_export_id = "limbo";
   override object_size = {2330, 1084848672};
 
   method acceptable owner: #2

@@ -1,4 +1,6 @@
-object OBJECT_UTILS
+object OBJECT_UTILS [
+  import_export_id -> "object_utils"
+]
   name: "object utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -55,7 +57,6 @@ object OBJECT_UTILS
     "   all_properties_suspended           ",
     "   descendants_with_property_suspended"
   };
-  override import_export_id = "object_utils";
   override object_size = {21564, 1084848672};
 
   method has_property owner: #2

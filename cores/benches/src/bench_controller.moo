@@ -1,20 +1,19 @@
-object BENCH_CONTROLLER
+object BENCH_CONTROLLER [
+  import_export_id -> "bench_controller"
+]
   name: "Game Update Benchmark Controller"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
 
-  property subscribers (owner: ARCH_WIZARD, flags: "rw") = {};
-  property running (owner: ARCH_WIZARD, flags: "r") = 0;
   property cycles_per_sample (owner: ARCH_WIZARD, flags: "rw") = 20;
+  property running (owner: ARCH_WIZARD, flags: "r") = 0;
   property samples_per_level (owner: ARCH_WIZARD, flags: "rw") = 10;
   property subscriber_counts (owner: ARCH_WIZARD, flags: "rw") = {1, 4, 16, 64, 256, 512, 1024};
+  property subscribers (owner: ARCH_WIZARD, flags: "rw") = {};
   property work_iterations (owner: ARCH_WIZARD, flags: "rw") = 10;
 
-  override import_export_hierarchy = {};
-  override import_export_id = "bench_controller";
-
-  verb run (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method run owner: ARCH_WIZARD
     ":run() => NONE";
     "  Runs the full benchmark suite, logging results for histogram plotting.";
     if (this.running)
@@ -34,14 +33,14 @@ object BENCH_CONTROLLER
       this.running = 0;
       server_log("=== GAME_UPDATE BENCHMARK END ===");
     endtry
-  endverb
+  endmethod
 
-  verb set_subscriber_count (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method set_subscriber_count owner: ARCH_WIZARD
     {target} = args;
     current = length(this.subscribers);
     if (current < target)
       "Add subscribers";
-      for i in [1..(target - current)]
+      for i in [1..target - current]
         sub = create(#667, #6);
         sub.work_iterations = this.work_iterations;
         this.subscribers = {@this.subscribers, sub};
@@ -60,9 +59,9 @@ object BENCH_CONTROLLER
     commit();
     "Let things settle";
     suspend(0.5);
-  endverb
+  endmethod
 
-  verb run_samples (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method run_samples owner: ARCH_WIZARD
     {subscriber_count} = args;
     update_hz = #666.update_hertz;
     cycles = this.cycles_per_sample;
@@ -89,9 +88,9 @@ object BENCH_CONTROLLER
       "Log in CSV-ish format for easy parsing";
       server_log("BENCH_DATA subscribers=" + tostr(subscriber_count) + " sample=" + tostr(sample_num) + " mean_ms=" + tostr(mean_latency * 1000.0) + " min_ms=" + tostr(min_latency * 1000.0) + " max_ms=" + tostr(max_latency * 1000.0));
     endfor
-  endverb
+  endmethod
 
-  verb cleanup (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method cleanup owner: ARCH_WIZARD
     ":cleanup() => NONE";
     "  Removes and recycles all benchmark subscribers.";
     for sub in (this.subscribers)
@@ -103,28 +102,28 @@ object BENCH_CONTROLLER
     this.subscribers = [];
     #666:clear_faults();
     server_log("Benchmark cleanup complete. All subscribers removed.");
-  endverb
+  endmethod
 
-  verb capture_perf_counters (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method capture_perf_counters owner: ARCH_WIZARD
     ":capture_perf_counters() => MAP";
     snapshot = [];
     snapshot["bf"] = bf_counters();
     snapshot["db"] = db_counters();
     snapshot["sched"] = sched_counters();
     return snapshot;
-  endverb
+  endmethod
 
-  verb capture_property_cache_stats (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method capture_property_cache_stats owner: ARCH_WIZARD
     ":capture_property_cache_stats() => LIST";
     return property_cache_stats();
-  endverb
+  endmethod
 
-  verb capture_verb_cache_stats (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method capture_verb_cache_stats owner: ARCH_WIZARD
     ":capture_verb_cache_stats() => LIST";
     return verb_cache_stats();
-  endverb
+  endmethod
 
-  verb log_property_cache_delta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_property_cache_delta owner: ARCH_WIZARD
     ":log_property_cache_delta(STR label, LIST before, LIST after) => NONE";
     {label, before, after} = args;
     hits = `after[1] ! E_RANGE => 0' - `before[1] ! E_RANGE => 0';
@@ -136,12 +135,11 @@ object BENCH_CONTROLLER
     entries = `after_hist[2] ! E_RANGE => 0';
     entries_delta = entries - `before_hist[2] ! E_RANGE => 0';
     total = hits + negative_hits + misses;
-    hit_rate = total > 0 ? ((hits + negative_hits) * 100.0) / total | 0.0;
+    hit_rate = total > 0 ? (hits + negative_hits) * 100.0 / total | 0.0;
     server_log("CACHE_SUM label=" + label + ":prop_cache hits=" + tostr(hits) + " negative_hits=" + tostr(negative_hits) + " misses=" + tostr(misses) + " flushes=" + tostr(flushes) + " entries=" + tostr(entries) + " entries_delta=" + tostr(entries_delta) + " hit_rate=" + tostr(hit_rate));
+  endmethod
 
-  endverb
-
-  verb log_verb_cache_delta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_verb_cache_delta owner: ARCH_WIZARD
     ":log_verb_cache_delta(STR label, LIST before, LIST after) => NONE";
     {label, before, after} = args;
     hits = `after[1] ! E_RANGE => 0' - `before[1] ! E_RANGE => 0';
@@ -153,12 +151,11 @@ object BENCH_CONTROLLER
     entries = `after_hist[2] ! E_RANGE => 0';
     entries_delta = entries - `before_hist[2] ! E_RANGE => 0';
     total = hits + negative_hits + misses;
-    hit_rate = total > 0 ? ((hits + negative_hits) * 100.0) / total | 0.0;
+    hit_rate = total > 0 ? (hits + negative_hits) * 100.0 / total | 0.0;
     server_log("CACHE_SUM label=" + label + ":verb_cache hits=" + tostr(hits) + " negative_hits=" + tostr(negative_hits) + " misses=" + tostr(misses) + " flushes=" + tostr(flushes) + " entries=" + tostr(entries) + " entries_delta=" + tostr(entries_delta) + " hit_rate=" + tostr(hit_rate));
+  endmethod
 
-  endverb
-
-  verb counter_delta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method counter_delta owner: ARCH_WIZARD
     ":counter_delta(MAP before, MAP after) => MAP";
     {before, after} = args;
     delta = [];
@@ -171,9 +168,9 @@ object BENCH_CONTROLLER
       endif
     endfor
     return delta;
-  endverb
+  endmethod
 
-  verb log_top_counter_deltas (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_top_counter_deltas owner: ARCH_WIZARD
     ":log_top_counter_deltas(STR label, MAP delta, INT limit) => NONE";
     {label, delta, ?limit = 10} = args;
     ops = mapkeys(delta);
@@ -201,9 +198,9 @@ object BENCH_CONTROLLER
         return;
       endif
     endfor
-  endverb
+  endmethod
 
-  verb find_counter_delta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method find_counter_delta owner: ARCH_WIZARD
     ":find_counter_delta(MAP delta, STR op_name) => LIST";
     {delta, op_name} = args;
     for vals, op in (delta)
@@ -212,9 +209,9 @@ object BENCH_CONTROLLER
       endif
     endfor
     return {0, 0};
-  endverb
+  endmethod
 
-  verb log_key_counter_deltas (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_key_counter_deltas owner: ARCH_WIZARD
     ":log_key_counter_deltas(STR label, MAP delta, LIST op_names) => NONE";
     {label, delta, op_names} = args;
     for op_name in (op_names)
@@ -224,9 +221,9 @@ object BENCH_CONTROLLER
       avg_ns = calls > 0 ? toint(nanos / calls) | 0;
       server_log("PERF_KEY label=" + label + " op=" + op_name + " calls=" + tostr(calls) + " nanos=" + tostr(nanos) + " avg_ns=" + tostr(avg_ns));
     endfor
-  endverb
+  endmethod
 
-  verb log_perf_delta (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method log_perf_delta owner: ARCH_WIZARD
     ":log_perf_delta(STR label, MAP before_snapshot, MAP after_snapshot) => NONE";
     {label, before_snapshot, after_snapshot} = args;
     all_delta = [];
@@ -254,17 +251,17 @@ object BENCH_CONTROLLER
       endif
     endfor
     this:log_top_counter_deltas(label + ":ops", all_delta, 20);
-  endverb
+  endmethod
 
-  verb abort (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method abort owner: ARCH_WIZARD
     ":abort() => NONE";
     "  Emergency stop - cleans up and resets state.";
     this.running = 0;
     this:cleanup();
     player:tell("Benchmark aborted.");
-  endverb
+  endmethod
 
-  verb configure (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method configure owner: ARCH_WIZARD
     ":configure(?cycles_per_sample, ?samples_per_level, ?subscriber_counts, ?work_iterations)";
     "  Configure benchmark parameters. All args optional.";
     if (length(args) >= 1)
@@ -280,32 +277,29 @@ object BENCH_CONTROLLER
       this.work_iterations = args[4];
     endif
     player:tell("Config: cycles_per_sample=" + tostr(this.cycles_per_sample) + " samples_per_level=" + tostr(this.samples_per_level) + " counts=" + toliteral(this.subscriber_counts) + " work_iterations=" + tostr(this.work_iterations));
-  endverb
+  endmethod
 
-  verb test_run_bench (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_run_bench owner: ARCH_WIZARD
     "Entry point for running benchmark via test harness.";
     $game_update:start();
     this:run();
     $game_update:stop();
-  endverb
+  endmethod
 
-  verb test_write_stress (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_write_stress owner: ARCH_WIZARD
     "Stress test for write throughput. Creates many subscribers at high Hz.";
     "Optional args: duration, subscribers, work_per_tick, append_mode (defaults: 30, 256, 20, 0)";
     server_log("=== WRITE STRESS TEST STARTING ===");
-
     "Configure for aggressive write stress testing";
     run_duration = length(args) > 0 ? tofloat(args[1]) | 30.0;
     target_subscribers = length(args) > 1 ? toint(args[2]) | 256;
     work_per_tick = length(args) > 2 ? toint(args[3]) | 20;
     append_mode = length(args) > 3 ? toint(args[4]) | 0;
     update_hz = 50.0;
-
     "Set up the game update loop with high Hz";
     $game_update.update_hertz = update_hz;
     $game_update.stats_interval = 5.0;
     server_log("Update Hz: " + tostr(update_hz));
-
     "Create subscribers";
     server_log("Creating " + tostr(target_subscribers) + " subscribers (append_mode=" + tostr(append_mode) + ")...");
     for i in [1..target_subscribers]
@@ -319,13 +313,11 @@ object BENCH_CONTROLLER
       endif
     endfor
     commit();
-
     "Start the loop";
     counter_before = this:capture_perf_counters();
     prop_cache_before = this:capture_property_cache_stats();
     verb_cache_before = this:capture_verb_cache_stats();
     $game_update:start();
-
     writes_per_second = target_subscribers * work_per_tick * update_hz;
     server_log("=== WRITE STRESS TEST RUNNING ===");
     server_log("Subscribers: " + tostr(target_subscribers));
@@ -333,10 +325,8 @@ object BENCH_CONTROLLER
     server_log("Target Hz: " + tostr(update_hz));
     server_log("Estimated writes/sec: " + tostr(writes_per_second));
     server_log("Running for " + tostr(run_duration) + " seconds...");
-
     "Let it run";
     suspend(run_duration);
-
     "Stop and cleanup";
     $game_update:stop();
     counter_after = this:capture_perf_counters();
@@ -347,13 +337,12 @@ object BENCH_CONTROLLER
     this:log_verb_cache_delta("write_stress", verb_cache_before, verb_cache_after);
     this:cleanup();
     server_log("=== WRITE STRESS TEST COMPLETE ===");
-  endverb
+  endmethod
 
-  verb test_combat_stress (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method test_combat_stress owner: ARCH_WIZARD
     "Stress test that approximates bitmuse-style combat/update load.";
     "Optional args: duration, subscribers, rounds_per_tick, fanout, checks_per_round, state_writes, delay_ratio, update_hz";
     server_log("=== COMBAT STRESS TEST STARTING ===");
-
     run_duration = length(args) > 0 ? tofloat(args[1]) | 30.0;
     target_subscribers = length(args) > 1 ? toint(args[2]) | 256;
     rounds_per_tick = length(args) > 2 ? toint(args[3]) | 20;
@@ -362,11 +351,9 @@ object BENCH_CONTROLLER
     state_writes = length(args) > 5 ? toint(args[6]) | 4;
     delay_ratio = length(args) > 6 ? toint(args[7]) | 10;
     update_hz = length(args) > 7 ? tofloat(args[8]) | 20.0;
-
     $game_update.update_hertz = update_hz;
     $game_update.stats_interval = 5.0;
     server_log("Update Hz: " + tostr(update_hz));
-
     server_log("Creating " + tostr(target_subscribers) + " combat subscribers...");
     for i in [1..target_subscribers]
       sub = create($bench_subscriber, $arch_wizard);
@@ -385,12 +372,10 @@ object BENCH_CONTROLLER
       endif
     endfor
     commit();
-
     counter_before = this:capture_perf_counters();
     prop_cache_before = this:capture_property_cache_stats();
     verb_cache_before = this:capture_verb_cache_stats();
     $game_update:start();
-
     rounds_per_second = target_subscribers * rounds_per_tick * update_hz;
     fanout_calls_per_second = rounds_per_second * fanout;
     server_log("=== COMBAT STRESS TEST RUNNING ===");
@@ -403,9 +388,7 @@ object BENCH_CONTROLLER
     server_log("Estimated rounds/sec: " + tostr(rounds_per_second));
     server_log("Estimated fanout calls/sec: " + tostr(fanout_calls_per_second));
     server_log("Running for " + tostr(run_duration) + " seconds...");
-
     suspend(run_duration);
-
     $game_update:stop();
     counter_after = this:capture_perf_counters();
     prop_cache_after = this:capture_property_cache_stats();
@@ -415,5 +398,5 @@ object BENCH_CONTROLLER
     this:log_verb_cache_delta("combat_stress", verb_cache_before, verb_cache_after);
     this:cleanup();
     server_log("=== COMBAT STRESS TEST COMPLETE ===");
-  endverb
+  endmethod
 endobject

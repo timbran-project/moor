@@ -1,4 +1,6 @@
-object GENDERED_OBJECT
+object GENDERED_OBJECT [
+  import_export_id -> "gendered_object"
+]
   name: "Generic Gendered Object"
   parent: ROOT_CLASS
   owner: #2
@@ -18,7 +20,6 @@ object GENDERED_OBJECT
   property psc (owner: #2, flags: "rc") = "It";
 
   override aliases = {"Generic Gendered Object"};
-  override import_export_id = "gendered_object";
   override object_size = {2378, 1084848672};
 
   method set_gender owner: #2

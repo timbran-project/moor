@@ -1,4 +1,6 @@
-object LOCK_UTILS
+object LOCK_UTILS [
+  import_export_id -> "lock_utils"
+]
   name: "lock utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -27,7 +29,6 @@ object LOCK_UTILS
     "",
     "For more information on keys and locking, read `help locking', `help keys', and `help @lock'."
   };
-  override import_export_id = "lock_utils";
   override object_size = {9664, 1084848672};
 
   method init_scanner owner: #2

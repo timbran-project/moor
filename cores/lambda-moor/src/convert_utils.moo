@@ -1,4 +1,6 @@
-object CONVERT_UTILS
+object CONVERT_UTILS [
+  import_export_id -> "convert_utils"
+]
   name: "Conversion Utils"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -424,7 +426,6 @@ object CONVERT_UTILS
     "            multiplicative conversion factor. See the verb help for details",
     "            and input format.\""
   };
-  override import_export_id = "convert_utils";
   override object_size = {30721, 1084848672};
 
   method "dd_to_dms dh_to_hms" owner: HACKER

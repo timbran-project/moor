@@ -1,4 +1,6 @@
-object NETWORK
+object NETWORK [
+  import_export_id -> "network"
+]
   name: "Network Utilities"
   parent: ROOT_CLASS
   owner: #2
@@ -117,7 +119,6 @@ object NETWORK
     "",
     "                "
   };
-  override import_export_id = "network";
   override object_size = {22932, 1084848672};
 
   method parse_address owner: #2

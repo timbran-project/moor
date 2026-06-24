@@ -1,29 +1,28 @@
-object BENCH_SUBSCRIBER
+object BENCH_SUBSCRIBER [
+  import_export_id -> "bench_subscriber"
+]
   name: "Benchmark Subscriber"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
 
+  property append_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
+  property checks_per_tick (owner: ARCH_WIZARD, flags: "rw") = 1;
+  property cooldowns (owner: ARCH_WIZARD, flags: "rw") = [];
   property counter (owner: ARCH_WIZARD, flags: "rw") = 0;
   property data (owner: ARCH_WIZARD, flags: "rw") = {};
-  property work_iterations (owner: ARCH_WIZARD, flags: "rw") = 10;
-  property append_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
-  property mode (owner: ARCH_WIZARD, flags: "rw") = 0;
-  property fanout (owner: ARCH_WIZARD, flags: "rw") = 0;
-  property fanout_direct_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
-  property checks_per_tick (owner: ARCH_WIZARD, flags: "rw") = 1;
-  property state_writes (owner: ARCH_WIZARD, flags: "rw") = 2;
-  property delay_ratio (owner: ARCH_WIZARD, flags: "rw") = 0;
-  property momentum (owner: ARCH_WIZARD, flags: "rw") = 50.0;
   property defender_momentum (owner: ARCH_WIZARD, flags: "rw") = 50.0;
-  property cooldowns (owner: ARCH_WIZARD, flags: "rw") = [];
+  property delay_ratio (owner: ARCH_WIZARD, flags: "rw") = 0;
+  property fanout (owner: ARCH_WIZARD, flags: "rw") = 0;
   property fanout_cursor (owner: ARCH_WIZARD, flags: "rw") = 1;
+  property fanout_direct_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
   property last_attacker (owner: ARCH_WIZARD, flags: "rw") = #-1;
+  property mode (owner: ARCH_WIZARD, flags: "rw") = 0;
+  property momentum (owner: ARCH_WIZARD, flags: "rw") = 50.0;
+  property state_writes (owner: ARCH_WIZARD, flags: "rw") = 2;
+  property work_iterations (owner: ARCH_WIZARD, flags: "rw") = 10;
 
-  override import_export_hierarchy = {};
-  override import_export_id = "bench_subscriber";
-
-  verb fixed_update (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fixed_update owner: ARCH_WIZARD
     ":fixed_update(@state) => 0";
     "  Performs property mutations to stress transaction handling.";
     "  Runs every tick (no delay).";
@@ -49,9 +48,9 @@ object BENCH_SUBSCRIBER
       endfor
     endif
     return 0;
-  endverb
+  endmethod
 
-  verb fixed_update_combat (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fixed_update_combat owner: ARCH_WIZARD
     ":fixed_update_combat(INT iterations) => NONE";
     {iterations} = args;
     momentum = this.momentum;
@@ -91,7 +90,7 @@ object BENCH_SUBSCRIBER
       endfor
       "Write a handful of properties/maps each round.";
       for w in [1..state_writes]
-        key = tostr("stat_", ((w - 1) % 4) + 1);
+        key = tostr("stat_", (w - 1) % 4 + 1);
         cooldowns[key] = counter + w;
       endfor
       if (fanout > 0 && peer_count > 1)
@@ -127,9 +126,9 @@ object BENCH_SUBSCRIBER
     this.momentum = momentum;
     this.defender_momentum = defender_momentum;
     this.fanout_cursor = cursor;
-  endverb
+  endmethod
 
-  verb fanout_attack (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method fanout_attack owner: ARCH_WIZARD
     ":fanout_attack(FLOAT attack_check) => NONE";
     {attack_check} = args;
     if (this.fanout <= 0)
@@ -155,9 +154,9 @@ object BENCH_SUBSCRIBER
       sent = sent + 1;
     endwhile
     this.fanout_cursor = cursor;
-  endverb
+  endmethod
 
-  verb on_attack (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method on_attack owner: ARCH_WIZARD
     ":on_attack(OBJ attacker, FLOAT attack_check, INT round_counter) => INT";
     {attacker, attack_check, round_counter} = args;
     this.last_attacker = attacker;
@@ -170,9 +169,9 @@ object BENCH_SUBSCRIBER
       this.data = {@this.data, round_counter};
     endif
     return 1;
-  endverb
+  endmethod
 
-  verb reset (this none this) owner: ARCH_WIZARD flags: "rxd"
+  method reset owner: ARCH_WIZARD
     this.counter = 0;
     this.data = {};
     this.cooldowns = [];
@@ -180,5 +179,5 @@ object BENCH_SUBSCRIBER
     this.defender_momentum = 50.0;
     this.fanout_cursor = 1;
     this.last_attacker = #-1;
-  endverb
+  endmethod
 endobject

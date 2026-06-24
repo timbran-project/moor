@@ -1,4 +1,6 @@
-object GOPHER
+object GOPHER [
+  import_export_id -> "gopher"
+]
   name: "Gopher utilities"
   parent: ROOT_CLASS
   owner: #2
@@ -44,7 +46,6 @@ object GOPHER
     "   $gopher:type(\"I\") => \"image\"",
     ""
   };
-  override import_export_id = "gopher";
   override object_size = {15578, 1084848672};
 
   method get_now owner: #2

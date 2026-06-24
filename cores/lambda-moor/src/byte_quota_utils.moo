@@ -1,4 +1,6 @@
-object BYTE_QUOTA_UTILS
+object BYTE_QUOTA_UTILS [
+  import_export_id -> "byte_quota_utils"
+]
   name: "Byte Quota Utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -92,7 +94,6 @@ object BYTE_QUOTA_UTILS
     "",
     "And don't forget $object_quota_utils, which has the object based implementation."
   };
-  override import_export_id = "byte_quota_utils";
   override object_size = {32429, 1084848672};
 
   method initialize_quota owner: HACKER

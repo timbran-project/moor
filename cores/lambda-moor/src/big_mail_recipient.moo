@@ -1,4 +1,6 @@
-object BIG_MAIL_RECIPIENT
+object BIG_MAIL_RECIPIENT [
+  import_export_id -> "big_mail_recipient"
+]
   name: "Generic Large-Capacity Mail Recipient"
   parent: MAIL_RECIPIENT
   owner: HACKER
@@ -54,7 +56,6 @@ object BIG_MAIL_RECIPIENT
     "",
     "Calling #OBJ:restore_from(...) COMPLETELY AND IRREVOCABLY REMOVES ALL MESSAGES from the object that it is run on (#OBJ); you MUST be sure to EITHER have made a copy of #OBJ OR be doing the restore to a DIFFERENT object."
   };
-  override import_export_id = "big_mail_recipient";
   override object_size = {37437, 1084848672};
 
   method _genprop owner: HACKER

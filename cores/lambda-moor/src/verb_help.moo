@@ -1,4 +1,6 @@
-object VERB_HELP
+object VERB_HELP [
+  import_export_id -> "verb_help"
+]
   name: "Verb Help DB"
   parent: ROOT_CLASS
   owner: HACKER
@@ -32,7 +34,6 @@ object VERB_HELP
 
   override aliases = {"verbhelp", "vh"};
   override description = "A `help database' that knows about all of the documented verbs.";
-  override import_export_id = "verb_help";
   override object_size = {3958, 1084848672};
 
   method find_topics owner: HACKER

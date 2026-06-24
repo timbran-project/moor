@@ -1,4 +1,6 @@
-object BIGLIST
+object BIGLIST [
+  import_export_id -> "biglist"
+]
   name: "Generic BigList Utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -102,7 +104,6 @@ object BIGLIST
     "     destroys all nodes used by biglist.  ",
     "     Calls home:leafkiller on each element."
   };
-  override import_export_id = "biglist";
   override object_size = {22666, 1084848672};
 
   method length owner: HACKER

@@ -1,4 +1,6 @@
-object GENERIC_DB
+object GENERIC_DB [
+  import_export_id -> "generic_db"
+]
   name: "Generic Database"
   parent: ROOT_CLASS
   owner: HACKER
@@ -11,7 +13,6 @@ object GENERIC_DB
 
   override aliases = {"Generic Database"};
   override description = "A generic `database' (well, really more like a string-indexed array if you want the truth...). See `help $generic_db' for details.";
-  override import_export_id = "generic_db";
   override object_size = {17214, 1084848672};
 
   method "find find_key" owner: HACKER

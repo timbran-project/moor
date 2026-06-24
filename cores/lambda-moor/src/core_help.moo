@@ -1,4 +1,6 @@
-object CORE_HELP
+object CORE_HELP [
+  import_export_id -> "core_help"
+]
   name: "Core Utility Help"
   parent: GENERIC_HELP
   owner: HACKER
@@ -1679,7 +1681,6 @@ object CORE_HELP
 
   override aliases = {"Core Utility Help"};
   override description = "Help database for LambdaCore utility objects and generics.";
-  override import_export_id = "core_help";
   override index_cache = {"core-index"};
   override object_size = {105976, 1084848672};
 

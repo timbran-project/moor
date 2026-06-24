@@ -1,4 +1,6 @@
-object WIZ
+object WIZ [
+  import_export_id -> "wiz"
+]
   name: "generic wizard"
   parent: PROG
   owner: #2
@@ -18,7 +20,6 @@ object WIZ
   override description = "You see a wizard who chooses not to reveal its true appearance.";
   override features = {PASTING_FEATURE, STAGE_TALK};
   override help = WIZ_HELP;
-  override import_export_id = "wiz";
   override mail_notify (owner: #2, flags: "rc");
   override object_size = {56607, 1084848672};
   override password = "really impossible password to type";

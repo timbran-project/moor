@@ -1,4 +1,6 @@
-object WIZARD
+object WIZARD [
+  import_export_id -> "wizard"
+]
   name: "Wizard"
   parent: ROOT
   location: FIRST_ROOM
@@ -6,6 +8,4 @@ object WIZARD
   player: true
   wizard: true
   programmer: true
-
-  override import_export_id = "wizard";
 endobject

@@ -1,4 +1,6 @@
-object EDITOR_HELP
+object EDITOR_HELP [
+  import_export_id -> "editor_help"
+]
   name: "Editor Help"
   parent: GENERIC_HELP
   owner: HACKER
@@ -403,7 +405,6 @@ object EDITOR_HELP
 
   override aliases = {"Editor Help"};
   override description = 0;
-  override import_export_id = "editor_help";
   override index_cache = {"edit-index"};
   override object_size = {21862, 1084848672};
 endobject

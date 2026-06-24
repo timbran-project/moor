@@ -1,4 +1,6 @@
-object TIME_UTILS
+object TIME_UTILS [
+  import_export_id -> "time_utils"
+]
   name: "time utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -109,7 +111,6 @@ object TIME_UTILS
     "sun           ([time])               => angle between sun and zenith",
     "dst_midnight  (time)                 "
   };
-  override import_export_id = "time_utils";
   override object_size = {22076, 1084848672};
 
   verb day (none none none) owner: HACKER flags: "rxd"

@@ -1,4 +1,6 @@
-object GENERIC_OPTIONS
+object GENERIC_OPTIONS [
+  import_export_id -> "generic_options"
+]
   name: "Generic Option Package"
   parent: ROOT_CLASS
   owner: HACKER
@@ -12,7 +14,6 @@ object GENERIC_OPTIONS
 
   override aliases = {"Generic Option Package"};
   override description = "an option package in need of a description.  See `help $generic_option'...";
-  override import_export_id = "generic_options";
   override object_size = {12729, 1084848672};
 
   method get owner: HACKER

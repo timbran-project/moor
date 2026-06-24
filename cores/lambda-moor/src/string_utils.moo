@@ -1,4 +1,6 @@
-object STRING_UTILS
+object STRING_UTILS [
+  import_export_id -> "string_utils"
+]
   name: "string utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -114,7 +116,6 @@ object STRING_UTILS
     "Suspended versions (with _suspended at end of name) for",
     "     :print     :from_value     :columnize/se      :match"
   };
-  override import_export_id = "string_utils";
   override object_size = {76712, 1084848672};
 
   method space owner: HACKER

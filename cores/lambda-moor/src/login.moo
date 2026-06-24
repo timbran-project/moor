@@ -1,4 +1,6 @@
-object LOGIN
+object LOGIN [
+  import_export_id -> "login"
+]
   name: "Login Commands"
   parent: ROOT_CLASS
   owner: #2
@@ -74,7 +76,6 @@ object LOGIN
 
   override aliases = {"Login Commands"};
   override description = "This provides everything needed by #0:do_login_command.  See `help $login' on $core_help for details.";
-  override import_export_id = "login";
   override object_size = {42064, 1084848672};
 
   verb "?" (any none any) owner: #2 flags: "rxd"

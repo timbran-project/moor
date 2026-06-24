@@ -1,4 +1,6 @@
-object PROG
+object PROG [
+  import_export_id -> "prog"
+]
   name: "generic programmer"
   parent: BUILDER
   owner: #2
@@ -14,7 +16,6 @@ object PROG
   override description = "You see a player who is too experienced to have any excuse for not having a description.";
   override features = {PASTING_FEATURE, STAGE_TALK};
   override help = {PROG_HELP, BUILTIN_FUNCTION_HELP, VERB_HELP, CORE_HELP};
-  override import_export_id = "prog";
   override mail_notify (owner: #2, flags: "rc");
   override object_size = {59612, 1084848672};
 

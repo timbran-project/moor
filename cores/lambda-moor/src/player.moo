@@ -1,4 +1,6 @@
-object PLAYER
+object PLAYER [
+  import_export_id -> "player"
+]
   name: "generic player"
   parent: ROOT_CLASS
   owner: #2
@@ -55,7 +57,6 @@ object PLAYER
 
   override aliases = {"generic player"};
   override description = "You see a player who should type '@describe me as ...'.";
-  override import_export_id = "player";
   override object_size = {97774, 1084848672};
 
   method init_for_core owner: #2

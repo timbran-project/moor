@@ -1,4 +1,6 @@
-object SET_UTILS
+object SET_UTILS [
+  import_export_id -> "set_utils"
+]
   name: "Set Utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -32,7 +34,6 @@ object SET_UTILS
     " equal(set1, set2)",
     "        => true if and only if set1 and set2 are equal"
   };
-  override import_export_id = "set_utils";
   override object_size = {5574, 1084848672};
 
   method union owner: HACKER

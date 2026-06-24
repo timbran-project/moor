@@ -1,4 +1,6 @@
-object ROOM
+object ROOM [
+  import_export_id -> "room"
+]
   name: "generic room"
   parent: ROOT_CLASS
   owner: #2
@@ -20,7 +22,6 @@ object ROOM
   property who_location_msg (owner: #2, flags: "rc") = "%T";
 
   override aliases = {"generic room"};
-  override import_export_id = "room";
   override object_size = {28944, 1084848672};
 
   method confunc owner: #2

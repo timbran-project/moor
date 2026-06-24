@@ -1,4 +1,6 @@
-object HELP
+object HELP [
+  import_export_id -> "help"
+]
   name: "Help Database"
   parent: GENERIC_HELP
   owner: HACKER
@@ -1149,7 +1151,6 @@ object HELP
     "",
     "See the description of $generic_help for more detail."
   };
-  override import_export_id = "help";
   override index_cache = {"gen-index"};
   override object_size = {82127, 1084848672};
 

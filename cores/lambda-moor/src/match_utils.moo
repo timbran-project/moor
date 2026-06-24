@@ -1,4 +1,6 @@
-object MATCH_UTILS
+object MATCH_UTILS [
+  import_export_id -> "match_utils"
+]
   name: "matching utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -34,7 +36,6 @@ object MATCH_UTILS
     "",
     "For more documentation, see help $match_utils:<specific verb>."
   };
-  override import_export_id = "match_utils";
   override object_size = {9401, 1084848672};
 
   method match owner: HACKER

@@ -1,4 +1,6 @@
-object HTTP
+object HTTP [
+  import_export_id -> "http"
+]
   name: "HTTP Server"
   parent: THING
   location: #2
@@ -24,7 +26,6 @@ object HTTP
   property nonalpha (owner: #2, flags: "rc") = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
   override aliases = {"HTTP Server"};
-  override import_export_id = "http";
   override object_size = {7309, 1529542623};
 
   method handle_connection owner: #2

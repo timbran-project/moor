@@ -1,4 +1,6 @@
-object EDIT_OPTIONS
+object EDIT_OPTIONS [
+  import_export_id -> "edit_options"
+]
   name: "Edit Options"
   parent: GENERIC_OPTIONS
   owner: HACKER
@@ -18,7 +20,6 @@ object EDIT_OPTIONS
   override _namelist = "!quiet_insert!eval_subs!local!no_parens!parens!noisy_insert!";
   override aliases = {"Edit Options"};
   override extras = {"parens", "noisy_insert"};
-  override import_export_id = "edit_options";
   override names = {"quiet_insert", "eval_subs", "local", "no_parens"};
   override namewidth = 20;
   override object_size = {1856, 1084848672};

@@ -1,10 +1,11 @@
-object GARBAGE
+object GARBAGE [
+  import_export_id -> "garbage"
+]
   name: "Generic Garbage Object"
   owner: HACKER
   readable: true
 
   property aliases (owner: HACKER, flags: "r") = {"garbage"};
-  property import_export_id (owner: HACKER, flags: "r") = "garbage";
 
   method description owner: #2
     return "Garbage object " + tostr(this) + ".";

@@ -1,4 +1,6 @@
-object PARANOID_DB
+object PARANOID_DB [
+  import_export_id -> "paranoid_db"
+]
   name: "@paranoid database"
   parent: ROOT_CLASS
   owner: HACKER
@@ -28,7 +30,6 @@ object PARANOID_DB
     "   :ensure_props_exist(who,linesname,dataname):  creates the above",
     "   :GC() --- loops over all data and verifies they're for players."
   };
-  override import_export_id = "paranoid_db";
   override object_size = {5921, 1084848672};
 
   method ensure_props_exist owner: HACKER

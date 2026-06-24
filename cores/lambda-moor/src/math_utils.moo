@@ -1,4 +1,6 @@
-object MATH_UTILS
+object MATH_UTILS [
+  import_export_id -> "math_utils"
+]
   name: "Math Utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -521,7 +523,6 @@ object MATH_UTILS
     "  BlFromInt(d) -- converts a decimal number d to a list of 1's and 0's, 32-bit",
     "  IntFromBl(b) -- converts a list of 1's and 0's (any precision) to decimal"
   };
-  override import_export_id = "math_utils";
   override object_size = {36400, 1084848672};
 
   method xsin owner: HACKER

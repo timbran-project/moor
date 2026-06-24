@@ -1,4 +1,6 @@
-object BUILTIN_FUNCTION_HELP
+object BUILTIN_FUNCTION_HELP [
+  import_export_id -> "builtin_function_help"
+]
   name: "Builtin Function Help"
   parent: GENERIC_HELP
   owner: HACKER
@@ -1097,7 +1099,6 @@ object BUILTIN_FUNCTION_HELP
     "  {\"*index*\"}",
     "     - returns a list of all topics in this database, arranged in columns."
   };
-  override import_export_id = "builtin_function_help";
   override index_cache = {"builtin-index"};
   override object_size = {89775, 1084848672};
 endobject

@@ -1,4 +1,6 @@
-object MAIL_RECIPIENT
+object MAIL_RECIPIENT [
+  import_export_id -> "mail_recipient"
+]
   name: "Generic Mail Recipient"
   parent: ROOT_CLASS
   owner: HACKER
@@ -26,7 +28,6 @@ object MAIL_RECIPIENT
 
   override aliases = {"Generic Mail Recipient"};
   override description = "This can either be a mailing list or a mail folder, depending on what mood you're in...";
-  override import_export_id = "mail_recipient";
   override object_size = {30900, 1084848672};
 
   method set_aliases owner: HACKER

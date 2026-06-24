@@ -1,4 +1,6 @@
-object GENDER_UTILS
+object GENDER_UTILS [
+  import_export_id -> "gender_utils"
+]
   name: "gender utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -111,7 +113,6 @@ object GENDER_UTILS
     "  :get_pronoun     (which,object) -- return pronoun for a given object",
     "  :get_conj*ugation(verbspec,object) -- return appropriately conjugated verb"
   };
-  override import_export_id = "gender_utils";
   override object_size = {12822, 1084848672};
 
   method set owner: #2

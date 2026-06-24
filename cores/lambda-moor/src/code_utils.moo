@@ -1,4 +1,6 @@
-object CODE_UTILS
+object CODE_UTILS [
+  import_export_id -> "code_utils"
+]
   name: "code utilities"
   parent: GENERIC_UTILS
   owner: HACKER
@@ -202,7 +204,6 @@ object CODE_UTILS
     "argstr(verb,args[,argstr] => returns a corrected argstr (see full verb help)",
     "substitute(string,subs)   => subs in form {{\"target\", \"sub\"}, {...}, ...}"
   };
-  override import_export_id = "code_utils";
   override object_size = {59174, 1084848672};
 
   verb eval_d (any any any) owner: #2 flags: "rx"

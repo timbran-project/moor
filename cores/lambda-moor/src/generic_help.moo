@@ -1,4 +1,6 @@
-object GENERIC_HELP
+object GENERIC_HELP [
+  import_export_id -> "generic_help"
+]
   name: "Generic Help Database"
   parent: ROOT_CLASS
   owner: HACKER
@@ -10,7 +12,6 @@ object GENERIC_HELP
 
   override aliases = {"Generic Help Database"};
   override description = "A help database of the standard form in need of a description. See `help $generic_help'...";
-  override import_export_id = "generic_help";
   override object_size = {9501, 1084848672};
 
   method find_topics owner: #2

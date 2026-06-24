@@ -1,4 +1,6 @@
-object SITE_DB
+object SITE_DB [
+  import_export_id -> "site_db"
+]
   name: "Site DB"
   parent: GENERIC_DB
   owner: HACKER
@@ -18,7 +20,6 @@ object SITE_DB
     "This object holds a db of places from which players have connected (see `help $site_db').",
     "The site blacklist and the graylist live as well (see `help blacklist')."
   };
-  override import_export_id = "site_db";
   override node_perms = "";
   override object_size = {13167, 1084848672};
 

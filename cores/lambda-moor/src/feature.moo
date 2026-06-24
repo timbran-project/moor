@@ -1,4 +1,6 @@
-object FEATURE
+object FEATURE [
+  import_export_id -> "feature"
+]
   name: "Generic Feature Object"
   parent: THING
   owner: HACKER
@@ -17,7 +19,6 @@ object FEATURE
     ".Features_Huh Object"
   };
   override description = "This is the Generic Feature Object.  It is not meant to be used as a feature object itself, but is handy for making new feature objects.";
-  override import_export_id = "feature";
   override object_size = {6698, 1084848672};
 
   method help_msg owner: HACKER

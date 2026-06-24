@@ -1,4 +1,6 @@
-object EXIT
+object EXIT [
+  import_export_id -> "exit"
+]
   name: "generic exit"
   parent: ROOT_CLASS
   owner: #2
@@ -16,7 +18,6 @@ object EXIT
   property source (owner: #2, flags: "rc") = #-1;
 
   override aliases = {"generic exit"};
-  override import_export_id = "exit";
   override object_size = {7191, 1084848672};
 
   method invoke owner: #2

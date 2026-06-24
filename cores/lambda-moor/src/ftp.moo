@@ -1,4 +1,6 @@
-object FTP
+object FTP [
+  import_export_id -> "ftp"
+]
   name: "FTP utilities"
   parent: ROOT_CLASS
   owner: #2
@@ -9,7 +11,6 @@ object FTP
   property trusted (owner: #2, flags: "rc") = 1;
 
   override aliases = {"FTP utilities"};
-  override import_export_id = "ftp";
   override object_size = {9099, 1084848672};
 
   method open owner: #2

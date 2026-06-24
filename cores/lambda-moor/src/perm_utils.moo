@@ -1,4 +1,6 @@
-object PERM_UTILS
+object PERM_UTILS [
+  import_export_id -> "perm_utils"
+]
   name: "permissions utilities"
   parent: GENERIC_UTILS
   owner: #2
@@ -25,7 +27,6 @@ object PERM_UTILS
     ":caller()",
     "  -- returns the first caller in the callers() stack distinct from `this'"
   };
-  override import_export_id = "perm_utils";
   override object_size = {3491, 1084848672};
 
   method controls owner: #2

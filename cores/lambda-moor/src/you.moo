@@ -1,4 +1,6 @@
-object YOU
+object YOU [
+  import_export_id -> "you"
+]
   name: "you"
   parent: GENDERED_OBJECT
   owner: HACKER
@@ -29,7 +31,6 @@ object YOU
     "An object useful for pronoun substitution for switching between third and second person.  See `help $you' for details."
   };
   override gender = "2nd";
-  override import_export_id = "you";
   override object_size = {4737, 1084848672};
   override po = "you";
   override poc = "You";

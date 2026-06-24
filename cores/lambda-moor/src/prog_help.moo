@@ -1,4 +1,6 @@
-object PROG_HELP
+object PROG_HELP [
+  import_export_id -> "prog_help"
+]
   name: "Programmer Help"
   parent: GENERIC_HELP
   owner: HACKER
@@ -1267,7 +1269,6 @@ object PROG_HELP
 
   override aliases = {"Programmer Help"};
   override description = "This provides help on the programmer commands available on $prog and related topics.";
-  override import_export_id = "prog_help";
   override index_cache = {"prog-index"};
   override object_size = {90272, 1084848672};
 
