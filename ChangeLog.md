@@ -11,20 +11,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
-- New `astar()` builtin for server-side A* pathfinding; accepts grid dimensions, start/goal
-  coordinates, tile map, and solid tile set; returns a list of `{x, y}` waypoints with 8-directional
-  movement and corner-cutting prevention
+- New algorithm builtins in `bf_algorithms.rs` for bounded searches over caller-supplied MOO values:
+  - `grid_astar(width, height, start_x, start_y, goal_x, goal_y, tile_map, solid_tiles [, options])`
+    performs server-side A* pathfinding over a flat tile map, with options for 4- or 8-directional
+    movement, corner cutting, return shape, and node limits.
+  - `grid_line(width, height, x0, y0, x1, y1)` returns an inclusive Bresenham line over grid
+    coordinates.
+  - `grid_los(width, height, x0, y0, x1, y1, tile_map, solid_tiles)` checks line of sight across
+    walkable tiles.
+  - `grid_reachable(width, height, start_x, start_y, tile_map, solid_tiles [, options])` and
+    `grid_flood(width, height, start_x, start_y, tile_map, solid_tiles [, options])` perform bounded
+    flood searches over tile maps.
+  - `graph_shortest_path(edges, from, to [, options])`, `graph_reachable(edges, from [, options])`,
+    and `graph_topsort(edges [, options])` operate on caller-supplied directed edge lists.
 - New `fromliteral()` builtin for parsing one MOO literal value from a string without evaluating MOO
   code
-- New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small, deterministic
+- New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small, bounded
   building blocks for pattern matching over MOO values and for implementing Datalog/Prolog-like rule
-  evaluation in core code without writing a custom search engine in MOO:
+  evaluation in MOO code without writing custom search loops:
   - `term_unify(pattern, value [, bindings [, options]])` unifies supplied MOO values using
     `{'var, name}` variable markers and returns the resulting bindings map or false.
+  - `term_match(pattern, values [, bindings [, options]])` applies one pattern to a list of
+    candidate values and returns binding maps for successful matches.
   - `term_substitute(template, bindings [, options])` replaces variable markers from a bindings map,
     with options for raising on or leaving unbound variables.
   - `term_query(query, facts [, rules [, bindings [, options]]])` evaluates positive rule/fact
     queries over supplied MOO values, with bounded depth, step, binding, and solution limits.
+  - `term_variables(term [, options])`, `term_ground(term [, options])`, and
+    `term_normalize(term [, bindings [, options]])` inspect and canonicalize term structures.
 - Granular task capability grants via the wizard-only two-argument form of `set_task_perms()`.
   Trusted code can now run as a selected principal while attaching additive, operation-specific
   grants for object reads/writes, object rename/move/recycle/chparent/listing, property
@@ -53,17 +67,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `daemon`:
 
-- New `moor` single-process binary runs daemon, telnet host, and web host in one process using a
-  shared ZeroMQ context and internal `inproc://` RPC/event endpoints, with Debian config and systemd
-  service assets.
-- `moor` can optionally run an embedded curl worker over internal `inproc://` worker endpoints; this
-  is disabled by default.
+- New `moor` single-process binary runs daemon, telnet host, and web host in one process.
+- `moor` can optionally run an embedded curl worker; is disabled by default.
 - Debian packaging now emits a separate `moor` package for the single-process server instead of
   bundling `/usr/bin/moor` into `moor-daemon`.
-- `TaskClient` high-level async client for verb invocation from hosts, with session event streaming
-  and `TaskResult::Suspended` support
-- `invoke_verb_handler` rewritten to use `TaskClient`, removing ~162 lines of per-handler ZMQ
-  plumbing
 
 `rpc`:
 
@@ -92,17 +99,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Scheduler rewritten from single-threaded channel-based event loop to direct mutex calls on shared
   `TaskLifecycle` state behind `Arc<Mutex>`, eliminating per-request oneshot allocation and
   unnecessary thread serialization.
-- `server_options` moved to `ArcSwap` for lock-free reads from task submission, GC checks, and
-  config queries
-- Scheduler lifecycle mutex switched to `parking_lot::Mutex` for faster uncontended acquisition
-- Lifecycle mutex hold times reduced: session commits, expired task collection, and shutdown polling
-  no longer hold the lock during I/O
-- `workers_info` routed through `SystemControl` trait instead of scheduler channel
 
 `db`:
 
-- Commit path rewritten from serialized mutex to lock-free CAS loop with `ArcSwap::rcu`; workers
-  speculatively check conflicts and build candidate snapshots in parallel
 - Relation-level rebase on CAS failure: if the winning commit didn't modify any relation the loser
   also modified (detected via `Arc::ptr_eq`), re-slot prepared indexes onto the winner's snapshot
   and CAS again without re-checking
@@ -117,6 +116,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `compiler`:
 
+- Compiler rewritten from scratch as a hand-rolled Pratt style parser, much faster than the old Pest
+  based grammar.
 - Lexical scopes and list/range comprehensions are now always enabled. The corresponding compiler
   options and feature compatibility checks were removed; deprecated daemon and `moorc` feature flags
   are accepted for old configs, but false values warn and are treated as enabled.
