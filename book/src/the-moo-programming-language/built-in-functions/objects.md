@@ -93,6 +93,31 @@ list owned_objects(OBJ owner)
 Returns a list of all objects in the database owned by `owner`. Ownership is defined by the value of
 .owner on the object.
 
+### `object_attrs_hash`
+
+```
+str|binary object_attrs_hash(obj object [, str algorithm] [, int binary])
+```
+
+Returns a hash of the object's direct attributes: name, parent, location, owner, and object flags.
+It does not include the object's properties, verbs, or metadata.
+
+By default this returns an uppercase hexadecimal SHA256 digest. The optional `algorithm` and
+`binary` arguments work the same way as they do for `value_hash()`.
+
+This is a mooR extension.
+
+### `object_metadata_hash`
+
+```
+str|binary object_metadata_hash(obj object [, str algorithm] [, int binary])
+```
+
+Returns a hash of the map returned by `object_metadata(object)`.
+
+Use this when metadata itself is part of the state you want to compare, such as package annotations
+or editor/tooling data. This is a mooR extension.
+
 ### `chparent`
 
 chparent -- Changes the parent of object to be new-parent.

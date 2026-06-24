@@ -21,7 +21,7 @@ use crate::{
     vm::builtins::{
         BfCallState, BfErr, BfRet,
         BfRet::{Ret, RetNil},
-        BuiltinFunction, DiagnosticOutput, parse_diagnostic_options, world_state_bf_err,
+        BuiltinFunction, DiagnosticOutput, hash, parse_diagnostic_options, world_state_bf_err,
     },
 };
 use moor_common::{
@@ -278,6 +278,140 @@ fn bf_verb_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     })
     .map_err(world_state_bf_err)?;
     Ok(Ret(value.unwrap_or_else(v_empty_list)))
+}
+
+fn hash_var_with_optional_args(
+    bf_args: &BfCallState<'_>,
+    value: &Var,
+    first_optional: usize,
+) -> Result<BfRet, BfErr> {
+    let algorithm = if bf_args.args.len() > first_optional {
+        Some(
+            bf_args
+                .args
+                .index(first_optional)
+                .map_err(BfErr::ErrValue)?,
+        )
+    } else {
+        None
+    };
+    let binary = if bf_args.args.len() > first_optional + 1 {
+        Some(
+            bf_args
+                .args
+                .index(first_optional + 1)
+                .map_err(BfErr::ErrValue)?,
+        )
+    } else {
+        None
+    };
+    hash::hash_var(value, algorithm.as_ref(), binary.as_ref()).map(Ret)
+}
+
+fn verb_info_var(verb: &VerbDef) -> Var {
+    let perms_string = verb_perms_string(verb.flags());
+    let verb_names = verb
+        .names()
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" ");
+    v_list(&[
+        v_obj(verb.owner()),
+        v_string(perms_string),
+        v_string(verb_names),
+    ])
+}
+
+fn verb_code_var(bf_args: &BfCallState<'_>, obj: &Obj, verb: &VerbDef) -> Result<Var, BfErr> {
+    let verb_info = with_current_transaction(|world_state| {
+        world_state.retrieve_verb(&bf_args.task_permissions(), obj, verb.uuid())
+    })
+    .map_err(world_state_bf_err)?;
+
+    if verb_info.0.is_empty() {
+        return Ok(v_empty_list());
+    }
+
+    #[allow(irrefutable_let_patterns)]
+    let ProgramType::MooR(program) = &verb_info.0 else {
+        return Err(BfErr::ErrValue(
+            E_INVARG.msg("verb_code_hash: verb program is not Moo"),
+        ));
+    };
+    let decompiled = match program_to_tree(program) {
+        Ok(decompiled) => decompiled,
+        Err(e) => {
+            warn!(object=?bf_args.args[0], verb=?bf_args.args[1], error = ?e, "verb_code_hash: verb program could not be decompiled");
+            return Err(BfErr::Code(E_INVARG));
+        }
+    };
+    let unparsed = match unparse(&decompiled, false, true) {
+        Ok(unparsed) => unparsed,
+        Err(e) => {
+            warn!(object=?bf_args.args[0], verb=?bf_args.args[1], error = ?e, "verb_code_hash: verb program could not be unparsed");
+            return Err(BfErr::Code(E_INVARG));
+        }
+    };
+    Ok(v_list_iter(unparsed.iter().map(|s| v_str(s))))
+}
+
+/// Usage: `str|binary verb_code_hash(obj object, str|int|sym verb_desc [, str algorithm [, bool binary]])`
+fn bf_verb_code_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let code = verb_code_var(bf_args, &obj, &verb)?;
+    hash_var_with_optional_args(bf_args, &code, 2)
+}
+
+/// Usage: `str|binary verb_info_hash(obj object, str|int|sym verb_desc [, str algorithm [, bool binary]])`
+fn bf_verb_info_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let info = verb_info_var(&verb);
+    hash_var_with_optional_args(bf_args, &info, 2)
+}
+
+/// Usage: `str|binary verb_metadata_hash(obj object, str|int|sym verb_desc [, str algorithm [, bool binary]])`
+fn bf_verb_metadata_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verb = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let pairs = with_current_transaction(|world_state| {
+        world_state.verb_metadata(&bf_args.task_permissions(), &obj, verb.uuid())
+    })
+    .map_err(world_state_bf_err)?;
+    let metadata = metadata_pairs_to_var(bf_args, pairs);
+    hash_var_with_optional_args(bf_args, &metadata, 2)
 }
 
 /// Usage: `none set_verb_metadata(obj object, str|int|sym verb_desc, str|sym key, value)`
@@ -980,6 +1114,9 @@ pub(crate) fn register_bf_verbs(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("verb_metadata")] = bf_verb_metadata;
     builtins[offset_for_builtin("set_verb_metadata")] = bf_set_verb_metadata;
     builtins[offset_for_builtin("clear_verb_metadata")] = bf_clear_verb_metadata;
+    builtins[offset_for_builtin("verb_code_hash")] = bf_verb_code_hash;
+    builtins[offset_for_builtin("verb_info_hash")] = bf_verb_info_hash;
+    builtins[offset_for_builtin("verb_metadata_hash")] = bf_verb_metadata_hash;
     builtins[offset_for_builtin("verb_args")] = bf_verb_args;
     builtins[offset_for_builtin("set_verb_args")] = bf_set_verb_args;
     builtins[offset_for_builtin("verb_code")] = bf_verb_code;

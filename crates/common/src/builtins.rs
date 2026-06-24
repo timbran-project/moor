@@ -723,6 +723,20 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_OBJ), Any],
             true,
         ),
+        mk_builtin(
+            "object_attrs_hash",
+            Q(1),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "object_metadata_hash",
+            Q(1),
+            Q(3),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "object/command");
@@ -828,6 +842,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_OBJ), Any, Any],
             true,
         ),
+        mk_builtin(
+            "verb_code_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Any, Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "verb_info_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Any, Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "verb_metadata_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Any, Typed(TYPE_STR), Any],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "verbs");
@@ -896,6 +931,27 @@ fn mk_builtin_table() -> Vec<Builtin> {
             Q(3),
             Q(3),
             vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "property_value_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "property_info_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Typed(TYPE_STR), Any],
+            true,
+        ),
+        mk_builtin(
+            "property_metadata_hash",
+            Q(2),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Typed(TYPE_STR), Typed(TYPE_STR), Any],
             true,
         ),
     ]);

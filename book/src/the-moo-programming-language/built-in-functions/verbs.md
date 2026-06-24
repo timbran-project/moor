@@ -21,6 +21,20 @@
 - `E_VERBNF` if `object` does not define the requested verb
 - `E_PERM` if the caller does not have read permission on the verb
 
+### `verb_info_hash`
+
+```
+str|binary verb_info_hash(obj object, str|int|sym verb-desc [, str algorithm] [, int binary])
+```
+
+Returns a hash of the value returned by `verb_info(object, verb-desc)`.
+
+Use this to detect changes to verb owner, permission flags, or names separately from changes to the
+verb's source code. The optional `algorithm` and `binary` arguments work the same way as they do for
+`value_hash()`.
+
+This is a mooR extension.
+
 ### `set_verb_info`
 
 **Description:** Changes the permission information for a verb.\
@@ -101,6 +115,28 @@
   program cannot be decoded as MOO source
 - `E_VERBNF` if `object` does not define the requested verb
 - `E_PERM` if the caller does not have read permission on the verb
+
+### `verb_code_hash`
+
+```
+str|binary verb_code_hash(obj object, str|int|sym verb-desc [, str algorithm] [, int binary])
+```
+
+Returns a hash of the default `verb_code(object, verb-desc)` source listing.
+
+Use this when you want to detect source changes without also treating owner, flags, or names as code
+changes. This is a mooR extension.
+
+### `verb_metadata_hash`
+
+```
+str|binary verb_metadata_hash(obj object, str|int|sym verb-desc [, str algorithm] [, int binary])
+```
+
+Returns a hash of the map returned by `verb_metadata(object, verb-desc)`.
+
+Use this when metadata attached to the verb is itself part of the state you want to compare. This is
+a mooR extension.
 
 ### `set_verb_code`
 

@@ -19,8 +19,8 @@ use moor_common::{
 };
 use moor_compiler::offset_for_builtin;
 use moor_var::{
-    E_ARGS, E_INVARG, E_TYPE, List, Sequence, Symbol, Variant, v_empty_list, v_list, v_map_iter,
-    v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_TYPE, List, Sequence, Symbol, Var, Variant, v_empty_list, v_list,
+    v_map_iter, v_obj, v_str, v_string, v_sym,
 };
 
 use crate::{
@@ -30,7 +30,7 @@ use crate::{
         BfErr::{Code, ErrValue},
         BfRet,
         BfRet::{Ret, RetNil},
-        BuiltinFunction, world_state_bf_err,
+        BuiltinFunction, hash, world_state_bf_err,
     },
 };
 
@@ -182,6 +182,81 @@ fn bf_property_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(value.unwrap_or_else(v_empty_list)))
 }
 
+fn hash_var_with_optional_args(
+    bf_args: &BfCallState<'_>,
+    value: &Var,
+    first_optional: usize,
+) -> Result<BfRet, BfErr> {
+    let algorithm = if bf_args.args.len() > first_optional {
+        Some(bf_args.args.index(first_optional).map_err(ErrValue)?)
+    } else {
+        None
+    };
+    let binary = if bf_args.args.len() > first_optional + 1 {
+        Some(bf_args.args.index(first_optional + 1).map_err(ErrValue)?)
+    } else {
+        None
+    };
+    hash::hash_var(value, algorithm.as_ref(), binary.as_ref()).map(Ret)
+}
+
+fn property_info_var(bf_args: &BfCallState<'_>) -> Result<Var, BfErr> {
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    let (_, perms) = with_current_transaction(|world_state| {
+        world_state.get_property_info(&bf_args.task_permissions(), &obj, prop_name)
+    })
+    .map_err(world_state_bf_err)?;
+    let owner = perms.owner();
+    let flags = prop_flags_string(perms.flags());
+
+    Ok(v_list(&[v_obj(owner), v_string(flags)]))
+}
+
+/// Usage: `str|binary property_value_hash(obj object, str|sym prop_name [, str algorithm [, bool binary]])`
+fn bf_property_value_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    let value = with_current_transaction(|world_state| {
+        world_state.retrieve_property(&bf_args.task_permissions(), &obj, prop_name)
+    })
+    .map_err(world_state_bf_err)?;
+    hash_var_with_optional_args(bf_args, &value, 2)
+}
+
+/// Usage: `str|binary property_info_hash(obj object, str|sym prop_name [, str algorithm [, bool binary]])`
+fn bf_property_info_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(Code(E_ARGS));
+    }
+    let info = property_info_var(bf_args)?;
+    hash_var_with_optional_args(bf_args, &info, 2)
+}
+
+/// Usage: `str|binary property_metadata_hash(obj object, str|sym prop_name [, str algorithm [, bool binary]])`
+fn bf_property_metadata_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 4 {
+        return Err(Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(Code(E_TYPE));
+    };
+    let prop_name = bf_args.args[1].as_symbol().map_err(ErrValue)?;
+    let pairs = with_current_transaction(|world_state| {
+        world_state.property_metadata(&bf_args.task_permissions(), &obj, prop_name)
+    })
+    .map_err(world_state_bf_err)?;
+    let metadata = metadata_pairs_to_var(bf_args, pairs);
+    hash_var_with_optional_args(bf_args, &metadata, 2)
+}
+
 /// Usage: `none set_property_metadata(obj object, symbol prop_name, str|sym key, value)`
 fn bf_set_property_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 4 {
@@ -317,6 +392,9 @@ pub(crate) fn register_bf_properties(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("property_metadata")] = bf_property_metadata;
     builtins[offset_for_builtin("set_property_metadata")] = bf_set_property_metadata;
     builtins[offset_for_builtin("clear_property_metadata")] = bf_clear_property_metadata;
+    builtins[offset_for_builtin("property_value_hash")] = bf_property_value_hash;
+    builtins[offset_for_builtin("property_info_hash")] = bf_property_info_hash;
+    builtins[offset_for_builtin("property_metadata_hash")] = bf_property_metadata_hash;
     builtins[offset_for_builtin("is_clear_property")] = bf_is_clear_property;
     builtins[offset_for_builtin("clear_property")] = bf_clear_property;
     builtins[offset_for_builtin("add_property")] = bf_add_property;

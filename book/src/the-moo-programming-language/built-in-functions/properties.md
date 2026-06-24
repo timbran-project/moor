@@ -15,6 +15,20 @@
 
 **Note:** Requires read permission on the property.
 
+### `property_info_hash`
+
+```
+str|binary property_info_hash(obj object, str|sym prop-name [, str algorithm] [, int binary])
+```
+
+Returns a hash of the value returned by `property_info(object, prop-name)`.
+
+Use this to detect changes to the property's owner or permission flags separately from changes to
+the property's value. The optional `algorithm` and `binary` arguments work the same way as they do
+for `value_hash()`.
+
+This is a mooR extension.
+
 ### `set_property_info`
 
 **Description:** Changes the permission information for a property.\
@@ -60,6 +74,29 @@
 **Note:** Requires ownership of the property or the object.
 
 ## Property Value Functions
+
+### `property_value_hash`
+
+```
+str|binary property_value_hash(obj object, str|sym prop-name [, str algorithm] [, int binary])
+```
+
+Returns a hash of the resolved property value, using the same permission checks as reading the
+property. This is useful for detecting whether authored property state changed since some recorded
+base revision.
+
+This is a mooR extension.
+
+### `property_metadata_hash`
+
+```
+str|binary property_metadata_hash(obj object, str|sym prop-name [, str algorithm] [, int binary])
+```
+
+Returns a hash of the map returned by `property_metadata(object, prop-name)`.
+
+Use this when metadata attached to the property is itself part of the state you want to compare.
+This is a mooR extension.
 
 ### `is_clear_property`
 

@@ -87,57 +87,68 @@ open an issue on the
 
 ### Objects
 
-| Name                                                        | Complete | Notes                                               |
-| ----------------------------------------------------------- | -------- | --------------------------------------------------- |
-| [`toobj`](objects.md#toobj)                                 | &check;  |                                                     |
-| [`typeof`](values.md#typeof)                                | &check;  |                                                     |
-| [`create`](objects.md#create)                               | &check;  | Quota support not implemented yet.                  |
-| [`recycle`](objects.md#recycle)                             | &check;  |                                                     |
-| [`valid`](objects.md#valid)                                 | &check;  |                                                     |
-| [`parent`](objects.md#parent)                               | &check;  |                                                     |
-| [`children`](objects.md#children)                           | &check;  |                                                     |
-| [`chparent`](objects.md#chparent)                           | &check;  |                                                     |
-| [`max_object`](objects.md#max_object)                       | &check;  |                                                     |
-| [`players`](objects.md#players)                             | &check;  | Potentially slow in a large DB.                     |
-| [`objects`](objects.md#objects)                             | &check;  | mooR extension. Wizard only.                        |
-| [`is_player`](objects.md#is_player)                         | &check;  |                                                     |
-| [`set_player_flag`](objects.md#set_player_flag)             | &check;  |                                                     |
-| [`is_anonymous`](objects.md#is_anonymous)                   | &check;  |                                                     |
-| [`is_uuobjid`](objects.md#is_uuobjid)                       | &check;  |                                                     |
-| [`move`](objects.md#move)                                   | &check;  |                                                     |
-| [`parse_command`](objects.md#parse_command)                 | &check;  | mooR extension. Wizard only.                        |
-| [`find_command_verb`](objects.md#find_command_verb)         | &check;  | mooR extension. Enables custom command dispatching. |
-| [`dispatch_command_verb`](objects.md#dispatch_command_verb) | &check;  | mooR extension. Wizard only.                        |
+| Name                                                                       | Complete | Notes                                               |
+| -------------------------------------------------------------------------- | -------- | --------------------------------------------------- |
+| [`toobj`](objects.md#toobj)                                                | &check;  |                                                     |
+| [`typeof`](values.md#typeof)                                               | &check;  |                                                     |
+| [`create`](objects.md#create)                                              | &check;  | Quota support not implemented yet.                  |
+| [`recycle`](objects.md#recycle)                                            | &check;  |                                                     |
+| [`valid`](objects.md#valid)                                                | &check;  |                                                     |
+| [`parent`](objects.md#parent)                                              | &check;  |                                                     |
+| [`children`](objects.md#children)                                          | &check;  |                                                     |
+| [`chparent`](objects.md#chparent)                                          | &check;  |                                                     |
+| [`max_object`](objects.md#max_object)                                      | &check;  |                                                     |
+| [`players`](objects.md#players)                                            | &check;  | Potentially slow in a large DB.                     |
+| [`objects`](objects.md#objects)                                            | &check;  | mooR extension. Wizard only.                        |
+| [`is_player`](objects.md#is_player)                                        | &check;  |                                                     |
+| [`set_player_flag`](objects.md#set_player_flag)                            | &check;  |                                                     |
+| [`is_anonymous`](objects.md#is_anonymous)                                  | &check;  |                                                     |
+| [`is_uuobjid`](objects.md#is_uuobjid)                                      | &check;  |                                                     |
+| [`move`](objects.md#move)                                                  | &check;  |                                                     |
+| [`parse_command`](objects.md#parse_command)                                | &check;  | mooR extension. Wizard only.                        |
+| [`find_command_verb`](objects.md#find_command_verb)                        | &check;  | mooR extension. Enables custom command dispatching. |
+| [`dispatch_command_verb`](objects.md#dispatch_command_verb)                | &check;  | mooR extension. Wizard only.                        |
+| [`object_metadata`](../../the-database/entity-metadata.md#object-metadata) | &check;  | mooR extension.                                     |
+| [`object_attrs_hash`](objects.md#object_attrs_hash)                        | &check;  | mooR extension.                                     |
+| [`object_metadata_hash`](objects.md#object_metadata_hash)                  | &check;  | mooR extension.                                     |
 
 ### Properties
 
-| Name                                                   | Complete | Notes |
-| ------------------------------------------------------ | -------- | ----- |
-| [`properties`](properties.md#properties)               | &check;  |       |
-| [`property_info`](properties.md#property_info)         | &check;  |       |
-| [`set_property_info`](properties.md#set_property_info) | &check;  |       |
-| [`add_property`](properties.md#add_property)           | &check;  |       |
-| [`delete_property`](properties.md#delete_property)     | &check;  |       |
-| [`clear_property`](properties.md#clear_property)       | &check;  |       |
-| [`is_clear_property`](properties.md#is_clear_property) | &check;  |       |
+| Name                                                                           | Complete | Notes          |
+| ------------------------------------------------------------------------------ | -------- | -------------- |
+| [`properties`](properties.md#properties)                                       | &check;  |                |
+| [`property_info`](properties.md#property_info)                                 | &check;  |                |
+| [`set_property_info`](properties.md#set_property_info)                         | &check;  |                |
+| [`add_property`](properties.md#add_property)                                   | &check;  |                |
+| [`delete_property`](properties.md#delete_property)                             | &check;  |                |
+| [`clear_property`](properties.md#clear_property)                               | &check;  |                |
+| [`is_clear_property`](properties.md#is_clear_property)                         | &check;  |                |
+| [`property_metadata`](../../the-database/entity-metadata.md#property-metadata) | &check;  | mooR extension |
+| [`property_value_hash`](properties.md#property_value_hash)                     | &check;  | mooR extension |
+| [`property_info_hash`](properties.md#property_info_hash)                       | &check;  | mooR extension |
+| [`property_metadata_hash`](properties.md#property_metadata_hash)               | &check;  | mooR extension |
 
 ### Verbs
 
-| Name                                                    | Complete | Notes                                                    |
-| ------------------------------------------------------- | -------- | -------------------------------------------------------- |
-| [`verbs`](verbs.md#verbs)                               | &check;  |                                                          |
-| [`verb_info`](verbs.md#verb_info)                       | &check;  |                                                          |
-| [`set_verb_info`](verbs.md#set_verb_info)               | &check;  |                                                          |
-| [`verb_args`](verbs.md#verb_args)                       | &check;  |                                                          |
-| [`set_verb_args`](verbs.md#set_verb_args)               | &check;  |                                                          |
-| [`add_verb`](verbs.md#add_verb)                         | &check;  |                                                          |
-| [`delete_verb`](verbs.md#delete_verb)                   | &check;  |                                                          |
-| [`set_verb_code`](verbs.md#set_verb_code)               | &check;  | Enhanced with diagnostic verbosity & output mode options |
-| [`eval`](server.md#eval)                                | &check;  | Enhanced with diagnostic verbosity & output mode options |
-| [`format_compile_error`](verbs.md#format_compile_error) | &check;  | mooR extension. Formats structured compilation errors    |
-| [`disassemble`](verbs.md#disassemble)                   | &check;  | Output looks nothing like LambdaMOO's                    |
-| [`verb_code`](verbs.md#verb_code)                       | &check;  |                                                          |
-| [`prepositions`](verbs.md#prepositions)                 | &check;  | mooR extension. Returns list of all valid prepositions   |
+| Name                                                                   | Complete | Notes                                                    |
+| ---------------------------------------------------------------------- | -------- | -------------------------------------------------------- |
+| [`verbs`](verbs.md#verbs)                                              | &check;  |                                                          |
+| [`verb_info`](verbs.md#verb_info)                                      | &check;  |                                                          |
+| [`set_verb_info`](verbs.md#set_verb_info)                              | &check;  |                                                          |
+| [`verb_args`](verbs.md#verb_args)                                      | &check;  |                                                          |
+| [`set_verb_args`](verbs.md#set_verb_args)                              | &check;  |                                                          |
+| [`add_verb`](verbs.md#add_verb)                                        | &check;  |                                                          |
+| [`delete_verb`](verbs.md#delete_verb)                                  | &check;  |                                                          |
+| [`set_verb_code`](verbs.md#set_verb_code)                              | &check;  | Enhanced with diagnostic verbosity & output mode options |
+| [`eval`](server.md#eval)                                               | &check;  | Enhanced with diagnostic verbosity & output mode options |
+| [`format_compile_error`](verbs.md#format_compile_error)                | &check;  | mooR extension. Formats structured compilation errors    |
+| [`disassemble`](verbs.md#disassemble)                                  | &check;  | Output looks nothing like LambdaMOO's                    |
+| [`verb_code`](verbs.md#verb_code)                                      | &check;  |                                                          |
+| [`verb_code_hash`](verbs.md#verb_code_hash)                            | &check;  | mooR extension                                           |
+| [`verb_info_hash`](verbs.md#verb_info_hash)                            | &check;  | mooR extension                                           |
+| [`verb_metadata_hash`](verbs.md#verb_metadata_hash)                    | &check;  | mooR extension                                           |
+| [`verb_metadata`](../../the-database/entity-metadata.md#verb-metadata) | &check;  | mooR extension                                           |
+| [`prepositions`](verbs.md#prepositions)                                | &check;  | mooR extension. Returns list of all valid prepositions   |
 
 ### Values / encoding
 

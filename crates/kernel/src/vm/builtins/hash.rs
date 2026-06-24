@@ -13,7 +13,7 @@
 
 use crate::vm::builtins::BfErr;
 use md5::Digest;
-use moor_var::{E_INVARG, Var, Variant, v_binary, v_str};
+use moor_var::{E_INVARG, Var, Variant, encode_var_cbor, v_binary, v_str};
 use ripemd::Ripemd160;
 use sha1::Sha1;
 use sha2::{Sha224, Sha256, Sha384, Sha512};
@@ -46,6 +46,17 @@ pub fn hash_algorithm_arg(value: &Var) -> Result<String, BfErr> {
         Variant::Sym(s) => Ok(s.as_str().to_string()),
         _ => Err(BfErr::Code(E_INVARG)),
     }
+}
+
+pub fn hash_var(value: &Var, algorithm: Option<&Var>, binary: Option<&Var>) -> Result<Var, BfErr> {
+    let algo = match algorithm {
+        Some(algorithm) => hash_algorithm_arg(algorithm)?,
+        None => "sha256".to_string(),
+    };
+    let binary = binary.is_some_and(Var::is_true);
+    let bytes = encode_var_cbor(value).map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
+    let digest = hash_bytes(&algo, &bytes)?;
+    Ok(hash_output(digest, binary))
 }
 
 pub fn uppercase_hex(bytes: &[u8]) -> String {

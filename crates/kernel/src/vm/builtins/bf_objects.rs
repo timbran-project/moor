@@ -20,7 +20,7 @@ use tracing::{debug, error, trace};
 use moor_common::matching::{
     CommandParser, DefaultParseCommand, MatchResult, ObjectNameMatcher, ParsedCommand, Preposition,
 };
-use moor_common::model::{ObjSet, PrepSpec, verb_perms_string};
+use moor_common::model::{ObjSet, PrepSpec, obj_flags_string, verb_perms_string};
 use moor_common::{
     model::{
         DispatchFlagsSource, Named, ObjFlag, ObjectKind, TaskPermissions, ValSet, VerbDispatch,
@@ -31,8 +31,8 @@ use moor_common::{
 use moor_compiler::offset_for_builtin;
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_NACC, E_PERM, E_TYPE, E_VERBNF, List, NOTHING, Obj, Sequence,
-    Symbol, Variant, v_arc_str, v_empty_list, v_empty_str, v_int, v_list, v_list_iter, v_map_iter,
-    v_obj, v_str, v_string, v_sym,
+    Symbol, Var, Variant, v_arc_str, v_empty_list, v_empty_str, v_int, v_list, v_list_iter,
+    v_map_iter, v_obj, v_str, v_string, v_sym,
 };
 
 use crate::{
@@ -42,7 +42,7 @@ use crate::{
         builtins::{
             BfCallState, BfErr, BfRet,
             BfRet::{Ret, RetNil, VmInstr},
-            BuiltinFunction, world_state_bf_err,
+            BuiltinFunction, hash, world_state_bf_err,
         },
         vm_host::ExecutionResult::DispatchVerb,
     },
@@ -2126,6 +2126,83 @@ fn bf_object_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(BfRet::Ret(value.unwrap_or_else(v_empty_list)))
 }
 
+fn hash_var_with_optional_args(
+    bf_args: &BfCallState<'_>,
+    value: &Var,
+    first_optional: usize,
+) -> Result<BfRet, BfErr> {
+    let algorithm = if bf_args.args.len() > first_optional {
+        Some(
+            bf_args
+                .args
+                .index(first_optional)
+                .map_err(BfErr::ErrValue)?,
+        )
+    } else {
+        None
+    };
+    let binary = if bf_args.args.len() > first_optional + 1 {
+        Some(
+            bf_args
+                .args
+                .index(first_optional + 1)
+                .map_err(BfErr::ErrValue)?,
+        )
+    } else {
+        None
+    };
+    hash::hash_var(value, algorithm.as_ref(), binary.as_ref()).map(BfRet::Ret)
+}
+
+/// Usage: `str|binary object_attrs_hash(obj object [, str algorithm [, bool binary]])`
+fn bf_object_attrs_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let attrs = with_current_transaction(|world_state| {
+        if !world_state.valid(&obj)? {
+            return Err(WorldStateError::ObjectNotFound(
+                moor_common::model::ObjectRef::Id(obj),
+            ));
+        }
+        let permissions = bf_args.task_permissions();
+        let name = world_state.name_of(&permissions, &obj)?;
+        let parent = world_state.parent_of(&permissions, &obj)?;
+        let location = world_state.location_of(&permissions, &obj)?;
+        let owner = world_state.owner_of(&obj)?;
+        let flags = world_state.flags_of(&obj)?;
+        let pairs = [
+            (v_str("name"), v_string(name)),
+            (v_str("parent"), v_obj(parent)),
+            (v_str("location"), v_obj(location)),
+            (v_str("owner"), v_obj(owner)),
+            (v_str("flags"), v_str(&obj_flags_string(flags))),
+        ];
+        Ok(v_map_iter(pairs.iter()))
+    })
+    .map_err(world_state_bf_err)?;
+    hash_var_with_optional_args(bf_args, &attrs, 1)
+}
+
+/// Usage: `str|binary object_metadata_hash(obj object [, str algorithm [, bool binary]])`
+fn bf_object_metadata_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 3 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    let pairs = with_current_transaction(|world_state| {
+        world_state.object_metadata(&bf_args.task_permissions(), &obj)
+    })
+    .map_err(world_state_bf_err)?;
+    let metadata = metadata_pairs_to_var(bf_args, pairs);
+    hash_var_with_optional_args(bf_args, &metadata, 1)
+}
+
 /// Usage: `none set_object_metadata(obj object, str|sym key, value)`
 fn bf_set_object_metadata(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 3 {
@@ -2188,4 +2265,6 @@ pub(crate) fn register_bf_objects(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("object_metadata")] = bf_object_metadata;
     builtins[offset_for_builtin("set_object_metadata")] = bf_set_object_metadata;
     builtins[offset_for_builtin("clear_object_metadata")] = bf_clear_object_metadata;
+    builtins[offset_for_builtin("object_attrs_hash")] = bf_object_attrs_hash;
+    builtins[offset_for_builtin("object_metadata_hash")] = bf_object_metadata_hash;
 }

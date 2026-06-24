@@ -29,6 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `encode_cbor()` and `decode_cbor()` builtins for serializing MOO values to and from mooR's
   canonical CBOR binary representation. This representation is intended for compact value
   round-trips, external storage, and value fingerprints; lambdas are not currently supported.
+- New entity-state hash builtins for package and tooling code that needs stable fingerprints of
+  object attributes, metadata, property values/info/metadata, and verb code/info/metadata:
+  `object_attrs_hash()`, `object_metadata_hash()`, `property_value_hash()`, `property_info_hash()`,
+  `property_metadata_hash()`, `verb_code_hash()`, `verb_info_hash()`, and `verb_metadata_hash()`.
 - New term-manipulation and query builtins in `bf_algorithms.rs`. These provide small, bounded
   building blocks for pattern matching over MOO values and for implementing Datalog/Prolog-like rule
   evaluation in MOO code without writing custom search loops:

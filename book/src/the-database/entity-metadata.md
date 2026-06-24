@@ -397,6 +397,56 @@ endif
 Metadata does not perform the package-management policy by itself. It only gives MOO code and tools
 a durable place to store the facts they need.
 
+## Hashing Entity State
+
+mooR also provides hash builtins for the same object, property, and verb surfaces that metadata
+usually annotates. These are intended for code that wants to record what was imported, then later
+ask whether the local database entity still matches that base state.
+
+For example, a package importer can record the current value hash of a property:
+
+```moo
+set_property_metadata(
+  $generic_note,
+  "title",
+  "base_hash",
+  property_value_hash($generic_note, "title")
+);
+```
+
+Later, package-management code can compare the stored base hash with the current hash:
+
+```moo
+if (property_metadata($generic_note, "title", "base_hash") == property_value_hash($generic_note, "title"))
+  "The local property value still matches the imported base.";
+else
+  "The local property value has changed since import.";
+endif
+```
+
+The hash builtins are deliberately split by surface:
+
+```moo
+object_attrs_hash($thing)
+object_metadata_hash($thing)
+
+property_value_hash($thing, "title")
+property_info_hash($thing, "title")
+property_metadata_hash($thing, "title")
+
+verb_code_hash($thing, "look")
+verb_info_hash($thing, "look")
+verb_metadata_hash($thing, "look")
+```
+
+This lets MOO code distinguish different kinds of change. A changed property value, a changed
+property owner/flags tuple, and changed property metadata are different events for most package
+tools. The builtins do not merge or resolve those differences by themselves.
+
+Each hash builtin uses the same algorithm arguments as `value_hash()`: SHA256 by default, an
+optional algorithm name, and an optional truth value for returning raw digest bytes as a binary
+value.
+
 ## Lifecycle
 
 Metadata is database state, so it follows the entities it annotates.
