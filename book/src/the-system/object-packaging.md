@@ -547,6 +547,12 @@ The result is a map. The most important fields are:
 - `"diagnostics"`: problems found while analyzing the objdefs, such as invalid objdef text or a
   constant name that points at different objects locally and in the incoming objdefs.
 
+The analysis treats all incoming objdefs as one proposed object graph. That means a child can refer
+to a parent created by another incoming objdef, and a property override can refer to a property
+definition introduced by an incoming ancestor. It also means graph problems, such as missing parent
+objects, parent cycles, or property-name conflicts caused by a parent change, are reported before
+anything is loaded.
+
 Each object summary has a `"status"`:
 
 - `"create"`: the object does not exist yet, so loading would create it.

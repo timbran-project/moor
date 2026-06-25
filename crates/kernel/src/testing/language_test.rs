@@ -330,6 +330,31 @@ mod tests {
     }
 
     #[test]
+    fn test_objdef_changelist_reports_graph_diagnostics() {
+        let program = r#"
+            cl = objdef_changelist({{
+                "object #10",
+                "  name: \"A\"",
+                "  owner: #0",
+                "  parent: #11",
+                "  location: #-1",
+                "endobject",
+                "object #11",
+                "  name: \"B\"",
+                "  owner: #0",
+                "  parent: #10",
+                "  location: #-1",
+                "endobject"
+            }});
+            return {cl["ok"], cl["diagnostics"][1]["kind"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(false), v_str("parent_cycle")]))
+        );
+    }
+
+    #[test]
     fn test_objdef_changelist_is_wizard_only() {
         let program = r#"
             load_object({

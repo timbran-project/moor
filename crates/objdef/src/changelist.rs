@@ -19,11 +19,11 @@
 
 use crate::{Constants, ObjDefSet, ObjDefSource, ObjdefLoaderError, import_export_id};
 use moor_common::model::{
-    HasUuid, Named, PropPerms, TaskPermissions, VerbDef, WorldState, WorldStateError,
+    HasUuid, Named, PropPerms, TaskPermissions, ValSet, VerbDef, WorldState, WorldStateError,
     prop_flags_string, verb_perms_string,
 };
 use moor_compiler::{CompileOptions, ObjectDefinition};
-use moor_var::{Obj, Symbol, Var, v_obj};
+use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_obj};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -143,6 +143,7 @@ impl Analyzer<'_> {
         let mut objects = Vec::new();
         let mut conflicts = Vec::new();
         let mut diagnostics = self.constant_diagnostics(objdef_set.constants());
+        diagnostics.extend(self.graph_diagnostics(&objdef_set));
         let mut incoming_objects = BTreeSet::new();
 
         let mut definitions = objdef_set
@@ -234,6 +235,18 @@ impl Analyzer<'_> {
             conflicts,
             diagnostics,
         }
+    }
+
+    fn graph_diagnostics(&self, objdef_set: &ObjDefSet) -> Vec<ChangelistDiagnostic> {
+        let graph = ProposedGraphView::new(self, objdef_set);
+        let mut diagnostics = Vec::new();
+
+        diagnostics.extend(graph.reference_diagnostics());
+        diagnostics.extend(graph.parent_cycle_diagnostics());
+        diagnostics.extend(graph.property_override_diagnostics());
+        diagnostics.extend(graph.parent_property_conflict_diagnostics());
+
+        diagnostics
     }
 
     fn analyze_existing_object(
@@ -651,6 +664,272 @@ impl Analyzer<'_> {
             .ok()
             .flatten()
             .and_then(|value| value.as_string().map(ToOwned::to_owned))
+    }
+}
+
+struct ProposedGraphView<'a, 'b> {
+    analyzer: &'a Analyzer<'b>,
+    definitions: &'a HashMap<Obj, (String, ObjectDefinition)>,
+    nodes: BTreeSet<Obj>,
+}
+
+impl<'a, 'b> ProposedGraphView<'a, 'b> {
+    fn new(analyzer: &'a Analyzer<'b>, objdef_set: &'a ObjDefSet) -> Self {
+        let definitions = objdef_set.graph().object_definitions();
+        let mut nodes = definitions.keys().copied().collect::<BTreeSet<_>>();
+
+        for obj in definitions.keys() {
+            if analyzer.world_state.valid(obj).ok() != Some(true) {
+                continue;
+            }
+            if let Ok(descendants) =
+                analyzer
+                    .world_state
+                    .descendants_of(analyzer.permissions, obj, false)
+            {
+                nodes.extend(descendants.iter());
+            }
+        }
+
+        Self {
+            analyzer,
+            definitions,
+            nodes,
+        }
+    }
+
+    fn reference_diagnostics(&self) -> Vec<ChangelistDiagnostic> {
+        let mut diagnostics = Vec::new();
+        for (obj, (_, definition)) in self.definitions {
+            for (field, target) in [
+                ("parent", definition.parent),
+                ("location", definition.location),
+                ("owner", definition.owner),
+            ] {
+                if self.object_exists_in_proposed_graph(target) {
+                    continue;
+                }
+                diagnostics.push(ChangelistDiagnostic {
+                    kind: "invalid_reference",
+                    object: Some(*obj),
+                    constant: None,
+                    message: format!("{obj} has invalid {field} reference {target}"),
+                });
+            }
+        }
+        diagnostics
+    }
+
+    fn parent_cycle_diagnostics(&self) -> Vec<ChangelistDiagnostic> {
+        let mut diagnostics = Vec::new();
+        let mut reported = BTreeSet::new();
+
+        for obj in self.definitions.keys() {
+            let mut path = Vec::new();
+            let mut seen = BTreeMap::new();
+            let mut current = *obj;
+
+            while !current.is_nothing() {
+                if let Some(cycle_start) = seen.insert(current, path.len()) {
+                    let cycle = path[cycle_start..]
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(" -> ");
+                    if reported.insert(current) {
+                        diagnostics.push(ChangelistDiagnostic {
+                            kind: "parent_cycle",
+                            object: Some(*obj),
+                            constant: None,
+                            message: format!("incoming parent graph contains a cycle: {cycle}"),
+                        });
+                    }
+                    break;
+                }
+
+                path.push(current);
+                let Some(parent) = self.effective_parent(current) else {
+                    break;
+                };
+                current = parent;
+            }
+        }
+
+        diagnostics
+    }
+
+    fn property_override_diagnostics(&self) -> Vec<ChangelistDiagnostic> {
+        let mut diagnostics = Vec::new();
+        for (obj, (_, definition)) in self.definitions {
+            for prop in &definition.property_overrides {
+                if self.ancestor_defines_property(*obj, prop.name) {
+                    continue;
+                }
+                diagnostics.push(ChangelistDiagnostic {
+                    kind: "missing_property_definition",
+                    object: Some(*obj),
+                    constant: None,
+                    message: format!(
+                        "{obj} overrides property {} but no effective ancestor defines it",
+                        prop.name
+                    ),
+                });
+            }
+        }
+        diagnostics
+    }
+
+    fn parent_property_conflict_diagnostics(&self) -> Vec<ChangelistDiagnostic> {
+        let mut diagnostics = Vec::new();
+
+        for (obj, (_, definition)) in self.definitions {
+            if definition.parent.is_nothing() {
+                continue;
+            }
+            let current_parent = self
+                .analyzer
+                .world_state
+                .valid(obj)
+                .ok()
+                .filter(|valid| *valid)
+                .and_then(|_| {
+                    self.analyzer
+                        .world_state
+                        .parent_of(self.analyzer.permissions, obj)
+                        .ok()
+                });
+            if current_parent == Some(definition.parent) {
+                continue;
+            }
+
+            let descendant_props = self.subtree_property_names(*obj);
+            if descendant_props.is_empty() {
+                continue;
+            }
+            let ancestor_props = self.ancestor_property_names(definition.parent, true);
+            for prop in descendant_props.intersection(&ancestor_props) {
+                diagnostics.push(ChangelistDiagnostic {
+                    kind: "parent_property_conflict",
+                    object: Some(*obj),
+                    constant: None,
+                    message: format!(
+                        "changing {obj}'s parent to {} would make property {prop} defined both on the subtree and on the new parent chain",
+                        definition.parent
+                    ),
+                });
+            }
+        }
+
+        diagnostics
+    }
+
+    fn object_exists_in_proposed_graph(&self, obj: Obj) -> bool {
+        obj == NOTHING
+            || obj == SYSTEM_OBJECT
+            || self.definitions.contains_key(&obj)
+            || self.analyzer.world_state.valid(&obj).ok() == Some(true)
+    }
+
+    fn effective_parent(&self, obj: Obj) -> Option<Obj> {
+        if let Some((_, definition)) = self.definitions.get(&obj) {
+            return Some(definition.parent);
+        }
+        if self.analyzer.world_state.valid(&obj).ok()? {
+            return self
+                .analyzer
+                .world_state
+                .parent_of(self.analyzer.permissions, &obj)
+                .ok();
+        }
+        None
+    }
+
+    fn ancestor_defines_property(&self, obj: Obj, prop: Symbol) -> bool {
+        let Some(mut current) = self.effective_parent(obj) else {
+            return false;
+        };
+
+        while !current.is_nothing() {
+            if self.direct_property_names(current).contains(&prop) {
+                return true;
+            }
+            let Some(parent) = self.effective_parent(current) else {
+                return false;
+            };
+            current = parent;
+        }
+
+        false
+    }
+
+    fn subtree_property_names(&self, root: Obj) -> BTreeSet<Symbol> {
+        let mut props = BTreeSet::new();
+        for obj in self.proposed_descendants(root, true) {
+            props.extend(self.direct_property_names(obj));
+        }
+        props
+    }
+
+    fn ancestor_property_names(&self, root: Obj, include_self: bool) -> BTreeSet<Symbol> {
+        let mut props = BTreeSet::new();
+        let mut current = if include_self {
+            root
+        } else {
+            match self.effective_parent(root) {
+                Some(parent) => parent,
+                None => return props,
+            }
+        };
+        let mut seen = BTreeSet::new();
+
+        while !current.is_nothing() && seen.insert(current) {
+            props.extend(self.direct_property_names(current));
+            let Some(parent) = self.effective_parent(current) else {
+                break;
+            };
+            current = parent;
+        }
+
+        props
+    }
+
+    fn direct_property_names(&self, obj: Obj) -> BTreeSet<Symbol> {
+        if let Some((_, definition)) = self.definitions.get(&obj) {
+            return definition
+                .property_definitions
+                .iter()
+                .map(|prop| prop.name)
+                .collect();
+        }
+
+        self.analyzer
+            .world_state
+            .properties(self.analyzer.permissions, &obj)
+            .ok()
+            .map(|props| props.iter().map(|prop| prop.name()).collect())
+            .unwrap_or_default()
+    }
+
+    fn proposed_descendants(&self, root: Obj, include_self: bool) -> BTreeSet<Obj> {
+        let mut descendants = BTreeSet::new();
+        if include_self {
+            descendants.insert(root);
+        }
+
+        let mut stack = vec![root];
+        while let Some(parent) = stack.pop() {
+            for child in self.nodes.iter().copied() {
+                if descendants.contains(&child) {
+                    continue;
+                }
+                if self.effective_parent(child) == Some(parent) {
+                    descendants.insert(child);
+                    stack.push(child);
+                }
+            }
+        }
+
+        descendants
     }
 }
 
@@ -1277,5 +1556,327 @@ mod tests {
                 .iter()
                 .any(|change| change.kind == "verb_code")
         );
+    }
+
+    #[test]
+    fn graph_allows_multi_object_create_with_incoming_parent() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "Parent"
+                owner: #0
+                parent: #-1
+                location: #-1
+            endobject
+            object #11
+                name: "Child"
+                owner: #0
+                parent: #10
+                location: #-1
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(result.ok, "{:?}", result.diagnostics);
+        assert_eq!(result.objects.len(), 2);
+        assert!(
+            result
+                .objects
+                .iter()
+                .all(|object| object.status == ChangelistStatus::Create)
+        );
+    }
+
+    #[test]
+    fn graph_allows_property_override_from_incoming_ancestor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "Parent"
+                owner: #0
+                parent: #-1
+                location: #-1
+                property title (owner: #10, flags: "rc") = "parent";
+            endobject
+            object #11
+                name: "Child"
+                owner: #0
+                parent: #10
+                location: #-1
+                override title = "child";
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(result.ok, "{:?}", result.diagnostics);
+    }
+
+    #[test]
+    fn graph_rejects_incoming_parent_cycle() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "A"
+                owner: #0
+                parent: #11
+                location: #-1
+            endobject
+            object #11
+                name: "B"
+                owner: #0
+                parent: #10
+                location: #-1
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == "parent_cycle"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn graph_reports_invalid_object_reference() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "Orphan"
+                owner: #0
+                parent: #999
+                location: #-1
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == "invalid_reference"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn graph_reports_missing_property_definition_for_override() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "Parent"
+                owner: #0
+                parent: #-1
+                location: #-1
+            endobject
+            object #11
+                name: "Child"
+                owner: #0
+                parent: #10
+                location: #-1
+                override missing = "child";
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == "missing_property_definition"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn graph_reports_property_definition_conflict_with_incoming_ancestor() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let result = analyze(
+            &db,
+            r#"
+            object #10
+                name: "Parent"
+                owner: #0
+                parent: #-1
+                location: #-1
+                property title (owner: #10, flags: "rc") = "parent";
+            endobject
+            object #11
+                name: "Child"
+                owner: #0
+                parent: #10
+                location: #-1
+                property title (owner: #11, flags: "rc") = "child";
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == "parent_property_conflict"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn graph_reports_parent_change_descendant_property_conflict() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let mut loader = db.loader_client().unwrap();
+        let mut obj_loader = ObjectDefinitionLoader::new(loader.as_mut());
+        for source in [
+            r#"
+            object #10
+                name: "Parent Without Bar"
+                owner: #0
+                parent: #-1
+                location: #-1
+            endobject
+            "#,
+            r#"
+            object #20
+                name: "Parent With Bar"
+                owner: #0
+                parent: #-1
+                location: #-1
+                property bar (owner: #20, flags: "rc") = "from parent 20";
+            endobject
+            "#,
+            r#"
+            object #50 [import_export_id -> "middle"]
+                name: "Middle Object"
+                owner: #0
+                parent: #10
+                location: #-1
+            endobject
+            "#,
+            r#"
+            object #51
+                name: "Child With Bar"
+                owner: #0
+                parent: #50
+                location: #-1
+                property bar (owner: #51, flags: "rc") = "from child 51";
+            endobject
+            "#,
+        ] {
+            obj_loader
+                .load_single_object(
+                    source,
+                    CompileOptions::default(),
+                    ObjDefLoaderOptions::default(),
+                )
+                .unwrap();
+        }
+        loader.commit().unwrap();
+
+        let result = analyze(
+            &db,
+            r#"
+            object #50 [import_export_id -> "middle"]
+                name: "Middle Object"
+                owner: #0
+                parent: #20
+                location: #-1
+            endobject
+            "#,
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == "parent_property_conflict"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn graph_handles_case_scalar_load_cannot_model() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let db = test_db(tmpdir.path());
+        let child = r#"
+            object #11
+                name: "Child"
+                owner: #0
+                parent: #10
+                location: #-1
+            endobject
+            "#;
+
+        let mut loader = db.loader_client().unwrap();
+        let mut obj_loader = ObjectDefinitionLoader::new(loader.as_mut());
+        let scalar_result = obj_loader.load_single_object(
+            child,
+            CompileOptions::default(),
+            ObjDefLoaderOptions {
+                validate_parent_changes: true,
+                ..ObjDefLoaderOptions::default()
+            },
+        );
+        assert!(scalar_result.is_err());
+
+        let result = analyze(
+            &db,
+            &format!(
+                r#"
+            object #10
+                name: "Parent"
+                owner: #0
+                parent: #-1
+                location: #-1
+            endobject
+            {child}
+            "#
+            ),
+            ChangelistOptions::default(),
+        )
+        .unwrap();
+
+        assert!(result.ok, "{:?}", result.diagnostics);
     }
 }
