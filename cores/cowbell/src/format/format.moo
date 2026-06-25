@@ -1,4 +1,7 @@
-object FORMAT
+object FORMAT [
+  import_export_id -> "format",
+  import_export_hierarchy -> {"format"}
+]
   name: "Format Objects"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -15,6 +18,4 @@ object FORMAT
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;
 
   override description = "Container for formatting objects like block, list, table, and title.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format";
 endobject

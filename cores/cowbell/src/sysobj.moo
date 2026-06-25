@@ -1,4 +1,6 @@
-object SYSOBJ
+object SYSOBJ [
+  import_export_id -> "sysobj"
+]
   name: "System Object"
   parent: ROOT
   owner: ARCH_WIZARD
@@ -114,7 +116,6 @@ object SYSOBJ
   property wiz_features (owner: HACKER, flags: "r") = WIZ_FEATURES;
 
   override description = "System object containing global properties and core server event handlers.";
-  override import_export_id = "sysobj";
 
   method do_login_command owner: ARCH_WIZARD
     "...This code should only be run as a server task, but we'll let wizards poke at it...";

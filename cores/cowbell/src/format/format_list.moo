@@ -1,12 +1,13 @@
-object FORMAT_LIST
+object FORMAT_LIST [
+  import_export_id -> "format_list",
+  import_export_hierarchy -> {"format"}
+]
   name: "List Content Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for list content in events.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_list";
 
   method mk owner: HACKER
     "Create list flyweight with optional ordered attribute";

@@ -1,4 +1,7 @@
-object MR_WELCOME
+object MR_WELCOME [
+  import_export_id -> "mr_welcome",
+  import_export_hierarchy -> {"llm"}
+]
   name: "Mr. Welcome"
   parent: LLM_ROOM_OBSERVER
   location: FIRST_ROOM
@@ -26,8 +29,6 @@ object MR_WELCOME
     " head quizzically. \"I am already fully operational, though I appreciate your concern for my well-being.\""
   };
   override description = "A cheerful, helpful guide who welcomes visitors and helps them navigate this world.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "mr_welcome";
   override last_significant_event = 1765577406.80481;
   override last_spoke_at = 0;
   override responding = false;

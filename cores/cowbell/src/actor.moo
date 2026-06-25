@@ -1,4 +1,6 @@
-object ACTOR
+object ACTOR [
+  import_export_id -> "actor"
+]
   name: "Generic Actor"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -11,7 +13,6 @@ object ACTOR
   property wearing (owner: ARCH_WIZARD, flags: "rc") = {};
 
   override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
-  override import_export_id = "actor";
 
   method is_actor owner: HACKER
     "Actors can perform actions in the world.";

@@ -1,4 +1,7 @@
-object PROTOTYPE_BOX
+object PROTOTYPE_BOX [
+  import_export_id -> "prototype_box",
+  import_export_hierarchy -> {"initial"}
+]
   name: "Prototype Box"
   parent: CONTAINER
   location: FIRST_ROOM
@@ -6,6 +9,4 @@ object PROTOTYPE_BOX
   readable: true
 
   override description = "A container for storing generic prototype objects. These objects serve as templates and base classes for the system.";
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "prototype_box";
 endobject

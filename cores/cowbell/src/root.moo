@@ -1,4 +1,7 @@
-object ROOT
+object ROOT [
+  import_export_id -> "root",
+  import_export_hierarchy -> {}
+]
   name: "Root Prototype"
   location: PROTOTYPE_BOX
   owner: HACKER
@@ -7,8 +10,6 @@ object ROOT
 
   property aliases (owner: HACKER, flags: "rc") = {};
   property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
-  property import_export_hierarchy (owner: HACKER, flags: "rc") = {};
-  property import_export_id (owner: HACKER, flags: "r") = "root";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
   property revoked_capability_jtis (owner: ARCH_WIZARD, flags: "rc") = [];
   property thumbnail (owner: HACKER, flags: "rc") = false;

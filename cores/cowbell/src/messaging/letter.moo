@@ -1,4 +1,7 @@
-object LETTER
+object LETTER [
+  import_export_id -> "letter",
+  import_export_hierarchy -> {"messaging"}
+]
   name: "Generic Letter"
   parent: NOTE
   location: PROTOTYPE_BOX
@@ -13,8 +16,6 @@ object LETTER
   property sent_at (owner: TEST_PLAYER, flags: "rc") = 0;
 
   override aliases = {"letter"};
-  override import_export_hierarchy = {"messaging"};
-  override import_export_id = "letter";
   override object_documentation = "A letter is a note with communication metadata: author, addressee, timestamps, and sealing. When sealed, only the addressee can read it.";
 
   method can_read owner: ARCH_WIZARD

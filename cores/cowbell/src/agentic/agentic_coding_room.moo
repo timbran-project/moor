@@ -1,4 +1,7 @@
-object AGENTIC_CODING_ROOM
+object AGENTIC_CODING_ROOM [
+  import_export_id -> "agentic_coding_room",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Coding Room"
   parent: AGENT_ROOM
   location: PROTOTYPE_BOX
@@ -17,8 +20,6 @@ object AGENTIC_CODING_ROOM
   property agentic_wait_started (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Room-based coding agent that uses $agentic.agent for task execution and tool orchestration.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_coding_room";
 
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Dump object summary with properties and verbs.";

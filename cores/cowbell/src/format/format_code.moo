@@ -1,12 +1,13 @@
-object FORMAT_CODE
+object FORMAT_CODE [
+  import_export_id -> "format_code",
+  import_export_hierarchy -> {"format"}
+]
   name: "Code Block Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for code block content. Renders code in fenced blocks with optional language specification for syntax highlighting.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_code";
 
   method mk owner: HACKER
     "Create a code block flyweight. Args: (code_content) or (code_content, language)";

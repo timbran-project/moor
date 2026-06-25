@@ -1,4 +1,7 @@
-object WIZARD_HELP_TOPICS
+object WIZARD_HELP_TOPICS [
+  import_export_id -> "wizard_help_topics",
+  import_export_hierarchy -> {"help"}
+]
   name: "Wizard Help Topics"
   parent: HELP_SOURCE
   location: PROTOTYPE_BOX
@@ -19,8 +22,6 @@ object WIZARD_HELP_TOPICS
   property topic_wizard_reissue_tools (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@reissue-tools`\n\nDestroys existing tool instances and reissues them to qualified players.", .name = "@reissue-tools", .aliases = {"reissue-tools", "tool reissue"}, .category = 'administration, .summary = "Reissue tool instances", .see_also = {"@reconfigure-tools"}>;
   property topic_wizard_shutdown (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@shutdown [in <minutes>] [message]`\n\nSends countdown announcements, dumps database, and shuts down server.", .name = "@shutdown", .aliases = {"shutdown", "reboot"}, .category = 'administration, .summary = "Shutdown server", .see_also = {"@announce"}>;
 
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "wizard_help_topics";
   override topic_order = {
     'topic_wizard_overview,
     'topic_wizard_announce,

@@ -1,4 +1,7 @@
-object FOOD
+object FOOD [
+  import_export_id -> "food",
+  import_export_hierarchy -> {"items"}
+]
   name: "Generic Food"
   parent: CONSUMABLE
   location: PROTOTYPE_BOX
@@ -65,8 +68,6 @@ object FOOD
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "food";
   override object_documentation = {
     "# Food",
     "",

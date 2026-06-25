@@ -1,12 +1,13 @@
-object HELP
+object HELP [
+  import_export_id -> "help",
+  import_export_hierarchy -> {"help"}
+]
   name: "Help Topic Flyweight Delegate"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
 
   override description = "Flyweight delegate for help topics. Creates structured help entries that can be rendered for humans or machines.";
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "help";
 
   method mk owner: ARCH_WIZARD
     "Create a help topic flyweight.";

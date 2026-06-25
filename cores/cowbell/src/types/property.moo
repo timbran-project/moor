@@ -1,12 +1,13 @@
-object PROPERTY
+object PROPERTY [
+  import_export_id -> "property",
+  import_export_hierarchy -> {"types"}
+]
   name: "Property"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
 
   override description = "Delegate object for property metadata flyweights. Provides access to property information and operations. Slots: owner_obj, location, name, owner, perms, is_clear";
-  override import_export_hierarchy = {"types"};
-  override import_export_id = "property";
 
   method owner owner: ARCH_WIZARD
     "Return the owner of the property (user who created it)";

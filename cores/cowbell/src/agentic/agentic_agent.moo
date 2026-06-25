@@ -1,4 +1,7 @@
-object AGENTIC_AGENT
+object AGENTIC_AGENT [
+  import_export_id -> "agentic_agent",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Agent"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -26,8 +29,6 @@ object AGENTIC_AGENT
   property total_tokens_used (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "Stateful agent prototype that composes $agentic.loop and registered $agentic.tool flyweights.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_agent";
 
   method initialize owner: ARCH_WIZARD
     "Called on creation. Creates an anonymous LLM client.";

@@ -1,4 +1,7 @@
-object INT_PROTO
+object INT_PROTO [
+  import_export_id -> "int_proto",
+  import_export_hierarchy -> {"types"}
+]
   name: "Integer Prototype"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object INT_PROTO
   readable: true
 
   override description = "Prototype object for integer utility methods.";
-  override import_export_hierarchy = {"types"};
-  override import_export_id = "int_proto";
 
   method compose owner: HACKER
     "Return string representation for event composition";

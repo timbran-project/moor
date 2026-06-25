@@ -1,12 +1,13 @@
-object RULE
+object RULE [
+  import_export_id -> "rule",
+  import_export_hierarchy -> {"rules"}
+]
   name: "Rule"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
 
   override description = "Flyweight delegate for Datalog-style rules. Rules consist of a head predicate and a body of goals.";
-  override import_export_hierarchy = {"rules"};
-  override import_export_id = "rule";
 
   method mk owner: ARCH_WIZARD
     "Create a new rule flyweight.";

@@ -1,4 +1,7 @@
-object MAILBOX
+object MAILBOX [
+  import_export_id -> "mailbox",
+  import_export_hierarchy -> {"messaging"}
+]
   name: "Generic Mailbox"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -8,8 +11,6 @@ object MAILBOX
 
   override aliases = {"mailbox"};
   override description = "A sturdy mailbox for receiving letters.";
-  override import_export_hierarchy = {"messaging"};
-  override import_export_id = "mailbox";
   override object_documentation = "A mailbox holds letters for its owner. Anyone can deposit letters, but only the owner can view or take them.";
 
   method acceptable owner: ARCH_WIZARD

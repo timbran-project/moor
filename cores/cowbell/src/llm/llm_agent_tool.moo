@@ -1,4 +1,7 @@
-object LLM_AGENT_TOOL
+object LLM_AGENT_TOOL [
+  import_export_id -> "llm_agent_tool",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Agent Tool"
   parent: ROOT
   owner: HACKER
@@ -6,8 +9,6 @@ object LLM_AGENT_TOOL
   readable: true
 
   override description = "Flyweight delegate for LLM agent tool definitions. Converts to OpenAI tool schema and executes tool calls.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_agent_tool";
 
   method mk owner: HACKER
     "Create a tool definition flyweight";

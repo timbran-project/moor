@@ -1,4 +1,7 @@
-object AGENTIC
+object AGENTIC [
+  import_export_id -> "agentic",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Objects"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -14,6 +17,4 @@ object AGENTIC
   property tool (owner: ARCH_WIZARD, flags: "rc") = AGENTIC_TOOL;
 
   override description = "Namespace root for agentic components. Accessed as $agentic with subcomponents like $agentic.tool and $agentic.agent.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic";
 endobject

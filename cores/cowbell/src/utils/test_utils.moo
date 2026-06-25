@@ -1,4 +1,7 @@
-object TEST_UTILS
+object TEST_UTILS [
+  import_export_id -> "test_utils",
+  import_export_hierarchy -> {"utils"}
+]
   name: "Test Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object TEST_UTILS
   readable: true
 
   override description = "Shared helpers for cowbell unit tests.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "test_utils";
 
   method assert_true owner: HACKER
     "Assert that condition is true.";

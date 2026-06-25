@@ -1,4 +1,7 @@
-object LIST_PROTO
+object LIST_PROTO [
+  import_export_id -> "list_proto",
+  import_export_hierarchy -> {"types"}
+]
   name: "List Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object LIST_PROTO
   readable: true
 
   override description = "Prototype object for list utility methods and functional programming operations.";
-  override import_export_hierarchy = {"types"};
-  override import_export_id = "list_proto";
 
   method append owner: HACKER
     "Return a single list containing every element from each argument list, in order.";

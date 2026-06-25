@@ -1,12 +1,13 @@
-object PASSWORD
+object PASSWORD [
+  import_export_id -> "password",
+  import_export_hierarchy -> {"auth"}
+]
   name: "Password Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for password storage using Argon2 encryption.";
-  override import_export_hierarchy = {"auth"};
-  override import_export_id = "password";
 
   method mk owner: ARCH_WIZARD
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";

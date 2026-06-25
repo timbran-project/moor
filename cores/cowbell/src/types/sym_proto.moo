@@ -1,4 +1,7 @@
-object SYM_PROTO
+object SYM_PROTO [
+  import_export_id -> "sym_proto",
+  import_export_hierarchy -> {"types"}
+]
   name: "Symbol Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object SYM_PROTO
   readable: true
 
   override description = "Prototype object for symbol utility methods.";
-  override import_export_hierarchy = {"types"};
-  override import_export_id = "sym_proto";
 
   method as_string owner: HACKER
     "Return the symbol's text.";

@@ -1,4 +1,7 @@
-object HENRI
+object HENRI [
+  import_export_id -> "henri",
+  import_export_hierarchy -> {"initial"}
+]
   name: "Henri"
   parent: ACTOR
   location: FIRST_ROOM
@@ -204,8 +207,6 @@ object HENRI
 
   override aliases = {"cat", "grouchy cat"};
   override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "henri";
   override object_documentation = {
     "# Henri - The Grouchy Cat",
     "",

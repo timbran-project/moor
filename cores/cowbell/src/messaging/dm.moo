@@ -1,4 +1,7 @@
-object DM
+object DM [
+  import_export_id -> "dm",
+  import_export_hierarchy -> {"messaging"}
+]
   name: "Direct Message"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object DM
   readable: true
 
   override description = "Flyweight delegate for direct messages. DMs are lightweight, ephemeral player-to-player messages that follow the same protocol as letters (from, to, sent, text) but are stored as flyweights rather than full objects.";
-  override import_export_hierarchy = {"messaging"};
-  override import_export_id = "dm";
 
   method mk owner: ARCH_WIZARD
     "Create a DM flyweight.";

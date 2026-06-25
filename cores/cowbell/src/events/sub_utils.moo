@@ -1,4 +1,7 @@
-object SUB_UTILS
+object SUB_UTILS [
+  import_export_id -> "sub_utils",
+  import_export_hierarchy -> {"events"}
+]
   name: "Substitution Utilities"
   parent: ROOT
   owner: HACKER
@@ -88,8 +91,6 @@ object SUB_UTILS
   property verb_map (owner: HACKER, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
 
   override description = "Compiler and utilities for $sub template language.";
-  override import_export_hierarchy = {"events"};
-  override import_export_id = "sub_utils";
   override object_documentation = {
     "# $sub_utils - Template Compiler",
     "",

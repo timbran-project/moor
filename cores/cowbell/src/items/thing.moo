@@ -1,4 +1,7 @@
-object THING
+object THING [
+  import_export_id -> "thing",
+  import_export_hierarchy -> {"items"}
+]
   name: "Generic Thing"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -31,8 +34,6 @@ object THING
   property unlocks (owner: HACKER, flags: "rc") = #-1;
 
   override description = "Generic thing prototype that is the basis for most items in the world.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "thing";
   override object_documentation = {
     "# Generic Things",
     "",

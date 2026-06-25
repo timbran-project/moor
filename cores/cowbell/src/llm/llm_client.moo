@@ -1,4 +1,7 @@
-object LLM_CLIENT
+object LLM_CLIENT [
+  import_export_id -> "llm_client",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Client"
   parent: ROOT
   owner: HACKER
@@ -9,8 +12,6 @@ object LLM_CLIENT
   property model (owner: HACKER, flags: "r") = 0;
 
   override description = "OpenAI-compatible LLM API client for chat completions using worker_request.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_client";
 
   method chat owner: ARCH_WIZARD
     "Make a chat completion request to LLM API";

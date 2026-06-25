@@ -1,4 +1,7 @@
-object LLM_ROOM_OBSERVER
+object LLM_ROOM_OBSERVER [
+  import_export_id -> "llm_room_observer",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Room Observer"
   parent: ACTOR
   owner: HACKER
@@ -74,8 +77,6 @@ object LLM_ROOM_OBSERVER
   };
 
   override description = "Room-observing bot powered by an LLM agent. Watches room events and responds when poked.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_room_observer";
 
   method configure owner: ARCH_WIZARD
     "Create agent and apply configuration. Children override _setup_agent to customize.";

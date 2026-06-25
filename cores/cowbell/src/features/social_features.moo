@@ -1,4 +1,7 @@
-object SOCIAL_FEATURES
+object SOCIAL_FEATURES [
+  import_export_id -> "social_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Social Features"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object SOCIAL_FEATURES
   readable: true
 
   override description = "Provides common social action verbs (nod, wave, bow, etc.) that can be added to a player's features to extend their ambient command environment.";
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "social_features";
 
   verb nod (none any any) owner: HACKER flags: "rd"
     "HINT: at <whom> -- Nod at/to someone or just nod.";

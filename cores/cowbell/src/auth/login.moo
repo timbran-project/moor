@@ -1,4 +1,7 @@
-object LOGIN
+object LOGIN [
+  import_export_id -> "login",
+  import_export_hierarchy -> {"auth"}
+]
   name: "Login Service"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -80,8 +83,6 @@ object LOGIN
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
 
   override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
-  override import_export_hierarchy = {"auth"};
-  override import_export_id = "login";
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";

@@ -1,4 +1,7 @@
-object WEARABLE
+object WEARABLE [
+  import_export_id -> "wearable",
+  import_export_hierarchy -> {"items"}
+]
   name: "Wearable Item"
   parent: THING
   owner: HACKER
@@ -24,8 +27,6 @@ object WEARABLE
   };
 
   override description = "Generic parent for items that can be worn by players.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "wearable";
   override object_documentation = {
     "# Wearable Items",
     "",

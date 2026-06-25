@@ -1,4 +1,7 @@
-object SCHEDULER
+object SCHEDULER [
+  import_export_id -> "scheduler",
+  import_export_hierarchy -> {"scheduler"}
+]
   name: "Task Scheduler"
   parent: ROOT
   owner: HACKER
@@ -10,8 +13,6 @@ object SCHEDULER
   property sweep_task_id (owner: HACKER, flags: "r") = 0;
 
   override description = "Task scheduler for executing verbs on objects at specified times or intervals. Each scheduled task is stored in its own property (scheduled_task_N) to avoid transaction conflicts.";
-  override import_export_hierarchy = {"scheduler"};
-  override import_export_id = "scheduler";
 
   method schedule_after owner: HACKER
     "Schedule a verb to run after N seconds: schedule_after(seconds, object, verb, [args]).";

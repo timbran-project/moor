@@ -1,4 +1,7 @@
-object AGENTIC_TOOL
+object AGENTIC_TOOL [
+  import_export_id -> "agentic_tool",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Tool Delegate"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object AGENTIC_TOOL
   readable: true
 
   override description = "Flyweight delegate for agentic tool definitions and execution.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_tool";
 
   method mk owner: ARCH_WIZARD
     "Create an agentic tool definition flyweight.";

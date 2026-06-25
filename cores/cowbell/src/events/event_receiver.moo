@@ -1,4 +1,7 @@
-object EVENT_RECEIVER
+object EVENT_RECEIVER [
+  import_export_id -> "event_receiver",
+  import_export_hierarchy -> {"events"}
+]
   name: "Generic Event Receiver"
   parent: ACTOR
   location: PROTOTYPE_BOX
@@ -7,8 +10,6 @@ object EVENT_RECEIVER
   readable: true
 
   override description = "Generic event receiver prototype providing event broadcasting and connection notification capabilities.";
-  override import_export_hierarchy = {"events"};
-  override import_export_id = "event_receiver";
 
   method tell owner: HACKER
     "Broadcast an event to all connections for this player, with per-connection content negotiation.";

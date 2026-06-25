@@ -1,4 +1,7 @@
-object FORMAT_DEFLIST
+object FORMAT_DEFLIST [
+  import_export_id -> "FORMAT_DEFLIST",
+  import_export_hierarchy -> {"format"}
+]
   name: "Definition List Flyweight Delegate"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object FORMAT_DEFLIST
   readable: true
 
   override description = "Flyweight delegate for definition lists (key-value pairs) in events.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "FORMAT_DEFLIST";
 
   method mk owner: ARCH_WIZARD
     "Create deflist flyweight from a list of {term, definition} pairs.";

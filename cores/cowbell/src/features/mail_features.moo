@@ -1,4 +1,7 @@
-object MAIL_FEATURES
+object MAIL_FEATURES [
+  import_export_id -> "mail_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Mail Features"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object MAIL_FEATURES
   readable: true
 
   override description = "Provides mail commands (mail, send, compose) for players.";
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "mail_features";
 
   verb mail (none none none) owner: ARCH_WIZARD flags: "rxd"
     "HINT: -- Check your mailbox for letters.";

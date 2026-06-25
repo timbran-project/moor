@@ -1,12 +1,13 @@
-object SCHEDULED_TASK
+object SCHEDULED_TASK [
+  import_export_id -> "scheduled_task",
+  import_export_hierarchy -> {"scheduler"}
+]
   name: "Scheduled Task"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for scheduled tasks. Tasks store: schedule_id, task_id, target, verb, args, run_at, recurring, interval.";
-  override import_export_hierarchy = {"scheduler"};
-  override import_export_id = "scheduled_task";
 
   method mk owner: HACKER
     "Create a new scheduled task flyweight.";

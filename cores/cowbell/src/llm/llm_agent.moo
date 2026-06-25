@@ -1,4 +1,7 @@
-object LLM_AGENT
+object LLM_AGENT [
+  import_export_id -> "llm_agent",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Agent"
   parent: ROOT
   owner: HACKER
@@ -32,8 +35,6 @@ object LLM_AGENT
   property total_tokens_used (owner: HACKER, flags: "rc") = 0;
 
   override description = "Prototype for LLM-powered agents. Maintains conversation context and executes tool calls.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_agent";
 
   method initialize owner: ARCH_WIZARD
     "Called automatically on creation. Creates anonymous client.";

@@ -1,4 +1,7 @@
-object LLM_TASK
+object LLM_TASK [
+  import_export_id -> "llm_task",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Task"
   parent: ROOT
   owner: HACKER
@@ -18,8 +21,6 @@ object LLM_TASK
   property task_id (owner: HACKER, flags: "rc") = 0;
 
   override description = "Anonymous task spawned by an LLM agent to track work and findings.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_task";
 
   method mk owner: ARCH_WIZARD
     "Create a task (typically called by agent). Returns task object.";

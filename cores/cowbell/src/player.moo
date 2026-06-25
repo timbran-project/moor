@@ -1,4 +1,6 @@
-object PLAYER
+object PLAYER [
+  import_export_id -> "player"
+]
   name: "Generic Player"
   parent: EVENT_RECEIVER
   location: PROTOTYPE_BOX
@@ -32,7 +34,6 @@ object PLAYER
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
 
   override description = "You see a player who should get around to describing themself.";
-  override import_export_id = "player";
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Look at an object or passage direction.";

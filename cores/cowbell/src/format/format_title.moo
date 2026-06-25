@@ -1,12 +1,13 @@
-object FORMAT_TITLE
+object FORMAT_TITLE [
+  import_export_id -> "format_title",
+  import_export_hierarchy -> {"format"}
+]
   name: "Title Content Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for title/heading content in events.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_title";
 
   method mk owner: HACKER
     "Create a title flyweight. Args: (content) or (content, level)";

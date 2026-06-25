@@ -1,4 +1,7 @@
-object AREA
+object AREA [
+  import_export_id -> "area",
+  import_export_hierarchy -> {"world"}
+]
   name: "Generic Area"
   parent: ROOT
   owner: HACKER
@@ -8,8 +11,6 @@ object AREA
   property passages_rel (owner: HACKER, flags: "r") = 0;
 
   override description = "Area container that manages passages between rooms using a relation.";
-  override import_export_hierarchy = {"world"};
-  override import_export_id = "area";
 
   method acceptable owner: HACKER
     "Areas accept rooms as spatial contents.";

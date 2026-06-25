@@ -1,4 +1,6 @@
-object PRONOUNS
+object PRONOUNS [
+  import_export_id -> "pronouns"
+]
   name: "Pronoun System"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -12,7 +14,6 @@ object PRONOUNS
   property they_them (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
 
   override description = "Pronoun system providing preset and custom pronoun sets for objects and players.";
-  override import_export_id = "pronouns";
 
   method mk owner: HACKER
     "Create a custom pronoun set as a flyweight.";

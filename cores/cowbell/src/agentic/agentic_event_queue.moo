@@ -1,4 +1,7 @@
-object AGENTIC_EVENT_QUEUE
+object AGENTIC_EVENT_QUEUE [
+  import_export_id -> "agentic_event_queue",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Event Queue"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -8,8 +11,6 @@ object AGENTIC_EVENT_QUEUE
   property queue (owner: ARCH_WIZARD, flags: "rc") = {};
 
   override description = "Queue helper for agentic runners and observers.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_event_queue";
 
   method push owner: ARCH_WIZARD
     "Append an item to queue.";

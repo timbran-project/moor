@@ -1,4 +1,7 @@
-object WIZ_FEATURES
+object WIZ_FEATURES [
+  import_export_id -> "wiz_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Wizard Features"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -8,8 +11,6 @@ object WIZ_FEATURES
   property help_source (owner: ARCH_WIZARD, flags: "rc") = WIZARD_HELP_TOPICS;
 
   override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) for wizards.";
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "wiz_features";
 
   verb "@announce" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Broadcast a message to all connected players.";

@@ -1,4 +1,7 @@
-object AGENT_ROOM
+object AGENT_ROOM [
+  import_export_id -> "agent_room",
+  import_export_hierarchy -> {"llm"}
+]
   name: "Generic Agent Room"
   parent: ROOM
   owner: ARCH_WIZARD
@@ -19,8 +22,6 @@ object AGENT_ROOM
   property task_requester (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
   override description = "A virtual workspace for agent interaction.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "agent_room";
 
   verb do (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Catch-all command verb - queues natural language commands for the agent.";

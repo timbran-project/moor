@@ -1,4 +1,7 @@
-object REACTION
+object REACTION [
+  import_export_id -> "reaction",
+  import_export_hierarchy -> {"rules"}
+]
   name: "Reaction Prototype"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -41,8 +44,6 @@ object REACTION
   };
 
   override description = "Flyweight delegate for reactive behaviors on objects.";
-  override import_export_hierarchy = {"rules"};
-  override import_export_id = "reaction";
   override object_documentation = {
     "# $reaction - Reactive Behavior System",
     "",

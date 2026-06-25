@@ -1,4 +1,7 @@
-object AGENTIC_RUNNER
+object AGENTIC_RUNNER [
+  import_export_id -> "agentic_runner",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Runner"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -9,8 +12,6 @@ object AGENTIC_RUNNER
   property enabled (owner: ARCH_WIZARD, flags: "rc") = 1;
 
   override description = "Runtime adapter that binds an agent to an event source/sink.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_runner";
 
   method attach_agent owner: ARCH_WIZARD
     "Attach a specific agent instance to this runner.";

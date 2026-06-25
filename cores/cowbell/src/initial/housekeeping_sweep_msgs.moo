@@ -1,4 +1,7 @@
-object HOUSEKEEPING_SWEEP_MSGS
+object HOUSEKEEPING_SWEEP_MSGS [
+  import_export_id -> "housekeeping_sweep_msgs",
+  import_export_hierarchy -> {"initial"}
+]
   name: "Housekeeping Sweep Messages"
   parent: MSG_BAG
   owner: ARCH_WIZARD
@@ -30,6 +33,4 @@ object HOUSEKEEPING_SWEEP_MSGS
       " is gently but firmly ushered toward the dormitory."
     }
   };
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "housekeeping_sweep_msgs";
 endobject

@@ -1,4 +1,7 @@
-object HELP_TOPICS
+object HELP_TOPICS [
+  import_export_id -> "help_topics",
+  import_export_hierarchy -> {"help"}
+]
   name: "Global Help Topics"
   parent: ROOT
   owner: ARCH_WIZARD
@@ -296,8 +299,6 @@ object HELP_TOPICS
   };
 
   override description = "Global help topics available everywhere in the system.";
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "help_topics";
 
   method help_topics owner: ARCH_WIZARD
     "Return global help topics for players.";

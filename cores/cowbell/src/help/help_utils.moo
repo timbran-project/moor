@@ -1,4 +1,7 @@
-object HELP_UTILS
+object HELP_UTILS [
+  import_export_id -> "help_utils",
+  import_export_hierarchy -> {"help"}
+]
   name: "Help Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object HELP_UTILS
   readable: true
 
   override description = "Help utilities for documentation extraction and lookup. Provides verbs for extracting verb docstrings, object documentation, and parsing help references.";
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "help_utils";
 
   method extract_verb_documentation owner: ARCH_WIZARD
     "Extract documentation from a verb's code. Returns list of all comment lines (string literals ending with ;) from the start of the verb until the first non-comment line.";

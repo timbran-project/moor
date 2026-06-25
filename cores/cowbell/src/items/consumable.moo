@@ -1,4 +1,7 @@
-object CONSUMABLE
+object CONSUMABLE [
+  import_export_id -> "consumable",
+  import_export_hierarchy -> {"items"}
+]
   name: "Generic Consumable"
   parent: THING
   location: PROTOTYPE_BOX
@@ -40,8 +43,6 @@ object CONSUMABLE
   property portions (owner: ARCH_WIZARD, flags: "rc") = 1;
 
   override description = "Base prototype for consumable items. Provides portions, consumption rules, and triggers.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "consumable";
   override object_documentation = {
     "# Consumables",
     "",

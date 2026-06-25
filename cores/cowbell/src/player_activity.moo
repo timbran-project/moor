@@ -1,12 +1,12 @@
-object PLAYER_ACTIVITY
+object PLAYER_ACTIVITY [
+  import_export_id -> "player_activity",
+  import_export_hierarchy -> 0
+]
   name: "$player_activity"
   parent: THING
   location: PROTOTYPE_BOX
   owner: ARCH_WIZARD
   readable: true
-
-  override import_export_hierarchy = 0;
-  override import_export_id = "player_activity";
 
   method make_entry owner: ARCH_WIZARD
     "Build an activity entry map.";

@@ -1,4 +1,7 @@
-object MATCH
+object MATCH [
+  import_export_id -> "match",
+  import_export_hierarchy -> {"utils"}
+]
   name: "Object Matching Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object MATCH
   readable: true
 
   override description = "Object matching system with support for numbered, UUID, and flyweight objects. Provides flexible matching with fuzzy search and enhanced error reporting.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "match";
 
   method match_object owner: HACKER
     "Match an object reference string to an actual object.";

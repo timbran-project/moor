@@ -1,4 +1,7 @@
-object STR_PROTO
+object STR_PROTO [
+  import_export_id -> "str_proto",
+  import_export_hierarchy -> {"types"}
+]
   name: "String Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -208,8 +211,6 @@ object STR_PROTO
   property tab (owner: HACKER, flags: "rc") = "\t";
 
   override description = "Prototype object for string utility methods and text manipulation operations.";
-  override import_export_hierarchy = {"types"};
-  override import_export_id = "str_proto";
 
   method "capitalize capitalise" owner: HACKER
     "Capitalizes its argument.";

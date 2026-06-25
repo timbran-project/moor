@@ -1,4 +1,7 @@
-object HTML
+object HTML [
+  import_export_id -> "html",
+  import_export_hierarchy -> {"format"}
+]
   name: "HTML Tree Flyweight"
   parent: ROOT
   owner: HACKER
@@ -6,8 +9,6 @@ object HTML
   readable: true
 
   override description = "Flyweight delegate for HTML tree structures.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "html";
 
   method render owner: HACKER
     {content_type} = args;

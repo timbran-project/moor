@@ -1,4 +1,7 @@
-object RELATION
+object RELATION [
+  import_export_id -> "relation",
+  import_export_hierarchy -> {"relations"}
+]
   name: "Generic Relation"
   parent: ROOT
   owner: HACKER
@@ -6,8 +9,6 @@ object RELATION
   readable: true
 
   override description = "N-ary persistent data relation.";
-  override import_export_hierarchy = {"relations"};
-  override import_export_id = "relation";
 
   method assert owner: ARCH_WIZARD
     "Add a tuple to the relation. Returns the UUID of the tuple.";

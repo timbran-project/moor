@@ -1,4 +1,7 @@
-object ROOM
+object ROOM [
+  import_export_id -> "room",
+  import_export_hierarchy -> {"world"}
+]
   name: "Generic Room"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -13,8 +16,6 @@ object ROOM
   property engagements (owner: HACKER, flags: "rc") = [];
 
   override description = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
-  override import_export_hierarchy = {"world"};
-  override import_export_id = "room";
 
   method initialize owner: ARCH_WIZARD
     "Set sensible defaults for newly created rooms.";

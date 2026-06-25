@@ -1,4 +1,6 @@
-object HACKER
+object HACKER [
+  import_export_id -> "hacker"
+]
   name: "Hacker"
   parent: PLAYER
   location: PROTOTYPE_BOX
@@ -9,6 +11,5 @@ object HACKER
 
   override authoring_features = PROG_FEATURES;
   override description = "System identity used as the owner of verbs that should execute with non-wizard permissions. Provides a permission boundary below wizard level but with programmer/build capabilities for verbs to run under. This account cannot be logged into directly.";
-  override import_export_id = "hacker";
   override is_builder = true;
 endobject

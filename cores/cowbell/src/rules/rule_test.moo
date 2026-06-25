@@ -1,4 +1,7 @@
-object RULE_TEST
+object RULE_TEST [
+  import_export_id -> "rule_test",
+  import_export_hierarchy -> {"rules"}
+]
   name: "Rule Test"
   parent: ROOT
   owner: ARCH_WIZARD
@@ -10,8 +13,6 @@ object RULE_TEST
   property reputation (owner: HACKER, flags: "") = 8;
 
   override description = "Test fixture providing sample fact predicates for testing the rule system.";
-  override import_export_hierarchy = {"rules"};
-  override import_export_id = "rule_test";
 
   method fact_reputation owner: HACKER
     "Fact: reputation(Guild, MinLevel) - does Guild have reputation >= MinLevel?";

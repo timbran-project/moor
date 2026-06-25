@@ -1,4 +1,7 @@
-object PROG_UTILS
+object PROG_UTILS [
+  import_export_id -> "prog_utils",
+  import_export_hierarchy -> {"utils"}
+]
   name: "Programmer Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object PROG_UTILS
   readable: true
 
   override description = "Core programmer utilities for verb and object manipulation. Provides common functionality used by both programmer features and development tools - verb/property management, code search, object inspection, etc.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "prog_utils";
 
   method grep_verb_code owner: ARCH_WIZARD
     "Search within a single verb's code for a pattern.";
@@ -16,7 +17,7 @@ object PROG_UTILS
     {pattern, object, vnum, casematters, ?preserve_task_perms = false} = args;
     if (preserve_task_perms)
       stack = callers();
-      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+      caller == this || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     else
       set_task_perms(caller_perms());
     endif
@@ -163,7 +164,7 @@ object PROG_UTILS
     {verb_obj, verb_name, ?preserve_task_perms = false} = args;
     if (preserve_task_perms)
       stack = callers();
-      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+      caller == this || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     else
       set_task_perms(caller_perms());
     endif
@@ -193,7 +194,7 @@ object PROG_UTILS
     {verb_obj, ?preserve_task_perms = false} = args;
     if (preserve_task_perms)
       stack = callers();
-      (caller == this || (length(stack) && stack[1][4] == this)) || raise(E_PERM);
+      caller == this || (length(stack) && stack[1][4] == this) || raise(E_PERM);
     else
       set_task_perms(caller_perms());
     endif

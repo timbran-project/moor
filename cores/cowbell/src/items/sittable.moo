@@ -1,4 +1,7 @@
-object SITTABLE
+object SITTABLE [
+  import_export_id -> "sittable",
+  import_export_hierarchy -> {"items"}
+]
   name: "Sittable"
   parent: THING
   location: PROTOTYPE_BOX
@@ -66,8 +69,6 @@ object SITTABLE
 
   override aliases = {"sittable"};
   override description = "A prototype for objects that can be sat upon. Set .seats to control capacity, .squeeze for extra squeezable spots (-1 for rigid furniture), .sitting_verb and .sitting_prep for customization.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "sittable";
   override object_documentation = {
     "# Sittable Objects",
     "",

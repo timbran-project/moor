@@ -1,12 +1,13 @@
-object RULE_ENGINE
+object RULE_ENGINE [
+  import_export_id -> "rule_engine",
+  import_export_hierarchy -> {"rules"}
+]
   name: "Rule Engine"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Stateless Datalog-style query engine. Evaluates rules and goals by calling fact predicates on objects.";
-  override import_export_hierarchy = {"rules"};
-  override import_export_id = "rule_engine";
   override object_documentation = {
     "# Rule Engine ($rule_engine)",
     "",

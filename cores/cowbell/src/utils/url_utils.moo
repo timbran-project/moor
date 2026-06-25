@@ -1,12 +1,13 @@
-object URL_UTILS
+object URL_UTILS [
+  import_export_id -> "url_utils",
+  import_export_hierarchy -> {"utils"}
+]
   name: "URL Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
   owner: HACKER
 
   override description = "Utilities for fetching and parsing URL metadata (OpenGraph, meta tags) for link previews.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "url_utils";
 
   method fetch_preview owner: ARCH_WIZARD
     "Fetch URL and extract OpenGraph/meta preview data.";

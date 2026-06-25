@@ -1,4 +1,7 @@
-object ARCHITECTS_COMPASS
+object ARCHITECTS_COMPASS [
+  import_export_id -> "architects_compass",
+  import_export_hierarchy -> {"llm"}
+]
   name: "Architect's Compass"
   parent: LLM_WEARABLE
   location: FIRST_ROOM
@@ -8,8 +11,6 @@ object ARCHITECTS_COMPASS
   property current_building_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
   override description = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "architects_compass";
   override placeholder_text = "Ask about building rooms, passages, objects...";
   override processing_message = "Analyzing spatial construction request...";
   override progress_steps = {

@@ -1,4 +1,7 @@
-object DATA_VISOR
+object DATA_VISOR [
+  import_export_id -> "data_visor",
+  import_export_hierarchy -> {"llm"}
+]
   name: "Data Visor"
   parent: LLM_WEARABLE
   owner: HACKER
@@ -228,8 +231,6 @@ object DATA_VISOR
   override agent = #anon_000162-9C3B3B68C5;
   override auto_confirm = false;
   override description = "A sleek augmented reality visor that displays real-time MOO database information. When worn, it provides a heads-up display for inspecting objects, code, and system internals.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "data_visor";
   override placeholder_text = "Ask about objects, code, or database structure...";
   override processing_message = "Analyzing request, accessing neural pathways...";
   override progress_steps = [

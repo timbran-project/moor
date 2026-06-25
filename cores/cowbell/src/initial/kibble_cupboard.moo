@@ -1,4 +1,7 @@
-object KIBBLE_CUPBOARD
+object KIBBLE_CUPBOARD [
+  import_export_id -> "kibble_cupboard",
+  import_export_hierarchy -> {"initial"}
+]
   name: "a wooden cupboard"
   parent: CONTAINER
   location: FIRST_ROOM
@@ -23,8 +26,6 @@ object KIBBLE_CUPBOARD
   override description = "A sturdy wooden cupboard with a brass lock on the door. It has a faint aroma of cat food emanating from within.";
   override get_denied_msg = {"The cupboard is far too heavy and unwieldy to pick up."};
   override get_rule = <RULE, .name = 'is_portable, .body = {{'is_portable, {'var, 'This}}}, .variables = {'This}, .head = 'is_portable>;
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "kibble_cupboard";
   override lock_denied_msg = {
     <SUB, .capitalize = true, .type = 'iobj>,
     " won't lock without the proper key."

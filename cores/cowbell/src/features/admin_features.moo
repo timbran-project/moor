@@ -1,4 +1,7 @@
-object ADMIN_FEATURES
+object ADMIN_FEATURES [
+  import_export_id -> "admin_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Admin Features"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -14,8 +17,6 @@ object ADMIN_FEATURES
   property sudo_require_confirm (owner: ARCH_WIZARD, flags: "rc") = 1;
 
   override description = "Provides delegated admin command elevation (@sudo) with explicit grants and per-command allowlists.";
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "admin_features";
 
   method _challenge_command_perms owner: ARCH_WIZARD
     caller == player || caller == #-1 || caller_perms() == player || caller_perms().wizard || raise(E_PERM);

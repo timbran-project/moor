@@ -1,4 +1,7 @@
-object MSG_BAG
+object MSG_BAG [
+  import_export_id -> "msg_bag",
+  import_export_hierarchy -> {"events"}
+]
   name: "Message Bag"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -8,8 +11,6 @@ object MSG_BAG
   property entries (owner: ARCH_WIZARD, flags: "rc") = {};
 
   override description = "Container for lists of message templates. Supports {sub} templates and random selection.";
-  override import_export_hierarchy = {"events"};
-  override import_export_id = "msg_bag";
 
   method add owner: ARCH_WIZARD
     "Add a message template. Returns new flyweight or entry count for objects.";

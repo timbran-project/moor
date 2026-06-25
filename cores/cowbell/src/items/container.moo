@@ -1,4 +1,7 @@
-object CONTAINER
+object CONTAINER [
+  import_export_id -> "container",
+  import_export_hierarchy -> {"items"}
+]
   name: "Generic Container"
   parent: THING
   location: PROTOTYPE_BOX
@@ -91,8 +94,6 @@ object CONTAINER
   property unlock_rule (owner: HACKER, flags: "rc") = 0;
 
   override description = "Generic container prototype for objects that can hold other items.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "container";
   override object_documentation = {
     "# Containers",
     "",

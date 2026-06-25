@@ -1,4 +1,7 @@
-object COUCH
+object COUCH [
+  import_export_id -> "couch",
+  import_export_hierarchy -> {"initial"}
+]
   name: "ratty couch"
   parent: SITTABLE
   location: FIRST_ROOM
@@ -14,8 +17,6 @@ object COUCH
   override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
   override get_denied_msg = {"The couch is far too heavy to pick up."};
   override get_rule = <RULE, .name = 'is_portable, .body = {{'is_portable, {'var, 'This}}}, .variables = {'This}, .head = 'is_portable>;
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "couch";
   override integrated_description = "A ratty brown couch, thoroughly colonized by cat hair, sits against one wall.";
   override seats = 3;
   override sit_msg = {

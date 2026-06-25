@@ -1,12 +1,13 @@
-object ANSI
+object ANSI [
+  import_export_id -> "ansi",
+  import_export_hierarchy -> {"format"}
+]
   name: "ANSI"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Utility object for generating ANSI escape sequences for terminal colors and formatting.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "ansi";
 
   method reset owner: HACKER
     "Reset all formatting and colors";

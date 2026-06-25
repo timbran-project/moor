@@ -1,10 +1,10 @@
-object LLM_RESPONSE
+object LLM_RESPONSE [
+  import_export_id -> "llm_response",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Response"
   parent: ROOT
   owner: ARCH_WIZARD
-
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_response";
 
   verb mk (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Create a flyweight wrapping an LLM API response map.";

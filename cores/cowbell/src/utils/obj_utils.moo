@@ -1,4 +1,7 @@
-object OBJ_UTILS
+object OBJ_UTILS [
+  import_export_id -> "obj_utils",
+  import_export_hierarchy -> {"utils"}
+]
   name: "Object Utilities"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object OBJ_UTILS
   readable: true
 
   override description = "Core object utilities for introspection and formatting. Provides common functionality for displaying object information, verb signatures, and other object-related utilities.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "obj_utils";
 
   method format_verb_signature owner: ARCH_WIZARD
     "Format a verb signature into user-friendly text. Returns a formatted string.";

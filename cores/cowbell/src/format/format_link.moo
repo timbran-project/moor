@@ -1,12 +1,13 @@
-object FORMAT_LINK
+object FORMAT_LINK [
+  import_export_id -> "format_link",
+  import_export_hierarchy -> {"format"}
+]
   name: "Link Content Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_link";
 
   method cmd owner: HACKER
     "Create a command link that executes as if typed.";

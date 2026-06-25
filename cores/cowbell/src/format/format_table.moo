@@ -1,12 +1,13 @@
-object FORMAT_TABLE
+object FORMAT_TABLE [
+  import_export_id -> "format_table",
+  import_export_hierarchy -> {"format"}
+]
   name: "Table Content Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for table content in events.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_table";
 
   method mk owner: HACKER
     "Create table flyweight with headers and rows";

@@ -1,4 +1,7 @@
-object RLM_AGENT
+object RLM_AGENT [
+  import_export_id -> "rlm_agent",
+  import_export_hierarchy -> {"llm"}
+]
   name: "RLM Agent"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -26,9 +29,6 @@ object RLM_AGENT
   property system_prompt (owner: ARCH_WIZARD, flags: "rc") = "";
   property tools (owner: ARCH_WIZARD, flags: "rc") = {};
   property workspace (owner: ARCH_WIZARD, flags: "rc") = {};
-
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "rlm_agent";
 
   verb add_tool (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Register a tool for this agent to use.";

@@ -1,12 +1,13 @@
-object GRANT_UTILS
+object GRANT_UTILS [
+  import_export_id -> "grant_utils",
+  import_export_hierarchy -> {"utils"}
+]
   name: "Grant Utilities"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Utilities for formatting and parsing capability grant specifications.";
-  override import_export_hierarchy = {"utils"};
-  override import_export_id = "grant_utils";
 
   method format_grant owner: HACKER
     "Format a grant specification as target.category(cap1,cap2,...).";

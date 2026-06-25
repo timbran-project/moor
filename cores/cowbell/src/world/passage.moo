@@ -1,4 +1,7 @@
-object PASSAGE
+object PASSAGE [
+  import_export_id -> "passage",
+  import_export_hierarchy -> {"world"}
+]
   name: "Generic Passage"
   parent: ROOT
   owner: HACKER
@@ -63,8 +66,6 @@ object PASSAGE
   property unlock_rule (owner: HACKER, flags: "rc") = 0;
 
   override description = "Bidirectional passage configuration.";
-  override import_export_hierarchy = {"world"};
-  override import_export_id = "passage";
 
   method mk owner: HACKER
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b, ?is_open = true} = args;

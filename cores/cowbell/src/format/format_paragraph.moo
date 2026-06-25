@@ -1,11 +1,11 @@
-object FORMAT_PARAGRAPH
+object FORMAT_PARAGRAPH [
+  import_export_id -> "format_paragraph",
+  import_export_hierarchy -> {"format"}
+]
   name: "Paragraph Content Flyweight Delegate"
   parent: ROOT
   owner: ARCH_WIZARD
   readable: true
-
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_paragraph";
 
   method mk owner: ARCH_WIZARD
     "Create a paragraph from mixed content (strings, links, etc).";

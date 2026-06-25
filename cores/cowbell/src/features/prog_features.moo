@@ -1,4 +1,7 @@
-object PROG_FEATURES
+object PROG_FEATURES [
+  import_export_id -> "prog_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Programmer Features"
   parent: BUILDER_FEATURES
   location: PROTOTYPE_BOX
@@ -7,8 +10,6 @@ object PROG_FEATURES
 
   override description = "Provides programmer commands (@show, @program, @grep, @chmod, @move, @which, @clear-property) for object and code management.";
   override help_source = PROG_HELP_TOPICS;
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "prog_features";
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <expression> -- Evaluate a MOO expression.";

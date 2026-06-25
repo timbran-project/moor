@@ -1,4 +1,7 @@
-object AGENTIC_ROOM_OBSERVER
+object AGENTIC_ROOM_OBSERVER [
+  import_export_id -> "agentic_room_observer",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Room Observer"
   parent: ARCH_WIZARD
   location: PROTOTYPE_BOX
@@ -10,8 +13,6 @@ object AGENTIC_ROOM_OBSERVER
   property runner (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
   override description = "Room-facing observer adapter built on the agentic runtime.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_room_observer";
 
   method configure owner: ARCH_WIZARD
     "Create a fresh agent and runner for this observer.";

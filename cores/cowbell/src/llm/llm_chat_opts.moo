@@ -1,4 +1,7 @@
-object LLM_CHAT_OPTS
+object LLM_CHAT_OPTS [
+  import_export_id -> "llm_chat_opts",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM Chat Options"
   parent: ROOT
   owner: HACKER
@@ -6,8 +9,6 @@ object LLM_CHAT_OPTS
   readable: true
 
   override description = "Flyweight delegate for LLM chat request options. Builder pattern: $llm_chat_opts:mk():with_temperature(0.3):with_tool_choice('required)";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_chat_opts";
 
   method mk owner: HACKER
     "Create an empty chat options flyweight";

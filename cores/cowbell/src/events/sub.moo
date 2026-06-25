@@ -1,12 +1,13 @@
-object SUB
+object SUB [
+  import_export_id -> "sub",
+  import_export_hierarchy -> {"events"}
+]
   name: "Substitutions Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate and factory for template substitution in events.";
-  override import_export_hierarchy = {"events"};
-  override import_export_id = "sub";
   override object_documentation = {
     "# $sub - Event Substitution System",
     "",

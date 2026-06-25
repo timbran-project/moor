@@ -1,4 +1,7 @@
-object PROG_HELP_TOPICS
+object PROG_HELP_TOPICS [
+  import_export_id -> "prog_help_topics",
+  import_export_hierarchy -> {"help"}
+]
   name: "Programmer Help Topics"
   parent: HELP_SOURCE
   location: PROTOTYPE_BOX
@@ -62,8 +65,6 @@ object PROG_HELP_TOPICS
     {}
   };
 
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "prog_help_topics";
   override topic_order = {
     'topic_programming_overview,
     'topic_programming_show,

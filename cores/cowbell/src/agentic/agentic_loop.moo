@@ -1,4 +1,7 @@
-object AGENTIC_LOOP
+object AGENTIC_LOOP [
+  import_export_id -> "agentic_loop",
+  import_export_hierarchy -> {"agentic"}
+]
   name: "Agentic Loop Delegate"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,8 +9,6 @@ object AGENTIC_LOOP
   readable: true
 
   override description = "Flyweight delegate for the agentic loop turn processor.";
-  override import_export_hierarchy = {"agentic"};
-  override import_export_id = "agentic_loop";
 
   method run_turn owner: ARCH_WIZARD
     "Run one agent turn: call LLM, execute tools, append context, and return status map.";

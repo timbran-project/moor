@@ -1,12 +1,13 @@
-object FORMAT_BLOCK
+object FORMAT_BLOCK [
+  import_export_id -> "format_block",
+  import_export_hierarchy -> {"format"}
+]
   name: "Multiline Block Content Flyweight Delegate"
   parent: ROOT
   owner: HACKER
   readable: true
 
   override description = "Flyweight delegate for multiline block content in events. Used to compose paragraphs and structured text that can be rendered to both plain text and HTML.";
-  override import_export_hierarchy = {"format"};
-  override import_export_id = "format_block";
 
   method mk owner: HACKER
     return <this, {@args}>;

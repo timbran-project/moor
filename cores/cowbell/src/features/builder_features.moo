@@ -1,4 +1,7 @@
-object BUILDER_FEATURES
+object BUILDER_FEATURES [
+  import_export_id -> "builder_features",
+  import_export_hierarchy -> {"features"}
+]
   name: "Builder Features"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -36,8 +39,6 @@ object BUILDER_FEATURES
   property help_source (owner: ARCH_WIZARD, flags: "rc") = BUILDER_HELP_TOPICS;
 
   override description = "Provides building commands (@create, @build, @dig, etc.) for builders.";
-  override import_export_hierarchy = {"features"};
-  override import_export_id = "builder_features";
 
   method _require_builder_command owner: ARCH_WIZARD
     caller == this || raise(E_PERM);

@@ -1,4 +1,7 @@
-object HELP_SOURCE
+object HELP_SOURCE [
+  import_export_id -> "help_source",
+  import_export_hierarchy -> {"help"}
+]
   name: "Help Source Prototype"
   parent: ROOT
   location: PROTOTYPE_BOX
@@ -6,9 +9,6 @@ object HELP_SOURCE
   readable: true
 
   property topic_order (owner: ARCH_WIZARD, flags: "rc") = {};
-
-  override import_export_hierarchy = {"help"};
-  override import_export_id = "help_source";
 
   method help_topics owner: ARCH_WIZARD
     "Generic property-backed help topic provider.";

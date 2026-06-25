@@ -1,4 +1,7 @@
-object HOUSEKEEPING
+object HOUSEKEEPING [
+  import_export_id -> "housekeeping",
+  import_export_hierarchy -> {"initial"}
+]
   name: "Housekeeping"
   parent: ROOT
   owner: ARCH_WIZARD
@@ -8,9 +11,6 @@ object HOUSEKEEPING
   property schedule_id (owner: ARCH_WIZARD, flags: "rc") = 38;
   property sweep_interval (owner: ARCH_WIZARD, flags: "rc") = 3000;
   property sweep_msgs (owner: ARCH_WIZARD, flags: "rc") = HOUSEKEEPING_SWEEP_MSGS;
-
-  override import_export_hierarchy = {"initial"};
-  override import_export_id = "housekeeping";
 
   method sweep owner: ARCH_WIZARD
     "Sweep disconnected players back to their home rooms.";

@@ -1,4 +1,7 @@
-object NOTE
+object NOTE [
+  import_export_id -> "note",
+  import_export_hierarchy -> {"items"}
+]
   name: "Generic Note"
   parent: THING
   location: PROTOTYPE_BOX
@@ -38,8 +41,6 @@ object NOTE
   property write_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description = "A blank note, ready to be written on.";
-  override import_export_hierarchy = {"items"};
-  override import_export_id = "note";
   override object_documentation = {
     "# Notes",
     "",

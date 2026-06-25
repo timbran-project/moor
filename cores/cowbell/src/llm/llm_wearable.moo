@@ -1,4 +1,7 @@
-object LLM_WEARABLE
+object LLM_WEARABLE [
+  import_export_id -> "llm_wearable",
+  import_export_hierarchy -> {"llm"}
+]
   name: "LLM-Powered Wearable"
   parent: WEARABLE
   owner: HACKER
@@ -21,8 +24,6 @@ object LLM_WEARABLE
   property tool_name (owner: HACKER, flags: "rc") = "TOOL";
 
   override description = "Base prototype for AI-powered wearable tools that use LLM agents for interactive assistance.";
-  override import_export_hierarchy = {"llm"};
-  override import_export_id = "llm_wearable";
 
   method configure owner: ARCH_WIZARD
     "Create agent and apply configuration. Children override _setup_agent to customize.";
