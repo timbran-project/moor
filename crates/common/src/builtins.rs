@@ -402,6 +402,20 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("tobool", Q(1), Q(1), vec![Any], true),
         mk_builtin("encode_cbor", Q(1), Q(1), vec![Any], true),
         mk_builtin("decode_cbor", Q(1), Q(1), vec![Typed(TYPE_BINARY)], true),
+        mk_builtin(
+            "value_diff",
+            Q(2),
+            Q(3),
+            vec![Any, Any, Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "value_diff3",
+            Q(3),
+            Q(4),
+            vec![Any, Any, Any, Typed(TYPE_MAP)],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "value conversion/introspection");

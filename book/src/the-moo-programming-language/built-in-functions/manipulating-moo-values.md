@@ -207,6 +207,25 @@ property value and later compare it with the current value to see whether that p
 
 `value_hash()` is a mooR extension. It is not part of the original LambdaMOO builtin set.
 
+### `value_diff`
+
+```
+map value_diff(old, new [, options])
+```
+
+Returns a bounded structural diff between two MOO values. See
+[Structural Value Diffs](./value-diffs.md) for the result format, options, and examples.
+
+### `value_diff3`
+
+```
+map value_diff3(base, local, incoming [, options])
+```
+
+Performs a conservative three-way structural comparison. It returns an automatically resolved value
+when only one side changed, or a manual conflict containing separate local and incoming diffs. See
+[Structural Value Diffs](./value-diffs.md).
+
 ### `encode_cbor`
 
 ```

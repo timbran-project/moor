@@ -156,6 +156,8 @@ open an issue on the
 | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
 | [`value_bytes`](values.md#value_bytes)      | &check;  |                                                                                    |
 | [`value_hash`](values.md#value_hash)        | &check;  | mooR CBOR value representation                                                     |
+| [`value_diff`](value-diffs.md#value_diff)   | &check;  | mooR extension                                                                     |
+| [`value_diff3`](value-diffs.md#value_diff3) | &check;  | mooR extension                                                                     |
 | [`encode_cbor`](values.md#encode_cbor)      | &check;  | mooR extension                                                                     |
 | [`decode_cbor`](values.md#decode_cbor)      | &check;  | mooR extension                                                                     |
 | [`string_hash`](values.md#string_hash)      | &check;  |                                                                                    |

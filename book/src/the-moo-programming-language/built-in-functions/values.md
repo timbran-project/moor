@@ -260,6 +260,39 @@ parse_json("{\"#1|obj\":2}", "embedded-types")              =>   [#1 -> 2]
 **Note:** This is a mooR extension. It hashes the same binary value representation produced by
 `encode_cbor()`, not the result of `toliteral()`.
 
+### `value_diff`
+
+**Description**: Returns a bounded structural diff between two MOO values.\
+**Arguments**:
+
+- `old`: The original value
+- `new`: The new value
+- `options`: Optional map controlling recursion depth, change limits, list matching work, and
+  whether small atom values are included in the result
+
+**Returns:** A map describing whether the values are equal and, when they differ, the structural
+changes between them
+
+**Note:** This is a mooR extension. See [Structural Value Diffs](./value-diffs.md) for the result
+format and examples.
+
+### `value_diff3`
+
+**Description**: Performs a conservative three-way structural comparison between a base value, a
+local value, and an incoming value.\
+**Arguments**:
+
+- `base`: The common base value
+- `local`: The local edited value
+- `incoming`: The incoming edited value
+- `options`: Optional map using the same options as `value_diff()`
+
+**Returns:** A map describing either an automatically resolved value or a manual conflict with
+separate local and incoming diffs
+
+**Note:** This is a mooR extension. It does not attempt overlapping structural merges; it separates
+simple resolved cases from manual conflicts. See [Structural Value Diffs](./value-diffs.md).
+
 ### `encode_cbor`
 
 **Description**: Encodes a value as mooR's canonical CBOR representation. CBOR is a binary

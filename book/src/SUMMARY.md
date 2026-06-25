@@ -37,6 +37,7 @@
     - [Regular Expression Functions](./the-moo-programming-language/built-in-functions/regex.md)
     - [Cryptography and Security Functions](./the-moo-programming-language/built-in-functions/crypto.md)
     - [Functions for Values Generally](./the-moo-programming-language/built-in-functions/values.md)
+    - [Structural Value Diffs](./the-moo-programming-language/built-in-functions/value-diffs.md)
     - [Functions for Lists & Sets](./the-moo-programming-language/built-in-functions/list_sets.md)
     - [Structured Data Matching and Pathfinding](./the-moo-programming-language/built-in-functions/algorithms.md)
     - [Functions for Properties](./the-moo-programming-language/built-in-functions/properties.md)

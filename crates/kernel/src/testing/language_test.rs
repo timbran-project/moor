@@ -29,8 +29,8 @@ mod tests {
     use moor_var::program::ProgramType;
     use moor_var::{
         E_ARGS, E_DIV, E_INVARG, E_PERM, E_QUOTA, E_RANGE, E_TYPE, Error, IndexMode, List, NOTHING,
-        Obj, SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_list, v_err, v_float, v_flyweight,
-        v_int, v_list, v_map, v_obj, v_objid, v_str, v_sym,
+        Obj, SYSTEM_OBJECT, Symbol, Var, v_bool, v_bool_int, v_empty_list, v_err, v_float,
+        v_flyweight, v_int, v_list, v_map, v_obj, v_objid, v_str, v_sym,
     };
     use test_case::test_case;
 
@@ -183,6 +183,78 @@ mod tests {
                 v_str("two"),
                 v_objid(-1),
                 v_err(E_INVARG)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_value_diff_reports_list_changes() {
+        let program = r#"
+            diff = value_diff({1, 2, 3}, {1, 2, 4});
+            change = diff["changes"][1];
+            return {diff["equal"], diff["kind"], length(diff["changes"]), change["op"], change["diff"]["kind"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("list"),
+                v_int(1),
+                v_str("change"),
+                v_str("replace")
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_value_diff_include_values_option() {
+        let program = r#"
+            diff = value_diff(1, 2, ["include_values" -> 1]);
+            return {diff["kind"], diff["old"], diff["new"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_str("replace"), v_int(1), v_int(2)]))
+        );
+    }
+
+    #[test]
+    fn test_value_diff_rejects_invalid_options() {
+        let program = r#"
+            try
+                value_diff(1, 2, ["max_changes" -> 0]);
+            except (E_RANGE)
+                return "invalid";
+            endtry
+        "#;
+        assert_eq!(run_moo(program), Ok(v_str("invalid")));
+    }
+
+    #[test]
+    fn test_value_diff3_selects_incoming_when_local_unchanged() {
+        let program = r#"
+            diff = value_diff3({1, 2}, {1, 2}, {1, 3});
+            return {diff["ok"], diff["resolution"], diff["value"][2]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_str("incoming"), v_int(3)]))
+        );
+    }
+
+    #[test]
+    fn test_value_diff3_reports_conflict() {
+        let program = r#"
+            diff = value_diff3([1 -> "base"], [1 -> "local"], [1 -> "incoming"]);
+            return {diff["ok"], diff["kind"], diff["conflict"], diff["resolution"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("conflict"),
+                v_bool(true),
+                v_str("manual")
             ]))
         );
     }

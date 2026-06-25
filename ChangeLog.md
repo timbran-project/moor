@@ -29,6 +29,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `encode_cbor()` and `decode_cbor()` builtins for serializing MOO values to and from mooR's
   canonical CBOR binary representation. This representation is intended for compact value
   round-trips, external storage, and value fingerprints; lambdas are not currently supported.
+- New `value_diff()` and `value_diff3()` builtins for bounded structural comparison of MOO values,
+  including list/map/flyweight diffs, optional inline atom values, and conservative three-way
+  conflict detection for package and commit-time tooling.
 - New entity-state hash builtins for package and tooling code that needs stable fingerprints of
   object attributes, metadata, property values/info/metadata, and verb code/info/metadata:
   `object_attrs_hash()`, `object_metadata_hash()`, `property_value_hash()`, `property_info_hash()`,

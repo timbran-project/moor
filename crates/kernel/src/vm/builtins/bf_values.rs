@@ -21,8 +21,9 @@ use crate::{
 };
 use moor_compiler::{offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
-    ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, Variant, decode_var_cbor, encode_var_cbor,
-    v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str, v_sym,
+    ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, ValueDiffOptions, Variant, decode_var_cbor,
+    encode_var_cbor, v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str, v_sym, value_diff,
+    value_diff3,
 };
 use std::fmt::Write;
 use uuid::Uuid;
@@ -346,6 +347,99 @@ fn bf_value_hash(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(hash::hash_output(digest, binary)))
 }
 
+fn parse_value_diff_options(value: Option<&moor_var::Var>) -> Result<ValueDiffOptions, BfErr> {
+    let mut options = ValueDiffOptions::default();
+    let Some(value) = value else {
+        return Ok(options);
+    };
+    let Some(map) = value.as_map() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg("value_diff() options must be a map"),
+        ));
+    };
+
+    for (key, value) in map.iter() {
+        let key = match key.variant() {
+            Variant::Str(s) => s.as_str().to_string(),
+            Variant::Sym(s) => s.as_str().to_string(),
+            _ => {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("value_diff() option keys must be strings or symbols"),
+                ));
+            }
+        };
+
+        match key.as_str() {
+            "max_depth" => options.max_depth = nonnegative_usize_option(&value, &key)?,
+            "max_changes" => options.max_changes = positive_usize_option(&value, &key)?,
+            "max_lcs_cells" => options.max_lcs_cells = nonnegative_usize_option(&value, &key)?,
+            "include_values" => options.include_values = value.is_true(),
+            _ => {
+                return Err(BfErr::ErrValue(
+                    E_INVARG.with_msg(|| format!("unknown value_diff() option: {key}")),
+                ));
+            }
+        }
+    }
+
+    Ok(options)
+}
+
+fn nonnegative_usize_option(value: &moor_var::Var, name: &str) -> Result<usize, BfErr> {
+    let Some(value) = value.as_integer() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.with_msg(|| format!("{name} must be an integer")),
+        ));
+    };
+    usize::try_from(value)
+        .map_err(|_| BfErr::ErrValue(E_RANGE.with_msg(|| format!("{name} must be non-negative"))))
+}
+
+fn positive_usize_option(value: &moor_var::Var, name: &str) -> Result<usize, BfErr> {
+    let value = nonnegative_usize_option(value, name)?;
+    if value == 0 {
+        return Err(BfErr::ErrValue(
+            E_RANGE.with_msg(|| format!("{name} must be positive")),
+        ));
+    }
+    Ok(value)
+}
+
+/// Usage: `map value_diff(any old, any new [, map options])`
+/// Returns a bounded structural diff between two values.
+fn bf_value_diff(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("value_diff() requires 2 to 3 arguments"),
+        ));
+    }
+
+    let options = parse_value_diff_options(bf_args.args.iter_ref().nth(2))?;
+    Ok(Ret(value_diff(
+        &bf_args.args[0],
+        &bf_args.args[1],
+        &options,
+    )))
+}
+
+/// Usage: `map value_diff3(any base, any local, any incoming [, map options])`
+/// Returns bounded structural diffs for a three-way comparison.
+fn bf_value_diff3(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 3 || bf_args.args.len() > 4 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("value_diff3() requires 3 to 4 arguments"),
+        ));
+    }
+
+    let options = parse_value_diff_options(bf_args.args.iter_ref().nth(3))?;
+    Ok(Ret(value_diff3(
+        &bf_args.args[0],
+        &bf_args.args[1],
+        &bf_args.args[2],
+        &options,
+    )))
+}
+
 /// Usage: `binary encode_cbor(any value)`
 /// Encodes a value as mooR's canonical CBOR representation.
 fn bf_encode_cbor(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -515,4 +609,6 @@ pub(crate) fn register_bf_values(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("tobool")] = bf_tobool;
     builtins[offset_for_builtin("encode_cbor")] = bf_encode_cbor;
     builtins[offset_for_builtin("decode_cbor")] = bf_decode_cbor;
+    builtins[offset_for_builtin("value_diff")] = bf_value_diff;
+    builtins[offset_for_builtin("value_diff3")] = bf_value_diff3;
 }
