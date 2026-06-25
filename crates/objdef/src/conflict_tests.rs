@@ -569,9 +569,6 @@ mod tests {
             parser.load_single_object(conflicting_spec, CompileOptions::default(), options)?;
         loader.commit()?;
 
-        // May or may not detect conflict (Clobber mode applies the change)
-
-        // Verify parent relationship was changed
         let ws = db.new_world_state()?;
         let child_parent = ws.parent_of(&system_permissions(), &Obj::mk_id(2))?;
         assert_eq!(

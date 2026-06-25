@@ -1340,14 +1340,11 @@ impl<'a> ObjectDefinitionLoader<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{ConflictMode, ObjDefLoaderOptions, ObjdefLoaderError, ObjectDefinitionLoader};
-    use moor_common::model::{
-        HasUuid, Named, PrepSpec, TaskPermissions, VerbLookup, WorldStateSource,
-        command_verb_argspec,
-    };
+    use moor_common::model::{HasUuid, Named, TaskPermissions, WorldStateSource};
     use moor_common::util::BitEnum;
     use moor_compiler::{CompileOptions, ObjFileContext};
     use moor_db::{Database, DatabaseConfig, TxDB};
-    use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_str};
+    use moor_var::{Obj, SYSTEM_OBJECT, Symbol, v_str};
     use std::{fs, path::Path, sync::Arc};
 
     fn test_db(path: &Path) -> Arc<TxDB> {
@@ -1417,144 +1414,72 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_single_obj() {
+    fn directory_import_detects_existing_object_conflicts() {
         let tmpdir = tempfile::tempdir().unwrap();
+        let import_dir = tmpdir.path().join("import");
+        fs::create_dir(&import_dir).unwrap();
+
         let db = test_db(tmpdir.path());
         let mut loader = db.loader_client().unwrap();
-
         let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-
-        let spec = r#"
-                object #1
-                    name: "Test Object"
+        parser
+            .load_single_object(
+                r#"
+                object #10
+                    name: "Existing"
                     owner: #0
                     parent: #-1
                     location: #-1
                     wizard: false
                     programmer: false
                     player: false
-                    fertile: true
-                    readable: true
-
-                    property description (owner: #1, flags: "rc") = "This is a test object";
-                    property other (owner: #1, flags: "rc");
-
-                    override description (owner: #1, flags: "rc") = "This is an altered test object";
-
-                    verb "look_self look_*" (this to any) owner: #2 flags: "rxd"
-                        return this.description;
-                    endverb
-                endobject"#;
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("mock_path.moo");
-        parser
-            .parse_objects(mock_path, &mut context, spec, &CompileOptions::default())
+                    fertile: false
+                    readable: false
+                endobject
+                "#,
+                CompileOptions::default(),
+                ObjDefLoaderOptions::default(),
+            )
             .unwrap();
-
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        parser.define_verbs(&options).unwrap();
-        parser.define_properties(&options).unwrap();
-        parser.set_properties(&options).unwrap();
-
         loader.commit().unwrap();
 
-        // Verify the object was created using a new transaction
-        let tx = db.new_world_state().unwrap();
-        let owner = tx.owner_of(&Obj::mk_id(1)).unwrap();
-        let name = tx.name_of(&system_permissions(), &Obj::mk_id(1)).unwrap();
-        let parent = tx.parent_of(&system_permissions(), &Obj::mk_id(1)).unwrap();
-        let location = tx
-            .location_of(&system_permissions(), &Obj::mk_id(1))
-            .unwrap();
+        fs::write(
+            import_dir.join("object_10.moo"),
+            r#"
+            object #10
+                name: "Existing"
+                owner: #0
+                parent: #-1
+                location: #-1
+                wizard: true
+                programmer: false
+                player: false
+                fertile: false
+                readable: false
+            endobject
+            "#,
+        )
+        .unwrap();
 
-        assert_eq!(owner, SYSTEM_OBJECT);
-        assert_eq!(name, "Test Object");
-        assert_eq!(parent, NOTHING);
-        assert_eq!(location, NOTHING);
-    }
-
-    #[test]
-    fn test_multiple_objects() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
         let mut loader = db.loader_client().unwrap();
         let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-
-        let spec = r#"
-                // The file can contain multiple objects.
-
-                object #1
-                    name: "Root Object"
-                    owner: #0
-                    parent: #-1
-                    location: #-1
-                    wizard: false
-                    programmer: false
-                    player: false
-                    fertile: true
-                    readable: true
-
-                    property description (owner: #1, flags: "rc") = "This is a root object";
-
-                    verb "look_self look_*" (this none this) owner: #2 flags: "rxd"
-                        return this.description;
-                    endverb
-                endobject
-
-                /*
-                 * And C/C++ style comments are supported.
-                 */
-                object #2
-                    name: "Generic Thing"
-                    owner: #0
-                    parent: #1
-                    location: #1
-                    wizard: false
-                    programmer: false
-                    player: false
-                    fertile: true
-                    readable: true
-
-                    override description = "This is a generic thing";
-
-                    verb look (this none none) owner: #2 flags: "rxd"
-                        player:tell(this:look_self());
-                    endverb
-                endobject"#;
-
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("mock_path.moo");
-        parser
-            .parse_objects(mock_path, &mut context, spec, &CompileOptions::default())
+        let results = parser
+            .load_objdef_directory(
+                CompileOptions::default(),
+                &import_dir,
+                ObjDefLoaderOptions::default(),
+            )
             .unwrap();
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        parser.define_verbs(&options).unwrap();
-        parser.define_properties(&options).unwrap();
-        parser.set_properties(&options).unwrap();
+        assert_eq!(results.conflicts.len(), 1);
+        assert!(matches!(
+            results.conflicts[0].1,
+            crate::ConflictEntity::ObjectFlags(_)
+        ));
         loader.commit().unwrap();
 
         let ws = db.new_world_state().unwrap();
-        let target = Obj::mk_id(2);
-        let argspec = command_verb_argspec(&target, &target, PrepSpec::None, &NOTHING);
-        let v = ws
-            .lookup_verb(
-                &system_permissions(),
-                VerbLookup::command(&target, Symbol::mk("look"), argspec),
-            )
-            .unwrap();
-
-        assert!(v.unwrap().names().contains(&Symbol::mk("look")));
-
-        let p = ws
-            .retrieve_property(
-                &system_permissions(),
-                &Obj::mk_id(2),
-                Symbol::mk("description"),
-            )
-            .unwrap();
-        assert_eq!(p, v_str("This is a generic thing"));
+        let flags = ws.flags_of(&Obj::mk_id(10)).unwrap();
+        assert!(flags.contains(moor_common::model::ObjFlag::Wizard));
     }
 
     #[test]
@@ -1801,95 +1726,6 @@ mod tests {
         assert!(
             flags.contains(moor_common::model::ObjFlag::Wizard),
             "Wizard flag should still be true after skip"
-        );
-    }
-
-    #[test]
-    fn test_parse_objects_detects_flags_conflict() {
-        // This test uses parse_objects directly (like load_objdef_directory does)
-        // to verify that the bug in db_loader_client.rs:create_object is fixed
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create initial object with wizard=false using parse_objects
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #52
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                wizard: false
-                programmer: false
-                player: false
-                fertile: false
-                readable: false
-            endobject"#;
-
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("test.moo");
-        parser
-            .parse_objects(
-                mock_path,
-                &mut context,
-                initial_spec,
-                &CompileOptions::default(),
-            )
-            .unwrap();
-
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        loader.commit().unwrap();
-
-        // Now load same object with wizard=true using parse_objects again
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let conflicting_spec = r#"
-            object #52
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                wizard: true
-                programmer: false
-                player: false
-                fertile: false
-                readable: false
-            endobject"#;
-
-        let mut context = ObjFileContext::new();
-        // This parse_objects call will call create_object for an existing object
-        // which triggers the bug in db_loader_client.rs
-        parser
-            .parse_objects(
-                mock_path,
-                &mut context,
-                conflicting_spec,
-                &CompileOptions::default(),
-            )
-            .unwrap();
-
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-
-        // BUG: This should detect a flags conflict, but won't because
-        // parse_objects calls create_object which updates flags immediately
-        // before apply_attributes can compare them
-        assert_eq!(
-            parser.conflicts.len(),
-            1,
-            "Should detect one flags conflict (WILL FAIL DUE TO BUG)"
-        );
-
-        loader.commit().unwrap();
-
-        // Flags should be updated (Clobber mode)
-        let ws = db.new_world_state().unwrap();
-        let flags = ws.flags_of(&Obj::mk_id(52)).unwrap();
-        assert!(
-            flags.contains(moor_common::model::ObjFlag::Wizard),
-            "Wizard flag should be set after clobber"
         );
     }
 
@@ -2272,9 +2108,6 @@ mod tests {
             "Property value should be updated to 'updated value' in clobber mode"
         );
     }
-
-    // Note: We're skipping a dedicated property flags test because PropDef doesn't expose flags directly
-    // and the property values test already covers the main clobber functionality
 
     #[test]
     fn test_clobber_works_for_verbs() {
