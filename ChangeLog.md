@@ -106,6 +106,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   opcode loop, unwind, stack ops, exec state) from kernel host services via a `WorldStateCallback`
   trait; kernel provides `KernelHost` impl forwarding to TLS with zero vtable overhead
   (monomorphized generics)
+- Simplified `load_object()` so it no longer exposes dry-run, conflict mode, return-conflict, or
+  selective override options. Use `objdef_changelist()` for read-only objdef update analysis before
+  loading.
 - `value_hash()` now hashes mooR's canonical CBOR representation instead of a literal string form,
   defaults to SHA256, supports additional algorithms (`md5`, `sha1`, `sha224`, `sha256`, `sha384`,
   `sha512`, and `ripemd160`), and can return the raw digest as a binary value.

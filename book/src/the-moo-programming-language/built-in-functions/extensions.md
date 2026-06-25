@@ -9,8 +9,8 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 
 **Import/Export of Objects:**
 
-- [`load_object`](../../the-system/object-packaging.md#load_object) - Load an object from objdef
-  format with optional conflict detection and resolution options.
+- [`load_object`](../../the-system/object-packaging.md#load_object) - Load one object from objdef
+  format, with optional constants.
 - `dump_object` - Takes an object and returns a list of strings representing the object definition
   in objdef format.
 - `reload_object` - Replace an existing object with a new objdef definition (wizard-only).

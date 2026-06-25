@@ -573,8 +573,8 @@ Minimum behavior:
 
 - parsing a multi-object list produces the same object definitions as importing the equivalent
   directory
-- importing an objdef directory through the existing API produces the same database changes as before
-  this refactor
+- importing an objdef directory through the existing API produces the same database changes as
+  before this refactor
 - constants from `constants.moo`-style input resolve exactly as they do for current objdef import
 - invalid objdef text produces structured diagnostics with source index or label
 - the new in-memory analysis entry point does not mutate the database

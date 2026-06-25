@@ -286,7 +286,7 @@ Functions not part of the original LambdaMOO, but added in moor
 
 | Name                                                                          | Description                                                                                        | Notes             |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-| [`load_object`](../../the-system/object-packaging.md#load_object)             | Load an object from objdef format with optional conflict detection and resolution options.         | Wiz only          |
+| [`load_object`](../../the-system/object-packaging.md#load_object)             | Load one object from objdef format, with optional constants.                                       | Wiz only          |
 | [`dump_object`](../../the-system/object-packaging.md#dump_object)             | Takes an object and returns a list of strings representing the object definition in objdef format. | Wiz or owner only |
 | [`objdef_changelist`](../../the-system/object-packaging.md#objdef_changelist) | Analyze an objdef set as a read-only proposed change.                                              | Wiz only          |
 
