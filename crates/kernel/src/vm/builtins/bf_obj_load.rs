@@ -25,13 +25,17 @@ use moor_compiler::{
     CompileOptions, DiagnosticRenderOptions, ObjDefParseError, ObjFileContext, format_compile_error,
 };
 use moor_objdef::{
-    ConflictEntity, ConflictMode, Constants, Entity, ObjDefLoaderOptions, ObjdefLoaderError,
+    ChangelistChange, ChangelistObject, ConflictEntity, ConflictMode, Constants, Entity,
+    ObjDefLoaderOptions, ObjDefSource, ObjdefLoaderError,
 };
 use moor_var::{
     E_ARGS, E_INVARG, E_TYPE, Sequence, Symbol, Var, Variant, v_empty_map, v_list, v_map, v_obj,
     v_str, v_sym,
 };
-use std::sync::LazyLock;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::LazyLock,
+};
 
 static OBJECT_FLAGS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("object_flags"));
 static BUILTIN_PROPS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("builtin_props"));
@@ -47,6 +51,12 @@ static CONSTANTS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("constants"
 static OVERRIDES_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("overrides"));
 static RETURN_CONFLICTS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("return_conflicts"));
 static DIAGNOSTICS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("diagnostics"));
+static LOCAL_CONSTANTS_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("local_constants"));
+static BASE_MANIFEST_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("base_manifest"));
+static BASE_METADATA_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("base_metadata"));
+static BASE_METADATA_PREFIX_SYM: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("base_metadata_prefix"));
+static INCLUDE_UNCHANGED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("include_unchanged"));
 static CLOBBER_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("clobber"));
 static SKIP_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("skip"));
 static DETECT_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("detect"));
@@ -164,6 +174,45 @@ fn bf_parse_objdef_constants(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
         .collect::<Vec<_>>();
 
     Ok(Ret(v_map(&constants)))
+}
+
+fn objdef_text_from_value(value: &Var, builtin_name: &str) -> Result<String, BfErr> {
+    match value.variant() {
+        Variant::Str(_) => Ok(value.as_string().unwrap().to_string()),
+        Variant::List(lines) => {
+            let mut output = Vec::with_capacity(lines.len());
+            for line in lines.iter() {
+                let Some(line) = line.as_string() else {
+                    return Err(BfErr::ErrValue(E_TYPE.msg(format!(
+                        "{builtin_name}() requires strings or lists of strings"
+                    ))));
+                };
+                output.push(line.to_string());
+            }
+            Ok(output.join("\n"))
+        }
+        _ => Err(BfErr::ErrValue(E_TYPE.msg(format!(
+            "{builtin_name}() requires strings or lists of strings"
+        )))),
+    }
+}
+
+fn objdef_sources_from_value(value: &Var, builtin_name: &str) -> Result<Vec<ObjDefSource>, BfErr> {
+    let Some(definitions) = value.as_list() else {
+        return Err(BfErr::ErrValue(
+            E_TYPE.msg(format!("{builtin_name}() first argument must be a list")),
+        ));
+    };
+
+    let mut sources = Vec::with_capacity(definitions.len());
+    for (idx, definition) in definitions.iter().enumerate() {
+        let contents = objdef_text_from_value(&definition, builtin_name)?;
+        sources.push(ObjDefSource::new(
+            format!("<definition:{}>", idx + 1),
+            contents,
+        ));
+    }
+    Ok(sources)
 }
 
 /// Convert a MOO entity specification to an internal Entity enum.
@@ -394,6 +443,223 @@ fn format_load_result(
         v_list(&conflicts),
         v_list(&loaded_objects),
     ]))
+}
+
+fn parse_changelist_options(
+    bf_args: &mut BfCallState<'_>,
+    options_value: Option<&Var>,
+) -> Result<moor_objdef::ChangelistOptions, BfErr> {
+    let Some(options_value) = options_value else {
+        return Ok(moor_objdef::ChangelistOptions::default());
+    };
+    let options_map = bf_args.map_or_alist_to_map(options_value)?;
+    let mut options = moor_objdef::ChangelistOptions {
+        base_metadata_prefix: "base_".to_string(),
+        ..moor_objdef::ChangelistOptions::default()
+    };
+
+    for (key, value) in options_map.iter() {
+        let key_sym = key.as_symbol().map_err(BfErr::ErrValue)?;
+
+        if key_sym == *CONSTANTS_SYM {
+            options.constants = Some(Constants::Map(bf_args.map_or_alist_to_map(&value)?));
+            continue;
+        }
+
+        if key_sym == *LOCAL_CONSTANTS_SYM {
+            let constants = bf_args.map_or_alist_to_map(&value)?;
+            let mut local_constants = HashMap::new();
+            for (constant, value) in constants.iter() {
+                let constant = constant.as_symbol().map_err(BfErr::ErrValue)?;
+                local_constants.insert(constant, value.clone());
+            }
+            options.local_constants = local_constants;
+            continue;
+        }
+
+        if key_sym == *BASE_MANIFEST_SYM {
+            let Some(objects) = value.as_list() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("base_manifest must be a list of objects"),
+                ));
+            };
+            let mut base_manifest = BTreeSet::new();
+            for object in objects.iter() {
+                let Some(object) = object.as_object() else {
+                    return Err(BfErr::ErrValue(
+                        E_TYPE.msg("base_manifest must be a list of objects"),
+                    ));
+                };
+                base_manifest.insert(object);
+            }
+            options.base_manifest = base_manifest;
+            continue;
+        }
+
+        if key_sym == *BASE_METADATA_SYM {
+            options.base_metadata = value.is_true();
+            continue;
+        }
+
+        if key_sym == *BASE_METADATA_PREFIX_SYM {
+            let Some(prefix) = value.as_string() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("base_metadata_prefix must be a string"),
+                ));
+            };
+            options.base_metadata_prefix = prefix.to_string();
+            continue;
+        }
+
+        if key_sym == *INCLUDE_UNCHANGED_SYM {
+            options.include_unchanged = value.is_true();
+            continue;
+        }
+
+        return Err(BfErr::ErrValue(E_INVARG.with_msg(|| {
+            format!("unknown objdef_changelist() option: {key_sym}")
+        })));
+    }
+
+    Ok(options)
+}
+
+fn changelist_change_to_moo(change: &ChangelistChange) -> Var {
+    let mut pairs = vec![
+        (v_str("key"), v_list(&change.key)),
+        (v_str("kind"), v_str(change.kind)),
+        (v_str("object"), v_obj(change.object)),
+        (v_str("automatic"), v_bool_from(change.automatic)),
+        (v_str("conflict"), v_bool_from(change.conflict)),
+    ];
+    if let Some(name) = change.name {
+        pairs.push((v_str("name"), v_str(&name.as_string())));
+    }
+    if let Some(base_hash) = &change.base_hash {
+        pairs.push((v_str("base_hash"), v_str(base_hash)));
+    }
+    if let Some(local_hash) = &change.local_hash {
+        pairs.push((v_str("local_hash"), v_str(local_hash)));
+    }
+    if let Some(incoming_hash) = &change.incoming_hash {
+        pairs.push((v_str("incoming_hash"), v_str(incoming_hash)));
+    }
+    v_map(&pairs)
+}
+
+fn changelist_object_to_moo(object: &ChangelistObject) -> Var {
+    let mut pairs = vec![
+        (v_str("object"), v_obj(object.object)),
+        (v_str("status"), v_str(object.status.as_str())),
+        (v_str("automatic"), v_bool_from(object.automatic)),
+        (
+            v_str("changes"),
+            v_list(
+                &object
+                    .changes
+                    .iter()
+                    .map(changelist_change_to_moo)
+                    .collect::<Vec<_>>(),
+            ),
+        ),
+    ];
+    if let Some(label) = &object.label {
+        pairs.push((v_str("label"), v_str(label)));
+    }
+    v_map(&pairs)
+}
+
+fn v_bool_from(value: bool) -> Var {
+    moor_var::v_bool(value)
+}
+
+fn changelist_to_moo(changelist: &moor_objdef::ObjDefChangelist) -> Var {
+    let objects = changelist
+        .objects
+        .iter()
+        .map(changelist_object_to_moo)
+        .collect::<Vec<_>>();
+    let conflicts = changelist
+        .conflicts
+        .iter()
+        .map(changelist_change_to_moo)
+        .collect::<Vec<_>>();
+    let diagnostics = changelist
+        .diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let mut pairs = vec![
+                (v_str("kind"), v_str(diagnostic.kind)),
+                (v_str("message"), v_str(&diagnostic.message)),
+            ];
+            if let Some(object) = diagnostic.object {
+                pairs.push((v_str("object"), v_obj(object)));
+            }
+            if let Some(constant) = diagnostic.constant {
+                pairs.push((v_str("constant"), v_str(&constant.as_string())));
+            }
+            v_map(&pairs)
+        })
+        .collect::<Vec<_>>();
+
+    v_map(&[
+        (v_str("ok"), v_bool_from(changelist.ok)),
+        (v_str("objects"), v_list(&objects)),
+        (v_str("conflicts"), v_list(&conflicts)),
+        (v_str("diagnostics"), v_list(&diagnostics)),
+    ])
+}
+
+fn invalid_objdef_changelist_to_moo(error: ObjdefLoaderError) -> Var {
+    v_map(&[
+        (v_str("ok"), v_bool_from(false)),
+        (v_str("objects"), v_list(&[])),
+        (v_str("conflicts"), v_list(&[])),
+        (
+            v_str("diagnostics"),
+            v_list(&[v_map(&[
+                (v_str("kind"), v_str("invalid")),
+                (v_str("source"), v_str(error.source())),
+                (v_str("message"), v_str(&error.to_string())),
+            ])]),
+        ),
+    ])
+}
+
+/// Usage: `map objdef_changelist(list definitions [, map options])`
+/// Returns a read-only summary of create, patch, unsafe, conflict, and delete-candidate changes.
+/// Wizard-only.
+fn bf_objdef_changelist(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.is_empty() || bf_args.args.len() > 2 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("objdef_changelist() requires 1 to 2 arguments"),
+        ));
+    }
+
+    let sources = objdef_sources_from_value(&bf_args.args[0], "objdef_changelist")?;
+    let options_value = bf_args.args.iter_ref().nth(1).cloned();
+    let options = parse_changelist_options(bf_args, options_value.as_ref())?;
+
+    bf_args.require_wizard_or_builtin_call()?;
+
+    let compile_options = bf_args.config.compile_options();
+    let permissions = bf_args.task_permissions();
+    let changelist_result = with_current_transaction(|world_state| {
+        moor_objdef::analyze_objdef_changelist(
+            world_state,
+            &permissions,
+            &compile_options,
+            sources,
+            options,
+        )
+    });
+
+    let changelist = match changelist_result {
+        Ok(changelist) => changelist_to_moo(&changelist),
+        Err(error) => invalid_objdef_changelist_to_moo(error),
+    };
+
+    Ok(Ret(changelist))
 }
 
 /// Usage: `obj|list load_object(list object_lines [, map options] [, obj|int object_spec])`
@@ -666,4 +932,5 @@ pub(crate) fn register_bf_obj_load(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("load_object")] = bf_load_object;
     builtins[offset_for_builtin("reload_object")] = bf_reload_object;
     builtins[offset_for_builtin("parse_objdef_constants")] = bf_parse_objdef_constants;
+    builtins[offset_for_builtin("objdef_changelist")] = bf_objdef_changelist;
 }

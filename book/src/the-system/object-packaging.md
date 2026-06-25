@@ -504,6 +504,90 @@ when you want to extract `constants.moo` definitions or validate constants befor
 
 Raises `E_INVARG` with a formatted error if parsing or compilation fails.
 
+### Analyzing Objdef Sets
+
+Sometimes you do not want to load an objdef immediately. You may have a new version of an object, or
+a small group of related objects, and want to ask:
+
+- Would this create new objects?
+- Would it change existing objects?
+- Would it overwrite local edits?
+- Does the objdef refer to the same named objects that this database uses?
+
+`objdef_changelist` answers those questions without changing the database.
+
+```moo
+map objdef_changelist(list definitions [, map options])
+```
+
+Here, a **changelist** means "a report of proposed changes." It is not a saved update and it does
+not apply anything by itself.
+
+`definitions` is a list of objdef inputs. Each input can be either one string containing objdef text
+or a list of objdef lines:
+
+```moo
+cl = objdef_changelist({
+  {
+    "object #10",
+    "  name: \"New Room\"",
+    "  owner: #0",
+    "  parent: #-1",
+    "  location: #-1",
+    "endobject"
+  }
+});
+```
+
+The result is a map. The most important fields are:
+
+- `"ok"`: true if mooR sees no problem with the proposed changes.
+- `"objects"`: one summary for each object mentioned by the objdefs.
+- `"conflicts"`: changes that need a person or package manager to choose what to do.
+- `"diagnostics"`: problems found while analyzing the objdefs, such as invalid objdef text or a
+  constant name that points at different objects locally and in the incoming objdefs.
+
+Each object summary has a `"status"`:
+
+- `"create"`: the object does not exist yet, so loading would create it.
+- `"clean"`: the object exists and already matches the incoming definition.
+- `"patch"`: the object exists and would be changed.
+- `"unsafe_target"`: the object number already exists, but mooR does not have evidence that it is
+  the same object the objdef is meant to update.
+- `"conflict"`: both the local object and the incoming objdef appear to have changed from an older
+  recorded version.
+- `"delete_candidate"`: an object from a previous object set is missing from the incoming objdefs.
+
+The `"unsafe_target"` status is pretty cautious. If incoming objdef text says `object #10`, but this
+database already has a different local `#10`, blindly loading the objdef could damage local work. To
+treat an existing object as a safe update target, mooR needs some evidence, such as matching
+`import_export_id` metadata, matching constants, or membership in a supplied base manifest.
+
+Options include:
+
+- `"constants"`: constants to use while parsing the incoming objdefs.
+- `"local_constants"`: constants from the current database. These let mooR notice when the same
+  constant name points at different objects in the incoming objdefs and the local database.
+- `"base_manifest"`: the objects that belonged to the older version of the object set. This is how
+  mooR can report deletion candidates. Without a base manifest, absence from the incoming objdefs is
+  not treated as deletion.
+- `"include_unchanged"`: include `"clean"` objects in the report.
+
+The remaining base metadata options are for update tools that remember the older version they last
+installed. A **base hash** is a short fingerprint of that older version of an object attribute,
+property, verb, or metadata entry. With base hashes, mooR can tell the difference between:
+
+- a clean patch, where local state still matches the old version and the incoming objdef has the
+  only change
+- a conflict, where local state changed and the incoming objdef changed too
+
+Those options are:
+
+- `"base_metadata"`: true to read recorded base hashes from entity metadata.
+- `"base_metadata_prefix"`: prefix for base hash metadata keys, defaulting to `"base_"`.
+
+`objdef_changelist` is wizard-only.
+
 ## Advanced Loading Options
 
 The `load_object` function accepts an optional second argument - a map of options that control how

@@ -13,6 +13,7 @@
 
 #![recursion_limit = "256"]
 
+mod changelist;
 mod dump;
 mod load;
 mod set;
@@ -43,6 +44,10 @@ use moor_compiler::ObjDefParseError;
 use moor_var::Obj;
 use std::{io, path::PathBuf};
 
+pub use changelist::{
+    ChangelistChange, ChangelistDiagnostic, ChangelistObject, ChangelistOptions, ChangelistStatus,
+    ObjDefChangelist, analyze_objdef_changelist,
+};
 pub use dump::{
     collect_object, collect_object_definitions, dump_object, dump_object_definitions,
     extract_index_names,

@@ -260,6 +260,106 @@ mod tests {
     }
 
     #[test]
+    fn test_objdef_changelist_reports_create() {
+        let program = r#"
+            cl = objdef_changelist({{
+                "object #10",
+                "  name: \"Fresh\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            }});
+            return {cl["ok"], cl["objects"][1]["status"], cl["objects"][1]["object"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_str("create"), v_objid(10)]))
+        );
+    }
+
+    #[test]
+    fn test_objdef_changelist_marks_existing_without_base_evidence_unsafe() {
+        let program = r#"
+            load_object({
+                "object #10",
+                "  name: \"Local\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            });
+            cl = objdef_changelist({{
+                "object #10",
+                "  name: \"Incoming\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            }});
+            return {cl["ok"], cl["objects"][1]["status"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(false), v_str("unsafe_target")]))
+        );
+    }
+
+    #[test]
+    fn test_objdef_changelist_rejects_unknown_options() {
+        let program = r#"
+            try
+                objdef_changelist({}, ["bogus" -> 1]);
+            except (E_INVARG)
+                return "invalid";
+            endtry
+        "#;
+        assert_eq!(run_moo(program), Ok(v_str("invalid")));
+    }
+
+    #[test]
+    fn test_objdef_changelist_reports_invalid_objdef() {
+        let program = r#"
+            cl = objdef_changelist({{"object #10", "name: \"Broken\""}});
+            return {cl["ok"], cl["diagnostics"][1]["kind"]};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(false), v_str("invalid")]))
+        );
+    }
+
+    #[test]
+    fn test_objdef_changelist_is_wizard_only() {
+        let program = r#"
+            load_object({
+                "object #10",
+                "  name: \"Non Wizard\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  wizard: false",
+                "  programmer: false",
+                "endobject"
+            });
+            set_task_perms(#10);
+            try
+                objdef_changelist({{
+                    "object #11",
+                    "  name: \"Fresh\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "endobject"
+                }});
+            except (E_PERM)
+                return "denied";
+            endtry
+        "#;
+        assert_eq!(run_moo(program), Ok(v_str("denied")));
+    }
+
+    #[test]
     fn test_list_splice() {
         assert_eq!(
             run_moo("a = {1,2,3,4,5}; return {@a[2..4]};"),

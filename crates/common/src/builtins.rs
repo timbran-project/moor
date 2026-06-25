@@ -780,6 +780,13 @@ fn mk_builtin_table() -> Vec<Builtin> {
             true,
         ),
         mk_builtin("parse_objdef_constants", Q(1), Q(1), vec![Any], true),
+        mk_builtin(
+            "objdef_changelist",
+            Q(1),
+            Q(2),
+            vec![Typed(TYPE_LIST), Typed(TYPE_MAP)],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "object load/dump");

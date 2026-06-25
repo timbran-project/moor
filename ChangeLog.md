@@ -32,6 +32,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `value_diff()` and `value_diff3()` builtins for bounded structural comparison of MOO values,
   including list/map/flyweight diffs, optional inline atom values, and conservative three-way
   conflict detection for package and commit-time tooling.
+- New wizard-only `objdef_changelist()` builtin for read-only analysis of incoming objdef sets,
+  reporting creates, patches, unsafe targets, conflicts, and base-manifest deletion candidates
+  without mutating the database.
 - New entity-state hash builtins for package and tooling code that needs stable fingerprints of
   object attributes, metadata, property values/info/metadata, and verb code/info/metadata:
   `object_attrs_hash()`, `object_metadata_hash()`, `property_value_hash()`, `property_info_hash()`,
