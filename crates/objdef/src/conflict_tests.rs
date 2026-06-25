@@ -308,19 +308,32 @@ mod tests {
             ..ObjDefLoaderOptions::default()
         };
 
-        let _results =
+        let results =
             parser.load_single_object(conflicting_spec, CompileOptions::default(), options)?;
         loader.commit()?;
 
         let ws = db.new_world_state()?;
-        let _flags = ws.flags_of(&Obj::mk_id(1))?;
-        let _desc = ws.retrieve_property(
+        let flags = ws.flags_of(&Obj::mk_id(1))?;
+        let desc = ws.retrieve_property(
             &system_permissions(),
             &Obj::mk_id(1),
             Symbol::mk("description"),
         )?;
 
-        // Verify entity-specific overrides work
+        assert_eq!(results.conflicts.len(), 2);
+        assert!(
+            flags.contains(ObjFlag::Wizard),
+            "ObjectFlags override should clobber flags even in Skip mode"
+        );
+        assert!(
+            flags.contains(ObjFlag::User),
+            "ObjectFlags override should apply all incoming flag changes"
+        );
+        assert_eq!(
+            desc,
+            v_str("initial value"),
+            "Non-overridden property conflict should still be skipped"
+        );
 
         Ok(())
     }

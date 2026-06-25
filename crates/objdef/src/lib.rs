@@ -15,6 +15,7 @@
 
 mod dump;
 mod load;
+mod set;
 mod write;
 
 use moor_var::Symbol;
@@ -50,6 +51,7 @@ pub use load::{
     ConflictEntity, ConflictMode, Constants, Entity, ObjDefLoaderOptions, ObjDefLoaderResults,
     ObjectDefinitionLoader,
 };
+pub use set::{ObjDefIdentity, ObjDefSet, ObjDefSource, ProposedObjectGraph};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjdefLoaderError {
@@ -79,6 +81,8 @@ pub enum ObjdefLoaderError {
     CouldNotDefineVerb(String, Obj, Vec<Symbol>, WorldStateError),
     #[error("Expected single object definition from {0}, but got {1}")]
     SingleObjectExpected(String, usize),
+    #[error("Duplicate object definition for {1} in {0}; first definition was in {2}")]
+    DuplicateObjectDefinition(String, Obj, String),
 }
 
 impl ObjdefLoaderError {
@@ -96,7 +100,8 @@ impl ObjdefLoaderError {
             | ObjdefLoaderError::CouldNotDefineProperty(source, _, _, _)
             | ObjdefLoaderError::CouldNotOverrideProperty(source, _, _, _)
             | ObjdefLoaderError::CouldNotDefineVerb(source, _, _, _)
-            | ObjdefLoaderError::SingleObjectExpected(source, _) => source.as_str(),
+            | ObjdefLoaderError::SingleObjectExpected(source, _)
+            | ObjdefLoaderError::DuplicateObjectDefinition(source, _, _) => source.as_str(),
         }
     }
 

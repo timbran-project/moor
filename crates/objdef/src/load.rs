@@ -11,7 +11,19 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ObjdefLoaderError;
+//! Database apply path for parsed objdef definitions.
+//!
+//! This module owns the mutating side of objdef import: creating placeholder objects, applying
+//! attributes and metadata, defining properties and verbs, and resolving conflicts according to
+//! loader options. It intentionally consumes parsed sets from `set.rs` for directory import so that
+//! parsing, constants resolution, duplicate detection, and proposed graph construction have one
+//! shared implementation.
+//!
+//! Use `ObjDefSet` when code needs to inspect an incoming objdef set without changing the database.
+//! Use `ObjectDefinitionLoader` when code is ready to apply an objdef set or single definition to a
+//! `LoaderInterface`.
+
+use crate::{ObjDefSet, ObjDefSource, ObjdefLoaderError, set::apply_constants};
 use moor_common::{
     model::{
         HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
@@ -28,7 +40,11 @@ use std::{
 };
 use tracing::info;
 
-/// Constants can be provided either as a pre-parsed map or as MOO file content to parse
+/// Constants supplied to objdef parsing.
+///
+/// Directory imports usually read constants from `constants.moo`. Builtins and future changelist
+/// code may instead provide a pre-parsed map. In both cases constants are loaded into the same
+/// `ObjFileContext` used for object definitions.
 #[derive(Clone)]
 pub enum Constants {
     /// Pre-parsed constants map
@@ -37,20 +53,24 @@ pub enum Constants {
     FileContent(String),
 }
 
+/// Applies parsed objdef definitions to a database loader.
+///
+/// The loader is stateful for one import operation. It stores the parsed object definitions,
+/// creates placeholder objects first, and then applies the remaining object state in phases so
+/// parent/location/owner references can resolve across the incoming set. Conflict records are
+/// accumulated as each phase compares incoming state with existing database state.
 pub struct ObjectDefinitionLoader<'a> {
     object_definitions: HashMap<Obj, (String, ObjectDefinition)>,
+    parsed_constants: HashMap<Symbol, Var>,
     loader: &'a mut dyn LoaderInterface,
     // Track conflicts as we go
     conflicts: Vec<(Obj, ConflictEntity)>,
 }
 
-/// How to handle a situation where:
-///     * Object already exists
-///     * Provided flags or builtin-props differ from loaded objdef file
-///     * Parentage differs from loaded objdef file
-///     * An existing defined property differs in value or flags from loaded objdef file
-///     * An existing overridden property differs in value or flags from loaded objdef file
-///     * A verb differs in flags or content from loaded objdef file
+/// How to handle an existing database entity that differs from the incoming objdef.
+///
+/// Conflicts can arise from object flags, parent/location/owner attributes, defined properties,
+/// property overrides, verb definitions, or verb programs.
 #[derive(Debug, Clone, Copy)]
 pub enum ConflictMode {
     /// Indiscriminately overwrite the existing entity with the new value.
@@ -59,7 +79,7 @@ pub enum ConflictMode {
     Skip,
 }
 
-/// Entities for which we can give instructions for overrides and removals.
+/// Entity classes that can be selectively overridden during conflict handling.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Entity {
     ObjectFlags,
@@ -72,6 +92,7 @@ pub enum Entity {
     VerbProgram(Vec<Symbol>),
 }
 
+/// Options controlling objdef apply behavior.
 pub struct ObjDefLoaderOptions {
     /// True if we're running in "dry-run" mode where we test, and collect conflicts.
     pub dry_run: bool,
@@ -115,9 +136,9 @@ pub enum ConflictEntity {
     VerbProgram(Vec<Symbol>, ProgramType),
 }
 
-/// The results of loading either a directory or a single object
-/// Where conflicts are returned they take the form of:
-///         (conflicted-object, [entity], current-value, objdef-value)
+/// Result summary from directory, single-object, or reload apply.
+///
+/// Conflict entries identify the object and incoming entity that differed from existing state.
 #[derive(Debug)]
 pub struct ObjDefLoaderResults {
     /// True if the caller should commit the transaction, otherwise it should be rolled back, either
@@ -138,9 +159,11 @@ enum AttributeKind {
 }
 
 impl<'a> ObjectDefinitionLoader<'a> {
+    /// Create a loader that applies objdefs through the supplied database loader interface.
     pub fn new(loader: &'a mut dyn LoaderInterface) -> Self {
         Self {
             object_definitions: HashMap::new(),
+            parsed_constants: HashMap::new(),
             loader,
             conflicts: Vec::new(),
         }
@@ -163,36 +186,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
             .map(|(_, d)| d.property_overrides.len())
             .sum();
         (verbs, property_defs, property_overrides)
-    }
-
-    /// Apply constants from the provided option to the compilation context.
-    fn apply_constants(
-        constants: &Constants,
-        context: &mut ObjFileContext,
-        source_name: &str,
-    ) -> Result<(), ObjdefLoaderError> {
-        match constants {
-            Constants::Map(map) => {
-                for (key, value) in map.iter() {
-                    let key_symbol = key.as_symbol().map_err(|_| {
-                        ObjdefLoaderError::ObjectDefParseError(
-                            source_name.to_string(),
-                            Box::new(moor_compiler::ObjDefParseError::ConstantNotFound(format!(
-                                "Constants map key must be string or symbol, got: {key:?}"
-                            ))),
-                        )
-                    })?;
-                    context.add_constant(key_symbol, value.clone());
-                }
-            }
-            Constants::FileContent(content) => {
-                let compile_opts = CompileOptions::default();
-                compile_object_definitions(content, &compile_opts, context).map_err(|e| {
-                    ObjdefLoaderError::ObjectDefParseError(source_name.to_string(), Box::new(e))
-                })?;
-            }
-        }
-        Ok(())
     }
 
     /// Check if an entity should be overridden regardless of conflict mode
@@ -274,8 +267,12 @@ impl<'a> ObjectDefinitionLoader<'a> {
         Ok(files)
     }
 
-    /// Read an entire directory of objdef files, along with `constants.moo`, process them, and
-    /// load them into the database.
+    /// Load an objdef directory into the database.
+    ///
+    /// This reads `constants.moo` from the directory root when present, reads every other `.moo`
+    /// file recursively, parses all sources through `ObjDefSet`, then applies the parsed graph in
+    /// loader phases. Existing public import behavior is preserved, but parsing/staging is shared
+    /// with read-only objdef-set analysis.
     pub fn load_objdef_directory(
         &mut self,
         compile_options: CompileOptions,
@@ -288,10 +285,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
             return Err(ObjdefLoaderError::DirectoryNotFound(dirpath.to_path_buf()));
         }
 
-        // Constant variables will go here.
-        let mut context = ObjFileContext::new();
-        context.set_root_path(dirpath);
-
         // Verb compilation options
         let mut compile_options = compile_options.clone();
         compile_options.call_unsupported_builtins = true;
@@ -300,7 +293,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         let filenames = Self::collect_moo_files_recursive(dirpath)
             .expect("Unable to recursively read import directory");
 
-        // Find constants.moo in the root directory and parse it first
+        let mut sources = Vec::new();
         let constants_file = filenames
             .iter()
             .find(|f| f.file_name().unwrap() == "constants.moo" && f.parent().unwrap() == dirpath);
@@ -308,17 +301,12 @@ impl<'a> ObjectDefinitionLoader<'a> {
         if let Some(constants_file) = constants_file {
             let constants_file_contents = std::fs::read_to_string(constants_file)
                 .map_err(|e| ObjdefLoaderError::ObjectFileReadError(constants_file.clone(), e))?;
-            self.parse_objects(
-                constants_file,
-                &mut context,
-                &constants_file_contents,
-                &compile_options,
-            )?;
+            sources.push(ObjDefSource::from_path(
+                constants_file.to_path_buf(),
+                constants_file_contents,
+            ));
         }
 
-        // Read the objects first, going through and creating them all
-        // Create all the objects first with no attributes, and then update after, so that the
-        // inheritance/location etc hierarchy is set up right
         for object_file in filenames {
             if object_file.extension().unwrap() != "moo"
                 || object_file.file_name().unwrap() == "constants.moo"
@@ -328,19 +316,17 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
             let object_file_contents = std::fs::read_to_string(object_file.clone())
                 .map_err(|e| ObjdefLoaderError::ObjectFileReadError(object_file.clone(), e))?;
-
-            self.parse_objects(
-                &object_file,
-                &mut context,
-                &object_file_contents,
-                &compile_options,
-            )?;
+            sources.push(ObjDefSource::from_path(object_file, object_file_contents));
         }
+
+        let objdef_set = ObjDefSet::parse_sources(&compile_options, Some(dirpath), None, sources)?;
+        let constant_count = objdef_set.constants().len();
+        self.stage_objdef_set(objdef_set)?;
 
         info!(
             directory = %dirpath.display(),
             object_count = self.object_definitions.len(),
-            constant_count = context.constants().len(),
+            constant_count,
             elapsed_ms = compilation_started_at.elapsed().as_secs_f64() * 1000.0,
             "Compiled object definition directory"
         );
@@ -365,7 +351,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.define_verbs(&options)?;
 
         // Auto-create import_export_id metadata if we loaded using the heuristic
-        self.create_import_export_ids_if_needed(&context)?;
+        self.create_import_export_ids_if_needed()?;
 
         Ok(ObjDefLoaderResults {
             commit: !options.dry_run,
@@ -377,6 +363,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         })
     }
 
+    #[cfg(test)]
     fn parse_objects(
         &mut self,
         path: &Path,
@@ -394,9 +381,32 @@ impl<'a> ObjectDefinitionLoader<'a> {
         for compiled_def in compiled_defs {
             let oid = compiled_def.oid;
 
+            self.object_definitions
+                .insert(oid, (path_str.clone(), compiled_def));
+        }
+        self.parsed_constants = context.constants().clone();
+        self.create_placeholder_objects()?;
+        Ok(())
+    }
+
+    /// Attach a parsed objdef set to this loader and create placeholder objects.
+    ///
+    /// Placeholder creation keeps the existing import algorithm intact: all incoming objects exist
+    /// before attributes, properties, and verbs are applied, so references inside the set can resolve
+    /// during later phases.
+    fn stage_objdef_set(&mut self, objdef_set: ObjDefSet) -> Result<(), ObjdefLoaderError> {
+        let (object_definitions, constants) = objdef_set.into_parts();
+        self.object_definitions = object_definitions;
+        self.create_placeholder_objects()?;
+        self.parsed_constants = constants;
+        Ok(())
+    }
+
+    fn create_placeholder_objects(&mut self) -> Result<(), ObjdefLoaderError> {
+        for (oid, (path, compiled_def)) in &self.object_definitions {
             self.loader
                 .create_object(
-                    ObjectKind::Objid(oid),
+                    ObjectKind::Objid(*oid),
                     &ObjAttrs::new(
                         NOTHING,
                         NOTHING,
@@ -405,12 +415,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         &compiled_def.name,
                     ),
                 )
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotCreateObject(path_str.clone(), oid, wse)
-                })?;
-
-            self.object_definitions
-                .insert(oid, (path_str.clone(), compiled_def));
+                .map_err(|wse| ObjdefLoaderError::CouldNotCreateObject(path.clone(), *oid, wse))?;
         }
         Ok(())
     }
@@ -975,8 +980,11 @@ impl<'a> ObjectDefinitionLoader<'a> {
         Ok(())
     }
 
-    /// Loads a single object definition from a string.
-    /// This is a simplified alternative to `read_dirdump` for loading individual objects.
+    /// Load one object definition from a string.
+    ///
+    /// This is the scalar import path used by `load_object()`. It accepts exactly one object
+    /// definition, optionally uses caller-supplied constants, and applies conflict handling according
+    /// to `options`.
     pub fn load_single_object(
         &mut self,
         object_definition: &str,
@@ -991,7 +999,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         // Parse constants if provided
         if let Some(constants) = &options.constants {
-            Self::apply_constants(constants, &mut context, &source_name)?;
+            apply_constants(constants, &mut context, &source_name)?;
         }
 
         // Parse the object definition
@@ -1086,9 +1094,12 @@ impl<'a> ObjectDefinitionLoader<'a> {
         })
     }
 
-    /// Completely replaces an object with the contents of the objdef.
-    /// All existing verbs and properties not in the objdef are deleted.
-    /// All flags and attributes are replaced with those from the objdef.
+    /// Replace one existing object with the contents of an objdef.
+    ///
+    /// Existing verbs and locally defined properties that are absent from the incoming definition
+    /// are deleted. Flags, attributes, properties, and verbs from the incoming definition are then
+    /// applied in clobber mode. If `target_obj` is supplied, the incoming object ID is treated as the
+    /// source identity but the mutation is applied to `target_obj`.
     ///
     /// # Arguments
     /// * `object_definition` - The MOO object definition string
@@ -1108,7 +1119,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         // Parse constants if provided
         if let Some(constants) = &constants {
-            Self::apply_constants(constants, &mut context, &source_name)?;
+            apply_constants(constants, &mut context, &source_name)?;
         }
 
         // Parse the object definition
@@ -1273,10 +1284,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
     /// Create import_export_id metadata for all loaded objects if they don't already exist.
     /// This is called after loading using the #0 heuristic to establish stable IDs for future dumps.
-    fn create_import_export_ids_if_needed(
-        &mut self,
-        context: &ObjFileContext,
-    ) -> Result<(), ObjdefLoaderError> {
+    fn create_import_export_ids_if_needed(&mut self) -> Result<(), ObjdefLoaderError> {
         use moor_var::v_string;
 
         let import_export_id_sym = crate::import_export_id();
@@ -1302,7 +1310,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         }
 
         // Extract the constant names from the context (these come from constants.moo).
-        for (name, value) in context.constants().iter() {
+        for (name, value) in self.parsed_constants.iter() {
             let Some(obj) = value.as_object() else {
                 continue;
             };
@@ -1340,7 +1348,7 @@ mod tests {
     use moor_compiler::{CompileOptions, ObjFileContext};
     use moor_db::{Database, DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_str};
-    use std::{path::Path, sync::Arc};
+    use std::{fs, path::Path, sync::Arc};
 
     fn test_db(path: &Path) -> Arc<TxDB> {
         Arc::new(
@@ -1352,6 +1360,60 @@ mod tests {
 
     fn system_permissions() -> TaskPermissions {
         TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
+    }
+
+    #[test]
+    fn directory_import_uses_shared_set_constants_path() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let import_dir = tmpdir.path().join("import");
+        fs::create_dir(&import_dir).unwrap();
+        fs::write(import_dir.join("constants.moo"), "define ROOT = #1;").unwrap();
+        fs::write(
+            import_dir.join("root.moo"),
+            r#"
+            object ROOT
+                name: "Root"
+                owner: #-1
+                parent: #-1
+                location: #-1
+                wizard: false
+                programmer: false
+                player: false
+                fertile: false
+                readable: true
+            endobject
+            "#,
+        )
+        .unwrap();
+
+        let db = test_db(tmpdir.path());
+        let mut loader = db.loader_client().unwrap();
+        let mut object_loader = ObjectDefinitionLoader::new(loader.as_mut());
+        object_loader
+            .load_objdef_directory(
+                CompileOptions::default(),
+                &import_dir,
+                ObjDefLoaderOptions::default(),
+            )
+            .unwrap();
+        loader.commit().unwrap();
+
+        let tx = db.new_world_state().unwrap();
+        assert_eq!(
+            tx.name_of(&system_permissions(), &Obj::mk_id(1)).unwrap(),
+            "Root"
+        );
+        assert_eq!(
+            tx.get_object_metadata(
+                &system_permissions(),
+                &Obj::mk_id(1),
+                Symbol::mk("import_export_id")
+            )
+            .unwrap()
+            .unwrap()
+            .as_string(),
+            Some("root")
+        );
     }
 
     #[test]
@@ -2241,13 +2303,19 @@ mod tests {
             .unwrap();
         loader.commit().unwrap();
 
-        // Get initial verb
         let ws = db.new_world_state().unwrap();
         let initial_verbdef = ws
             .get_verb(
                 &system_permissions(),
                 &Obj::mk_id(58),
                 Symbol::mk("test_verb"),
+            )
+            .unwrap();
+        let (initial_program, _) = ws
+            .retrieve_verb(
+                &system_permissions(),
+                &Obj::mk_id(58),
+                initial_verbdef.uuid(),
             )
             .unwrap();
 
@@ -2273,7 +2341,6 @@ mod tests {
             .unwrap();
         loader.commit().unwrap();
 
-        // Verify verb was updated by checking UUID changed (verb got replaced)
         let ws = db.new_world_state().unwrap();
         let updated_verbdef = ws
             .get_verb(
@@ -2282,19 +2349,27 @@ mod tests {
                 Symbol::mk("test_verb"),
             )
             .unwrap();
+        let (updated_program, _) = ws
+            .retrieve_verb(
+                &system_permissions(),
+                &Obj::mk_id(58),
+                updated_verbdef.uuid(),
+            )
+            .unwrap();
 
-        // The verb should still exist with same name but different UUID indicates it was replaced
         assert_eq!(
             initial_verbdef.names(),
             updated_verbdef.names(),
             "Verb name should be same"
         );
-        // In clobber mode, verbs are updated in place, so UUID should be the same but we can't easily verify program changed
-        // Without access to the program. Let's just verify the verb still exists and has correct metadata
         assert_eq!(
             updated_verbdef.owner(),
             Obj::mk_id(58),
             "Verb owner should be correct"
+        );
+        assert_ne!(
+            initial_program, updated_program,
+            "Verb program should change in clobber mode"
         );
     }
 
