@@ -433,7 +433,7 @@ definition format.
 
 When you dump an object, you get a list of strings that completely describe that object in the same
 format used in object definition files. When you load that definition back, mooR applies it
-immediately. Use `objdef_changelist` first if you need to review the proposed changes.
+immediately. Use `preview_objdef_changes` first if you need to review the proposed changes.
 
 ## Basic Usage
 
@@ -504,7 +504,7 @@ when you want to extract `constants.moo` definitions or validate constants befor
 
 Raises `E_INVARG` with a formatted error if parsing or compilation fails.
 
-### Analyzing Objdef Sets
+### `preview_objdef_changes`
 
 Sometimes you do not want to load an objdef immediately. You may have a new version of an object, or
 a small group of related objects, and want to ask:
@@ -514,20 +514,20 @@ a small group of related objects, and want to ask:
 - Would it overwrite local edits?
 - Does the objdef refer to the same named objects that this database uses?
 
-`objdef_changelist` answers those questions without changing the database.
+`preview_objdef_changes` answers those questions without changing the database.
 
 ```moo
-map objdef_changelist(list definitions [, map options])
+map preview_objdef_changes(list definitions [, map options])
 ```
 
-Here, a **changelist** means "a report of proposed changes." It is not a saved update and it does
-not apply anything by itself.
+The result is a **change report**: a summary of what would happen if these objdefs were loaded. It
+is not a saved update and it does not apply anything by itself.
 
 `definitions` is a list of objdef inputs. Each input can be either one string containing objdef text
 or a list of objdef lines:
 
 ```moo
-cl = objdef_changelist({
+cl = preview_objdef_changes({
   {
     "object #10",
     "  name: \"New Room\"",
@@ -591,8 +591,47 @@ Those options are:
 
 - `"base_metadata"`: true to read recorded base hashes from entity metadata.
 - `"base_metadata_prefix"`: prefix for base hash metadata keys, defaulting to `"base_"`.
+- `"write_base_metadata"`: for `apply_objdef_changes`, true to record the accepted version's base
+  hashes after the whole apply succeeds.
 
-`objdef_changelist` is wizard-only.
+`preview_objdef_changes` is wizard-only.
+
+### `apply_objdef_changes`
+
+Use `apply_objdef_changes` when you have already previewed an objdef update and are ready to apply
+it.
+
+```moo
+map apply_objdef_changes(list definitions, map|list resolutions [, map options])
+```
+
+The builtin reparses the objdefs and recomputes the preview in the current transaction before it
+changes anything. If the new preview has graph diagnostics, unsafe targets, missing resolutions, or
+stale resolutions, the result has `"ok" -> false` and the database is not changed.
+
+Clean creates and clean patches are applied automatically. Conflicts need explicit resolutions:
+
+```moo
+result = apply_objdef_changes({definition}, {
+  {{"property_value", #10, "title"}, "incoming"}
+}, ["base_metadata" -> 1]);
+```
+
+Resolution values are:
+
+- `"incoming"`: use the value from the objdef for a conflict.
+- `"local"`: keep the current database value for a conflict.
+- `"delete"`: delete a deletion candidate from `base_manifest`.
+- `"keep"`: keep a deletion candidate.
+
+Structured resolution keys are written as an alist, as shown above, because map keys must be scalar
+values.
+
+When `"write_base_metadata"` is true, `apply_objdef_changes` records base hashes for the version
+that was actually accepted. A later preview can then use `"base_metadata"` to distinguish a clean
+package update from a local edit. Failed apply attempts do not update base hashes.
+
+`apply_objdef_changes` is wizard-only.
 
 ## `load_object`
 
@@ -650,7 +689,7 @@ load_object(definition, [], $widget);
 
 `load_object` is wizard-only. It is also immediate: it does not ask which changes are safe, and it
 does not return a review report. If you are loading an update from outside the running database,
-call `objdef_changelist` first and show the result to a wizard or package tool.
+call `preview_objdef_changes` first and show the result to a wizard or package tool.
 
 ## `reload_object`
 
@@ -670,8 +709,8 @@ obj reload_object(list object_lines [, map constants] [, obj target])
 
 ## Reviewing Before Loading
 
-`objdef_changelist` is the review step. It compares incoming objdef text with the current database
-and returns a report without changing anything.
+`preview_objdef_changes` is the review step. It compares incoming objdef text with the current
+database and returns a report without changing anything.
 
 Use it when:
 
@@ -684,7 +723,7 @@ Then use `load_object` or `reload_object` only after the update tool or wizard h
 apply.
 
 ```moo
-cl = objdef_changelist({definition}, [
+cl = preview_objdef_changes({definition}, [
     `constants -> constants
 ]);
 

@@ -145,9 +145,9 @@ mooR tasks already run inside a database transaction. That matters.
 The intended use is:
 
 ```moo
-cl = objdef_changelist(definitions, options);
+cl = preview_objdef_changes(definitions, options);
 resolutions = $package_manager:choose_resolutions(cl);
-result = apply_objdef_changelist(definitions, resolutions, options);
+result = apply_objdef_changes(definitions, resolutions, options);
 ```
 
 When both calls happen in one task, analysis and apply see one transaction snapshot. No other task
@@ -167,8 +167,8 @@ report.
 Names are placeholders.
 
 ```moo
-cl = objdef_changelist(definitions [, options]);
-result = apply_objdef_changelist(definitions, resolutions [, options]);
+cl = preview_objdef_changes(definitions [, options]);
+result = apply_objdef_changes(definitions, resolutions [, options]);
 ```
 
 Both builtins should be wizard-only in the first version. The facility is intended for core/package
@@ -187,6 +187,7 @@ can gather the texts from files, packages, properties, or another source.
   "local_constants" -> local_constants,
   "base_metadata" -> true,
   "base_metadata_prefix" -> "base_",
+  "write_base_metadata" -> false,
   "base_manifest" -> {#1, #2, #3, #10, #11, #12},
   "include_unchanged" -> false
 ]
@@ -319,7 +320,7 @@ Changelist analysis can identify that a field changed, but package UI code will 
 show the change. MOO code should not have to implement structural diffs over arbitrary `Var` values,
 metadata maps, property values, or decompiled verb source.
 
-The runtime probably needs a separate bounded diff builtin, rather than making `objdef_changelist()`
+The runtime probably needs a separate bounded diff builtin, rather than making `preview_objdef_changes()`
 return full before/after bodies by default. Names are placeholders:
 
 ```moo
@@ -424,7 +425,7 @@ During analysis, Rust needs a richer internal structure than the MOO changelist 
 This internal structure can be rebuilt from `definitions` for each builtin call. That avoids
 inventing a new MOO-visible opaque graph value or task-local handle.
 
-The tradeoff is that `apply_objdef_changelist()` reparses and reanalyzes. That is simpler and safer
+The tradeoff is that `apply_objdef_changes()` reparses and reanalyzes. That is simpler and safer
 than trusting a large MOO map as an executable plan.
 
 This should be a new set-oriented analyzer/apply path, not a loop around the existing scalar
@@ -470,7 +471,7 @@ version.
 
 ## Apply Semantics
 
-`apply_objdef_changelist()` should not trust a previously returned changelist as authority. It
+`apply_objdef_changes()` should not trust a previously returned changelist as authority. It
 should:
 
 - parse the incoming objdef set again
@@ -588,11 +589,11 @@ Tests:
 - run `cargo test -p moor-compiler objdef`
 - run `cargo test -p moor-objdef objdef`
 
-### Phase 3: Read-Only `objdef_changelist()`
+### Phase 3: Read-Only `preview_objdef_changes()`
 
 Deliverables:
 
-- add wizard-only `objdef_changelist(definitions [, options])`
+- add wizard-only `preview_objdef_changes(definitions [, options])`
 - compute create, patch, unsafe-target, invalid, conflict, and delete-candidate statuses
 - define the first stable conflict key set
 - compute canonical hashes for object attrs, metadata, property definitions, property values,
@@ -618,7 +619,7 @@ Tests:
 - base manifest deletion candidate test
 - conflict tests for property value, property definition, metadata, verb code, and parent change
 - constant drift test where incoming and local names resolve to different objects
-- run `cargo test -p moor-kernel objdef_changelist`
+- run `cargo test -p moor-kernel preview_objdef_changes`
 - run `cargo test -p moor-objdef conflict`
 
 ### Phase 4: Graph Validation Against Proposed State
@@ -629,7 +630,7 @@ Deliverables:
   proposed graph instead of one object at a time
 - detect parent cycles introduced by the incoming set
 - detect descendant/property conflicts caused by parent changes
-- report graph validation failures as diagnostics in `objdef_changelist()`
+- report graph validation failures as diagnostics in `preview_objdef_changes()`
 
 Minimum behavior:
 
@@ -648,40 +649,118 @@ Tests:
 - comparison test showing the same scenario cannot be modeled correctly by repeated scalar
   `load_object()` calls
 - run `cargo test -p moor-objdef graph`
-- run `cargo test -p moor-kernel objdef_changelist`
+- run `cargo test -p moor-kernel preview_objdef_changes`
 
-### Phase 5: `apply_objdef_changelist()`
+### Phase 5: `apply_objdef_changes()`
+
+Phase 5 should turn the read-only changelist into a mutating operation, but it should not make
+Rust own package policy. The apply builtin should re-run analysis, reject unsafe situations, and
+apply only changes that are either clean or covered by precise resolutions.
 
 Deliverables:
 
-- add wizard-only `apply_objdef_changelist(definitions, resolutions [, options])`
+- add wizard-only `apply_objdef_changes(definitions, resolutions [, options])`
 - reparse and reanalyze in the current transaction before mutating
 - verify supplied resolutions against recomputed conflict keys
 - apply clean creates and patches automatically
 - apply conflicted or non-automatic changes only when covered by valid resolutions
 - reject stale, missing, duplicate, and nonsensical resolutions
-- update runtime-owned base fingerprint metadata after successful apply when requested
+- optionally update runtime-owned base fingerprint metadata after successful apply
 - keep the operation all-or-nothing inside the task transaction
+
+Apply should classify the recomputed changelist before any mutation:
+
+- **Hard blockers**: graph diagnostics, invalid objdef text, unsafe targets, malformed resolutions,
+  duplicate resolutions, stale resolutions, and nonsensical resolutions. These reject the apply.
+- **Automatic changes**: clean creates and clean patches. These require no resolution.
+- **Resolved non-automatic changes**: conflicts and deletion candidates. These require an exact
+  resolution keyed to the recomputed changelist.
+
+Graph diagnostics from Phase 4 are not resolvable in Phase 5. If the incoming set contains an
+invalid reference, parent cycle, missing inherited property definition for an override, or
+parent-change property conflict, apply must reject without mutating the database.
+
+`resolutions` should be a map or alist keyed by stable entity keys. The keys should be fine-grained
+enough to map to apply primitives:
+
+```moo
+[
+  {"object_name", #10} -> "incoming",
+  {"object_parent", #10} -> "incoming",
+  {"object_owner", #10} -> "local",
+  {"object_location", #10} -> "incoming",
+  {"object_flags", #10} -> "incoming",
+  {"object_metadata", #10} -> "incoming",
+  {"property_def", #10, "description"} -> "incoming",
+  {"property_value", #10, "description"} -> "local",
+  {"property_info", #10, "description"} -> "incoming",
+  {"property_metadata", #10, "description"} -> "incoming",
+  {"verb_def", #10, {"look", "l"}} -> "incoming",
+  {"verb_code", #10, {"look", "l"}} -> "incoming",
+  {"verb_metadata", #10, {"look", "l"}} -> "incoming",
+  {"delete_object", #12} -> "keep"
+]
+```
+
+Resolution values are kind-specific:
+
+- ordinary conflict keys accept `"incoming"` or `"local"`
+- deletion candidate keys accept `"delete"` or `"keep"`
+- clean automatic changes should not appear in `resolutions`
+- unsafe targets and diagnostics are not resolvable
+
+Apply should reject extra resolution keys, duplicate keys, missing required keys, or resolution
+values that do not make sense for the key kind. This keeps the resolution input a compact policy
+decision rather than a second copy of the changelist.
+
+The return value should be a structured result map. Argument-shape errors and permission failures
+can still raise normal MOO errors, but stale or rejected apply attempts should return a non-mutating
+result:
+
+```moo
+[
+  "ok" -> false,
+  "applied" -> {},
+  "diagnostics" -> {
+    ["stale_resolution", {"property_value", #10, "description"}, "resolution no longer matches current changelist"]
+  },
+  "changelist" -> cl
+]
+```
+
+On success, the result should include the applied objects and enough summary counts for callers to
+log what happened. It should not include full object bodies or verb programs.
+
+Deletion should stay conservative in the first apply version. An object may be deleted only when it
+is a deletion candidate from `base_manifest` and has an explicit `"delete"` resolution. Apply should
+reject deletion when the object has children or contents. Package-owned descendant deletion policy
+can be designed later.
+
+Base fingerprint metadata writeback should be opt-in through `"write_base_metadata"`. If enabled,
+runtime-owned base hash metadata is written only after the full apply succeeds. Failed apply must
+not update base metadata.
 
 Minimum behavior:
 
 - clean apply mutates the database to match incoming definitions
 - rejected apply leaves the database unchanged
 - stale resolutions are rejected after the local object changes
+- graph diagnostics and unsafe targets reject apply without consulting resolutions
 - deletion requires both a base manifest candidate and explicit resolution
-- deletion with children, contents, or package-owned descendants is rejected or requires an explicit
-  supported policy
+- deletion with children or contents is rejected
 
 Tests:
 
 - clean create and patch apply tests
 - conflict apply with `"incoming"` and `"local"` resolutions
 - missing/stale/nonsensical resolution rejection tests
+- duplicate and extra resolution key rejection tests
+- graph diagnostic and unsafe-target hard-blocker tests
 - all-or-nothing rollback test with one valid and one invalid change
-- base fingerprint metadata update test
-- deletion candidate approval and deletion safety tests
+- opt-in base fingerprint metadata update test
+- deletion candidate approval, keep, and deletion safety tests
 - transaction conflict test if the existing test harness can force concurrent commits
-- run `cargo test -p moor-kernel apply_objdef_changelist`
+- run `cargo test -p moor-kernel apply_objdef_changes`
 - run `cargo test -p moor-objdef apply`
 
 ### Phase 6: Package Workflow Fixtures And Documentation
@@ -689,8 +768,8 @@ Tests:
 Deliverables:
 
 - add a small package/core fixture with base, local-edited, and incoming-updated objdef sets
-- add MOO-level examples that call `objdef_changelist()`, inspect conflicts, call `value_diff()`,
-  build resolutions, and call `apply_objdef_changelist()`
+- add MOO-level examples that call `preview_objdef_changes()`, inspect conflicts, call `value_diff()`,
+  build resolutions, and call `apply_objdef_changes()`
 - document the runtime/package-manager responsibility split
 - document the base metadata keys owned by the runtime, if that convention survives implementation
 - update `load_object()` docs to point package/update workflows at changelists instead
@@ -727,8 +806,8 @@ Treat changelist analysis as a separate proposal from `load_object()`.
 The first useful version is probably:
 
 - identity-preserving only
-- `objdef_changelist(definitions [, options])`
-- `apply_objdef_changelist(definitions, resolutions [, options])`
+- `preview_objdef_changes(definitions [, options])`
+- `apply_objdef_changes(definitions, resolutions [, options])`
 - no target map
 - no fresh-object remapping
 - no opaque graph handle

@@ -260,9 +260,9 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_reports_create() {
+    fn test_preview_objdef_changes_reports_create() {
         let program = r#"
-            cl = objdef_changelist({{
+            cl = preview_objdef_changes({{
                 "object #10",
                 "  name: \"Fresh\"",
                 "  owner: #0",
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_marks_existing_without_base_evidence_unsafe() {
+    fn test_preview_objdef_changes_marks_existing_without_base_evidence_unsafe() {
         let program = r#"
             load_object({
                 "object #10",
@@ -289,7 +289,7 @@ mod tests {
                 "  location: #-1",
                 "endobject"
             });
-            cl = objdef_changelist({{
+            cl = preview_objdef_changes({{
                 "object #10",
                 "  name: \"Incoming\"",
                 "  owner: #0",
@@ -306,10 +306,10 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_rejects_unknown_options() {
+    fn test_preview_objdef_changes_rejects_unknown_options() {
         let program = r#"
             try
-                objdef_changelist({}, ["bogus" -> 1]);
+                preview_objdef_changes({}, ["bogus" -> 1]);
             except (E_INVARG)
                 return "invalid";
             endtry
@@ -318,9 +318,9 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_reports_invalid_objdef() {
+    fn test_preview_objdef_changes_reports_invalid_objdef() {
         let program = r#"
-            cl = objdef_changelist({{"object #10", "name: \"Broken\""}});
+            cl = preview_objdef_changes({{"object #10", "name: \"Broken\""}});
             return {cl["ok"], cl["diagnostics"][1]["kind"]};
         "#;
         assert_eq!(
@@ -330,9 +330,9 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_reports_graph_diagnostics() {
+    fn test_preview_objdef_changes_reports_graph_diagnostics() {
         let program = r#"
-            cl = objdef_changelist({{
+            cl = preview_objdef_changes({{
                 "object #10",
                 "  name: \"A\"",
                 "  owner: #0",
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn test_objdef_changelist_is_wizard_only() {
+    fn test_preview_objdef_changes_is_wizard_only() {
         let program = r#"
             load_object({
                 "object #10",
@@ -369,7 +369,7 @@ mod tests {
             });
             set_task_perms(#10);
             try
-                objdef_changelist({{
+                preview_objdef_changes({{
                     "object #11",
                     "  name: \"Fresh\"",
                     "  owner: #0",
@@ -382,6 +382,365 @@ mod tests {
             endtry
         "#;
         assert_eq!(run_moo(program), Ok(v_str("denied")));
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_clean_create() {
+        let program = r#"
+            result = apply_objdef_changes({
+                {
+                    "object #10",
+                    "  name: \"Fresh\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "endobject"
+                }
+            }, []);
+            return {result["ok"], valid(#10), #10.name};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_int(1), v_str("Fresh")]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_rejects_graph_diagnostics() {
+        let program = r#"
+            result = apply_objdef_changes({
+                {
+                    "object #10",
+                    "  name: \"A\"",
+                    "  owner: #0",
+                    "  parent: #11",
+                    "  location: #-1",
+                    "endobject",
+                    "object #11",
+                    "  name: \"B\"",
+                    "  owner: #0",
+                    "  parent: #10",
+                    "  location: #-1",
+                    "endobject"
+                }
+            }, []);
+            return {result["ok"], result["diagnostics"][1]["kind"], valid(#10)};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(false), v_str("parent_cycle"), v_int(0)]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_requires_conflict_resolution() {
+        let program = r#"
+            load_object({
+                "object #10 [import_export_id -> \"thing\"]",
+                "  name: \"Thing\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  property title (owner: #10, flags: \"rc\") [base_value_hash -> \"sha256:base\"] = \"local\";",
+                "endobject"
+            });
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"incoming\";",
+                    "endobject"
+                }
+            }, [], ["base_metadata" -> 1]);
+            return {result["ok"], result["diagnostics"][1]["kind"], #10.title};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("missing_resolution"),
+                v_str("local")
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_applies_incoming_conflict_resolution() {
+        let program = r#"
+            load_object({
+                "object #10 [import_export_id -> \"thing\"]",
+                "  name: \"Thing\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  property title (owner: #10, flags: \"rc\") [base_value_hash -> \"sha256:base\"] = \"local\";",
+                "endobject"
+            });
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"incoming\";",
+                    "endobject"
+                }
+            }, {{{"property_value", #10, "title"}, "incoming"}}, ["base_metadata" -> 1]);
+            return {result["ok"], #10.title};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_str("incoming")]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_keeps_local_conflict_resolution() {
+        let program = r#"
+            load_object({
+                "object #10 [import_export_id -> \"thing\"]",
+                "  name: \"Thing\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  property title (owner: #10, flags: \"rc\") [base_value_hash -> \"sha256:base\"] = \"local\";",
+                "endobject"
+            });
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"incoming\";",
+                    "endobject"
+                }
+            }, {{{"property_value", #10, "title"}, "local"}}, ["base_metadata" -> 1]);
+            return {result["ok"], #10.title};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_str("local")]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_rejects_stale_resolution() {
+        let program = r#"
+            result = apply_objdef_changes({
+                {
+                    "object #10",
+                    "  name: \"Fresh\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "endobject"
+                }
+            }, {{{"property_value", #10, "title"}, "incoming"}});
+            return {result["ok"], result["diagnostics"][1]["kind"], valid(#10)};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("stale_resolution"),
+                v_int(0)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_rejects_duplicate_resolution() {
+        let program = r#"
+            load_object({
+                "object #10 [import_export_id -> \"thing\"]",
+                "  name: \"Thing\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  property title (owner: #10, flags: \"rc\") [base_value_hash -> \"sha256:base\"] = \"local\";",
+                "endobject"
+            });
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"incoming\";",
+                    "endobject"
+                }
+            }, {
+                {{"property_value", #10, "title"}, "incoming"},
+                {{"property_value", #10, "title"}, "local"}
+            }, ["base_metadata" -> 1]);
+            return {result["ok"], result["diagnostics"][1]["kind"], #10.title};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("duplicate_resolution"),
+                v_str("local")
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_rejects_nonsensical_resolution() {
+        let program = r#"
+            load_object({
+                "object #12 [import_export_id -> \"old\"]",
+                "  name: \"Old\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            });
+            result = apply_objdef_changes({}, {{{"delete_object", #12}, "incoming"}}, [
+                "base_manifest" -> {#12}
+            ]);
+            return {result["ok"], result["diagnostics"][1]["kind"], valid(#12)};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("nonsensical_resolution"),
+                v_int(1)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_deletes_manifest_candidate() {
+        let program = r#"
+            load_object({
+                "object #12 [import_export_id -> \"old\"]",
+                "  name: \"Old\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            });
+            result = apply_objdef_changes({}, {{{"delete_object", #12}, "delete"}}, [
+                "base_manifest" -> {#12}
+            ]);
+            return {result["ok"], valid(#12)};
+        "#;
+        assert_eq!(run_moo(program), Ok(v_list(&[v_bool(true), v_int(0)])));
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_rejects_delete_with_children() {
+        let program = r#"
+            load_object({
+                "object #12 [import_export_id -> \"old\"]",
+                "  name: \"Old\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "endobject"
+            });
+            load_object({
+                "object #13",
+                "  name: \"Child\"",
+                "  owner: #0",
+                "  parent: #12",
+                "  location: #-1",
+                "endobject"
+            });
+            result = apply_objdef_changes({}, {{{"delete_object", #12}, "delete"}}, [
+                "base_manifest" -> {#12}
+            ]);
+            return {result["ok"], result["diagnostics"][1]["kind"], valid(#12), valid(#13)};
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[
+                v_bool(false),
+                v_str("delete_not_empty"),
+                v_int(1),
+                v_int(1)
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_removes_absent_direct_properties() {
+        let program = r#"
+            load_object({
+                "object #10 [import_export_id -> \"thing\"]",
+                "  name: \"Thing\"",
+                "  owner: #0",
+                "  parent: #-1",
+                "  location: #-1",
+                "  property obsolete (owner: #10, flags: \"rc\") = \"old\";",
+                "endobject"
+            });
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "endobject"
+                }
+            }, []);
+            try
+                #10.obsolete;
+                gone = 0;
+            except (E_PROPNF)
+                gone = 1;
+            endtry
+            return {result["ok"], gone};
+        "#;
+        assert_eq!(run_moo(program), Ok(v_list(&[v_bool(true), v_int(1)])));
+    }
+
+    #[test]
+    fn test_apply_objdef_changes_writes_base_metadata_when_requested() {
+        let program = r#"
+            result = apply_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"accepted\";",
+                    "endobject"
+                }
+            }, [], ["write_base_metadata" -> 1]);
+            #10.title = "local";
+            cl = preview_objdef_changes({
+                {
+                    "object #10 [import_export_id -> \"thing\"]",
+                    "  name: \"Thing\"",
+                    "  owner: #0",
+                    "  parent: #-1",
+                    "  location: #-1",
+                    "  property title (owner: #10, flags: \"rc\") = \"accepted\";",
+                    "endobject"
+                }
+            }, ["base_metadata" -> 1]);
+            return {
+                result["ok"],
+                property_metadata(#10, "title", "base_value_hash") != {},
+                cl["objects"][1]["changes"][1]["conflict"]
+            };
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_bool(true), v_int(1), v_bool(false)]))
+        );
     }
 
     #[test]

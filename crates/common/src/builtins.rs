@@ -781,10 +781,17 @@ fn mk_builtin_table() -> Vec<Builtin> {
         ),
         mk_builtin("parse_objdef_constants", Q(1), Q(1), vec![Any], true),
         mk_builtin(
-            "objdef_changelist",
+            "preview_objdef_changes",
             Q(1),
             Q(2),
             vec![Typed(TYPE_LIST), Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "apply_objdef_changes",
+            Q(2),
+            Q(3),
+            vec![Typed(TYPE_LIST), Typed(TYPE_MAP), Typed(TYPE_MAP)],
             true,
         ),
     ]);

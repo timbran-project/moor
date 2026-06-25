@@ -32,9 +32,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `value_diff()` and `value_diff3()` builtins for bounded structural comparison of MOO values,
   including list/map/flyweight diffs, optional inline atom values, and conservative three-way
   conflict detection for package and commit-time tooling.
-- New wizard-only `objdef_changelist()` builtin for read-only analysis of incoming objdef sets,
+- New wizard-only `preview_objdef_changes()` builtin for read-only analysis of incoming objdef sets,
   reporting creates, patches, unsafe targets, conflicts, and base-manifest deletion candidates
   without mutating the database.
+- New wizard-only `apply_objdef_changes()` builtin for applying an objdef set after recomputing the
+  preview and validating explicit resolutions for conflicts and deletion candidates, with optional
+  accepted-base hash metadata writeback.
 - New entity-state hash builtins for package and tooling code that needs stable fingerprints of
   object attributes, metadata, property values/info/metadata, and verb code/info/metadata:
   `object_attrs_hash()`, `object_metadata_hash()`, `property_value_hash()`, `property_info_hash()`,
@@ -107,9 +110,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   trait; kernel provides `KernelHost` impl forwarding to TLS with zero vtable overhead
   (monomorphized generics)
 - Simplified `load_object()` so it no longer exposes dry-run, conflict mode, return-conflict, or
-  selective override options. Use `objdef_changelist()` for read-only objdef update analysis before
-  loading.
-- `objdef_changelist()` now validates incoming objdefs as one proposed object graph, including
+  selective override options. Use `preview_objdef_changes()` for read-only objdef update analysis
+  before loading.
+- `preview_objdef_changes()` now validates incoming objdefs as one proposed object graph, including
   references to incoming parents, parent cycles, property override targets, and parent-change
   property conflicts.
 - `value_hash()` now hashes mooR's canonical CBOR representation instead of a literal string form,

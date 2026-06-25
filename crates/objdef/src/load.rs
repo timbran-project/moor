@@ -109,6 +109,9 @@ pub struct ObjDefLoaderOptions {
     /// If true, validate parent changes for cycles, invalid parents, and descendant property conflicts.
     /// Should be true for individual load_object() calls, false for bulk operations (textdump, objdef directory import).
     pub validate_parent_changes: bool,
+    /// If true, remove local direct properties and verbs that are absent from the incoming object
+    /// definition before applying incoming entities.
+    pub remove_absent_entities: bool,
 }
 
 impl Default for ObjDefLoaderOptions {
@@ -120,6 +123,7 @@ impl Default for ObjDefLoaderOptions {
             constants: None,
             overrides: vec![],
             validate_parent_changes: false,
+            remove_absent_entities: false,
         }
     }
 }
@@ -340,6 +344,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         );
         self.apply_attributes(&options)?;
         self.apply_object_metadata()?;
+        if options.remove_absent_entities {
+            self.remove_absent_entities()?;
+        }
         info!("Defining {} properties...", num_loaded_property_definitions);
         self.define_properties(&options)?;
         info!(
@@ -351,6 +358,47 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.define_verbs(&options)?;
 
         // Auto-create import_export_id metadata if we loaded using the heuristic
+        self.create_import_export_ids_if_needed()?;
+
+        Ok(ObjDefLoaderResults {
+            commit: !options.dry_run,
+            conflicts: self.conflicts.clone(),
+            loaded_objects: self.object_definitions.keys().cloned().collect(),
+            num_loaded_verbs,
+            num_loaded_property_definitions,
+            num_loaded_property_overrides,
+        })
+    }
+
+    /// Load an in-memory objdef source set into the database.
+    ///
+    /// This is the mutating counterpart to read-only objdef change preview. It parses all sources
+    /// through `ObjDefSet`, creates placeholders for incoming objects, and applies the staged graph
+    /// with the same phased loader used by directory import.
+    pub fn load_objdef_sources<I>(
+        &mut self,
+        compile_options: CompileOptions,
+        sources: I,
+        options: ObjDefLoaderOptions,
+    ) -> Result<ObjDefLoaderResults, ObjdefLoaderError>
+    where
+        I: IntoIterator<Item = ObjDefSource>,
+    {
+        let objdef_set =
+            ObjDefSet::parse_sources(&compile_options, None, options.constants.as_ref(), sources)?;
+        self.stage_objdef_set(objdef_set)?;
+
+        let (num_loaded_verbs, num_loaded_property_definitions, num_loaded_property_overrides) =
+            self.definition_counts();
+
+        self.apply_attributes(&options)?;
+        self.apply_object_metadata()?;
+        if options.remove_absent_entities {
+            self.remove_absent_entities()?;
+        }
+        self.define_properties(&options)?;
+        self.set_properties(&options)?;
+        self.define_verbs(&options)?;
         self.create_import_export_ids_if_needed()?;
 
         Ok(ObjDefLoaderResults {
@@ -584,6 +632,50 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 self.loader
                     .set_object_metadata(obj, *key, value.clone())
                     .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn remove_absent_entities(&mut self) -> Result<(), ObjdefLoaderError> {
+        for (obj, (path, def)) in &self.object_definitions {
+            let incoming_properties = def
+                .property_definitions
+                .iter()
+                .map(|prop| prop.name)
+                .collect::<std::collections::HashSet<_>>();
+            let existing_properties = self.loader.get_existing_properties(obj).map_err(|e| {
+                ObjdefLoaderError::CouldNotDefineProperty(path.clone(), *obj, String::new(), e)
+            })?;
+            for prop in existing_properties.iter() {
+                if incoming_properties.contains(&prop.name()) {
+                    continue;
+                }
+                self.loader.delete_property(obj, prop.name()).map_err(|e| {
+                    ObjdefLoaderError::CouldNotDefineProperty(
+                        path.clone(),
+                        *obj,
+                        prop.name().as_arc_str().to_string(),
+                        e,
+                    )
+                })?;
+            }
+
+            let incoming_verbs = def
+                .verbs
+                .iter()
+                .map(|verb| verb.names.clone())
+                .collect::<Vec<_>>();
+            let existing_verbs = self.loader.get_existing_verbs(obj).map_err(|e| {
+                ObjdefLoaderError::CouldNotDefineVerb(path.clone(), *obj, vec![], e)
+            })?;
+            for verb in existing_verbs.iter() {
+                if incoming_verbs.iter().any(|names| names == verb.names()) {
+                    continue;
+                }
+                self.loader.remove_verb(obj, verb.uuid()).map_err(|e| {
+                    ObjdefLoaderError::CouldNotDefineVerb(path.clone(), *obj, vec![], e)
+                })?;
             }
         }
         Ok(())
@@ -1071,6 +1163,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         // Use the conflict-aware methods instead of inline logic
         self.apply_attributes(&options)?;
         self.apply_object_metadata()?;
+        if options.remove_absent_entities {
+            self.remove_absent_entities()?;
+        }
         self.define_properties(&options)?;
         self.set_properties(&options)?;
         self.define_verbs(&options)?;
@@ -1255,6 +1350,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             constants: None,
             overrides: vec![],
             validate_parent_changes: true,
+            remove_absent_entities: false,
         };
 
         self.apply_attributes(&apply_options)?;
@@ -2737,6 +2833,7 @@ mod tests {
                 constants: None,
                 overrides: vec![],
                 validate_parent_changes: true,
+                remove_absent_entities: false,
             },
         );
 
@@ -2799,6 +2896,7 @@ mod tests {
                 constants: None,
                 overrides: vec![],
                 validate_parent_changes: true,
+                remove_absent_entities: false,
             },
         );
 
@@ -2839,6 +2937,7 @@ mod tests {
                 constants: None,
                 overrides: vec![],
                 validate_parent_changes: true,
+                remove_absent_entities: false,
             },
         );
 
@@ -3529,6 +3628,7 @@ mod tests {
                 constants: None,
                 overrides: vec![],
                 validate_parent_changes: true,
+                remove_absent_entities: false,
             },
         );
 

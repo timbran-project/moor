@@ -20,16 +20,17 @@ use crate::vm::builtins::{
     world_state_bf_err,
 };
 use moor_common::builtins::offset_for_builtin;
-use moor_common::model::ObjectKind;
+use moor_common::model::{ObjectKind, ValSet};
 use moor_compiler::{
     CompileOptions, DiagnosticRenderOptions, ObjDefParseError, ObjFileContext, format_compile_error,
 };
 use moor_objdef::{
-    ChangelistChange, ChangelistObject, ConflictMode, Constants, ObjDefLoaderOptions, ObjDefSource,
-    ObjdefLoaderError,
+    ApplyResolution, ChangelistChange, ChangelistObject, ChangelistStatus, ConflictMode, Constants,
+    Entity, ObjDefLoaderOptions, ObjDefSource, ObjdefLoaderError,
 };
 use moor_var::{
-    E_ARGS, E_INVARG, E_TYPE, Symbol, Var, Variant, v_empty_map, v_list, v_map, v_obj, v_str, v_sym,
+    Associative, E_ARGS, E_INVARG, E_TYPE, Symbol, Var, Variant, v_empty_map, v_list, v_map, v_obj,
+    v_str, v_sym,
 };
 use std::{
     collections::{BTreeSet, HashMap},
@@ -43,6 +44,8 @@ static BASE_MANIFEST_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("base_m
 static BASE_METADATA_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("base_metadata"));
 static BASE_METADATA_PREFIX_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("base_metadata_prefix"));
+static WRITE_BASE_METADATA_SYM: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("write_base_metadata"));
 static INCLUDE_UNCHANGED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("include_unchanged"));
 
 /// Usage: `list dump_object(obj object [, map options])`
@@ -298,13 +301,18 @@ fn parse_changelist_options(
             continue;
         }
 
+        if key_sym == *WRITE_BASE_METADATA_SYM {
+            options.write_base_metadata = value.is_true();
+            continue;
+        }
+
         if key_sym == *INCLUDE_UNCHANGED_SYM {
             options.include_unchanged = value.is_true();
             continue;
         }
 
         return Err(BfErr::ErrValue(E_INVARG.with_msg(|| {
-            format!("unknown objdef_changelist() option: {key_sym}")
+            format!("unknown preview_objdef_changes() option: {key_sym}")
         })));
     }
 
@@ -397,7 +405,7 @@ fn changelist_to_moo(changelist: &moor_objdef::ObjDefChangelist) -> Var {
     ])
 }
 
-fn invalid_objdef_changelist_to_moo(error: ObjdefLoaderError) -> Var {
+fn invalid_preview_objdef_changes_to_moo(error: ObjdefLoaderError) -> Var {
     v_map(&[
         (v_str("ok"), v_bool_from(false)),
         (v_str("objects"), v_list(&[])),
@@ -413,17 +421,293 @@ fn invalid_objdef_changelist_to_moo(error: ObjdefLoaderError) -> Var {
     ])
 }
 
-/// Usage: `map objdef_changelist(list definitions [, map options])`
+fn diagnostic_to_moo(diagnostic: &moor_objdef::ChangelistDiagnostic) -> Var {
+    let mut pairs = vec![
+        (v_str("kind"), v_str(diagnostic.kind)),
+        (v_str("message"), v_str(&diagnostic.message)),
+    ];
+    if let Some(object) = diagnostic.object {
+        pairs.push((v_str("object"), v_obj(object)));
+    }
+    if let Some(constant) = diagnostic.constant {
+        pairs.push((v_str("constant"), v_str(&constant.as_string())));
+    }
+    v_map(&pairs)
+}
+
+fn parse_apply_resolution(value: &Var) -> Result<ApplyResolution, BfErr> {
+    let value = value.as_symbol().map_err(BfErr::ErrValue)?;
+    match value.as_string().as_str() {
+        "incoming" => Ok(ApplyResolution::Incoming),
+        "local" => Ok(ApplyResolution::Local),
+        "delete" => Ok(ApplyResolution::Delete),
+        "keep" => Ok(ApplyResolution::Keep),
+        other => Err(BfErr::ErrValue(E_INVARG.with_msg(|| {
+            format!("unknown apply_objdef_changes() resolution: {other}")
+        }))),
+    }
+}
+
+fn parse_apply_resolutions(
+    bf_args: &mut BfCallState<'_>,
+    value: &Var,
+) -> Result<Vec<(Vec<Var>, ApplyResolution)>, BfErr> {
+    if let Some(alist) = value.as_list() {
+        let mut parsed = Vec::with_capacity(alist.len());
+        for entry in alist.iter() {
+            let Some(pair) = entry.as_list() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("apply_objdef_changes() resolutions must be a map or alist"),
+                ));
+            };
+            if pair.len() != 2 {
+                return Err(BfErr::ErrValue(E_TYPE.msg(
+                    "apply_objdef_changes() resolution alist entries must have 2 elements",
+                )));
+            }
+            let pair = pair.iter().collect::<Vec<_>>();
+            let Some(key) = pair[0].as_list() else {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg("apply_objdef_changes() resolution keys must be lists"),
+                ));
+            };
+            parsed.push((
+                key.iter().collect::<Vec<_>>(),
+                parse_apply_resolution(&pair[1])?,
+            ));
+        }
+        return Ok(parsed);
+    }
+
+    let resolutions = bf_args.map_or_alist_to_map(value)?;
+    let mut parsed = Vec::with_capacity(resolutions.len());
+    for (key, resolution) in resolutions.iter() {
+        let Some(key) = key.as_list() else {
+            return Err(BfErr::ErrValue(
+                E_TYPE.msg("apply_objdef_changes() resolution keys must be lists"),
+            ));
+        };
+        parsed.push((
+            key.iter().collect::<Vec<_>>(),
+            parse_apply_resolution(&resolution)?,
+        ));
+    }
+    Ok(parsed)
+}
+
+fn required_resolution_keys(changelist: &moor_objdef::ObjDefChangelist) -> Vec<ChangelistChange> {
+    let mut required = changelist.conflicts.clone();
+    for object in &changelist.objects {
+        if object.status != ChangelistStatus::DeleteCandidate {
+            continue;
+        }
+        required.extend(object.changes.iter().cloned());
+    }
+    required
+}
+
+fn key_debug(key: &[Var]) -> String {
+    format!("{key:?}")
+}
+
+fn key_object(key: &[Var]) -> Option<moor_var::Obj> {
+    key.iter().find_map(Var::as_object)
+}
+
+fn resolution_valid_for_change(change: &ChangelistChange, resolution: ApplyResolution) -> bool {
+    match change.kind {
+        "delete_object" => matches!(resolution, ApplyResolution::Delete | ApplyResolution::Keep),
+        _ => matches!(
+            resolution,
+            ApplyResolution::Incoming | ApplyResolution::Local
+        ),
+    }
+}
+
+fn change_entity(change: &ChangelistChange) -> Option<Entity> {
+    match change.kind {
+        "object_flags" => Some(Entity::ObjectFlags),
+        "object_parent" => Some(Entity::Parentage),
+        "object_location" | "object_owner" | "object_name" => Some(Entity::BuiltinProps),
+        "property_def" => change.name.map(Entity::PropertyDef),
+        "property_value" => change.name.map(Entity::PropertyValue),
+        "property_info" => change.name.map(Entity::PropertyFlag),
+        "verb_def" | "verb_code" | "verb_metadata" => {
+            Some(Entity::VerbDef(change.name.into_iter().collect()))
+        }
+        _ => None,
+    }
+}
+
+fn validate_apply_resolutions(
+    changelist: &moor_objdef::ObjDefChangelist,
+    resolutions: &[(Vec<Var>, ApplyResolution)],
+) -> Vec<moor_objdef::ChangelistDiagnostic> {
+    let mut diagnostics = changelist.diagnostics.clone();
+    for object in &changelist.objects {
+        if object.status == ChangelistStatus::UnsafeTarget {
+            diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                kind: "unsafe_target",
+                object: Some(object.object),
+                constant: None,
+                message: format!("{} is not a proven safe update target", object.object),
+            });
+        }
+    }
+
+    let mut seen = BTreeSet::new();
+    let mut supplied = HashMap::new();
+    for (key, resolution) in resolutions {
+        let key_string = key_debug(key);
+        if !seen.insert(key_string.clone()) {
+            diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                kind: "duplicate_resolution",
+                object: key_object(key),
+                constant: None,
+                message: format!("duplicate resolution for {key_string}"),
+            });
+            continue;
+        }
+        supplied.insert(key_string, (key, *resolution));
+    }
+
+    let required = required_resolution_keys(changelist);
+    for change in &required {
+        let key = key_debug(&change.key);
+        let Some((_, resolution)) = supplied.get(&key) else {
+            diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                kind: "missing_resolution",
+                object: Some(change.object),
+                constant: None,
+                message: format!("missing resolution for {key}"),
+            });
+            continue;
+        };
+        if !resolution_valid_for_change(change, *resolution) {
+            diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                kind: "nonsensical_resolution",
+                object: Some(change.object),
+                constant: None,
+                message: format!("{resolution:?} is not valid for {key}"),
+            });
+        }
+    }
+
+    let required_keys = required
+        .iter()
+        .map(|change| key_debug(&change.key))
+        .collect::<BTreeSet<_>>();
+    for (key_string, (key, _)) in supplied {
+        if required_keys.contains(&key_string) {
+            continue;
+        }
+        diagnostics.push(moor_objdef::ChangelistDiagnostic {
+            kind: "stale_resolution",
+            object: key_object(key),
+            constant: None,
+            message: format!("resolution no longer matches current changelist: {key_string}"),
+        });
+    }
+
+    diagnostics
+}
+
+fn apply_plan(
+    changelist: &moor_objdef::ObjDefChangelist,
+    resolutions: &[(Vec<Var>, ApplyResolution)],
+) -> (Vec<(moor_var::Obj, Entity)>, Vec<moor_var::Obj>) {
+    let resolution_map = resolutions
+        .iter()
+        .map(|(key, resolution)| (key_debug(key), *resolution))
+        .collect::<HashMap<_, _>>();
+    let mut overrides = Vec::new();
+    let mut delete_objects = Vec::new();
+
+    for object in &changelist.objects {
+        for change in &object.changes {
+            let resolution = resolution_map.get(&key_debug(&change.key)).copied();
+            match (change.kind, resolution) {
+                ("delete_object", Some(ApplyResolution::Delete)) => {
+                    delete_objects.push(change.object);
+                }
+                ("delete_object", _) => {}
+                (_, Some(ApplyResolution::Local)) => {}
+                (_, Some(ApplyResolution::Incoming)) | (_, None) if change.automatic => {
+                    if let Some(entity) = change_entity(change) {
+                        overrides.push((change.object, entity));
+                    }
+                }
+                (_, Some(ApplyResolution::Incoming)) => {
+                    if let Some(entity) = change_entity(change) {
+                        overrides.push((change.object, entity));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    (overrides, delete_objects)
+}
+
+fn apply_result_to_moo(
+    ok: bool,
+    changelist: &moor_objdef::ObjDefChangelist,
+    diagnostics: &[moor_objdef::ChangelistDiagnostic],
+    loaded_objects: &[moor_var::Obj],
+    deleted_objects: &[moor_var::Obj],
+) -> Var {
+    v_map(&[
+        (v_str("ok"), v_bool_from(ok)),
+        (
+            v_str("diagnostics"),
+            v_list(
+                &diagnostics
+                    .iter()
+                    .map(diagnostic_to_moo)
+                    .collect::<Vec<_>>(),
+            ),
+        ),
+        (v_str("changelist"), changelist_to_moo(changelist)),
+        (
+            v_str("applied"),
+            v_map(&[
+                (
+                    v_str("loaded_objects"),
+                    v_list(
+                        &loaded_objects
+                            .iter()
+                            .copied()
+                            .map(v_obj)
+                            .collect::<Vec<_>>(),
+                    ),
+                ),
+                (
+                    v_str("deleted_objects"),
+                    v_list(
+                        &deleted_objects
+                            .iter()
+                            .copied()
+                            .map(v_obj)
+                            .collect::<Vec<_>>(),
+                    ),
+                ),
+            ]),
+        ),
+    ])
+}
+
+/// Usage: `map preview_objdef_changes(list definitions [, map options])`
 /// Returns a read-only summary of create, patch, unsafe, conflict, and delete-candidate changes.
 /// Wizard-only.
-fn bf_objdef_changelist(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+fn bf_preview_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.is_empty() || bf_args.args.len() > 2 {
         return Err(BfErr::ErrValue(
-            E_ARGS.msg("objdef_changelist() requires 1 to 2 arguments"),
+            E_ARGS.msg("preview_objdef_changes() requires 1 to 2 arguments"),
         ));
     }
 
-    let sources = objdef_sources_from_value(&bf_args.args[0], "objdef_changelist")?;
+    let sources = objdef_sources_from_value(&bf_args.args[0], "preview_objdef_changes")?;
     let options_value = bf_args.args.iter_ref().nth(1).cloned();
     let options = parse_changelist_options(bf_args, options_value.as_ref())?;
 
@@ -432,7 +716,7 @@ fn bf_objdef_changelist(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let compile_options = bf_args.config.compile_options();
     let permissions = bf_args.task_permissions();
     let changelist_result = with_current_transaction(|world_state| {
-        moor_objdef::analyze_objdef_changelist(
+        moor_objdef::analyze_preview_objdef_changes(
             world_state,
             &permissions,
             &compile_options,
@@ -443,10 +727,132 @@ fn bf_objdef_changelist(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let changelist = match changelist_result {
         Ok(changelist) => changelist_to_moo(&changelist),
-        Err(error) => invalid_objdef_changelist_to_moo(error),
+        Err(error) => invalid_preview_objdef_changes_to_moo(error),
     };
 
     Ok(Ret(changelist))
+}
+
+/// Usage: `map apply_objdef_changes(list definitions, map resolutions [, map options])`
+/// Re-runs objdef change preview, validates resolutions, then applies safe changes. Wizard-only.
+fn bf_apply_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("apply_objdef_changes() requires 2 to 3 arguments"),
+        ));
+    }
+
+    let sources = objdef_sources_from_value(&bf_args.args[0], "apply_objdef_changes")?;
+    let resolutions = parse_apply_resolutions(bf_args, &bf_args.args[1].clone())?;
+    let options_value = bf_args.args.iter_ref().nth(2).cloned();
+    let options = parse_changelist_options(bf_args, options_value.as_ref())?;
+
+    bf_args.require_wizard_or_builtin_call()?;
+
+    let compile_options = bf_args.config.compile_options();
+    let permissions = bf_args.task_permissions();
+    let changelist_result = with_current_transaction(|world_state| {
+        moor_objdef::analyze_preview_objdef_changes(
+            world_state,
+            &permissions,
+            &compile_options,
+            sources.clone(),
+            options.clone(),
+        )
+    });
+
+    let changelist = match changelist_result {
+        Ok(changelist) => changelist,
+        Err(error) => {
+            let changelist = invalid_preview_objdef_changes_to_moo(error);
+            return Ok(Ret(v_map(&[
+                (v_str("ok"), v_bool_from(false)),
+                (v_str("diagnostics"), v_list(&[])),
+                (v_str("changelist"), changelist),
+                (v_str("applied"), v_map(&[])),
+            ])));
+        }
+    };
+
+    let mut diagnostics = validate_apply_resolutions(&changelist, &resolutions);
+    let (_, delete_objects) = apply_plan(&changelist, &resolutions);
+    with_current_transaction(|world_state| {
+        for obj in &delete_objects {
+            if let Ok(children) = world_state.children_of(&permissions, obj)
+                && !children.is_empty()
+            {
+                diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                    kind: "delete_not_empty",
+                    object: Some(*obj),
+                    constant: None,
+                    message: format!("{obj} has children and cannot be deleted"),
+                });
+            }
+            if let Ok(contents) = world_state.contents_of(&permissions, obj)
+                && !contents.is_empty()
+            {
+                diagnostics.push(moor_objdef::ChangelistDiagnostic {
+                    kind: "delete_not_empty",
+                    object: Some(*obj),
+                    constant: None,
+                    message: format!("{obj} has contents and cannot be deleted"),
+                });
+            }
+        }
+    });
+
+    if !diagnostics.is_empty() {
+        return Ok(Ret(apply_result_to_moo(
+            false,
+            &changelist,
+            &diagnostics,
+            &[],
+            &[],
+        )));
+    }
+
+    let (overrides, delete_objects) = apply_plan(&changelist, &resolutions);
+    let result = with_loader_interface(|loader| {
+        let mut object_loader = moor_objdef::ObjectDefinitionLoader::new(loader);
+        let result = object_loader.load_objdef_sources(
+            compile_options.clone(),
+            sources.clone(),
+            ObjDefLoaderOptions {
+                dry_run: false,
+                conflict_mode: ConflictMode::Skip,
+                object_kind: None,
+                constants: options.constants.clone(),
+                overrides,
+                validate_parent_changes: true,
+                remove_absent_entities: true,
+            },
+        )?;
+        if options.write_base_metadata {
+            moor_objdef::write_base_metadata(
+                loader,
+                &compile_options,
+                sources.as_slice(),
+                &options,
+                &changelist,
+                &resolutions,
+            )?;
+        }
+        for obj in &delete_objects {
+            loader.recycle_object(obj).map_err(|err| {
+                ObjdefLoaderError::CouldNotCreateObject("<delete>".to_string(), *obj, err)
+            })?;
+        }
+        Ok::<_, ObjdefLoaderError>(result)
+    })
+    .map_err(|error| BfErr::ErrValue(E_INVARG.with_msg(|| error.to_string())))?;
+
+    Ok(Ret(apply_result_to_moo(
+        true,
+        &changelist,
+        &[],
+        &result.loaded_objects,
+        &delete_objects,
+    )))
 }
 
 /// Usage: `obj load_object(list object_lines [, map options] [, obj|int object_spec])`
@@ -551,6 +957,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         constants: constants.clone(),
         overrides: Vec::new(),
         validate_parent_changes: true, // Individual loads should validate parent changes
+        remove_absent_entities: false,
     };
 
     // Get the compile options from the config
@@ -684,5 +1091,6 @@ pub(crate) fn register_bf_obj_load(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("load_object")] = bf_load_object;
     builtins[offset_for_builtin("reload_object")] = bf_reload_object;
     builtins[offset_for_builtin("parse_objdef_constants")] = bf_parse_objdef_constants;
-    builtins[offset_for_builtin("objdef_changelist")] = bf_objdef_changelist;
+    builtins[offset_for_builtin("preview_objdef_changes")] = bf_preview_objdef_changes;
+    builtins[offset_for_builtin("apply_objdef_changes")] = bf_apply_objdef_changes;
 }
