@@ -671,6 +671,7 @@ mod tests {
             overrides: vec![],
             validate_parent_changes: false,
             remove_absent_entities: false,
+            establish_base_metadata: false,
         };
         defloader
             .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)
@@ -838,6 +839,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: false,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             };
             defloader
                 .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)
@@ -1088,6 +1090,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: false,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             };
             defloader
                 .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)
@@ -1331,6 +1334,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: false,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             };
             defloader
                 .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)

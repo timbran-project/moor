@@ -594,6 +594,10 @@ Those options are:
 - `"write_base_metadata"`: for `apply_objdef_changes`, true to record the accepted version's base
   hashes after the whole apply succeeds.
 
+When a new database is imported from an objdef directory, mooR records base hashes for that initial
+accepted version. Later package updates can then use `"base_metadata"` to detect local edits. The
+`"write_base_metadata"` option does the same thing after a reviewed `apply_objdef_changes` update.
+
 `preview_objdef_changes` is wizard-only.
 
 ### `apply_objdef_changes`

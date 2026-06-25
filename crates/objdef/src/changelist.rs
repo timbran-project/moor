@@ -151,4 +151,4 @@ mod tests;
 
 pub use analyze::analyze_preview_objdef_changes;
 pub use apply::apply_objdef_changes;
-pub use base_metadata::write_base_metadata;
+pub use base_metadata::{establish_base_metadata, write_base_metadata};

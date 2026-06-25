@@ -27,21 +27,13 @@ pub fn write_base_metadata(
     changelist: &ObjDefChangelist,
     resolutions: &[(Vec<Var>, ApplyResolution)],
 ) -> Result<(), ObjdefLoaderError> {
-    let objdef_set = ObjDefSet::parse_sources(
+    establish_base_metadata(
+        loader,
         compile_options,
-        None,
+        sources,
         options.constants.as_ref(),
-        sources.iter().cloned(),
+        &options.base_metadata_prefix,
     )?;
-    for (obj, (path, definition)) in objdef_set.graph().object_definitions() {
-        write_definition_base_metadata(
-            loader,
-            path,
-            *obj,
-            definition,
-            &options.base_metadata_prefix,
-        )?;
-    }
 
     let resolution_map = resolutions
         .iter()
@@ -59,6 +51,26 @@ pub fn write_base_metadata(
         }
     }
 
+    Ok(())
+}
+
+/// Establish base hash metadata for an accepted objdef source set.
+///
+/// This is used by initial package/core imports where the imported definitions become the accepted
+/// base immediately. It writes only incoming hashes; conflict-aware apply uses `write_base_metadata`
+/// so `"local"` resolutions can stamp the local value that was kept.
+pub fn establish_base_metadata(
+    loader: &mut dyn LoaderInterface,
+    compile_options: &CompileOptions,
+    sources: &[ObjDefSource],
+    constants: Option<&Constants>,
+    prefix: &str,
+) -> Result<(), ObjdefLoaderError> {
+    let objdef_set =
+        ObjDefSet::parse_sources(compile_options, None, constants, sources.iter().cloned())?;
+    for (obj, (path, definition)) in objdef_set.graph().object_definitions() {
+        write_definition_base_metadata(loader, path, *obj, definition, prefix)?;
+    }
     Ok(())
 }
 

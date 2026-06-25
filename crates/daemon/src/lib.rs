@@ -247,7 +247,10 @@ fn perform_import(
     let commit = match &config.import_export.import_format {
         ImportFormat::Objdef => {
             let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
-            let options = moor_objdef::ObjDefLoaderOptions::default();
+            let options = moor_objdef::ObjDefLoaderOptions {
+                establish_base_metadata: true,
+                ..moor_objdef::ObjDefLoaderOptions::default()
+            };
             let results = match od.load_objdef_directory(
                 config.features.compile_options(),
                 import_path.as_ref(),

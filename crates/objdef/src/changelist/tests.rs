@@ -19,7 +19,7 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_db::{Database, DatabaseConfig, TxDB};
-use moor_var::{SYSTEM_OBJECT, v_str};
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, v_str};
 use std::{path::Path, sync::Arc};
 
 fn test_db(path: &Path) -> Arc<TxDB> {
@@ -884,6 +884,70 @@ fn graph_handles_case_scalar_load_cannot_model() {
     .unwrap();
 
     assert!(result.ok, "{:?}", result.diagnostics);
+}
+
+#[test]
+fn import_with_base_metadata_establishes_conflict_base() {
+    let tmpdir = tempfile::tempdir().unwrap();
+    let db = test_db(tmpdir.path());
+    let base = r#"
+            object #10 [import_export_id -> "thing"]
+                name: "Thing"
+                owner: #0
+                parent: #-1
+                location: #-1
+                property title (owner: #10, flags: "rc") = "base";
+            endobject
+            "#;
+
+    let mut loader = db.loader_client().unwrap();
+    let mut obj_loader = ObjectDefinitionLoader::new(loader.as_mut());
+    obj_loader
+        .load_objdef_sources(
+            CompileOptions::default(),
+            [ObjDefSource::new("base.moo", base)],
+            ObjDefLoaderOptions {
+                establish_base_metadata: true,
+                ..ObjDefLoaderOptions::default()
+            },
+        )
+        .unwrap();
+    loader.commit().unwrap();
+
+    let mut loader = db.loader_client().unwrap();
+    loader
+        .set_property(
+            &Obj::mk_id(10),
+            Symbol::mk("title"),
+            None,
+            None,
+            Some(v_str("local")),
+        )
+        .unwrap();
+    loader.commit().unwrap();
+
+    let result = analyze(
+        &db,
+        r#"
+            object #10 [import_export_id -> "thing"]
+                name: "Thing"
+                owner: #0
+                parent: #-1
+                location: #-1
+                property title (owner: #10, flags: "rc") = "incoming";
+            endobject
+            "#,
+        ChangelistOptions {
+            base_metadata: true,
+            base_metadata_prefix: "base_".to_string(),
+            ..ChangelistOptions::default()
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.conflicts.len(), 1);
+    assert_eq!(result.conflicts[0].kind, "property_value");
+    assert_eq!(result.conflicts[0].name, Some(Symbol::mk("title")));
 }
 
 #[test]

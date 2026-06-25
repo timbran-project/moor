@@ -825,6 +825,7 @@ fn bf_apply_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr
                 overrides,
                 validate_parent_changes: true,
                 remove_absent_entities: true,
+                establish_base_metadata: false,
             },
         )?;
         if options.write_base_metadata {
@@ -958,6 +959,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         overrides: Vec::new(),
         validate_parent_changes: true, // Individual loads should validate parent changes
         remove_absent_entities: false,
+        establish_base_metadata: false,
     };
 
     // Get the compile options from the config

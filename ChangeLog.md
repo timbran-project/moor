@@ -38,6 +38,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New wizard-only `apply_objdef_changes()` builtin for applying an objdef set after recomputing the
   preview and validating explicit resolutions for conflicts and deletion candidates, with optional
   accepted-base hash metadata writeback.
+- Objdef database imports now establish accepted-base hash metadata for the initial imported
+  definitions so later package/core previews can detect local edits.
 - New entity-state hash builtins for package and tooling code that needs stable fingerprints of
   object attributes, metadata, property values/info/metadata, and verb code/info/metadata:
   `object_attrs_hash()`, `object_metadata_hash()`, `property_value_hash()`, `property_info_hash()`,

@@ -23,7 +23,9 @@
 //! Use `ObjectDefinitionLoader` when code is ready to apply an objdef set or single definition to a
 //! `LoaderInterface`.
 
-use crate::{ObjDefSet, ObjDefSource, ObjdefLoaderError, set::apply_constants};
+use crate::{
+    ObjDefSet, ObjDefSource, ObjdefLoaderError, establish_base_metadata, set::apply_constants,
+};
 use moor_common::{
     model::{
         HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
@@ -112,6 +114,8 @@ pub struct ObjDefLoaderOptions {
     /// If true, remove local direct properties and verbs that are absent from the incoming object
     /// definition before applying incoming entities.
     pub remove_absent_entities: bool,
+    /// If true, write `base_...` hash metadata for the accepted imported definitions.
+    pub establish_base_metadata: bool,
 }
 
 impl Default for ObjDefLoaderOptions {
@@ -124,6 +128,7 @@ impl Default for ObjDefLoaderOptions {
             overrides: vec![],
             validate_parent_changes: false,
             remove_absent_entities: false,
+            establish_base_metadata: false,
         }
     }
 }
@@ -323,6 +328,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             sources.push(ObjDefSource::from_path(object_file, object_file_contents));
         }
 
+        let base_metadata_sources = options.establish_base_metadata.then(|| sources.clone());
         let objdef_set = ObjDefSet::parse_sources(&compile_options, Some(dirpath), None, sources)?;
         let constant_count = objdef_set.constants().len();
         self.stage_objdef_set(objdef_set)?;
@@ -360,6 +366,16 @@ impl<'a> ObjectDefinitionLoader<'a> {
         // Auto-create import_export_id metadata if we loaded using the heuristic
         self.create_import_export_ids_if_needed()?;
 
+        if let Some(sources) = base_metadata_sources {
+            establish_base_metadata(
+                self.loader,
+                &compile_options,
+                sources.as_slice(),
+                None,
+                "base_",
+            )?;
+        }
+
         Ok(ObjDefLoaderResults {
             commit: !options.dry_run,
             conflicts: self.conflicts.clone(),
@@ -384,8 +400,13 @@ impl<'a> ObjectDefinitionLoader<'a> {
     where
         I: IntoIterator<Item = ObjDefSource>,
     {
-        let objdef_set =
-            ObjDefSet::parse_sources(&compile_options, None, options.constants.as_ref(), sources)?;
+        let sources = sources.into_iter().collect::<Vec<_>>();
+        let objdef_set = ObjDefSet::parse_sources(
+            &compile_options,
+            None,
+            options.constants.as_ref(),
+            sources.iter().cloned(),
+        )?;
         self.stage_objdef_set(objdef_set)?;
 
         let (num_loaded_verbs, num_loaded_property_definitions, num_loaded_property_overrides) =
@@ -400,6 +421,16 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.set_properties(&options)?;
         self.define_verbs(&options)?;
         self.create_import_export_ids_if_needed()?;
+
+        if options.establish_base_metadata {
+            establish_base_metadata(
+                self.loader,
+                &compile_options,
+                sources.as_slice(),
+                options.constants.as_ref(),
+                "base_",
+            )?;
+        }
 
         Ok(ObjDefLoaderResults {
             commit: !options.dry_run,
@@ -1351,6 +1382,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             overrides: vec![],
             validate_parent_changes: true,
             remove_absent_entities: false,
+            establish_base_metadata: false,
         };
 
         self.apply_attributes(&apply_options)?;
@@ -2834,6 +2866,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: true,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             },
         );
 
@@ -2897,6 +2930,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: true,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             },
         );
 
@@ -2938,6 +2972,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: true,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             },
         );
 
@@ -3629,6 +3664,7 @@ mod tests {
                 overrides: vec![],
                 validate_parent_changes: true,
                 remove_absent_entities: false,
+                establish_base_metadata: false,
             },
         );
 

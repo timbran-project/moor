@@ -740,6 +740,10 @@ Base fingerprint metadata writeback should be opt-in through `"write_base_metada
 runtime-owned base hash metadata is written only after the full apply succeeds. Failed apply must
 not update base metadata.
 
+Initial objdef import into a new database should establish the same runtime-owned base hash metadata
+for the accepted imported definitions. That gives the first later package/core update a real base to
+compare against instead of treating the imported objects as unproven local state.
+
 Minimum behavior:
 
 - clean apply mutates the database to match incoming definitions

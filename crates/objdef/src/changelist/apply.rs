@@ -65,6 +65,7 @@ where
             overrides,
             validate_parent_changes: true,
             remove_absent_entities: true,
+            establish_base_metadata: false,
         },
     )?;
 

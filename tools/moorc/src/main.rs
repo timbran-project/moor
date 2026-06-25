@@ -417,7 +417,10 @@ fn main() -> Result<(), eyre::Report> {
         let start = std::time::Instant::now();
         let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
 
-        let options = moor_objdef::ObjDefLoaderOptions::default();
+        let options = moor_objdef::ObjDefLoaderOptions {
+            establish_base_metadata: true,
+            ..moor_objdef::ObjDefLoaderOptions::default()
+        };
         let commit =
             match od.load_objdef_directory(make_compile_options(), objdef_dir.as_ref(), options) {
                 Ok(results) => {

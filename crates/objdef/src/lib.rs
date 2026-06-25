@@ -47,7 +47,7 @@ use std::{io, path::PathBuf};
 pub use changelist::{
     ApplyResolution, ChangelistChange, ChangelistDiagnostic, ChangelistObject, ChangelistOptions,
     ChangelistStatus, ObjDefApplyResult, ObjDefChangelist, analyze_preview_objdef_changes,
-    apply_objdef_changes, write_base_metadata,
+    apply_objdef_changes, establish_base_metadata, write_base_metadata,
 };
 pub use dump::{
     collect_object, collect_object_definitions, dump_object, dump_object_definitions,
