@@ -1143,11 +1143,7 @@ fn bf_connection_name(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let task_perms = bf_args.task_perms().map_err(world_state_bf_err)?;
-    if !task_perms
-        .check_is_wizard()
-        .map_err(world_state_bf_err)?
-        && task_perms.who != player
-    {
+    if !task_perms.check_is_wizard().map_err(world_state_bf_err)? && task_perms.who != player {
         return Err(ErrValue(E_PERM.msg(
             "connection_name() requires the caller to be a wizard or the caller itself",
         )));

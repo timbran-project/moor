@@ -20,8 +20,7 @@ use moor_common::util::{Deadline, Instant, Timestamp};
 use rand::Rng;
 use std::{
     sync::{
-        Arc,
-        LazyLock,
+        Arc, LazyLock,
         atomic::{AtomicBool, Ordering},
     },
     thread::yield_now,

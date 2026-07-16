@@ -81,8 +81,7 @@ pub(crate) static USER_DISCONNECTED_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("user_disconnected"));
 pub(crate) static USER_RECONNECTED_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("user_reconnected"));
-pub(crate) static USER_CREATED_SYM: LazyLock<Symbol> =
-    LazyLock::new(|| Symbol::mk("user_created"));
+pub(crate) static USER_CREATED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("user_created"));
 pub(crate) static DO_LOGIN_COMMAND: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("do_login_command"));
 pub(crate) static SCHED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sched"));
