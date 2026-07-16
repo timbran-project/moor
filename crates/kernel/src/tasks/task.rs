@@ -380,11 +380,14 @@ impl Task {
                 }
             }
             VMHostResponse::Suspend(delay) => {
+                let mut transaction_committed = false;
+
                 // Fast path for RecvMessages(None): commit, drain messages, resume immediately
                 if matches!(delay.as_ref(), TaskSuspend::RecvMessages(None)) {
                     let perfc = sched_counters();
                     let _t = PerfTimerGuard::new(&perfc.task_recv_immediate_resume_latency);
                     match with_new_transaction(|| {
+                        transaction_committed = true;
                         let new_world_state =
                             task_scheduler_client.begin_new_transaction().map_err(|e| {
                                 WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
@@ -406,6 +409,11 @@ impl Task {
                         }
                         Err(e) => {
                             error!("Failed to begin new transaction for task_recv: {:?}", e);
+                            if !transaction_committed {
+                                session.rollback().unwrap();
+                                task_scheduler_client.conflict_retry(self);
+                                return None;
+                            }
                             // Fall back to normal suspend path
                         }
                     }
@@ -421,6 +429,7 @@ impl Task {
                 if is_immediate {
                     // Fast path: get new transaction and continue immediately
                     match with_new_transaction(|| {
+                        transaction_committed = true;
                         let new_world_state =
                             task_scheduler_client.begin_new_transaction().map_err(|e| {
                                 WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
@@ -445,20 +454,27 @@ impl Task {
                                 "Failed to begin new transaction for immediate resume: {:?}",
                                 e
                             );
+                            if !transaction_committed {
+                                session.rollback().unwrap();
+                                task_scheduler_client.conflict_retry(self);
+                                return None;
+                            }
                             // Fall back to normal suspend path
                         }
                     }
                 }
 
                 // VMHost is now suspended for execution, and we'll be waiting for a Resume
-                let commit_result = commit_current_transaction()
-                    .expect("Could not commit world state before suspend");
+                if !transaction_committed {
+                    let commit_result = commit_current_transaction()
+                        .expect("Could not commit world state before suspend");
 
-                if let CommitResult::ConflictRetry { .. } = commit_result {
-                    warn!("Conflict during commit before suspend");
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self);
-                    return None;
+                    if let CommitResult::ConflictRetry { .. } = commit_result {
+                        warn!("Conflict during commit before suspend");
+                        session.rollback().unwrap();
+                        task_scheduler_client.conflict_retry(self);
+                        return None;
+                    }
                 }
 
                 self.refresh_retry_state();
@@ -1637,6 +1653,79 @@ mod tests {
                 Arc::new(Config::default()),
             );
         }
+        let (task_id, msg) = control_receiver.recv().unwrap();
+        assert_eq!(task_id, 1);
+        let TaskControlMsg::TaskSuccess(result, _mutations, _timestamp) = msg else {
+            panic!("Expected TaskSuccess, got different message type");
+        };
+        assert_eq!(result, v_int(123));
+    }
+
+    /// A failed immediate-resume transaction request must fall back to scheduler suspension.
+    #[test]
+    fn test_suspend_zero_transaction_timeout_falls_back_to_scheduler() {
+        let (_kill_switch, mut task, db, tx, task_scheduler_client, control_receiver) =
+            setup_test_env_eval("suspend(0); return 123;");
+
+        let session = Arc::new(NoopClientSession::new());
+        let task_session = session.clone();
+        let task_client = task_scheduler_client.clone();
+        let task_thread = std::thread::spawn(move || {
+            let _tx_guard = TaskGuard::new(
+                tx,
+                task_client.clone(),
+                task.task_id,
+                task.player,
+                task_session.clone(),
+            );
+            task.setup_task_start(task_client.control_sender());
+            Task::run_task_loop(
+                task,
+                &task_client,
+                task_session,
+                BuiltinRegistry::new(),
+                Arc::new(Config::default()),
+            );
+        });
+
+        // Hold the reply channel open without replying so begin_new_transaction reaches its
+        // scheduler-response timeout rather than observing a disconnected channel.
+        let (task_id, msg) = control_receiver.recv().unwrap();
+        assert_eq!(task_id, 1);
+        let TaskControlMsg::RequestNewTransaction(_reply_channel) = msg else {
+            panic!("Expected RequestNewTransaction, got different message type");
+        };
+
+        task_thread
+            .join()
+            .expect("suspend(0) panicked after the transaction request timed out");
+
+        let (task_id, msg) = control_receiver.recv().unwrap();
+        assert_eq!(task_id, 1);
+        let TaskControlMsg::TaskSuspend(_, mut resume_task) = msg else {
+            panic!("Expected TaskSuspend, got different message type");
+        };
+
+        resume_task.vm_host.resume_execution(v_int(0));
+
+        let tx = db.new_world_state().unwrap();
+        {
+            let _tx_guard = TaskGuard::new(
+                tx,
+                task_scheduler_client.clone(),
+                resume_task.task_id,
+                resume_task.player,
+                session.clone(),
+            );
+            Task::run_task_loop(
+                resume_task,
+                &task_scheduler_client,
+                session,
+                BuiltinRegistry::new(),
+                Arc::new(Config::default()),
+            );
+        }
+
         let (task_id, msg) = control_receiver.recv().unwrap();
         assert_eq!(task_id, 1);
         let TaskControlMsg::TaskSuccess(result, _mutations, _timestamp) = msg else {
