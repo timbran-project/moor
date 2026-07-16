@@ -29,8 +29,8 @@ use std::{
 };
 
 use crate::task_context::{
-    commit_current_transaction, rollback_current_transaction, with_current_transaction,
-    with_current_transaction_mut, with_new_transaction,
+    TransactionRenewalError, commit_current_transaction, rollback_current_transaction,
+    with_current_transaction, with_current_transaction_mut, with_new_transaction,
 };
 use ahash::AHasher;
 
@@ -439,10 +439,15 @@ impl Task {
                         task_scheduler_client.conflict_retry(self);
                         None
                     }
-                    Err(e) => {
-                        error!("Failed to commit before fork dispatch: {:?}", e);
+                    Err(TransactionRenewalError::Commit(e)) => {
+                        error!("Failed to commit before fork dispatch: {e:?}");
                         session.rollback().unwrap();
                         task_scheduler_client.conflict_retry(self);
+                        None
+                    }
+                    Err(TransactionRenewalError::Begin(e)) => {
+                        error!("Failed to begin transaction after fork commit: {e:?}");
+                        task_scheduler_client.abort_transaction_renewal_failed();
                         None
                     }
                 }
@@ -474,9 +479,16 @@ impl Task {
                             task_scheduler_client.conflict_retry(self);
                             return None;
                         }
-                        Err(e) => {
-                            error!("Failed to begin new transaction for task_recv: {:?}", e);
-                            // Fall back to normal suspend path
+                        Err(TransactionRenewalError::Commit(e)) => {
+                            error!("Failed to commit before task_recv: {e:?}");
+                            session.rollback().unwrap();
+                            task_scheduler_client.conflict_retry(self);
+                            return None;
+                        }
+                        Err(TransactionRenewalError::Begin(e)) => {
+                            error!("Failed to begin new transaction for task_recv: {e:?}");
+                            task_scheduler_client.abort_transaction_renewal_failed();
+                            return None;
                         }
                     }
                 }
@@ -510,12 +522,16 @@ impl Task {
                             task_scheduler_client.conflict_retry(self);
                             return None;
                         }
-                        Err(e) => {
-                            error!(
-                                "Failed to begin new transaction for immediate resume: {:?}",
-                                e
-                            );
-                            // Fall back to normal suspend path
+                        Err(TransactionRenewalError::Commit(e)) => {
+                            error!("Failed to commit before immediate resume: {e:?}");
+                            session.rollback().unwrap();
+                            task_scheduler_client.conflict_retry(self);
+                            return None;
+                        }
+                        Err(TransactionRenewalError::Begin(e)) => {
+                            error!("Failed to begin new transaction for immediate resume: {e:?}");
+                            task_scheduler_client.abort_transaction_renewal_failed();
+                            return None;
                         }
                     }
                 }
@@ -1455,11 +1471,18 @@ fn find_verb_for_command(
 // and results are observed through TaskHandle receivers.
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
     use std::time::Duration;
 
     use moor_common::{
-        model::{ArgSpec, ObjFlag, ObjectKind, PrepSpec, VerbArgsSpec, VerbFlag, WorldStateSource},
+        model::{
+            ArgSpec, ObjFlag, ObjectKind, PrepSpec, VerbArgsSpec, VerbFlag, WorldState,
+            WorldStateError, WorldStateSource,
+            loader::{LoaderInterface, SnapshotInterface},
+        },
         tasks::{
             CommandError, NoopClientSession, NoopSystemControl, SchedulerError, SessionError,
             SessionFactory,
@@ -1467,7 +1490,7 @@ mod tests {
         util::BitEnum,
     };
     use moor_compiler::{CompileOptions, Program, compile};
-    use moor_db::{DatabaseConfig, TxDB};
+    use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
     use moor_var::{
         E_DIV, NOTHING, Obj, SYSTEM_OBJECT, Symbol, program::ProgramType, v_int, v_str,
     };
@@ -1486,6 +1509,55 @@ mod tests {
         argspec: VerbArgsSpec,
     }
 
+    struct FailingDatabase {
+        inner: TxDB,
+        successful_world_states_before_failure: Arc<AtomicUsize>,
+    }
+
+    impl WorldStateSource for FailingDatabase {
+        fn new_world_state(&self) -> Result<Box<dyn WorldState>, WorldStateError> {
+            let remaining = self
+                .successful_world_states_before_failure
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+                    Some(match remaining {
+                        usize::MAX | 0 => usize::MAX,
+                        _ => remaining - 1,
+                    })
+                })
+                .unwrap();
+
+            if remaining == 0 {
+                return Err(WorldStateError::DatabaseError(
+                    "injected new world state failure".to_string(),
+                ));
+            }
+
+            self.inner.new_world_state()
+        }
+
+        fn checkpoint(&self) -> Result<(), WorldStateError> {
+            self.inner.checkpoint()
+        }
+    }
+
+    impl Database for FailingDatabase {
+        fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError> {
+            self.inner.loader_client()
+        }
+
+        fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError> {
+            self.inner.create_snapshot()
+        }
+
+        fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError> {
+            self.inner.create_snapshot_async(callback)
+        }
+
+        fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError> {
+            self.inner.gc_interface()
+        }
+    }
+
     struct NoopSessionFactory;
     impl SessionFactory for NoopSessionFactory {
         fn mk_background_session(
@@ -1501,8 +1573,8 @@ mod tests {
     }
 
     /// Create a TxDB, populate it with a system object (wizard/programmer),
-    /// optionally add verbs, commit, then create a Scheduler + SchedulerClient.
-    fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, Scheduler) {
+    /// optionally add verbs, and commit.
+    fn setup_database(verbs: &[TestVerb]) -> TxDB {
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let mut tx = db.new_world_state().unwrap();
 
@@ -1556,9 +1628,13 @@ mod tests {
         }
         tx.commit().unwrap();
 
+        db
+    }
+
+    fn start_scheduler(database: Box<dyn Database>) -> (SchedulerClient, Scheduler) {
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
-            Box::new(db),
+            database,
             Box::new(NoopTasksDb {}),
             Arc::new(Config::default()),
             Arc::new(NoopSystemControl::default()),
@@ -1568,6 +1644,22 @@ mod tests {
         let _timer_jh = scheduler.start(Arc::new(NoopSessionFactory));
         let client = scheduler.client().unwrap();
         (client, scheduler)
+    }
+
+    fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, Scheduler) {
+        start_scheduler(Box::new(setup_database(verbs)))
+    }
+
+    fn setup_failing_scheduler(
+        verbs: &[TestVerb],
+    ) -> (SchedulerClient, Scheduler, Arc<AtomicUsize>) {
+        let successful_world_states_before_failure = Arc::new(AtomicUsize::new(usize::MAX));
+        let database = FailingDatabase {
+            inner: setup_database(verbs),
+            successful_world_states_before_failure: successful_world_states_before_failure.clone(),
+        };
+        let (client, scheduler) = start_scheduler(Box::new(database));
+        (client, scheduler, successful_world_states_before_failure)
     }
 
     /// Wait for a task result, handling suspended notifications.
@@ -1664,6 +1756,29 @@ mod tests {
             .unwrap();
         let result = wait_result(&handle).unwrap();
         assert_eq!(result, v_int(123));
+    }
+
+    #[test]
+    fn test_suspend_zero_transaction_renewal_failure_aborts_cleanly() {
+        let (client, _sched, successful_world_states_before_failure) = setup_failing_scheduler(&[]);
+
+        // Allow the initial task transaction, then fail the replacement requested by suspend(0).
+        successful_world_states_before_failure.store(1, Ordering::SeqCst);
+
+        let session = Arc::new(NoopClientSession::new());
+        let handle = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "suspend(0); return 123;".to_string(),
+                None,
+                session,
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+
+        let error = wait_result(&handle).unwrap_err();
+        assert_eq!(error, SchedulerError::CouldNotStartTask);
     }
 
     /// Trigger a task-fork — fork spawns a child, parent returns its own value

@@ -91,6 +91,11 @@ impl TaskSchedulerClient {
         self.scheduler.handle_task_abort_cancelled(self.task_id);
     }
 
+    pub fn abort_transaction_renewal_failed(&self) {
+        self.scheduler
+            .handle_task_transaction_renewal_failed(self.task_id);
+    }
+
     pub fn abort_limits_reached(
         &self,
         reason: AbortLimitReason,

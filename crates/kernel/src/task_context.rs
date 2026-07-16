@@ -392,11 +392,17 @@ pub fn extract_current_transaction() -> Box<dyn WorldState> {
     })
 }
 
+#[derive(Debug)]
+pub enum TransactionRenewalError {
+    Commit(WorldStateError),
+    Begin(WorldStateError),
+}
+
 /// Execute a closure that creates a new transaction while preserving the current task context.
 /// This atomically commits the current transaction and starts a new one with preserved context.
 pub fn with_new_transaction<F, R>(
     create_transaction: F,
-) -> Result<(CommitResult, Option<R>), WorldStateError>
+) -> Result<(CommitResult, Option<R>), TransactionRenewalError>
 where
     F: FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
 {
@@ -413,12 +419,13 @@ where
     });
 
     // Commit current transaction (this removes the context)
-    let commit_result = commit_current_transaction()?;
+    let commit_result = commit_current_transaction().map_err(TransactionRenewalError::Commit)?;
 
     match commit_result {
         CommitResult::Success { .. } => {
             // Create the new transaction
-            let (new_world_state, result) = create_transaction()?;
+            let (new_world_state, result) =
+                create_transaction().map_err(TransactionRenewalError::Begin)?;
 
             // Restore context with new world state and preserved values
             CURRENT_CONTEXT.with(|ctx| {

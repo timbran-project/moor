@@ -170,6 +170,34 @@ impl Scheduler {
             .send_task_result(task_id, Err(TaskAbortedCancelled));
     }
 
+    pub fn handle_task_transaction_renewal_failed(&self, task_id: TaskId) {
+        let session = {
+            let lc = self.lifecycle.lock();
+            let Some(task) = lc.task_q.active.get(&task_id) else {
+                warn!(task_id, "Task not found after transaction renewal failure");
+                return;
+            };
+            task.session.clone()
+        };
+
+        let session_result = session.commit();
+
+        let mut lc = self.lifecycle.lock();
+        lc.flush_pending_sends(task_id);
+        lc.task_q.remove_message_queue(task_id);
+
+        let result = if session_result.is_ok() {
+            Err(SchedulerError::CouldNotStartTask)
+        } else {
+            warn!(
+                task_id,
+                "Could not commit session after transaction renewal failure"
+            );
+            Err(TaskAbortedError)
+        };
+        lc.task_q.send_task_result(task_id, result);
+    }
+
     pub fn handle_task_abort_panicked(
         &self,
         task_id: TaskId,
