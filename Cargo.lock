@@ -3233,6 +3233,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "moor-file-worker"
+version = "1.0.0-rc1"
+dependencies = [
+ "clap",
+ "clap_derive",
+ "color-eyre",
+ "eyre",
+ "moor-common",
+ "moor-var",
+ "once_cell",
+ "rpc-async-client",
+ "rpc-common",
+ "tempfile",
+ "tmq",
+ "tokio",
+ "tracing",
+ "uuid 1.21.0",
+]
+
+[[package]]
 name = "moor-kernel"
 version = "1.0.2"
 dependencies = [

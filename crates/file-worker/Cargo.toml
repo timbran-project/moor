@@ -1,0 +1,42 @@
+[package]
+name = "moor-file-worker"
+version = "1.0.0-rc1"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
+rust-version.workspace = true
+description = "A worker for performing sandboxed filesystem operations"
+
+[dependencies]
+moor-common = { path = "../common" }
+moor-var = { path = "../var" }
+rpc-async-client = { path = "../rpc/rpc-async-client" }
+rpc-common = { path = "../rpc/rpc-common" }
+
+## Command line arguments parsing.
+clap = { workspace = true, features = ["env"] }
+clap_derive.workspace = true
+
+## General.
+color-eyre.workspace = true
+eyre.workspace = true
+
+## Asynchronous transaction processing & networking
+tokio.workspace = true
+
+## Utilities
+once_cell.workspace = true
+
+## Logging & tracing
+tracing.workspace = true
+
+## ZMQ / RPC
+tmq.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
