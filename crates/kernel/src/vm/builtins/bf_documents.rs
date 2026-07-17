@@ -19,9 +19,9 @@ use crate::{
 };
 use moor_compiler::{offset_for_builtin, to_literal};
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, Flyweight, List, Map, SYSTEM_OBJECT,
-    Sequence, Symbol, VarType, Variant, v_bool, v_bool_int, v_flyweight, v_int, v_list, v_map,
-    v_obj, v_str, v_string,
+    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, Flyweight, List, Map, NOTHING,
+    SYSTEM_OBJECT, Sequence, Symbol, VarType, Variant, v_bool, v_bool_int, v_flyweight, v_int,
+    v_list, v_map, v_nothing, v_obj, v_str, v_string,
 };
 use scraper::{Html, Selector};
 use serde_json::{self, Value as JsonValue};
@@ -718,6 +718,7 @@ fn moo_value_to_json(value: &moor_var::Var) -> Result<JsonValue, BfErr> {
             Ok(JsonValue::Number(num))
         }
         Variant::Str(s) => Ok(JsonValue::String(s.as_str().to_string())),
+        Variant::Obj(o) if o == NOTHING => Ok(JsonValue::Null),
         Variant::Obj(o) => Ok(JsonValue::String(format!("{o}"))),
         Variant::List(list) => {
             let mut json_array = Vec::new();
@@ -764,10 +765,7 @@ fn json_value_to_moo(
     use_boolean_returns: bool,
 ) -> Result<moor_var::Var, BfErr> {
     match json_value {
-        // JSON null becomes the string "null" for ToastStunt compatibility.
-        // MOO has no proper null type - v_none() is a sigil that causes problems
-        // if it ends up in variables or stack frames.
-        JsonValue::Null => Ok(v_str("null")),
+        JsonValue::Null => Ok(v_nothing()),
         JsonValue::Bool(b) => {
             if use_boolean_returns {
                 Ok(v_bool(*b))
@@ -1314,5 +1312,19 @@ mod tests {
                 .unwrap(),
             "uuid"
         );
+    }
+
+    #[test]
+    fn test_json_null_round_trip() {
+        let nothing = json_value_to_moo(&JsonValue::Null, false).unwrap();
+        assert_eq!(nothing, v_nothing());
+        assert_eq!(moo_value_to_json(&nothing).unwrap(), JsonValue::Null);
+
+        let json = serde_json::json!({
+            "field": null,
+            "array": [1, null, "null", "#-1"]
+        });
+        let moo_value = json_value_to_moo(&json, false).unwrap();
+        assert_eq!(moo_value_to_json(&moo_value).unwrap(), json);
     }
 }

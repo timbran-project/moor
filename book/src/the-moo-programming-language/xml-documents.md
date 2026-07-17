@@ -198,7 +198,7 @@ JSON types map to MOO as:
 - Objects become maps
 - Arrays become lists
 - Strings, numbers, booleans map directly
-- `null` becomes the string `"null"`
+- `null` becomes `$nothing` (`#-1`)
 
 ### generate_json()
 
