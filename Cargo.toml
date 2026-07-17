@@ -7,6 +7,7 @@ members = [
     "crates/curl-worker",
     "crates/daemon",
     "crates/db",
+    "crates/file-worker",
     "crates/kernel",
     "crates/mcp-host",
     "crates/objdef",
@@ -44,6 +45,7 @@ default-members = [
     "crates/testing/moot",
     "crates/testing/load-tools",
     "crates/curl-worker",
+    "crates/file-worker",
     "tools/moor-emh",
     "tools/moorc",
 ]
