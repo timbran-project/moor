@@ -140,6 +140,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `kernel`:
 
 - Preserve JSON `null` values as `$nothing` (`#-1`) across `parse_json()` and `generate_json()`
+- Handle failures while renewing a task transaction after commit without retrying or
+  double-committing tasks in `suspend(0)`, immediate `task_recv()`, `commit()`, and fork dispatch
 - Permission compatibility fixes for regular programmer/user operations:
   - Built-in object attribute assignment for `.name`, `.r`, `.w`, and `.f`, `move()`, `chparent()`,
     and `recycle()` now require owner-or-wizard authority instead of accepting public object write
