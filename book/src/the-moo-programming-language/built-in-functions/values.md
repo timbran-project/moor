@@ -233,7 +233,8 @@ parse_json("{\"1|int\":2}", "embedded-types")               =>   [1 -> 2]
 parse_json("{\"#1|obj\":2}", "embedded-types")              =>   [#1 -> 2]
 ```
 
-> Note: JSON converts `null` to the string "null".
+JSON `null` values convert to `$nothing` (`#-1`). Conversely, `generate_json()` converts `$nothing`
+to JSON `null`.
 
 ## Memory Functions
 
