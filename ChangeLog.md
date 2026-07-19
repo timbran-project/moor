@@ -9,6 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+`compiler`:
+
+- Reject objdef literals nested more than 64 levels before parsing, rather than exhausting a task
+  worker's native stack; string parsing now handles arbitrarily many escape sequences iteratively.
+
 `kernel`:
 
 - Preserve JSON `null` values as `$nothing` (`#-1`) across `parse_json()` and `generate_json()`

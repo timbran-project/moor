@@ -38,6 +38,8 @@ use pest::{
 };
 use std::collections::HashMap;
 
+const MAX_LITERAL_NESTING: usize = 64;
+
 pub struct ObjFileContext(HashMap<Symbol, Var>);
 impl Default for ObjFileContext {
     fn default() -> Self {
@@ -114,6 +116,8 @@ pub enum ObjDefParseError {
     IncludeError(String, String),
     #[error("Duplicate constant '{0}': already defined as {1}")]
     DuplicateConstant(String, String),
+    #[error("Object definition literal nesting exceeds maximum depth of {max_depth}")]
+    LiteralNestingTooDeep { max_depth: usize },
 }
 
 impl ObjDefParseError {
@@ -617,6 +621,7 @@ fn parse_literal_atom(
 /// Parse a single MOO literal value from a string
 /// Example: "123", "\"hello\"", "{1, 2, 3}", "[1 -> \"a\"]"
 pub fn parse_literal_value(literal_str: &str) -> Result<Var, ObjDefParseError> {
+    check_literal_nesting(literal_str)?;
     let mut context = ObjFileContext::new();
     let mut pairs = match ObjDefParser::parse(Rule::literal, literal_str) {
         Ok(pairs) => pairs,
@@ -660,11 +665,69 @@ fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     (line, column)
 }
 
+/// Reject deeply nested containers before the recursive grammar parses them.
+fn check_literal_nesting(source: &str) -> Result<(), ObjDefParseError> {
+    #[derive(Clone, Copy)]
+    enum State {
+        Source,
+        String,
+        LineComment,
+        BlockComment,
+    }
+
+    let bytes = source.as_bytes();
+    let mut state = State::Source;
+    let mut nesting = 0;
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match state {
+            State::Source => match bytes[index] {
+                b'"' => state = State::String,
+                b'/' if bytes.get(index + 1) == Some(&b'/') => {
+                    state = State::LineComment;
+                    index += 1;
+                }
+                b'/' if bytes.get(index + 1) == Some(&b'*') => {
+                    state = State::BlockComment;
+                    index += 1;
+                }
+                b'[' | b'{' => {
+                    nesting += 1;
+                    if nesting > MAX_LITERAL_NESTING {
+                        return Err(ObjDefParseError::LiteralNestingTooDeep {
+                            max_depth: MAX_LITERAL_NESTING,
+                        });
+                    }
+                }
+                b']' | b'}' => nesting = nesting.saturating_sub(1),
+                _ => {}
+            },
+            State::String => match bytes[index] {
+                b'\\' => index += 1,
+                b'"' => state = State::Source,
+                _ => {}
+            },
+            State::LineComment if bytes[index] == b'\n' => state = State::Source,
+            State::LineComment => {}
+            State::BlockComment if bytes[index] == b'*' && bytes.get(index + 1) == Some(&b'/') => {
+                state = State::Source;
+                index += 1;
+            }
+            State::BlockComment => {}
+        }
+        index += 1;
+    }
+
+    Ok(())
+}
+
 pub fn compile_object_definitions(
     objdef: &str,
     options: &CompileOptions,
     context: &mut ObjFileContext,
 ) -> Result<Vec<ObjectDefinition>, ObjDefParseError> {
+    check_literal_nesting(objdef)?;
     let mut pairs = match ObjDefParser::parse(Rule::objects_file, objdef) {
         Ok(pairs) => pairs,
         Err(e) => {

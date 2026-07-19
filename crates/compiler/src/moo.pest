@@ -281,7 +281,7 @@ ident = @{
 }
 
 string    = @{ "\"" ~ str_inner ~ "\"" }
-str_inner = @{ (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY)* ~ (escape ~ str_inner)? }
+str_inner = @{ (escape | (!("\"" | "\\" | "\u{0000}" | "\u{001F}") ~ ANY))* }
 
 literal_binary = @{ "b\"" ~ binary_inner ~ "\"" }
 binary_inner = @{ (ASCII_ALPHANUMERIC | "+" | "/" | "=" | "_" | "-")* }
