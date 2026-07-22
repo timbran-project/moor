@@ -21,7 +21,7 @@ import { VarObj } from "@moor/schema/generated/moor-var/var-obj";
 import { VarUnion } from "@moor/schema/generated/moor-var/var-union";
 import * as flatbuffers from "flatbuffers";
 
-import { parseObjectCurie, parseUuObjIdString } from "./curie";
+import { parseObjectCurie, parseUuObjIdString } from "./curie.js";
 
 export function buildObjRefOffset(builder: flatbuffers.Builder, curie: string): number {
     const parsed = parseObjectCurie(curie);

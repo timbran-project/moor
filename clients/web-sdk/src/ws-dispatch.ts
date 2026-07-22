@@ -19,7 +19,7 @@ import { SystemMessageEvent } from "@moor/schema/generated/moor-rpc/system-messa
 import { TaskErrorEvent } from "@moor/schema/generated/moor-rpc/task-error-event";
 import { TaskSuccessEvent } from "@moor/schema/generated/moor-rpc/task-success-event";
 
-import { parseClientEvent } from "./client-event";
+import { parseClientEvent } from "./client-event.js";
 
 export interface WsDispatchHandlers {
     onNarrativeEventMessage?: (narrative: NarrativeEventMessage) => void;

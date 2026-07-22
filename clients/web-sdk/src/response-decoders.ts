@@ -14,7 +14,7 @@
 import { ServerFeatures } from "@moor/schema/generated/moor-rpc/server-features";
 import { SysPropValue } from "@moor/schema/generated/moor-rpc/sys-prop-value";
 
-import { parseClientReplyUnion, parseHostReplyUnion } from "./reply";
+import { parseClientReplyUnion, parseHostReplyUnion } from "./reply.js";
 
 function replyTypeName(value: unknown): string {
     return (value as any)?.constructor?.name ?? typeof value;

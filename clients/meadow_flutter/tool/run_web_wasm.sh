@@ -32,9 +32,9 @@ if [[ "${1:-}" == "--profile" ]]; then
     shift
 fi
 
-vite_bin="../meadow/node_modules/vite/bin/vite.js"
+vite_bin="../../node_modules/vite/bin/vite.js"
 if [[ ! -f "${vite_bin}" ]]; then
-    echo "Missing ${vite_bin}. Install deps in ../meadow first (npm install)."
+    echo "Missing ${vite_bin}. Run npm ci from the mooR repository root."
     exit 1
 fi
 

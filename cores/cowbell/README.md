@@ -459,12 +459,8 @@ configured entirely through rules and reactions.
 
 To compile and validate your changes, use the provided `Makefile`.
 
-To run Cowbell with mooR, it is recommended to clone this repository into the `cores/` directory of the mooR workspace. A helper script is provided in mooR to manage this:
-
-```bash
-# From the mooR repository root
-./cores/fetch-cowbell.sh
-```
+Cowbell is maintained in the mooR monorepo under `cores/cowbell/`, so a normal mooR checkout
+contains the matching core sources.
 
 ### Running with mooR
 
@@ -475,7 +471,7 @@ The easiest way to start mooR with the Cowbell core is using the provided quick-
 ./scripts/start-moor-cowbell.sh
 ```
 
-This script automatically handles:
+This script handles:
 - Environment isolation (using its own `run-cowbell/` directory)
 - Enabling modern mooR features required by Cowbell (Booleans, Custom Errors, UUIDs, etc.)
 - User permissions and Docker setup

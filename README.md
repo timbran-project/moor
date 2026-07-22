@@ -176,7 +176,7 @@ npm run full:dev
 This starts the `moor` single-process binary and web development server, accessible at
 [http://localhost:3000](http://localhost:3000). The `moor` process runs the daemon, telnet host, and
 web host together while Vite provides hot-reloading for frontend development. See
-[the Meadow repository](https://codeberg.org/timbran/meadow) for details.
+[the in-tree Meadow documentation](clients/meadow/README.md) for details.
 
 ## Deployment Options
 

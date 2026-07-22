@@ -6,10 +6,10 @@ A rich and beautiful web & mobile client for interacting with mooR worlds.
 
 ## Overview
 
-Meadow provides a modern interface for [mooR](https://codeberg.org/timbran/moor) servers,
+Meadow provides a modern interface for [mooR](https://github.com/timbran-project/moor) servers,
 communicating with the backend through WebSocket connections and RESTful API calls handled by the
 `moor-web-host` binary. It is the default client for the
-[Cowbell](https://codeberg.org/timbran/cowbell) core.
+[Cowbell](https://github.com/timbran-project/moor/tree/main/cores/cowbell) core.
 
 Meadow can run as a web application served alongside a mooR backend, or as a standalone desktop
 application built with [Tauri](https://v2.tauri.app/) that connects to any remote mooR server.
@@ -94,42 +94,40 @@ package for FlatBuffer bindings, which are shared with the mooR backend.
 
 ## Development
 
-Meadow is designed to be developed alongside the `moor` backend. Use a matching `moor` checkout for
-the Meadow branch you are on.
+Run these commands from the mooR repository root so npm resolves the local schema and SDK
+workspaces:
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
 # Start development server (defaults to http://localhost:3000)
-npm run dev
+npm run meadow:dev
 
 # Start the full stack with the single-process moor server
 npm run full:dev
 
 # Build for production
-npm run build
+npm run meadow:build
 
 # Type checking
-npm run typecheck
+npm run typecheck --workspace meadow
 
 # Linting
-npm run lint
+npm run lint --workspace meadow
 ```
 
 ### Environment Variables
 
-- `MOOR_PATH`: Path to the mooR backend repository (defaults to `../moor`).
+- `MOOR_PATH`: Path to the mooR repository root (defaults to `../..`).
 - `MOOR_API_URL`: URL of the mooR web API (defaults to `http://localhost:8080`).
 - `MOOR_WS_URL`: URL of the WebSocket endpoint (defaults to `ws://localhost:8080`).
 
 ## FlatBuffer Schemas
 
-This project uses published `@moor/schema` and `@moor/web-sdk` packages. Keep Meadow on the same
-package line as the branch you have checked out:
-
-- `v1.0-release`: use `1.0.0-rc1-dev...`
-- `main`: use `1.1.0-dev...`
+Within the monorepo, Meadow uses the local `@moor/schema` and `@moor/web-sdk` workspaces. Published
+packages remain available for external consumers, which must use versions compatible with their
+server release.
 
 Do not use `latest` blindly across the branch split.
 

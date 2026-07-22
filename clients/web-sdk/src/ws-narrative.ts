@@ -19,8 +19,8 @@ import { TracebackEvent } from "@moor/schema/generated/moor-common/traceback-eve
 import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-event";
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
 
-import { uuObjIdToString } from "./curie";
-import { parsePresentationValue } from "./presentations";
+import { uuObjIdToString } from "./curie.js";
+import { parsePresentationValue } from "./presentations.js";
 
 export interface WsEventMetadata {
     verb?: string;

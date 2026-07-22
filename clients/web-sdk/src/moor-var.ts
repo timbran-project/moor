@@ -31,8 +31,8 @@ import { VarSym } from "@moor/schema/generated/moor-var/var-sym";
 import { VarUnion } from "@moor/schema/generated/moor-var/var-union";
 import * as flatbuffers from "flatbuffers";
 
-import { objToString } from "./curie";
-import { buildObjRefList as buildObjRefListShared } from "./var-builders";
+import { objToString } from "./curie.js";
+import { buildObjRefList as buildObjRefListShared } from "./var-builders.js";
 
 export class MoorVar {
     private fb: FbVar;

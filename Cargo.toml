@@ -71,7 +71,7 @@ keywords = [
 ]
 license = "AGPL-3.0-only"
 readme = "README.md"
-repository = "https://github.com/rdaum/moor.git"
+repository = "https://github.com/timbran-project/moor.git"
 rust-version = "1.95.0"
 
 [profile.release]

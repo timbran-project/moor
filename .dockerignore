@@ -24,7 +24,13 @@ dist/
 moor-data/
 development-export/
 
-# Git (keep .git for shadow-rs to get version info)
+# Git (keep only the metadata needed to resolve HEAD for version info)
+.git/objects/
+.git/modules/
+.git/logs/
+.git/gitbutler/
+.git/filter-repo/
+.git/index
 .gitignore
 .gitattributes
 

@@ -109,13 +109,11 @@ The `--no-build` flag uses the existing release binaries. Omit it to rebuild fro
 
 #### Web Client Package
 
-Meadow is managed in a [separate repository](https://codeberg.org/timbran/meadow). To build its
-Debian package:
+Meadow is maintained under `clients/meadow/`. To build its Debian package from the repository root:
 
 ```bash
-cd ../meadow
-npm install
-npm run build:deb
+npm ci
+npm run build:deb --workspace meadow
 ```
 
 ## Installing Packages

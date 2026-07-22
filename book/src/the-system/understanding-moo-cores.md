@@ -84,8 +84,7 @@ textdump from ToastStunt, so it's best to avoid them.
 ## mooR's Future: The Cowbell Core
 
 The mooR project is developing its own core called
-["cowbell"](https://codeberg.org/timbran/cowbell/) (named with a nod to the famous "more cowbell"
-meme). Cowbell aims to:
+["cowbell"](https://github.com/timbran-project/moor/tree/main/cores/cowbell). Cowbell aims to:
 
 - **Showcase mooR features**: Take advantage of mooR's unique capabilities and extensions
 - **Web native UI**: Cowbell will be built with the web client in mind, and offer a rich media
@@ -98,10 +97,9 @@ meme). Cowbell aims to:
 alongside the server to showcase its unique capabilities.
 
 **How to run**: Cowbell is easily started using the `./scripts/start-moor-cowbell.sh` script in the
-mooR repository root. This script will automatically fetch the Cowbell source code if it's not
-already present.
+mooR repository root. Cowbell is included in the repository under `cores/cowbell/`.
 
-See: https://codeberg.org/timbran/cowbell/
+See: <https://github.com/timbran-project/moor/tree/main/cores/cowbell>
 
 ## Choosing Your Path
 

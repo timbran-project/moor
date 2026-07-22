@@ -43,15 +43,10 @@ echo "Runtime directory: $RUN_DIR"
 # Ensure runtime directories exist
 mkdir -p "$RUN_DIR/config" "$RUN_DIR/moor-data" "$RUN_DIR/export" "$RUN_DIR/local-share"
 
-# Ensure meadow is fetched and dependencies installed
-MEADOW_DIR="${MEADOW_PATH:-clients/meadow}"
-if [ ! -d "$MEADOW_DIR" ]; then
-    echo "Meadow web client not found, fetching..."
-    ./clients/fetch-meadow.sh
-fi
-if [ ! -d "$MEADOW_DIR/node_modules" ]; then
-    echo "Installing meadow dependencies..."
-    (cd "$MEADOW_DIR" && npm install)
+# Install the root npm workspace when needed.
+if [ ! -d "node_modules" ]; then
+    echo "Installing web workspace dependencies..."
+    npm ci
 fi
 
 export USER_ID=$(id -u)

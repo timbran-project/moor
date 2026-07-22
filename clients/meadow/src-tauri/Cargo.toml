@@ -4,7 +4,7 @@ version = "2.0.0-dev"
 authors = ["Ryan Daum <ryan.daum@gmail.com>"]
 edition = "2021"
 license = "GPL-3.0"
-repository = "https://codeberg.org/timbran/meadow"
+repository = "https://github.com/timbran-project/moor"
 description = "Modern desktop client for mooR"
 
 [workspace]

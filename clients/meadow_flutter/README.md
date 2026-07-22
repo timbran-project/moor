@@ -74,7 +74,7 @@ This starts a Flutter web-server (default port 9010) and a Vite reverse proxy (d
 that forwards API/WebSocket requests to the mooR daemon, avoiding CORS issues. Open
 `http://localhost:3001` in a browser.
 
-Requires `node_modules` installed in the sibling `../meadow/` directory (for Vite).
+Requires `npm ci` to have been run from the mooR repository root (for Vite).
 
 Environment variables:
 
@@ -117,6 +117,13 @@ Builds in release mode and copies the output to `~/timbran-site/public/meadow/`.
 ./tool/fmt.sh          # dart format .
 ./tool/lint.sh         # flutter analyze
 ./tool/test.sh         # flutter test
+```
+
+Regenerating the checked-in Dart FlatBuffers bindings requires `flatc 25.9.23`, matching the
+vendored Dart runtime:
+
+```bash
+./tool/gen_flatbuffers.sh
 ```
 
 ## Project layout

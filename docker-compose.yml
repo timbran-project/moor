@@ -47,7 +47,8 @@ services:
 
   moor-frontend:
     build:
-      context: ${MEADOW_PATH:-./clients/meadow}
+      context: .
+      dockerfile: clients/meadow/Dockerfile
       target: frontend
       network: host
     container_name: "moor-frontend"

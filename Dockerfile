@@ -1,14 +1,22 @@
 # Frontend build stage
 FROM node:20-bookworm AS frontend-build
 WORKDIR /moor-frontend
-RUN apt update && apt -y install git flatbuffers-compiler
+ARG FLATBUFFERS_VERSION=25.9.23
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git unzip && \
+    curl -fsSL "https://github.com/google/flatbuffers/releases/download/v${FLATBUFFERS_VERSION}/Linux.flatc.binary.clang%2B%2B-18.zip" -o /tmp/flatc.zip && \
+    unzip -q /tmp/flatc.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/flatc && \
+    flatc --version && \
+    rm -rf /var/lib/apt/lists/* /tmp/flatc.zip
 COPY ./.git ./.git
+RUN mkdir -p .git/objects
 COPY package.json package-lock.json* ./
-COPY clients/ ./clients/
+COPY clients/meadow/ ./clients/meadow/
+COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
+COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
-RUN rm -rf clients/meadow/.git
 RUN npm ci
-RUN npm run build --prefix clients/meadow
+RUN npm run web:build
 
 # Backend build stage
 FROM rust:1.95-bookworm AS backend-build

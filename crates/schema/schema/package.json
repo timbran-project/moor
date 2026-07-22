@@ -3,15 +3,19 @@
   "version": "2.0.0-dev",
   "description": "FlatBuffer schemas and TypeScript bindings for mooR",
   "type": "module",
-  "main": "./generated/all_schemas.ts",
-  "types": "./generated/all_schemas.ts",
+  "main": "./dist/generated/all_schemas.js",
+  "types": "./dist/generated/all_schemas.d.ts",
   "exports": {
-    "./generated/*": "./generated/*.ts",
+    "./generated/*": {
+      "types": "./dist/generated/*.d.ts",
+      "import": "./dist/generated/*.js",
+      "default": "./dist/generated/*.js"
+    },
     "./*.fbs": "./*.fbs"
   },
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/timbran/moor.git",
+    "url": "https://github.com/timbran-project/moor.git",
     "directory": "crates/schema/schema"
   },
   "publishConfig": {
@@ -19,14 +23,18 @@
   },
   "license": "LGPL-3.0-or-later",
   "files": [
-    "generated",
+    "dist",
     "*.fbs",
     "LICENSE"
   ],
   "scripts": {
-    "generate": "rm -rf generated && mkdir -p generated && flatc --ts --gen-all -o generated all_schemas.fbs"
+    "generate": "rm -rf generated && mkdir -p generated && flatc --ts --gen-all -o generated all_schemas.fbs",
+    "build": "npm run generate && rm -rf dist && tsc -p tsconfig.json"
   },
   "dependencies": {
     "flatbuffers": "^25.9.23"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
   }
 }

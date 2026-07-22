@@ -4,20 +4,25 @@
 # Multi-stage build: Frontend build stage
 FROM node:20-bookworm AS frontend-build
 WORKDIR /moor-frontend
-# Install git for git hash lookup during build and local package resolution
-RUN apt update && apt -y install git flatbuffers-compiler
-# Copy .git directory so vite can get the git hash
+# Install the schema compiler used by the npm and Dart FlatBuffers runtimes.
+ARG FLATBUFFERS_VERSION=25.9.23
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git unzip && \
+    curl -fsSL "https://github.com/google/flatbuffers/releases/download/v${FLATBUFFERS_VERSION}/Linux.flatc.binary.clang%2B%2B-18.zip" -o /tmp/flatc.zip && \
+    unzip -q /tmp/flatc.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/flatc && \
+    flatc --version && \
+    rm -rf /var/lib/apt/lists/* /tmp/flatc.zip
+# Copy minimal Git metadata so Vite can get the commit hash.
 COPY ./.git ./.git
-# Copy root package files; postinstall will find meadow already present and pack local deps
+RUN mkdir -p .git/objects
+# Copy the root workspace and local web packages.
 COPY package.json package-lock.json* ./
-# Copy the web client and its local dependencies
-COPY clients/ ./clients/
+COPY clients/meadow/ ./clients/meadow/
+COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
+COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
-# Remove meadow's .git so fetch-meadow.sh (postinstall) treats it as non-repo and skips updates
-RUN rm -rf clients/meadow/.git
 RUN npm ci
-# Build the meadow web client
-RUN npm run build --prefix clients/meadow
+RUN npm run web:build
 
 # Backend build stage - runs on native x86_64 platform
 FROM rust:1.92-bookworm AS backend-build

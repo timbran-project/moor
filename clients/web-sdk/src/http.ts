@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import type { MoorHttpError } from "./types";
+import type { MoorHttpError } from "./types.js";
 
 export async function expectOk(response: Response): Promise<Response> {
     if (response.ok) {

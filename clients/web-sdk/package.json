@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/timbran/moor.git",
+    "url": "https://github.com/timbran-project/moor.git",
     "directory": "clients/web-sdk"
   },
   "publishConfig": {
@@ -32,7 +32,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@moor/schema": "^2.0.0-dev"

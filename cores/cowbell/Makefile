@@ -36,23 +36,17 @@ endif
 else ifeq ($(MOORC_TYPE),direct)
 SRC_DIRECTORY = src
 OUTPUT_DIRECTORY = .
-MOORC = ../moor/target/debug/moorc $(OPTIONS)
+MOORC = ../../target/debug/moorc $(OPTIONS)
 else ifeq ($(MOORC_TYPE),docker)
 SRC_DIRECTORY = /work/src
 OUTPUT_DIRECTORY = /work
 MOORC = docker run --rm -v $(CURDIR):/work -w /work $(MOORC_IMAGE) /moor/moorc $(OPTIONS)
 endif
 
-.PHONY: rebuild test runtime-headless runtime-headless-src clean output
-
-# Target to generate an old-style MOO textdump from the compilation of the
-# objdef style sources in the local directory. This is the default target,
-# and is intended mainly just to do a validation/compilation pass.
-gen.moo-textdump: $(wildcard src/*.moo)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-textdump $(OUTPUT_DIRECTORY)/$@
+.PHONY: rebuild test runtime-headless runtime-headless-src clean
 
 # Target to generate a new objdef dump from the compilation of the local
-# directory.
+# directory. This is the default validation/compilation target.
 gen.objdir: $(wildcard src/*.moo)
 	rm -rf gen.objdir
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
@@ -92,8 +86,5 @@ runtime-headless: runtime-headless-src
 	done
 
 clean:
-	rm -f gen.moo-textdump
 	rm -rf gen.objdir
 	rm -rf $(HEADLESS_SRC_DIRECTORY)
-
-output: gen.moo-textdump

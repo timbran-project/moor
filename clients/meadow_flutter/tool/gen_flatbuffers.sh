@@ -27,6 +27,13 @@ command -v flatc >/dev/null 2>&1 || {
   exit 1
 }
 
+expected_flatc_version="25.9.23"
+flatc_version="$(flatc --version | awk '{print $3}')"
+if [[ "$flatc_version" != "$expected_flatc_version" ]]; then
+  echo "flatc $expected_flatc_version is required; found $flatc_version" >&2
+  exit 1
+fi
+
 # Generate a single set of Dart libraries rooted at moor_rpc.fbs, including all
 # included .fbs files.
 flatc \
@@ -37,4 +44,3 @@ flatc \
   "$SCHEMA_DIR/moor_rpc.fbs"
 
 echo "Generated Dart FlatBuffers into: $OUT_DIR"
-

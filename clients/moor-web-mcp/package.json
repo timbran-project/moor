@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@moor/schema": "file:../../crates/schema/schema",
-    "@moor/web-sdk": "file:../web-sdk",
+    "@moor/schema": "2.0.0-dev",
+    "@moor/web-sdk": "2.0.0-dev",
     "tsx": "^4.20.5",
     "ws": "^8.18.0"
   },

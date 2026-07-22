@@ -19,7 +19,7 @@ import { ReplyResultUnion, unionToReplyResultUnion } from "@moor/schema/generate
 import { Var } from "@moor/schema/generated/moor-var/var";
 import * as flatbuffers from "flatbuffers";
 
-import { extractFailureError } from "./errors";
+import { extractFailureError } from "./errors.js";
 
 /**
  * Parse a web-host /v1/eval FlatBuffer reply and return its Var result payload.

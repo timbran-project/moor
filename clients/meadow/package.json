@@ -34,7 +34,8 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/timbran/meadow.git"
+    "url": "https://github.com/timbran-project/moor.git",
+    "directory": "clients/meadow"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
@@ -65,8 +66,8 @@
   "dependencies": {
     "@djot/djot": "^0.3.2",
     "@monaco-editor/react": "^4.7.0",
-    "@moor/schema": "2.0.0-dev.20260409140240616926485.3381075.580e0ad1",
-    "@moor/web-sdk": "2.0.0-dev.20260409142513981793216.3381330.719e406f",
+    "@moor/schema": "2.0.0-dev",
+    "@moor/web-sdk": "2.0.0-dev",
     "@tauri-apps/api": "^2.9.1",
     "age-encryption": "^0.2.4",
     "ansi_up": "^6.0.6",

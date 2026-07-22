@@ -14,7 +14,7 @@
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
 import { VerbCallSuccess } from "@moor/schema/generated/moor-rpc/verb-call-success";
 
-import { parseNarrativeEvent } from "./narrative";
+import { parseNarrativeEvent } from "./narrative.js";
 
 export type WelcomeContentType = "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri";
 

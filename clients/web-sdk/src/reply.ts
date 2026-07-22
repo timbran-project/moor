@@ -19,8 +19,8 @@ import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { ReplyResultUnion, unionToReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
 import * as flatbuffers from "flatbuffers";
 
-import { MoorApiError } from "./api-client";
-import { extractFailureError } from "./errors";
+import { MoorApiError } from "./api-client.js";
+import { extractFailureError } from "./errors.js";
 
 function parseReplyResult(bytes: Uint8Array): ReplyResult {
     return ReplyResult.getRootAsReplyResult(new flatbuffers.ByteBuffer(bytes));

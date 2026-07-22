@@ -137,7 +137,8 @@ services:
   # Frontend web server that serves static files and proxies API calls
   moor-frontend:
     build:
-      context: ../../clients/meadow
+      context: ../..
+      dockerfile: clients/meadow/Dockerfile
       target: frontend
       network: host
     container_name: "moor-frontend"

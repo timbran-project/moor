@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import type { WsEventMetadata, WsLinkPreview, WsRewritable } from "./ws-narrative";
+import type { WsEventMetadata, WsLinkPreview, WsRewritable } from "./ws-narrative.js";
 
 export type NarrativeMessageHandler = (
     content: string | string[],

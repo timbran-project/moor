@@ -3,7 +3,7 @@
 Shared TypeScript SDK for mooR web-facing clients.
 
 This package is intended to hold protocol-level logic shared by Meadow and other clients, while
-UI/application-specific code can remain in each client repository.
+UI/application-specific code remains in each client.
 
 It provides TypesScript bindings to call the moor-web-host API.
 

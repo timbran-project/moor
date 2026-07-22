@@ -21,8 +21,8 @@ import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-eve
 import { HistoryResponseReply } from "@moor/schema/generated/moor-rpc/history-response-reply";
 import * as flatbuffers from "flatbuffers";
 
-import { ParsedPresentation, parsePresentationValue } from "./presentations";
-import { parseClientReplyUnion } from "./reply";
+import { ParsedPresentation, parsePresentationValue } from "./presentations.js";
+import { parseClientReplyUnion } from "./reply.js";
 
 function replyTypeName(value: unknown): string {
     return (value as any)?.constructor?.name ?? typeof value;

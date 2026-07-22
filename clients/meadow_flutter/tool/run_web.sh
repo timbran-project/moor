@@ -45,9 +45,9 @@ export MOOR_API_URL="${MOOR_API_URL:-http://localhost:8080}"
 export MOOR_WS_URL="${MOOR_WS_URL:-ws://localhost:8080}"
 export FLUTTER_WEB_TARGET="${FLUTTER_WEB_TARGET:-http://${flutter_hostname}:${flutter_port}}"
 
-vite_bin="../meadow/node_modules/vite/bin/vite.js"
+vite_bin="../../node_modules/vite/bin/vite.js"
 if [[ ! -f "${vite_bin}" ]]; then
-  echo "Missing ${vite_bin}. Install deps in ../meadow first (npm install), or point this script at a Vite binary."
+  echo "Missing ${vite_bin}. Run npm ci from the mooR repository root."
   exit 1
 fi
 
