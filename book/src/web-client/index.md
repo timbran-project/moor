@@ -3,7 +3,7 @@
 The mooR monorepo contains browser, desktop, and mobile-oriented clients alongside shared protocol
 libraries. The default container image includes the React Meadow web assets. Debian packages for the
 web client can be built from the monorepo, but a matching Meadow package was not published in the
-final `1.0.2` Codeberg channel.
+final 1.0.2 release.
 
 ## Client Projects
 

@@ -76,8 +76,8 @@ authoring persistent worlds and building objects in the MOO using modern develop
 ## Project Structure
 
 Meadow is a React application built with Vite and TypeScript, with an optional
-[Tauri 2.0](https://v2.tauri.app/) shell for desktop packaging. It relies on the `@moor/schema` NPM
-package for FlatBuffer bindings, which are shared with the mooR backend.
+[Tauri 2.0](https://v2.tauri.app/) shell for desktop packaging. It relies on the local
+`@moor/schema` npm workspace for FlatBuffer bindings shared with the mooR backend.
 
 ```
 ├── src/                  # React frontend (TypeScript)
@@ -125,15 +125,8 @@ npm run lint --workspace meadow
 
 ## FlatBuffer Schemas
 
-Within the monorepo, Meadow uses the local `@moor/schema` and `@moor/web-sdk` workspaces. Published
-packages remain available for external consumers, which must use versions compatible with their
-server release.
-
-Do not use `latest` blindly across the branch split.
-
-```bash
-npm install @moor/schema@1.0.0-rc1-dev...
-```
+Meadow uses the private `@moor/schema` and `@moor/web-sdk` workspaces from the same monorepo
+checkout. The 2.0 development packages are not published to an npm registry.
 
 ## Running Stable 1.0
 
@@ -141,10 +134,9 @@ To run the stable 1.0 line, use:
 
 - `moor` on `v1.0-release`
 - Meadow on `v1.0-release`
-- `@moor/schema` and `@moor/web-sdk` from the `1.0.0-rc1-dev...` package line
+- The Meadow assets bundled with the 1.0 release image or release packages
 
-If you use `main` checkouts or `1.1.0-dev...` packages, you are on the post-1.0 development line
-instead.
+The `main` branch is the 2.0 development line and builds its client dependencies locally.
 
 ## Desktop App (Tauri)
 

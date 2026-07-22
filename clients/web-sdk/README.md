@@ -14,10 +14,13 @@ It provides TypesScript bindings to call the moor-web-host API.
 - WebSocket attach/reattach protocol helpers
 - FlatBuffer decoding/encoding helpers
 
-## Publishing
+## 2.0 Development
 
-This package is published to the Codeberg npm registry under the `@moor` scope, following the same
-release pattern used by `@moor/schema`.
+This package is a private npm workspace during the 2.0 development cycle. Install dependencies and
+run its build from the mooR repository root so npm resolves `@moor/schema` from the same checkout.
+
+External package distribution will be reconsidered when the 2.0 API is ready for independent
+clients. The monorepo does not publish development snapshots to an npm registry.
 
 ## License
 

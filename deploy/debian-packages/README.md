@@ -118,65 +118,39 @@ npm run meadow:build:deb
 
 ## Installing Packages
 
-### Option 1: Install from APT Repository (Recommended)
-
-The easiest way to install mooR is from the Codeberg package repository:
-
-```bash
-# Add the repository signing key
-sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
-    -o /etc/apt/keyrings/timbran-moor.asc
-
-# Add the repository (for Debian Bookworm / Ubuntu 22.04+)
-echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
-    | sudo tee /etc/apt/sources.list.d/moor.list
-
-# Update and install
-sudo apt update
-sudo apt install moor
-
-# Or install the split services instead:
-sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
-```
-
-This handles dependencies automatically and makes future upgrades simple with `apt upgrade`.
-
-### Option 2: Install from Release Downloads
+### Option 1: Install from Release Downloads
 
 Download `.deb` packages from the [releases page](https://github.com/timbran-project/moor/releases)
-and install manually:
+and select the files for your system architecture. The 1.0.2 release contains the split services and
+command-line tools, but not the combined `moor` or `moor-web-client` packages.
 
 ```bash
-# Single-process server
-sudo dpkg -i moor_*.deb
-
-# Or install the split services:
-sudo dpkg -i moor-daemon_*.deb
-sudo dpkg -i moor-telnet-host_*.deb
-sudo dpkg -i moor-web-host_*.deb
-
-# Web client is optional and needs nginx or similar.
-sudo dpkg -i moor-web-client_*.deb
-
-# Fix any missing dependencies
-sudo apt-get install -f
+# Install the split services after downloading them:
+sudo apt install \
+    ./moor-daemon_*.deb \
+    ./moor-telnet-host_*.deb \
+    ./moor-web-host_*.deb \
+    ./moor-curl-worker_*.deb
 ```
 
-### Option 3: Install Locally-Built Packages
+The `./` prefix tells apt to install local package files. Apt also resolves their distribution
+dependencies.
+
+### Option 2: Install Locally-Built Packages
 
 If you built packages yourself (see Building Packages above):
 
 ```bash
 # Single-process server
-sudo dpkg -i target/debian/moor_*.deb
+sudo apt install ./target/debian/moor_*.deb
 
 # Or split services:
-sudo dpkg -i target/debian/moor-daemon_*.deb
-sudo dpkg -i target/debian/moor-telnet-host_*.deb
-sudo dpkg -i target/debian/moor-web-host_*.deb
-sudo dpkg -i target/debian/moor-web-client_*.deb
-
-sudo apt-get install -f  # Fix any missing dependencies
+sudo apt install \
+    ./target/debian/moor-daemon_*.deb \
+    ./target/debian/moor-telnet-host_*.deb \
+    ./target/debian/moor-web-host_*.deb \
+    ./target/debian/moor-curl-worker_*.deb
+sudo apt install ./target/debian/moor-web-client_*.deb
 ```
 
 ## Post-Installation Configuration
@@ -408,19 +382,7 @@ sudo systemctl start moor-daemon
 
 ## Upgrading
 
-### If Using APT Repository (Recommended)
-
-```bash
-# Backup your database first (see Backup and Restore above)
-
-# Upgrade all mooR packages
-sudo apt update
-sudo apt upgrade
-
-# Services will be automatically restarted
-```
-
-### If Using Manual Package Installation
+### Installing an Updated Release
 
 1. **Backup your database** (see above)
 
@@ -429,12 +391,13 @@ sudo apt upgrade
    sudo systemctl stop moor-telnet-host moor-web-host moor-daemon
    ```
 
-3. **Install new packages**:
+3. **Download the new packages from GitHub Releases and install them**:
    ```bash
-   sudo dpkg -i moor-daemon_*.deb
-   sudo dpkg -i moor-telnet-host_*.deb
-   sudo dpkg -i moor-web-host_*.deb
-   sudo dpkg -i moor-web-client_*.deb  # if using web client
+   sudo apt install \
+       ./moor-daemon_*.deb \
+       ./moor-telnet-host_*.deb \
+       ./moor-web-host_*.deb \
+       ./moor-curl-worker_*.deb
    ```
 
 4. **Restart services**:

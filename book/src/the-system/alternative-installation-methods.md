@@ -23,43 +23,29 @@ mooR can be built as several package types:
 The server packages integrate with systemd, create the necessary users and directories, and include
 the LambdaMOO-based lambda-moor core database by default.
 
-The final Codeberg package channel contains the `1.0.2` split-service and command-line packages for
-amd64 and arm64. It does not contain the combined `moor` package or a `1.0.2` `moor-web-client`
-package. Build those packages locally from the monorepo when needed.
+The 1.0.2 GitHub release contains split-service and command-line packages for amd64 and arm64. It
+does not contain the combined `moor` package or a `1.0.2` `moor-web-client` package. Build those
+packages locally from the monorepo when needed.
 
 ### Installation Options
 
-**Option 1: Install the published 1.0.x packages from the APT repository**
-
-The frozen Codeberg package repository remains available for the final `1.0.x` packages:
-
-```bash
-# Add the repository signing key
-sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
-    -o /etc/apt/keyrings/timbran-moor.asc
-
-# Add the repository (for Debian Bookworm / Ubuntu 22.04+)
-echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
-    | sudo tee /etc/apt/sources.list.d/moor.list
-
-# Update and install the split-service packages:
-sudo apt update
-sudo apt install moor-daemon moor-telnet-host moor-web-host moor-curl-worker
-```
-
-**Option 2: Download from Releases**
+**Option 1: Download from Releases**
 
 Download pre-built `.deb` packages from the
 [mooR 1.0.2 GitHub release](https://github.com/timbran-project/moor/releases/tag/1.0.2):
 
 ```bash
-# Split-service packages:
-sudo dpkg -i moor-daemon_*.deb moor-telnet-host_*.deb moor-web-host_*.deb moor-curl-worker_*.deb
-
-sudo apt-get install -f  # Install any missing dependencies
+# After downloading the packages for your architecture:
+sudo apt install \
+    ./moor-daemon_*.deb \
+    ./moor-telnet-host_*.deb \
+    ./moor-web-host_*.deb \
+    ./moor-curl-worker_*.deb
 ```
 
-**Option 3: Build Locally**
+Using `apt install` with local paths installs required distribution dependencies at the same time.
+
+**Option 2: Build Locally**
 
 Build packages yourself using the provided scripts in `deploy/debian-packages/`:
 
@@ -68,16 +54,17 @@ cd deploy/debian-packages
 ./build-all-packages.sh
 
 # Combined package:
-sudo dpkg -i ../../target/debian/moor_*.deb
+sudo apt install ../../target/debian/moor_*.deb
 
 # Or split-service packages:
-sudo dpkg -i ../../target/debian/moor-daemon_*.deb
-sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
-sudo dpkg -i ../../target/debian/moor-web-host_*.deb
-sudo dpkg -i ../../target/debian/moor-curl-worker_*.deb
+sudo apt install \
+    ../../target/debian/moor-daemon_*.deb \
+    ../../target/debian/moor-telnet-host_*.deb \
+    ../../target/debian/moor-web-host_*.deb \
+    ../../target/debian/moor-curl-worker_*.deb
 ```
 
-### Comprehensive Documentation
+### Detailed Documentation
 
 For detailed installation, configuration, service management, testing, and troubleshooting:
 

@@ -1,6 +1,7 @@
 {
   "name": "@moor/web-sdk",
   "version": "2.0.0-dev",
+  "private": true,
   "description": "Shared Web/API SDK for mooR clients",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,9 +22,6 @@
     "type": "git",
     "url": "https://github.com/timbran-project/moor.git",
     "directory": "clients/web-sdk"
-  },
-  "publishConfig": {
-    "@moor:registry": "https://codeberg.org/api/packages/timbran/npm/"
   },
   "files": [
     "dist",

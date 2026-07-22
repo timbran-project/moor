@@ -1,6 +1,7 @@
 {
   "name": "@moor/web-mcp",
   "version": "2.0.0-dev",
+  "private": true,
   "description": "Web-host backed MCP stdio server for mooR",
   "type": "module",
   "main": "./dist/index.js",
