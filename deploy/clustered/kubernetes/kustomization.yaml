@@ -23,12 +23,14 @@ resources:
   # - hpa.yaml          # For autoscaling
   # - network-policy.yaml  # For network security
 
-# Common labels applied to all resources
-commonLabels:
-  app.kubernetes.io/name: moor
-  app.kubernetes.io/instance: production
-  app.kubernetes.io/version: "0.9.0"
-  app.kubernetes.io/managed-by: kustomize
+# Common labels applied to all resources and selectors
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: moor
+      app.kubernetes.io/instance: production
+      app.kubernetes.io/version: "0.9.0"
+      app.kubernetes.io/managed-by: kustomize
 
 # Image configuration
 # Update these to point to your container registry

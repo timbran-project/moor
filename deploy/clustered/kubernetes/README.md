@@ -74,7 +74,8 @@ First, build the mooR images and push them to your container registry:
 ```bash
 # From the mooR root directory
 docker build -t your-registry/moor:latest --target backend .
-docker build -t your-registry/moor-frontend:latest --target frontend .
+docker build -f clients/meadow/Dockerfile \
+    -t your-registry/moor-frontend:latest --target frontend .
 
 docker push your-registry/moor:latest
 docker push your-registry/moor-frontend:latest
@@ -86,7 +87,8 @@ docker push your-registry/moor-frontend:latest
 # For minikube
 eval $(minikube docker-env)
 docker build -t moor:latest --target backend .
-docker build -t moor-frontend:latest --target frontend .
+docker build -f clients/meadow/Dockerfile \
+    -t moor-frontend:latest --target frontend .
 
 # For kind
 kind load docker-image moor:latest

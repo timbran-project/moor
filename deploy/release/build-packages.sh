@@ -12,8 +12,7 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# Build release artifacts (Debian packages for x86_64 and aarch64)
-# This script cross-compiles ARM64 packages on x86_64
+# Build release artifacts for the native architecture plus architecture-independent web files
 # Outputs organized packages for upload to release
 
 set -e
@@ -25,7 +24,25 @@ cd "$REPO_ROOT"
 BUILD_CORES=4
 CARGO_BUILD_JOBS=4
 OUTPUT_DIR="$REPO_ROOT/release-artifacts"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+if ! command -v dpkg &> /dev/null; then
+    echo "Error: dpkg not found. This script builds Debian packages."
+    exit 1
+fi
+
+DEB_ARCH=$(dpkg --print-architecture)
+case "$DEB_ARCH" in
+    amd64)
+        ARTIFACT_ARCH="x86_64"
+        ;;
+    arm64)
+        ARTIFACT_ARCH="aarch64"
+        ;;
+    *)
+        echo "Error: unsupported Debian architecture: $DEB_ARCH"
+        exit 1
+        ;;
+esac
 
 echo "======================================"
 echo "mooR Release Build - Debian Packages"
@@ -33,11 +50,12 @@ echo "======================================"
 echo ""
 echo "Output directory: $OUTPUT_DIR"
 echo "Build cores: $BUILD_CORES"
+echo "Architecture: $ARTIFACT_ARCH ($DEB_ARCH)"
 echo ""
 
 # Create output directory
-mkdir -p "$OUTPUT_DIR/x86_64"
-mkdir -p "$OUTPUT_DIR/aarch64"
+mkdir -p "$OUTPUT_DIR/$ARTIFACT_ARCH"
+mkdir -p "$OUTPUT_DIR/all"
 
 # Check prerequisites
 echo "Checking prerequisites..."
@@ -52,40 +70,50 @@ if ! command -v cargo-deb &> /dev/null; then
 fi
 
 if ! command -v npm &> /dev/null; then
-    echo "Warning: npm not found. Skipping web client package."
-    NPM_AVAILABLE=0
-else
-    NPM_AVAILABLE=1
+    echo "Error: npm not found. Install Node.js and npm to build Meadow."
+    exit 1
+fi
+
+if ! command -v dpkg-deb &> /dev/null; then
+    echo "Error: dpkg-deb not found. Install the dpkg package."
+    exit 1
 fi
 
 echo "Prerequisites OK"
 echo ""
 
 # ============================================================================
-# Build x86_64 packages
+# Build native-architecture packages
 # ============================================================================
 
 echo "======================================"
-echo "Building x86_64 packages"
+echo "Building $ARTIFACT_ARCH packages"
 echo "======================================"
 echo ""
 
-# Build x86_64 binaries
-echo "Building x86_64 binaries (release profile, limited to $BUILD_CORES cores)..."
+# Build native binaries
+echo "Building $ARTIFACT_ARCH binaries (release profile, limited to $BUILD_CORES cores)..."
 CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS cargo build --release -p moor-server -p moor-daemon -p moor-telnet-host -p moor-web-host -p moor-curl-worker -p moorc -p moor-emh -j $BUILD_CORES
 echo ""
 
-# Build x86_64 Debian packages
-echo "Building x86_64 Debian packages..."
+# Build native Debian packages
+echo "Building $ARTIFACT_ARCH Debian packages..."
 for pkg in moor-server moor-daemon moor-telnet-host moor-web-host moor-curl-worker moorc moor-emh; do
     echo "  Building $pkg..."
     cargo deb -p "$pkg" --profile release --no-build
 done
 echo ""
 
-# Copy x86_64 packages to output
-echo "Copying x86_64 packages to output directory..."
-cp target/debian/*_amd64.deb "$OUTPUT_DIR/x86_64/" 2>/dev/null || true
+# Copy native packages to output
+echo "Copying $ARTIFACT_ARCH packages to output directory..."
+cp target/debian/*_"$DEB_ARCH".deb "$OUTPUT_DIR/$ARTIFACT_ARCH/"
+echo ""
+
+# Build architecture-independent Meadow package
+echo "Building Meadow web client package..."
+npm ci
+npm run meadow:build:deb
+cp target/debian/moor-web-client_*_all.deb "$OUTPUT_DIR/all/"
 echo ""
 
 
@@ -99,9 +127,16 @@ echo "======================================"
 echo ""
 echo "Release artifacts:"
 echo ""
-echo "x86_64 packages:"
-if [ -d "$OUTPUT_DIR/x86_64" ] && [ "$(ls -A "$OUTPUT_DIR/x86_64" 2>/dev/null)" ]; then
-    ls -lh "$OUTPUT_DIR/x86_64/"
+echo "$ARTIFACT_ARCH packages:"
+if [ -d "$OUTPUT_DIR/$ARTIFACT_ARCH" ] && [ "$(ls -A "$OUTPUT_DIR/$ARTIFACT_ARCH" 2>/dev/null)" ]; then
+    ls -lh "$OUTPUT_DIR/$ARTIFACT_ARCH/"
+else
+    echo "  (none found)"
+fi
+echo ""
+echo "Architecture-independent packages:"
+if [ -d "$OUTPUT_DIR/all" ] && [ "$(ls -A "$OUTPUT_DIR/all" 2>/dev/null)" ]; then
+    ls -lh "$OUTPUT_DIR/all/"
 else
     echo "  (none found)"
 fi

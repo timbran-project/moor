@@ -17,10 +17,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Source common helpers
-source "$DEPLOY_DIR/test-helpers.sh"
+source "$SCRIPT_DIR/../../test-helpers.sh"
 
 log_info "Starting telnet-only deployment test"
 

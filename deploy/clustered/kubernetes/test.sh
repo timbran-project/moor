@@ -18,7 +18,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../test-helpers.sh"
+source "$SCRIPT_DIR/../../test-helpers.sh"
 
 CLUSTER_NAME="moor-test"
 NAMESPACE="moor"
@@ -132,7 +132,7 @@ EOF
     rm -f Dockerfile.k8s-test
 
     log_info "Building frontend image..."
-    docker build -t moor-frontend:test --target frontend . || {
+    docker build -f clients/meadow/Dockerfile -t moor-frontend:test --target frontend . || {
         log_error "Failed to build frontend image"
         exit 1
     }
@@ -170,9 +170,11 @@ resources:
   - frontend.yaml
   - services-nodeport.yaml
 
-commonLabels:
-  app.kubernetes.io/name: moor
-  app.kubernetes.io/instance: test
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: moor
+      app.kubernetes.io/instance: test
 
 images:
   - name: moor

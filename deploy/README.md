@@ -123,7 +123,7 @@ bacon curl-worker     # Run curl worker with file watching
 
 **Location**: [../package.json](../package.json)
 
-**Purpose**: Workflows for web client development in [web-client/](../web-client/)
+**Purpose**: Workflows for Meadow development in [clients/meadow/](../clients/meadow/)
 
 Starts the combined backend and Vite dev server together using concurrently, providing hot module
 reloading for web client changes. Includes tracing variants for debugging backend issues while
@@ -133,7 +133,7 @@ working on the UI.
 
 ```bash
 # Development servers
-npm run dev                  # Web client dev server only (port 3000)
+npm run meadow:dev           # Meadow dev server only (port 3000)
 npm run moor:dev             # Single-process backend
 npm run moor:traced          # Single-process backend with tracing enabled
 npm run web-host:dev         # Web host only
@@ -143,7 +143,7 @@ npm run full:dev             # Web client + single-process backend
 npm run full:dev-traced      # Web client + traced single-process backend
 
 # Build
-npm run build                # Build web client
+npm run web:build            # Build schema, SDK, and Meadow
 npm run full:build           # Build web client + single-process backend (release)
 ```
 
@@ -154,7 +154,7 @@ npm run full:build           # Build web client + single-process backend (releas
    docker compose up
    ```
 
-2. **Active web client development** (working in `web-client/`): Use npm scripts
+2. **Active web client development** (working in `clients/meadow/`): Use npm scripts
    ```bash
    npm run full:dev      # Starts daemon, web-host, and Vite dev server with HMR
    ```
@@ -162,7 +162,7 @@ npm run full:build           # Build web client + single-process backend (releas
 3. **Active backend development** (working on Rust code): Use bacon for file watching
    ```bash
    bacon moor            # Terminal 1: single-process backend with file watching
-   npm run dev           # Terminal 2: web client dev server only
+   npm run meadow:dev    # Terminal 2: Meadow dev server only
    ```
 
 4. **Testing full stack natively**: Use process-compose
@@ -248,17 +248,17 @@ systemd on Debian/Ubuntu based systems.
 **Quick start**:
 
 ```bash
-cd debian-packages
-./build-all-packages.sh
+./deploy/debian-packages/build-all-packages.sh
 
 # Single-process service:
-sudo dpkg -i ../../target/debian/moor_*.deb
+sudo dpkg -i target/debian/moor_*.deb
 sudo systemctl start moor
 
 # Or split services:
-sudo dpkg -i ../../target/debian/moor-daemon_*.deb
-sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
-sudo dpkg -i ../../target/debian/moor-web-host_*.deb
+sudo dpkg -i target/debian/moor-daemon_*.deb
+sudo dpkg -i target/debian/moor-telnet-host_*.deb
+sudo dpkg -i target/debian/moor-web-host_*.deb
+sudo dpkg -i target/debian/moor-web-client_*.deb
 sudo systemctl start moor-daemon
 ```
 
@@ -459,8 +459,8 @@ monitor logs for suspicious activity.
   snapshot
 - [debian-packages/build-all-packages.sh](debian-packages/build-all-packages.sh) - Build all Debian
   packages
-- [debian-packages/build-web-client-deb.sh](debian-packages/build-web-client-deb.sh) - Build web
-  client package
+- [../clients/meadow/deploy/debian-packages/build-web-client-deb.sh](../clients/meadow/deploy/debian-packages/build-web-client-deb.sh)
+  - Build the Meadow package
 
 ### Other Files
 

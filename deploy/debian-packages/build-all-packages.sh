@@ -37,6 +37,16 @@ if ! command -v cargo-deb &> /dev/null; then
     exit 1
 fi
 
+if ! command -v npm &> /dev/null; then
+    echo "Error: npm not found. Install Node.js and npm to build Meadow."
+    exit 1
+fi
+
+if ! command -v dpkg-deb &> /dev/null; then
+    echo "Error: dpkg-deb not found. Install the dpkg package."
+    exit 1
+fi
+
 echo "Prerequisites OK"
 echo ""
 
@@ -97,26 +107,33 @@ echo "======================================"
 cargo deb -p moor-emh --profile release-fast --no-build
 echo ""
 
+# Build Meadow web client package
+echo "======================================"
+echo "Building moor-web-client package"
+echo "======================================"
+npm ci
+npm run meadow:build:deb
+echo ""
+
 # Summary
 echo "======================================"
 echo "Build complete!"
 echo "======================================"
 echo ""
-echo "Note: Build the Meadow web client package from the clients/meadow workspace."
-echo ""
 echo "Generated packages:"
-ls -lh ../../target/debian/*.deb 2>/dev/null || echo "No .deb files found"
+ls -lh "$REPO_ROOT"/target/debian/*.deb 2>/dev/null || echo "No .deb files found"
 echo ""
 echo "Install the single-process package with:"
-echo "  sudo dpkg -i ../../target/debian/moor_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor_*.deb"
 echo ""
 echo "Or install the split-service packages with:"
-echo "  sudo dpkg -i ../../target/debian/moor-daemon_*.deb"
-echo "  sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb"
-echo "  sudo dpkg -i ../../target/debian/moor-web-host_*.deb"
-echo "  sudo dpkg -i ../../target/debian/moor-curl-worker_*.deb"
-echo "  sudo dpkg -i ../../target/debian/moorc_*.deb"
-echo "  sudo dpkg -i ../../target/debian/moor-emh_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-daemon_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-telnet-host_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-web-host_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-curl-worker_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moorc_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-emh_*.deb"
+echo "  sudo dpkg -i $REPO_ROOT/target/debian/moor-web-client_*.deb"
 echo ""
 echo "Fix missing dependencies with:"
 echo "  sudo apt-get install -f"

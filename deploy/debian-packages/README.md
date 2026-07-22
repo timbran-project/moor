@@ -11,7 +11,7 @@ mooR can be packaged into several Debian packages:
 - **moor-daemon**: Core MOO server with systemd service
 - **moor-telnet-host**: Telnet server with systemd service
 - **moor-web-host**: Web API server with systemd service
-- **meadow**: Web client static files (architecture-independent, managed in Meadow repository)
+- **moor-web-client**: Meadow static files (architecture-independent, built from `clients/meadow/`)
 
 Install either `moor` or the split `moor-daemon`/host packages on a server. The `moor` and
 `moor-daemon` packages conflict because they own different service models and duplicate the bundled
@@ -70,8 +70,7 @@ Use the provided script to build all packages at once:
 
 ```bash
 # From the mooR repository root
-cd deploy/debian-packages
-./build-all-packages.sh
+./deploy/debian-packages/build-all-packages.sh
 ```
 
 This will create .deb files in `target/debian/`:
@@ -83,6 +82,7 @@ This will create .deb files in `target/debian/`:
 - `moor-curl-worker_*.deb`
 - `moorc_*.deb`
 - `moor-emh_*.deb`
+- `moor-web-client_*.deb`
 
 ### Building Individual Packages
 
@@ -113,7 +113,7 @@ Meadow is maintained under `clients/meadow/`. To build its Debian package from t
 
 ```bash
 npm ci
-npm run build:deb --workspace meadow
+npm run meadow:build:deb
 ```
 
 ## Installing Packages
@@ -136,7 +136,7 @@ sudo apt update
 sudo apt install moor
 
 # Or install the split services instead:
-sudo apt install moor-daemon moor-telnet-host moor-web-host meadow
+sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
 ```
 
 This handles dependencies automatically and makes future upgrades simple with `apt upgrade`.
@@ -156,7 +156,7 @@ sudo dpkg -i moor-telnet-host_*.deb
 sudo dpkg -i moor-web-host_*.deb
 
 # Web client is optional and needs nginx or similar.
-sudo dpkg -i meadow_*.deb
+sudo dpkg -i moor-web-client_*.deb
 
 # Fix any missing dependencies
 sudo apt-get install -f
@@ -168,12 +168,13 @@ If you built packages yourself (see Building Packages above):
 
 ```bash
 # Single-process server
-sudo dpkg -i ../../target/debian/moor_*.deb
+sudo dpkg -i target/debian/moor_*.deb
 
 # Or split services:
-sudo dpkg -i ../../target/debian/moor-daemon_*.deb
-sudo dpkg -i ../../target/debian/moor-telnet-host_*.deb
-sudo dpkg -i ../../target/debian/moor-web-host_*.deb
+sudo dpkg -i target/debian/moor-daemon_*.deb
+sudo dpkg -i target/debian/moor-telnet-host_*.deb
+sudo dpkg -i target/debian/moor-web-host_*.deb
+sudo dpkg -i target/debian/moor-web-client_*.deb
 
 sudo apt-get install -f  # Fix any missing dependencies
 ```
@@ -457,7 +458,7 @@ To completely remove mooR:
 sudo systemctl stop moor-telnet-host moor-web-host moor-daemon
 
 # Remove packages (--purge removes config files too)
-sudo apt-get remove --purge meadow moor-web-host moor-telnet-host moor-daemon
+sudo apt-get remove --purge moor-web-client moor-web-host moor-telnet-host moor-daemon
 
 # Manually remove data if desired
 sudo rm -rf /var/spool/moor-daemon/
@@ -651,7 +652,7 @@ See the main [deploy/README.md](../README.md) for Docker-based testing alternati
 
 1. Verify package is installed:
    ```bash
-   dpkg -l | grep meadow
+   dpkg -l | grep moor-web-client
    ```
 
 2. Check files exist:

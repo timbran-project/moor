@@ -19,6 +19,7 @@
     "web-mcp:typecheck": "npm run typecheck --workspace @moor/web-mcp",
     "web:prepare": "npm run schema:build && npm run web-sdk:build",
     "meadow:build": "npm run build --workspace meadow",
+    "meadow:build:deb": "npm run web:prepare && npm run build:deb --workspace meadow",
     "meadow:dev": "npm run web:prepare && npm run dev --workspace meadow",
     "web:build": "npm run web:prepare && npm run meadow:build",
     "moor:dev": "RUST_BACKTRACE=1 cargo run -p moor-server --bin moor -- ./moor-data --db development.db --config-file ${MOOR_CONFIG:-moor-dev.yaml} --import ${MOOR_CORE:-cores/cowbell/src} --import-format objdef --export development-export --generate-keypair --enable-curl-worker",

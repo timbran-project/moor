@@ -17,7 +17,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../test-helpers.sh"
+source "$SCRIPT_DIR/../../test-helpers.sh"
 
 CLUSTER_NAME="moor"
 NAMESPACE="moor"
@@ -111,7 +111,7 @@ if docker image inspect moor-frontend:latest >/dev/null 2>&1; then
     log_info "Using existing moor-frontend:latest image"
 else
     log_info "Building frontend image..."
-    docker build -t moor-frontend:latest --target frontend .
+    docker build -f clients/meadow/Dockerfile -t moor-frontend:latest --target frontend .
 fi
 
 log_info "✓ Images built"

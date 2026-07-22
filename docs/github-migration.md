@@ -117,6 +117,12 @@ Completed on the development branch:
   `dist/index.js` and declarations match its package metadata.
 - Updated Docker build contexts, local launch scripts, component package metadata, and relevant
   in-tree documentation for the consolidated paths.
+- Audited `deploy/` after consolidation. Clustered tests now resolve the shared helpers, Kubernetes
+  builds and deploys the Meadow image from `clients/meadow/`, and local Debian builders place the
+  Meadow package with the Rust packages under the root `target/debian/`.
+- Made the local release-package helper build its native `amd64` or `arm64` packages into the
+  corresponding `x86_64` or `aarch64` artifact directory, plus Meadow in the
+  architecture-independent artifact directory.
 - Updated Cowbell's default Make target to use the current objdef output supported by `moorc`.
 - Updated Meadow Flutter's web launchers to use the root npm install and made its checked-in Dart
   binding generator require `flatc 25.9.23`, matching the vendored Dart runtime.
@@ -124,18 +130,16 @@ Completed on the development branch:
 Validation completed:
 
 - `npm ci`, `npm run web:build`, Meadow typechecking, web SDK typechecking, web MCP typechecking and
-  build, an isolated schema and SDK tarball install/import, `cargo build --workspace`, both affected
-  Docker Compose configuration checks, a frontend container build, and Cowbell compilation all
-  pass. The Docker context excludes heavy Git object/module storage while retaining enough metadata
-  to embed the source commit.
+  build, an isolated schema and SDK tarball install/import, `cargo build --workspace`, all eight
+  deployment Compose configuration checks, Kubernetes rendering, a Meadow frontend container build,
+  a Meadow Debian package build, and Cowbell compilation all pass. The Docker context excludes heavy
+  Git object/module storage while retaining enough metadata to embed the source commit.
 - Flutter's format, analysis, and test suite could not run because Flutter and Dart are not
   installed in the current environment. The available `flatc 23.5.26` was confirmed to be
   incompatible with the checked-in bindings; the generated changes were discarded.
 - The imported Meadow default branch has five lint errors and seven test failures in existing
   application/test code. Its production build and typecheck pass.
-- Cowbell imports and compiles 115 objects and 1,672 verbs. Its runtime suite discovers 231 tests,
-  but 83 fail because created objects lack `import_export_id`; server/core compatibility must be
-  resolved before Cowbell CI can be required.
+- Cowbell imports and compiles 115 objects and 1,672 verbs, and all 231 runtime tests pass.
 
 Still outstanding:
 
@@ -143,8 +147,8 @@ Still outstanding:
   final delta comparison.
 - Import Meadow's supported release-branch history into `v1.0-release` without changing the 1.0.2
   tag. Meadow Flutter and Cowbell remain development-branch-only unless separately validated.
-- Resolve or explicitly baseline the imported Meadow and Cowbell failures, validate Flutter with its
-  pinned toolchain, and add root component CI.
+- Resolve or explicitly baseline the imported Meadow failures, validate Flutter with its pinned
+  toolchain, and add root component CI.
 - Export and migrate collaboration data, publish the reviewed monorepo refs to GitHub, and archive
   the standalone repositories.
 
@@ -229,12 +233,12 @@ container or setup job, and Buildx running directly on a runner for container pu
 
 The current release process has four overlapping definitions:
 
-| Source                                             | Package set and output                                                                                                                          |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.forgejo/workflows/build-deb-packages.yml`        | `moor-daemon`, `moor-telnet-host`, `moor-web-host`, `moor-curl-worker`, `moorc`, `moor-emh`; workflow artifacts only                            |
-| `.forgejo/workflows/release-build-and-publish.yml` | The same six plus `moor-mcp-host`; Codeberg APT upload and release assets; omits the single-process `moor` package                              |
-| `deploy/debian-packages/build-all-packages.sh`     | The same six plus the single-process `moor` package; omits `moor-mcp-host`                                                                      |
-| `deploy/release/build-packages.sh`                 | The same set as `build-all-packages.sh`; despite its header, it currently produces only x86-64 `.deb` files and says to upload them to Codeberg |
+| Source                                             | Package set and output                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `.forgejo/workflows/build-deb-packages.yml`        | `moor-daemon`, `moor-telnet-host`, `moor-web-host`, `moor-curl-worker`, `moorc`, `moor-emh`; workflow artifacts only     |
+| `.forgejo/workflows/release-build-and-publish.yml` | The same six plus `moor-mcp-host`; Codeberg APT upload and release assets; omits the single-process `moor` package       |
+| `deploy/debian-packages/build-all-packages.sh`     | The same six plus single-process `moor` and architecture-independent `moor-web-client`; omits `moor-mcp-host`            |
+| `deploy/release/build-packages.sh`                 | The same set as `build-all-packages.sh`, built natively on x86-64 or ARM64; still says to upload the results to Codeberg |
 
 Define one release package manifest and reuse it in local and CI entry points. Maintainers must
 decide whether the supported set is all eight packages: `moor`, `moor-daemon`, `moor-telnet-host`,
@@ -289,16 +293,17 @@ hosting. Treat it as the last Codeberg-built stable release and as the rollback 
 
 The active backend image is `codeberg.org/timbran/moor`. It is referenced by:
 
-- `deploy/telnet-only/docker-compose.yml`
-- `deploy/web-basic/docker-compose.yml`
-- `deploy/web-ssl/docker-compose.yml`
-- `deploy/kubernetes/frontend.yaml`
+- `deploy/single-process/basic/docker-compose.yml`
+- `deploy/single-process/web/docker-compose.yml`
+- `deploy/clustered/telnet-only/docker-compose.yml`
+- `deploy/clustered/web-basic/docker-compose.yml`
+- `deploy/clustered/web-ssl/docker-compose.yml`
 - `timbran-docker-compose.yml` in four services
 
-The three deployment Compose files select `latest-${ARCH:-x86_64}`, while
+The five deployment Compose files select `latest-${ARCH:-x86_64}`, while
 `timbran-docker-compose.yml` pins ARM64 tags. The Kubernetes manifest requests plain `:latest`, but
-the Forgejo release workflow only publishes architecture-suffixed latest tags. The GitHub workflow
-should make plain `:latest` a real multi-platform manifest and deployment files should then use it
+uses the locally built `moor-frontend` image for the Meadow deployment. The GitHub workflow should
+make plain `:latest` a real multi-platform backend manifest and deployment files should then use it
 unless an architecture-specific pin is intentional.
 
 `timbran-docker-compose.yml` also references the old

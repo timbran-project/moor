@@ -49,8 +49,9 @@ fi
 DEB_DIR="$SCRIPT_DIR/../../target/debian"
 DAEMON_DEB_CHECK=$(find "$DEB_DIR" -name "moor-daemon_*.deb" 2>/dev/null | head -1)
 TELNET_DEB_CHECK=$(find "$DEB_DIR" -name "moor-telnet-host_*.deb" 2>/dev/null | head -1)
+WEB_CLIENT_DEB_CHECK=$(find "$DEB_DIR" -name "moor-web-client_*.deb" 2>/dev/null | head -1)
 
-if [ -n "$DAEMON_DEB_CHECK" ] && [ -n "$TELNET_DEB_CHECK" ]; then
+if [ -n "$DAEMON_DEB_CHECK" ] && [ -n "$TELNET_DEB_CHECK" ] && [ -n "$WEB_CLIENT_DEB_CHECK" ]; then
     log_info "Using existing .deb packages from previous build"
 else
     log_info "Building Debian packages (release-fast profile with CARGO_BUILD_JOBS=2)..."
@@ -78,7 +79,7 @@ MOORC_DEB=$(find "$DEB_DIR" -name "moorc_*.deb" | head -1)
 EMH_DEB=$(find "$DEB_DIR" -name "moor-emh_*.deb" | head -1)
 WEB_CLIENT_DEB=$(find "$DEB_DIR" -name "moor-web-client_*.deb" | head -1)
 
-if [ -z "$DAEMON_DEB" ] || [ -z "$TELNET_DEB" ]; then
+if [ -z "$DAEMON_DEB" ] || [ -z "$TELNET_DEB" ] || [ -z "$WEB_CLIENT_DEB" ]; then
     log_error "Required .deb files not found in $DEB_DIR"
     exit 1
 fi
@@ -147,6 +148,14 @@ fi
 if [ -n "$EMH_DEB" ]; then
     log_info "Installing moor-emh..."
     incus exec "$CONTAINER_NAME" -- apt-get install -y /tmp/$(basename "$EMH_DEB")
+fi
+
+log_info "Installing moor-web-client..."
+incus exec "$CONTAINER_NAME" -- apt-get install -y /tmp/$(basename "$WEB_CLIENT_DEB")
+
+if ! incus exec "$CONTAINER_NAME" -- test -f /usr/share/moor/web-client/index.html; then
+    log_error "moor-web-client did not install its static files"
+    exit 1
 fi
 
 # Install tools for testing

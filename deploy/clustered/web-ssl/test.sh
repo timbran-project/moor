@@ -19,10 +19,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOY_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Source common helpers
-source "$DEPLOY_DIR/test-helpers.sh"
+source "$SCRIPT_DIR/../../test-helpers.sh"
 
 log_info "Starting web-ssl deployment test"
 log_warn "Note: SSL certificate validation requires a real domain and is skipped in automated tests"
