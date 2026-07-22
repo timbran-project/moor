@@ -1,6 +1,6 @@
 {
   "name": "moor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "mooR - a 21st century LambdaMOO implementation",
   "type": "module",
   "scripts": {

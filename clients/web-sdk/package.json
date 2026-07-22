@@ -1,6 +1,6 @@
 {
   "name": "@moor/web-sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shared Web/API SDK for mooR clients",
   "type": "module",
   "main": "./dist/index.js",
@@ -35,7 +35,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@moor/schema": "^1.0.1"
+    "@moor/schema": "^1.0.2"
   },
   "devDependencies": {
     "typescript": "^5.8.2"
