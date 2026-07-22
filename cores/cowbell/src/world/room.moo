@@ -22,7 +22,7 @@ object ROOM [
     pass();
     set_task_perms(caller_perms());
     this.description = "An empty room awaiting a description.";
-    this.import_export_hierarchy = {"rooms"};
+    set_object_metadata(this, "import_export_hierarchy", {"rooms"});
   endmethod
 
   verb emote (any any any) owner: HACKER flags: "rxd"

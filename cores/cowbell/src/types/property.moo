@@ -59,10 +59,10 @@ object PROPERTY [
   method test_property_metadata owner: HACKER
     "Test that property metadata flyweight returns expected values";
     "Get metadata for a known property";
-    metadata = $prog_utils:get_property_metadata($root, 'import_export_id);
+    metadata = $prog_utils:get_property_metadata($root, 'aliases);
     typeof(metadata) == TYPE_FLYWEIGHT || raise(E_ASSERT("Invalid metadata -- expected flyweight got " + toliteral(metadata)));
     metadata.location == $root || raise(E_ASSERT("location does not match"));
-    metadata.name == 'import_export_id || raise(E_ASSERT("name does not match"));
+    metadata.name == 'aliases || raise(E_ASSERT("name does not match"));
     valid(metadata.owner) || raise(E_ASSERT("owner is not valid"));
     typeof(metadata.perms) == TYPE_STR || raise(E_ASSERT("Perms is not a string"));
     "Check that is_clear is a boolean";

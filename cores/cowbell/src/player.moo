@@ -2760,7 +2760,7 @@ object PLAYER [
   method initialize owner: ARCH_WIZARD
     "Set defaults for newly created players.";
     pass();
-    this.import_export_hierarchy = {"players"};
+    set_object_metadata(this, "import_export_hierarchy", {"players"});
   endmethod
 
   verb home (none none none) owner: ARCH_WIZARD flags: "rxd"

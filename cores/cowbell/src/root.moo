@@ -872,10 +872,8 @@ object ROOT [
   endmethod
 
   method initialize owner: ARCH_WIZARD
-    "Called after object creation. Clears inherited export properties.";
-    "Subclasses should call pass() to ensure this runs.";
-    this.import_export_id = 0;
-    this.import_export_hierarchy = 0;
+    "Base initialization hook called after object creation.";
+    "Subclasses should call pass() to preserve the initialization chain.";
   endmethod
 
   method test_all_verbs owner: HACKER
