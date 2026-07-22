@@ -31,7 +31,15 @@ When you start mooR with `--import` and the requested database does not exist ye
 6. Starts the server using that database.
 
 ```text
-objdef source directory ---- first import and compilation ----> persistent database ----> running MOO
+objdef source directory
+          |
+          | first import and compilation
+          v
+persistent database
+          |
+          | start the server
+          v
+     running MOO
 ```
 
 For example, this starts a new database using the Cowbell core source included with mooR:
@@ -57,7 +65,11 @@ When mooR finds that the database already exists, it opens that database and ski
 server can therefore restart without rebuilding the world from source:
 
 ```text
-persistent database -------------------------------------------> running MOO
+persistent database
+          |
+          | start the server
+          v
+     running MOO
 ```
 
 The start command may still contain `--import`. This is normal. The option tells mooR what to use if
@@ -96,8 +108,15 @@ tools and their conflict-handling options.
 Importing and exporting go in opposite directions:
 
 ```text
-objdef source ---- import ----> database
-database -------- export ----> objdef files
+objdef source
+      |
+      | import
+      v
+   database
+      |
+      | export
+      v
+objdef checkpoint
 ```
 
 If an export directory is configured, mooR can write checkpoints of the live database as objdef
