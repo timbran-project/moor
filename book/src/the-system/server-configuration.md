@@ -332,7 +332,7 @@ runtime:
 ## LambdaMOO Compatibility Mode
 
 If you need to maintain compatibility with LambdaMOO 1.8, you'll need to either update your core with the changes
-provided in the [Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
+provided in the [Lambda-moor core](https://github.com/timbran-project/moor/blob/v1.0-release/cores/lambda-moor/README.md) or
 disable several features. Here's a configuration that maintains LambdaMOO compatibility by disabling mooR features:
 
 ```yaml

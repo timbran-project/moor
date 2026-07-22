@@ -22,8 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
-- Preserve JSON `null` values as `$nothing` (`#-1`) across `parse_json()` and
-  `generate_json()`.
+- Preserve JSON `null` values as `$nothing` (`#-1`) across `parse_json()` and `generate_json()`.
 - Fall back to scheduler suspension when the replacement transaction request for `suspend(0)` times
   out, without committing the already-consumed task context again.
 

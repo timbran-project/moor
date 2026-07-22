@@ -8,11 +8,11 @@ running.
 
 The fastest way to get mooR running is with the provided quick-start scripts, which handle Docker setup and environment isolation automatically.
 
-1. Clone the mooR repository
-2. Run one of the start scripts in the repository root:
-   - For the modern Cowbell core: `./scripts/start-moor-cowbell.sh`
-   - For classic LambdaCore: `./scripts/start-moor-lambdacore.sh`
+1. Clone the stable branch: `git clone --branch v1.0-release https://github.com/timbran-project/moor.git`
+2. Run `./scripts/start-moor-lambdacore.sh` from the repository root.
 3. Connect to your MOO via http://localhost:8080/ -- or `telnet` (or your favourite MUD client) to port 8888
+
+The Cowbell core requires features from the post-1.0 `main` branch and is not supported by this release.
 
 For detailed instructions and other installation options, see the sections below.
 
@@ -55,5 +55,5 @@ If you run into issues:
 
 - Check the specific installation guide for your chosen method
 - Review the server configuration documentation
-- Consult the mooR Codeberg repository for troubleshooting tips
+- Search or open an issue in the [mooR GitHub repository](https://github.com/timbran-project/moor/issues)
 - Ask the community for help in the forums or Discord

@@ -9,4 +9,4 @@ Points of interest:
 
 # But I just want to read the book!
 
-Actual book is hosted at https://rdaum.github.io/moor/
+The book is hosted at https://timbran.org/book/html/

@@ -8,60 +8,57 @@ For Debian-based systems (including Ubuntu), mooR provides native `.deb` package
 
 ### About Debian Packages
 
-mooR packages include:
+The Debian package set includes:
 
 - **moor-daemon**: Core MOO server with systemd service
 - **moor-telnet-host**: Telnet server with systemd service
 - **moor-web-host**: Web API server with systemd service
 - **moor-curl-worker**: HTTP request worker with systemd service
-- **moor-web-client**: Static web client files (architecture-independent)
+- **moor-emh**: Emergency maintenance shell
+- **moor-mcp-host**: Model Context Protocol host
+- **moorc**: MOO language compiler
 
-All packages integrate with systemd, create necessary users and directories, and include the LambdaMOO-based lambda-moor core database by default.
+The service packages integrate with systemd, create the required users and directories, and include the LambdaMOO-based
+lambda-moor core database by default.
 
 ### Installation Options
 
-**Option 1: Install from APT Repository (Recommended)**
+**Option 1: Download from Releases**
 
-Add the Codeberg package repository to install and update mooR packages with `apt`:
-
-```bash
-# Add the repository signing key
-sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
-    -o /etc/apt/keyrings/timbran-moor.asc
-
-# Add the repository (for Debian Bookworm / Ubuntu 22.04+)
-echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
-    | sudo tee /etc/apt/sources.list.d/moor.list
-
-# Update and install
-sudo apt update
-sudo apt install moor-daemon moor-telnet-host moor-web-host moor-web-client
-```
-
-**Option 2: Download from Releases**
-
-Download pre-built `.deb` packages from the [mooR Codeberg releases page](https://codeberg.org/timbran/moor/releases):
+The [mooR 1.0.2 release](https://github.com/timbran-project/moor/releases/tag/1.0.2) provides split service and command-line
+packages for amd64 and arm64. Download the packages for your architecture, then install the services you need:
 
 ```bash
-sudo dpkg -i moor-*.deb
-sudo apt-get install -f  # Install any missing dependencies
+sudo apt install \
+    ./moor-daemon_*.deb \
+    ./moor-telnet-host_*.deb \
+    ./moor-web-host_*.deb \
+    ./moor-curl-worker_*.deb
 ```
 
-**Option 3: Build Locally**
+Using `apt` with local package paths installs any required dependencies. The 1.0.2 release does not include a combined
+`moor` package or a `moor-web-client` package.
+
+**Option 2: Build Locally**
 
 Build packages yourself using the provided scripts in `deploy/debian-packages/`:
 
 ```bash
 cd deploy/debian-packages
 ./build-all-packages.sh
-sudo dpkg -i ../../target/debian/moor-*.deb
+sudo apt install \
+    ../../target/debian/moor-daemon_*.deb \
+    ../../target/debian/moor-telnet-host_*.deb \
+    ../../target/debian/moor-web-host_*.deb \
+    ../../target/debian/moor-curl-worker_*.deb
 ```
 
-### Comprehensive Documentation
+### Detailed Documentation
 
 For detailed installation, configuration, service management, testing, and troubleshooting:
 
-**→ See [`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/main/deploy/debian-packages/README.md)**
+See
+[`deploy/debian-packages/README.md`](https://github.com/timbran-project/moor/blob/v1.0-release/deploy/debian-packages/README.md).
 
 This includes:
 - Complete installation and post-installation configuration
@@ -100,7 +97,7 @@ source ~/.cargo/env
 
 1. **Clone the repository**:
    ```bash
-   git clone https://codeberg.org/timbran/moor.git
+   git clone --branch v1.0-release https://github.com/timbran-project/moor.git
    cd moor
    ```
 
@@ -155,7 +152,7 @@ Regardless of your installation method, you'll need to configure mooR's componen
 ## Getting Help
 
 For installation issues:
-- Check the mooR Codeberg repository for the latest installation instructions
+- Check the [mooR GitHub repository](https://github.com/timbran-project/moor) for the latest installation instructions
 - Review the `docker-compose.yml` file for configuration examples
 - Consult the community forums or Discord for platform-specific guidance
 

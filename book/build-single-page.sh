@@ -15,7 +15,7 @@ check_dep() {
 check_dep pandoc
 
 # Common pandoc options
-export MDBOOK_output__pandoc__hosted_html=https://rdaum.github.io/moor/
+export MDBOOK_output__pandoc__hosted_html=https://timbran.org/book/html/
 # Disable pagetoc
 export MDBOOK_preprocessor__pagetoc__renderers=[]
 # Disable our custom theme files; the `pagetoc`-generated `@media` rules confuse mdbook-pandoc

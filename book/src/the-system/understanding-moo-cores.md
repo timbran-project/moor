@@ -61,10 +61,10 @@ A copy of LambdaCore (modified for mooR) is included in the `cores/lambda-moor` 
 
 While mooR implements many Toast-compatible features, it's not a drop-in replacement. Toast cores would need significant modification to run on mooR, but most importantly, mooR will mostly reject a textdump from ToastStunt, so it's best to avoid them.
 
-## mooR's Future: The Cowbell Core
+## Cowbell and the 2.0 Development Line
 
-The mooR project is developing its own core called ["cowbell"](https://codeberg.org/timbran/cowbell/)
- (named with a nod to the famous "more cowbell" meme). Cowbell aims to:
+The mooR project is developing its own core called
+["Cowbell"](https://github.com/timbran-project/moor/tree/main/cores/cowbell). Cowbell aims to:
 
 - **Showcase mooR features**: Take advantage of mooR's unique capabilities and extensions
 - **Web native UI**: Cowbell will be built with the web client in mind, and offer a rich media interface.
@@ -72,11 +72,9 @@ The mooR project is developing its own core called ["cowbell"](https://codeberg.
 - **Clean foundation**: Start fresh rather than carrying forward historical baggage
 - **Documentation**: Be well-documented and easy to understand for new programmers
 
-**Current Status**: Cowbell is the primary recommended core for new mooR users. It is developed alongside the server to showcase its unique capabilities.
-
-**How to run**: Cowbell is easily started using the `./scripts/start-moor-cowbell.sh` script in the mooR repository root. This script will automatically fetch the Cowbell source code if it's not already present.
-
-See: https://codeberg.org/timbran/cowbell/
+Cowbell requires runtime and compiler features from mooR's post-1.0 `main` branch. It is not compatible with the stable
+1.0 release. For mooR 1.0, use the included `cores/lambda-moor` core and start it with
+`./scripts/start-moor-lambdacore.sh`.
 
 ## Choosing Your Path
 
@@ -84,7 +82,7 @@ When setting up a mooR server, you'll need to decide:
 
 1. **Start with minimal**: Begin with basic objects and build your own systems
 2. **Adapt existing code**: Port code from LambdaCore or other sources
-3. **Wait for cowbell**: Follow cowbell development and contribute to its progress
+3. **Follow Cowbell development**: Use the mooR `main` branch for the 2.0 development line
 4. **Hybrid approach**: Combine elements from multiple sources
 
 Each approach has trade-offs in terms of effort, features, and long-term maintainability.

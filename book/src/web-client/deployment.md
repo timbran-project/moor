@@ -31,14 +31,11 @@ docker compose -f deploy/web-ssl/docker-compose.yml up -d
 
 ### Debian Packages
 
-For Debian/Ubuntu systems, install the packages and configure nginx:
+For Debian/Ubuntu systems, download `moor-daemon` and `moor-web-host` from the
+[mooR 1.0.2 release](https://github.com/timbran-project/moor/releases/tag/1.0.2), then install them and configure nginx:
 
 ```bash
-# Install from APT repository (recommended)
-sudo apt install moor-daemon moor-web-host moor-web-client
-
-# Or install from downloaded .deb files
-sudo dpkg -i moor-daemon_*.deb moor-web-host_*.deb moor-web-client_*.deb
+sudo apt install ./moor-daemon_*.deb ./moor-web-host_*.deb
 
 # Configure nginx (copy from deploy/debian-packages/)
 sudo cp nginx-for-debian.conf /etc/nginx/sites-available/moor
@@ -46,7 +43,8 @@ sudo ln -s /etc/nginx/sites-available/moor /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Web client files are installed to `/usr/share/moor/web-client/`.
+The 1.0.2 release does not include a `moor-web-client` Debian package. Use the web assets from the 1.0.2 container image,
+or build the matching Meadow client locally and place its static files under `/usr/share/moor/web-client/`.
 
 ### Kubernetes
 

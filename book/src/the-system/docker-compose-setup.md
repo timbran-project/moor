@@ -120,34 +120,30 @@ Services communicate via Unix domain sockets (IPC) and run as your user to avoid
 
 ## Development Quick Start
 
-For development, testing, and quick evaluation, mooR provides two pre-configured start scripts in the repository root. These scripts automatically handle Docker permissions, core-specific feature flags, and resource isolation.
+For development, testing, and quick evaluation, mooR provides a pre-configured start script in the repository root. The
+script handles Docker permissions, core-specific feature flags, and resource isolation.
 
 ### 1. Choose a Core
-
-**Cowbell** (Modern core with web-native features):
-```bash
-./scripts/start-moor-cowbell.sh
-```
 
 **LambdaCore** (Classic LambdaMOO core, 1.8.x compatible):
 ```bash
 ./scripts/start-moor-lambdacore.sh
 ```
 
+The Cowbell core requires features from the post-1.0 `main` branch and is not supported by this release.
+
 ### 2. Isolated Environments
 
-Each script uses its own isolated runtime directory:
-- `run-cowbell/`
-- `run-lambda-moor/`
+The script uses the isolated `run-lambda-moor/` runtime directory.
 
-This ensures that you can switch between cores without database or keypair "pollution". Each environment maintains its own persistent database, configuration, and host keys.
+The directory contains the persistent database, configuration, and host keys without writing them into the source tree.
 
 ### 3. Build Profiles
 
 By default, these scripts use a high-performance **release** build (`release-fast`). For a faster initial compile during development, you can use the `--debug` flag:
 
 ```bash
-./scripts/start-moor-cowbell.sh --debug
+./scripts/start-moor-lambdacore.sh --debug
 ```
 
 Access the system via:
@@ -269,7 +265,7 @@ These validate that services are running correctly and can communicate.
 ### Getting Help
 
 - **Docker Compose docs**: [docs.docker.com/compose/](https://docs.docker.com/compose/)
-- **mooR issues**: [codeberg.org/timbran/moor/issues](https://codeberg.org/timbran/moor/issues)
+- **mooR issues**: [github.com/timbran-project/moor/issues](https://github.com/timbran-project/moor/issues)
 - **Community**: [Discord](https://discord.gg/Ec94y5983z)
 
 ## Advanced: Multi-Machine Deployments
