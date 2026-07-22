@@ -29,7 +29,8 @@ enhancements.
 
 > **Repository migration (July 2026):** Development, issues, and pull requests have moved back
 > GitHub (from Codeberg), but into a new
-> [timbran-project organization](https://github.com/timbran-project/moor). The
+> [timbran-project organization](https://github.com/timbran-project/moor). Here's
+> [why](https://timbran.org/catching-up-with-moor.html#we-moved-back-to-github). The
 > [`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2) was the final
 > release built using the previous hosting and repository layout. Its release artifacts have been
 > mirrored from Codeberg to GitHub along with the `1.0.0` and `1.0.1` releases.
