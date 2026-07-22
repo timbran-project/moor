@@ -14,8 +14,8 @@ Goals over the original web client:
 
 - **Web** — Flutter web, served behind a Vite reverse proxy for same-origin API access
 - **Linux desktop** — GTK via Flutter Linux
-- iOS and Android are structurally possible but there are no build/packaging scripts yet, and the
-  UX will need significant testing and adaptation for mobile form factors
+- iOS and Android are structurally possible but there are no build/packaging scripts yet, and the UX
+  will need significant testing and adaptation for mobile form factors
 
 ## Features
 
@@ -31,8 +31,8 @@ Supports most of what the original SPA client does:
 - Input prompt composer (for in-game prompts to the player)
 - Editor dock for concurrent verb/property editing sessions
 - OAuth2 PKCE authentication
-- Encrypted event log support (Argon2id KDF, X25519, AGE encryption) with automatic setup on
-  account creation, unlock/forgot-password dialogs, and infinite backward scroll
+- Encrypted event log support (Argon2id KDF, X25519, AGE encryption) with automatic setup on account
+  creation, unlock/forgot-password dialogs, and infinite backward scroll
 - Link previews, history export
 
 ### Known gaps
@@ -50,8 +50,8 @@ cd clients/meadow_flutter
 ```
 
 The helper script wraps `flutter run -d linux` and translates positional args into
-`-a`/`--dart-entrypoint-args` flags. Pass `--profile` or `--release` before the entrypoint args
-to change the build mode.
+`-a`/`--dart-entrypoint-args` flags. Pass `--profile` or `--release` before the entrypoint args to
+change the build mode.
 
 Without the helper:
 
@@ -78,25 +78,25 @@ Requires `npm ci` to have been run from the mooR repository root (for Vite).
 
 Environment variables:
 
-| Variable              | Default                    | Purpose                              |
-|-----------------------|----------------------------|--------------------------------------|
-| `MOOR_API_URL`        | `http://localhost:8080`    | mooR HTTP API base                   |
-| `MOOR_WS_URL`         | `ws://localhost:8080`      | mooR WebSocket base                  |
-| `FLUTTER_WEB_PORT`    | `9010`                     | Flutter dev server port              |
-| `VITE_PROXY_PORT`     | `3001`                     | Vite proxy port (what you open)      |
-| `FLUTTER_WEB_HOSTNAME`| LAN IP (auto-detected)     | Hostname Flutter binds to            |
+| Variable               | Default                 | Purpose                         |
+| ---------------------- | ----------------------- | ------------------------------- |
+| `MOOR_API_URL`         | `http://localhost:8080` | mooR HTTP API base              |
+| `MOOR_WS_URL`          | `ws://localhost:8080`   | mooR WebSocket base             |
+| `FLUTTER_WEB_PORT`     | `9010`                  | Flutter dev server port         |
+| `VITE_PROXY_PORT`      | `3001`                  | Vite proxy port (what you open) |
+| `FLUTTER_WEB_HOSTNAME` | LAN IP (auto-detected)  | Hostname Flutter binds to       |
 
 ### Launch arguments
 
 Accepted by both desktop and web (via `--dart-define` for web):
 
-| Argument                  | Description                                  |
-|---------------------------|----------------------------------------------|
-| `--server=URL`            | mooR server base URL                         |
-| `--username=USER`         | Pre-fill username                            |
-| `--password=PASS`         | Pre-fill password                            |
-| `--mode=connect\|create`  | Login vs. account creation                   |
-| `--login`                 | Trigger login immediately on startup         |
+| Argument                 | Description                          |
+| ------------------------ | ------------------------------------ |
+| `--server=URL`           | mooR server base URL                 |
+| `--username=USER`        | Pre-fill username                    |
+| `--password=PASS`        | Pre-fill password                    |
+| `--mode=connect\|create` | Login vs. account creation           |
+| `--login`                | Trigger login immediately on startup |
 
 ## Deploy (web)
 
@@ -105,8 +105,8 @@ Accepted by both desktop and web (via `--dart-define` for web):
 ```
 
 Builds in release mode and copies the output to `~/timbran-site/public/meadow/`. See
-`./tool/deploy_timbran_web.sh --help` for options (`--subpath`, `--api-base`,
-`--skip-site-build`, etc.).
+`./tool/deploy_timbran_web.sh --help` for options (`--subpath`, `--api-base`, `--skip-site-build`,
+etc.).
 
 ## Development
 

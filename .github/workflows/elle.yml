@@ -1,0 +1,108 @@
+name: Elle consistency
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: elle-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  ELLE_CLI_COMMIT: 65fafcfa939cced8b7d279db1b2a666929885e65
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  consistency:
+    name: Serializable histories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang-16 libclang-16-dev swig python3-dev cmake libsodium-dev pkg-config libssl-dev default-jre-headless leiningen graphviz
+
+      - name: Install Java 21
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Rust 1.95.0
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+
+      - name: Build elle-cli
+        run: |
+          git init /tmp/elle-cli
+          git -C /tmp/elle-cli remote add origin https://github.com/ligurio/elle-cli.git
+          git -C /tmp/elle-cli fetch --depth 1 origin "$ELLE_CLI_COMMIT"
+          git -C /tmp/elle-cli checkout --detach FETCH_HEAD
+          pushd /tmp/elle-cli
+          lein deps
+          lein uberjar
+          popd
+          find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit | grep -q .
+
+      - name: Build workload generators
+        run: cargo build --package moor-model-checker --bin list-append --bin rw-register
+
+      - name: Run list-append workload
+        run: |
+          mkdir -p test-output/elle-graphs
+          target/debug/list-append \
+            --num-props 3 \
+            --num-concurrent-workloads 4 \
+            --num-workload-iterations 1000 \
+            --output-file test-output/list-append.edn
+
+      - name: Check list-append history
+        run: |
+          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          java -jar "$elle_jar" \
+            -m list-append \
+            -c serializable \
+            --directory test-output/elle-graphs \
+            --plot-format svg \
+            --cycle-search-timeout 5000 \
+            test-output/list-append.edn | tee test-output/elle-list-append-result.txt
+          grep -Eq '[[:space:]]true$' test-output/elle-list-append-result.txt
+
+      - name: Run rw-register workload
+        run: |
+          target/debug/rw-register \
+            --num-registers 5 \
+            --num-concurrent-workloads 4 \
+            --num-workload-iterations 1000 \
+            --output-file test-output/rw-register.edn
+
+      - name: Check rw-register history
+        run: |
+          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          java -jar "$elle_jar" \
+            -m rw-register \
+            -c serializable \
+            test-output/rw-register.edn | tee test-output/elle-rw-register-result.txt
+          grep -Eq '[[:space:]]true$' test-output/elle-rw-register-result.txt
+
+      - name: Upload Elle histories and results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: elle-results
+          path: test-output
+          if-no-files-found: warn
+          retention-days: 14

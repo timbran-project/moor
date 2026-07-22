@@ -1,0 +1,104 @@
+name: Deployment validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  manifests:
+    name: Scripts and manifests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check deployment shell syntax
+        run: |
+          while IFS= read -r script; do
+            bash -n "$script"
+          done < <(find deploy clients/meadow/deploy -type f -name '*.sh' -print)
+
+      - name: Render Docker Compose configurations
+        env:
+          CERTBOT_EMAIL: ci@example.invalid
+          DOMAIN_NAME: example.invalid
+        run: |
+          compose_files=(
+            deploy/clustered/docker-compose.tcp.yml
+            deploy/clustered/docker-compose.tracing.yml
+            deploy/clustered/telnet-only/docker-compose.yml
+            deploy/clustered/web-basic/docker-compose.yml
+            deploy/clustered/web-ssl/docker-compose.certbot.yml
+            deploy/clustered/web-ssl/docker-compose.yml
+            deploy/single-process/basic/docker-compose.yml
+            deploy/single-process/web/docker-compose.yml
+          )
+          for compose_file in "${compose_files[@]}"; do
+            docker compose --file "$compose_file" config --quiet
+          done
+
+      - name: Render Kubernetes manifests
+        run: kubectl kustomize deploy/clustered/kubernetes > /tmp/moor-kubernetes.yaml
+
+  frontend-image:
+    name: Meadow container image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build frontend image
+        run: docker build --file clients/meadow/Dockerfile --target frontend --tag moor-frontend:ci .
+
+      - name: Check frontend payload
+        run: docker run --rm --entrypoint test moor-frontend:ci -f /usr/share/nginx/html/index.html
+
+  meadow-debian-package:
+    name: Meadow Debian package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install FlatBuffers compiler
+        env:
+          FLATBUFFERS_VERSION: 25.9.23
+        run: |
+          curl -fsSL "https://github.com/google/flatbuffers/releases/download/v${FLATBUFFERS_VERSION}/Linux.flatc.binary.clang%2B%2B-18.zip" -o /tmp/flatc.zip
+          sudo unzip -q /tmp/flatc.zip -d /usr/local/bin
+          sudo chmod +x /usr/local/bin/flatc
+          flatc --version
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Build Meadow Debian package
+        run: npm run meadow:build:deb
+
+      - name: Inspect Debian package
+        run: |
+          package=$(find target/debian -maxdepth 1 -name 'moor-web-client_*_all.deb' -print -quit)
+          test -n "$package"
+          dpkg-deb --info "$package"
+          dpkg-deb --contents "$package" | grep -q '/usr/share/moor/web-client/index.html'

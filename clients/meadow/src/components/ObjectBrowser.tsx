@@ -12,10 +12,10 @@
 //
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useAuthContext } from "../context/AuthContext";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { usePersistentState } from "../hooks/usePersistentState.js";
 import { useTouchDevice } from "../hooks/useTouchDevice.js";
-import { useAuthContext } from "../context/AuthContext";
 import { MoorVar } from "../lib/MoorVar.js";
 import {
     fetchServerFeatures,
@@ -124,8 +124,7 @@ interface TestResult {
 
 const isTestVerb = (name: string): boolean => name.startsWith("test_");
 
-const isMethodVerb = (verb: VerbData): boolean =>
-    verb.dobj === "this" && verb.prep === "none" && verb.iobj === "this";
+const isMethodVerb = (verb: VerbData): boolean => verb.dobj === "this" && verb.prep === "none" && verb.iobj === "this";
 
 const normalizeObjectRefForCompare = (raw: string | null | undefined): string | null => {
     if (!raw) return null;

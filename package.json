@@ -17,6 +17,7 @@
     "web-sdk:build": "npm run build --workspace @moor/web-sdk",
     "web-mcp:build": "npm run build --workspace @moor/web-mcp",
     "web-mcp:typecheck": "npm run typecheck --workspace @moor/web-mcp",
+    "web:typecheck": "npm run typecheck --workspace @moor/web-sdk && npm run web-mcp:typecheck && npm run typecheck --workspace meadow",
     "web:prepare": "npm run schema:build && npm run web-sdk:build",
     "meadow:build": "npm run build --workspace meadow",
     "meadow:build:deb": "npm run web:prepare && npm run build:deb --workspace meadow",
@@ -36,11 +37,13 @@
     "full:dev:no-daemon": "concurrently \"npm run meadow:dev\" \"npm run web-host:dev\"",
     "full:dev:oauth2": "concurrently \"npm run meadow:dev\" \"npm run moor:dev:oauth2\"",
     "full:dev-traced": "concurrently \"npm run meadow:dev\" \"npm run moor:traced\"",
-    "full:build": "npm run web:build && cargo build --release -p moor-server --bin moor"
+    "full:build": "npm run web:build && cargo build --release -p moor-server --bin moor",
+    "format:check": "dprint check"
   },
   "author": "Ryan Daum <ryan.daum@gmail.com>",
   "license": "AGPL-3.0-only",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "dprint": "0.55.2"
   }
 }

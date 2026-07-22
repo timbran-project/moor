@@ -35,6 +35,22 @@ licenses:
 
       You should have received a copy of the GNU Lesser General Public License along
       with this program. If not, see <https://www.gnu.org/licenses/>.
+  - files: ^clients/meadow/.*
+    ident: GPL-3.0
+    authors:
+      - name: Ryan Daum
+        email: ryan.daum@gmail.com
+    template: |
+      Copyright (C) [year] [name of author] This program is free software: you can
+      redistribute it and/or modify it under the terms of the GNU General Public
+      License as published by the Free Software Foundation, version 3.
+
+      This program is distributed in the hope that it will be useful, but WITHOUT
+      ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+      FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+      You should have received a copy of the GNU General Public License along with
+      this program. If not, see <https://www.gnu.org/licenses/>.
   - files: any
     ident: AGPL-3.0
     authors:
@@ -156,6 +172,6 @@ excludes:
   - crates/web-host/debian/*
   - tools/example-python-worker/moor_schema/*
   - generated/*
-  - web-client/public/*
+  - clients/meadow/public/*
   - clients/meadow_flutter/*
   - .*\.(md|rst|txt|yml|yaml|png|jpg|gif|db|pem|lock|json|toml|in|out|html|moot|edn|node|css|gz|tgz|tar|zip|awk|data|conf|nix|el|ttf|otf|wasm|cfg|pem)

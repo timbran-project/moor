@@ -102,8 +102,8 @@ Completed on the development branch:
 
 - Fetched the latest standalone default branches, made full local worktree backups, and created
   disposable mirrors before rewriting any history.
-- Rewrote and merged Meadow at `clients/meadow/` (`368cab56f`), Meadow Flutter at
-  `clients/meadow_flutter/` (`bd454616e`), and Cowbell at `cores/cowbell/` (`ebd634758`). The
+- Rewrote and merged Meadow at `clients/meadow/` (`1b22e4bdc`), Meadow Flutter at
+  `clients/meadow_flutter/` (`b01aabc12`), and Cowbell at `cores/cowbell/` (`76608ef96`). The
   rewritten histories preserve authors, timestamps, and merge topology.
 - Saved old-to-new commit maps outside the working tree with the component backups. Cowbell's one
   imported tag is namespaced as `cowbell-moor-1.0-compatible`; the imported Meadow repositories had
@@ -126,6 +126,16 @@ Completed on the development branch:
 - Updated Cowbell's default Make target to use the current objdef output supported by `moorc`.
 - Updated Meadow Flutter's web launchers to use the root npm install and made its checked-in Dart
   binding generator require `flatc 25.9.23`, matching the vendored Dart runtime.
+- Added the first GitHub Actions migration stage without changing release publication:
+  `.github/workflows/ci.yml` builds and tests the Rust workspace, runs formatting and Clippy, builds
+  and typechecks the Node workspace, tests Cowbell, and checks license headers;
+  `.github/workflows/deploy-check.yml` validates deployment scripts, Compose and Kubernetes
+  manifests, the Meadow container image, and its Debian package; `.github/workflows/elle.yml` runs
+  both serializability histories and retains their inputs and results.
+- Pinned the GitHub-owned actions to reviewed commit SHAs and pinned `elle-cli` to a specific source
+  commit. The release workflow remains unchanged for the later publishing stage.
+- Preserved Meadow's GPLv3 license as a deliberate component boundary. The root license checker now
+  applies Meadow's existing GPL headers and excludes its bundled third-party browser asset.
 
 Validation completed:
 
@@ -140,6 +150,11 @@ Validation completed:
 - The imported Meadow default branch has five lint errors and seven test failures in existing
   application/test code. Its production build and typecheck pass.
 - Cowbell imports and compiles 115 objects and 1,672 verbs, and all 231 runtime tests pass.
+- The Stage 1 commands pass locally: Rust workspace build, tests, doctests, nightly formatting and
+  Clippy; clean Node installation, all web builds and typechecks; Cowbell build and tests; shell,
+  Compose and Kubernetes validation; Meadow container and Debian package builds; and both Elle
+  serializability checks. `actionlint 1.7.12` accepts all four GitHub workflow files. A
+  GitHub-hosted run remains required after the branch is published.
 
 Still outstanding:
 
@@ -147,8 +162,10 @@ Still outstanding:
   final delta comparison.
 - Import Meadow's supported release-branch history into `v1.0-release` without changing the 1.0.2
   tag. Meadow Flutter and Cowbell remain development-branch-only unless separately validated.
-- Resolve or explicitly baseline the imported Meadow failures, validate Flutter with its pinned
-  toolchain, and add root component CI.
+- Resolve or explicitly baseline the imported Meadow failures and validate Flutter with its pinned
+  toolchain. Add Flutter CI after that baseline is established.
+- Run the Stage 1 workflows on GitHub, then select required checks and branch rules after their job
+  names and runner dependencies have been observed in the destination organization.
 - Export and migrate collaboration data, publish the reviewed monorepo refs to GitHub, and archive
   the standalone repositories.
 

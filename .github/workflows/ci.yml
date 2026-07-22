@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  rust-test:
+    name: Rust build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang-16 libclang-16-dev swig python3-dev cmake libsodium-dev pkg-config libssl-dev
+
+      - name: Install Rust 1.95.0
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+
+      - name: Build workspace
+        run: cargo build --workspace --exclude lambdamoo-harness --all-features --all-targets
+
+      - name: Run workspace tests
+        run: cargo test --workspace --exclude lambdamoo-harness --all-features --lib --bins --tests
+
+      - name: Run documentation tests
+        run: cargo test --workspace --exclude lambdamoo-harness --all-features --doc
+
+  rust-quality:
+    name: Rust formatting and Clippy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang-16 libclang-16-dev swig python3-dev cmake libsodium-dev pkg-config libssl-dev
+
+      - name: Install Rust toolchains
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal --component clippy
+          rustup toolchain install nightly --profile minimal --component rustfmt
+          rustup default 1.95.0
+
+      - name: Check Rust formatting
+        run: cargo +nightly fmt --all -- --check --config reorder_imports=true,imports_indent=Block,imports_layout=Mixed
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --exclude lambdamoo-harness --all-targets --all-features -- -D warnings
+
+  web:
+    name: Web workspace
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install FlatBuffers compiler
+        env:
+          FLATBUFFERS_VERSION: 25.9.23
+        run: |
+          curl -fsSL "https://github.com/google/flatbuffers/releases/download/v${FLATBUFFERS_VERSION}/Linux.flatc.binary.clang%2B%2B-18.zip" -o /tmp/flatc.zip
+          sudo unzip -q /tmp/flatc.zip -d /usr/local/bin
+          sudo chmod +x /usr/local/bin/flatc
+          flatc --version
+
+      - name: Install Node.js dependencies
+        run: npm ci
+
+      - name: Build web clients and packages
+        run: |
+          npm run web:build
+          npm run web-mcp:build
+
+      - name: Type-check web clients and packages
+        run: npm run web:typecheck
+
+      - name: Check repository formatting
+        run: npm run format:check
+
+  cowbell:
+    name: Cowbell core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust 1.95.0
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+
+      - name: Build Cowbell
+        run: make -C cores/cowbell
+
+      - name: Test Cowbell
+        run: make -C cores/cowbell test
+
+  license:
+    name: License headers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Rust 1.95.0
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup default 1.95.0
+
+      - name: Install licensure
+        run: cargo install licensure --version 0.8.1 --locked
+
+      - name: Check license headers
+        run: licensure --check -p

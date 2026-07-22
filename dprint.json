@@ -7,7 +7,8 @@
     "indentWidth": 4
   },
   "excludes": [
-    "cores/**"
+    "cores/**",
+    "clients/meadow_flutter/third_party/**"
   ],
   "markdown": {
     "lineWidth": 100,
