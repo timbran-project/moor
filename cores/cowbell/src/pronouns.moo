@@ -1,0 +1,69 @@
+object PRONOUNS [
+  import_export_id -> "pronouns"
+]
+  name: "Pronoun System"
+  parent: ROOT
+  location: PROTOTYPE_BOX
+  owner: HACKER
+  readable: true
+
+  property he_him (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
+  property it_its (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "it/its", .ps = "it", .po = "it", .pp = "its", .pq = "its", .pr = "itself">;
+  property she_her (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "she/her", .ps = "she", .po = "her", .pp = "her", .pq = "hers", .pr = "herself">;
+  property spivak (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "e/em", .ps = "e", .po = "em", .pp = "eir", .pq = "eirs", .pr = "emself">;
+  property they_them (owner: HACKER, flags: "r") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+
+  override description = "Pronoun system providing preset and custom pronoun sets for objects and players.";
+
+  method mk owner: HACKER
+    "Create a custom pronoun set as a flyweight.";
+    "Usage: $pronouns:mk(subject, object, possessive_adj, possessive_noun, reflexive [, is_plural])";
+    "Example: $pronouns:mk(\"ze\", \"zir\", \"zir\", \"zirs\", \"zirself\")";
+    {ps, po, pp, pq, pr, ?is_plural = false} = args;
+    typeof(ps) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(po) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pp) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pq) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    typeof(pr) == TYPE_STR || raise(E_TYPE, "All pronoun arguments must be strings");
+    verb_be = is_plural ? "are" | "is";
+    verb_have = is_plural ? "have" | "has";
+    display = ps + "/" + po;
+    return <this, .display = display, .ps = ps, .po = po, .pp = pp, .pq = pq, .pr = pr, .is_plural = is_plural, .verb_be = verb_be, .verb_have = verb_have>;
+  endmethod
+
+  method display owner: HACKER
+    "Display pronouns in common format like 'they/them' or 'it/its'.";
+    "Can be called on preset or custom flyweight.";
+    {pronoun_set} = args;
+    typeof(pronoun_set) == TYPE_FLYWEIGHT || raise(E_TYPE, "Argument must be a pronoun flyweight");
+    try
+      return pronoun_set.display;
+    except (E_PROPNF)
+      return pronoun_set.ps + "/" + pronoun_set.po;
+    endtry
+  endmethod
+
+  method lookup owner: HACKER
+    "Look up a pronoun set by display name like 'they/them' or 'he/him'.";
+    "Returns the pronoun object if found, or false if not found.";
+    {search} = args;
+    search = search:trim();
+    !search && return false;
+    target = search:lowercase();
+    "Check each preset by comparing display property";
+    presets = {this.he_him, this.she_her, this.they_them, this.it_its, this.spivak};
+    for preset in (presets)
+      display = this:display(preset);
+      if (display == search || display:lowercase() == target)
+        return preset;
+      endif
+    endfor
+    return false;
+  endmethod
+
+  method list_presets owner: HACKER
+    "Return a list of available preset pronoun display names.";
+    presets = {this.he_him, this.she_her, this.they_them, this.it_its, this.spivak};
+    return { this:display(p) for p in (presets) };
+  endmethod
+endobject

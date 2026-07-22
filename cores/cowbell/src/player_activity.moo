@@ -1,0 +1,55 @@
+object PLAYER_ACTIVITY [
+  import_export_id -> "player_activity",
+  import_export_hierarchy -> 0
+]
+  name: "$player_activity"
+  parent: THING
+  location: PROTOTYPE_BOX
+  owner: ARCH_WIZARD
+  readable: true
+
+  method make_entry owner: ARCH_WIZARD
+    "Build an activity entry map.";
+    {kind, task_id, label} = args;
+    return ['kind -> kind, 'task_id -> task_id, 'label -> label, 'started_at -> time()];
+  endmethod
+
+  method task_id_of owner: ARCH_WIZARD
+    "Extract task id from an activity entry.";
+    {entry} = args;
+    return `entry['task_id] ! E_RANGE, E_TYPE => 0';
+  endmethod
+
+  method kind_of owner: ARCH_WIZARD
+    "Extract kind from an activity entry.";
+    {entry} = args;
+    return `entry['kind] ! E_RANGE, E_TYPE => ""';
+  endmethod
+
+  method cancel_entry owner: ARCH_WIZARD
+    "Cancel the task referenced by an activity entry.";
+    {entry} = args;
+    task_id = this:task_id_of(entry);
+    if (!(typeof(task_id) == TYPE_INT && task_id > 0))
+      return 0;
+    endif
+    `kill_task(task_id) ! E_INVARG';
+    return 1;
+  endmethod
+
+  method description_of owner: ARCH_WIZARD
+    "Return display description for an activity entry.";
+    {entry} = args;
+    label = `entry['label] ! E_RANGE, E_TYPE => ""';
+    if (typeof(label) == TYPE_STR && label != "")
+      return label;
+    endif
+    kind = this:kind_of(entry);
+    if (kind == 'walk)
+      return "walking";
+    elseif (kind != "" && kind != $nothing)
+      return tostr(kind);
+    endif
+    return "that";
+  endmethod
+endobject

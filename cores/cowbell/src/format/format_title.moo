@@ -1,0 +1,46 @@
+object FORMAT_TITLE [
+  import_export_id -> "format_title",
+  import_export_hierarchy -> {"format"}
+]
+  name: "Title Content Flyweight Delegate"
+  parent: ROOT
+  owner: HACKER
+  readable: true
+
+  override description = "Flyweight delegate for title/heading content in events.";
+
+  method mk owner: HACKER
+    "Create a title flyweight. Args: (content) or (content, level)";
+    {content, ?level = 3} = args;
+    typeof(level) == TYPE_INT || raise(E_TYPE, "Level must be an integer");
+    level >= 1 && level <= 6 || raise(E_INVARG, "Level must be between 1 and 6");
+    return <this, .level = level, {content}>;
+  endmethod
+
+  method compose owner: HACKER
+    {render_for, content_type, event} = args;
+    pieces = {};
+    contents = flycontents(this);
+    for content in (contents)
+      composed = content:compose(@args);
+      "If composed result is a list (HTML mode), flatten it into pieces";
+      if (typeof(composed) == TYPE_LIST)
+        pieces = {@pieces, @composed};
+      else
+        pieces = {@pieces, composed};
+      endif
+    endfor
+    "Join without separator since content may already have spacing";
+    result = pieces:join("");
+    level = `this.level ! E_PROPNF => 2';
+    if (content_type == 'text_html)
+      tag = "h" + tostr(level);
+      return <$html, {tag, {}, {result}}>;
+    elseif (content_type == 'text_djot)
+      prefix = "#":repeat(level);
+      return prefix + " " + result + "\n\n";
+    else
+      return result + "\n";
+    endif
+  endmethod
+endobject

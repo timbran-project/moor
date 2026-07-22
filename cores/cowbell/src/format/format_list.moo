@@ -1,0 +1,79 @@
+object FORMAT_LIST [
+  import_export_id -> "format_list",
+  import_export_hierarchy -> {"format"}
+]
+  name: "List Content Flyweight Delegate"
+  parent: ROOT
+  owner: HACKER
+  readable: true
+
+  override description = "Flyweight delegate for list content in events.";
+
+  method mk owner: HACKER
+    "Create list flyweight with optional ordered attribute";
+    {content, ?ordered = false} = args;
+    typeof(content) != TYPE_LIST && raise(E_TYPE, "List content must be a list");
+    return <this, .ordered = ordered, {@content}>;
+  endmethod
+
+  method compose owner: HACKER
+    "Compose list content into appropriate format";
+    {render_for, content_type, event} = args;
+    result = {};
+    contents = flycontents(this);
+    for item in (contents)
+      result = {@result, `item:compose(@args) ! E_VERBNF => tostr(item)'};
+    endfor
+    if (content_type == 'text_html)
+      "Create li-wrapped items for HTML";
+      li_items = {};
+      for item in (result)
+        li_items = {@li_items, <$html, {"li", {}, {item}}>};
+      endfor
+      tag = this.ordered ? "ol" | "ul";
+      return <$html, {tag, {}, li_items}>;
+    endif
+    prefix = this.ordered ? "1. " | "* ";
+    formatted = {};
+    for item in (result)
+      formatted = {@formatted, prefix + item};
+    endfor
+    return formatted:join("\n");
+  endmethod
+
+  method test_unordered_list owner: HACKER
+    "Test creating unordered HTML list";
+    items = {"Coffee", "Tea", "Milk"};
+    list_obj = this:mk(items);
+    html_result = list_obj:compose($nothing, 'text_html, $nothing);
+    xml_result = html_result:render('text_html);
+    parsed = xml_parse(xml_result, TYPE_LIST);
+    expected = {"ul", {"li", "Coffee"}, {"li", "Tea"}, {"li", "Milk"}};
+    parsed != expected && raise(E_ASSERT, "Expected: " + toliteral(expected) + " Got: " + toliteral(parsed));
+    return true;
+  endmethod
+
+  method test_ordered_list owner: HACKER
+    "Test creating ordered HTML list";
+    items = {"First", "Second", "Third"};
+    list_obj = this:mk(items, true);
+    html_result = list_obj:compose($nothing, 'text_html, $nothing);
+    xml_result = html_result:render('text_html);
+    parsed = xml_parse(xml_result, TYPE_LIST);
+    expected = {"ol", {"li", "First"}, {"li", "Second"}, {"li", "Third"}};
+    parsed != expected && return E_ASSERT;
+    return true;
+  endmethod
+
+  method test_plain_text_output owner: HACKER
+    "Test plain text list output";
+    items = {"Apple", "Banana", "Cherry"};
+    unordered = this:mk(items);
+    ordered = this:mk(items, true);
+    plain_unordered = unordered:compose($nothing, 'text_plain, $nothing);
+    plain_ordered = ordered:compose($nothing, 'text_plain, $nothing);
+    plain_unordered != "* Apple\n* Banana\n* Cherry" && return E_ASSERT;
+    plain_ordered != "1. Apple\n1. Banana\n1. Cherry" && return E_ASSERT;
+    return true;
+  endmethod
+endobject

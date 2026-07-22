@@ -1,0 +1,404 @@
+object EVENT_RECEIVER [
+  import_export_id -> "event_receiver",
+  import_export_hierarchy -> {"events"}
+]
+  name: "Generic Event Receiver"
+  parent: ACTOR
+  location: PROTOTYPE_BOX
+  owner: ARCH_WIZARD
+  fertile: true
+  readable: true
+
+  override description = "Generic event receiver prototype providing event broadcasting and connection notification capabilities.";
+
+  method tell owner: HACKER
+    "Broadcast an event to all connections for this player, with per-connection content negotiation.";
+    "Persists djot version to event log for replay.";
+    {event, @rest} = args;
+    "Gag filter: suppress events from gagged actors before logging or notifying.";
+    if (this:_is_gagged_event(event))
+      return;
+    endif
+    event_slots = flyslots(event);
+    "Attach a shared delivery id so live/history copies can be correlated client-side.";
+    event_slots["delivery_id"] = uuid();
+    "First, log the djot version to the event log for persistence/replay";
+    transformed_djot = event:transform_for(this, 'text_djot);
+    output_djot = {};
+    entry_num = 0;
+    for entry in (transformed_djot)
+      entry_num = entry_num + 1;
+      if (entry_num % 50 == 0)
+        suspend_if_needed();
+      endif
+      output_djot = this:_extend_output(output_djot, entry, 'text_djot);
+    endfor
+    this:_event_log(this, output_djot, 'text_djot, event_slots);
+    "Now render per-connection and notify each with appropriate content type";
+    conns = this:_connections();
+    if (!conns)
+      return;
+    endif
+    "Wrap rendering in error handling - don't let one bad connection break all";
+    contents = {};
+    try
+      contents = this:_event_render(conns, event);
+    except e (ANY)
+      "Rendering failed - log but continue with empty contents";
+    endtry
+    entry_num = 0;
+    for content in (contents)
+      entry_num = entry_num + 1;
+      {conn, content_type, output} = content;
+      "Wrap each notify in error handling so one failure doesn't break the rest";
+      try
+        this:_notify(conn, output, false, false, content_type, event_slots);
+      except e (ANY)
+        "Notification failed for this connection - continue with others";
+      endtry
+    endfor
+  endmethod
+
+  method inform_connection owner: HACKER
+    "Deliver an event to a single connection without broadcasting or event-logging it.";
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    {connection_obj, event} = args;
+    info = this:_connection_entry(connection_obj);
+    event = event:with_audience('utility);
+    contents = this:_event_render({info}, event);
+    entry_num = 0;
+    for content in (contents)
+      entry_num = entry_num + 1;
+      if (entry_num % 50 == 0)
+        suspend_if_needed();
+      endif
+      {conn, content_type, output} = content;
+      let event_slots = flyslots(event);
+      this:_notify(conn, output, false, false, content_type, event_slots);
+    endfor
+    return 0;
+  endmethod
+
+  method inform_current owner: HACKER
+    "Deliver an event only to the connection executing the current task.";
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    {event} = args;
+    event = event:with_audience('utility);
+    "connections() returns current connection first (but all connections globally)";
+    all_conns = connections();
+    if (!all_conns)
+      return this:tell(event);
+    endif
+    current = all_conns[1][1];
+    "Verify this connection belongs to us by looking it up in our connections";
+    info = `this:_connection_entry(current) ! E_INVARG => 0';
+    if (!info)
+      "Current connection is not ours, fall back to broadcast";
+      return this:tell(event);
+    endif
+    return this:inform_connection(current, event);
+  endmethod
+
+  method _can_inform_as owner: HACKER
+    "Return whether actor/perms may send utility output for this receiver.";
+    {actor, actor_perms} = args;
+    if (player == this)
+      return true;
+    endif
+    if (valid(this.location) && actor == this.location)
+      return true;
+    endif
+    if (actor == this || actor == #0)
+      return true;
+    endif
+    if (typeof(actor) == TYPE_OBJ && valid(actor) && actor.wizard)
+      return true;
+    endif
+    if (typeof(actor_perms) == TYPE_OBJ && valid(actor_perms) && actor_perms.wizard)
+      return true;
+    endif
+    return false;
+  endmethod
+
+  method _connections owner: ARCH_WIZARD
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    set_task_perms(this);
+    return connections(this);
+  endmethod
+
+  method _event_render owner: ARCH_WIZARD
+    "Render an event per connection using the negotiated content types.";
+    caller == this || raise(E_PERM);
+    set_task_perms(this);
+    {connections, event} = args;
+    audience = event:audience();
+    if (audience == 'narrative)
+      event = event:ensure_audience('narrative);
+    endif
+    results = {};
+    for connection in (connections)
+      "Wrap each connection's rendering in error handling";
+      try
+        {connection_obj, peer_addr, idle_seconds, content_types, @rest} = connection;
+        preferred_types = event:preferred_content_types();
+        if (typeof(preferred_types) != TYPE_LIST)
+          preferred_types = {};
+        endif
+        if (!preferred_types)
+          preferred_types = {"text/html", "text/djot", "text/plain", 'text_html, 'text_djot, 'text_plain};
+        endif
+        content_type = 0;
+        for desired in (preferred_types)
+          if (desired in content_types)
+            content_type = desired;
+            break;
+          endif
+        endfor
+        if (!content_type)
+          content_type = length(content_types) >= 1 ? content_types[1] | 'text_plain;
+        endif
+        transformed = event:transform_for(this, content_type);
+        "Iterate the transformed values and have it turn into its output form.";
+        output = {};
+        for entry in (transformed)
+          output = this:_extend_output(output, entry, content_type);
+        endfor
+        if (length(output) > 0)
+          results = {@results, {connection_obj, content_type, output}};
+        endif
+      except e (ANY)
+        "Rendering failed for this connection - skip it and continue with others";
+      endtry
+    endfor
+    return results;
+  endmethod
+
+  method _extend_output owner: HACKER
+    "Flatten rendered entries into strings, recursively handling flyweights.";
+    {acc, entry, content_type} = args;
+    if (typeof(entry) == TYPE_STR)
+      return {@acc, entry};
+    elseif (typeof(entry) == TYPE_LIST)
+      for element in (entry)
+        suspend_if_needed();
+        acc = this:_extend_output(acc, element, content_type);
+      endfor
+      return acc;
+    elseif (typeof(entry) == TYPE_FLYWEIGHT)
+      rendered = entry:render(content_type);
+      return this:_extend_output(acc, rendered, content_type);
+    elseif (typeof(entry) == TYPE_ERR)
+      return {@acc, toliteral(entry)};
+    else
+      return {@acc, tostr(entry)};
+    endif
+  endmethod
+
+  method _connection_entry owner: ARCH_WIZARD
+    "Locate the connection info tuple for the given connection object or return E_INVARG.";
+    set_task_perms(this);
+    {connection_obj} = args;
+    for info in (connections(this))
+      if (info[1] == connection_obj)
+        return info;
+      endif
+    endfor
+    raise(E_INVARG, "Connection is not attached to this player.");
+  endmethod
+
+  method _notify owner: ARCH_WIZARD
+    caller == this || raise(E_PERM);
+    notify(@args);
+  endmethod
+
+  method _present owner: ARCH_WIZARD
+    caller == this || raise(E_PERM);
+    present(@args);
+  endmethod
+
+  method _event_log owner: ARCH_WIZARD
+    caller == this || raise(E_PERM);
+    event_log(@args);
+  endmethod
+
+  method rewrite_event owner: ARCH_WIZARD
+    "Replace a previously-sent rewritable event with new content.";
+    "Args: rewrite_id, new_content, ?connection (optional - required if called from fork)";
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    {rewrite_id, new_content, ?target_conn = 0} = args;
+    "Build the replacement event";
+    if (typeof(new_content) == TYPE_STR)
+      event = $event:mk_rewrite(this, new_content);
+    elseif (typeof(new_content) == TYPE_FLYWEIGHT && new_content.delegate == $event)
+      event = new_content;
+    else
+      event = $event:mk_rewrite(this, new_content);
+    endif
+    "Mark it as a rewrite targeting the original";
+    event = event:with_metadata('rewrite_target, rewrite_id);
+    event = event:with_audience('utility);
+    "Determine which connection to send to";
+    if (!target_conn)
+      "No connection specified - try to find current connection";
+      all_conns = connections();
+      if (!all_conns || length(all_conns) == 0)
+        return this:tell(event);
+      endif
+      target_conn = all_conns[1][1];
+    endif
+    "Verify and send to the target connection";
+    info = `this:_connection_entry(target_conn) ! E_INVARG => 0';
+    if (!info)
+      return this:tell(event);
+    endif
+    return this:inform_connection(target_conn, event);
+  endmethod
+
+  method _is_gagged_event owner: ARCH_WIZARD
+    "Return true if this receiver should suppress the event due to gagging.";
+    "Primary check: event metadata (dm_from / actor).";
+    "Secondary check: callers() chain for initiating player/object (LambdaCore-style).";
+    {event} = args;
+    "Fast path: if both lists are empty, nothing to do.";
+    try
+      gl = this.gaglist;
+    except e (E_PROPNF)
+      gl = {};
+    endtry
+    try
+      ogl = this.object_gaglist;
+    except e2 (E_PROPNF)
+      ogl = {};
+    endtry
+    if (!gl && !ogl)
+      return false;
+    endif
+    "Event-based detection.";
+    if (typeof(event) == TYPE_FLYWEIGHT)
+      slots = flyslots(event);
+      source = 0;
+      candidate = 0;
+      "Prefer explicit source metadata for receiver-personalized events (e.g. DMs).";
+      try
+        candidate = slots['dm_from];
+      except e3 (ANY)
+        candidate = 0;
+      endtry
+      if (typeof(candidate) == TYPE_OBJ && valid(candidate))
+        source = candidate;
+      else
+        candidate = 0;
+        try
+          candidate = slots['actor];
+        except e4 (ANY)
+          candidate = 0;
+        endtry
+        if (typeof(candidate) == TYPE_OBJ && valid(candidate))
+          source = candidate;
+        endif
+      endif
+      if (typeof(source) == TYPE_OBJ)
+        "Never suppress your own output.";
+        if (source == this)
+          return false;
+        endif
+        if (is_player(source))
+          if (source in gl)
+            return true;
+          endif
+        else
+          if (source in ogl)
+            return true;
+          endif
+        endif
+      endif
+    endif
+    "LambdaCore-style callers()-based detection.";
+    for frame in (callers())
+      {frame_this, verb_name, programmer, verb_loc, frame_player, line_number} = frame;
+      if (typeof(frame_player) == TYPE_OBJ && valid(frame_player) && frame_player != this)
+        if (frame_player in gl)
+          return true;
+        endif
+      endif
+      if (typeof(frame_this) == TYPE_OBJ && valid(frame_this) && frame_this != this)
+        if (frame_this in ogl)
+          return true;
+        endif
+      endif
+      if (typeof(verb_loc) == TYPE_OBJ && valid(verb_loc) && verb_loc != this)
+        if (verb_loc in ogl)
+          return true;
+        endif
+      endif
+    endfor
+    return false;
+  endmethod
+
+  method emit_room_look owner: ARCH_WIZARD
+    "Emit room look to narrative notify plus OOB room panel state.";
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    {?room = this.location} = args;
+    if (!valid(room) || !isa(room, $room))
+      room = this.location;
+    endif
+    if (!valid(room) || !isa(room, $room))
+      return;
+    endif
+    look_d = room:look_self();
+    look_event = look_d:into_event();
+    look_event = look_event:with_metadata('look_kind, "room");
+    look_event = look_event:with_metadata('look_room, room);
+    "Emit OOB structured room state for this viewer only.";
+    `this:emit_room_snapshot_state(this, room, look_d) ! ANY';
+    "Always emit the existing narrative event path.";
+    this:inform_current(look_event);
+  endmethod
+
+  method emit_room_snapshot_state owner: ARCH_WIZARD
+    "Emit room snapshot state to a specific viewer.";
+    this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
+    {viewer, room, ?look_d = 0} = args;
+    if (!valid(viewer) || !is_player(viewer))
+      return;
+    endif
+    if (!valid(room) || !isa(room, $room))
+      return;
+    endif
+    try
+      snapshot = room:room_snapshot(viewer, look_d);
+      emit_data(viewer, 'state, 'room_snapshot, snapshot);
+    except e (ANY)
+      "Best-effort snapshot broadcast.";
+    endtry
+  endmethod
+
+  method test_can_inform_as_checks_explicit_authority owner: HACKER
+    "Inform permission checks should use the supplied actor/perms, not the helper's caller.";
+    receiver = $test_utils:anonymous($event_receiver);
+    room = $test_utils:anonymous($room);
+    unrelated = $test_utils:anonymous($thing);
+    try
+      move(receiver, room);
+      $test_utils:assert_true(receiver:_can_inform_as(receiver, $hacker), "receiver should inform itself");
+      $test_utils:assert_true(receiver:_can_inform_as(room, $hacker), "receiver location should inform the receiver");
+      $test_utils:assert_true(receiver:_can_inform_as(unrelated, $arch_wizard), "wizard perms should inform a receiver");
+      $test_utils:assert_false(receiver:_can_inform_as(unrelated, $hacker), "unrelated non-wizard actor should not inform a receiver");
+    finally
+      valid(receiver) && move(receiver, $prototype_box);
+      $test_utils:destroy_if_valid(room);
+    endtry
+    return true;
+  endmethod
+
+  method test_inform_methods_reject_unrelated_receiver owner: HACKER
+    "Public inform helpers should reject calls aimed at an unrelated receiver.";
+    receiver = $test_utils:anonymous($event_receiver);
+    event = $event:mk_info(receiver, "hidden");
+    $test_utils:assert_raises(E_PERM, receiver, "inform_current", {event}, "inform_current should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "_connections", {}, "_connections should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "rewrite_event", {"rewrite-id", "replacement"}, "rewrite_event should reject unrelated callers");
+    $test_utils:assert_raises(E_PERM, receiver, "emit_room_snapshot_state", {receiver, $prototype_box}, "emit_room_snapshot_state should reject unrelated callers");
+    return true;
+  endmethod
+endobject

@@ -1,0 +1,57 @@
+object COUCH [
+  import_export_id -> "couch",
+  import_export_hierarchy -> {"initial"}
+]
+  name: "ratty couch"
+  parent: SITTABLE
+  location: FIRST_ROOM
+  owner: HACKER
+  readable: true
+
+  property henri_disturbed_reaction (owner: HACKER, flags: "r") = <REACTION, .enabled = true, .trigger = 'on_sit, .when = <RULE, .name = 'henri_sitting, .body = {
+        {'is_sitting, {'var, 'This}, HENRI},
+        {'not_is, {'var, 'This}, {'var, 'Actor}, HENRI}
+      }, .variables = {'This, 'Actor}, .head = 'henri_sitting>, .effects = {{'trigger, HENRI, 'on_couch_intruder}}, .fired_at = 0>;
+
+  override aliases = {"couch", "sofa", "ratty couch"};
+  override description = "A well-worn brown couch that's seen better days. The cushions are slightly lumpy and there's a suspicious amount of black cat hair embedded in the fabric. Despite its shabby appearance, it looks comfortable enough for a quick rest - or for a grouchy cat to claim as his territory.";
+  override get_denied_msg = {"The couch is far too heavy to pick up."};
+  override get_rule = <RULE, .name = 'is_portable, .body = {{'is_portable, {'var, 'This}}}, .variables = {'This}, .head = 'is_portable>;
+  override integrated_description = "A ratty brown couch, thoroughly colonized by cat hair, sits against one wall.";
+  override seats = 3;
+  override sit_msg = {
+    <SUB, .capitalize = true, .type = 'actor>,
+    " ",
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "sink", .for_others = "sinks">,
+    " into ",
+    <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
+    ", stirring up a small cloud of cat hair."
+  };
+  override sitting_verb = "lounging";
+  override squeeze = 1;
+  override stand_msg = {
+    <SUB, .capitalize = true, .type = 'actor>,
+    " ",
+    <SUB, .capitalize = false, .type = 'self_alt, .for_self = "stand", .for_others = "stands">,
+    " up from ",
+    <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'This>,
+    ", brushing off some cat hair."
+  };
+
+  method fact_is_portable owner: HACKER
+    "Couches are not portable.";
+    return false;
+  endmethod
+
+  method fact_is_sitting owner: HACKER
+    "Rule predicate: Is target sitting on this furniture?";
+    {furniture, who} = args;
+    return who in furniture.sitting;
+  endmethod
+
+  method fact_not_is owner: HACKER
+    "Rule predicate: Are two values not equal? First arg is this (for rule dispatch).";
+    {_, a, b} = args;
+    return a != b;
+  endmethod
+endobject

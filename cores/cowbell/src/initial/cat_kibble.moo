@@ -1,0 +1,14 @@
+object CAT_KIBBLE [
+  import_export_id -> "cat_kibble",
+  import_export_hierarchy -> {"initial"}
+]
+  name: "a can of premium cat kibble"
+  parent: THING
+  location: PROTOTYPE_BOX
+  owner: ARCH_WIZARD
+  fertile: true
+  readable: true
+
+  override aliases = {"kibble", "cat food", "food", "can", "can of kibble"};
+  override description = "A can of premium cat kibble, the kind Henri grudgingly accepts. The label reads 'Gourmet Feline Cuisine - Construction Site Edition'.";
+endobject
