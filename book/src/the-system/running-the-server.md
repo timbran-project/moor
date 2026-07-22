@@ -16,6 +16,11 @@ setup and environment isolation automatically.
 3. Connect to your MOO via http://localhost:8080/ -- or `telnet` (or your favourite MUD client) to
    port 8888
 
+On the first start, the script imports the selected core's human-readable objdef source into a new
+persistent database. Later starts use that database directly. See
+[Starting a MOO from Objdef Source](bootstrapping-from-source.md) for how this process works and
+what happens when you edit the source files.
+
 For detailed instructions and other installation options, see the sections below.
 
 ## Single-Process vs Clustered Deployment
@@ -65,7 +70,7 @@ building from source
 
 Once you have mooR running, you'll need to:
 
-1. **Choose and install a MOO core** - See [Understanding MOO Cores](understanding-moo-cores.md)
+1. **Understand the selected MOO core** - See [Understanding MOO Cores](understanding-moo-cores.md)
 2. **Configure your server** - See [Server Configuration](server-configuration.md)
 3. **Set up player access** - Configure telnet and/or web interfaces
 4. **Customize your MOO** - Add content, modify settings, and create your virtual world

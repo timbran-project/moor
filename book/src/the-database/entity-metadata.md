@@ -365,8 +365,8 @@ package -> "core"
 These forms canonicalize the same way as the built-in API.
 
 See [Object Definition File Format Reference](../the-system/objdef-file-format.md) and
-[Object Packaging and Management](../the-system/object-packaging.md) for the surrounding objdef
-format and import/export workflow.
+[Importing and Exporting Objdef Databases](../the-system/object-packaging.md) for the surrounding
+objdef format and database workflow.
 
 ## Package and Revision Examples
 

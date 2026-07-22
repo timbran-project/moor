@@ -113,5 +113,5 @@ When setting up a mooR server, you'll need to decide:
 
 Each approach has trade-offs in terms of effort, features, and long-term maintainability.
 
-The next section will cover the practical mechanics of actually running a mooR server once you
-understand these foundational concepts.
+The next section explains how mooR turns a core's text files into the persistent database used by a
+running server: [Starting a MOO from Objdef Source](bootstrapping-from-source.md).

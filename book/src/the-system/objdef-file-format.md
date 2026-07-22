@@ -4,8 +4,9 @@ This chapter provides a complete technical reference for the object definition f
 mooR. Object definition files (objdef files) use a structured text format that describes MOO objects
 in a human-readable way.
 
-For background information on what object definition files are, how to use them, and their role in
-MOO development workflows, see [Object Packaging and Management](object-packaging.md).
+For background information on what object definition files are and how complete databases are
+imported or exported, see [Importing and Exporting Objdef Databases](object-packaging.md). To apply
+a definition to one object, see [Loading and Updating Individual Objects](object-loading.md).
 
 ## File Structure
 

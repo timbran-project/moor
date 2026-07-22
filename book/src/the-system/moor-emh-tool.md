@@ -557,8 +557,9 @@ The tool consists of:
 
 ## See Also
 
-- [Object Packaging (dump/load/reload)](./object-packaging.md) - Detailed documentation on the
-  objdef format
+- [Loading and Updating Individual Objects](./object-loading.md) - Detailed documentation on
+  `dump_object`, `load_object`, and `reload_object`
+- [Object Definition File Format Reference](./objdef-file-format.md)
 - [Server Configuration](./server-configuration.md)
 - [Server Assumptions About the Database](./server-assumptions-about-the-database.md)
 - [Controlling the Execution of Tasks](./controlling-the-execution-of-tasks.md)

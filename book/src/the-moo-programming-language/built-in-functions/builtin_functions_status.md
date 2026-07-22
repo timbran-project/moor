@@ -283,10 +283,10 @@ Functions not part of the original LambdaMOO, but added in moor
 
 ### Import/Export of Objects
 
-| Name                                                              | Description                                                                                        | Notes             |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-| [`load_object`](../../the-system/object-packaging.md#load_object) | Load an object from objdef format with optional conflict detection and resolution options.         | Wiz only          |
-| [`dump_object`](../../the-system/object-packaging.md#dump_object) | Takes an object and returns a list of strings representing the object definition in objdef format. | Wiz or owner only |
+| Name                                                                | Description                                                                                        | Notes             |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+| [`load_object`](../../the-system/object-loading.md#loading-objects) | Load an object from objdef format with optional conflict detection and resolution options.         | Wiz only          |
+| [`dump_object`](../../the-system/object-loading.md#dumping-objects) | Takes an object and returns a list of strings representing the object definition in objdef format. | Wiz or owner only |
 
 ### Flyweights & Symbols (new types)
 

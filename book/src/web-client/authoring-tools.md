@@ -36,6 +36,22 @@ object hierarchies. It is shown when the logged-in player has the programmer fla
 - **Verb List**: Browse all verbs with owner, permissions, and argument specifications
 - **Navigation**: Click on object references to navigate (parent, owner, location)
 - **Create/Delete**: Create child objects, add properties, add verbs (permissions permitting)
+- **Objdef Export**: Download one object's definition as a `.moo` file
+- **Objdef Reload**: Replace the selected object from an uploaded `.moo` file
+
+### Exporting and Reloading Objdef Files
+
+The object browser can move one object definition between a file and the running MOO:
+
+1. Select an object.
+2. Choose **Export Objdef** to download its current definition.
+3. Choose **Reload Objdef** to upload a definition for that selected object. If the definition uses
+   constants, you can also provide a `constants.moo` file.
+
+> **Reload Objdef replaces the selected object.** Properties and verbs that are not present in the
+> uploaded definition are removed. This is different from importing a complete core when creating a
+> database. See [Loading and Updating Individual Objects](../the-system/object-loading.md) before
+> reloading an object.
 
 ### Object Flags Display
 

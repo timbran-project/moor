@@ -194,6 +194,10 @@ These options control database import and checkpoint export functionality:
 - `--import-format <FORMAT>` (default: `Textdump`): Format to import from (Textdump or Objdef)
 - `--checkpoint-interval-seconds <SECONDS>`: Interval between database checkpoints
 
+`--import` is used only when creating a new database. If the requested database already exists, mooR
+opens it and skips the import. The import directory is not watched for later source changes. See
+[Starting a MOO from Objdef Source](bootstrapping-from-source.md) for the full lifecycle.
+
 ## Runtime Timing Configuration
 
 These options control latency duration sampling for internal performance counters. Invocation counts

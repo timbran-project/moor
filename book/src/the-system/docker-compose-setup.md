@@ -139,6 +139,11 @@ the repository root. These scripts automatically handle Docker permissions and r
 ./scripts/start-moor-lambdacore.sh
 ```
 
+On the first start, the script imports that core's objdef source into a new persistent database. On
+later starts, it opens the existing database and skips the import. The source directory is not
+watched for changes. See [Starting a MOO from Objdef Source](bootstrapping-from-source.md) for a
+step-by-step explanation.
+
 ### 2. Isolated Environments
 
 Each script uses its own isolated runtime directory:
@@ -190,18 +195,26 @@ docker compose down
 
 This stops and removes containers but preserves data directories.
 
-### Restarting After Changes
+### Restarting Services
 
 ```bash
 docker compose restart
 ```
 
-### Rebuilding After Updates
+This restarts the containers but keeps the existing database. It does not re-import edits made to a
+core's `.moo` source files.
+
+### Rebuilding Container Images
 
 ```bash
 docker compose build --no-cache
 docker compose up -d
 ```
+
+Rebuilding the container also preserves the existing database. If you changed objdef source, choose
+one of the update methods in [Starting a MOO from Objdef Source](bootstrapping-from-source.md). Do
+not remove a database merely to force an import unless you are prepared to lose changes that exist
+only in that database.
 
 ## Data Persistence
 
@@ -219,12 +232,12 @@ regularly.
 
 ### Automatic Database Exports
 
-The daemon automatically exports the database at regular intervals (configured via
-`--export-interval` CLI argument in your docker-compose configuration). These exports are written in
-**[objdef format](objdef-file-format.md)** - a human-readable, text-based representation of your
-database.
+When an export path and checkpoint interval are configured, the daemon automatically exports the
+database at regular intervals. The command-line option is `--checkpoint-interval-seconds`; a core
+can also provide a database checkpoint interval. These exports are written in
+**[objdef format](objdef-file-format.md)**, a human-readable representation of the database.
 
-**Objdef exports are your most valuable backup:**
+Objdef exports are useful as portable backups because they are:
 
 - **Human-readable and editable**: You can read, understand, and manually edit the exported files
 - **Version control friendly**: Text format works well with git, allowing you to track changes over
@@ -233,9 +246,12 @@ database.
 - **Format-stable**: While the binary database format may change between mooR versions, objdef
   remains stable and portable
 
-The binary database (`moor.db/`) is optimized for consistency and instant startup, but the objdef
-exports in `moor-data/` are the "gold standard" backup format. Copy these exports regularly to safe
-storage, compress them, and consider putting them in revision control for change tracking.
+The persistent database under `moor-data/` is used for normal startup. Objdef checkpoints are
+written under the separate `export/` directory. Copy checkpoints regularly to safe storage, compress
+them, and consider putting them in revision control for change tracking.
+
+> **Exported files are not live files.** Editing a checkpoint does not change the running MOO, and
+> the next checkpoint does not read changes from an earlier one.
 
 ## Customization
 
@@ -272,8 +288,10 @@ substantial resources.
 **Connection issues** : Verify containers are running with `docker compose ps`, then check backend
 and frontend logs.
 
-**Database won't import** : First startup imports the core database, which can take several minutes.
-Check `docker compose logs moor` for progress.
+**Database won't import** : Only a new database imports the core source, and the first import can
+take several minutes. If a database already exists, mooR deliberately skips import. Check
+`docker compose logs moor` for messages showing which path it took. Before creating a fresh
+database, preserve the existing one if it contains changes you need.
 
 ### Testing Your Deployment
 
