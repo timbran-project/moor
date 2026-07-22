@@ -23,12 +23,6 @@ cd "$(dirname "$0")"
 export USER_ID=$(id -u)
 export GROUP_ID=$(id -g)
 
-# Detect host architecture for pulling the correct image
-case "$(uname -m)" in
-    aarch64|arm64) export ARCH=aarch64 ;;
-    *)             export ARCH=x86_64  ;;
-esac
-
 # Pre-create directories with correct ownership to prevent Docker from creating them as root.
 # If a previous run left root-owned dirs (e.g. from running docker compose without start.sh),
 # warn and exit so the user can fix ownership.

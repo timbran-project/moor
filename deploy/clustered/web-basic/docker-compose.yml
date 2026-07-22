@@ -3,11 +3,9 @@
 # Suitable for local deployments or when SSL/TLS is handled by an external reverse proxy.
 # Uses IPC (Unix domain sockets) for inter-process communication since all services run on the same host.
 #
-# Set ARCH=aarch64 in your environment (or .env file) for ARM systems. Defaults to x86_64.
-
-# Reusable image reference -- change the arch in one place via the ARCH env var
+# Reusable multi-platform image reference.
 x-moor-image: &moor-image
-  image: codeberg.org/timbran/moor:latest-${ARCH:-x86_64}
+  image: ghcr.io/timbran-project/moor:latest
 
 networks:
   moor_net:

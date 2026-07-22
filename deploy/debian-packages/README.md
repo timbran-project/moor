@@ -143,8 +143,8 @@ This handles dependencies automatically and makes future upgrades simple with `a
 
 ### Option 2: Install from Release Downloads
 
-Download `.deb` packages from the [releases page](https://codeberg.org/timbran/moor/releases) and
-install manually:
+Download `.deb` packages from the [releases page](https://github.com/timbran-project/moor/releases)
+and install manually:
 
 ```bash
 # Single-process server
@@ -681,6 +681,6 @@ Or use the binaries directly from the `target/release/` directory after `cargo b
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

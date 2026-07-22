@@ -3,11 +3,9 @@
 # Uses IPC (Unix domain sockets) for inter-process communication since both services run on the same host.
 # Suitable for traditional MUD/MOO usage via telnet clients.
 #
-# Set ARCH=aarch64 in your environment (or .env file) for ARM systems. Defaults to x86_64.
-
-# Reusable image reference -- change the arch in one place via the ARCH env var
+# Reusable multi-platform image reference.
 x-moor-image: &moor-image
-  image: codeberg.org/timbran/moor:latest-${ARCH:-x86_64}
+  image: ghcr.io/timbran-project/moor:latest
 
 networks:
   moor_net:

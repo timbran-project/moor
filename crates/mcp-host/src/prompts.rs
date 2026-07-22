@@ -265,9 +265,9 @@ Use the `moo_function_help` tool to get documentation for any builtin function.
 ## Reference
 
 - Current syntax implementation:
-  - Lexer: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/lexer.rs
-  - Parser: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/frontend/parser.rs
-- Documentation: https://timbran.codeberg.page/moor-book-html/
+  - Lexer: https://raw.githubusercontent.com/timbran-project/moor/refs/heads/main/crates/compiler/src/lexer.rs
+  - Parser: https://raw.githubusercontent.com/timbran-project/moor/refs/heads/main/crates/compiler/src/frontend/parser.rs
+- Documentation: https://timbran.org/book/html/
 "#;
 
 const MOO_OBJECT_MODEL_PROMPT: &str = r#"# MOO Object Model Reference

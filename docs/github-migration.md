@@ -90,6 +90,9 @@ removes those redirects. Complete these post-transfer checks:
 - Replace or republish `https://rdaum.github.io/moor/`; GitHub does not redirect repository Pages
   sites during a transfer.
 
+The `ghcr.io/timbran-project/moor` package is public and connected to `timbran-project/moor`, with
+the repository granted GitHub Actions write access.
+
 The separate Meadow, Meadow Flutter, and Cowbell repositories become read-only archives after their
 histories and collaboration data are imported.
 
@@ -287,8 +290,8 @@ the tag, push the commit and tag, approve the release environment, and verify pu
 
 ### Final Codeberg 1.0.2 Release
 
-Release 1.0.2 through the existing Forgejo release action before changing repository layout or
-hosting. Treat it as the last Codeberg-built stable release and as the rollback baseline:
+Release 1.0.2 was published through the existing Forgejo release action before changing repository
+layout or hosting. It is the last Codeberg-built stable release and the rollback baseline:
 
 1. Land only the intended 1.0.2 bug fixes on `v1.0-release`; do not include monorepo history
    imports, path changes, registry changes, or GitHub workflow work.
@@ -308,29 +311,42 @@ hosting. Treat it as the last Codeberg-built stable release and as the rollback 
 
 ### Container Images
 
-The active backend image is `codeberg.org/timbran/moor`. It is referenced by:
+Before cutover, the deployment Compose files pulled architecture-specific
+`codeberg.org/timbran/moor` tags, and `timbran-docker-compose.yml` also pulled the old standalone
+`moor-frontend` image.
 
-- `deploy/single-process/basic/docker-compose.yml`
-- `deploy/single-process/web/docker-compose.yml`
-- `deploy/clustered/telnet-only/docker-compose.yml`
-- `deploy/clustered/web-basic/docker-compose.yml`
-- `deploy/clustered/web-ssl/docker-compose.yml`
-- `timbran-docker-compose.yml` in four services
+The migration retains only the stable backend images from Codeberg:
 
-The five deployment Compose files select `latest-${ARCH:-x86_64}`, while
-`timbran-docker-compose.yml` pins ARM64 tags. The Kubernetes manifest requests plain `:latest`, but
-uses the locally built `moor-frontend` image for the Meadow deployment. The GitHub workflow should
-make plain `:latest` a real multi-platform backend manifest and deployment files should then use it
-unless an architecture-specific pin is intentional.
+- `1.0.0-x86_64` and `1.0.0-aarch64`
+- `1.0.1-x86_64` and `1.0.1-aarch64`
+- `1.0.2-x86_64` and `1.0.2-aarch64`
 
-`timbran-docker-compose.yml` also references the old
-`codeberg.org/timbran/moor-frontend:latest-aarch64`. Current release text says Meadow is released
-separately, while the main `moor` image already carries built frontend files. Decide whether this
-deployment should consume the combined image or a Meadow-owned GHCR image; do not reproduce the
-stale image without confirming an owner and publisher.
+The six architecture images were copied to `ghcr.io/timbran-project/moor` on 2026-07-22 without
+rebuilding them. Source and destination digests were verified as identical. Multi-platform `1.0.0`,
+`1.0.1`, `1.0.2`, `1.0`, and `latest` tags are public; the architecture-specific `latest-*`
+compatibility tags point to the copied 1.0.2 images. Each multi-platform tag was verified through an
+anonymous registry request. Beta and release-candidate images were not migrated.
 
-For cutover, copy every still-supported immutable Codeberg image tag to GHCR and compare digests or
-filesystem contents. Do not move only `latest`; users need versioned rollback points.
+| Version | AMD64 digest                                                              | ARM64 digest                                                              |
+| ------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1.0.0   | `sha256:322bcf1466f153e0b354b9073e6b851e60cfb335e11405c42e9ad7676217686d` | `sha256:80f4e4718fd5cb4da7cd3d30450201a2a26b3d661d4b352f02a3fdb1c2eb9872` |
+| 1.0.1   | `sha256:ef19f0aa6a3b780858da9eec8951a793b1bcf95e84547bf955ad0958acedb29c` | `sha256:0efea6bd019d258140983ea6883330ea3d577e4db0901e4c1b1fe3ff9e1341c0` |
+| 1.0.2   | `sha256:1a3e15c6151eab467ff021d2383532541ab27f9a2cba028c72c9a88cf5401b0f` | `sha256:8f8932b3e5068e9b6808367a37afbf3f7623c6d5e6918c9c03355b466f04c88a` |
+
+`.github/workflows/migrate-container-images.yml` records the repeatable copy and verification
+procedure.
+
+The old `moor-frontend` registry has no stable 1.0 tags, so it is not copied. Future releases build
+`ghcr.io/timbran-project/moor-frontend` from `clients/meadow/` in the monorepo. The combined
+`ghcr.io/timbran-project/moor` image continues to carry compiled Meadow assets for deployments that
+extract them into an nginx volume. The first successful push creates the new GHCR package; an
+organization owner must then make it public and confirm its repository association before it is used
+by public deployment manifests.
+
+`.github/workflows/release-publish.yml` builds both images natively on GitHub-hosted AMD64 and ARM64
+runners. Architecture jobs publish unique compatibility tags; version, series, and `latest`
+multi-platform manifests are created only after every build succeeds. Active Compose files now use
+the plain multi-platform GHCR tags and no longer perform host-architecture detection.
 
 ### Debian Repository
 
@@ -462,9 +478,9 @@ Replace Codeberg repository, release, issue, clone, or source-browser links in:
 - `book/src/the-system/understanding-moo-cores.md`
 - `clients/README.md`
 
-`README.md` and `CONTRIBUTING.md` still say Codeberg is primary and GitHub is a mirror. Replace the
-old migration notice, contribution instructions, issue location, stable-release links, and clone
-examples in the same cutover commit.
+The root README, contribution instructions, deployment documentation, direct-release links, and
+component source links now use GitHub. Codeberg links remain where they identify the frozen APT
+repository, the not-yet-migrated npm registry, migration sources, or historical records.
 
 ### Documentation Hosting
 

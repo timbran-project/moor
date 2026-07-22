@@ -52,18 +52,17 @@ This configuration runs:
 
 ### Using Pre-built Images or Local Builds
 
-The `docker-compose.yml` is configured to use pre-built Docker images from the Codeberg container
-registry.
+The `docker-compose.yml` is configured to use the multi-platform
+`ghcr.io/timbran-project/moor:latest` image from GitHub Container Registry.
 
-- **For x86_64 systems** (default): Images are automatically pulled from Codeberg
-- **For ARM64 systems**: Change the image tag from `latest-x86_64` to `latest-aarch64` in
-  `docker-compose.yml`
+- **For x86_64 and ARM64 systems**: Docker automatically selects the matching platform image
+- **For a fixed release**: Replace `latest` with a version such as `1.0.2`
 - **For local builds**: Edit `docker-compose.yml` and uncomment the `build:` sections for services
   (replacing `image:` lines), then ensure you're in the mooR source directory before running
   commands
 
-Note: Both backend and frontend images are pre-built and available from Codeberg. Local builds are
-only necessary if you're developing or need to customize the deployment.
+The backend image includes the compiled Meadow assets copied into the nginx volume during startup.
+Local builds are only necessary when developing or customizing the deployment.
 
 ### Step 2: Obtain SSL Certificate
 
@@ -419,6 +418,6 @@ sudo systemctl start moor-certbot-renew.timer
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

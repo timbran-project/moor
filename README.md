@@ -15,8 +15,10 @@ enhancements.
 > **Which version should I use?**
 >
 > Use the stable [`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2), the
-> `v1.0-release` branch, or published `1.0.2` images/packages for running worlds and evaluating
-> mooR. `main` tracks `2.0.0-dev` and contains active next-version development work.
+> `v1.0-release` branch, or the published
+> [`ghcr.io/timbran-project/moor:1.0.2`](https://github.com/orgs/timbran-project/packages/container/package/moor)
+> image and Debian packages for running worlds and evaluating mooR. `main` tracks `2.0.0-dev` and
+> contains active next-version development work.
 >
 > Exception: Cowbell currently tracks `main` and requires post-1.0 runtime/compiler features. Use
 > `main` if you want to build and run Cowbell through the bundled setup scripts.
@@ -236,6 +238,11 @@ The `deploy/` directory contains deployment examples:
 - **`clustered/web-basic/`**: Split-process web deployment with HTTP
 - **`clustered/web-ssl/`**: Split-process web deployment with HTTPS/TLS support
 - **`debian-packages/`**: Native Debian/Ubuntu packages with systemd (no Docker)
+
+Published container images are available from GitHub Container Registry. The
+`ghcr.io/timbran-project/moor` image contains the backend binaries and compiled Meadow assets;
+`ghcr.io/timbran-project/moor-frontend` provides Meadow in nginx for deployments that need a
+standalone frontend image. Version and `latest` tags are multi-platform for AMD64 and ARM64.
 
 See each deployment's README for specific setup instructions. If you run into problems with these
 scripts, please file an issue on our

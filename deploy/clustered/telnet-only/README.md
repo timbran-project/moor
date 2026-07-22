@@ -33,8 +33,8 @@ security.
 
 ### Using Pre-built Images (Recommended)
 
-The `docker-compose.yml` is configured to use pre-built Docker images from the Codeberg container
-registry:
+The `docker-compose.yml` is configured to use the multi-platform
+`ghcr.io/timbran-project/moor:latest` image from GitHub Container Registry:
 
 1. **Copy this directory** to your deployment location:
    ```bash
@@ -60,10 +60,8 @@ If you prefer to build images locally on your machine:
 3. Ensure you're in the mooR source directory (parent of `deploy/`)
 4. Run: `./start.sh`
 
-### For ARM64 Systems
-
-If running on aarch64 systems, change the image tag from `latest-x86_64` to `latest-aarch64` in
-`docker-compose.yml`, or use local builds instead.
+Docker automatically selects the AMD64 or ARM64 image for the deployment host. For a fixed release,
+replace `latest` with a version such as `1.0.2`.
 
 ## Verifying Your Setup
 
@@ -248,6 +246,6 @@ If the telnet host cannot connect to the daemon:
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

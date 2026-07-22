@@ -71,9 +71,17 @@ docker compose version
 
 ### Deployment Steps
 
-The Compose files refer to monorepo-relative Docker build contexts, cores, and client files. Keep
-the repository checkout intact on the deployment host rather than copying a configuration directory
-by itself.
+The root Compose file builds the backend and Meadow images from monorepo-relative contexts. Keep the
+repository checkout intact when using that development configuration.
+
+The deployment examples under `deploy/` pull the multi-platform
+`ghcr.io/timbran-project/moor:latest` image by default, so Docker selects AMD64 or ARM64
+automatically. Replace `latest` with a release such as `1.0.2` for a reproducible deployment. The
+backend image contains the compiled Meadow assets used by the bundled nginx configurations. A
+standalone Meadow image is also published as `ghcr.io/timbran-project/moor-frontend`.
+
+The deployment examples may be copied to a deployment host when using the published images. Keep a
+repository checkout available if you uncomment their monorepo-relative local `build:` sections.
 
 For example, from the repository root:
 

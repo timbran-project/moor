@@ -1,78 +1,261 @@
-name: Release - Build and publish Docker images
+name: Release - Publish container images
 
 on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Git ref (tag or commit hash) to build from'
+      tag:
+        description: Existing release tag to publish
         required: true
         type: string
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: read
+
+concurrency:
+  group: release-images-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
 
 jobs:
-  build-and-push-image:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            dockerfile: Dockerfile
-          - arch: aarch64
-            dockerfile: Dockerfile.arm64-cross
+  prepare:
+    name: Validate release
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      major_minor: ${{ steps.release.outputs.major_minor }}
+      stable: ${{ steps.release.outputs.stable }}
+      namespace: ${{ steps.release.outputs.namespace }}
+      commit: ${{ steps.commit.outputs.sha }}
+    steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              tag="$INPUT_TAG"
+          else
+              tag="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+              echo "Release tag is not semantic: $tag" >&2
+              exit 1
+          fi
+
+          major_minor=${tag%.*}
+          if [[ "$tag" == *-* ]]; then
+              stable=false
+          else
+              stable=true
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$major_minor" >> "$GITHUB_OUTPUT"
+          echo "stable=$stable" >> "$GITHUB_OUTPUT"
+          echo "namespace=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Verify source and declared version
+        id: commit
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          tag_commit=$(git rev-parse "refs/tags/${TAG}^{commit}")
+          checkout_commit=$(git rev-parse HEAD)
+          if [[ "$tag_commit" != "$checkout_commit" ]]; then
+              echo "Checkout $checkout_commit does not match tag $tag_commit" >&2
+              exit 1
+          fi
+
+          declared_version=$(jq -r .version package.json)
+          if [[ "$declared_version" != "$TAG" ]]; then
+              echo "package.json version $declared_version does not match tag $TAG" >&2
+              exit 1
+          fi
+
+          major=${TAG%%.*}
+          if [[ "$major" == "1" ]]; then
+              release_branch=v1.0-release
+          else
+              release_branch=main
+          fi
+          git fetch --no-tags origin \
+              "+refs/heads/${release_branch}:refs/remotes/origin/${release_branch}"
+          if ! git merge-base --is-ancestor "$checkout_commit" "origin/${release_branch}"; then
+              echo "Tag $TAG is not reachable from $release_branch" >&2
+              exit 1
+          fi
+
+          echo "sha=$checkout_commit" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.image }} (${{ matrix.arch }})
+    needs: prepare
     permissions:
       contents: read
       packages: write
       attestations: write
       id-token: write
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: moor
+            dockerfile: Dockerfile
+            target: default
+            arch: amd64
+            arch_tag: x86_64
+            runner: ubuntu-24.04
+            build_args: |
+              BUILD_PROFILE=release
+              CARGO_BUILD_JOBS=4
+          - image: moor
+            dockerfile: Dockerfile
+            target: default
+            arch: arm64
+            arch_tag: aarch64
+            runner: ubuntu-24.04-arm
+            build_args: |
+              BUILD_PROFILE=release
+              CARGO_BUILD_JOBS=4
+          - image: moor-frontend
+            dockerfile: clients/meadow/Dockerfile
+            target: frontend
+            arch: amd64
+            arch_tag: x86_64
+            runner: ubuntu-24.04
+            build_args: ''
+          - image: moor-frontend
+            dockerfile: clients/meadow/Dockerfile
+            target: frontend
+            arch: arm64
+            arch_tag: aarch64
+            runner: ubuntu-24.04-arm
+            build_args: ''
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     steps:
-      - name: Checkout repository at ref
-        uses: actions/checkout@v4
+      - name: Check out release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.ref }}
-          submodules: 'true'
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=${{ inputs.ref }}
-            type=sha,prefix={{branch}}-
-
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Build and push Docker image (${{ matrix.arch }})
-        id: push
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          target: default
-          build-args: |
-            BUILD_PROFILE=release
+          pull: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}:${{ needs.prepare.outputs.tag }}-${{ matrix.arch_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.tag }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v2
+      - name: Attest architecture image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-name: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  create-manifests:
+    name: Publish ${{ matrix.image }} manifest
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      matrix:
+        image: [moor, moor-frontend]
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Create multi-platform tags
+        id: manifest
+        env:
+          IMAGE: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          MAJOR_MINOR: ${{ needs.prepare.outputs.major_minor }}
+          STABLE: ${{ needs.prepare.outputs.stable }}
+        run: |
+          tags=(--tag "${IMAGE}:${TAG}")
+          if [[ "$STABLE" == "true" ]]; then
+              tags+=(--tag "${IMAGE}:${MAJOR_MINOR}" --tag "${IMAGE}:latest")
+          fi
+
+          docker buildx imagetools create \
+              "${tags[@]}" \
+              "${IMAGE}:${TAG}-x86_64" \
+              "${IMAGE}:${TAG}-aarch64"
+
+          digest=$(docker buildx imagetools inspect \
+              --format '{{.Manifest.Digest}}' "${IMAGE}:${TAG}")
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Verify platforms
+        env:
+          IMAGE: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          platforms=$(docker buildx imagetools inspect \
+              --format '{{json .Manifest.Manifests}}' "${IMAGE}:${TAG}" | jq -r \
+              '[.[].platform | select(.os == "linux") | .architecture] | sort | unique | join(",")')
+          if [[ "$platforms" != "amd64,arm64" ]]; then
+              echo "Unexpected platforms for ${IMAGE}:${TAG}: ${platforms}" >&2
+              exit 1
+          fi
+
+      - name: Attest multi-platform image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true

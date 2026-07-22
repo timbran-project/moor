@@ -610,7 +610,7 @@ kubectl delete pvc moor-data -n moor
 
 ## Support
 
-- **Issues**: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- **Issues**: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - **Documentation**: [mooR Book](https://timbran.org/book/html/)
 - **Community**: [Discord](https://discord.gg/Ec94y5983z)
 

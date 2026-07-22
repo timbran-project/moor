@@ -14,7 +14,7 @@ environment where users can build and program the world around them while they'r
 
 Cowbell is a from-scratch "core" database for mooR - the starter objects and code that provide the
 foundation for building social spaces. It's designed specifically for use with mooR's bundled
-[web client](https://codeberg.org/timbran/moor/src/branch/main/web-client), a rich web
+[web client](https://github.com/timbran-project/moor/tree/main/clients/meadow), a rich web
 application that connects to mooR server.
 
 While taking inspiration from classic MOOs and TinyMU* systems, cowbell is built to

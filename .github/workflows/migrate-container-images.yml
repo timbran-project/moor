@@ -1,0 +1,119 @@
+name: Migration - Copy stable container images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: migrate-stable-container-images
+  cancel-in-progress: false
+
+env:
+  SOURCE_IMAGE: codeberg.org/timbran/moor
+  DESTINATION_IMAGE: ghcr.io/timbran-project/moor
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  copy-images:
+    name: Copy ${{ matrix.version }} (${{ matrix.arch }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['1.0.0', '1.0.1', '1.0.2']
+        arch: [x86_64, aarch64]
+    steps:
+      - name: Install Skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes skopeo
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy immutable architecture image
+        env:
+          VERSION: ${{ matrix.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          source_ref="docker://${SOURCE_IMAGE}:${VERSION}-${ARCH}"
+          destination_ref="docker://${DESTINATION_IMAGE}:${VERSION}-${ARCH}"
+
+          skopeo copy --all --preserve-digests "$source_ref" "$destination_ref"
+
+          source_digest=$(skopeo inspect --format '{{.Digest}}' "$source_ref")
+          destination_digest=$(skopeo inspect --format '{{.Digest}}' "$destination_ref")
+          if [[ "$source_digest" != "$destination_digest" ]]; then
+              echo "Digest mismatch: $source_digest != $destination_digest" >&2
+              exit 1
+          fi
+
+      - name: Copy latest architecture alias
+        if: matrix.version == '1.0.2'
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          source_ref="docker://${SOURCE_IMAGE}:1.0.2-${ARCH}"
+          destination_ref="docker://${DESTINATION_IMAGE}:latest-${ARCH}"
+
+          skopeo copy --all --preserve-digests "$source_ref" "$destination_ref"
+
+          source_digest=$(skopeo inspect --format '{{.Digest}}' "$source_ref")
+          destination_digest=$(skopeo inspect --format '{{.Digest}}' "$destination_ref")
+          if [[ "$source_digest" != "$destination_digest" ]]; then
+              echo "Digest mismatch: $source_digest != $destination_digest" >&2
+              exit 1
+          fi
+
+  create-manifests:
+    name: Create multi-platform tags
+    needs: copy-images
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Create release manifests
+        run: |
+          for version in 1.0.0 1.0.1 1.0.2; do
+              docker buildx imagetools create \
+                  --tag "${DESTINATION_IMAGE}:${version}" \
+                  "${DESTINATION_IMAGE}:${version}-x86_64" \
+                  "${DESTINATION_IMAGE}:${version}-aarch64"
+          done
+
+          docker buildx imagetools create \
+              --tag "${DESTINATION_IMAGE}:1.0" \
+              --tag "${DESTINATION_IMAGE}:latest" \
+              "${DESTINATION_IMAGE}:1.0.2-x86_64" \
+              "${DESTINATION_IMAGE}:1.0.2-aarch64"
+
+      - name: Verify multi-platform tags
+        run: |
+          for tag in 1.0.0 1.0.1 1.0.2 1.0 latest; do
+              platforms=$(docker buildx imagetools inspect \
+                  --format '{{json .Manifest.Manifests}}' \
+                  "${DESTINATION_IMAGE}:${tag}" | jq -r \
+              '[.[].platform | select(.os == "linux") | .architecture] | sort | unique | join(",")')
+              if [[ "$platforms" != "amd64,arm64" ]]; then
+                  echo "Unexpected platforms for ${tag}: ${platforms}" >&2
+                  exit 1
+              fi
+          done

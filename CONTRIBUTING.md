@@ -90,8 +90,8 @@ By participating in this project, you are expected to uphold our community stand
 
 ### First Steps
 
-1. **Fork the repository** on [Codeberg](https://codeberg.org/timbran/moor) (this creates your own
-   copy of the repository)
+1. **Fork the repository** on [GitHub](https://github.com/timbran-project/moor) (this creates your
+   own copy of the repository)
 2. **Clone your fork** locally
 3. **Set up the development environment** (see below)
 4. **Explore the codebase** and identify an area of interest
@@ -628,11 +628,11 @@ production from an LLM, and it's been an essential tool in our development proce
 
 ### Communication Channels
 
-- **Issues & Pull Requests**: [Codeberg](https://codeberg.org/timbran/moor/issues) (primary)
+- **Issues & Pull Requests**: [GitHub](https://github.com/timbran-project/moor/issues)
 - **Discussion**: [Discord Community](https://discord.gg/Ec94y5983z)
 - **Documentation**: [mooR Book](https://timbran.org/book/html/)
 
-**Note**: We only accept pull requests through Codeberg. The GitHub repository is a mirror only.
+Pull requests should target the `timbran-project/moor` repository on GitHub.
 
 ### Getting Help
 

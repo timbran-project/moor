@@ -50,7 +50,7 @@ sudo apt install moor-daemon moor-telnet-host moor-web-host moor-curl-worker
 **Option 2: Download from Releases**
 
 Download pre-built `.deb` packages from the
-[mooR 1.0.2 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.2):
+[mooR 1.0.2 GitHub release](https://github.com/timbran-project/moor/releases/tag/1.0.2):
 
 ```bash
 # Split-service packages:
