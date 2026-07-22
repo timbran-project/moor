@@ -1,0 +1,290 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// General Public License as published by the Free Software Foundation, version
+// 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
+import { parsePresentationBytes, parsePresentationSnapshot, toPresentationData } from "@moor/web-sdk";
+import { useCallback, useState } from "react";
+import { decryptEventBlob } from "../lib/age-decrypt";
+import { buildAuthHeaders } from "../lib/authHeaders";
+import { getCurrentPresentationsFlatBuffer } from "../lib/rpc-fb";
+import { DockTarget, Presentation, PresentationData, SemanticTarget, TARGET_TYPES } from "../types/presentation";
+import { useMediaQuery } from "./useMediaQuery";
+
+// Responsive mapping of semantic targets to visual placement
+const useSemanticMapping = () => {
+    const isMobile = useMediaQuery("(max-width: 768px)");
+
+    const getPlacementForTarget = useCallback((target: SemanticTarget): "left" | "right" | "top" | "bottom" => {
+        if (isMobile) {
+            // On mobile, map most things to bottom for better UX
+            switch (target) {
+                case "navigation":
+                case "communication":
+                    return "top";
+                case "status":
+                    return "top";
+                case "inventory":
+                case "tools":
+                default:
+                    return "bottom";
+            }
+        } else {
+            // Desktop placement
+            switch (target) {
+                case "navigation":
+                case "communication":
+                    return "left";
+                case "inventory":
+                case "status":
+                case "tools":
+                    return "right";
+                default:
+                    return "right";
+            }
+        }
+    }, [isMobile]);
+
+    return { getPlacementForTarget };
+};
+
+export const usePresentations = () => {
+    const [presentations, setPresentations] = useState<Map<string, Presentation>>(new Map());
+    const { getPlacementForTarget } = useSemanticMapping();
+
+    // Add a new presentation
+    const addPresentation = useCallback((data: PresentationData) => {
+        // Convert attributes array to object
+        const attrs: { [key: string]: string } = {};
+        for (const [key, value] of data.attributes) {
+            attrs[key] = value;
+        }
+
+        // Normalize content type
+        let contentType: "text/plain" | "text/djot" | "text/html" = "text/plain";
+        if (data.content_type === "text/djot" || data.content_type === "text/html") {
+            contentType = data.content_type;
+        }
+
+        const presentation: Presentation = {
+            id: data.id,
+            target: data.target,
+            title: attrs.title || attrs.name || `Panel ${data.id}`,
+            content: data.content,
+            contentType,
+            attrs,
+        };
+
+        setPresentations(prev => {
+            const next = new Map(prev);
+            next.set(data.id, presentation);
+            return next;
+        });
+    }, []);
+
+    // Remove a presentation
+    const removePresentation = useCallback((id: string) => {
+        setPresentations(prev => {
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+        });
+    }, []);
+
+    // Get presentations for a specific target
+    const getPresentationsByTarget = useCallback((target: string): Presentation[] => {
+        return Array.from(presentations.values()).filter(p => p.target === target);
+    }, [presentations]);
+
+    // Get presentations for visual placement (mapped from semantic targets)
+    const isSpecialTarget = (target: string) =>
+        target === TARGET_TYPES.WINDOW
+        || target === TARGET_TYPES.VERB_EDITOR
+        || target === TARGET_TYPES.PROPERTY_EDITOR
+        || target === TARGET_TYPES.PROPERTY_VALUE_EDITOR
+        || target === TARGET_TYPES.OBJECT_BROWSER
+        || target === TARGET_TYPES.TEXT_EDITOR
+        || target === TARGET_TYPES.PROFILE_SETUP;
+
+    const explicitDockTarget = (target: string): DockTarget | null => {
+        if (target === "left" || target === "right" || target === "top" || target === "bottom") {
+            return target;
+        }
+        return null;
+    };
+
+    const dockPlacementForTarget = useCallback((target: string): DockTarget => {
+        const explicit = explicitDockTarget(target);
+        if (explicit) {
+            return explicit;
+        }
+        return getPlacementForTarget(target as SemanticTarget);
+    }, [getPlacementForTarget]);
+
+    const getLeftDockPresentations = useCallback((): Presentation[] => {
+        return Array.from(presentations.values()).filter(p => {
+            if (isSpecialTarget(p.target)) return false;
+            return dockPlacementForTarget(p.target) === "left";
+        });
+    }, [dockPlacementForTarget, presentations]);
+
+    const getRightDockPresentations = useCallback((): Presentation[] => {
+        return Array.from(presentations.values()).filter(p => {
+            if (isSpecialTarget(p.target)) return false;
+            return dockPlacementForTarget(p.target) === "right";
+        });
+    }, [dockPlacementForTarget, presentations]);
+
+    const getTopDockPresentations = useCallback((): Presentation[] => {
+        return Array.from(presentations.values()).filter(p => {
+            if (isSpecialTarget(p.target)) return false;
+            return dockPlacementForTarget(p.target) === "top";
+        });
+    }, [dockPlacementForTarget, presentations]);
+
+    const getBottomDockPresentations = useCallback((): Presentation[] => {
+        return Array.from(presentations.values()).filter(p => {
+            if (isSpecialTarget(p.target)) return false;
+            return dockPlacementForTarget(p.target) === "bottom";
+        });
+    }, [dockPlacementForTarget, presentations]);
+
+    const getWindowPresentations = useCallback(() => getPresentationsByTarget(TARGET_TYPES.WINDOW), [
+        getPresentationsByTarget,
+    ]);
+
+    const getHelpPresentations = useCallback(() => getPresentationsByTarget(TARGET_TYPES.HELP), [
+        getPresentationsByTarget,
+    ]);
+
+    const getVerbEditorPresentations = useCallback(() => getPresentationsByTarget(TARGET_TYPES.VERB_EDITOR), [
+        getPresentationsByTarget,
+    ]);
+
+    const getPropertyEditorPresentations = useCallback(
+        () => getPresentationsByTarget(TARGET_TYPES.PROPERTY_EDITOR),
+        [getPresentationsByTarget],
+    );
+
+    const getPropertyValueEditorPresentations = useCallback(
+        () => getPresentationsByTarget(TARGET_TYPES.PROPERTY_VALUE_EDITOR),
+        [getPresentationsByTarget],
+    );
+
+    const getObjectBrowserPresentations = useCallback(
+        () => getPresentationsByTarget(TARGET_TYPES.OBJECT_BROWSER),
+        [getPresentationsByTarget],
+    );
+
+    const getTextEditorPresentations = useCallback(
+        () => getPresentationsByTarget(TARGET_TYPES.TEXT_EDITOR),
+        [getPresentationsByTarget],
+    );
+
+    const getProfileSetupPresentations = useCallback(
+        () => getPresentationsByTarget(TARGET_TYPES.PROFILE_SETUP),
+        [getPresentationsByTarget],
+    );
+
+    // Clear all presentations (used on logout)
+    const clearAll = useCallback(() => {
+        setPresentations(new Map());
+    }, []);
+
+    // API call to dismiss a presentation on the server
+    const dismissPresentation = useCallback(async (id: string, authToken: string) => {
+        // Remove locally immediately (optimistic update)
+        removePresentation(id);
+
+        try {
+            const headers = buildAuthHeaders(authToken);
+            const response = await fetch(`/v1/presentations/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+                headers,
+            });
+
+            if (!response.ok) {
+                console.error(`Failed to dismiss presentation ${id}: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error(`Error dismissing presentation ${id}:`, error);
+        }
+    }, [removePresentation]);
+
+    // Fetch current presentations from the server (called on connect)
+    const fetchCurrentPresentations = useCallback(async (authToken: string, ageIdentity: string | null = null) => {
+        try {
+            // Get presentations as FlatBuffer
+            const currentPresentations = await getCurrentPresentationsFlatBuffer(authToken);
+
+            const presentationsLength = currentPresentations.presentationsLength();
+
+            // Process each presentation
+            for (let i = 0; i < presentationsLength; i++) {
+                const storedPresentation = currentPresentations.presentations(i);
+                const snapshot = parsePresentationSnapshot(storedPresentation);
+                if (!snapshot) continue;
+
+                try {
+                    let presentationBytes = snapshot.encryptedBlob;
+                    if (ageIdentity) {
+                        presentationBytes = await decryptEventBlob(snapshot.encryptedBlob, ageIdentity);
+                    }
+
+                    const parsedPresentation = parsePresentationBytes(presentationBytes, {
+                        expectedId: snapshot.id,
+                        fallback: {
+                            target: TARGET_TYPES.WINDOW,
+                        },
+                    });
+                    if (!parsedPresentation) {
+                        console.warn(`Skipping malformed presentation snapshot: id=${snapshot.id}`);
+                        continue;
+                    }
+
+                    const presentationData: PresentationData = toPresentationData(parsedPresentation);
+
+                    addPresentation(presentationData);
+                } catch (presentationError) {
+                    console.error("Failed to process presentation:", presentationError);
+                    continue;
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error fetching current presentations:", error);
+            return false;
+        }
+    }, [addPresentation]);
+
+    return {
+        presentations: Array.from(presentations.values()),
+        addPresentation,
+        removePresentation,
+        getPresentationsByTarget,
+        getLeftDockPresentations,
+        getRightDockPresentations,
+        getTopDockPresentations,
+        getBottomDockPresentations,
+        getWindowPresentations,
+        getHelpPresentations,
+        getVerbEditorPresentations,
+        getPropertyEditorPresentations,
+        getPropertyValueEditorPresentations,
+        getObjectBrowserPresentations,
+        getTextEditorPresentations,
+        getProfileSetupPresentations,
+        dismissPresentation,
+        fetchCurrentPresentations,
+        clearAll,
+    };
+};

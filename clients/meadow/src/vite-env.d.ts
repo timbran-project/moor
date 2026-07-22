@@ -1,0 +1,22 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// General Public License as published by the Free Software Foundation, version
+// 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// this program. If not, see <https://www.gnu.org/licenses/>.
+//
+
+/// <reference types="vite/client" />
+
+// Git hash injected at build time
+declare const __GIT_HASH__: string;
+
+// Tauri internals (present when running in Tauri webview)
+interface Window {
+    __TAURI_INTERNALS__?: unknown;
+}
