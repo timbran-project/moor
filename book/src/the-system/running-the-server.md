@@ -24,7 +24,9 @@ mooR can run in two modes:
 
 **Single-process (default)** runs the combined `moor` binary, which bundles the daemon, telnet host,
 web host, and curl worker into one process. This is the simplest path and is what the provided
-Docker Compose configurations and Debian packages use by default. Most users should start here.
+single-process Docker Compose configurations use by default. A combined Debian package can be built
+locally, while the published `1.0.2` channel contains the split-service packages. Most users should
+start with the single-process Docker configuration.
 
 **Clustered deployment (advanced)** runs the daemon, hosts, and workers as separate processes that
 communicate over ZeroMQ sockets. This enables distributing components across multiple machines for
@@ -74,5 +76,6 @@ If you run into issues:
 
 - Check the specific installation guide for your chosen method
 - Review the server configuration documentation
-- Consult the mooR Codeberg repository for troubleshooting tips
+- Consult the [mooR GitHub repository](https://github.com/timbran-project/moor) for troubleshooting
+  tips
 - Ask the community for help in the forums or Discord

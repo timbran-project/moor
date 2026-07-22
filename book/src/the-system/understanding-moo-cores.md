@@ -81,20 +81,21 @@ While mooR implements many Toast-compatible features, it's not a drop-in replace
 would need significant modification to run on mooR, but most importantly, mooR will mostly reject a
 textdump from ToastStunt, so it's best to avoid them.
 
-## mooR's Future: The Cowbell Core
+## The Cowbell Core
 
-The mooR project is developing its own core called
-["cowbell"](https://github.com/timbran-project/moor/tree/main/cores/cowbell). Cowbell aims to:
+mooR includes its own core called
+["Cowbell"](https://github.com/timbran-project/moor/tree/main/cores/cowbell). Cowbell is designed
+to:
 
 - **Showcase mooR features**: Take advantage of mooR's unique capabilities and extensions
-- **Web native UI**: Cowbell will be built with the web client in mind, and offer a rich media
-  interface.
+- **Web native UI**: Cowbell is built with the web clients in mind and provides a rich media
+  interface
 - **Modern approach**: Incorporate lessons learned from decades of MOO development
 - **Clean foundation**: Start fresh rather than carrying forward historical baggage
 - **Documentation**: Be well-documented and easy to understand for new programmers
 
-**Current Status**: Cowbell is the primary recommended core for new mooR users. It is developed
-alongside the server to showcase its unique capabilities.
+**Current Status**: Cowbell is the primary recommended core for new mooR users. It is developed in
+the mooR monorepo alongside the server and clients.
 
 **How to run**: Cowbell is easily started using the `./scripts/start-moor-cowbell.sh` script in the
 mooR repository root. Cowbell is included in the repository under `cores/cowbell/`.
@@ -105,10 +106,10 @@ See: <https://github.com/timbran-project/moor/tree/main/cores/cowbell>
 
 When setting up a mooR server, you'll need to decide:
 
-1. **Start with minimal**: Begin with basic objects and build your own systems
-2. **Adapt existing code**: Port code from LambdaCore or other sources
-3. **Wait for cowbell**: Follow cowbell development and contribute to its progress
-4. **Hybrid approach**: Combine elements from multiple sources
+1. **Start with Cowbell**: Use mooR's current feature set and web-client integration
+2. **Start with lambda-moor**: Use a LambdaCore-derived environment and compatibility settings
+3. **Start with minimal-core**: Begin with basic objects and build your own systems
+4. **Adapt existing code**: Port or combine content from other cores
 
 Each approach has trade-offs in terms of effort, features, and long-term maintainability.
 

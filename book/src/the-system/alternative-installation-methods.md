@@ -10,24 +10,28 @@ cleanly with your system's package management and systemd service management.
 
 ### About Debian Packages
 
-mooR provides two packaging options:
+mooR can be built as several package types:
 
 - **moor**: The combined single-process binary (daemon, telnet host, web host, and curl worker in
   one process) with a single systemd service. This is the recommended package for most deployments.
 - **Split-service packages**: `moor-daemon`, `moor-telnet-host`, `moor-web-host`, and
   `moor-curl-worker` as separate packages with individual systemd services. Use these when you need
   clustered deployment across multiple machines.
-- **moor-web-client**: Static web client files (architecture-independent). Required if you want the
-  web frontend with the split-service packages.
+- **moor-web-client**: Architecture-independent React Meadow static assets for deployments that
+  serve the web frontend from a Debian package.
 
-All packages integrate with systemd, create necessary users and directories, and include the
-LambdaMOO-based lambda-moor core database by default.
+The server packages integrate with systemd, create the necessary users and directories, and include
+the LambdaMOO-based lambda-moor core database by default.
+
+The final Codeberg package channel contains the `1.0.2` split-service and command-line packages for
+amd64 and arm64. It does not contain the combined `moor` package or a `1.0.2` `moor-web-client`
+package. Build those packages locally from the monorepo when needed.
 
 ### Installation Options
 
-**Option 1: Install from APT Repository (Recommended)**
+**Option 1: Install the published 1.0.x packages from the APT repository**
 
-Add the Codeberg package repository to install and update mooR packages with `apt`:
+The frozen Codeberg package repository remains available for the final `1.0.x` packages:
 
 ```bash
 # Add the repository signing key
@@ -38,24 +42,18 @@ sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
 echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
     | sudo tee /etc/apt/sources.list.d/moor.list
 
-# Update and install the combined package (recommended):
+# Update and install the split-service packages:
 sudo apt update
-sudo apt install moor
-
-# Or install the split-service packages for clustered deployment:
-sudo apt install moor-daemon moor-telnet-host moor-web-host moor-curl-worker moor-web-client
+sudo apt install moor-daemon moor-telnet-host moor-web-host moor-curl-worker
 ```
 
 **Option 2: Download from Releases**
 
 Download pre-built `.deb` packages from the
-[mooR 1.0.0 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.0):
+[mooR 1.0.2 Codeberg release](https://codeberg.org/timbran/moor/releases/tag/1.0.2):
 
 ```bash
-# Combined package (recommended):
-sudo dpkg -i moor_*.deb
-
-# Or split-service packages for clustered deployment:
+# Split-service packages:
 sudo dpkg -i moor-daemon_*.deb moor-telnet-host_*.deb moor-web-host_*.deb moor-curl-worker_*.deb
 
 sudo apt-get install -f  # Install any missing dependencies
@@ -84,7 +82,7 @@ sudo dpkg -i ../../target/debian/moor-curl-worker_*.deb
 For detailed installation, configuration, service management, testing, and troubleshooting:
 
 **→ See
-[`deploy/debian-packages/README.md`](https://codeberg.org/timbran/moor/src/branch/v1.0-release/deploy/debian-packages/README.md)**
+[`deploy/debian-packages/README.md`](https://github.com/timbran-project/moor/blob/main/deploy/debian-packages/README.md)**
 
 This includes:
 
@@ -104,9 +102,8 @@ Debian packages are ideal when:
 - You prefer traditional package management over containers
 - You're setting up a production server on bare metal or VPS
 
-Use the combined `moor` package for single-server deployments. Use the split-service packages when
-you need to deploy components across multiple machines (see
-[Clustered Deployment](clustered-deployment.md)).
+Use a locally built combined `moor` package for single-server deployments. The published `1.0.2`
+packages use the split-service layout described in [Clustered Deployment](clustered-deployment.md).
 
 ## Building from Source
 
@@ -129,7 +126,7 @@ source ~/.cargo/env
 
 1. **Clone the repository**:
    ```bash
-   git clone https://codeberg.org/timbran/moor.git
+   git clone https://github.com/timbran-project/moor.git
    cd moor
    ```
 
@@ -194,7 +191,8 @@ and options for the server executables are documented in the
 
 For installation issues:
 
-- Check the mooR Codeberg repository for the latest installation instructions
+- Check the [mooR GitHub repository](https://github.com/timbran-project/moor) for the latest
+  installation instructions
 - Review the `docker-compose.yml` file for configuration examples
 - Consult the community forums or Discord for platform-specific guidance
 

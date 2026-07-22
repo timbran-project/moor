@@ -370,9 +370,9 @@ runtime:
 ## LambdaMOO Compatibility Mode
 
 If you need to import LambdaMOO 1.8 content, use the
-[Lambda-moor core](https://codeberg.org/timbran/moor/src/branch/main/cores/lambda-moor/README.md) or
-disable the remaining compatibility-sensitive features. Lexical scopes and list/range comprehensions
-are part of the language now and cannot be disabled.
+[Lambda-moor core](https://github.com/timbran-project/moor/tree/main/cores/lambda-moor) or disable
+the remaining compatibility-sensitive features. Lexical scopes and list/range comprehensions are
+part of the language now and cannot be disabled.
 
 ```yaml
 # LambdaMOO 1.8 compatible features

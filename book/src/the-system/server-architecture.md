@@ -22,20 +22,22 @@ mooR is built from several specialized components that work together:
   needs to fetch data from external APIs, send webhooks, or interact with web services, this
   component manages those network operations safely.
 
-- **Frontend** (`moor-frontend`): The web client application (Meadow). Served by a static file
-  server or reverse proxy in production, or by Vite in development, providing the browser-based
-  interface that communicates with the web host.
+- **Frontend** (`moor-frontend`): A static file server or reverse proxy that serves the React Meadow
+  application in production. Vite fills this role during development. The frontend communicates with
+  the web host but is not embedded in the `moor` binary.
 
-These components can run either inside a single `moor` process or as separate processes. How you
-choose to run them is the main deployment decision.
+The daemon, hosts, and workers can run either inside a single `moor` process or as separate
+processes. How you choose to run those backend components is the main deployment decision.
 
 ## Single-Process Deployment (Default)
 
 The default way to run mooR is a single binary, `moor`, which runs the daemon, telnet host, web
-host, and curl worker together in one process. This is the simplest deployment path — no sockets, no
-encryption, no extra configuration — and is what the provided Docker Compose configurations and
-Debian packages use by default. This is the closest analogue to running a traditional LambdaMOO or
-ToastStunt server: one process, one database, telnet and (optionally) web access built in.
+host, and curl worker together in one process. This is the simplest deployment path: backend
+communication uses in-process endpoints, so it needs no external RPC sockets, transport encryption,
+or host enrollment. The provided single-process Docker Compose configurations use this layout. A
+combined Debian package can be built locally, but the published `1.0.2` channel uses split-service
+packages. This is the closest analogue to running a traditional LambdaMOO or ToastStunt server: one
+process, one database, telnet and (optionally) web access built in.
 
 ```
 ┌─────────────────────────────────────────────┐

@@ -33,26 +33,24 @@ docker compose -f deploy/clustered/web-ssl/docker-compose.yml up -d
 
 ### Debian Packages
 
-For Debian/Ubuntu systems, install the packages and configure a reverse proxy (the examples use
-nginx):
+The published `1.0.2` Debian channel does not include a matching Meadow package. For a Debian/Ubuntu
+web deployment, build the server and web client packages from the same monorepo checkout, then
+configure a reverse proxy such as nginx:
 
 ```bash
-# Install from APT repository (recommended)
-sudo apt install moor-daemon moor-web-host moor-web-client
+# From the mooR repository root
+./deploy/debian-packages/build-all-packages.sh
 
-# Or install from downloaded .deb files
-sudo dpkg -i moor_*.deb moor-web-client_*.deb
+# Install the combined server and web client
+sudo dpkg -i target/debian/moor_*.deb target/debian/moor-web-client_*.deb
 
 # Or install the split web host:
-sudo dpkg -i moor-daemon_*.deb moor-web-host_*.deb moor-web-client_*.deb
-
-# Configure nginx (copy from deploy/debian-packages/)
-sudo cp nginx-for-debian.conf /etc/nginx/sites-available/moor
-sudo ln -s /etc/nginx/sites-available/moor /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+sudo dpkg -i target/debian/moor-daemon_*.deb target/debian/moor-web-host_*.deb \
+    target/debian/moor-web-client_*.deb
 ```
 
-Web client files are installed to `/usr/share/moor/web-client/`.
+Web client files are installed to `/usr/share/moor/web-client/`. Adapt the nginx configuration below
+to serve that directory and proxy requests to the installed web host.
 
 ### Kubernetes
 

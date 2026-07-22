@@ -89,8 +89,9 @@ versions.
 
 ### Uses for Object Definition Directories
 
-**Core Development**: The [cowbell core](https://github.com/rdaum/cowbell/) is built entirely from
-object definition files, making it easy for contributors to add features and track changes.
+**Core Development**: The
+[Cowbell core](https://github.com/timbran-project/moor/tree/main/cores/cowbell) is built entirely
+from object definition files, making it easy for contributors to add features and track changes.
 
 **Database Backups**: Create readable, version-independent backups of your entire database that will
 remain usable even as mooR evolves.

@@ -435,6 +435,7 @@ The daemon can handle many host/worker connections, but consider:
 - You don't need to split components across machines or isolate them as separate processes
 - Simpler configuration is preferred
 
-For most users, the single-process `moor` binary (Docker Compose default, Debian `moor` package) is
-the recommended starting point. Graduate to split-process or clustered deployment when you have
-specific isolation, scaling, or distribution requirements.
+For most users, the single-process `moor` binary through the provided Docker Compose configuration
+is the recommended starting point. A combined Debian `moor` package can also be built locally. Use
+the published split-service packages or clustered containers when you have specific isolation,
+scaling, or distribution requirements.

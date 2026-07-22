@@ -71,33 +71,23 @@ docker compose version
 
 ### Deployment Steps
 
-All production configurations follow the same basic steps:
+The Compose files refer to monorepo-relative Docker build contexts, cores, and client files. Keep
+the repository checkout intact on the deployment host rather than copying a configuration directory
+by itself.
 
-1. **Copy the deployment directory** to your server:
-   ```bash
-   cp -r deploy/single-process/web /path/to/deployment
-   cd /path/to/deployment
-   ```
+For example, from the repository root:
 
-2. **Start the services** using the included start script:
-   ```bash
-   ./start.sh
-   ```
+```bash
+cd deploy/single-process/web
+cp .env.example .env
+docker compose up -d
+docker compose ps
+docker compose logs -f
+```
 
-   The start script handles user permissions and directory setup automatically.
-
-3. **Verify deployment**:
-   ```bash
-   docker compose ps
-   docker compose logs -f
-   ```
-
-4. **Test the deployment** (optional but recommended):
-   ```bash
-   ./test.sh
-   ```
-
-Each configuration's README provides specific instructions and customization options.
+The single-process examples are operated directly with Docker Compose. Clustered examples include
+additional `start.sh` and `test.sh` scripts where enrollment, permissions, or multi-service checks
+need automation. Follow the README in the selected configuration directory.
 
 ### Service Components
 
@@ -291,7 +281,8 @@ These validate that services are running correctly and can communicate.
 ### Getting Help
 
 - **Docker Compose docs**: [docs.docker.com/compose/](https://docs.docker.com/compose/)
-- **mooR issues**: [codeberg.org/timbran/moor/issues](https://codeberg.org/timbran/moor/issues)
+- **mooR issues**:
+  [github.com/timbran-project/moor/issues](https://github.com/timbran-project/moor/issues)
 - **Community**: [Discord](https://discord.gg/Ec94y5983z)
 
 ## Advanced: Multi-Machine Deployments

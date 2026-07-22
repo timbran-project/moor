@@ -63,7 +63,7 @@ You can also run mooR locally for:
 
 Even if you don't want to run a server, there are many ways to contribute:
 
-- **Core Development**: Help build the "cowbell" core (see next section)
+- **Core Development**: Extend and maintain the Cowbell core (see next section)
 - **Documentation**: Improve guides like this one
 - **mooR Development**: Contribute to the server software itself
 - **Community Building**: Help newcomers learn MOO programming

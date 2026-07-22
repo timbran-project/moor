@@ -1,8 +1,26 @@
-# Web Client
+# Client Applications
 
-mooR ships with a browser-based web client alongside the daemon and host services. The web client is
-bundled in release images and package distributions, so you do not need a separate build step to
-serve it in production.
+The mooR monorepo contains browser, desktop, and mobile-oriented clients alongside shared protocol
+libraries. The default container image includes the React Meadow web assets. Debian packages for the
+web client can be built from the monorepo, but a matching Meadow package was not published in the
+final `1.0.2` Codeberg channel.
+
+## Client Projects
+
+- **Meadow** (`clients/meadow/`) is the React web client and optional Tauri desktop application. It
+  is the client served by the provided Docker Compose configurations.
+- **Meadow Flutter** (`clients/meadow_flutter/`) is an alternative Flutter client for web and Linux
+  desktop targets. Mobile targets are present but do not yet have release packaging.
+- **Web SDK** (`clients/web-sdk/`) contains shared TypeScript protocol and API support for
+  web-facing clients.
+- **Schema package** (`crates/schema/schema/`) generates the TypeScript FlatBuffers bindings used by
+  the SDK and React Meadow.
+- **Web MCP client** (`clients/moor-web-mcp/`) provides an MCP stdio server backed by the mooR web
+  API.
+
+Client release versions and tags are independent from the server release line. Use client and server
+versions built from compatible branches. The remainder of this section primarily documents the React
+Meadow client and the common web-host protocol.
 
 ## What It Is
 
@@ -80,8 +98,9 @@ The web client integrates tightly with the `moor-web-host` API:
 - **WebSockets** for real-time narrative events and command input
 - **FlatBuffers** encoding for efficient, schema-evolving payloads
 
-If you are using the official release images or Debian packages, the web client assets are already
-included.
+The default container image includes the React Meadow assets. A locally built `moor-web-client`
+Debian package installs the same static assets; the published `1.0.2` Debian channel does not
+include a matching package.
 
 ## Web Client Topics
 
