@@ -1,0 +1,38 @@
+[package]
+name = "moor-file-worker"
+version = "2.0.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme = "README.md"
+repository.workspace = true
+rust-version.workspace = true
+description = "A worker for performing sandboxed filesystem operations"
+
+[dependencies]
+moor-common = { path = "../common" }
+moor-runtime-api = { path = "../runtime-api" }
+moor-var = { path = "../var" }
+moor-zmq-client = { path = "../zmq-client" }
+
+## Command line arguments parsing.
+clap = { workspace = true, features = ["env"] }
+clap_derive.workspace = true
+
+## General.
+cap-std.workspace = true
+color-eyre.workspace = true
+eyre.workspace = true
+
+## Asynchronous transaction processing & networking
+tokio.workspace = true
+
+## Logging & tracing
+tracing.workspace = true
+
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
