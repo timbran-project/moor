@@ -14,20 +14,27 @@
 
 //! Path containment for the file worker.
 //!
-//! Every request path is interpreted relative to a fixed sandbox root. Resolution rejects absolute
-//! paths, `..` traversal that would climb above the root, and symlinks whose targets escape the
-//! sandbox. Error messages only ever mention the caller-supplied relative path so host layout is
-//! not leaked back to untrusted callers.
+//! Every request path is interpreted relative to an open directory capability. The capability
+//! keeps path lookup confined during the filesystem operation, including when directories or
+//! symlinks are changed concurrently. Error messages only mention the caller-supplied relative path
+//! so host layout is not leaked back to untrusted callers.
 
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, Metadata, OpenOptions, ReadDir},
+};
 use std::{
     fmt,
+    fs::File,
+    io,
     path::{Component, Path, PathBuf},
 };
 
-/// A resolved sandbox root. Constructed once at startup; all request paths are resolved against it.
-#[derive(Debug, Clone)]
+/// An open sandbox root used as the capability for all worker filesystem access.
+#[derive(Debug)]
 pub struct Sandbox {
     root: PathBuf,
+    dir: Dir,
 }
 
 #[derive(Debug)]
@@ -52,108 +59,118 @@ impl fmt::Display for SandboxError {
 impl std::error::Error for SandboxError {}
 
 impl Sandbox {
-    /// Open `dir` as the sandbox root, canonicalizing it and verifying it is a directory.
-    pub fn new(dir: &Path) -> Result<Self, SandboxError> {
-        let root = dir
+    /// Open `path` as the sandbox root and retain its directory capability.
+    pub fn new(path: &Path) -> Result<Self, SandboxError> {
+        let root = path
             .canonicalize()
-            .map_err(|e| SandboxError::Root(format!("{}: {e}", dir.display())))?;
+            .map_err(|e| SandboxError::Root(format!("{}: {e}", path.display())))?;
         if !root.is_dir() {
             return Err(SandboxError::Root(format!(
                 "{} is not a directory",
                 root.display()
             )));
         }
-        Ok(Self { root })
+        let dir = Dir::open_ambient_dir(&root, ambient_authority())
+            .map_err(|e| SandboxError::Root(format!("{}: {e}", root.display())))?;
+        Ok(Self { root, dir })
     }
 
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// Resolve a caller-supplied relative path into an absolute path guaranteed to live inside the
-    /// sandbox. The target need not exist (so `write`/`mkdir` can create it), but no part of the
-    /// path may escape via `..` or symlinks.
-    pub fn resolve(&self, rel: &str) -> Result<PathBuf, SandboxError> {
-        let reject = |reason: &str| SandboxError::Rejected {
-            path: rel.to_string(),
-            reason: reason.to_string(),
-        };
+    pub fn open(&self, rel: &str) -> Result<File, SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .open(path)
+            .map(cap_std::fs::File::into_std)
+            .map_err(|e| io_error(rel, "open", e))
+    }
 
-        // Lexically normalize, forbidding absolute components and traversal above the root.
-        let mut parts: Vec<&std::ffi::OsStr> = Vec::new();
-        for component in Path::new(rel).components() {
-            match component {
-                Component::Prefix(_) | Component::RootDir => {
-                    return Err(reject("absolute paths are not permitted"));
+    pub fn open_with(&self, rel: &str, options: &OpenOptions) -> Result<File, SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .open_with(path, options)
+            .map(cap_std::fs::File::into_std)
+            .map_err(|e| io_error(rel, "open", e))
+    }
+
+    pub fn remove_file(&self, rel: &str) -> Result<(), SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .remove_file(path)
+            .map_err(|e| io_error(rel, "delete", e))
+    }
+
+    pub fn create_dir_all(&self, rel: &str) -> Result<(), SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .create_dir_all(path)
+            .map_err(|e| io_error(rel, "create directory", e))
+    }
+
+    pub fn remove_dir(&self, rel: &str) -> Result<(), SandboxError> {
+        let path = relative_path(rel)?;
+        if path == Path::new(".") {
+            return Err(rejected(rel, "the sandbox root may not be removed"));
+        }
+        self.dir
+            .remove_dir(path)
+            .map_err(|e| io_error(rel, "remove directory", e))
+    }
+
+    pub fn symlink_metadata(&self, rel: &str) -> Result<Metadata, SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .symlink_metadata(path)
+            .map_err(|e| io_error(rel, "stat", e))
+    }
+
+    pub fn read_dir(&self, rel: &str) -> Result<ReadDir, SandboxError> {
+        let path = relative_path(rel)?;
+        self.dir
+            .read_dir(path)
+            .map_err(|e| io_error(rel, "list directory", e))
+    }
+}
+
+fn relative_path(rel: &str) -> Result<PathBuf, SandboxError> {
+    let mut path = PathBuf::new();
+    for component in Path::new(rel).components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => {
+                return Err(rejected(rel, "absolute paths are not permitted"));
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !path.pop() {
+                    return Err(rejected(rel, "path escapes the sandbox root"));
                 }
-                Component::CurDir => {}
-                Component::ParentDir => {
-                    if parts.pop().is_none() {
-                        return Err(reject("path escapes the sandbox root"));
-                    }
-                }
-                Component::Normal(name) => parts.push(name),
             }
+            Component::Normal(name) => path.push(name),
         }
+    }
+    if path.as_os_str().is_empty() {
+        path.push(".");
+    }
+    Ok(path)
+}
 
-        let candidate = {
-            let mut p = self.root.clone();
-            p.extend(&parts);
-            p
-        };
+fn io_error(rel: &str, operation: &str, error: io::Error) -> SandboxError {
+    rejected(rel, &format!("could not {operation}: {error}"))
+}
 
-        // Canonicalize the deepest existing ancestor so any symlinks in the existing prefix are
-        // resolved, then confirm the real path is still inside the root.
-        let mut existing = candidate.as_path();
-        loop {
-            if existing.exists() {
-                break;
-            }
-            match existing.parent() {
-                Some(parent) => existing = parent,
-                None => break,
-            }
-        }
-        let canonical_existing = existing
-            .canonicalize()
-            .map_err(|e| reject(&format!("could not resolve path: {e}")))?;
-        if !canonical_existing.starts_with(&self.root) {
-            return Err(reject("path escapes the sandbox root"));
-        }
-
-        // Reattach the non-existing tail (new file/dir names) to the real ancestor. When the whole
-        // path already exists the tail is empty and the canonicalized ancestor is the full path;
-        // joining an empty tail would otherwise append a spurious trailing separator.
-        let tail = candidate
-            .strip_prefix(existing)
-            .expect("existing is an ancestor of candidate");
-        let resolved = if tail.as_os_str().is_empty() {
-            canonical_existing
-        } else {
-            canonical_existing.join(tail)
-        };
-
-        // If the final target is itself a symlink, its (canonicalized) destination must also stay
-        // inside the sandbox; dangling symlinks are refused outright.
-        if let Ok(meta) = resolved.symlink_metadata()
-            && meta.file_type().is_symlink()
-        {
-            let target = resolved
-                .canonicalize()
-                .map_err(|_| reject("refusing to follow a dangling symlink"))?;
-            if !target.starts_with(&self.root) {
-                return Err(reject("symlink target escapes the sandbox root"));
-            }
-        }
-
-        Ok(resolved)
+fn rejected(rel: &str, reason: &str) -> SandboxError {
+    SandboxError::Rejected {
+        path: rel.to_string(),
+        reason: reason.to_string(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{fs, io::Read};
 
     fn sandbox() -> (tempfile::TempDir, Sandbox) {
         let dir = tempfile::tempdir().unwrap();
@@ -162,38 +179,25 @@ mod tests {
     }
 
     #[test]
-    fn resolves_nested_path() {
-        let (_dir, sandbox) = sandbox();
-        let resolved = sandbox.resolve("a/b/c.txt").unwrap();
-        assert!(resolved.starts_with(sandbox.root()));
-        assert!(resolved.ends_with("a/b/c.txt"));
+    fn normalizes_nested_path() {
+        assert_eq!(relative_path("a/b/../c.txt").unwrap(), Path::new("a/c.txt"));
     }
 
     #[test]
     fn empty_path_is_root() {
-        let (_dir, sandbox) = sandbox();
-        assert_eq!(sandbox.resolve("").unwrap(), sandbox.root());
-        assert_eq!(sandbox.resolve(".").unwrap(), sandbox.root());
+        assert_eq!(relative_path("").unwrap(), Path::new("."));
+        assert_eq!(relative_path(".").unwrap(), Path::new("."));
     }
 
     #[test]
     fn rejects_absolute_paths() {
-        let (_dir, sandbox) = sandbox();
-        assert!(sandbox.resolve("/etc/passwd").is_err());
+        assert!(relative_path("/etc/passwd").is_err());
     }
 
     #[test]
     fn rejects_parent_traversal() {
-        let (_dir, sandbox) = sandbox();
-        assert!(sandbox.resolve("../secret").is_err());
-        assert!(sandbox.resolve("a/../../secret").is_err());
-    }
-
-    #[test]
-    fn allows_interior_parent_traversal() {
-        let (_dir, sandbox) = sandbox();
-        let resolved = sandbox.resolve("a/b/../c.txt").unwrap();
-        assert!(resolved.ends_with("a/c.txt"));
+        assert!(relative_path("../secret").is_err());
+        assert!(relative_path("a/../../secret").is_err());
     }
 
     #[test]
@@ -204,8 +208,8 @@ mod tests {
         fs::write(outside.path().join("secret.txt"), b"top secret").unwrap();
         std::os::unix::fs::symlink(outside.path(), dir.path().join("escape")).unwrap();
 
-        assert!(sandbox.resolve("escape/secret.txt").is_err());
-        assert!(sandbox.resolve("escape").is_err());
+        assert!(sandbox.open("escape/secret.txt").is_err());
+        assert!(sandbox.open("escape").is_err());
     }
 
     #[test]
@@ -214,9 +218,43 @@ mod tests {
         let (dir, sandbox) = sandbox();
         fs::create_dir(dir.path().join("real")).unwrap();
         fs::write(dir.path().join("real/file.txt"), b"hello").unwrap();
-        std::os::unix::fs::symlink(dir.path().join("real"), dir.path().join("link")).unwrap();
+        std::os::unix::fs::symlink("real", dir.path().join("link")).unwrap();
 
-        let resolved = sandbox.resolve("link/file.txt").unwrap();
-        assert!(resolved.starts_with(sandbox.root()));
+        let mut file = sandbox.open("link/file.txt").unwrap();
+        let mut content = String::new();
+        file.read_to_string(&mut content).unwrap();
+        assert_eq!(content, "hello");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn deleting_symlink_preserves_target() {
+        let (dir, sandbox) = sandbox();
+        fs::write(dir.path().join("target.txt"), b"hello").unwrap();
+        std::os::unix::fs::symlink("target.txt", dir.path().join("link.txt")).unwrap();
+
+        sandbox.remove_file("link.txt").unwrap();
+        assert!(!dir.path().join("link.txt").exists());
+        assert_eq!(fs::read(dir.path().join("target.txt")).unwrap(), b"hello");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn stat_reports_symlink() {
+        let (dir, sandbox) = sandbox();
+        fs::write(dir.path().join("target.txt"), b"hello").unwrap();
+        std::os::unix::fs::symlink("target.txt", dir.path().join("link.txt")).unwrap();
+
+        let metadata = sandbox.symlink_metadata("link.txt").unwrap();
+        assert!(metadata.file_type().is_symlink());
+    }
+
+    #[test]
+    fn rejects_removing_root() {
+        let (dir, sandbox) = sandbox();
+        assert!(sandbox.remove_dir("").is_err());
+        assert!(sandbox.remove_dir(".").is_err());
+        assert!(sandbox.remove_dir("child/..").is_err());
+        assert!(dir.path().is_dir());
     }
 }

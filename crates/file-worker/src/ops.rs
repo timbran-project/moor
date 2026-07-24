@@ -22,9 +22,13 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use cap_std::fs::{FileType, OpenOptions};
 use moor_common::tasks::WorkerError;
 use moor_var::{Obj, Symbol, Var, Variant, v_int, v_list_iter, v_map, v_str, v_string};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    task,
+};
 use tracing::info;
 use uuid::Uuid;
 
@@ -32,6 +36,16 @@ use crate::sandbox::Sandbox;
 
 fn err(msg: impl Into<String>) -> WorkerError {
     WorkerError::RequestError(msg.into())
+}
+
+async fn blocking<T, F>(operation: F) -> Result<T, WorkerError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, WorkerError> + Send + 'static,
+{
+    task::spawn_blocking(operation)
+        .await
+        .map_err(|e| WorkerError::InternalError(format!("filesystem operation task failed: {e}")))?
 }
 
 /// Entry point wired into the worker loop. Dispatches on the operation symbol and enforces the
@@ -104,9 +118,13 @@ fn content_arg(arguments: &[Var], idx: usize) -> Result<String, WorkerError> {
     }
 }
 
-async fn read(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
+async fn read(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let rel_for_open = rel.clone();
+    let sandbox = sandbox.clone();
+    let file =
+        blocking(move || sandbox.open(&rel_for_open).map_err(|e| err(e.to_string()))).await?;
+    let file = tokio::fs::File::from_std(file);
 
     // Optional 1-based inclusive line range: {read, path, start_line, end_line}.
     if arguments.len() > 2 {
@@ -124,9 +142,6 @@ async fn read(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> 
             return Err(err("end_line must be >= start_line"));
         }
 
-        let file = tokio::fs::File::open(&path)
-            .await
-            .map_err(|e| err(format!("could not open {rel:?}: {e}")))?;
         let mut lines = BufReader::new(file).lines();
         let mut out = Vec::new();
         let mut n: i64 = 0;
@@ -146,26 +161,38 @@ async fn read(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> 
         return Ok(v_list_iter(out));
     }
 
-    let content = tokio::fs::read_to_string(&path)
+    let mut content = String::new();
+    BufReader::new(file)
+        .read_to_string(&mut content)
         .await
         .map_err(|e| err(format!("could not read {rel:?}: {e}")))?;
-    info!(path = rel, "read");
+    info!(path = rel.as_str(), "read");
     Ok(v_string(content))
 }
 
-async fn write(sandbox: &Sandbox, arguments: &[Var], append: bool) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
+async fn write(
+    sandbox: &Arc<Sandbox>,
+    arguments: &[Var],
+    append: bool,
+) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
     let content = content_arg(arguments, 2)?;
 
-    let mut file = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(append)
-        .truncate(!append)
-        .open(&path)
-        .await
-        .map_err(|e| err(format!("could not open {rel:?} for writing: {e}")))?;
+    let rel_for_open = rel.clone();
+    let sandbox = sandbox.clone();
+    let file = blocking(move || {
+        let mut options = OpenOptions::new();
+        options
+            .write(true)
+            .create(true)
+            .append(append)
+            .truncate(!append);
+        sandbox
+            .open_with(&rel_for_open, &options)
+            .map_err(|e| err(e.to_string()))
+    })
+    .await?;
+    let mut file = tokio::fs::File::from_std(file);
     file.write_all(content.as_bytes())
         .await
         .map_err(|e| err(format!("could not write {rel:?}: {e}")))?;
@@ -173,47 +200,60 @@ async fn write(sandbox: &Sandbox, arguments: &[Var], append: bool) -> Result<Var
         .await
         .map_err(|e| err(format!("could not flush {rel:?}: {e}")))?;
 
-    info!(path = rel, append, bytes = content.len(), "write");
+    info!(path = rel.as_str(), append, bytes = content.len(), "write");
     Ok(v_int(content.len() as i64))
 }
 
-async fn delete(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
-    tokio::fs::remove_file(&path)
-        .await
-        .map_err(|e| err(format!("could not delete {rel:?}: {e}")))?;
-    info!(path = rel, "delete");
+async fn delete(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let rel_for_delete = rel.clone();
+    let sandbox = sandbox.clone();
+    blocking(move || {
+        sandbox
+            .remove_file(&rel_for_delete)
+            .map_err(|e| err(e.to_string()))
+    })
+    .await?;
+    info!(path = rel.as_str(), "delete");
     Ok(v_int(1))
 }
 
-async fn mkdir(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
-    tokio::fs::create_dir_all(&path)
-        .await
-        .map_err(|e| err(format!("could not create directory {rel:?}: {e}")))?;
-    info!(path = rel, "mkdir");
+async fn mkdir(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let rel_for_create = rel.clone();
+    let sandbox = sandbox.clone();
+    blocking(move || {
+        sandbox
+            .create_dir_all(&rel_for_create)
+            .map_err(|e| err(e.to_string()))
+    })
+    .await?;
+    info!(path = rel.as_str(), "mkdir");
     Ok(v_int(1))
 }
 
-async fn rmdir(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
+async fn rmdir(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let rel_for_remove = rel.clone();
+    let sandbox = sandbox.clone();
     // Only empty directories may be removed; recursive deletion is intentionally not supported.
-    tokio::fs::remove_dir(&path)
-        .await
-        .map_err(|e| err(format!("could not remove directory {rel:?}: {e}")))?;
-    info!(path = rel, "rmdir");
+    blocking(move || {
+        sandbox
+            .remove_dir(&rel_for_remove)
+            .map_err(|e| err(e.to_string()))
+    })
+    .await?;
+    info!(path = rel.as_str(), "rmdir");
     Ok(v_int(1))
 }
 
-async fn line_count(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
-    let file = tokio::fs::File::open(&path)
-        .await
-        .map_err(|e| err(format!("could not open {rel:?}: {e}")))?;
+async fn line_count(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let rel_for_open = rel.clone();
+    let sandbox = sandbox.clone();
+    let file =
+        blocking(move || sandbox.open(&rel_for_open).map_err(|e| err(e.to_string()))).await?;
+    let file = tokio::fs::File::from_std(file);
     let mut lines = BufReader::new(file).lines();
     let mut count: i64 = 0;
     while lines
@@ -227,12 +267,15 @@ async fn line_count(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerE
     Ok(v_int(count))
 }
 
-async fn stat(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
-    let meta = tokio::fs::symlink_metadata(&path)
-        .await
-        .map_err(|e| err(format!("could not stat {rel:?}: {e}")))?;
+async fn stat(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let sandbox = sandbox.clone();
+    let meta = blocking(move || {
+        sandbox
+            .symlink_metadata(&rel)
+            .map_err(|e| err(e.to_string()))
+    })
+    .await?;
 
     let mut pairs = vec![
         (v_str("type"), v_str(file_type_name(&meta.file_type()))),
@@ -245,47 +288,59 @@ async fn stat(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> 
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
+        use cap_std::fs::PermissionsExt;
         let mode = meta.permissions().mode() & 0o7777;
         pairs.push((v_str("mode"), v_string(format!("{mode:o}"))));
     }
 
-    push_time(&mut pairs, "modified", meta.modified().ok());
-    push_time(&mut pairs, "created", meta.created().ok());
-    push_time(&mut pairs, "accessed", meta.accessed().ok());
+    push_time(
+        &mut pairs,
+        "modified",
+        meta.modified().map(|time| time.into_std()).ok(),
+    );
+    push_time(
+        &mut pairs,
+        "created",
+        meta.created().map(|time| time.into_std()).ok(),
+    );
+    push_time(
+        &mut pairs,
+        "accessed",
+        meta.accessed().map(|time| time.into_std()).ok(),
+    );
 
     Ok(v_map(&pairs))
 }
 
-async fn list(sandbox: &Sandbox, arguments: &[Var]) -> Result<Var, WorkerError> {
-    let rel = path_arg(arguments, 1)?;
-    let path = sandbox.resolve(rel).map_err(|e| err(e.to_string()))?;
-    let mut entries = tokio::fs::read_dir(&path)
-        .await
-        .map_err(|e| err(format!("could not list {rel:?}: {e}")))?;
-
-    let mut out = Vec::new();
-    while let Some(entry) = entries
-        .next_entry()
-        .await
-        .map_err(|e| err(format!("could not read directory {rel:?}: {e}")))?
-    {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let file_type = entry
-            .file_type()
-            .await
-            .map_err(|e| err(format!("could not stat entry in {rel:?}: {e}")))?;
-        let size = entry.metadata().await.map(|m| m.len()).unwrap_or(0);
-        out.push(v_map(&[
+async fn list(sandbox: &Arc<Sandbox>, arguments: &[Var]) -> Result<Var, WorkerError> {
+    let rel = path_arg(arguments, 1)?.to_string();
+    let sandbox = sandbox.clone();
+    let entries = blocking(move || {
+        let entries = sandbox.read_dir(&rel).map_err(|e| err(e.to_string()))?;
+        let mut out = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| err(format!("could not read directory {rel:?}: {e}")))?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let file_type = entry
+                .file_type()
+                .map_err(|e| err(format!("could not stat entry in {rel:?}: {e}")))?;
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            out.push((name, file_type, size));
+        }
+        Ok(out)
+    })
+    .await?;
+    let out = entries.into_iter().map(|(name, file_type, size)| {
+        v_map(&[
             (v_str("name"), v_string(name)),
             (v_str("type"), v_str(file_type_name(&file_type))),
             (v_str("size"), v_int(size as i64)),
-        ]));
-    }
+        ])
+    });
     Ok(v_list_iter(out))
 }
 
-fn file_type_name(file_type: &std::fs::FileType) -> &'static str {
+fn file_type_name(file_type: &FileType) -> &'static str {
     if file_type.is_dir() {
         "directory"
     } else if file_type.is_symlink() {
@@ -467,6 +522,57 @@ mod tests {
         run(&sandbox, vec![v_str("rmdir"), v_str("sub/inner")])
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn delete_removes_symlink_not_target() {
+        let (dir, sandbox) = setup();
+        std::fs::write(dir.path().join("target.txt"), b"hello").unwrap();
+        std::os::unix::fs::symlink("target.txt", dir.path().join("link.txt")).unwrap();
+
+        run(&sandbox, vec![v_str("delete"), v_str("link.txt")])
+            .await
+            .unwrap();
+
+        assert!(std::fs::symlink_metadata(dir.path().join("link.txt")).is_err());
+        assert_eq!(
+            std::fs::read(dir.path().join("target.txt")).unwrap(),
+            b"hello"
+        );
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn stat_reports_symlink_type() {
+        let (dir, sandbox) = setup();
+        std::fs::write(dir.path().join("target.txt"), b"hello").unwrap();
+        std::os::unix::fs::symlink("target.txt", dir.path().join("link.txt")).unwrap();
+
+        let stat = run(&sandbox, vec![v_str("stat"), v_str("link.txt")])
+            .await
+            .unwrap();
+        let has_symlink_type = stat.as_map().unwrap().iter().any(|(key, value)| {
+            key.as_string() == Some("type") && value.as_string() == Some("symlink")
+        });
+        assert!(has_symlink_type);
+    }
+
+    #[tokio::test]
+    async fn rmdir_rejects_sandbox_root() {
+        let (dir, sandbox) = setup();
+
+        assert!(
+            run(&sandbox, vec![v_str("rmdir"), v_str(".")])
+                .await
+                .is_err()
+        );
+        assert!(
+            run(&sandbox, vec![v_str("rmdir"), v_str("")])
+                .await
+                .is_err()
+        );
+        assert!(dir.path().is_dir());
     }
 
     #[tokio::test]
