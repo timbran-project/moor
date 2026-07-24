@@ -123,7 +123,7 @@ impl std::fmt::Debug for Instant {
 pub fn is_tsc_available() -> bool {
     #[cfg(all(target_os = "linux", any(target_arch = "x86", target_arch = "x86_64")))]
     {
-        return matches!(clock(), Clock::Tsc(_));
+        matches!(clock(), Clock::Tsc(_))
     }
 
     #[cfg(not(all(target_os = "linux", any(target_arch = "x86", target_arch = "x86_64"))))]
@@ -310,12 +310,12 @@ fn cpu_has_invariant_tsc() -> bool {
     #[cfg(target_arch = "x86_64")]
     use core::arch::x86_64::__cpuid;
 
-    let max_extended_leaf = unsafe { __cpuid(0x8000_0000).eax };
+    let max_extended_leaf = __cpuid(0x8000_0000).eax;
     if max_extended_leaf < 0x8000_0007 {
         return false;
     }
 
-    let leaf = unsafe { __cpuid(0x8000_0007) };
+    let leaf = __cpuid(0x8000_0007);
     (leaf.edx & (1 << 8)) != 0
 }
 

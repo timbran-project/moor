@@ -728,10 +728,7 @@ impl TreeTransformer {
                         let mut inner = primary.into_inner();
                         let (lower, _) = inner.size_hint();
                         let mut map_pairs = Vec::with_capacity(lower / 2);
-                        loop {
-                            let Some(key_rule) = inner.next() else {
-                                break;
-                            };
+                        while let Some(key_rule) = inner.next() {
                             let value_rule = inner.next().unwrap();
                             let key = primary_self
                                 .clone()

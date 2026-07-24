@@ -571,7 +571,7 @@ fn main() -> Result<(), eyre::Error> {
     let total_duration = workload_start.elapsed();
 
     // Sort by timestamp
-    workload_results.sort_by(|a, b| a.0.cmp(&b.0));
+    workload_results.sort_by_key(|a| a.0);
 
     println!("Collected {} operations", workload_results.len());
 

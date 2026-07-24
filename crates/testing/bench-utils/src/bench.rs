@@ -478,17 +478,22 @@ impl Results {
     }
 
     pub fn divide(&mut self, divisor: u64) {
-        if divisor > 0 {
-            self.instructions /= divisor;
-            self.branches /= divisor;
-            self.branch_misses /= divisor;
-            self.cache_misses /= divisor;
-            self.pmu_time_enabled_ns /= divisor;
-            self.pmu_time_running_ns /= divisor;
-            self.duration /= divisor as u32;
-            self.iterations /= divisor;
-            self.chunks_executed /= divisor;
-        }
+        let Ok(duration_divisor) = u32::try_from(divisor) else {
+            return;
+        };
+        let Some(duration) = self.duration.checked_div(duration_divisor) else {
+            return;
+        };
+
+        self.instructions /= divisor;
+        self.branches /= divisor;
+        self.branch_misses /= divisor;
+        self.cache_misses /= divisor;
+        self.pmu_time_enabled_ns /= divisor;
+        self.pmu_time_running_ns /= divisor;
+        self.duration = duration;
+        self.iterations /= divisor;
+        self.chunks_executed /= divisor;
     }
 }
 

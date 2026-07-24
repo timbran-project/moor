@@ -162,9 +162,9 @@ pub fn collect_object(
 
     // Alphabetize properties. Verbs should remain in their original order.
     od.property_definitions
-        .sort_by(|a, b| a.name.as_arc_str().cmp(&b.name.as_arc_str()));
+        .sort_by_key(|a| a.name.as_arc_str());
     od.property_overrides
-        .sort_by(|a, b| a.name.as_arc_str().cmp(&b.name.as_arc_str()));
+        .sort_by_key(|a| a.name.as_arc_str());
     Ok((num_verbdefs, num_propdefs, num_propoverrides, od))
 }
 
@@ -376,7 +376,7 @@ fn generate_constants_file(
 
     for (hierarchy_path, mut objects) in sorted_groups {
         // Sort objects within each group by object id
-        objects.sort_by(|a, b| a.0.as_u64().cmp(&b.0.as_u64()));
+        objects.sort_by_key(|a| a.0.as_u64());
 
         // Add comment header for this group (skip for root level)
         if !hierarchy_path.is_empty() {
