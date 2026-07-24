@@ -27,6 +27,11 @@ export GROUP_ID=$(id -g)
 # If a previous run left root-owned dirs (e.g. from running docker compose without start.sh),
 # warn and exit so the user can fix ownership.
 DIRS="moor-data moor-ipc moor-config moor-local-share moor-telnet-host-data moor-web-host-data moor-curl-worker-data"
+case ",${COMPOSE_PROFILES:-}," in
+    *,file-worker,*)
+        DIRS="$DIRS moor-file-worker-data moor-file-worker-sandbox"
+        ;;
+esac
 for dir in $DIRS; do
     if [ -d "$dir" ] && [ "$(stat -c '%u' "$dir")" != "$USER_ID" ]; then
         echo "ERROR: $dir is not owned by you (uid $USER_ID). This usually happens when"

@@ -170,3 +170,36 @@ services:
       moor-daemon:
         condition: service_started
     restart: unless-stopped
+
+  # Optional worker for filesystem requests from MOO code. All paths are confined to /sandbox.
+  moor-file-worker:
+    <<: *moor-image
+    profiles:
+      - file-worker
+    container_name: "moor-file-worker"
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    environment:
+      - RUST_BACKTRACE=1
+      - HOME=/moor
+      - XDG_CONFIG_HOME=/moor/.config
+      - XDG_DATA_HOME=/moor/.local/share
+    working_dir: /moor
+    volumes:
+      - ./moor-file-worker-data:/moor/.moor-host-data
+      - ./moor-file-worker-sandbox:/sandbox
+      - ./moor-ipc:/var/run/moor
+      - ./moor-config:/moor/.config:ro
+      - ./moor-local-share:/moor/.local/share:ro
+    command:
+      - ./moor-file-worker
+      - --sandbox-dir=/sandbox
+      - --rpc-address=ipc:///var/run/moor/rpc.sock
+      - --events-address=ipc:///var/run/moor/events.sock
+      - --workers-request-address=ipc:///var/run/moor/workers-request.sock
+      - --workers-response-address=ipc:///var/run/moor/workers-response.sock
+    networks:
+      - moor_net
+    depends_on:
+      moor-daemon:
+        condition: service_started
+    restart: unless-stopped
