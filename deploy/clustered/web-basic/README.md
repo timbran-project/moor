@@ -24,6 +24,7 @@ This configuration runs:
 - **moor-web-host**: Web API and WebSocket server
 - **moor-frontend**: nginx serving the web client (port 8080)
 - **moor-curl-worker**: Worker for outbound HTTP requests from MOO code
+- **moor-file-worker**: Optional sandboxed filesystem worker
 - **init-enrollment**: One-time setup for authentication tokens
 
 ## Prerequisites
@@ -68,6 +69,24 @@ The backend image includes the compiled Meadow assets copied into the nginx volu
 Docker automatically selects the AMD64 or ARM64 image for the deployment host. For a fixed release,
 replace `latest` with a version such as `1.0.2`. Local builds are only necessary when developing or
 customizing the deployment.
+
+### Enabling the file worker
+
+The file worker is disabled by default. Enable its Compose profile when starting the deployment:
+
+```bash
+COMPOSE_PROFILES=file-worker ./start.sh
+```
+
+The startup script creates `./moor-file-worker-sandbox/` with the current user's ownership and
+mounts it at `/sandbox` in the worker container. Every path supplied by MOO code is resolved
+relative to that directory. Use the same `COMPOSE_PROFILES` setting for later Compose commands that
+should include the worker:
+
+```bash
+COMPOSE_PROFILES=file-worker docker compose logs -f moor-file-worker
+COMPOSE_PROFILES=file-worker docker compose stop
+```
 
 ## Verifying Your Setup
 
@@ -136,6 +155,8 @@ Data is stored in Docker volumes and local directories:
 - `./moor-telnet-host-data/`: Telnet host state
 - `./moor-web-host-data/`: Web host state
 - `./moor-curl-worker-data/`: Curl worker state
+- `./moor-file-worker-data/`: File worker identity state when its profile is enabled
+- `./moor-file-worker-sandbox/`: Files exposed to MOO code when the file worker is enabled
 - `moor-enrollment`: Docker volume for authentication tokens
 - `moor-allowed-hosts`: Docker volume for host authorization
 

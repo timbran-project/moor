@@ -106,53 +106,15 @@ worker_request('file, {'list, "logs"});
 worker_request('file, {'mkdir, "archive/2026"});
 ```
 
-## Adding the worker to docker-compose
+## Docker Compose
 
-Add a service alongside the existing `moor-curl-worker` definition in `docker-compose.yml`. It
-mirrors the curl worker, plus the sandbox environment variable and a volume that maps a host
-directory into the container at the sandbox path:
+The [clustered web-basic deployment](../../deploy/clustered/web-basic) includes the worker as an
+optional Compose profile:
 
-```yaml
-# File worker process
-moor-file-worker:
-  build:
-    context: .
-    target: backend
-    network: host
-    args:
-      BUILD_PROFILE: ${BUILD_PROFILE:-release-fast}
-  container_name: "moor-file-worker"
-  user: "${USER_ID}:${GROUP_ID}"
-  working_dir: /db
-  environment:
-    - RUST_BACKTRACE=1
-    - HOME=/db
-    - XDG_CONFIG_HOME=/db/${RUN_DIR}/config
-    - XDG_DATA_HOME=/db/${RUN_DIR}/local-share
-    - MOOR_FILE_WORKER_SANDBOX=/sandbox
-  volumes:
-    - ./:/db
-    - ./${RUN_DIR}/ipc:/var/run/moor
-    - ./${RUN_DIR}/file-sandbox:/sandbox
-  command:
-    - /moor/moor-file-worker
-    - --rpc-address=ipc:///var/run/moor/rpc.sock
-    - --events-address=ipc:///var/run/moor/events.sock
-    - --workers-request-address=ipc:///var/run/moor/workers-request.sock
-    - --workers-response-address=ipc:///var/run/moor/workers-response.sock
-    - --data-dir=/db/${RUN_DIR}/file-worker-data
-    - --sandbox-dir=/sandbox
-  networks:
-    - moor_net
-  depends_on:
-    moor-daemon:
-      condition: service_started
+```bash
+cd deploy/clustered/web-basic
+COMPOSE_PROFILES=file-worker ./start.sh
 ```
 
-Create the host sandbox directory before starting the stack (for example
-`mkdir -p ${RUN_DIR}/file-sandbox`). All file operations requested through the worker are confined
-to that directory. `--sandbox-dir` and `MOOR_FILE_WORKER_SANDBOX` are equivalent; the example sets
-both for clarity.
-
-The container binary is provided by the `backend` image stage; see the `COPY` line for
-`moor-file-worker` in `Dockerfile`.
+The profile maps `./moor-file-worker-sandbox/` into the container as `/sandbox`. The worker remains
+disabled when the profile is not selected.
