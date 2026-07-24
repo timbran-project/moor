@@ -58,6 +58,7 @@
   - [Server Configuration](the-system/server-configuration.md)
   - [Performance and Concurrency](the-system/performance-and-concurrency.md)
   - [Clustered Deployment](the-system/clustered-deployment.md)
+  - [File Worker](the-system/file-worker.md)
   - [Event Logging](the-system/event-logging.md)
   - [Server Assumptions About the Database](the-system/server-assumptions-about-the-database.md)
   - [Importing and Exporting Objdef Databases](the-system/object-packaging.md)
