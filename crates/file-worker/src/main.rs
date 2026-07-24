@@ -23,7 +23,7 @@ use std::{
     net::SocketAddr,
     path::PathBuf,
     sync::{
-        Arc,
+        Arc, LazyLock,
         atomic::{AtomicBool, AtomicU64},
     },
     time::Duration,
@@ -37,12 +37,11 @@ use tokio::{
 use tracing::{debug, error, info};
 
 use moor_var::{Obj, Symbol, Var};
-use once_cell::sync::Lazy;
 use uuid::Uuid;
 
 use crate::sandbox::Sandbox;
 
-static VERSION_STRING: Lazy<String> = Lazy::new(|| {
+static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
     format!(
         "{} (commit: {})",
         env!("CARGO_PKG_VERSION"),
