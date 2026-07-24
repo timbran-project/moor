@@ -573,6 +573,9 @@ arrives.
 
 - Wizard-only
 
+For the filesystem worker's request operations and server-side sandbox configuration, see
+[File Worker](../../the-system/file-worker.md).
+
 ### `queued_tasks`
 
 **Description:** Returns a list of tasks currently in the queue waiting to be executed.
