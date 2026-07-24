@@ -22,14 +22,12 @@ clap = { workspace = true, features = ["env"] }
 clap_derive.workspace = true
 
 ## General.
+cap-std.workspace = true
 color-eyre.workspace = true
 eyre.workspace = true
 
 ## Asynchronous transaction processing & networking
 tokio.workspace = true
-
-## Utilities
-once_cell.workspace = true
 
 ## Logging & tracing
 tracing.workspace = true
