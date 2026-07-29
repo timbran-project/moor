@@ -21,7 +21,7 @@ use moor_common::util::{Deadline, Instant, Timestamp};
 use std::{
     collections::{HashMap, VecDeque},
     hash::BuildHasherDefault,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, OnceLock, atomic::AtomicBool},
     time::{Duration, SystemTime},
 };
 use tracing::{error, info, warn};
@@ -34,7 +34,7 @@ use moor_common::threading::{
 use moor_var::{Obj, Var};
 
 use crate::{
-    tasks::{task::Task, task_pool::TaskThreadPool},
+    tasks::{task::Task, task_pool::TaskThreadPool, task_telemetry::TaskRunBaseline},
     vm::extract_anonymous_refs_from_vm_exec_state,
 };
 
@@ -85,6 +85,10 @@ pub(crate) struct RunningTask {
     pub(crate) player: Obj,
     /// What triggered this task to start.
     pub(crate) task_start: TaskStart,
+    /// When this task was submitted to the task-pool queue.
+    pub(crate) dispatched_at: Instant,
+    /// Immutable operating-system counters captured by the worker on entry.
+    pub(crate) run_baseline: Arc<OnceLock<TaskRunBaseline>>,
     /// A kill switch to signal the task to stop. True means the VM execution thread should stop
     /// as soon as it can.
     pub(crate) kill_switch: Arc<AtomicBool>,

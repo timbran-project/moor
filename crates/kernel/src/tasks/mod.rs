@@ -40,6 +40,7 @@ pub(crate) mod task_pool;
 pub(crate) mod task_program_cache;
 pub(crate) mod task_q;
 pub mod task_scheduler_client;
+pub mod task_telemetry;
 mod tasks_db;
 pub mod workers;
 pub mod world_state_action;

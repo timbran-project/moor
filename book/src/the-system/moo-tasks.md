@@ -115,7 +115,9 @@ If you are used to LambdaMOO/Toast patterns that rely on `task_stack()`, conside
 instead:
 
 - Prefer the metadata available from `active_tasks()` and `queued_tasks()` (task id, start info,
-  verb location) to identify what to kill.
+  verb location) to identify what to kill. Wizards can use
+  [`task_telemetry()`](#active-task-telemetry) to correlate an active task with its worker and, on
+  Linux, inspect its CPU and scheduling activity.
 - Treat `kill_task()` as best-effort for active tasks; it takes effect when the task next suspends
   or exits its main loop. For workflows that need to wait for termination, combine `kill_task()`
   with `wait_task()` in a loop.
@@ -126,6 +128,87 @@ instead:
   cascading tracebacks and to add contextual handling.
 - For tasks that must be cancellable quickly, add voluntary checks in the code paths you control (a
   property flag or a helper that returns "abort now") and return early when set.
+
+#### Active task telemetry
+
+`task_telemetry()` provides scheduler and operating-system activity for active tasks. It is intended
+for diagnosing which task is using CPU, whether a task is waiting for a task-pool worker, and which
+Linux thread an operator should inspect with tools such as `top`, `ps`, or `perf`.
+
+The builtin requires wizard permissions or an explicit `builtin_call` capability grant for
+`task_telemetry`. Calling it without an argument returns a list of telemetry maps:
+
+```moo
+for task in (task_telemetry())
+  player:tell(toliteral(task));
+endfor
+```
+
+Passing an active task ID returns only that task's map:
+
+```moo
+telemetry = task_telemetry(task_id);
+```
+
+The single-task form raises `E_INVARG` if the task completes or suspends before it is sampled. The
+all-task form is an unordered snapshot, and tasks may change state immediately after it returns.
+
+Every telemetry map has the following common fields:
+
+| Key                | Meaning                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `task_id`          | MOO task ID                                                |
+| `player`           | Player associated with the task                            |
+| `phase`            | `dispatching` while awaiting a worker, otherwise `running` |
+| `dispatch_wait_ns` | Time spent awaiting a worker; fixed once execution begins  |
+| `worker_index`     | Task-pool worker index; present once execution begins      |
+| `running_ns`       | Wall-clock execution time for the current run              |
+
+The `phase` value is a symbol when symbol values are enabled and a string otherwise. A dispatching
+task does not have a worker thread yet. Once running, a task owns its worker until it completes or
+suspends. Resuming starts a new run, potentially on another worker.
+
+On Linux, maps also include available operating-system information:
+
+| Key                            | Meaning                                       |
+| ------------------------------ | --------------------------------------------- |
+| `pid`                          | Server process ID                             |
+| `tid`                          | Linux thread ID                               |
+| `state`                        | Current Linux scheduling state                |
+| `cpu_ns`                       | CPU time consumed by the current run          |
+| `cpu_percent`                  | Average single-core utilization               |
+| `user_cpu_ns`                  | User-mode CPU time                            |
+| `system_cpu_ns`                | Kernel-mode CPU time                          |
+| `minor_faults`, `major_faults` | Page-fault counts                             |
+| `voluntary_context_switches`   | Voluntary context switches                    |
+| `involuntary_context_switches` | Involuntary context switches                  |
+| `last_cpu`                     | Most recently observed logical CPU            |
+| `wchan`                        | Kernel wait channel, or `0` while not waiting |
+
+These counters are deltas from when the task entered the worker, not lifetime counters for the
+reused worker thread. `cpu_percent` is `cpu_ns / running_ns * 100`, averaged over the current run.
+Repeated samples are more informative when CPU use changes over time.
+
+After identifying a suspicious PID and TID, an operator can correlate them with host tools:
+
+```sh
+ps -L -p PID -o pid,tid,psr,stat,pcpu,time,comm,wchan
+top -H -p PID
+perf top -t TID
+```
+
+PID and TID values are relative to the server's PID namespace, so container host identifiers may
+differ. Host security settings may also restrict `perf` and some procfs fields.
+
+Task telemetry does not report per-task resident memory: active tasks share one process address
+space, and Linux cannot attribute the process RSS to a MOO task. It also does not expose a live MOO
+or Rust userspace stack. The `wchan` field is only a kernel wait location. Use `memory_usage()` for
+process-wide memory and use `queued_tasks()` or `task_stack()` for stationary suspended-task state.
+
+The worker records a task-local, write-once baseline at the beginning of each run. Procfs is sampled
+only when `task_telemetry()` is called and outside the scheduler lifecycle lock. Administrator
+sampling is inexpensive relative to task execution, but high-frequency polling still creates procfs
+and map-construction work.
 
 ### Advanced transaction management
 

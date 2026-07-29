@@ -1,0 +1,26 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; telemetry = task_telemetry(task_id()); return typeof(telemetry) == TYPE_MAP && telemetry["task_id"] == task_id() && telemetry["player"] == player && telemetry["phase"] == 'running && telemetry["worker_index"] >= 0 && telemetry["dispatch_wait_ns"] >= 0 && telemetry["running_ns"] >= 0;
+1
+
+; for telemetry in (task_telemetry()) if (telemetry["task_id"] == task_id()) return 1; endif endfor return 0;
+1
+
+; task_telemetry(2147483647);
+E_INVARG
+
+@programmer
+; task_telemetry();
+E_PERM

@@ -202,16 +202,17 @@ open an issue on the [mooR GitHub issue tracker](https://github.com/timbran-proj
 
 ### Tasks
 
-| Name                                     | Complete | Notes                                                                                 |
-| ---------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
-| [`task_id`](server.md#task_id)           | &check;  |                                                                                       |
-| [`queued_tasks`](server.md#queued_tasks) | &check;  |                                                                                       |
-| [`valid_task`](server.md#valid_task)     | &check;  |                                                                                       |
-| [`kill_task`](server.md#kill_task)       | &check;  |                                                                                       |
-| [`resume`](server.md#resume)             | &check;  |                                                                                       |
-| [`queue_info`](server.md#queue_info)     | &check;  |                                                                                       |
-| [`force_input`](server.md#force_input)   | &check;  | Does not support "at-front" argument, and command executes in parallel not in a queue |
-| [`flush_input`](server.md#flush_input)   |          |                                                                                       |
+| Name                                         | Complete | Notes                                                                                 |
+| -------------------------------------------- | -------- | ------------------------------------------------------------------------------------- |
+| [`task_id`](server.md#task_id)               | &check;  |                                                                                       |
+| [`queued_tasks`](server.md#queued_tasks)     | &check;  |                                                                                       |
+| [`valid_task`](server.md#valid_task)         | &check;  |                                                                                       |
+| [`kill_task`](server.md#kill_task)           | &check;  |                                                                                       |
+| [`resume`](server.md#resume)                 | &check;  |                                                                                       |
+| [`queue_info`](server.md#queue_info)         | &check;  |                                                                                       |
+| [`task_telemetry`](server.md#task_telemetry) | &check;  | mooR extension. Wizard-only active-task scheduler and OS telemetry.                   |
+| [`force_input`](server.md#force_input)       | &check;  | Does not support "at-front" argument, and command executes in parallel not in a queue |
+| [`flush_input`](server.md#flush_input)       |          |                                                                                       |
 
 ### Execution
 
@@ -358,3 +359,4 @@ Functions not part of the original LambdaMOO, but added in moor
 | [`suspend_if_needed`](server.md#suspend_if_needed) | Conditionally commits and suspends if remaining ticks are below a threshold, preventing task timeout                                                                              | mooR extension                  |
 | [`task_send`](server.md#task_send)                 | Sends a message (any value) to another task's message queue, delivered on commit                                                                                                  | mooR extension                  |
 | [`task_recv`](server.md#task_recv)                 | Commits current transaction and returns all queued messages as a list; optionally waits for messages                                                                              | mooR extension                  |
+| [`task_telemetry`](server.md#task_telemetry)       | Returns scheduler and operating-system telemetry for active tasks                                                                                                                 | Wizard only; mooR extension     |

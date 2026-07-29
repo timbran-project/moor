@@ -589,6 +589,58 @@ arrives.
 
 **Description:** Returns a list of tasks that are currently running. **Arguments:** None
 
+### `task_telemetry`
+
+**Description:** Returns scheduler and operating-system telemetry for active tasks. This function is
+available only to wizards or callers with an explicit `builtin_call` grant. See
+[Active task telemetry](../../the-system/moo-tasks.md#active-task-telemetry) for operational
+examples and interpretation guidance.
+
+**Arguments:**
+
+- `task_id`: Optional active task ID. With an ID, returns one telemetry map. Without an ID, returns
+  a list of telemetry maps for all active tasks.
+
+Every telemetry map contains the task ID, player, phase, dispatch wait time, and, for a running
+task, the worker index and running time. On Linux, maps also contain the PID and TID plus available
+per-run CPU, scheduling, page-fault, context-switch, CPU-placement, and wait-channel information.
+Linux counters are deltas for the current uninterrupted execution of the task, not lifetime counters
+for the reused worker thread.
+
+Common fields:
+
+| Key                | Meaning                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `task_id`          | MOO task ID                                                |
+| `player`           | Player associated with the task                            |
+| `phase`            | `dispatching` while awaiting a worker, otherwise `running` |
+| `dispatch_wait_ns` | Time spent awaiting a worker; fixed once execution begins  |
+| `worker_index`     | Task-pool worker index; present once execution begins      |
+| `running_ns`       | Wall-clock execution time for the current run              |
+
+Linux fields are included when the corresponding operating-system counter is available:
+
+| Key                            | Meaning                                       |
+| ------------------------------ | --------------------------------------------- |
+| `pid`                          | Server process ID                             |
+| `tid`                          | Linux thread ID                               |
+| `state`                        | Current Linux scheduling state                |
+| `cpu_ns`                       | CPU time consumed by the current run          |
+| `cpu_percent`                  | Average single-core utilization               |
+| `user_cpu_ns`                  | User-mode CPU time                            |
+| `system_cpu_ns`                | Kernel-mode CPU time                          |
+| `minor_faults`, `major_faults` | Page-fault counts                             |
+| `voluntary_context_switches`   | Voluntary context switches                    |
+| `involuntary_context_switches` | Involuntary context switches                  |
+| `last_cpu`                     | Most recently observed logical CPU            |
+| `wchan`                        | Kernel wait channel, or `0` while not waiting |
+
+**Errors:**
+
+- `E_INVARG` if a requested task is not active
+- `E_PERM` if the caller is not a wizard and lacks an explicit grant
+- `E_TYPE` if `task_id` is not an integer
+
 ### `queue_info`
 
 **Description:** Returns information about queued background tasks. **Arguments:**

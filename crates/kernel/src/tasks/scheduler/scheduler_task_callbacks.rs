@@ -723,6 +723,41 @@ impl Scheduler {
         Ok(results)
     }
 
+    pub fn handle_task_telemetry(&self, task_id: Option<TaskId>) -> Vec<TaskTelemetry> {
+        let sources: Vec<_> = {
+            let lc = self.lifecycle.lock();
+            lc.task_q
+                .active
+                .iter()
+                .filter(|(active_task_id, _)| {
+                    task_id.is_none_or(|task_id| task_id == **active_task_id)
+                })
+                .map(|(task_id, task)| TaskTelemetrySource {
+                    task_id: *task_id,
+                    player: task.player,
+                    dispatched_at: task.dispatched_at,
+                    baseline: task.run_baseline.get().cloned(),
+                })
+                .collect()
+        };
+
+        // Procfs reads can fault or block. Keep them outside the scheduler lifecycle lock.
+        let samples: Vec<_> = sources.iter().map(TaskTelemetrySource::sample).collect();
+
+        let lc = self.lifecycle.lock();
+        sources
+            .into_iter()
+            .zip(samples)
+            .filter_map(|(source, sample)| {
+                let active = lc.task_q.active.get(&source.task_id)?;
+                if active.run_baseline.get() != source.baseline.as_ref() {
+                    return None;
+                }
+                Some(sample)
+            })
+            .collect()
+    }
+
     pub fn handle_checkpoint_from_task(
         &self,
         _task_id: TaskId,

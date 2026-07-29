@@ -349,6 +349,8 @@ The related task-management builtins are also worth knowing about:
 - [`valid_task()`](built-in-functions/server.md#valid_task) to check whether a task still exists
 - [`active_tasks()`](built-in-functions/server.md#active_tasks) and
   [`queued_tasks()`](built-in-functions/server.md#queued_tasks) to inspect your tasks
+- [`task_telemetry()`](built-in-functions/server.md#task_telemetry) for wizards to correlate active
+  tasks with CPU and worker activity
 - [`kill_task()`](built-in-functions/server.md#kill_task) and
   [`resume()`](built-in-functions/server.md#resume) to control tasks
 - [`wait_task()`](built-in-functions/server.md#wait_task) when a task needs to wait for another one

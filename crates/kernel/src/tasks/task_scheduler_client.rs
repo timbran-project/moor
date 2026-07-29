@@ -14,7 +14,9 @@
 use std::time::SystemTime;
 
 use crate::{
-    tasks::{SchedulerOp, TaskDescription, sched_counters, task::Task},
+    tasks::{
+        SchedulerOp, TaskDescription, sched_counters, task::Task, task_telemetry::TaskTelemetry,
+    },
     vm::{Fork, TaskSuspend},
 };
 use moor_common::{
@@ -244,6 +246,10 @@ impl TaskSchedulerClient {
             .timers
             .start(SchedulerOp::TaskActiveTasksLatency);
         self.scheduler.handle_active_tasks(self.task_id)
+    }
+
+    pub fn task_telemetry(&self, task_id: Option<TaskId>) -> Vec<TaskTelemetry> {
+        self.scheduler.handle_task_telemetry(task_id)
     }
 
     pub fn switch_player(&self, new_player: Obj) -> Result<(), Error> {

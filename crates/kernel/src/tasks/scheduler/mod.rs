@@ -31,7 +31,7 @@ use moor_common::util::{Deadline, Instant};
 use parking_lot::{Condvar, Mutex};
 use std::{
     sync::{
-        Arc, LazyLock,
+        Arc, LazyLock, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     thread::yield_now,
@@ -56,6 +56,7 @@ use crate::{
         task::Task,
         task_q::{RunningTask, SuspendedTask, SuspensionQ, TaskQ, WakeCondition},
         task_scheduler_client::TaskSchedulerClient,
+        task_telemetry::{TaskRunBaseline, TaskTelemetry, TaskTelemetrySource},
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
         world_state_action::{WorldStateAction, WorldStateResponse},

@@ -12,7 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::task_context::current_task_scheduler_client;
-use crate::tasks::TaskStart;
+use crate::tasks::{
+    TaskStart,
+    task_telemetry::{ActiveTaskPhase, TaskTelemetry},
+};
 use crate::vm::TaskSuspend;
 use crate::vm::builtins::BfErr::ErrValue;
 use crate::vm::builtins::BfRet::{Ret, VmInstr};
@@ -21,8 +24,8 @@ use crate::vm::vm_host::ExecutionResult;
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_TYPE, Symbol, Variant, v_arc_str, v_int, v_list, v_list_iter, v_obj, v_str,
-    v_string, v_sym,
+    E_ARGS, E_INVARG, E_TYPE, Symbol, Var, Variant, v_arc_str, v_float, v_int, v_list, v_list_iter,
+    v_map, v_obj, v_str, v_string, v_sym,
 };
 use std::time::{Duration, SystemTime};
 use tracing::warn;
@@ -416,6 +419,129 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_list_iter(output)))
 }
 
+/// Usage: `map|list task_telemetry([int task_id])`
+/// Returns scheduler and operating-system telemetry for active tasks. With a task ID, returns one
+/// telemetry map; without an argument, returns a list of maps for all active tasks. Wizard-only.
+///
+/// Every map contains `task_id`, `player`, `phase`, `dispatch_wait_ns`, and, once running,
+/// `worker_index` and `running_ns`. On Linux it also includes the process and thread IDs and any
+/// available task-local deltas, including CPU time, faults, context switches, scheduling state,
+/// last CPU, and wait channel.
+fn bf_task_telemetry(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() > 1 {
+        return Err(ErrValue(
+            E_ARGS.msg("task_telemetry() requires 0 or 1 arguments"),
+        ));
+    }
+    bf_args.require_wizard_or_builtin_call()?;
+
+    let task_id = if !bf_args.args.is_empty() {
+        let Some(task_id) = bf_args.args[0].as_integer() else {
+            return Err(ErrValue(
+                E_TYPE.msg("task_telemetry() requires an integer task ID"),
+            ));
+        };
+        Some(task_id as TaskId)
+    } else {
+        None
+    };
+
+    let telemetry = current_task_scheduler_client().task_telemetry(task_id);
+    if task_id.is_some() {
+        let Some(telemetry) = telemetry.first() else {
+            return Err(ErrValue(E_INVARG.msg("Task is not active")));
+        };
+        return Ok(Ret(task_telemetry_to_var(bf_args, telemetry)));
+    }
+
+    Ok(Ret(v_list_iter(telemetry.iter().map(|telemetry| {
+        task_telemetry_to_var(bf_args, telemetry)
+    }))))
+}
+
+fn task_telemetry_to_var(bf_args: &BfCallState<'_>, telemetry: &TaskTelemetry) -> Var {
+    let phase = match telemetry.phase {
+        ActiveTaskPhase::Dispatching => Symbol::mk("dispatching"),
+        ActiveTaskPhase::Running => Symbol::mk("running"),
+    };
+    let phase = if bf_args.config.symbol_type {
+        v_sym(phase)
+    } else {
+        v_arc_str(phase.as_arc_str())
+    };
+
+    let mut pairs = vec![
+        (v_str("task_id"), v_int(telemetry.task_id as i64)),
+        (v_str("player"), v_obj(telemetry.player)),
+        (v_str("phase"), phase),
+        (
+            v_str("dispatch_wait_ns"),
+            v_int(duration_ns(telemetry.dispatch_duration)),
+        ),
+    ];
+
+    if let Some(worker_index) = telemetry.worker_index {
+        pairs.push((v_str("worker_index"), v_int(worker_index as i64)));
+    }
+    if let Some(running_duration) = telemetry.running_duration {
+        pairs.push((v_str("running_ns"), v_int(duration_ns(running_duration))));
+    }
+
+    #[cfg(target_os = "linux")]
+    if let Some(linux) = &telemetry.linux {
+        pairs.extend([
+            (v_str("pid"), v_int(linux.pid as i64)),
+            (v_str("tid"), v_int(linux.tid as i64)),
+        ]);
+        push_u64(&mut pairs, "cpu_ns", linux.cpu_runtime_ns);
+        push_u64(&mut pairs, "user_cpu_ns", linux.user_cpu_ns);
+        push_u64(&mut pairs, "system_cpu_ns", linux.system_cpu_ns);
+        push_u64(&mut pairs, "minor_faults", linux.minor_faults);
+        push_u64(&mut pairs, "major_faults", linux.major_faults);
+        push_u64(
+            &mut pairs,
+            "voluntary_context_switches",
+            linux.voluntary_context_switches,
+        );
+        push_u64(
+            &mut pairs,
+            "involuntary_context_switches",
+            linux.involuntary_context_switches,
+        );
+
+        if let (Some(cpu_ns), Some(running_duration)) =
+            (linux.cpu_runtime_ns, telemetry.running_duration)
+            && !running_duration.is_zero()
+        {
+            let cpu_percent =
+                (cpu_ns as f64 * 100.0 / running_duration.as_nanos() as f64).min(100.0);
+            pairs.push((v_str("cpu_percent"), v_float(cpu_percent)));
+        }
+        if let Some(state) = linux.state {
+            pairs.push((v_str("state"), v_string(state.to_string())));
+        }
+        if let Some(last_cpu) = linux.last_cpu {
+            pairs.push((v_str("last_cpu"), v_int(last_cpu as i64)));
+        }
+        if let Some(wchan) = &linux.wchan {
+            pairs.push((v_str("wchan"), v_str(wchan)));
+        }
+    }
+
+    v_map(&pairs)
+}
+
+fn duration_ns(duration: Duration) -> i64 {
+    duration.as_nanos().min(i64::MAX as u128) as i64
+}
+
+#[cfg(target_os = "linux")]
+fn push_u64(pairs: &mut Vec<(Var, Var)>, key: &str, value: Option<u64>) {
+    if let Some(value) = value {
+        pairs.push((v_str(key), v_int(value.min(i64::MAX as u64) as i64)));
+    }
+}
+
 /// Usage: `list|int queue_info([obj player])`
 /// Without argument: returns list of players with queued tasks.
 /// With player argument: returns count of queued tasks for that player.
@@ -729,4 +855,5 @@ pub(crate) fn register_bf_task(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("valid_task")] = bf_valid_task;
     builtins[offset_for_builtin("task_send")] = bf_task_send;
     builtins[offset_for_builtin("task_recv")] = bf_task_recv;
+    builtins[offset_for_builtin("task_telemetry")] = bf_task_telemetry;
 }

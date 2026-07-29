@@ -46,6 +46,8 @@ The following functions are unique to mooR and not found in original LambdaMOO:
 **Task Management:**
 
 - `active_tasks` - Return information about running non-suspended/non-queued tasks
+- [`task_telemetry`](server.md#task_telemetry) - Return scheduler and operating-system telemetry for
+  active tasks
 - `wait_task` - Causes the current task to wait for a given task id to complete
 - `commit` - Immediately commits data, suspends, then resumes (semantically same as `suspend(0)`)
 - `rollback` - Immediately rollbacks all mutations to the DB and aborts the current task

@@ -249,12 +249,15 @@ impl TaskQ {
         // Brand new kill switch for the resumed task.
         let kill_switch = Arc::new(AtomicBool::new(false));
         task.kill_switch = kill_switch.clone();
+        let run_baseline = Arc::new(OnceLock::new());
         let task_control = RunningTask {
             player,
             kill_switch,
             session: session.clone(),
             result_sender,
             task_start: task.state.task_start().clone(),
+            dispatched_at: Instant::now(),
+            run_baseline: run_baseline.clone(),
         };
 
         self.active.insert(task_id, task_control);
@@ -268,6 +271,7 @@ impl TaskQ {
         let wake_to_dispatch_started_at = Instant::now();
         let dispatch_started_at = Instant::now();
         self.thread_pool.spawn(move || {
+            run_baseline.set(TaskRunBaseline::capture()).ok();
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
                 Self::record_latency(
@@ -420,6 +424,7 @@ impl TaskQ {
         // Brand new kill switch for the retried task
         let kill_switch = Arc::new(AtomicBool::new(false));
         task.kill_switch = kill_switch.clone();
+        let run_baseline = Arc::new(OnceLock::new());
 
         let task_control = RunningTask {
             player: task.player(),
@@ -427,6 +432,8 @@ impl TaskQ {
             session: new_session.clone(),
             result_sender,
             task_start: task.state.task_start().clone(),
+            dispatched_at: Instant::now(),
+            run_baseline: run_baseline.clone(),
         };
 
         self.active.insert(task_id, task_control);
@@ -444,6 +451,7 @@ impl TaskQ {
         let wake_to_dispatch_started_at = Instant::now();
         let dispatch_started_at = Instant::now();
         self.thread_pool.spawn(move || {
+            run_baseline.set(TaskRunBaseline::capture()).ok();
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
                 Self::record_latency(
@@ -702,6 +710,8 @@ mod tests {
                 kill_switch: Arc::new(AtomicBool::new(false)),
                 session: session(),
                 result_sender: None,
+                dispatched_at: Instant::now(),
+                run_baseline: Arc::new(OnceLock::new()),
             },
         );
     }

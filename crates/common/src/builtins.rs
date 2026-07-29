@@ -301,6 +301,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("task_stack", Q(1), Q(2), vec![Typed(TYPE_INT), Any], false),
         mk_builtin("task_send", Q(2), Q(2), vec![Typed(TYPE_INT), Any], true),
         mk_builtin("task_recv", Q(0), Q(1), vec![AnyNum], true),
+        mk_builtin("task_telemetry", Q(0), Q(1), vec![Typed(TYPE_INT)], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "task/scheduler");
@@ -1478,7 +1479,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{BuiltinId, builtin_signature_for_ids};
+    use super::{BuiltinId, builtin_signature_for_ids, offset_for_builtin};
 
     #[test]
     fn builtin_signature_is_order_independent() {
@@ -1492,5 +1493,13 @@ mod tests {
         let sig_a = builtin_signature_for_ids([BuiltinId(0)]);
         let sig_b = builtin_signature_for_ids([BuiltinId(0), BuiltinId(1)]);
         assert_ne!(sig_a, sig_b);
+    }
+
+    #[test]
+    fn task_telemetry_is_appended_to_task_builtin_group() {
+        assert_eq!(
+            offset_for_builtin("task_telemetry"),
+            offset_for_builtin("task_recv") + 1
+        );
     }
 }
