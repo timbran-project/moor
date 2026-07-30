@@ -251,6 +251,7 @@ impl TaskQ {
         task.kill_switch = kill_switch.clone();
         let run_baseline = Arc::new(OnceLock::new());
         let task_control = RunningTask {
+            phase: RunningTaskPhase::Running,
             player,
             kill_switch,
             session: session.clone(),
@@ -427,6 +428,7 @@ impl TaskQ {
         let run_baseline = Arc::new(OnceLock::new());
 
         let task_control = RunningTask {
+            phase: RunningTaskPhase::Running,
             player: task.player(),
             kill_switch,
             session: new_session.clone(),
@@ -701,6 +703,7 @@ mod tests {
         task_q.active.insert(
             task_id,
             RunningTask {
+                phase: RunningTaskPhase::Running,
                 player,
                 task_start: TaskStart::StartEval {
                     player,

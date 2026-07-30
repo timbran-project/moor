@@ -1498,7 +1498,8 @@ mod tests {
     use crate::{
         config::{Config, FeaturesConfig},
         tasks::{
-            NoopTasksDb, TaskHandle, TaskNotification, scheduler::Scheduler,
+            NoopTasksDb, TaskHandle, TaskNotification,
+            scheduler::{Scheduler, SchedulerThreads},
             scheduler_client::SchedulerClient,
         },
     };
@@ -1568,6 +1569,20 @@ mod tests {
         }
     }
 
+    struct RunningScheduler {
+        client: SchedulerClient,
+        threads: Option<SchedulerThreads>,
+    }
+
+    impl Drop for RunningScheduler {
+        fn drop(&mut self) {
+            let _ = self.client.submit_shutdown("Task test complete");
+            if let Some(threads) = self.threads.take() {
+                let _ = threads.join();
+            }
+        }
+    }
+
     fn system_permissions() -> moor_common::model::TaskPermissions {
         moor_common::model::TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
     }
@@ -1631,7 +1646,7 @@ mod tests {
         db
     }
 
-    fn start_scheduler(database: Box<dyn Database>) -> (SchedulerClient, Scheduler) {
+    fn start_scheduler(database: Box<dyn Database>) -> (SchedulerClient, RunningScheduler) {
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
             database,
@@ -1641,18 +1656,24 @@ mod tests {
             None,
             None,
         );
-        let _timer_jh = scheduler.start(Arc::new(NoopSessionFactory));
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("Failed to start scheduler");
         let client = scheduler.client().unwrap();
-        (client, scheduler)
+        let running_scheduler = RunningScheduler {
+            client: client.clone(),
+            threads: Some(threads),
+        };
+        (client, running_scheduler)
     }
 
-    fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, Scheduler) {
+    fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, RunningScheduler) {
         start_scheduler(Box::new(setup_database(verbs)))
     }
 
     fn setup_failing_scheduler(
         verbs: &[TestVerb],
-    ) -> (SchedulerClient, Scheduler, Arc<AtomicUsize>) {
+    ) -> (SchedulerClient, RunningScheduler, Arc<AtomicUsize>) {
         let successful_world_states_before_failure = Arc::new(AtomicUsize::new(usize::MAX));
         let database = FailingDatabase {
             inner: setup_database(verbs),

@@ -27,7 +27,10 @@ use moor_db::{Database, DatabaseConfig, TxDB};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig},
-    tasks::{NoopTasksDb, scheduler::Scheduler},
+    tasks::{
+        NoopTasksDb,
+        scheduler::{Scheduler, SchedulerThreads},
+    },
 };
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use rusty_paseto::prelude::Key;
@@ -52,7 +55,7 @@ pub struct TestEnvironment<T: Transport + 'static> {
     pub _temp_dir: TempDir,
     pub _temp_output_dir: Option<TempDir>,
     pub output_dir_path: Option<PathBuf>,
-    scheduler_thread: Option<std::thread::JoinHandle<()>>,
+    scheduler_thread: Option<SchedulerThreads>,
     rpc_thread: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -196,7 +199,9 @@ where
         })
         .expect("Failed to spawn RPC server thread");
 
-    let scheduler_thread = scheduler.start(rpc_server.clone());
+    let scheduler_thread = scheduler
+        .start(rpc_server.clone())
+        .expect("Failed to start scheduler");
     wait_for_scheduler_ready(&scheduler_client);
 
     TestEnvironment {

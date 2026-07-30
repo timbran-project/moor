@@ -331,6 +331,10 @@ impl Scheduler {
         // Send shutdown notification and kill all active tasks while holding the lock.
         {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                return Err(SchedulerError::SchedulerNotResponding);
+            }
+            lc.state = SchedulerState::Stopping;
 
             // Notify all live tasks of shutdown.
             for (_, task) in lc.task_q.active.iter() {
@@ -356,6 +360,8 @@ impl Scheduler {
             std::thread::sleep(Duration::from_millis(1));
         }
 
+        let gc_result = self.join_gc_thread();
+
         // Now ask the rpc server and hosts to shutdown (no lock held).
         self.system_control
             .shutdown(msg)
@@ -364,9 +370,10 @@ impl Scheduler {
         warn!("All tasks finished.  Stopping scheduler.");
         {
             let mut lc = self.lifecycle.lock();
-            lc.running = false;
+            lc.state = SchedulerState::Stopped;
         }
+        self.wake_timer_thread();
 
-        Ok(())
+        gc_result
     }
 }

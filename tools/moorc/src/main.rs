@@ -587,7 +587,9 @@ fn main() -> Result<(), eyre::Report> {
     let scheduler_client = scheduler.client().unwrap();
     let session_factory = Arc::new(crate::testrun::NoopSessionFactory {});
     let test_session_factory = session_factory.clone();
-    let scheduler_loop_jh = scheduler.start(session_factory);
+    let scheduler_loop_jh = scheduler
+        .start(session_factory)
+        .expect("Failed to start scheduler");
 
     // Parse test args if provided
     let test_args_list = if let Some(ref args_str) = args.test_args {

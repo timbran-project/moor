@@ -179,7 +179,9 @@ fn test(db: Box<dyn Database>, path: &Path) {
     );
     let scheduler_client = scheduler.client().unwrap();
     let session_factory = Arc::new(NoopSessionFactory {});
-    let scheduler_loop_jh = scheduler.start(session_factory);
+    let scheduler_loop_jh = scheduler
+        .start(session_factory)
+        .expect("Failed to start scheduler");
 
     let options = MootOptions::default();
     execute_moot_test(

@@ -18,6 +18,17 @@ fn gc_error(context: &str, e: impl std::fmt::Debug) -> SchedulerError {
 }
 
 impl Scheduler {
+    pub(super) fn join_gc_thread(&self) -> Result<(), SchedulerError> {
+        let Some(gc_thread) = self.gc_thread.lock().take() else {
+            return Ok(());
+        };
+        gc_thread.join().map_err(|_| {
+            SchedulerError::GarbageCollectionFailed(
+                "GC thread panicked during scheduler shutdown".to_string(),
+            )
+        })
+    }
+
     /// Check if garbage collection should run
     pub(super) fn should_run_gc(&self, lc: &TaskLifecycle) -> bool {
         // Force GC if requested via gc_collect() builtin
@@ -59,6 +70,11 @@ impl Scheduler {
 
     /// Run a garbage collection cycle - mark & sweep collection
     pub(super) fn run_gc_cycle(&self, lc: &mut TaskLifecycle) {
+        if lc.state != SchedulerState::Running || lc.gc_collection_in_progress {
+            return;
+        }
+
+        lc.gc_collection_in_progress = true;
         lc.gc_force_collect = false; // Clear force flag
         lc.gc_cycle_count += 1;
 
@@ -94,6 +110,7 @@ impl Scheduler {
 
         if !mark_started {
             lc.task_q.suspended.enqueue_gc_waiting_tasks();
+            lc.gc_collection_in_progress = false;
         }
 
         // Update the timestamp AFTER GC completes, not before
@@ -102,6 +119,14 @@ impl Scheduler {
 
     /// Run concurrent mark & sweep GC
     fn run_concurrent_gc(&self, lc: &mut TaskLifecycle) -> Result<(), SchedulerError> {
+        if let Some(previous_gc) = self.gc_thread.lock().take() {
+            previous_gc.join().map_err(|_| {
+                SchedulerError::GarbageCollectionFailed(
+                    "Previous GC thread panicked before it could be joined".to_string(),
+                )
+            })?;
+        }
+
         // Collect VM references before spawning thread
         let vm_refs = lc.task_q.collect_anonymous_object_references();
         let mutation_timestamp_before_mark = lc.last_mutation_timestamp;
@@ -118,7 +143,7 @@ impl Scheduler {
         lc.gc_mark_in_progress = true;
 
         // Spawn the mark thread
-        let _handle = spawn_gc_mark_phase(
+        let handle = spawn_gc_mark_phase(
             gc_tx,
             config_clone,
             scheduler,
@@ -126,6 +151,7 @@ impl Scheduler {
             mutation_timestamp_before_mark,
             gc_cycle_count,
         );
+        *self.gc_thread.lock() = Some(handle);
 
         Ok(())
     }
@@ -158,6 +184,9 @@ impl Scheduler {
         // Block new tasks during sweep
         {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                return Ok(());
+            }
             lc.gc_sweep_in_progress = true;
         }
 
@@ -173,6 +202,10 @@ impl Scheduler {
         // Check mutation timestamp after waiting for tasks
         {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                lc.gc_sweep_in_progress = false;
+                return Ok(());
+            }
             let mutation_timestamp_after_wait = lc.last_mutation_timestamp;
             if mutation_timestamp_before_wait != mutation_timestamp_after_wait {
                 info!(

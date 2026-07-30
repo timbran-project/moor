@@ -26,7 +26,7 @@ use crate::{
     task_context::TaskGuard,
     tasks::checkpoint::{CheckpointMode, start_checkpoint},
 };
-use flume::{Receiver, Sender};
+use flume::{Receiver, RecvTimeoutError, Sender};
 use moor_common::util::{Deadline, Instant};
 use parking_lot::{Condvar, Mutex};
 use std::{
@@ -34,7 +34,6 @@ use std::{
         Arc, LazyLock, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
-    thread::yield_now,
     time::{Duration, SystemTime},
 };
 use tracing::{debug, error, info, warn};
@@ -54,7 +53,7 @@ use crate::{
         gc_thread::spawn_gc_mark_phase,
         sched_counters,
         task::Task,
-        task_q::{RunningTask, SuspendedTask, SuspensionQ, TaskQ, WakeCondition},
+        task_q::{RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ, WakeCondition},
         task_scheduler_client::TaskSchedulerClient,
         task_telemetry::{TaskRunBaseline, TaskTelemetry, TaskTelemetrySource},
         tasks_db::TasksDb,
@@ -91,6 +90,43 @@ use moor_var::{
 use std::collections::HashMap;
 
 use self::lifecycle::TaskLifecycle;
+
+pub use self::lifecycle::SchedulerState;
+
+pub(crate) type SchedulerClientRequest = Box<dyn FnOnce(&Scheduler) + Send + 'static>;
+
+/// Threads owned by a running scheduler.
+#[must_use = "scheduler service threads must be joined during shutdown"]
+pub struct SchedulerThreads {
+    timer: std::thread::JoinHandle<()>,
+    worker_response: Option<std::thread::JoinHandle<()>>,
+    client_requests: std::thread::JoinHandle<()>,
+}
+
+impl SchedulerThreads {
+    /// Join all scheduler service threads, returning the first panic after every
+    /// handle has been collected.
+    pub fn join(self) -> std::thread::Result<()> {
+        let mut handles = vec![self.timer, self.client_requests];
+        if let Some(worker_response) = self.worker_response {
+            handles.push(worker_response);
+        }
+
+        let mut first_panic = None;
+        for handle in handles {
+            if let Err(panic) = handle.join()
+                && first_panic.is_none()
+            {
+                first_panic = Some(panic);
+            }
+        }
+
+        match first_panic {
+            Some(panic) => Err(panic),
+            None => Ok(()),
+        }
+    }
+}
 
 /// Action to take when resuming a suspended task
 #[derive(Debug, Clone)]
@@ -129,11 +165,20 @@ pub struct Scheduler {
     /// Tracks whether a checkpoint operation is currently in progress.
     pub(crate) checkpoint_in_progress: Arc<AtomicBool>,
 
+    /// Current GC mark/callback thread, retained for shutdown and cycle-to-cycle joining.
+    pub(crate) gc_thread: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
+
     /// Channel for sending requests TO workers.
     pub(crate) worker_request_send: Option<Sender<WorkerRequest>>,
 
     /// Worker response receiver — taken once when starting the worker response thread.
     worker_response_recv: Arc<Mutex<Option<Receiver<WorkerResponse>>>>,
+
+    /// Queue for bounded requests from external scheduler clients.
+    client_request_send: Sender<SchedulerClientRequest>,
+
+    /// Client request receiver — taken once when starting its service thread.
+    client_request_recv: Arc<Mutex<Option<Receiver<SchedulerClientRequest>>>>,
 
     /// Condvar to wake the timer thread when a new earlier timer is inserted.
     timer_notify: Arc<(Mutex<bool>, Condvar)>,
@@ -183,6 +228,7 @@ impl Scheduler {
         let database: Arc<dyn Database> = Arc::from(database);
 
         let server_options = Arc::new(ArcSwap::from_pointee(default_server_options));
+        let (client_request_send, client_request_recv) = flume::unbounded();
 
         let lifecycle = TaskLifecycle {
             task_q,
@@ -195,7 +241,7 @@ impl Scheduler {
             gc_cycle_count: 0,
             gc_last_cycle_time: std::time::Instant::now(),
             last_mutation_timestamp: None,
-            running: false,
+            state: SchedulerState::Created,
             last_compact_time: std::time::Instant::now(),
         };
 
@@ -208,8 +254,11 @@ impl Scheduler {
             system_control,
             version,
             checkpoint_in_progress: Arc::new(AtomicBool::new(false)),
+            gc_thread: Arc::new(Mutex::new(None)),
             worker_request_send,
             worker_response_recv: Arc::new(Mutex::new(worker_request_recv)),
+            client_request_send,
+            client_request_recv: Arc::new(Mutex::new(Some(client_request_recv))),
             timer_notify: Arc::new((Mutex::new(false), Condvar::new())),
         };
 
@@ -217,38 +266,87 @@ impl Scheduler {
         s
     }
 
-    /// Start the scheduler: rehydrate tasks, spawn timer and worker-response threads.
-    /// Returns join handle for the timer thread (join it at shutdown).
+    /// Start the scheduler and return ownership of all scheduler service threads.
     pub fn start(
         &self,
         bg_session_factory: Arc<dyn SessionFactory>,
-    ) -> std::thread::JoinHandle<()> {
+    ) -> Result<SchedulerThreads, SchedulerError> {
         // Rehydrate suspended tasks.
         {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Created {
+                return Err(SchedulerError::SchedulerNotResponding);
+            }
             lc.task_q.suspended.load_tasks(bg_session_factory);
-            lc.running = true;
+            lc.state = SchedulerState::Running;
         }
 
         // Start worker response thread if we have a worker receiver.
-        if let Some(recv) = self.worker_response_recv.lock().take() {
+        let worker_response = if let Some(recv) = self.worker_response_recv.lock().take() {
             let scheduler = self.clone();
-            spawn_perf("moor-worker-recv", move || {
-                scheduler.worker_response_loop(recv);
-            })
-            .expect("Could not spawn worker response thread");
-        }
+            Some(
+                spawn_perf("moor-worker-recv", move || {
+                    scheduler.worker_response_loop(recv);
+                })
+                .expect("Could not spawn worker response thread"),
+            )
+        } else {
+            None
+        };
+
+        let client_request_recv = self
+            .client_request_recv
+            .lock()
+            .take()
+            .ok_or(SchedulerError::CouldNotStartTask)?;
+        let scheduler = self.clone();
+        let client_requests = spawn_perf("moor-scheduler-requests", move || {
+            scheduler.client_request_loop(client_request_recv);
+        })
+        .expect("Could not spawn scheduler client request thread");
 
         // Start timer thread.
         let scheduler = self.clone();
-        let timer_jh = spawn_perf("moor-timer", move || {
+        let timer = spawn_perf("moor-timer", move || {
             set_current_thread_background_priority().ok();
             scheduler.timer_loop();
         })
         .expect("Could not spawn timer thread");
 
         info!("Scheduler started");
-        timer_jh
+        Ok(SchedulerThreads {
+            timer,
+            worker_response,
+            client_requests,
+        })
+    }
+
+    fn client_request_loop(&self, recv: Receiver<SchedulerClientRequest>) {
+        loop {
+            match recv.recv_timeout(Duration::from_millis(50)) {
+                Ok(request) => request(self),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+
+            if self.state() == SchedulerState::Stopped {
+                break;
+            }
+        }
+        debug!("Scheduler client request loop exited");
+    }
+
+    pub(crate) fn enqueue_client_request(
+        &self,
+        request: SchedulerClientRequest,
+    ) -> Result<(), SchedulerError> {
+        let lc = self.lifecycle.lock();
+        if lc.state != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+        self.client_request_send
+            .send(request)
+            .map_err(|_| SchedulerError::SchedulerNotResponding)
     }
 
     /// The timer loop replaces the old run() main loop.
@@ -257,7 +355,7 @@ impl Scheduler {
         loop {
             {
                 let lc = self.lifecycle.lock();
-                if !lc.running {
+                if lc.state == SchedulerState::Stopped {
                     break;
                 }
             }
@@ -265,7 +363,8 @@ impl Scheduler {
             // Check GC conditions
             {
                 let mut lc = self.lifecycle.lock();
-                if self.config.features.anonymous_objects
+                if lc.state == SchedulerState::Running
+                    && self.config.features.anonymous_objects
                     && !lc.gc_collection_in_progress
                     && !lc.gc_mark_in_progress
                     && self.should_run_gc(&lc)
@@ -319,8 +418,16 @@ impl Scheduler {
 
     /// Dedicated thread for receiving worker responses.
     fn worker_response_loop(&self, recv: Receiver<WorkerResponse>) {
-        while let Ok(response) = recv.recv() {
-            self.handle_worker_response(response);
+        loop {
+            match recv.recv_timeout(Duration::from_millis(50)) {
+                Ok(response) => self.handle_worker_response(response),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+
+            if self.state() == SchedulerState::Stopped {
+                break;
+            }
         }
         debug!("Worker response loop exited");
     }
@@ -414,6 +521,10 @@ impl Scheduler {
         delay_start: Option<Duration>,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
+        if lc.state != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+
         let gc_in_progress = self.config.features.anonymous_objects
             && (lc.gc_sweep_in_progress || lc.gc_force_collect);
 
@@ -457,5 +568,531 @@ impl Scheduler {
         Ok(crate::tasks::scheduler_client::SchedulerClient::new(
             self.clone(),
         ))
+    }
+
+    /// Return the current scheduler lifecycle state.
+    pub fn state(&self) -> SchedulerState {
+        self.lifecycle.lock().state
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_common::tasks::{
+        ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
+    };
+    use moor_db::{DatabaseConfig, TxDB};
+    use std::collections::HashSet;
+    use std::sync::Barrier;
+
+    struct NoopSessionFactory;
+
+    impl SessionFactory for NoopSessionFactory {
+        fn mk_background_session(
+            self: Arc<Self>,
+            _player: &Obj,
+        ) -> Result<Arc<dyn Session>, SessionError> {
+            Ok(Arc::new(NoopClientSession::new()))
+        }
+    }
+
+    struct BlockingCommitSession {
+        commit_entered: Arc<Barrier>,
+        release_commit: Arc<Barrier>,
+    }
+
+    impl Session for BlockingCommitSession {
+        fn commit(&self) -> Result<(), SessionError> {
+            self.commit_entered.wait();
+            self.release_commit.wait();
+            Ok(())
+        }
+
+        fn rollback(&self) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
+            Ok(self)
+        }
+
+        fn request_input(
+            &self,
+            _player: Obj,
+            _input_request_id: Uuid,
+            _metadata: Option<Vec<(Symbol, Var)>>,
+        ) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn send_event(
+            &self,
+            _player: Obj,
+            _event: Box<NarrativeEvent>,
+        ) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn log_event(&self, _player: Obj, _event: Box<NarrativeEvent>) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn send_system_msg(&self, _player: Obj, _msg: &str) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn notify_shutdown(&self, _msg: Option<String>) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn connection_name(&self, _player: Obj) -> Result<String, SessionError> {
+            Ok(String::new())
+        }
+
+        fn disconnect(&self, _player: Obj) -> Result<(), SessionError> {
+            Ok(())
+        }
+
+        fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
+            Ok(vec![])
+        }
+
+        fn connected_seconds(&self, _player: Obj) -> Result<f64, SessionError> {
+            Ok(0.0)
+        }
+
+        fn idle_seconds(&self, _player: Obj) -> Result<f64, SessionError> {
+            Ok(0.0)
+        }
+
+        fn connections(&self, _player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
+            Ok(vec![])
+        }
+
+        fn connection_details(
+            &self,
+            _player: Option<Obj>,
+        ) -> Result<Vec<ConnectionDetails>, SessionError> {
+            Ok(vec![])
+        }
+
+        fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
+            Ok(moor_var::v_list(&[]))
+        }
+
+        fn set_connection_attribute(
+            &self,
+            _connection_obj: Obj,
+            _key: Symbol,
+            _value: Var,
+        ) -> Result<(), SessionError> {
+            Ok(())
+        }
+    }
+
+    fn scheduler() -> Scheduler {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(crate::tasks::NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        )
+    }
+
+    fn insert_active_task(
+        scheduler: &Scheduler,
+        task_id: TaskId,
+        session: Arc<dyn Session>,
+    ) -> Box<Task> {
+        let task_start = TaskStart::StartEval {
+            player: SYSTEM_OBJECT,
+            program: Default::default(),
+            initial_env: None,
+        };
+        let kill_switch = Arc::new(AtomicBool::new(false));
+        let task = Task::new(
+            task_id,
+            SYSTEM_OBJECT,
+            SYSTEM_OBJECT,
+            task_start.clone(),
+            scheduler.server_options.load().as_ref(),
+            kill_switch.clone(),
+        );
+
+        scheduler.lifecycle.lock().task_q.active.insert(
+            task_id,
+            RunningTask {
+                phase: RunningTaskPhase::Running,
+                player: SYSTEM_OBJECT,
+                task_start,
+                dispatched_at: Instant::now(),
+                run_baseline: Arc::new(OnceLock::new()),
+                kill_switch,
+                session,
+                result_sender: None,
+            },
+        );
+        task
+    }
+
+    #[test]
+    fn lifecycle_rejects_work_before_start_and_after_stop() {
+        let scheduler = scheduler();
+        let client = scheduler.client().unwrap();
+        let session = Arc::new(NoopClientSession::new());
+
+        assert_eq!(scheduler.state(), SchedulerState::Created);
+        assert_eq!(
+            client.check_status(),
+            Err(SchedulerError::SchedulerNotResponding)
+        );
+        assert!(matches!(
+            client.submit_command_task(&SYSTEM_OBJECT, &SYSTEM_OBJECT, "look", session.clone()),
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+        assert!(matches!(
+            client.submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "not valid moo code".to_string(),
+                None,
+                session.clone(),
+                Arc::new(crate::config::FeaturesConfig::default()),
+            ),
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+
+        let timer = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start once");
+        assert_eq!(scheduler.state(), SchedulerState::Running);
+        assert_eq!(client.check_status(), Ok(()));
+        assert!(matches!(
+            scheduler.start(Arc::new(NoopSessionFactory)),
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+
+        scheduler.stop(None).expect("scheduler should stop once");
+        timer.join().expect("timer thread should stop");
+
+        assert_eq!(scheduler.state(), SchedulerState::Stopped);
+        assert_eq!(
+            client.check_status(),
+            Err(SchedulerError::SchedulerNotResponding)
+        );
+        assert!(matches!(
+            client.submit_command_task(&SYSTEM_OBJECT, &SYSTEM_OBJECT, "look", session),
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+        assert!(matches!(
+            client.submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "not valid moo code".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(crate::config::FeaturesConfig::default()),
+            ),
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+        assert_eq!(
+            scheduler.stop(None),
+            Err(SchedulerError::SchedulerNotResponding)
+        );
+    }
+
+    #[test]
+    fn suspending_task_remains_visible_until_atomic_queue_move() {
+        let scheduler = scheduler();
+        let timer = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        let task_id = 42;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+        });
+
+        commit_entered.wait();
+        assert_eq!(
+            scheduler.handle_task_exists(task_id),
+            Some(SYSTEM_OBJECT),
+            "task must remain addressable while its session commit is in progress"
+        );
+        assert_eq!(
+            scheduler
+                .lifecycle
+                .lock()
+                .task_q
+                .active
+                .get(&task_id)
+                .map(|task| task.phase),
+            Some(RunningTaskPhase::Suspending)
+        );
+
+        release_commit.wait();
+        callback.join().expect("suspend callback should complete");
+
+        let lc = scheduler.lifecycle.lock();
+        assert!(!lc.task_q.active.contains_key(&task_id));
+        assert!(lc.task_q.suspended.tasks.contains_key(&task_id));
+        drop(lc);
+
+        scheduler.stop(None).expect("scheduler should stop");
+        timer.join().expect("timer thread should stop");
+    }
+
+    #[test]
+    fn input_task_remains_visible_until_atomic_queue_move() {
+        let scheduler = scheduler();
+        let timer = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        let task_id = 43;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_request_input(task_id, task, None);
+        });
+
+        commit_entered.wait();
+        assert_eq!(
+            scheduler.handle_task_exists(task_id),
+            Some(SYSTEM_OBJECT),
+            "task must remain addressable while its input request is in progress"
+        );
+        assert_eq!(
+            scheduler
+                .lifecycle
+                .lock()
+                .task_q
+                .active
+                .get(&task_id)
+                .map(|task| task.phase),
+            Some(RunningTaskPhase::RequestingInput)
+        );
+
+        release_commit.wait();
+        callback
+            .join()
+            .expect("input request callback should complete");
+
+        let lc = scheduler.lifecycle.lock();
+        assert!(!lc.task_q.active.contains_key(&task_id));
+        assert!(lc.task_q.suspended.tasks.contains_key(&task_id));
+        drop(lc);
+
+        scheduler.stop(None).expect("scheduler should stop");
+        timer.join().expect("timer thread should stop");
+    }
+
+    #[test]
+    fn shutdown_joins_worker_response_thread_with_live_sender() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (_worker_send, worker_recv) = flume::unbounded();
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(crate::tasks::NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            Some(worker_recv),
+        );
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+
+        scheduler.stop(None).expect("scheduler should stop");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn shutdown_does_not_resurrect_suspending_task() {
+        let scheduler = scheduler();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        let task_id = 44;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+        });
+
+        commit_entered.wait();
+        scheduler.stop(None).expect("scheduler should stop");
+        assert_eq!(scheduler.state(), SchedulerState::Stopped);
+
+        release_commit.wait();
+        callback.join().expect("suspend callback should exit");
+
+        let lc = scheduler.lifecycle.lock();
+        assert!(!lc.task_q.active.contains_key(&task_id));
+        assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+        drop(lc);
+
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn gc_sweep_waits_for_suspension_transition() {
+        let scheduler = scheduler();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        let task_id = 45;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+        });
+        commit_entered.wait();
+
+        let (gc_done_send, gc_done_recv) = flume::bounded(1);
+        let gc_scheduler = scheduler.clone();
+        let gc = std::thread::spawn(move || {
+            let result = gc_scheduler.run_blocking_sweep_phase(HashSet::new());
+            gc_done_send.send(result).ok();
+        });
+
+        let wait_started = std::time::Instant::now();
+        while !scheduler.lifecycle.lock().gc_sweep_in_progress {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(1),
+                "GC sweep did not enter its waiting phase"
+            );
+            std::thread::yield_now();
+        }
+        assert!(
+            gc_done_recv
+                .recv_timeout(Duration::from_millis(25))
+                .is_err(),
+            "GC sweep completed while a suspension transition was active"
+        );
+
+        release_commit.wait();
+        callback.join().expect("suspend callback should complete");
+        gc_done_recv
+            .recv_timeout(Duration::from_secs(1))
+            .expect("GC sweep should complete after suspension")
+            .expect("GC sweep should succeed");
+        gc.join().expect("GC sweep thread should stop");
+
+        scheduler.stop(None).expect("scheduler should stop");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn shutdown_cancels_gc_sweep_waiting_on_suspension() {
+        let scheduler = scheduler();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        let task_id = 46;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+        });
+        commit_entered.wait();
+
+        let gc_scheduler = scheduler.clone();
+        let gc = std::thread::spawn(move || gc_scheduler.run_blocking_sweep_phase(HashSet::new()));
+        let wait_started = std::time::Instant::now();
+        while !scheduler.lifecycle.lock().gc_sweep_in_progress {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(1),
+                "GC sweep did not enter its waiting phase"
+            );
+            std::thread::yield_now();
+        }
+
+        scheduler.stop(None).expect("scheduler should stop");
+        gc.join()
+            .expect("GC sweep thread should stop")
+            .expect("cancelled GC sweep should exit cleanly");
+        assert!(!scheduler.lifecycle.lock().gc_sweep_in_progress);
+
+        release_commit.wait();
+        callback.join().expect("suspend callback should exit");
+        assert_eq!(scheduler.handle_task_exists(task_id), None);
+
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn shutdown_joins_in_flight_gc_cycle() {
+        let scheduler = scheduler();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            scheduler.run_gc_cycle(&mut lc);
+            assert!(lc.gc_collection_in_progress);
+            assert!(lc.gc_mark_in_progress);
+        }
+
+        scheduler.stop(None).expect("scheduler should stop");
+        assert!(scheduler.gc_thread.lock().is_none());
+        let lc = scheduler.lifecycle.lock();
+        assert!(!lc.gc_collection_in_progress);
+        assert!(!lc.gc_mark_in_progress);
+        drop(lc);
+
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
     }
 }

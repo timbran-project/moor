@@ -166,7 +166,9 @@ async fn main() -> Result<(), eyre::Error> {
     let scheduler_client = scheduler.client()?;
     let session_factory = Arc::new(DirectSessionFactory {});
 
-    let _scheduler_handle = scheduler.start(session_factory);
+    let scheduler_threads = scheduler
+        .start(session_factory)
+        .expect("Failed to start scheduler");
 
     // Wait a bit for scheduler to be ready
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -249,6 +251,9 @@ async fn main() -> Result<(), eyre::Error> {
 
     // Shutdown scheduler
     scheduler_client.submit_shutdown("Benchmark completed")?;
+    scheduler_threads
+        .join()
+        .map_err(|_| eyre::eyre!("Scheduler service thread panicked"))?;
 
     Ok(())
 }

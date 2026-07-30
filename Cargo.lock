@@ -3247,14 +3247,15 @@ dependencies = [
 
 [[package]]
 name = "micromeasure"
-version = "0.6.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58fd5612e02318a973e0dded0b455718ff838da9eed9ef6ce08e82e3be9ed6d0"
+checksum = "85c228b7d5e9d758ca40053757731b014e73fda905c45055e34ffb03dabe9244"
 dependencies = [
  "libc",
  "perf-event2",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "unicode-width",
 ]
 

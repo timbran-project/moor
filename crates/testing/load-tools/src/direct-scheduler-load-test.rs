@@ -890,7 +890,9 @@ async fn main() -> Result<(), eyre::Error> {
 
     // Start scheduler
     let session_factory = Arc::new(DirectSessionFactory {});
-    let _scheduler_handle = scheduler.start(session_factory);
+    let scheduler_threads = scheduler
+        .start(session_factory)
+        .expect("Failed to start scheduler");
 
     let results = if args.swamp_mode {
         swamp_mode_workload(&args, &scheduler_client, player).await?
@@ -928,6 +930,9 @@ async fn main() -> Result<(), eyre::Error> {
 
     // Shutdown scheduler
     scheduler_client.submit_shutdown("Load test completed")?;
+    scheduler_threads
+        .join()
+        .map_err(|_| eyre::eyre!("Scheduler service thread panicked"))?;
 
     Ok(())
 }

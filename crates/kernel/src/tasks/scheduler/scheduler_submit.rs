@@ -193,41 +193,7 @@ impl Scheduler {
     }
 
     pub(crate) fn handle_shutdown_request(&self, msg: String) -> Result<(), SchedulerError> {
-        let mut lc = self.lifecycle.lock();
-
-        // Send shutdown notification to all live tasks.
-        for (_, task) in lc.task_q.active.iter() {
-            let _ = task.session.notify_shutdown(Some(msg.clone()));
-        }
-        warn!("Issuing clean shutdown...");
-        {
-            // Send shut down to all the tasks.
-            for (_, task) in lc.task_q.active.drain() {
-                task.kill_switch.store(true, Ordering::SeqCst);
-            }
-        }
-        warn!("Waiting for tasks to finish...");
-
-        // Then spin until they're all done.
-        loop {
-            if lc.task_q.active.is_empty() {
-                break;
-            }
-            // Drop the lock while spinning so tasks can complete.
-            drop(lc);
-            yield_now();
-            lc = self.lifecycle.lock();
-        }
-
-        // Now ask the rpc server and hosts to shutdown
-        self.system_control
-            .shutdown(Some(msg))
-            .expect("Could not cleanly shutdown system");
-
-        warn!("All tasks finished.  Stopping scheduler.");
-        lc.running = false;
-
-        Ok(())
+        self.stop(Some(msg))
     }
 
     pub(crate) fn handle_checkpoint_request(&self, blocking: bool) -> Result<(), SchedulerError> {
@@ -239,7 +205,9 @@ impl Scheduler {
     }
 
     pub(crate) fn handle_check_status(&self) -> Result<(), SchedulerError> {
-        // Lightweight status check - just confirm we're alive and responding
+        if self.lifecycle.lock().state != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
         Ok(())
     }
 
@@ -309,12 +277,19 @@ impl Scheduler {
             unreachable_objects.len()
         );
 
+        if lc.state != SchedulerState::Running {
+            lc.gc_collection_in_progress = false;
+            lc.task_q.suspended.enqueue_gc_waiting_tasks();
+            return;
+        }
+
         // Check if mutations happened during mark phase
         if mutation_timestamp_before_mark != lc.last_mutation_timestamp {
             info!(
                 "Minor GC cycle #{}: mark phase invalidated by mutation during marking (before: {:?}, after: {:?}), skipping sweep phase",
                 lc.gc_cycle_count, mutation_timestamp_before_mark, lc.last_mutation_timestamp
             );
+            lc.gc_collection_in_progress = false;
             lc.task_q.suspended.enqueue_gc_waiting_tasks();
             return;
         }
@@ -325,6 +300,7 @@ impl Scheduler {
                 "Minor GC cycle #{}: mark phase found no objects to collect, skipping sweep phase",
                 lc.gc_cycle_count
             );
+            lc.gc_collection_in_progress = false;
             lc.task_q.suspended.enqueue_gc_waiting_tasks();
             return;
         }
@@ -333,6 +309,7 @@ impl Scheduler {
         drop(lc);
         let _ = self.run_blocking_sweep_phase(unreachable_objects);
         let mut lc = self.lifecycle.lock();
+        lc.gc_collection_in_progress = false;
         lc.task_q.suspended.enqueue_gc_waiting_tasks();
     }
 

@@ -11,14 +11,14 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{SchedulerError, SchedulerError::CompilationError, Session};
 use moor_compiler::compile;
 use moor_var::{List, Obj, Symbol, Var};
 
-use crate::tasks::scheduler::Scheduler;
+use crate::tasks::scheduler::{Scheduler, SchedulerState};
 use crate::tasks::world_state_action::{
     WorldStateAction, WorldStateRequest, WorldStateResponse, WorldStateResult,
 };
@@ -26,6 +26,11 @@ use crate::{
     config::FeaturesConfig,
     tasks::{SchedulerOp, TaskHandle, sched_counters},
 };
+
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+const GC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CHECKPOINT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Garbage collection statistics
 #[derive(Debug, Clone)]
@@ -47,6 +52,33 @@ impl SchedulerClient {
         Self { scheduler }
     }
 
+    fn request_with_timeout<T>(
+        &self,
+        timeout: Duration,
+        request: impl FnOnce(&Scheduler) -> Result<T, SchedulerError> + Send + 'static,
+    ) -> Result<T, SchedulerError>
+    where
+        T: Send + 'static,
+    {
+        let (reply_send, reply_recv) = flume::bounded(1);
+        self.scheduler
+            .enqueue_client_request(Box::new(move |scheduler| {
+                let result = request(scheduler);
+                reply_send.send(result).ok();
+            }))?;
+
+        reply_recv
+            .recv_timeout(timeout)
+            .map_err(|_| SchedulerError::SchedulerNotResponding)?
+    }
+
+    fn ensure_running(&self) -> Result<(), SchedulerError> {
+        if self.scheduler.state() != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+        Ok(())
+    }
+
     /// Submit a command to the scheduler for execution.
     pub fn submit_command_task(
         &self,
@@ -59,12 +91,12 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::SubmitCommandTaskLatency);
 
-        self.scheduler.submit_command_task_inner(
-            *handler_object,
-            *player,
-            command.to_string(),
-            session,
-        )
+        let handler_object = *handler_object;
+        let player = *player;
+        let command = command.to_string();
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_command_task_inner(handler_object, player, command, session)
+        })
     }
 
     /// Submit a verb task to the scheduler for execution.
@@ -86,15 +118,20 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::SubmitVerbTaskLatency);
 
-        self.scheduler.submit_verb_task_inner(
-            *player,
-            vloc.clone(),
-            verb,
-            args,
-            argstr,
-            *authority_principal,
-            session,
-        )
+        let player = *player;
+        let vloc = vloc.clone();
+        let authority_principal = *authority_principal;
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_verb_task_inner(
+                player,
+                vloc,
+                verb,
+                args,
+                argstr,
+                authority_principal,
+                session,
+            )
+        })
     }
 
     /// Receive input that the (suspended) task previously requested, using the given
@@ -107,8 +144,10 @@ impl SchedulerClient {
         input_request_id: uuid::Uuid,
         input: Var,
     ) -> Result<(), SchedulerError> {
-        self.scheduler
-            .submit_task_input_inner(*player, input_request_id, input)
+        let player = *player;
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_task_input_inner(player, input_request_id, input)
+        })
     }
 
     pub fn submit_out_of_band_task(
@@ -123,8 +162,11 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::SubmitOobTaskLatency);
 
-        self.scheduler
-            .submit_oob_task_inner(*handler_object, *player, command, argstr, session)
+        let handler_object = *handler_object;
+        let player = *player;
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_oob_task_inner(handler_object, player, command, argstr, session)
+        })
     }
 
     /// Submit an eval task to the scheduler for execution.
@@ -137,6 +179,8 @@ impl SchedulerClient {
         sessions: Arc<dyn Session>,
         config: Arc<FeaturesConfig>,
     ) -> Result<TaskHandle, SchedulerError> {
+        self.ensure_running()?;
+
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::SubmitEvalTaskLatency);
@@ -147,17 +191,24 @@ impl SchedulerClient {
             Err(e) => return Err(CompilationError(e)),
         };
 
-        self.scheduler.submit_eval_task_inner(
-            *player,
-            *authority_principal,
-            program,
-            initial_env,
-            sessions,
-        )
+        let player = *player;
+        let authority_principal = *authority_principal;
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_eval_task_inner(
+                player,
+                authority_principal,
+                program,
+                initial_env,
+                sessions,
+            )
+        })
     }
 
     pub fn submit_shutdown(&self, msg: &str) -> Result<(), SchedulerError> {
-        self.scheduler.handle_shutdown_request(msg.to_string())
+        let msg = msg.to_string();
+        self.request_with_timeout(LONG_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.handle_shutdown_request(msg)
+        })
     }
 
     pub fn submit_verb_program(
@@ -234,22 +285,29 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::CheckpointLatency);
 
-        self.scheduler.handle_checkpoint_request(blocking)
+        let timeout = if blocking {
+            CHECKPOINT_TIMEOUT
+        } else {
+            LONG_REQUEST_TIMEOUT
+        };
+        self.request_with_timeout(timeout, move |scheduler| {
+            scheduler.handle_checkpoint_request(blocking)
+        })
     }
 
     /// Check if the scheduler is alive and responding (lightweight operation)
     pub fn check_status(&self) -> Result<(), SchedulerError> {
-        self.scheduler.handle_check_status()
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, Scheduler::handle_check_status)
     }
 
     /// Get garbage collection statistics from the scheduler
     pub fn get_gc_stats(&self) -> Result<GCStats, SchedulerError> {
-        self.scheduler.handle_get_gc_stats()
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, Scheduler::handle_get_gc_stats)
     }
 
     /// Request a garbage collection cycle from the scheduler
     pub fn request_gc(&self) -> Result<(), SchedulerError> {
-        self.scheduler.handle_request_gc()
+        self.request_with_timeout(GC_REQUEST_TIMEOUT, Scheduler::handle_request_gc)
     }
 
     pub fn request_verbs(
@@ -377,8 +435,9 @@ impl SchedulerClient {
         actions: Vec<WorldStateRequest>,
         rollback: bool,
     ) -> Result<Vec<WorldStateResponse>, SchedulerError> {
-        self.scheduler
-            .execute_world_state_actions_inner(actions, rollback)
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.execute_world_state_actions_inner(actions, rollback)
+        })
     }
 
     /// Submit a batch of WorldStateActions as a tracked task.
@@ -395,15 +454,20 @@ impl SchedulerClient {
         session: Arc<dyn Session>,
     ) -> Result<(TaskHandle, crate::tasks::BatchResultSink), SchedulerError> {
         let result_sink: crate::tasks::BatchResultSink = Arc::new(std::sync::Mutex::new(None));
+        let task_result_sink = result_sink.clone();
+        let player = *player;
+        let authority_principal = *authority_principal;
 
-        let handle = self.scheduler.submit_batch_world_state_task_inner(
-            *player,
-            *authority_principal,
-            actions,
-            rollback,
-            result_sink.clone(),
-            session,
-        )?;
+        let handle = self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_batch_world_state_task_inner(
+                player,
+                authority_principal,
+                actions,
+                rollback,
+                task_result_sink,
+                session,
+            )
+        })?;
 
         Ok((handle, result_sink))
     }
@@ -419,8 +483,9 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::LoadObjectLatency);
 
-        self.scheduler
-            .handle_load_object_request(object_definition, options, return_conflicts)
+        self.request_with_timeout(LONG_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.handle_load_object_request(object_definition, options, return_conflicts)
+        })
     }
 
     /// Submit a system handler task with proper permissions lookup.
@@ -437,8 +502,10 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::SubmitSystemHandlerTaskLatency);
 
-        self.scheduler
-            .submit_system_handler_task_inner(*player, handler_type, args, session)
+        let player = *player;
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_system_handler_task_inner(player, handler_type, args, session)
+        })
     }
 
     /// Reload an existing object from objdef text, completely replacing its contents.
@@ -452,8 +519,9 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::ReloadObjectLatency);
 
-        self.scheduler
-            .handle_reload_object_request(object_definition, constants, target_obj)
+        self.request_with_timeout(LONG_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.handle_reload_object_request(object_definition, constants, target_obj)
+        })
     }
 
     /// Get all objects in the database (for tab completion)
@@ -534,5 +602,58 @@ impl SchedulerClient {
             Some(WorldStateResponse::Error { error, .. }) => Err(error),
             _ => Err(SchedulerError::SchedulerNotResponding),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::Config,
+        tasks::{NoopTasksDb, scheduler::Scheduler},
+    };
+    use moor_common::tasks::{NoopClientSession, NoopSystemControl, SessionError, SessionFactory};
+    use moor_db::{DatabaseConfig, TxDB};
+
+    struct NoopSessionFactory;
+
+    impl SessionFactory for NoopSessionFactory {
+        fn mk_background_session(
+            self: Arc<Self>,
+            _player: &Obj,
+        ) -> Result<Arc<dyn Session>, SessionError> {
+            Ok(Arc::new(NoopClientSession::new()))
+        }
+    }
+
+    #[test]
+    fn bounded_request_reports_scheduler_timeout() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let client = scheduler.client().unwrap();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+
+        let result = client.request_with_timeout(Duration::from_millis(20), |_scheduler| {
+            std::thread::sleep(Duration::from_millis(200));
+            Ok(())
+        });
+        assert_eq!(result, Err(SchedulerError::SchedulerNotResponding));
+
+        client
+            .submit_shutdown("timeout test complete")
+            .expect("scheduler should process shutdown after the delayed request");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
     }
 }

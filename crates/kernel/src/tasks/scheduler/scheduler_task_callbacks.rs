@@ -411,18 +411,24 @@ impl Scheduler {
         wake_condition: TaskSuspend,
         task: Box<Task>,
     ) {
-        // Remove from active and extract session under lock.
-        let tc = {
+        // Keep the task visible while committing the session. The final move from
+        // active to suspended is performed under one lifecycle lock acquisition.
+        let session = {
             let mut lc = self.lifecycle.lock();
-            let Some(tc) = lc.task_q.active.remove(&task_id) else {
+            let Some(tc) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found for suspend request");
                 return;
             };
-            tc
+            if tc.phase != RunningTaskPhase::Running {
+                warn!(task_id, phase = ?tc.phase, "Task already transitioning");
+                return;
+            }
+            tc.phase = RunningTaskPhase::Suspending;
+            tc.session.clone()
         };
 
         // Session commit (potential I/O) outside the lock.
-        if tc.session.commit().is_err() {
+        if session.commit().is_err() {
             warn!("Could not commit session; aborting task");
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
@@ -430,6 +436,14 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        let Some(tc) = lc.task_q.active.get(&task_id) else {
+            debug!(task_id, "Task removed while suspension was committing");
+            return;
+        };
+        if tc.phase != RunningTaskPhase::Suspending {
+            warn!(task_id, phase = ?tc.phase, "Task suspension phase changed unexpectedly");
+            return;
+        }
         lc.flush_pending_sends(task_id);
 
         // And insert into the suspended list.
@@ -480,7 +494,11 @@ impl Scheduler {
         };
 
         if !matches!(wake_condition, WakeCondition::Immediate(_))
-            && let Some(sender) = tc.result_sender.as_ref()
+            && let Some(sender) = lc
+                .task_q
+                .active
+                .get(&task_id)
+                .and_then(|tc| tc.result_sender.as_ref())
         {
             let _ = sender.send((task_id, Ok(TaskNotification::Suspended)));
         }
@@ -490,6 +508,11 @@ impl Scheduler {
             WakeCondition::Time(_) | WakeCondition::Retry(_) | WakeCondition::TaskMessage(_)
         );
 
+        let tc = lc
+            .task_q
+            .active
+            .remove(&task_id)
+            .expect("transitioning task disappeared while lifecycle lock was held");
         lc.task_q
             .suspended
             .add_task(wake_condition, task, tc.session, tc.result_sender);
@@ -510,28 +533,33 @@ impl Scheduler {
     ) {
         let input_request_id = Uuid::new_v4();
 
-        // Remove from active under lock.
-        let tc = {
+        // Keep the task visible while committing output and registering the input
+        // request. The active-to-suspended move remains atomic under the lock.
+        let (session, player) = {
             let mut lc = self.lifecycle.lock();
-            let Some(tc) = lc.task_q.active.remove(&task_id) else {
+            let Some(tc) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found for input request");
                 return;
             };
-            tc
+            if tc.phase != RunningTaskPhase::Running {
+                warn!(task_id, phase = ?tc.phase, "Task already transitioning");
+                return;
+            }
+            tc.phase = RunningTaskPhase::RequestingInput;
+            (tc.session.clone(), tc.player)
         };
 
         // Session commit (potential I/O) outside the lock — flushes output
         // up to the prompt point.
-        if tc.session.commit().is_err() {
+        if session.commit().is_err() {
             warn!("Could not commit session; aborting task");
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
-        if tc
-            .session
-            .request_input(tc.player, input_request_id, metadata)
+        if session
+            .request_input(player, input_request_id, metadata)
             .is_err()
         {
             warn!("Could not request input from session; aborting task");
@@ -540,7 +568,20 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        let Some(tc) = lc.task_q.active.get(&task_id) else {
+            debug!(task_id, "Task removed while input request was registering");
+            return;
+        };
+        if tc.phase != RunningTaskPhase::RequestingInput {
+            warn!(task_id, phase = ?tc.phase, "Task input phase changed unexpectedly");
+            return;
+        }
         lc.flush_pending_sends(task_id);
+        let tc = lc
+            .task_q
+            .active
+            .remove(&task_id)
+            .expect("transitioning task disappeared while lifecycle lock was held");
         lc.task_q.suspended.add_task(
             WakeCondition::Input(input_request_id),
             task,

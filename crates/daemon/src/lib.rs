@@ -900,7 +900,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     })()?;
 
     // Start the scheduler (spawns timer + worker-response threads internally).
-    let scheduler_loop_jh = scheduler.start(rpc_server.clone());
+    let scheduler_loop_jh = scheduler
+        .start(rpc_server.clone())
+        .map_err(|e| eyre!("Failed to start scheduler: {e}"))?;
 
     // Invoke server_started hook if it exists
     invoke_server_started_hook(&scheduler_client, &rpc_server)?;

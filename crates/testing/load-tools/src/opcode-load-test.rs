@@ -467,11 +467,16 @@ async fn main() -> Result<(), eyre::Error> {
     let scheduler_client = scheduler.client()?;
 
     let session_factory = Arc::new(DirectSessionFactory {});
-    let _scheduler_handle = scheduler.start(session_factory);
+    let scheduler_threads = scheduler
+        .start(session_factory)
+        .expect("Failed to start scheduler");
 
     run_workload(&args, &scheduler_client, player, opcodes_per_invocation).await?;
 
     scheduler_client.submit_shutdown("Load test completed")?;
+    scheduler_threads
+        .join()
+        .map_err(|_| eyre::eyre!("Scheduler service thread panicked"))?;
 
     Ok(())
 }

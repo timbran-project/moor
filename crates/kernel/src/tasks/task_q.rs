@@ -76,11 +76,23 @@ pub struct TaskQ {
         HashMap<TaskId, VecDeque<(Timestamp, Var)>, BuildHasherDefault<AHasher>>,
 }
 
-/// Scheduler-side per-task record. Lives in the scheduler thread and owned by the scheduler and
-/// not shared elsewhere.
+/// Scheduler-side phase for a task which still occupies the active-task slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RunningTaskPhase {
+    /// The VM may still be executing.
+    Running,
+    /// The VM has yielded and its session is committing before suspension.
+    Suspending,
+    /// The VM has yielded and its input request is being registered.
+    RequestingInput,
+}
+
+/// Scheduler-side per-task record protected by the scheduler lifecycle lock.
 /// The actual `Task` is owned by the task thread until it is suspended or completed.
 /// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
 pub(crate) struct RunningTask {
+    /// Current phase of the active-to-suspended transition.
+    pub(crate) phase: RunningTaskPhase,
     /// For which player this task is running on behalf of.
     pub(crate) player: Obj,
     /// What triggered this task to start.

@@ -793,7 +793,9 @@ fn main() -> Result<(), Report> {
     let session_factory = Arc::new(AdminSessionFactory);
 
     // Start scheduler (spawns timer + worker threads internally)
-    let scheduler_thread = scheduler.start(session_factory.clone());
+    let scheduler_thread = scheduler
+        .start(session_factory.clone())
+        .map_err(|e| eyre!("Failed to start scheduler: {e}"))?;
 
     // Sleep a little to let the scheduler finish its start-up jobs.
     std::thread::sleep(Duration::from_secs(1));

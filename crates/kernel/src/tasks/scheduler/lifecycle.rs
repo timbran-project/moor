@@ -21,6 +21,19 @@ use moor_var::Var;
 
 use crate::tasks::task_q::TaskQ;
 
+/// Lifecycle state for the scheduler and its service threads.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SchedulerState {
+    /// Constructed, but task rehydration and service threads have not started.
+    Created,
+    /// Accepting requests and dispatching tasks.
+    Running,
+    /// Rejecting new work while shutdown is in progress.
+    Stopping,
+    /// Shutdown has completed. A stopped scheduler cannot be restarted.
+    Stopped,
+}
+
 /// All mutable state that must be consistent during task state transitions.
 /// Protected by a single Mutex in the Scheduler handle.
 pub(crate) struct TaskLifecycle {
@@ -50,8 +63,8 @@ pub(crate) struct TaskLifecycle {
     /// Transaction timestamp (monotonically incrementing) of the last mutating task/transaction.
     pub(crate) last_mutation_timestamp: Option<u64>,
 
-    /// Whether the scheduler is running.
-    pub(crate) running: bool,
+    /// Current scheduler lifecycle state.
+    pub(crate) state: SchedulerState,
 
     /// Time of last tasks DB compaction (independent of GC).
     pub(crate) last_compact_time: std::time::Instant,
