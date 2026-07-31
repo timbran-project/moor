@@ -1717,6 +1717,25 @@ mod tests {
         assert_eq!(result, v_int(2));
     }
 
+    /// Killing the current task aborts it instead of completing successfully.
+    #[test]
+    fn test_kill_current_task() {
+        let (client, _sched) = setup_scheduler(&[]);
+        let session = Arc::new(NoopClientSession::new());
+        let handle = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "kill_task(task_id()); return 1;".to_string(),
+                None,
+                session,
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        let err = wait_result(&handle).unwrap_err();
+        assert!(matches!(err, SchedulerError::TaskAbortedCancelled));
+    }
+
     /// Trigger a MOO VM exception
     #[test]
     fn test_simple_run_exception() {

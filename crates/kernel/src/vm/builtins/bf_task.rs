@@ -16,11 +16,11 @@ use crate::tasks::{
     TaskStart,
     task_telemetry::{ActiveTaskPhase, TaskTelemetry},
 };
-use crate::vm::TaskSuspend;
 use crate::vm::builtins::BfErr::ErrValue;
 use crate::vm::builtins::BfRet::{Ret, VmInstr};
 use crate::vm::builtins::{BfCallState, BfErr, BfRet, BuiltinFunction, world_state_bf_err};
 use crate::vm::vm_host::ExecutionResult;
+use crate::vm::{FinallyReason, TaskSuspend};
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
@@ -596,13 +596,10 @@ fn bf_kill_task(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    // If the task ID is itself, that means returning an Complete execution result, which will cascade
-    // back to the task loop and it will terminate itself.
-    // Not sure this is *exactly* what MOO does, but it's close enough for now.
     let victim_task_id = victim_task_id as TaskId;
 
     if victim_task_id == bf_args.exec_state.task_id {
-        return Ok(VmInstr(ExecutionResult::Complete(v_int(0))));
+        return Ok(VmInstr(ExecutionResult::Exception(FinallyReason::Abort)));
     }
 
     let result = current_task_scheduler_client().kill_task(

@@ -156,6 +156,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `caller_perms()`.
 - `parse_command()` result map: `argstr` key/value types were swapped (key used `v_str`, value used
   `use_sym_or_str`) and `prep` key used `v_str` instead of `use_sym_or_str`.
+- `kill_task(task_id())` now aborts the current task instead of completing successfully.
 - Stale timer wheel entries no longer cause spurious task wakes; added monotonic generation counter
   to `TimerEntry` and `SuspendedTask` so that re-suspended tasks discard leftover timer entries from
   previous suspensions
