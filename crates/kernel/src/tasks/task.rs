@@ -1531,6 +1531,31 @@ mod tests {
         assert_eq!(result, v_int(2));
     }
 
+    /// Killing the current task aborts it instead of completing successfully.
+    #[test]
+    fn test_kill_current_task() {
+        let (_kill_switch, mut task, _db, tx, task_scheduler_client, control_receiver) =
+            setup_test_env_eval("kill_task(task_id()); return 1;");
+
+        let session = Arc::new(NoopClientSession::new());
+        {
+            let _tx_guard = setup_task_context(tx);
+            task.setup_task_start(task_scheduler_client.control_sender());
+            Task::run_task_loop(
+                task,
+                &task_scheduler_client,
+                session,
+                BuiltinRegistry::new(),
+                Arc::new(Config::default()),
+            );
+        }
+
+        let (task_id, msg) = control_receiver.recv().unwrap();
+        assert_eq!(task_id, 1);
+        assert!(matches!(msg, TaskControlMsg::TaskAbortCancelled));
+        assert!(control_receiver.is_empty());
+    }
+
     /// Trigger a MOO VM exception, and verify it gets sent to scheduler
     #[test]
     fn test_simple_run_exception() {
