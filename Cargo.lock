@@ -3738,6 +3738,7 @@ dependencies = [
  "edn-format",
  "eyre",
  "futures",
+ "micromeasure",
  "moor-common",
  "moor-compiler",
  "moor-db",

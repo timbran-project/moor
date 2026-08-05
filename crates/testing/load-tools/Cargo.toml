@@ -92,6 +92,7 @@ tempfile.workspace = true
 # Dependencies for other binaries
 csv.workspace = true
 futures.workspace = true
+micromeasure.workspace = true
 planus.workspace = true
 semver.workspace = true
 tabled.workspace = true

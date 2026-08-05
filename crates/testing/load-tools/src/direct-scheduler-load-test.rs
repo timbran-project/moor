@@ -21,6 +21,8 @@
 use clap::Parser;
 use clap_derive::Parser;
 use futures::{StreamExt, stream::FuturesUnordered};
+#[cfg(target_os = "linux")]
+use micromeasure::{LinuxPerfBackend, MeasurementBackend, MetricValue};
 use moor_common::{
     model::{
         CommitResult, ObjAttrs, ObjFlag, ObjectKind, ObjectRef, PropFlag, VerbArgsSpec, VerbFlag,
@@ -43,6 +45,7 @@ use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl}
 use moor_var::{
     List, NOTHING, Obj, Symbol, program::ProgramType, v_empty_str, v_int, v_list, v_obj,
 };
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use std::{
     path::PathBuf,
     sync::Arc,
@@ -77,6 +80,33 @@ struct Args {
         default_value = "200"
     )]
     num_invocations: usize,
+
+    #[arg(
+        long,
+        help = "Run every concurrency level for this many seconds instead of using a fixed invocation count"
+    )]
+    measurement_duration_seconds: Option<u64>,
+
+    #[arg(
+        long,
+        help = "Measure idle package power for this many milliseconds before each concurrency level",
+        default_value = "1000"
+    )]
+    idle_sample_millis: u64,
+
+    #[arg(
+        long,
+        help = "Run concurrency levels in deterministic randomized order",
+        default_value = "false"
+    )]
+    randomize_concurrency: bool,
+
+    #[arg(
+        long,
+        help = "Seed used with --randomize-concurrency",
+        default_value = "12648430"
+    )]
+    concurrency_seed: u64,
 
     #[arg(
         long,
@@ -141,6 +171,18 @@ struct BenchmarkRow {
     total_throughput: String,
     #[tabled(rename = "Per-Thread Thru")]
     per_thread_throughput: String,
+    #[tabled(rename = "Pkg Energy")]
+    package_energy: String,
+    #[tabled(rename = "Pkg Power")]
+    package_power: String,
+    #[tabled(rename = "Idle Power")]
+    idle_power: String,
+    #[tabled(rename = "Dyn Power")]
+    dynamic_power: String,
+    #[tabled(rename = "Energy/Verb")]
+    energy_per_verb: String,
+    #[tabled(rename = "Dyn Energy/Verb")]
+    dynamic_energy_per_verb: String,
     #[tabled(rename = "submit p50")]
     submit_p50: String,
     #[tabled(rename = "submit p95")]
@@ -429,6 +471,37 @@ async fn continuous_workload(
     Ok((start_time.elapsed(), request_count, submit_latencies))
 }
 
+async fn measured_workload(
+    args: Args,
+    scheduler_client: &SchedulerClient,
+    player: Obj,
+    stop_time: Option<Instant>,
+) -> Result<(Duration, usize, Vec<Duration>), eyre::Error> {
+    let Some(stop_time) = stop_time else {
+        let (duration, latencies) = workload(args.clone(), scheduler_client, player).await?;
+        return Ok((duration, args.num_invocations, latencies));
+    };
+    continuous_workload(args, scheduler_client, player, stop_time).await
+}
+
+fn concurrency_levels(args: &Args) -> Vec<usize> {
+    let mut levels = Vec::new();
+    let mut concurrency = args.min_concurrency as f32;
+    while concurrency <= args.max_concurrency as f32 {
+        levels.push(concurrency as usize);
+        let mut next = concurrency * 1.25;
+        if next as usize <= concurrency as usize {
+            next = concurrency + 1.0;
+        }
+        concurrency = next;
+    }
+
+    if args.randomize_concurrency {
+        levels.shuffle(&mut StdRng::seed_from_u64(args.concurrency_seed));
+    }
+    levels
+}
+
 struct Results {
     /// How many concurrent threads there were.
     concurrency: usize,
@@ -444,6 +517,117 @@ struct Results {
     per_verb_call: Duration,
     /// Throughput in verb calls per second
     throughput: f64,
+    /// Gross package energy consumed during the workload window.
+    package_energy_joules: Option<f64>,
+    /// Average gross package power during the workload window.
+    package_power_watts: Option<f64>,
+    /// Gross package energy divided by the number of verb calls.
+    package_uj_per_verb: Option<f64>,
+    /// Package power measured while the initialized scheduler is idle.
+    idle_package_power_watts: Option<f64>,
+    /// Package power above the immediately preceding idle measurement.
+    dynamic_package_power_watts: Option<f64>,
+    /// Dynamic package energy divided by the number of verb calls.
+    dynamic_package_uj_per_verb: Option<f64>,
+}
+
+#[derive(Default)]
+struct RaplMetrics {
+    package_energy_joules: Option<f64>,
+    package_power_watts: Option<f64>,
+    package_uj_per_verb: Option<f64>,
+}
+
+#[cfg(target_os = "linux")]
+struct RaplMeasurement {
+    backend: LinuxPerfBackend,
+}
+
+#[cfg(target_os = "linux")]
+impl RaplMeasurement {
+    fn begin() -> Self {
+        let mut backend = LinuxPerfBackend::new().with_rapl_energy();
+        backend.begin();
+        Self { backend }
+    }
+
+    fn finish(mut self, elapsed: Duration, verb_calls: usize) -> RaplMetrics {
+        self.backend.end();
+
+        let mut results = Default::default();
+        let mut metrics = Vec::new();
+        self.backend
+            .collect(elapsed, verb_calls as u64, 0, &mut results, &mut metrics);
+        rapl_metrics_from(&metrics)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn rapl_metrics_from(metrics: &[MetricValue]) -> RaplMetrics {
+    let metric = |name| {
+        metrics
+            .iter()
+            .find(|metric| metric.name == name)
+            .map(|metric| metric.value)
+    };
+    RaplMetrics {
+        package_energy_joules: metric("rapl_package_joules"),
+        package_power_watts: metric("rapl_package_watts"),
+        package_uj_per_verb: metric("rapl_package_uj_per_op"),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+struct RaplMeasurement;
+
+#[cfg(not(target_os = "linux"))]
+impl RaplMeasurement {
+    fn begin() -> Self {
+        Self
+    }
+
+    fn finish(self, _elapsed: Duration, _verb_calls: usize) -> RaplMetrics {
+        RaplMetrics::default()
+    }
+}
+
+fn format_optional(value: Option<f64>, unit: &str) -> String {
+    value.map_or_else(|| "-".to_string(), |value| format!("{value:.2}{unit}"))
+}
+
+fn format_timing(duration: Duration) -> String {
+    if duration < Duration::from_micros(1) {
+        return format!("{:.0}ns", duration.as_nanos());
+    }
+    if duration < Duration::from_millis(1) {
+        return format!("{:.2}µs", duration.as_secs_f64() * 1_000_000.0);
+    }
+    format!("{:.2}ms", duration.as_secs_f64() * 1_000.0)
+}
+
+async fn measure_idle_package_power(duration: Duration) -> Option<f64> {
+    if duration.is_zero() {
+        return None;
+    }
+
+    let rapl = RaplMeasurement::begin();
+    let start = Instant::now();
+    tokio::time::sleep(duration).await;
+    rapl.finish(start.elapsed(), 0).package_power_watts
+}
+
+fn dynamic_rapl_metrics(
+    package_power_watts: Option<f64>,
+    idle_package_power_watts: Option<f64>,
+    throughput: f64,
+) -> (Option<f64>, Option<f64>) {
+    let dynamic_power = package_power_watts
+        .zip(idle_package_power_watts)
+        .map(|(package, idle)| (package - idle).max(0.0));
+    let dynamic_uj_per_verb = dynamic_power
+        .filter(|_| throughput > 0.0)
+        .map(|watts| watts * 1_000_000.0 / throughput);
+    (dynamic_power, dynamic_uj_per_verb)
 }
 
 fn avg_u64(total: u64, count: u64) -> u64 {
@@ -463,6 +647,9 @@ async fn swamp_mode_workload(
         args.max_concurrency, args.swamp_duration_seconds
     );
 
+    let idle_package_power_watts =
+        measure_idle_package_power(Duration::from_millis(args.idle_sample_millis)).await;
+    let rapl = RaplMeasurement::begin();
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.swamp_duration_seconds);
     let stop_time = start_time + duration;
@@ -493,6 +680,13 @@ async fn swamp_mode_workload(
     let cumulative_time = times.iter().fold(Duration::new(0, 0), |acc, x| acc + *x);
     let total_time = start_time.elapsed();
     let total_verb_calls = total_requests * args.num_verb_iterations + total_requests;
+    let rapl = rapl.finish(total_time, total_verb_calls);
+    let throughput = total_verb_calls as f64 / total_time.as_secs_f64();
+    let (dynamic_package_power_watts, dynamic_package_uj_per_verb) = dynamic_rapl_metrics(
+        rapl.package_power_watts,
+        idle_package_power_watts,
+        throughput,
+    );
 
     let result = Results {
         concurrency: args.max_concurrency,
@@ -501,7 +695,13 @@ async fn swamp_mode_workload(
         wall_time: total_time,
         cumulative_time,
         per_verb_call: Duration::from_secs_f64(total_time.as_secs_f64() / total_verb_calls as f64),
-        throughput: total_verb_calls as f64 / total_time.as_secs_f64(),
+        throughput,
+        package_energy_joules: rapl.package_energy_joules,
+        package_power_watts: rapl.package_power_watts,
+        package_uj_per_verb: rapl.package_uj_per_verb,
+        idle_package_power_watts,
+        dynamic_package_power_watts,
+        dynamic_package_uj_per_verb,
     };
 
     // Get scheduler metrics
@@ -538,6 +738,22 @@ async fn swamp_mode_workload(
         result.per_verb_call,
         result.throughput / 1_000_000.0
     );
+    if let (Some(joules), Some(watts), Some(uj_per_verb)) = (
+        result.package_energy_joules,
+        result.package_power_watts,
+        result.package_uj_per_verb,
+    ) {
+        info!("  package RAPL: {joules:.2}J, {watts:.2}W average, {uj_per_verb:.3}µJ/verb");
+    }
+    if let (Some(idle_watts), Some(dynamic_watts), Some(dynamic_uj_per_verb)) = (
+        result.idle_package_power_watts,
+        result.dynamic_package_power_watts,
+        result.dynamic_package_uj_per_verb,
+    ) {
+        info!(
+            "  idle-adjusted RAPL: {idle_watts:.2}W idle, {dynamic_watts:.2}W dynamic, {dynamic_uj_per_verb:.3}µJ/verb dynamic"
+        );
+    }
     info!(
         "  submit_verb_task: avg {}µs ({:.1}% of cumulative time, {}ns amortized per dispatch)",
         submit_avg_micros, submit_overhead_pct, amortized_submit_nanos
@@ -602,13 +818,14 @@ async fn load_test_workload(
     info!("Cooling down for 2 seconds before starting the load test...");
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let mut concurrency = args.min_concurrency as f32;
-    loop {
-        if concurrency > args.max_concurrency as f32 {
-            break;
-        }
-        let num_concurrent_workload = concurrency as usize;
+    for num_concurrent_workload in concurrency_levels(args) {
+        let idle_package_power_watts =
+            measure_idle_package_power(Duration::from_millis(args.idle_sample_millis)).await;
+        let rapl = RaplMeasurement::begin();
         let start_time = Instant::now();
+        let stop_time = args
+            .measurement_duration_seconds
+            .map(|seconds| start_time + Duration::from_secs(seconds));
 
         // Capture counter baselines before this iteration
         let counters = sched_counters();
@@ -658,7 +875,9 @@ async fn load_test_workload(
             let args = args.clone();
             let scheduler_client = scheduler_client.clone();
 
-            workload_futures.push(async move { workload(args, &scheduler_client, player).await });
+            workload_futures.push(async move {
+                measured_workload(args, &scheduler_client, player, stop_time).await
+            });
         }
 
         // Spinner animation
@@ -670,10 +889,12 @@ async fn load_test_workload(
         std::io::Write::flush(&mut std::io::stderr()).ok();
 
         let mut times = vec![];
+        let mut total_invocations = 0;
         let mut all_submit_latencies = vec![];
         while let Some(h) = workload_futures.next().await {
-            let (duration, latencies) = h?;
+            let (duration, invocations, latencies) = h?;
             times.push(duration);
+            total_invocations += invocations;
             all_submit_latencies.extend(latencies);
 
             // Update spinner
@@ -695,10 +916,14 @@ async fn load_test_workload(
 
         let cumulative_time = times.iter().fold(Duration::new(0, 0), |acc, x| acc + *x);
         let total_time = start_time.elapsed();
-        let total_invocations = args.num_invocations * num_concurrent_workload;
-        let total_verb_calls =
-            (args.num_invocations * args.num_verb_iterations * num_concurrent_workload)
-                + total_invocations;
+        let total_verb_calls = total_invocations * (args.num_verb_iterations + 1);
+        let rapl = rapl.finish(total_time, total_verb_calls);
+        let throughput = total_verb_calls as f64 / total_time.as_secs_f64();
+        let (dynamic_package_power_watts, dynamic_package_uj_per_verb) = dynamic_rapl_metrics(
+            rapl.package_power_watts,
+            idle_package_power_watts,
+            throughput,
+        );
         let r = Results {
             concurrency: num_concurrent_workload,
             total_invocations,
@@ -708,7 +933,13 @@ async fn load_test_workload(
             per_verb_call: Duration::from_secs_f64(
                 total_time.as_secs_f64() / total_verb_calls as f64,
             ),
-            throughput: total_verb_calls as f64 / total_time.as_secs_f64(),
+            throughput,
+            package_energy_joules: rapl.package_energy_joules,
+            package_power_watts: rapl.package_power_watts,
+            package_uj_per_verb: rapl.package_uj_per_verb,
+            idle_package_power_watts,
+            dynamic_package_power_watts,
+            dynamic_package_uj_per_verb,
         };
 
         // Get scheduler metrics for this iteration (compute deltas from baseline)
@@ -784,11 +1015,17 @@ async fn load_test_workload(
             concurrency: r.concurrency,
             tasks: r.total_invocations,
             verb_calls: r.total_verb_calls,
-            per_verb_call: format!("{:.0?}", cpu_per_verb),
-            amort_per_verb: format!("{:.0?}", r.per_verb_call),
+            per_verb_call: format_timing(cpu_per_verb),
+            amort_per_verb: format_timing(r.per_verb_call),
             wall_time: format!("{:.2?}", r.wall_time),
             total_throughput: format!("{:.2}M/s", r.throughput / 1_000_000.0),
             per_thread_throughput: format!("{:.2}M/s", per_thread_throughput / 1_000_000.0),
+            package_energy: format_optional(r.package_energy_joules, "J"),
+            package_power: format_optional(r.package_power_watts, "W"),
+            idle_power: format_optional(r.idle_package_power_watts, "W"),
+            dynamic_power: format_optional(r.dynamic_package_power_watts, "W"),
+            energy_per_verb: format_optional(r.package_uj_per_verb, "µJ"),
+            dynamic_energy_per_verb: format_optional(r.dynamic_package_uj_per_verb, "µJ"),
             submit_p50: format!("{:.2?}", p50),
             submit_p95: format!("{:.2?}", p95),
             submit_p99: format!("{:.2?}", p99),
@@ -806,13 +1043,6 @@ async fn load_test_workload(
         eprintln!("{}", Table::new(&table_rows));
 
         results.push(r);
-
-        // Scale up by 25% or 1, whichever is larger, so we don't get stuck on lower values.
-        let mut next_concurrency = concurrency * 1.25;
-        if next_concurrency as usize <= concurrency as usize {
-            next_concurrency = concurrency + 1.0;
-        }
-        concurrency = next_concurrency;
     }
 
     // Final table is already displayed from last iteration
@@ -823,6 +1053,11 @@ async fn load_test_workload(
 async fn main() -> Result<(), eyre::Error> {
     color_eyre::install().expect("Unable to install color_eyre");
     let args: Args = Args::parse();
+    if args.measurement_duration_seconds == Some(0) {
+        return Err(eyre::eyre!(
+            "--measurement-duration-seconds must be greater than zero"
+        ));
+    }
 
     moor_common::tracing::init_tracing(false).unwrap_or_else(|e| {
         eprintln!("Unable to configure logging: {e}");
@@ -912,6 +1147,12 @@ async fn main() -> Result<(), eyre::Error> {
             "wall_time_ns".to_string(),
             "per_verb_ns".to_string(),
             "throughput_per_sec".to_string(),
+            "package_energy_joules".to_string(),
+            "package_power_watts".to_string(),
+            "package_uj_per_verb".to_string(),
+            "idle_package_power_watts".to_string(),
+            "dynamic_package_power_watts".to_string(),
+            "dynamic_package_uj_per_verb".to_string(),
         ];
         writer.write_record(header)?;
         for r in results {
@@ -922,6 +1163,24 @@ async fn main() -> Result<(), eyre::Error> {
                 r.wall_time.as_nanos().to_string(),
                 r.per_verb_call.as_nanos().to_string(),
                 format!("{:.0}", r.throughput),
+                r.package_energy_joules
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                r.package_power_watts
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                r.package_uj_per_verb
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                r.idle_package_power_watts
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                r.dynamic_package_power_watts
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                r.dynamic_package_uj_per_verb
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
             ];
             writer.write_record(base)?
         }
