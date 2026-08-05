@@ -13,11 +13,15 @@
 
 //! Microbenchmark for verb dispatch overhead.
 //! Measures the cost of verb-calling-verb through the VM execution loop,
-//! isolating from scheduler overhead. Uses tick exhaustion like vm_benches.
+//! isolating it from scheduler overhead. Each operation runs a fixed number of
+//! calls to completion so micromeasure can report per-call timing and PMU data.
 
-use std::{hint::black_box, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, LinuxPerfBackend, Throughput,
+    benchmark_main, black_box,
+};
 
 use moor_common::{
     model::{
@@ -31,8 +35,9 @@ use moor_compiler::{CompileOptions, compile};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_kernel::{
     config::FeaturesConfig,
-    tasks::TaskProgramCache,
-    testing::vm_test_utils::setup_task_context,
+    task_context::{TaskGuard, rollback_current_transaction},
+    tasks::{TaskProgramCache, task_scheduler_client::TaskSchedulerClient},
+    testing::vm_test_utils::test_scheduler_for_db,
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_obj};
@@ -144,17 +149,18 @@ fn build_outer_call_loop(num_calls: u64, callsites_per_iteration: u64, call_expr
 }
 
 /// Run the VM until completion (for fixed iteration counts)
-fn execute_to_completion(session: Arc<dyn Session>, vm_host: &mut VmHost) {
+fn execute_to_completion(
+    session: &dyn Session,
+    vm_host: &mut VmHost,
+    builtins: &BuiltinRegistry,
+    config: &FeaturesConfig,
+    program_cache: &mut TaskProgramCache,
+) {
     vm_host.reset_ticks();
     vm_host.reset_time();
 
-    let config = FeaturesConfig::default();
-    let builtins = BuiltinRegistry::new();
-    let mut program_cache = TaskProgramCache::default();
-
     loop {
-        match vm_host.exec_interpreter(0, session.as_ref(), &builtins, &config, &mut program_cache)
-        {
+        match vm_host.exec_interpreter(0, session, builtins, config, program_cache) {
             VMHostResponse::ContinueOk => continue,
             VMHostResponse::CompleteSuccess(_) => return,
             VMHostResponse::AbortLimit(AbortLimitReason::Ticks(t)) => {
@@ -174,126 +180,117 @@ fn execute_to_completion(session: Arc<dyn Session>, vm_host: &mut VmHost) {
     }
 }
 
-fn verb_dispatch_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("verb_dispatch");
-    group.sample_size(20);
+const NUM_CALLS: u64 = 10_000;
+const INVOCATIONS_PER_CHUNK: usize = 10;
+const MAX_TICKS: usize = (NUM_CALLS * 20) as usize;
 
-    // Number of verb calls per benchmark iteration
-    let num_calls: u64 = 10_000;
-    let max_ticks = (num_calls * 20) as usize; // plenty of headroom
-
-    // Throughput is verb calls - so we get per-call timing
-    group.throughput(criterion::Throughput::Elements(num_calls));
-
-    // Benchmark: minimal inner verb - pure dispatch overhead
-    group.bench_function("minimal_inner", |b| {
-        let db = create_db_with_verbs(
-            "return 1;",
-            &build_outer_call_loop(num_calls, 1, "this:inner()"),
-        );
-
-        let session = Arc::new(NoopClientSession::new());
-
-        b.iter(|| {
-            // Fresh vm_host each iteration (verb runs to completion)
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    // Same total number of calls, but spread across multiple static callsites.
-    // This isolates callsite-cache overhead from verb body work.
-    group.bench_function("minimal_inner_multisite_16", |b| {
-        let db = create_db_with_verbs(
-            "return 1;",
-            &build_outer_call_loop(num_calls, 16, "this:inner()"),
-        );
-
-        let session = Arc::new(NoopClientSession::new());
-
-        b.iter(|| {
-            // Fresh vm_host each iteration (verb runs to completion)
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    // Inner verb with some local variable work
-    group.bench_function("inner_with_locals", |b| {
-        let db = create_db_with_verbs(
-            "x = 1; y = 2; return x + y;",
-            &build_outer_call_loop(num_calls, 1, "this:inner()"),
-        );
-
-        let session = Arc::new(NoopClientSession::new());
-
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    // Passing arguments to inner verb
-    group.bench_function("inner_with_args", |b| {
-        let db = create_db_with_verbs(
-            "return args[1] + args[2];",
-            &build_outer_call_loop(num_calls, 1, "this:inner(1, 2)"),
-        );
-
-        let session = Arc::new(NoopClientSession::new());
-
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.finish();
+struct VerbDispatchContext {
+    db: TxDB,
+    session: Arc<dyn Session>,
+    task_scheduler_client: TaskSchedulerClient,
+    builtins: BuiltinRegistry,
+    features: FeaturesConfig,
+    program_cache: TaskProgramCache,
 }
 
-/// Baseline: measure for-loop overhead without verb calls for comparison
-fn baseline_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("verb_dispatch_baseline");
-    group.sample_size(20);
-
-    let num_iterations: u64 = 10_000;
-    let max_ticks = (num_iterations * 10) as usize;
-
-    // Same iteration count as verb dispatch benches for fair comparison
-    group.throughput(criterion::Throughput::Elements(num_iterations));
-
-    // Pure for-loop - no verb calls
-    group.bench_function("for_loop_only", |b| {
-        let db = create_db_with_verbs(
-            "return 1;",
-            &format!("for i in [1..{num_iterations}] 1; endfor"),
-        );
-
-        let session = Arc::new(NoopClientSession::new());
-
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.finish();
+impl VerbDispatchContext {
+    fn new(inner_verb_code: &str, outer_verb_code: &str) -> Self {
+        let db = create_db_with_verbs(inner_verb_code, outer_verb_code);
+        let scheduler = test_scheduler_for_db(db.clone());
+        Self {
+            db,
+            session: Arc::new(NoopClientSession::new()),
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            builtins: BuiltinRegistry::new(),
+            features: FeaturesConfig::default(),
+            program_cache: TaskProgramCache::default(),
+        }
+    }
 }
 
-criterion_group!(benches, verb_dispatch_benchmarks, baseline_benchmarks);
-criterion_main!(benches);
+impl BenchContext for VerbDispatchContext {
+    fn prepare(_chunk_size: usize) -> Self {
+        Self::new(
+            "return 1;",
+            &build_outer_call_loop(NUM_CALLS, 1, "this:inner()"),
+        )
+    }
+
+    fn chunk_size() -> Option<usize> {
+        Some(INVOCATIONS_PER_CHUNK)
+    }
+
+    fn operations_per_chunk() -> Option<u64> {
+        Some(NUM_CALLS * INVOCATIONS_PER_CHUNK as u64)
+    }
+}
+
+fn run_verb_dispatch(ctx: &mut VerbDispatchContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        let mut tx = ctx.db.new_world_state().unwrap();
+        let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", MAX_TICKS);
+        let _task_guard = TaskGuard::new(
+            tx,
+            ctx.task_scheduler_client.clone(),
+            0,
+            NOTHING,
+            ctx.session.clone(),
+        );
+        execute_to_completion(
+            ctx.session.as_ref(),
+            &mut vm_host,
+            &ctx.builtins,
+            &ctx.features,
+            &mut ctx.program_cache,
+        );
+        rollback_current_transaction().unwrap();
+        black_box(());
+    }
+}
+
+fn context_factory(inner_verb_code: &str, callsites: u64, call_expr: &str) -> VerbDispatchContext {
+    VerbDispatchContext::new(
+        inner_verb_code,
+        &build_outer_call_loop(NUM_CALLS, callsites, call_expr),
+    )
+}
+
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all, minimal_inner, multisite, locals, args, or baseline".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
+        runner.group::<VerbDispatchContext>("verb_dispatch", |g| {
+            let g = g
+                .throughput(Throughput::per_operation(1, "verb_calls"))
+                .backend(|| Box::new(LinuxPerfBackend::new().with_rapl_energy()));
+            g.factory(&|| context_factory("return 1;", 1, "this:inner()"))
+                .bench("minimal_inner", run_verb_dispatch);
+            g.factory(&|| context_factory("return 1;", 16, "this:inner()"))
+                .bench("minimal_inner_multisite_16", run_verb_dispatch);
+            g.factory(&|| context_factory("x = 1; y = 2; return x + y;", 1, "this:inner()"))
+                .bench("inner_with_locals", run_verb_dispatch);
+            g.factory(&|| context_factory("return args[1] + args[2];", 1, "this:inner(1, 2)"))
+                .bench("inner_with_args", run_verb_dispatch);
+        });
+
+        runner.group::<VerbDispatchContext>("verb_dispatch_baseline", |g| {
+            g.throughput(Throughput::per_operation(1, "loop_iterations"))
+                .backend(|| Box::new(LinuxPerfBackend::new().with_rapl_energy()))
+                .factory(&|| {
+                    VerbDispatchContext::new(
+                        "return 1;",
+                        &format!("for i in [1..{NUM_CALLS}] 1; endfor"),
+                    )
+                })
+                .bench("for_loop_only", run_verb_dispatch);
+        });
+    }
+);
