@@ -181,7 +181,8 @@ fn execute_to_completion(
 }
 
 const NUM_CALLS: u64 = 10_000;
-const INVOCATIONS_PER_CHUNK: usize = 10;
+const VERB_DISPATCH_INVOCATIONS_PER_CHUNK: usize = 20;
+const LOOP_BASELINE_INVOCATIONS_PER_CHUNK: usize = 640;
 const MAX_TICKS: usize = (NUM_CALLS * 20) as usize;
 
 struct VerbDispatchContext {
@@ -217,11 +218,30 @@ impl BenchContext for VerbDispatchContext {
     }
 
     fn chunk_size() -> Option<usize> {
-        Some(INVOCATIONS_PER_CHUNK)
+        Some(VERB_DISPATCH_INVOCATIONS_PER_CHUNK)
     }
 
     fn operations_per_chunk() -> Option<u64> {
-        Some(NUM_CALLS * INVOCATIONS_PER_CHUNK as u64)
+        Some(NUM_CALLS * VERB_DISPATCH_INVOCATIONS_PER_CHUNK as u64)
+    }
+}
+
+struct LoopBaselineContext(VerbDispatchContext);
+
+impl BenchContext for LoopBaselineContext {
+    fn prepare(_chunk_size: usize) -> Self {
+        Self(VerbDispatchContext::new(
+            "return 1;",
+            &format!("for i in [1..{NUM_CALLS}] 1; endfor"),
+        ))
+    }
+
+    fn chunk_size() -> Option<usize> {
+        Some(LOOP_BASELINE_INVOCATIONS_PER_CHUNK)
+    }
+
+    fn operations_per_chunk() -> Option<u64> {
+        Some(NUM_CALLS * LOOP_BASELINE_INVOCATIONS_PER_CHUNK as u64)
     }
 }
 
@@ -248,6 +268,10 @@ fn run_verb_dispatch(ctx: &mut VerbDispatchContext, chunk_size: usize, _chunk_nu
     }
 }
 
+fn run_for_loop_baseline(ctx: &mut LoopBaselineContext, chunk_size: usize, chunk_num: usize) {
+    run_verb_dispatch(&mut ctx.0, chunk_size, chunk_num);
+}
+
 fn context_factory(inner_verb_code: &str, callsites: u64, call_expr: &str) -> VerbDispatchContext {
     VerbDispatchContext::new(
         inner_verb_code,
@@ -270,7 +294,13 @@ benchmark_main!(
         runner.group::<VerbDispatchContext>("verb_dispatch", |g| {
             let g = g
                 .throughput(Throughput::per_operation(1, "verb_calls"))
-                .backend(|| Box::new(LinuxPerfBackend::new().with_rapl_energy()));
+                .backend(|| {
+                    Box::new(
+                        LinuxPerfBackend::new()
+                            .with_compact_counters()
+                            .with_rapl_energy(),
+                    )
+                });
             g.factory(&|| context_factory("return 1;", 1, "this:inner()"))
                 .bench("minimal_inner", run_verb_dispatch);
             g.factory(&|| context_factory("return 1;", 16, "this:inner()"))
@@ -281,16 +311,16 @@ benchmark_main!(
                 .bench("inner_with_args", run_verb_dispatch);
         });
 
-        runner.group::<VerbDispatchContext>("verb_dispatch_baseline", |g| {
+        runner.group::<LoopBaselineContext>("verb_dispatch_baseline", |g| {
             g.throughput(Throughput::per_operation(1, "loop_iterations"))
-                .backend(|| Box::new(LinuxPerfBackend::new().with_rapl_energy()))
-                .factory(&|| {
-                    VerbDispatchContext::new(
-                        "return 1;",
-                        &format!("for i in [1..{NUM_CALLS}] 1; endfor"),
+                .backend(|| {
+                    Box::new(
+                        LinuxPerfBackend::new()
+                            .with_compact_counters()
+                            .with_rapl_energy(),
                     )
                 })
-                .bench("for_loop_only", run_verb_dispatch);
+                .bench("for_loop_only", run_for_loop_baseline);
         });
     }
 );
