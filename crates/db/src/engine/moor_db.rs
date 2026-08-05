@@ -18,7 +18,8 @@
 
 use crate::provider::fjall_provider;
 use crate::{
-    AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
+    AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, ObjAndUUIDHolder,
+    StorageMaintenanceStats, StringHolder,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -374,6 +375,20 @@ impl MoorDB {
     /// Return current on-disk database usage in bytes.
     pub fn usage_bytes(&self) -> usize {
         self.keyspace.disk_space().unwrap_or_default() as usize
+    }
+
+    /// Return a point-in-time view of Fjall's background maintenance state.
+    pub fn storage_maintenance_stats(&self) -> StorageMaintenanceStats {
+        StorageMaintenanceStats {
+            write_buffer_bytes: self.keyspace.write_buffer_size(),
+            outstanding_flushes: self.keyspace.outstanding_flushes(),
+            active_compactions: self.keyspace.active_compactions(),
+            compactions_completed: self.keyspace.compactions_completed(),
+            compaction_time: self.keyspace.time_compacting(),
+            journal_count: self.keyspace.journal_count(),
+            journal_bytes: self.keyspace.journal_disk_space().unwrap_or_default(),
+            disk_bytes: self.keyspace.disk_space().unwrap_or_default(),
+        }
     }
 
     /// Mark all relations as fully loaded from their backing providers.

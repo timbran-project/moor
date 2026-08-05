@@ -19,6 +19,7 @@ use moor_common::threading::spawn_efficient;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 mod api;
@@ -57,6 +58,29 @@ pub type SnapshotCallback = Box<
     dyn FnOnce(Result<Box<dyn SnapshotInterface>, WorldStateError>) -> Result<(), WorldStateError>
         + Send,
 >;
+
+/// Point-in-time storage-engine maintenance counters.
+///
+/// These values are observational and may change immediately after being read.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct StorageMaintenanceStats {
+    pub write_buffer_bytes: u64,
+    pub outstanding_flushes: usize,
+    pub active_compactions: usize,
+    pub compactions_completed: usize,
+    pub compaction_time: Duration,
+    pub journal_count: usize,
+    pub journal_bytes: u64,
+    pub disk_bytes: u64,
+}
+
+impl StorageMaintenanceStats {
+    /// Whether storage work is currently queued or executing.
+    #[must_use]
+    pub fn is_active(self) -> bool {
+        self.outstanding_flushes != 0 || self.active_compactions != 0
+    }
+}
 
 // Re-export sequence constants for use in VM
 pub use engine::SEQUENCE_MAX_OBJECT;
@@ -111,6 +135,11 @@ pub trait Database: Send + Sync + WorldStateSource {
     fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError>;
     fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError>;
     fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError>;
+
+    /// Return storage maintenance counters when supported by the engine.
+    fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -182,5 +211,9 @@ impl Database for TxDB {
         let tx = self.storage.start_transaction();
         let tx = api::world_state::DbWorldState { tx };
         Ok(Box::new(tx))
+    }
+
+    fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {
+        Some(self.storage.storage_maintenance_stats())
     }
 }

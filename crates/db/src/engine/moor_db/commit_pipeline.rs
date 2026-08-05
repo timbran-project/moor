@@ -28,7 +28,7 @@ use crate::api::world_state::db_counters;
 use moor_common::model::{CommitResult, WorldStateTimerOp};
 use moor_common::util::Instant;
 use std::time::Duration;
-use tracing::warn;
+use tracing::{trace, warn};
 
 /// Maximum number of rebase attempts after the initial CAS before giving up.
 const MAX_REBASE_ATTEMPTS: u32 = 16;
@@ -129,7 +129,7 @@ impl MoorDB {
                 .timers_hot
                 .start(WorldStateTimerOp::CommitCheckPhase);
             if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
-                warn!("Transaction conflict during commit: {conflict_info}");
+                trace!("Transaction conflict during commit: {conflict_info}");
                 return CommitResult::ConflictRetry {
                     conflict_info: Some(conflict_info),
                 };

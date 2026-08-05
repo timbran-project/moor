@@ -37,7 +37,7 @@ use flume::{Receiver, Sender};
 use moor_common::threading::{set_current_thread_background_priority, spawn_efficient};
 use moor_common::util::{Deadline, Timestamp as MonoTimestamp};
 use parking_lot::Mutex;
-use tracing::{error, info, warn};
+use tracing::{error, info, trace, warn};
 
 use crate::db_counters;
 use crate::tx::{Error, Timestamp};
@@ -443,7 +443,7 @@ impl BatchWriter {
                 db_counters()
                     .counters
                     .inc(WorldStateCountOp::BatchWriterBackpressure);
-                warn!(
+                trace!(
                     "BatchWriter backpressure: queue full, blocking on commit {} ({} ops)",
                     ts.0, op_count
                 );
