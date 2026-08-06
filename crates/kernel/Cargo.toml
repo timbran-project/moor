@@ -20,7 +20,6 @@ trace_events = []
 moor-db = { path = "../db" }
 tempfile.workspace = true
 
-criterion.workspace = true
 eyre.workspace = true
 micromeasure.workspace = true
 pretty_assertions.workspace = true

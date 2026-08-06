@@ -233,7 +233,6 @@ zerocopy = { version = "0.8", features = ["derive"] }
 fast-telemetry = "0.5"
 
 # Testing & Development
-criterion = { version = "0.8", features = ["async_tokio"] }
 escargot = "0.5"
 glob = "0.3"
 md5 = "0.8"

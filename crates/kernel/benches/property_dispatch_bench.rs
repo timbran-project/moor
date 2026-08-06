@@ -15,9 +15,12 @@
 //! Measures getprop/putprop-heavy loops through the VM execution loop,
 //! isolating from scheduler overhead.
 
-use std::{hint::black_box, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, LinuxPerfBackend, Throughput,
+    benchmark_main, black_box,
+};
 
 use moor_common::{
     model::{
@@ -31,8 +34,9 @@ use moor_compiler::{CompileOptions, compile};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_kernel::{
     config::FeaturesConfig,
-    tasks::TaskProgramCache,
-    testing::vm_test_utils::setup_task_context,
+    task_context::{TaskGuard, rollback_current_transaction},
+    tasks::{TaskProgramCache, task_scheduler_client::TaskSchedulerClient},
+    testing::vm_test_utils::test_scheduler_for_db,
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
 use moor_var::{
@@ -126,17 +130,18 @@ fn prepare_call_verb(
     vm_host
 }
 
-fn execute_to_completion(session: Arc<dyn Session>, vm_host: &mut VmHost) {
+fn execute_to_completion(
+    session: &dyn Session,
+    vm_host: &mut VmHost,
+    builtins: &BuiltinRegistry,
+    config: &FeaturesConfig,
+    program_cache: &mut TaskProgramCache,
+) {
     vm_host.reset_ticks();
     vm_host.reset_time();
 
-    let config = FeaturesConfig::default();
-    let builtins = BuiltinRegistry::new();
-    let mut program_cache = TaskProgramCache::default();
-
     loop {
-        match vm_host.exec_interpreter(0, session.as_ref(), &builtins, &config, &mut program_cache)
-        {
+        match vm_host.exec_interpreter(0, session, builtins, config, program_cache) {
             VMHostResponse::ContinueOk => continue,
             VMHostResponse::CompleteSuccess(_) => return,
             VMHostResponse::AbortLimit(AbortLimitReason::Ticks(t)) => {
@@ -172,75 +177,145 @@ fn build_outer_loop(num_ops: u64, callsites_per_iteration: u64, op_expr: &str) -
     format!("x = 0; for i in [1..{outer_iterations}] {body} endfor return x;")
 }
 
-fn property_dispatch_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("property_dispatch");
-    group.sample_size(20);
+const NUM_OPS: u64 = 10_000;
+const PROPERTY_INVOCATIONS_PER_CHUNK: usize = 20;
+const LOOP_BASELINE_INVOCATIONS_PER_CHUNK: usize = 640;
+const PROPERTY_MAX_TICKS: usize = (NUM_OPS * 25) as usize;
+const BASELINE_MAX_TICKS: usize = (NUM_OPS * 10) as usize;
 
-    let num_ops: u64 = 10_000;
-    let max_ticks = (num_ops * 25) as usize;
-    group.throughput(criterion::Throughput::Elements(num_ops));
-
-    group.bench_function("getprop_single_site", |b| {
-        let db = create_db_with_property_outer(&build_outer_loop(num_ops, 1, "x = this.p"));
-        let session = Arc::new(NoopClientSession::new());
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.bench_function("getprop_multisite_16", |b| {
-        let db = create_db_with_property_outer(&build_outer_loop(num_ops, 16, "x = this.p"));
-        let session = Arc::new(NoopClientSession::new());
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.bench_function("putprop_single_site", |b| {
-        let db = create_db_with_property_outer(&build_outer_loop(num_ops, 1, "this.p = i"));
-        let session = Arc::new(NoopClientSession::new());
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.finish();
+struct PropertyDispatchContext {
+    db: TxDB,
+    session: Arc<dyn Session>,
+    task_scheduler_client: TaskSchedulerClient,
+    builtins: BuiltinRegistry,
+    features: FeaturesConfig,
+    program_cache: TaskProgramCache,
+    max_ticks: usize,
 }
 
-fn baseline_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("property_dispatch_baseline");
-    group.sample_size(20);
-
-    let num_ops: u64 = 10_000;
-    let max_ticks = (num_ops * 10) as usize;
-    group.throughput(criterion::Throughput::Elements(num_ops));
-
-    group.bench_function("for_loop_only", |b| {
-        let db = create_db_with_property_outer(&build_outer_loop(num_ops, 1, "x = 1"));
-        let session = Arc::new(NoopClientSession::new());
-        b.iter(|| {
-            let mut tx = db.new_world_state().unwrap();
-            let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", max_ticks);
-            let _tx_guard = setup_task_context(tx);
-            execute_to_completion(session.clone(), &mut vm_host);
-            black_box(());
-        });
-    });
-
-    group.finish();
+impl PropertyDispatchContext {
+    fn new(outer_verb_code: &str, max_ticks: usize) -> Self {
+        let db = create_db_with_property_outer(outer_verb_code);
+        let scheduler = test_scheduler_for_db(db.clone());
+        Self {
+            db,
+            session: Arc::new(NoopClientSession::new()),
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            builtins: BuiltinRegistry::new(),
+            features: FeaturesConfig::default(),
+            program_cache: TaskProgramCache::default(),
+            max_ticks,
+        }
+    }
 }
 
-criterion_group!(benches, property_dispatch_benchmarks, baseline_benchmarks);
-criterion_main!(benches);
+impl BenchContext for PropertyDispatchContext {
+    fn prepare(_chunk_size: usize) -> Self {
+        property_context(1, "x = this.p")
+    }
+
+    fn chunk_size() -> Option<usize> {
+        Some(PROPERTY_INVOCATIONS_PER_CHUNK)
+    }
+
+    fn operations_per_chunk() -> Option<u64> {
+        Some(NUM_OPS * PROPERTY_INVOCATIONS_PER_CHUNK as u64)
+    }
+}
+
+struct LoopBaselineContext(PropertyDispatchContext);
+
+impl BenchContext for LoopBaselineContext {
+    fn prepare(_chunk_size: usize) -> Self {
+        Self(PropertyDispatchContext::new(
+            &build_outer_loop(NUM_OPS, 1, "x = 1"),
+            BASELINE_MAX_TICKS,
+        ))
+    }
+
+    fn chunk_size() -> Option<usize> {
+        Some(LOOP_BASELINE_INVOCATIONS_PER_CHUNK)
+    }
+
+    fn operations_per_chunk() -> Option<u64> {
+        Some(NUM_OPS * LOOP_BASELINE_INVOCATIONS_PER_CHUNK as u64)
+    }
+}
+
+fn property_context(callsites: u64, expression: &str) -> PropertyDispatchContext {
+    PropertyDispatchContext::new(
+        &build_outer_loop(NUM_OPS, callsites, expression),
+        PROPERTY_MAX_TICKS,
+    )
+}
+
+fn run_property_dispatch(ctx: &mut PropertyDispatchContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        let mut tx = ctx.db.new_world_state().unwrap();
+        let mut vm_host = prepare_call_verb(tx.as_mut(), "outer", ctx.max_ticks);
+        let _task_guard = TaskGuard::new(
+            tx,
+            ctx.task_scheduler_client.clone(),
+            0,
+            NOTHING,
+            ctx.session.clone(),
+        );
+        execute_to_completion(
+            ctx.session.as_ref(),
+            &mut vm_host,
+            &ctx.builtins,
+            &ctx.features,
+            &mut ctx.program_cache,
+        );
+        rollback_current_transaction().unwrap();
+        black_box(());
+    }
+}
+
+fn run_loop_baseline(ctx: &mut LoopBaselineContext, chunk_size: usize, chunk_num: usize) {
+    run_property_dispatch(&mut ctx.0, chunk_size, chunk_num);
+}
+
+benchmark_main!(
+    BenchmarkMainOptions {
+        filter_help: Some("all, getprop, putprop, or baseline".to_string()),
+        runtime: BenchmarkRuntimeOptions {
+            warm_up_duration: Duration::from_millis(250),
+            benchmark_duration: Duration::from_secs(1),
+            min_samples: 8,
+            max_samples: 24,
+        },
+        ..BenchmarkMainOptions::default()
+    },
+    |runner| {
+        runner.group::<PropertyDispatchContext>("property_dispatch", |g| {
+            let g = g
+                .throughput(Throughput::per_operation(1, "property_ops"))
+                .backend(|| {
+                    Box::new(
+                        LinuxPerfBackend::new()
+                            .with_compact_counters()
+                            .with_rapl_energy(),
+                    )
+                });
+            g.factory(&|| property_context(1, "x = this.p"))
+                .bench("getprop_single_site", run_property_dispatch);
+            g.factory(&|| property_context(16, "x = this.p"))
+                .bench("getprop_multisite_16", run_property_dispatch);
+            g.factory(&|| property_context(1, "this.p = i"))
+                .bench("putprop_single_site", run_property_dispatch);
+        });
+
+        runner.group::<LoopBaselineContext>("property_dispatch_baseline", |g| {
+            g.throughput(Throughput::per_operation(1, "loop_iterations"))
+                .backend(|| {
+                    Box::new(
+                        LinuxPerfBackend::new()
+                            .with_compact_counters()
+                            .with_rapl_energy(),
+                    )
+                })
+                .bench("for_loop_only", run_loop_baseline);
+        });
+    }
+);
