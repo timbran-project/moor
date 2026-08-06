@@ -14,7 +14,9 @@
 //! VM opcode dispatch micro-benchmarks using the bench-utils framework
 //! Measures CPU-level performance characteristics (IPC, frontend stalls, branch prediction)
 
-use micromeasure::{BenchContext, BenchmarkMainOptions, Throughput, benchmark_main, black_box};
+use micromeasure::{
+    BenchContext, BenchmarkMainOptions, LinuxPerfBackend, Throughput, benchmark_main, black_box,
+};
 use moor_common::{
     model::{
         CommitResult, DispatchFlagsSource, ObjFlag, ObjectKind, TaskPermissions, VerbArgsSpec,
@@ -310,7 +312,8 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<DispatchContext>("dispatch", |g| {
-            g.throughput(Throughput::per_operation(1, "opcodes"))
+            g.backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) 1; endwhile"))
                 .bench(
                     "dispatch_constant_discard",

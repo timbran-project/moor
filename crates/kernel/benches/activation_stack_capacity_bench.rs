@@ -23,12 +23,16 @@ use std::{
 };
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
-    black_box,
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, LinuxPerfBackend,
+    MeasurementBackend, Throughput, benchmark_main, black_box,
 };
 use moor_vm::Activation;
 
 struct ActivationStackCapacityContext;
+
+fn compact_backend() -> Box<dyn MeasurementBackend> {
+    Box::new(LinuxPerfBackend::new().with_compact_counters())
+}
 
 impl BenchContext for ActivationStackCapacityContext {
     fn prepare(_num_chunks: usize) -> Self {
@@ -94,7 +98,9 @@ benchmark_main!(
         );
 
         runner.group::<ActivationStackCapacityContext>("activation_stack_capacity_alloc", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "vectors"));
+            let g = g
+                .backend(compact_backend)
+                .throughput(Throughput::per_operation(1, "vectors"));
             g.bench("activation_stack_capacity_alloc_0", bench_stack_alloc::<0>);
             g.bench("activation_stack_capacity_alloc_1", bench_stack_alloc::<1>);
             g.bench("activation_stack_capacity_alloc_4", bench_stack_alloc::<4>);
@@ -114,7 +120,9 @@ benchmark_main!(
         });
 
         runner.group::<ActivationStackCapacityContext>("activation_stack_capacity_push", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "vectors"));
+            let g = g
+                .backend(compact_backend)
+                .throughput(Throughput::per_operation(1, "vectors"));
             g.bench(
                 "activation_stack_capacity_push_0",
                 bench_stack_alloc_push_one::<0>,
@@ -146,7 +154,9 @@ benchmark_main!(
         });
 
         runner.group::<ActivationStackCapacityContext>("activation_stack_capacity_grow", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "vectors"));
+            let g = g
+                .backend(compact_backend)
+                .throughput(Throughput::per_operation(1, "vectors"));
             g.bench(
                 "activation_stack_capacity_grow_1_to_2",
                 bench_stack_grow::<1, 2>,

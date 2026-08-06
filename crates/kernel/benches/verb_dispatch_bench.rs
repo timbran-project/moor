@@ -291,6 +291,7 @@ benchmark_main!(
         ..BenchmarkMainOptions::default()
     },
     |runner| {
+        runner.set_case_cooldown(Duration::from_millis(500));
         runner.group::<VerbDispatchContext>("verb_dispatch", |g| {
             let g = g
                 .throughput(Throughput::per_operation(1, "verb_calls"))

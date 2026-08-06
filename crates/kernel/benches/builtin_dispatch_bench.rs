@@ -14,8 +14,8 @@
 //! Builtin dispatch floor benchmarks.
 
 use micromeasure::{
-    BenchContext, BenchSampleResult, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput,
-    benchmark_main, black_box,
+    BenchContext, BenchSampleResult, BenchmarkMainOptions, BenchmarkRuntimeOptions,
+    LinuxPerfBackend, Throughput, benchmark_main, black_box,
 };
 use moor_common::{
     model::{
@@ -282,7 +282,8 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<BuiltinDispatchContext>("builtin_dispatch", |g| {
-            g.throughput(Throughput::per_operation(1, "opcodes"))
+            g.backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     BuiltinDispatchContext::with_program(
                         "while (1) typeof(1); endwhile",

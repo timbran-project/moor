@@ -19,8 +19,8 @@
 use std::{sync::Arc, time::Duration};
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
-    black_box,
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, LinuxPerfBackend, Throughput,
+    benchmark_main, black_box,
 };
 use moor_common::{
     model::{
@@ -256,7 +256,9 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<VmBenchContext>("opcode_throughput", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "opcodes"));
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"));
             g.factory(&|| VmBenchContext::with_program("while (1) endwhile"))
                 .bench("while_loop", run_program);
             g.factory(&|| VmBenchContext::with_program("i = 0; while(1) i=i+1; endwhile"))
@@ -299,7 +301,9 @@ benchmark_main!(
         });
 
         runner.group::<VmBenchContext>("dispatch_micro", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "opcodes"));
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"));
             g.factory(&|| VmBenchContext::with_program("while(1) 1; endwhile"))
                 .bench("dispatch_constant_discard", run_program);
             g.factory(&|| VmBenchContext::with_program("i=0; while(1) i; endwhile"))
