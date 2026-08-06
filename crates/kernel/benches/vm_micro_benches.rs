@@ -27,8 +27,9 @@ use moor_compiler::{CompileOptions, compile};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_kernel::{
     config::FeaturesConfig,
-    tasks::TaskProgramCache,
-    testing::vm_test_utils::setup_task_context,
+    task_context::{TaskGuard, rollback_current_transaction},
+    tasks::{TaskProgramCache, task_scheduler_client::TaskSchedulerClient},
+    testing::vm_test_utils::test_scheduler_for_db,
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, v_empty_str, v_obj};
@@ -131,6 +132,9 @@ struct DispatchContext {
     vm_host: VmHost,
     session: Arc<dyn Session>,
     features: FeaturesConfig,
+    task_scheduler_client: TaskSchedulerClient,
+    builtins: BuiltinRegistry,
+    program_cache: TaskProgramCache,
 }
 
 impl BenchContext for DispatchContext {
@@ -138,16 +142,17 @@ impl BenchContext for DispatchContext {
         // We use a default program here; actual contexts override this
         let db = create_db();
         let vm_host = prepare_vm_execution(&db, "while (1) 1; endwhile", MAX_TICKS);
-        let tx = db.new_world_state().unwrap();
+        let scheduler = test_scheduler_for_db(db.clone());
         let session = Arc::new(NoopClientSession::new());
-        let _tx_guard = setup_task_context(tx);
-        std::mem::forget(_tx_guard);
 
         DispatchContext {
             db,
             vm_host,
             session,
             features: FeaturesConfig::default(),
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            builtins: BuiltinRegistry::new(),
+            program_cache: TaskProgramCache::default(),
         }
     }
 
@@ -169,6 +174,7 @@ impl DispatchContext {
     fn with_program_and_features(program: &str, features: FeaturesConfig) -> Self {
         let db = create_db();
         let vm_host = prepare_vm_execution(&db, program, MAX_TICKS);
+        let scheduler = test_scheduler_for_db(db.clone());
         let session = Arc::new(NoopClientSession::new());
 
         DispatchContext {
@@ -176,86 +182,61 @@ impl DispatchContext {
             vm_host,
             session,
             features,
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            builtins: BuiltinRegistry::new(),
+            program_cache: TaskProgramCache::default(),
         }
     }
 }
 
+fn run_dispatch(ctx: &mut DispatchContext) -> usize {
+    let tx = ctx.db.new_world_state().unwrap();
+    let _task_guard = TaskGuard::new(
+        tx,
+        ctx.task_scheduler_client.clone(),
+        0,
+        NOTHING,
+        ctx.session.clone(),
+    );
+    let ticks = execute_until_ticks_with_features(
+        ctx.session.as_ref(),
+        &mut ctx.vm_host,
+        &ctx.features,
+        &ctx.builtins,
+        &mut ctx.program_cache,
+    );
+    rollback_current_transaction().unwrap();
+    ticks
+}
+
 /// Dispatch constant discard: pure dispatch overhead with minimal work
 fn dispatch_constant_discard(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch push/pop: measures stack operation dispatch
 fn dispatch_push_pop(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch simple add: dispatch + one binary operation
 fn dispatch_simple_add(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch comparison: dispatch + comparison operation
 fn dispatch_comparison(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch binary-op chain: dispatch + a denser sequence of arithmetic operations
 fn dispatch_binary_chain(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch dependent local integer update chain.
 fn dispatch_dependent_int_chain(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch several independent local integer update chains.
@@ -264,127 +245,57 @@ fn dispatch_independent_int_chains(
     _chunk_size: usize,
     _chunk_num: usize,
 ) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch local integer arithmetic without storing the result.
 fn dispatch_local_add(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch local complex-value load/drop churn.
 fn dispatch_complex_value_clone(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch scope churn: repeated for-range scope push/pop with a stable source list.
 fn dispatch_scope_churn(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch integer for-range loop control with an empty body.
 fn dispatch_for_range_empty(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch integer for-range loop control plus loop-variable arithmetic.
 fn dispatch_for_range_accumulate(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch jump-only control flow with minimal value work.
 fn dispatch_jump_only(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Dispatch expression temporary churn through nested arithmetic and comparison.
 fn dispatch_valstack_churn(ctx: &mut DispatchContext, _chunk_size: usize, _chunk_num: usize) {
-    let tx = ctx.db.new_world_state().unwrap();
-    {
-        let _tx_guard = setup_task_context(tx);
-        let _ = black_box(execute_until_ticks_with_features(
-            ctx.session.clone(),
-            &mut ctx.vm_host,
-            &ctx.features,
-        ));
-    }
+    black_box(run_dispatch(ctx));
 }
 
 /// Execute VM until tick limit reached with explicit feature configuration.
 fn execute_until_ticks_with_features(
-    session: Arc<dyn Session>,
+    session: &dyn Session,
     vm_host: &mut VmHost,
     features: &FeaturesConfig,
+    builtins: &BuiltinRegistry,
+    program_cache: &mut TaskProgramCache,
 ) -> usize {
     vm_host.reset_ticks();
     vm_host.reset_time();
 
-    let mut program_cache = TaskProgramCache::default();
-
     loop {
-        match vm_host.exec_interpreter(
-            0,
-            session.as_ref(),
-            &BuiltinRegistry::new(),
-            features,
-            &mut program_cache,
-        ) {
+        match vm_host.exec_interpreter(0, session, builtins, features, program_cache) {
             VMHostResponse::ContinueOk => continue,
             VMHostResponse::AbortLimit(AbortLimitReason::Ticks(t)) => return t,
             _ => panic!("Unexpected VM response"),
@@ -399,7 +310,7 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<DispatchContext>("dispatch", |g| {
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) 1; endwhile"))
                 .bench(
                     "dispatch_constant_discard",
@@ -407,7 +318,7 @@ benchmark_main!(
                         dispatch_constant_discard(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("i=0; while(1) i; endwhile"))
                 .bench(
                     "dispatch_push_pop",
@@ -415,7 +326,7 @@ benchmark_main!(
                         dispatch_push_pop(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) 1 + 1; endwhile"))
                 .bench(
                     "dispatch_simple_add",
@@ -423,7 +334,7 @@ benchmark_main!(
                         dispatch_simple_add(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) 1 == 1; endwhile"))
                 .bench(
                     "dispatch_comparison",
@@ -431,7 +342,7 @@ benchmark_main!(
                         dispatch_comparison(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     let cfg = FeaturesConfig {
                         use_boolean_returns: false,
@@ -445,7 +356,7 @@ benchmark_main!(
                         dispatch_comparison(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     let cfg = FeaturesConfig {
                         use_boolean_returns: true,
@@ -459,7 +370,7 @@ benchmark_main!(
                         dispatch_comparison(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program("i = 1; while(1) i + 1 + 2 + 3 + 4 + 5; endwhile")
                 })
@@ -469,7 +380,7 @@ benchmark_main!(
                         dispatch_binary_chain(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("i = 0; while(1) i = i + 1; endwhile"))
                 .bench(
                     "dispatch_dependent_int_chain",
@@ -477,7 +388,7 @@ benchmark_main!(
                         dispatch_dependent_int_chain(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program(
                         "a = 0; b = 0; c = 0; d = 0; while(1) a = a + 1; b = b + 1; c = c + 1; d = d + 1; endwhile",
@@ -489,7 +400,7 @@ benchmark_main!(
                         dispatch_independent_int_chains(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("i = 1; while(1) i + 1; endwhile"))
                 .bench(
                     "dispatch_local_add",
@@ -497,7 +408,7 @@ benchmark_main!(
                         dispatch_local_add(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program("values = {1, 2, 3, 4}; while(1) values; endwhile")
                 })
@@ -507,7 +418,7 @@ benchmark_main!(
                         dispatch_complex_value_clone(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program(
                         "values = {1, 2, 3, 4}; while(1) for value in (values) value; endfor endwhile",
@@ -519,7 +430,7 @@ benchmark_main!(
                         dispatch_scope_churn(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) for i in [1..5] endfor endwhile"))
                 .bench(
                     "dispatch_for_range_empty",
@@ -527,7 +438,7 @@ benchmark_main!(
                         dispatch_for_range_empty(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program(
                         "z = 0; while(1) for i in [1..5] z = z + i; endfor endwhile",
@@ -539,7 +450,7 @@ benchmark_main!(
                         dispatch_for_range_accumulate(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) if (1) 1; endif endwhile"))
                 .bench(
                     "dispatch_jump_only",
@@ -547,7 +458,7 @@ benchmark_main!(
                         dispatch_jump_only(ctx, 1, 0)
                     },
                 );
-            g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     DispatchContext::with_program(
                         "while(1) ((1 + 2) * (3 + 4)) == ((5 + 6) * (7 + 8)); endwhile",

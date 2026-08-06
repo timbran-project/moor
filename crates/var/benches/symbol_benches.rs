@@ -30,9 +30,10 @@ struct UniqueStringsContext {
 }
 
 impl BenchContext for UniqueStringsContext {
-    fn prepare(num_chunks: usize) -> Self {
-        let total = num_chunks.max(1) * Self::chunk_size().unwrap_or(1);
-        let strings: Vec<String> = (0..total).map(|i| format!("unique_symbol_{i}")).collect();
+    fn prepare(chunk_size: usize) -> Self {
+        let strings: Vec<String> = (0..chunk_size.max(1))
+            .map(|i| format!("unique_symbol_{i}"))
+            .collect();
         UniqueStringsContext { strings, index: 0 }
     }
 

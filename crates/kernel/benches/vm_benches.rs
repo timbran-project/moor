@@ -34,8 +34,9 @@ use moor_compiler::{CompileOptions, compile};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_kernel::{
     config::FeaturesConfig,
-    tasks::TaskProgramCache,
-    testing::vm_test_utils::setup_task_context,
+    task_context::{TaskGuard, rollback_current_transaction},
+    tasks::{TaskProgramCache, task_scheduler_client::TaskSchedulerClient},
+    testing::vm_test_utils::test_scheduler_for_db,
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_obj};
@@ -130,21 +131,18 @@ fn prepare_vm_execution(
     vm_host
 }
 
-fn execute(session: Arc<dyn Session>, vm_host: &mut VmHost) -> usize {
+fn execute(
+    session: &dyn Session,
+    vm_host: &mut VmHost,
+    builtins: &BuiltinRegistry,
+    config: &FeaturesConfig,
+    program_cache: &mut TaskProgramCache,
+) -> usize {
     vm_host.reset_ticks();
     vm_host.reset_time();
 
-    let config = FeaturesConfig::default();
-    let mut program_cache = TaskProgramCache::default();
-
     loop {
-        match vm_host.exec_interpreter(
-            0,
-            session.as_ref(),
-            &BuiltinRegistry::new(),
-            &config,
-            &mut program_cache,
-        ) {
+        match vm_host.exec_interpreter(0, session, builtins, config, program_cache) {
             VMHostResponse::ContinueOk => {
                 continue;
             }
@@ -186,6 +184,10 @@ struct VmBenchContext {
     db: TxDB,
     vm_host: VmHost,
     session: Arc<dyn Session>,
+    task_scheduler_client: TaskSchedulerClient,
+    builtins: BuiltinRegistry,
+    features: FeaturesConfig,
+    program_cache: TaskProgramCache,
 }
 
 impl BenchContext for VmBenchContext {
@@ -206,20 +208,39 @@ impl VmBenchContext {
     fn with_program(program: &str) -> Self {
         let db = create_db();
         let vm_host = prepare_vm_execution(&db, program, MAX_TICKS);
+        let scheduler = test_scheduler_for_db(db.clone());
         let session = Arc::new(NoopClientSession::new());
 
         Self {
             db,
             vm_host,
             session,
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            builtins: BuiltinRegistry::new(),
+            features: FeaturesConfig::default(),
+            program_cache: TaskProgramCache::default(),
         }
     }
 }
 
 fn run_program(ctx: &mut VmBenchContext, _chunk_size: usize, _chunk_num: usize) {
     let tx = ctx.db.new_world_state().unwrap();
-    let _tx_guard = setup_task_context(tx);
-    let _ = black_box(execute(ctx.session.clone(), &mut ctx.vm_host));
+    let _task_guard = TaskGuard::new(
+        tx,
+        ctx.task_scheduler_client.clone(),
+        0,
+        NOTHING,
+        ctx.session.clone(),
+    );
+    let ticks = execute(
+        ctx.session.as_ref(),
+        &mut ctx.vm_host,
+        &ctx.builtins,
+        &ctx.features,
+        &mut ctx.program_cache,
+    );
+    rollback_current_transaction().unwrap();
+    black_box(ticks);
 }
 
 benchmark_main!(
@@ -235,7 +256,7 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<VmBenchContext>("opcode_throughput", |g| {
-            let g = g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"));
+            let g = g.throughput(Throughput::per_operation(1, "opcodes"));
             g.factory(&|| VmBenchContext::with_program("while (1) endwhile"))
                 .bench("while_loop", run_program);
             g.factory(&|| VmBenchContext::with_program("i = 0; while(1) i=i+1; endwhile"))
@@ -278,7 +299,7 @@ benchmark_main!(
         });
 
         runner.group::<VmBenchContext>("dispatch_micro", |g| {
-            let g = g.throughput(Throughput::per_operation(MAX_TICKS as u64, "opcodes"));
+            let g = g.throughput(Throughput::per_operation(1, "opcodes"));
             g.factory(&|| VmBenchContext::with_program("while(1) 1; endwhile"))
                 .bench("dispatch_constant_discard", run_program);
             g.factory(&|| VmBenchContext::with_program("i=0; while(1) i; endwhile"))

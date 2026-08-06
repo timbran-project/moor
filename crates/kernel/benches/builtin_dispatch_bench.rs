@@ -14,8 +14,8 @@
 //! Builtin dispatch floor benchmarks.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
-    black_box,
+    BenchContext, BenchSampleResult, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput,
+    benchmark_main, black_box,
 };
 use moor_common::{
     model::{
@@ -29,9 +29,10 @@ use moor_compiler::{BuiltinId, CompileOptions, compile, offset_for_builtin};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_kernel::{
     config::FeaturesConfig,
-    tasks::TaskProgramCache,
+    task_context::{TaskGuard, rollback_current_transaction},
+    tasks::{TaskProgramCache, task_scheduler_client::TaskSchedulerClient},
     testing::vm_test_utils::{
-        benchmark_builtin_call_function, benchmark_builtin_direct_function, setup_task_context,
+        benchmark_builtin_call_function, benchmark_builtin_direct_function, test_scheduler_for_db,
     },
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
@@ -128,19 +129,17 @@ fn prepare_vm_execution(
 }
 
 fn execute_until_ticks(
-    session: Arc<dyn Session>,
+    session: &dyn Session,
     vm_host: &mut VmHost,
     builtins: &BuiltinRegistry,
     features: &FeaturesConfig,
+    program_cache: &mut TaskProgramCache,
 ) -> usize {
     vm_host.reset_ticks();
     vm_host.reset_time();
 
-    let mut program_cache = TaskProgramCache::default();
-
     loop {
-        match vm_host.exec_interpreter(0, session.as_ref(), builtins, features, &mut program_cache)
-        {
+        match vm_host.exec_interpreter(0, session, builtins, features, program_cache) {
             VMHostResponse::ContinueOk => continue,
             VMHostResponse::AbortLimit(AbortLimitReason::Ticks(t)) => return t,
             _ => panic!("unexpected VM response"),
@@ -156,12 +155,15 @@ struct BuiltinDispatchContext {
     features: FeaturesConfig,
     builtin: BuiltinId,
     args: List,
+    task_scheduler_client: TaskSchedulerClient,
+    program_cache: TaskProgramCache,
 }
 
 impl BuiltinDispatchContext {
     fn with_program(program: &str, max_ticks: usize) -> Self {
         let db = create_db();
         let vm_host = prepare_vm_execution(&db, program, max_ticks);
+        let scheduler = test_scheduler_for_db(db.clone());
         let builtins = BuiltinRegistry::new();
         let session = Arc::new(NoopClientSession::new());
         let features = FeaturesConfig::default();
@@ -176,6 +178,8 @@ impl BuiltinDispatchContext {
             features,
             builtin,
             args,
+            task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
+            program_cache: TaskProgramCache::default(),
         }
     }
 }
@@ -194,25 +198,39 @@ fn builtin_full_moo_typeof(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
-) {
+) -> BenchSampleResult {
     let tx = ctx.db.new_world_state().unwrap();
-    let _tx_guard = setup_task_context(tx);
-    let ticks = execute_until_ticks(
+    let _task_guard = TaskGuard::new(
+        tx,
+        ctx.task_scheduler_client.clone(),
+        0,
+        NOTHING,
         ctx.session.clone(),
+    );
+    let ticks = execute_until_ticks(
+        ctx.session.as_ref(),
         &mut ctx.vm_host,
         &ctx.builtins,
         &ctx.features,
+        &mut ctx.program_cache,
     );
-    black_box(ticks);
+    rollback_current_transaction().unwrap();
+    BenchSampleResult::operations(black_box(ticks) as u64)
 }
 
 fn builtin_current_call_function_typeof(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
-) {
+) -> BenchSampleResult {
     let tx = ctx.db.new_world_state().unwrap();
-    let _tx_guard = setup_task_context(tx);
+    let _task_guard = TaskGuard::new(
+        tx,
+        ctx.task_scheduler_client.clone(),
+        0,
+        NOTHING,
+        ctx.session.clone(),
+    );
     let calls = benchmark_builtin_call_function(
         &mut ctx.vm_host,
         &ctx.builtins,
@@ -222,16 +240,23 @@ fn builtin_current_call_function_typeof(
         &ctx.args,
         DIRECT_BUILTIN_CALLS,
     );
-    black_box(calls);
+    rollback_current_transaction().unwrap();
+    BenchSampleResult::operations(black_box(calls) as u64)
 }
 
 fn builtin_direct_function_typeof(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
-) {
+) -> BenchSampleResult {
     let tx = ctx.db.new_world_state().unwrap();
-    let _tx_guard = setup_task_context(tx);
+    let _task_guard = TaskGuard::new(
+        tx,
+        ctx.task_scheduler_client.clone(),
+        0,
+        NOTHING,
+        ctx.session.clone(),
+    );
     let calls = benchmark_builtin_direct_function(
         &mut ctx.vm_host,
         &ctx.builtins,
@@ -240,7 +265,8 @@ fn builtin_direct_function_typeof(
         &ctx.args,
         DIRECT_BUILTIN_CALLS,
     );
-    black_box(calls);
+    rollback_current_transaction().unwrap();
+    BenchSampleResult::operations(black_box(calls) as u64)
 }
 
 benchmark_main!(
@@ -256,38 +282,32 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<BuiltinDispatchContext>("builtin_dispatch", |g| {
-            g.throughput(Throughput::per_operation(FULL_MOO_TICKS as u64, "opcodes"))
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| {
                     BuiltinDispatchContext::with_program(
                         "while (1) typeof(1); endwhile",
                         FULL_MOO_TICKS,
                     )
                 })
-                .bench("builtin_full_moo_typeof", builtin_full_moo_typeof);
+                .bench_sample("builtin_full_moo_typeof", builtin_full_moo_typeof);
 
-            g.throughput(Throughput::per_operation(
-                DIRECT_BUILTIN_CALLS as u64,
-                "builtin_calls",
-            ))
-            .factory(&|| {
-                BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
-            })
-            .bench(
-                "builtin_current_call_function_typeof",
-                builtin_current_call_function_typeof,
-            );
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
+                })
+                .bench_sample(
+                    "builtin_current_call_function_typeof",
+                    builtin_current_call_function_typeof,
+                );
 
-            g.throughput(Throughput::per_operation(
-                DIRECT_BUILTIN_CALLS as u64,
-                "builtin_calls",
-            ))
-            .factory(&|| {
-                BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
-            })
-            .bench(
-                "builtin_direct_function_typeof",
-                builtin_direct_function_typeof,
-            );
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
+                })
+                .bench_sample(
+                    "builtin_direct_function_typeof",
+                    builtin_direct_function_typeof,
+                );
         });
     }
 );

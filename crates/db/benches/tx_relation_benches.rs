@@ -296,7 +296,7 @@ struct TxOpsContext {
 }
 
 impl BenchContext for TxOpsContext {
-    fn prepare(num_chunks: usize) -> Self {
+    fn prepare(preferred_chunk_size: usize) -> Self {
         let present_domain = Domain(1);
         let missing_domain = Domain(2);
         let resurrect_domain = Domain(3);
@@ -314,7 +314,7 @@ impl BenchContext for TxOpsContext {
         let relation = Relation::new(Symbol::mk("tx-ops"), provider);
         let base_index = relation.seeded_index().unwrap();
         let bulk_get_domains: Vec<_> = (0..16).map(|i| Domain(100 + i)).collect();
-        let chunk_size = TX_OPS_CHUNK_SIZE.unwrap_or(num_chunks).max(1);
+        let chunk_size = TX_OPS_CHUNK_SIZE.unwrap_or(preferred_chunk_size).max(1);
 
         let mut get_hit_master_txs = Vec::with_capacity(chunk_size);
         let mut get_miss_txs = Vec::with_capacity(chunk_size);
@@ -840,11 +840,8 @@ benchmark_main!(
         });
 
         runner.group::<ApplyContext>("TX Apply Benchmarks", |g| {
-            g.throughput(Throughput::per_operation(
-                APPLY_TUPLE_OPS_PER_TX,
-                "tuple_ops",
-            ))
-            .bench("tx_apply_mixed_batch", apply_mixed_batch);
+            g.throughput(Throughput::per_operation(1, "tuple_ops"))
+                .bench("tx_apply_mixed_batch", apply_mixed_batch);
         });
     }
 );
