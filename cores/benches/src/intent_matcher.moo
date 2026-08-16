@@ -108,30 +108,29 @@ object INTENT_MATCHER [
   endmethod
 
   method intent_normalize owner: ARCH_WIZARD
-    ":intent_normalize(STR text) => STR lowercased with surface forms mapped to canonical terms.";
+    ":intent_normalize(STR text) => LIST of canonical tokens (lowercased, surface forms mapped).";
     {text} = args;
-    normalized = this:lowercase(text);
-    words = this:words(normalized);
+    lowered = this:lowercase(text);
+    words = this:words(lowered);
     syns = this:synonym_index();
     out = {};
     for w in (words)
       out = {@out, maphaskey(syns, w) ? syns[w][1] | w};
     endfor
-    return this:from_list(out, " ");
+    return out;
   endmethod
 
   method intent_features owner: ARCH_WIZARD
     ":intent_features(STR text) => MAP with \"tokens\" and \"trigrams\" for one string.";
     {text} = args;
-    normalized = this:intent_normalize(text);
-    words = this:words(normalized);
+    words = this:intent_normalize(text);
     tokens = {};
     for w in (words)
       if (length(w) > 2 && !(w in tokens))
         tokens = {@tokens, w};
       endif
     endfor
-    compact = strsub(normalized, " ", "", 1);
+    compact = tostr(@words);
     trigrams = {};
     if (length(compact) < 3)
       trigrams = compact ? {compact} | {};
