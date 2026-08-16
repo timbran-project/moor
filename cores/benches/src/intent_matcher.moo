@@ -184,12 +184,16 @@ object INTENT_MATCHER [
     endif
     text = this:from_list(phrases, " ");
     text = tostr(text, " ", maphaskey(profile, "speech_act") ? profile["speech_act"] | "", " ", maphaskey(profile, "topic") ? profile["topic"] | "");
+    padded = " " + text + " ";
+    extra = {};
     for canonical in (mapkeys(this.domain_synonyms))
-      forms = this.domain_synonyms[canonical];
-      if (index(" " + text + " ", " " + canonical + " "))
-        text = tostr(text, " ", this:from_list(forms, " "));
+      if (index(padded, " " + canonical + " "))
+        extra = {@extra, @this.domain_synonyms[canonical]};
       endif
     endfor
+    if (extra)
+      text = tostr(text, " ", this:from_list(extra, " "));
+    endif
     return text;
   endmethod
 
