@@ -19,11 +19,11 @@ use crate::{
         BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, hash, world_state_bf_err,
     },
 };
-use moor_compiler::{offset_for_builtin, parse_literal_value, to_literal};
+use moor_compiler::{ObjDefParseError, offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
-    ByteSized, E_ARGS, E_INVARG, E_RANGE, E_TYPE, ValueDiffOptions, Variant, decode_var_cbor,
-    encode_var_cbor, v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str, v_sym, value_diff,
-    value_diff3,
+    ByteSized, E_ARGS, E_INVARG, E_MAXREC, E_RANGE, E_TYPE, ValueDiffOptions, Variant,
+    decode_var_cbor, encode_var_cbor, v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str,
+    v_sym, value_diff, value_diff3,
 };
 use std::fmt::Write;
 use uuid::Uuid;
@@ -151,8 +151,19 @@ fn bf_fromliteral(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     };
 
-    let value = parse_literal_value(literal)
-        .map_err(|err| BfErr::ErrValue(E_INVARG.with_msg(|| format!("invalid literal: {err}"))))?;
+    let value = match parse_literal_value(literal) {
+        Ok(value) => value,
+        Err(ObjDefParseError::LiteralNestingTooDeep { max_depth }) => {
+            return Err(BfErr::ErrValue(E_MAXREC.msg(format!(
+                "literal nesting exceeds maximum depth of {max_depth}"
+            ))));
+        }
+        Err(err) => {
+            return Err(BfErr::ErrValue(
+                E_INVARG.with_msg(|| format!("invalid literal: {err}")),
+            ));
+        }
+    };
     Ok(Ret(value))
 }
 

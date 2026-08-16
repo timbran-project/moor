@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_compiler::{CompileOptions, ObjFileContext, compile_object_definitions};
+use moor_compiler::{
+    CompileOptions, ObjDefParseError, ObjFileContext, compile_object_definitions,
+    parse_literal_value,
+};
 use std::process::Command;
 
 const CHILD_ENV: &str = "MOOR_DEEP_OBJDEF_STACK_CHILD";
@@ -42,6 +45,49 @@ fn nested_map_objdef(depth: usize) -> String {
     )
 }
 
+fn nested_map_literal(depth: usize) -> String {
+    let mut literal = String::with_capacity(depth * 8 + 6);
+    for _ in 0..depth {
+        literal.push_str("[0 -> ");
+    }
+    literal.push_str("\"leaf\"");
+    for _ in 0..depth {
+        literal.push(']');
+    }
+    literal
+}
+
+fn nested_list_literal(depth: usize) -> String {
+    let mut literal = String::with_capacity(depth * 4 + 2);
+    for _ in 0..depth {
+        literal.push_str("{1, ");
+    }
+    literal.push('1');
+    for _ in 0..depth {
+        literal.push('}');
+    }
+    literal
+}
+
+#[test]
+fn literal_nesting_is_bounded() {
+    // 64 nested containers are accepted; the 65th is rejected. The limit is
+    // shape-independent: populated lists and maps both nest exactly one level
+    // per container.
+    for literal in [nested_list_literal(64), nested_map_literal(64)] {
+        assert!(parse_literal_value(&literal).is_ok(), "should parse");
+    }
+    for literal in [nested_list_literal(65), nested_map_literal(65)] {
+        assert!(
+            matches!(
+                parse_literal_value(&literal),
+                Err(ObjDefParseError::LiteralNestingTooDeep { max_depth: 64 })
+            ),
+            "should reject"
+        );
+    }
+}
+
 fn escaped_string_objdef(escape_count: usize) -> String {
     let value = "\\n".repeat(escape_count);
     format!(
@@ -62,8 +108,11 @@ fn deeply_nested_map_objdef_does_not_abort() {
     if std::env::var_os(CHILD_ENV).is_some() {
         let source = nested_map_objdef(MAP_DEPTH);
         let mut context = ObjFileContext::new();
-        compile_object_definitions(&source, &CompileOptions::default(), &mut context)
-            .expect("nested map objdef should compile");
+        let result = compile_object_definitions(&source, &CompileOptions::default(), &mut context);
+        assert!(matches!(
+            result,
+            Err(ObjDefParseError::LiteralNestingTooDeep { .. })
+        ));
         return;
     }
 

@@ -1,0 +1,9 @@
+// fromliteral() must raise E_MAXREC for literals nested beyond the recursion
+// limit rather than overflowing the native stack.
+@programmer
+
+; s = ""; for i in [1..100]; s = "{" + s + "}"; endfor; return fromliteral(s);
+E_MAXREC
+
+; return fromliteral("{1, 2, {3, 4}}");
+{1, 2, {3, 4}}

@@ -20,6 +20,10 @@ use moor_var::{Obj, Symbol, Var, VarType, program::ProgramType};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+/// Maximum nesting depth for list/map/flyweight/lambda literals, matching the
+/// verb-call recursion limit exposed to MOO as `E_MAXREC`.
+pub(crate) const MAX_LITERAL_NESTING: usize = 64;
+
 pub struct ObjFileContext {
     constants: HashMap<Symbol, Var>,
     base_path: Option<PathBuf>,
@@ -136,6 +140,8 @@ pub enum ObjDefParseError {
     IncludeError(String, String),
     #[error("Duplicate constant '{0}': already defined as {1}")]
     DuplicateConstant(String, String),
+    #[error("Object definition literal nesting exceeds maximum depth of {max_depth}")]
+    LiteralNestingTooDeep { max_depth: usize },
 }
 
 impl ObjDefParseError {

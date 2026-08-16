@@ -88,6 +88,7 @@ struct LiteralParser<'a> {
     source: &'a str,
     pos: usize,
     context: &'a mut ObjFileContext,
+    depth: usize,
 }
 
 impl<'a> LiteralParser<'a> {
@@ -96,6 +97,7 @@ impl<'a> LiteralParser<'a> {
             source,
             pos: 0,
             context,
+            depth: 0,
         }
     }
 
@@ -1359,6 +1361,26 @@ impl<'a> LiteralParser<'a> {
     /// `literal = string | object | symbol | map | list | flyweight | lambda | number | binary | boolean | include | constant`
     fn parse_literal(&mut self) -> Result<Var, ObjDefParseError> {
         self.skip_trivia();
+        // Only container literals recurse; count their entry so scalar leaves
+        // and map keys do not inflate the nesting depth.
+        let is_container = matches!(self.peek_char(), Some('[' | '{' | '<'));
+        if is_container {
+            self.depth += 1;
+            if self.depth > crate::objdef::MAX_LITERAL_NESTING {
+                self.depth -= 1;
+                return Err(ObjDefParseError::LiteralNestingTooDeep {
+                    max_depth: crate::objdef::MAX_LITERAL_NESTING,
+                });
+            }
+        }
+        let result = self.parse_literal_inner();
+        if is_container {
+            self.depth -= 1;
+        }
+        result
+    }
+
+    fn parse_literal_inner(&mut self) -> Result<Var, ObjDefParseError> {
         let Some(ch) = self.peek_char() else {
             return Err(self.parse_error("expected literal"));
         };
