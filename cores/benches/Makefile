@@ -7,6 +7,7 @@ OPTIONS = --use-boolean-returns true \
 DURATION ?= 30
 SUBSCRIBERS ?= 256
 WORK_PER_TICK ?= 20
+INTENT_ITERATIONS ?= 20
 APPEND_MODE ?= 0
 FANOUT ?= 4
 CHECKS_PER_TICK ?= 2
@@ -22,7 +23,7 @@ TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = cargo run --release -p moorc -- $(OPTIONS)
 
-.PHONY: rebuild bench bench-game-update bench-write-stress bench-combat-stress clean
+.PHONY: rebuild bench bench-game-update bench-write-stress bench-combat-stress bench-intent-match clean
 
 SRC_FILES := $(wildcard src/*.moo src/*/*.moo)
 
@@ -51,6 +52,10 @@ bench-write-stress: $(SRC_FILES)
 bench-combat-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_combat_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(FANOUT), $(CHECKS_PER_TICK), $(STATE_WRITES), $(DELAY_RATIO), $(UPDATE_HZ)}"
+
+bench-intent-match: $(SRC_FILES)
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	--test-wizard=2 --run-tests true --test-filter "#669:test_intent_match" --test-args "{$(INTENT_ITERATIONS)}"
 
 # Profile with perf to identify blocking spots
 # After running, analyze with: perf report -g or perf report --stdio
