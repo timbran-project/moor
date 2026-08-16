@@ -9,7 +9,6 @@ object INTENT_MATCHER [
   property intent_word_weight (owner: ARCH_WIZARD, flags: "r") = 0.65;
   property intent_trigram_weight (owner: ARCH_WIZARD, flags: "r") = 0.35;
   property synonym_index (owner: ARCH_WIZARD, flags: "rw") = [];
-  property synonym_index_hash (owner: ARCH_WIZARD, flags: "rw") = "";
 
   property domain_synonyms (owner: ARCH_WIZARD, flags: "r") = [
     "buy" -> {"buy", "purchase", "acquire", "order", "get", "grab"},
@@ -87,11 +86,17 @@ object INTENT_MATCHER [
     return result;
   endmethod
 
+  method set_domain_synonyms owner: ARCH_WIZARD
+    ":set_domain_synonyms(MAP value) => replace the synonym families and invalidate the cached index.";
+    {value} = args;
+    this.domain_synonyms = value;
+    this.synonym_index = [];
+  endmethod
+
   method synonym_index owner: ARCH_WIZARD
     ":synonym_index() => MAP surface form -> LIST canonical terms it implies.";
-    "  Reverse of .domain_synonyms, rebuilt only when that property changes.";
-    hash = string_hash(toliteral(this.domain_synonyms));
-    if (this.synonym_index_hash == hash)
+    "  Reverse of .domain_synonyms, built lazily once and cached thereafter.";
+    if (this.synonym_index)
       return this.synonym_index;
     endif
     idx = [];
@@ -104,7 +109,6 @@ object INTENT_MATCHER [
       endfor
     endfor
     this.synonym_index = idx;
-    this.synonym_index_hash = hash;
     return idx;
   endmethod
 
