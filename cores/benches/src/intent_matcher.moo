@@ -46,40 +46,12 @@ object INTENT_MATCHER [
     return strtr(string, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", 1);
   endmethod
 
-  method triml owner: ARCH_WIZARD
-    ":triml(STR string [, STR what]) => STR with leading copies of `what` removed.";
-    {string, ?what = " "} = args;
-    m = match(string, tostr("[^", what, "]%|$"));
-    return string[m[1]..$];
-  endmethod
-
   method words owner: ARCH_WIZARD
-    ":words(STR string) => LIST of tokens (LambdaMOO command-line tokenizer).";
-    rest = args[1];
-    rest = this:triml(rest);
-    if (!rest)
-      return {};
-    endif
-    quote = 0;
-    toklist = {};
-    token = "";
-    pattern = " +%|\\.?%|\"";
-    m = 0;
-    char = 0;
-    while (m = match(rest, pattern))
-      char = rest[m[1]];
-      token = token + rest[1..m[1] - 1];
-      if (char == " ")
-        toklist = {@toklist, token};
-        token = "";
-      elseif (char == "\"")
-        pattern = (quote = !quote) ? "\\.?%|\"" | " +%|\\.?%|\"";
-      elseif (m[1] < m[2])
-        token = token + rest[m[2]];
-      endif
-      rest[1..m[2]] = "";
-    endwhile
-    return rest || char != " " ? {@toklist, token + rest} | toklist;
+    ":words(STR string) => LIST of whitespace-separated tokens.";
+    "  Native explode() covers the plain space case (the quote/escape-aware";
+    "  tokenizer is only needed for command-line parsing).";
+    {string} = args;
+    return explode(string);
   endmethod
 
   method from_list owner: ARCH_WIZARD
