@@ -704,6 +704,9 @@ object STR_PROTO [
     "split(string, delimiter) => list of substrings split by delimiter";
     "Example: \"a,b,c\":split(\",\") => {\"a\", \"b\", \"c\"}";
     {string, delimiter} = args;
+    if (length(delimiter) == 1)
+      return explode(string, delimiter, 1);
+    endif
     fn split_string(text, delim)
       if (delim == "")
         return {text};
