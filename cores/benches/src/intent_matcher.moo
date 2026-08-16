@@ -170,10 +170,10 @@ object INTENT_MATCHER [
     q = [];
     d = [];
     for t in (query)
-      q[t] = `q[t] ! ANY => 0' + 1;
+      q[t] = maphaskey(q, t) ? q[t] + 1 | 1;
     endfor
     for t in (candidate)
-      d[t] = `d[t] ! ANY => 0' + 1;
+      d[t] = maphaskey(d, t) ? d[t] + 1 | 1;
     endfor
     common = 0.0;
     qnorm = 0.0;
@@ -193,12 +193,12 @@ object INTENT_MATCHER [
   method _profile_text owner: ARCH_WIZARD
     ":_profile_text(MAP profile) => searchable text for an intent profile.";
     {profile} = args;
-    phrases = `profile["phrases"] ! E_RANGE => {}';
+    phrases = maphaskey(profile, "phrases") ? profile["phrases"] | {};
     if (typeof(phrases) != TYPE_LIST)
       phrases = {};
     endif
     text = this:from_list(phrases, " ");
-    text = tostr(text, " ", `profile["speech_act"] ! E_RANGE => ""', " ", `profile["topic"] ! E_RANGE => ""');
+    text = tostr(text, " ", maphaskey(profile, "speech_act") ? profile["speech_act"] | "", " ", maphaskey(profile, "topic") ? profile["topic"] | "");
     for canonical in (mapkeys(this.domain_synonyms))
       forms = this.domain_synonyms[canonical];
       if (index(" " + text + " ", " " + canonical + " "))
