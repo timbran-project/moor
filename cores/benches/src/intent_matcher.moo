@@ -110,25 +110,24 @@ object INTENT_MATCHER [
     ":intent_features(STR text) => MAP with \"tokens\" and \"trigrams\" for one string.";
     {text} = args;
     words = this:intent_normalize(text);
-    tokens = {};
+    token_map = [];
     for w in (words)
-      if (length(w) > 2 && !(w in tokens))
-        tokens = {@tokens, w};
+      if (length(w) > 2)
+        token_map[w] = 1;
       endif
     endfor
     compact = tostr(@words);
-    trigrams = {};
+    trigram_map = [];
     if (length(compact) < 3)
-      trigrams = compact ? {compact} | {};
+      if (compact)
+        trigram_map[compact] = 1;
+      endif
     else
       for i in [1..length(compact) - 2]
-        gram = compact[i..i + 2];
-        if (!(gram in trigrams))
-          trigrams = {@trigrams, gram};
-        endif
+        trigram_map[compact[i..i + 2]] = 1;
       endfor
     endif
-    return ["tokens" -> tokens, "trigrams" -> trigrams];
+    return ["tokens" -> mapkeys(token_map), "trigrams" -> mapkeys(trigram_map)];
   endmethod
 
   method _jaccard owner: ARCH_WIZARD
