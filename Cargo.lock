@@ -3564,6 +3564,7 @@ dependencies = [
  "onig",
  "parking_lot",
  "paste",
+ "planus",
  "pretty_assertions",
  "rand 0.10.2",
  "ripemd",

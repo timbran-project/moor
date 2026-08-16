@@ -22,6 +22,7 @@ tempfile.workspace = true
 
 eyre.workspace = true
 micromeasure.workspace = true
+planus.workspace = true
 pretty_assertions.workspace = true
 test-case.workspace = true
 test_each_file.workspace = true

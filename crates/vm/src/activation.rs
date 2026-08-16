@@ -17,7 +17,7 @@ use strum::EnumCount;
 use uuid::Uuid;
 
 use moor_common::{
-    model::{ObjFlag, ResolvedVerb, TaskPermissions, VerbArgsSpec, VerbFlag},
+    model::{CapabilityGrants, ObjFlag, ResolvedVerb, TaskPermissions, VerbArgsSpec, VerbFlag},
     util::BitEnum,
 };
 use moor_compiler::{BuiltinId, Program, ScatterLabel};
@@ -285,6 +285,12 @@ impl Activation {
     #[must_use]
     pub fn authority_flags(&self) -> BitEnum<ObjFlag> {
         self.authority.principal_flags()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn authority_grants(&self) -> &CapabilityGrants {
+        self.authority.grants()
     }
 
     #[inline]

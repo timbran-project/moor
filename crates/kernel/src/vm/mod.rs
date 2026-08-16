@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_common::tasks::{AbortLimitReason, Exception};
+use moor_common::{
+    model::CapabilityGrant,
+    tasks::{AbortLimitReason, Exception},
+};
 use moor_var::{Obj, Symbol, Var};
 
 // Re-export types from moor-vm that kernel code uses.
@@ -141,6 +144,28 @@ fn extract_anonymous_refs_from_moo_frame(
     }
 }
 
+/// Return the object referenced by a capability grant, if any.
+fn capability_grant_object(grant: CapabilityGrant) -> Option<Obj> {
+    match grant {
+        CapabilityGrant::ObjectRead(obj)
+        | CapabilityGrant::ObjectWrite(obj)
+        | CapabilityGrant::ObjectRename(obj)
+        | CapabilityGrant::ObjectMove(obj)
+        | CapabilityGrant::ObjectRecycle(obj)
+        | CapabilityGrant::ObjectChparent(obj)
+        | CapabilityGrant::PropertyDefine(obj)
+        | CapabilityGrant::VerbAdd(obj) => Some(obj),
+        CapabilityGrant::PropertyRead { obj, .. }
+        | CapabilityGrant::PropertyWrite { obj, .. }
+        | CapabilityGrant::PropertyDelete { obj, .. }
+        | CapabilityGrant::VerbRead { obj, .. }
+        | CapabilityGrant::VerbWrite { obj, .. }
+        | CapabilityGrant::VerbProgram { obj, .. }
+        | CapabilityGrant::VerbCall { obj, .. } => Some(obj),
+        CapabilityGrant::ObjectList | CapabilityGrant::BuiltinCall(_) => None,
+    }
+}
+
 /// Extract anonymous object references from an activation frame
 fn extract_anonymous_refs_from_activation(
     activation: &Activation,
@@ -175,6 +200,15 @@ fn extract_anonymous_refs_from_activation(
     // Check permissions (already an Obj, so check directly)
     if activation.authority_principal().is_anonymous() {
         refs.insert(activation.authority_principal());
+    }
+
+    // Check capability grant targets for anonymous object references
+    for grant in activation.authority_grants().iter() {
+        if let Some(obj) = capability_grant_object(grant)
+            && obj.is_anonymous()
+        {
+            refs.insert(obj);
+        }
     }
 
     // Scan arguments
@@ -261,5 +295,50 @@ mod tests {
         println!(
             "\nSo List::clone has malloc overhead from Box, but structural sharing from imbl::Vector"
         );
+    }
+
+    #[test]
+    fn grant_targets_are_gc_roots() {
+        use moor_common::{
+            model::{
+                CapabilityGrant, CapabilityGrants, ResolvedVerb, TaskPermissions, VerbArgsSpec,
+            },
+            util::BitEnum,
+        };
+
+        let anon =
+            moor_var::Obj::mk_anonymous(moor_var::AnonymousObjid::new(0x1234, 0x15, 0x9876543210));
+        let grants = CapabilityGrants::from_vec(vec![
+            CapabilityGrant::ObjectRead(anon),
+            CapabilityGrant::PropertyWrite {
+                obj: anon,
+                prop: moor_var::Symbol::mk("p"),
+            },
+        ]);
+
+        let activation = Activation::from_parts(
+            Frame::Bf(BuiltinFrame::from_parts(
+                moor_compiler::BuiltinId(0),
+                moor_var::List::mk_list(&[]),
+                None,
+                None,
+                None,
+            )),
+            moor_var::v_obj(moor_var::SYSTEM_OBJECT),
+            moor_var::SYSTEM_OBJECT,
+            moor_var::Symbol::mk("test"),
+            ResolvedVerb::new(
+                uuid::Uuid::new_v4(),
+                moor_var::SYSTEM_OBJECT,
+                moor_var::SYSTEM_OBJECT,
+                BitEnum::default(),
+                VerbArgsSpec::this_none_this(),
+            ),
+            TaskPermissions::with_grants(moor_var::SYSTEM_OBJECT, BitEnum::default(), grants),
+        );
+
+        let mut refs = std::collections::HashSet::new();
+        super::extract_anonymous_refs_from_activation(&activation, &mut refs);
+        assert!(refs.contains(&anon));
     }
 }

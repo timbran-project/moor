@@ -135438,10 +135438,775 @@ mod root {
             }
         }
 
+        /// The enum `CapabilityGrantKind` in the namespace `MoorTask`
+        ///
+        /// Generated from these locations:
+        /// * Enum `CapabilityGrantKind` in the file `task.fbs:380`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        #[repr(u8)]
+        pub enum CapabilityGrantKind {
+            /// The variant `ObjectRead` in the enum `CapabilityGrantKind`
+            ObjectRead = 0,
+
+            /// The variant `ObjectWrite` in the enum `CapabilityGrantKind`
+            ObjectWrite = 1,
+
+            /// The variant `ObjectRename` in the enum `CapabilityGrantKind`
+            ObjectRename = 2,
+
+            /// The variant `ObjectMove` in the enum `CapabilityGrantKind`
+            ObjectMove = 3,
+
+            /// The variant `ObjectRecycle` in the enum `CapabilityGrantKind`
+            ObjectRecycle = 4,
+
+            /// The variant `ObjectChparent` in the enum `CapabilityGrantKind`
+            ObjectChparent = 5,
+
+            /// The variant `PropertyRead` in the enum `CapabilityGrantKind`
+            PropertyRead = 6,
+
+            /// The variant `PropertyWrite` in the enum `CapabilityGrantKind`
+            PropertyWrite = 7,
+
+            /// The variant `PropertyDefine` in the enum `CapabilityGrantKind`
+            PropertyDefine = 8,
+
+            /// The variant `PropertyDelete` in the enum `CapabilityGrantKind`
+            PropertyDelete = 9,
+
+            /// The variant `VerbRead` in the enum `CapabilityGrantKind`
+            VerbRead = 10,
+
+            /// The variant `VerbWrite` in the enum `CapabilityGrantKind`
+            VerbWrite = 11,
+
+            /// The variant `VerbProgram` in the enum `CapabilityGrantKind`
+            VerbProgram = 12,
+
+            /// The variant `VerbAdd` in the enum `CapabilityGrantKind`
+            VerbAdd = 13,
+
+            /// The variant `VerbCall` in the enum `CapabilityGrantKind`
+            VerbCall = 14,
+
+            /// The variant `ObjectList` in the enum `CapabilityGrantKind`
+            ObjectList = 15,
+
+            /// The variant `BuiltinCall` in the enum `CapabilityGrantKind`
+            BuiltinCall = 16,
+        }
+
+        impl CapabilityGrantKind {
+            /// Array containing all valid variants of CapabilityGrantKind
+            pub const ENUM_VALUES: [Self; 17] = [
+                Self::ObjectRead,
+                Self::ObjectWrite,
+                Self::ObjectRename,
+                Self::ObjectMove,
+                Self::ObjectRecycle,
+                Self::ObjectChparent,
+                Self::PropertyRead,
+                Self::PropertyWrite,
+                Self::PropertyDefine,
+                Self::PropertyDelete,
+                Self::VerbRead,
+                Self::VerbWrite,
+                Self::VerbProgram,
+                Self::VerbAdd,
+                Self::VerbCall,
+                Self::ObjectList,
+                Self::BuiltinCall,
+            ];
+        }
+
+        impl ::core::convert::TryFrom<u8> for CapabilityGrantKind {
+            type Error = ::planus::errors::UnknownEnumTagKind;
+            #[inline]
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectRead),
+                    1 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectWrite),
+                    2 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectRename),
+                    3 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectMove),
+                    4 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectRecycle),
+                    5 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectChparent),
+                    6 => ::core::result::Result::Ok(CapabilityGrantKind::PropertyRead),
+                    7 => ::core::result::Result::Ok(CapabilityGrantKind::PropertyWrite),
+                    8 => ::core::result::Result::Ok(CapabilityGrantKind::PropertyDefine),
+                    9 => ::core::result::Result::Ok(CapabilityGrantKind::PropertyDelete),
+                    10 => ::core::result::Result::Ok(CapabilityGrantKind::VerbRead),
+                    11 => ::core::result::Result::Ok(CapabilityGrantKind::VerbWrite),
+                    12 => ::core::result::Result::Ok(CapabilityGrantKind::VerbProgram),
+                    13 => ::core::result::Result::Ok(CapabilityGrantKind::VerbAdd),
+                    14 => ::core::result::Result::Ok(CapabilityGrantKind::VerbCall),
+                    15 => ::core::result::Result::Ok(CapabilityGrantKind::ObjectList),
+                    16 => ::core::result::Result::Ok(CapabilityGrantKind::BuiltinCall),
+
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
+                }
+            }
+        }
+
+        impl ::core::convert::From<CapabilityGrantKind> for u8 {
+            #[inline]
+            fn from(value: CapabilityGrantKind) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for CapabilityGrantKind {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<CapabilityGrantKind> for CapabilityGrantKind {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<CapabilityGrantKind> for CapabilityGrantKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> CapabilityGrantKind {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsDefault<CapabilityGrantKind, CapabilityGrantKind> for CapabilityGrantKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+                default: &CapabilityGrantKind,
+            ) -> ::core::option::Option<CapabilityGrantKind> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptional<CapabilityGrantKind> for CapabilityGrantKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<CapabilityGrantKind> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        impl<'buf> ::planus::TableRead<'buf> for CapabilityGrantKind {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
+            }
+        }
+
+        impl<'buf> ::planus::VectorReadInner<'buf> for CapabilityGrantKind {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "CapabilityGrantKind",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<CapabilityGrantKind> for CapabilityGrantKind {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[Self],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - i as u32,
+                    );
+                }
+            }
+        }
+
+        /// The table `CapabilityGrant` in the namespace `MoorTask`
+        ///
+        /// Generated from these locations:
+        /// * Table `CapabilityGrant` in the file `task.fbs:400`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct CapabilityGrant {
+            /// The field `kind` in the table `CapabilityGrant`
+            pub kind: self::CapabilityGrantKind,
+            /// The field `obj` in the table `CapabilityGrant`
+            pub obj: ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Obj>>,
+            /// The field `property` in the table `CapabilityGrant`
+            pub property:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Symbol>>,
+            /// The field `verb` in the table `CapabilityGrant`
+            pub verb: ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Uuid>>,
+            /// The field `builtin` in the table `CapabilityGrant`
+            pub builtin:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Symbol>>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for CapabilityGrant {
+            fn default() -> Self {
+                Self {
+                    kind: self::CapabilityGrantKind::ObjectRead,
+                    obj: ::core::default::Default::default(),
+                    property: ::core::default::Default::default(),
+                    verb: ::core::default::Default::default(),
+                    builtin: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl CapabilityGrant {
+            /// Creates a [CapabilityGrantBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> CapabilityGrantBuilder<()> {
+                CapabilityGrantBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_kind: impl ::planus::WriteAsDefault<
+                    self::CapabilityGrantKind,
+                    self::CapabilityGrantKind,
+                >,
+                field_obj: impl ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+                field_property: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<super::moor_common::Symbol>,
+                >,
+                field_verb: impl ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+                field_builtin: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<super::moor_common::Symbol>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_kind =
+                    field_kind.prepare(builder, &self::CapabilityGrantKind::ObjectRead);
+                let prepared_obj = field_obj.prepare(builder);
+                let prepared_property = field_property.prepare(builder);
+                let prepared_verb = field_verb.prepare(builder);
+                let prepared_builtin = field_builtin.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                if prepared_obj.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(1);
+                }
+                if prepared_property.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(2);
+                }
+                if prepared_verb.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Uuid>>(3);
+                }
+                if prepared_builtin.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(4);
+                }
+                if prepared_kind.is_some() {
+                    table_writer.write_entry::<self::CapabilityGrantKind>(0);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_obj) = prepared_obj {
+                            object_writer.write::<_, _, 4>(&prepared_obj);
+                        }
+                        if let ::core::option::Option::Some(prepared_property) = prepared_property {
+                            object_writer.write::<_, _, 4>(&prepared_property);
+                        }
+                        if let ::core::option::Option::Some(prepared_verb) = prepared_verb {
+                            object_writer.write::<_, _, 4>(&prepared_verb);
+                        }
+                        if let ::core::option::Option::Some(prepared_builtin) = prepared_builtin {
+                            object_writer.write::<_, _, 4>(&prepared_builtin);
+                        }
+                        if let ::core::option::Option::Some(prepared_kind) = prepared_kind {
+                            object_writer.write::<_, _, 1>(&prepared_kind);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<CapabilityGrant>> for CapabilityGrant {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<CapabilityGrant> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<CapabilityGrant>> for CapabilityGrant {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<CapabilityGrant>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<CapabilityGrant> for CapabilityGrant {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<CapabilityGrant> {
+                CapabilityGrant::create(
+                    builder,
+                    self.kind,
+                    &self.obj,
+                    &self.property,
+                    &self.verb,
+                    &self.builtin,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [CapabilityGrant] type.
+        ///
+        /// Can be created using the [CapabilityGrant::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct CapabilityGrantBuilder<State>(State);
+
+        impl CapabilityGrantBuilder<()> {
+            /// Setter for the [`kind` field](CapabilityGrant#structfield.kind).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kind<T0>(self, value: T0) -> CapabilityGrantBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            {
+                CapabilityGrantBuilder((value,))
+            }
+
+            /// Sets the [`kind` field](CapabilityGrant#structfield.kind) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kind_as_default(self) -> CapabilityGrantBuilder<(::planus::DefaultValue,)> {
+                self.kind(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> CapabilityGrantBuilder<(T0,)> {
+            /// Setter for the [`obj` field](CapabilityGrant#structfield.obj).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn obj<T1>(self, value: T1) -> CapabilityGrantBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            {
+                let (v0,) = self.0;
+                CapabilityGrantBuilder((v0, value))
+            }
+
+            /// Sets the [`obj` field](CapabilityGrant#structfield.obj) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn obj_as_null(self) -> CapabilityGrantBuilder<(T0, ())> {
+                self.obj(())
+            }
+        }
+
+        impl<T0, T1> CapabilityGrantBuilder<(T0, T1)> {
+            /// Setter for the [`property` field](CapabilityGrant#structfield.property).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn property<T2>(self, value: T2) -> CapabilityGrantBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            {
+                let (v0, v1) = self.0;
+                CapabilityGrantBuilder((v0, v1, value))
+            }
+
+            /// Sets the [`property` field](CapabilityGrant#structfield.property) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn property_as_null(self) -> CapabilityGrantBuilder<(T0, T1, ())> {
+                self.property(())
+            }
+        }
+
+        impl<T0, T1, T2> CapabilityGrantBuilder<(T0, T1, T2)> {
+            /// Setter for the [`verb` field](CapabilityGrant#structfield.verb).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn verb<T3>(self, value: T3) -> CapabilityGrantBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            {
+                let (v0, v1, v2) = self.0;
+                CapabilityGrantBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`verb` field](CapabilityGrant#structfield.verb) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn verb_as_null(self) -> CapabilityGrantBuilder<(T0, T1, T2, ())> {
+                self.verb(())
+            }
+        }
+
+        impl<T0, T1, T2, T3> CapabilityGrantBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`builtin` field](CapabilityGrant#structfield.builtin).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn builtin<T4>(self, value: T4) -> CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                CapabilityGrantBuilder((v0, v1, v2, v3, value))
+            }
+
+            /// Sets the [`builtin` field](CapabilityGrant#structfield.builtin) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn builtin_as_null(self) -> CapabilityGrantBuilder<(T0, T1, T2, T3, ())> {
+                self.builtin(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> CapabilityGrantBuilder<(T0, T1, T2, T3, T4)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [CapabilityGrant].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<CapabilityGrant>
+            where
+                Self: ::planus::WriteAsOffset<CapabilityGrant>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<CapabilityGrant>>
+            for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<CapabilityGrant>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<CapabilityGrant> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CapabilityGrant>>
+            for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<CapabilityGrant>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<CapabilityGrant>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<CapabilityGrant>
+            for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<CapabilityGrant> {
+                let (v0, v1, v2, v3, v4) = &self.0;
+                CapabilityGrant::create(builder, v0, v1, v2, v3, v4)
+            }
+        }
+
+        /// Reference to a deserialized [CapabilityGrant].
+        #[derive(Copy, Clone)]
+        pub struct CapabilityGrantRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> CapabilityGrantRef<'a> {
+            /// Getter for the [`kind` field](CapabilityGrant#structfield.kind).
+            #[inline]
+            pub fn kind(&self) -> ::planus::Result<self::CapabilityGrantKind> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "CapabilityGrant", "kind")?
+                        .unwrap_or(self::CapabilityGrantKind::ObjectRead),
+                )
+            }
+
+            /// Getter for the [`obj` field](CapabilityGrant#structfield.obj).
+            #[inline]
+            pub fn obj(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::ObjRef<'a>>>
+            {
+                self.0.access(1, "CapabilityGrant", "obj")
+            }
+
+            /// Getter for the [`property` field](CapabilityGrant#structfield.property).
+            #[inline]
+            pub fn property(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::SymbolRef<'a>>>
+            {
+                self.0.access(2, "CapabilityGrant", "property")
+            }
+
+            /// Getter for the [`verb` field](CapabilityGrant#structfield.verb).
+            #[inline]
+            pub fn verb(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::UuidRef<'a>>>
+            {
+                self.0.access(3, "CapabilityGrant", "verb")
+            }
+
+            /// Getter for the [`builtin` field](CapabilityGrant#structfield.builtin).
+            #[inline]
+            pub fn builtin(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::SymbolRef<'a>>>
+            {
+                self.0.access(4, "CapabilityGrant", "builtin")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for CapabilityGrantRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("CapabilityGrantRef");
+                f.field("kind", &self.kind());
+                if let ::core::option::Option::Some(field_obj) = self.obj().transpose() {
+                    f.field("obj", &field_obj);
+                }
+                if let ::core::option::Option::Some(field_property) = self.property().transpose() {
+                    f.field("property", &field_property);
+                }
+                if let ::core::option::Option::Some(field_verb) = self.verb().transpose() {
+                    f.field("verb", &field_verb);
+                }
+                if let ::core::option::Option::Some(field_builtin) = self.builtin().transpose() {
+                    f.field("builtin", &field_builtin);
+                }
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<CapabilityGrantRef<'a>> for CapabilityGrant {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: CapabilityGrantRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    kind: ::core::convert::TryInto::try_into(value.kind()?)?,
+                    obj: if let ::core::option::Option::Some(obj) = value.obj()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(obj)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    property: if let ::core::option::Option::Some(property) = value.property()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(property)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    verb: if let ::core::option::Option::Some(verb) = value.verb()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(verb)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    builtin: if let ::core::option::Option::Some(builtin) = value.builtin()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(builtin)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for CapabilityGrantRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for CapabilityGrantRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[CapabilityGrantRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<CapabilityGrant>> for CapabilityGrant {
+            type Value = ::planus::Offset<CapabilityGrant>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<CapabilityGrant>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for CapabilityGrantRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[CapabilityGrantRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `Activation` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Activation` in the file `task.fbs:377`
+        /// * Table `Activation` in the file `task.fbs:412`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Activation {
             /// The field `frame` in the table `Activation`
@@ -135460,6 +136225,8 @@ mod root {
             pub permissions: ::planus::alloc::boxed::Box<super::moor_common::Obj>,
             /// The field `permissions_flags` in the table `Activation`
             pub permissions_flags: u16,
+            /// The field `grants` in the table `Activation`
+            pub grants: ::core::option::Option<::planus::alloc::vec::Vec<self::CapabilityGrant>>,
         }
 
         impl Activation {
@@ -135482,6 +136249,9 @@ mod root {
                 field_verbdef: impl ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
                 field_permissions: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
                 field_permissions_flags: impl ::planus::WriteAsDefault<u16, u16>,
+                field_grants: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
+                >,
             ) -> ::planus::Offset<Self> {
                 let prepared_frame = field_frame.prepare(builder);
                 let prepared_this = field_this.prepare(builder);
@@ -135491,8 +136261,9 @@ mod root {
                 let prepared_verbdef = field_verbdef.prepare(builder);
                 let prepared_permissions = field_permissions.prepare(builder);
                 let prepared_permissions_flags = field_permissions_flags.prepare(builder, &0);
+                let prepared_grants = field_grants.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<20> =
+                let mut table_writer: ::planus::table_writer::TableWriter<22> =
                     ::core::default::Default::default();
                 table_writer.write_entry::<::planus::Offset<self::Frame>>(0);
                 table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(1);
@@ -135502,6 +136273,12 @@ mod root {
                 table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(4);
                 table_writer.write_entry::<::planus::Offset<super::moor_common::VerbDef>>(5);
                 table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(6);
+                if prepared_grants.is_some() {
+                    table_writer
+                        .write_entry::<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>(
+                            8,
+                        );
+                }
                 if prepared_permissions_flags.is_some() {
                     table_writer.write_entry::<u16>(7);
                 }
@@ -135515,6 +136292,9 @@ mod root {
                         object_writer.write::<_, _, 4>(&prepared_verb_name);
                         object_writer.write::<_, _, 4>(&prepared_verbdef);
                         object_writer.write::<_, _, 4>(&prepared_permissions);
+                        if let ::core::option::Option::Some(prepared_grants) = prepared_grants {
+                            object_writer.write::<_, _, 4>(&prepared_grants);
+                        }
                         if let ::core::option::Option::Some(prepared_permissions_flags) =
                             prepared_permissions_flags
                         {
@@ -135560,6 +136340,7 @@ mod root {
                     &self.verbdef,
                     &self.permissions,
                     self.permissions_flags,
+                    &self.grants,
                 )
             }
         }
@@ -135691,6 +136472,31 @@ mod root {
         }
 
         impl<T0, T1, T2, T3, T4, T5, T6, T7> ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)> {
+            /// Setter for the [`grants` field](Activation#structfield.grants).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn grants<T8>(
+                self,
+                value: T8,
+            ) -> ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
+            where
+                T8: ::planus::WriteAsOptional<
+                        ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
+                    >,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7) = self.0;
+                ActivationBuilder((v0, v1, v2, v3, v4, v5, v6, v7, value))
+            }
+
+            /// Sets the [`grants` field](Activation#structfield.grants) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn grants_as_null(self) -> ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, ())> {
+                self.grants(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8> ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [Activation].
             #[inline]
             pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<Activation>
@@ -135710,8 +136516,9 @@ mod root {
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
             T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
         > ::planus::WriteAs<::planus::Offset<Activation>>
-            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<Activation>;
 
@@ -135730,8 +136537,9 @@ mod root {
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
             T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
         > ::planus::WriteAsOptional<::planus::Offset<Activation>>
-            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<Activation>;
 
@@ -135753,13 +136561,14 @@ mod root {
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
             T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
         > ::planus::WriteAsOffset<Activation>
-            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Activation> {
-                let (v0, v1, v2, v3, v4, v5, v6, v7) = &self.0;
-                Activation::create(builder, v0, v1, v2, v3, v4, v5, v6, v7)
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8) = &self.0;
+                Activation::create(builder, v0, v1, v2, v3, v4, v5, v6, v7, v8)
             }
         }
 
@@ -135822,6 +136631,18 @@ mod root {
                         .unwrap_or(0),
                 )
             }
+
+            /// Getter for the [`grants` field](Activation#structfield.grants).
+            #[inline]
+            pub fn grants(
+                &self,
+            ) -> ::planus::Result<
+                ::core::option::Option<
+                    ::planus::Vector<'a, ::planus::Result<self::CapabilityGrantRef<'a>>>,
+                >,
+            > {
+                self.0.access(8, "Activation", "grants")
+            }
         }
 
         impl<'a> ::core::fmt::Debug for ActivationRef<'a> {
@@ -135835,6 +136656,9 @@ mod root {
                 f.field("verbdef", &self.verbdef());
                 f.field("permissions", &self.permissions());
                 f.field("permissions_flags", &self.permissions_flags());
+                if let ::core::option::Option::Some(field_grants) = self.grants().transpose() {
+                    f.field("grants", &field_grants);
+                }
                 f.finish()
             }
         }
@@ -135867,6 +136691,11 @@ mod root {
                     permissions_flags: ::core::convert::TryInto::try_into(
                         value.permissions_flags()?,
                     )?,
+                    grants: if let ::core::option::Option::Some(grants) = value.grants()? {
+                        ::core::option::Option::Some(grants.to_vec_result()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
                 })
             }
         }
@@ -135947,7 +136776,7 @@ mod root {
         /// The table `VMExecState` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VMExecState` in the file `task.fbs:392`
+        /// * Table `VMExecState` in the file `task.fbs:428`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmExecState {
             /// The field `activation_stack` in the table `VMExecState`
@@ -136303,7 +137132,7 @@ mod root {
         /// The table `VmHost` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VmHost` in the file `task.fbs:398`
+        /// * Table `VmHost` in the file `task.fbs:434`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmHost {
             /// The field `task_id` in the table `VmHost`
@@ -136732,7 +137561,7 @@ mod root {
         /// The table `Task` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Task` in the file `task.fbs:410`
+        /// * Table `Task` in the file `task.fbs:446`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Task {
             /// The field `version` in the table `Task`
@@ -137584,7 +138413,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:433`
+        /// * Table `SuspendedTask` in the file `task.fbs:469`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`

@@ -371,6 +371,41 @@ table Frame {
 }
 
 // ============================================================================
+// Capability Grants
+// ============================================================================
+
+// Runtime capability grants attached to an activation's task permissions.
+// These are additive rights minted by trusted code after validating a
+// higher-level capability artifact; they are not bearer tokens.
+enum CapabilityGrantKind: uint8 {
+    ObjectRead = 0,
+    ObjectWrite = 1,
+    ObjectRename = 2,
+    ObjectMove = 3,
+    ObjectRecycle = 4,
+    ObjectChparent = 5,
+    PropertyRead = 6,
+    PropertyWrite = 7,
+    PropertyDefine = 8,
+    PropertyDelete = 9,
+    VerbRead = 10,
+    VerbWrite = 11,
+    VerbProgram = 12,
+    VerbAdd = 13,
+    VerbCall = 14,
+    ObjectList = 15,
+    BuiltinCall = 16
+}
+
+table CapabilityGrant {
+    kind: CapabilityGrantKind;
+    obj: MoorCommon.Obj;         // Object* / Property* / Verb* / ObjectList targets
+    property: MoorCommon.Symbol; // PropertyRead / PropertyWrite / PropertyDelete
+    verb: MoorCommon.Uuid;       // VerbRead / VerbWrite / VerbProgram / VerbCall
+    builtin: MoorCommon.Symbol;  // BuiltinCall
+}
+
+// ============================================================================
 // Activation (Call Stack Frame)
 // ============================================================================
 
@@ -383,6 +418,7 @@ table Activation {
     verbdef: MoorCommon.VerbDef (required);
     permissions: MoorCommon.Obj (required);
     permissions_flags: uint16;  // BitEnum<ObjFlag> - cached flags for permissions object
+    grants: [CapabilityGrant];  // Optional - empty when the activation has no grants
 }
 
 // ============================================================================

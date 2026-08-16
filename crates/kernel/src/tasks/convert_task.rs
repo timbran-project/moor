@@ -24,7 +24,7 @@ use crate::{
     vm::{Fork, vm_host::VmHost as KernelVmHost},
 };
 use moor_common::{
-    model::TaskPermissions,
+    model::{CapabilityGrant, CapabilityGrants, TaskPermissions},
     util::{BitEnum, Instant, Timestamp},
 };
 use moor_compiler::{Label, Offset};
@@ -1296,6 +1296,140 @@ pub(crate) fn frame_from_ref(fb: fb::FrameRef<'_>) -> Result<KernelFrame, TaskCo
 // Activation Conversion
 // ============================================================================
 
+fn capability_grant_to_flatbuffer(grant: CapabilityGrant) -> fb::CapabilityGrant {
+    use fb::CapabilityGrantKind as Kind;
+    let (kind, obj, property, verb, builtin) = match grant {
+        CapabilityGrant::ObjectRead(obj) => (Kind::ObjectRead, Some(obj), None, None, None),
+        CapabilityGrant::ObjectWrite(obj) => (Kind::ObjectWrite, Some(obj), None, None, None),
+        CapabilityGrant::ObjectRename(obj) => (Kind::ObjectRename, Some(obj), None, None, None),
+        CapabilityGrant::ObjectMove(obj) => (Kind::ObjectMove, Some(obj), None, None, None),
+        CapabilityGrant::ObjectRecycle(obj) => (Kind::ObjectRecycle, Some(obj), None, None, None),
+        CapabilityGrant::ObjectChparent(obj) => (Kind::ObjectChparent, Some(obj), None, None, None),
+        CapabilityGrant::PropertyRead { obj, prop } => {
+            (Kind::PropertyRead, Some(obj), Some(prop), None, None)
+        }
+        CapabilityGrant::PropertyWrite { obj, prop } => {
+            (Kind::PropertyWrite, Some(obj), Some(prop), None, None)
+        }
+        CapabilityGrant::PropertyDefine(obj) => (Kind::PropertyDefine, Some(obj), None, None, None),
+        CapabilityGrant::PropertyDelete { obj, prop } => {
+            (Kind::PropertyDelete, Some(obj), Some(prop), None, None)
+        }
+        CapabilityGrant::VerbRead { obj, verb } => {
+            (Kind::VerbRead, Some(obj), None, Some(verb), None)
+        }
+        CapabilityGrant::VerbWrite { obj, verb } => {
+            (Kind::VerbWrite, Some(obj), None, Some(verb), None)
+        }
+        CapabilityGrant::VerbProgram { obj, verb } => {
+            (Kind::VerbProgram, Some(obj), None, Some(verb), None)
+        }
+        CapabilityGrant::VerbAdd(obj) => (Kind::VerbAdd, Some(obj), None, None, None),
+        CapabilityGrant::VerbCall { obj, verb } => {
+            (Kind::VerbCall, Some(obj), None, Some(verb), None)
+        }
+        CapabilityGrant::ObjectList => (Kind::ObjectList, None, None, None, None),
+        CapabilityGrant::BuiltinCall(sym) => (Kind::BuiltinCall, None, None, None, Some(sym)),
+    };
+
+    fb::CapabilityGrant {
+        kind,
+        obj: obj.map(|o| Box::new(convert_schema::obj_to_flatbuffer_struct(&o))),
+        property: property.map(|p| Box::new(convert_schema::symbol_to_flatbuffer_struct(&p))),
+        verb: verb.map(|v| Box::new(convert_schema::uuid_to_flatbuffer_struct(&v))),
+        builtin: builtin.map(|b| Box::new(convert_schema::symbol_to_flatbuffer_struct(&b))),
+    }
+}
+
+fn grant_obj(grant_ref: &fb::CapabilityGrantRef<'_>) -> Result<moor_var::Obj, TaskConversionError> {
+    let obj_ref = grant_ref
+        .obj()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant obj: {e}")))?
+        .ok_or_else(|| TaskConversionError::DecodingError("grant missing obj".to_string()))?;
+    convert_schema::obj_from_ref(obj_ref)
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant obj: {e}")))
+}
+
+fn grant_property(
+    grant_ref: &fb::CapabilityGrantRef<'_>,
+) -> Result<moor_var::Symbol, TaskConversionError> {
+    let prop_ref = grant_ref
+        .property()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant property: {e}")))?
+        .ok_or_else(|| TaskConversionError::DecodingError("grant missing property".to_string()))?;
+    convert_schema::symbol_from_ref(prop_ref)
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant property: {e}")))
+}
+
+fn grant_verb(grant_ref: &fb::CapabilityGrantRef<'_>) -> Result<uuid::Uuid, TaskConversionError> {
+    let verb_ref = grant_ref
+        .verb()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant verb: {e}")))?
+        .ok_or_else(|| TaskConversionError::DecodingError("grant missing verb".to_string()))?;
+    convert_schema::uuid_from_ref(verb_ref)
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant verb: {e}")))
+}
+
+fn grant_builtin(
+    grant_ref: &fb::CapabilityGrantRef<'_>,
+) -> Result<moor_var::Symbol, TaskConversionError> {
+    let builtin_ref = grant_ref
+        .builtin()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant builtin: {e}")))?
+        .ok_or_else(|| TaskConversionError::DecodingError("grant missing builtin".to_string()))?;
+    convert_schema::symbol_from_ref(builtin_ref)
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant builtin: {e}")))
+}
+
+fn capability_grant_from_ref(
+    grant: fb::CapabilityGrantRef<'_>,
+) -> Result<CapabilityGrant, TaskConversionError> {
+    use fb::CapabilityGrantKind as Kind;
+    match grant
+        .kind()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grant kind: {e}")))?
+    {
+        Kind::ObjectRead => Ok(CapabilityGrant::ObjectRead(grant_obj(&grant)?)),
+        Kind::ObjectWrite => Ok(CapabilityGrant::ObjectWrite(grant_obj(&grant)?)),
+        Kind::ObjectRename => Ok(CapabilityGrant::ObjectRename(grant_obj(&grant)?)),
+        Kind::ObjectMove => Ok(CapabilityGrant::ObjectMove(grant_obj(&grant)?)),
+        Kind::ObjectRecycle => Ok(CapabilityGrant::ObjectRecycle(grant_obj(&grant)?)),
+        Kind::ObjectChparent => Ok(CapabilityGrant::ObjectChparent(grant_obj(&grant)?)),
+        Kind::PropertyRead => Ok(CapabilityGrant::PropertyRead {
+            obj: grant_obj(&grant)?,
+            prop: grant_property(&grant)?,
+        }),
+        Kind::PropertyWrite => Ok(CapabilityGrant::PropertyWrite {
+            obj: grant_obj(&grant)?,
+            prop: grant_property(&grant)?,
+        }),
+        Kind::PropertyDefine => Ok(CapabilityGrant::PropertyDefine(grant_obj(&grant)?)),
+        Kind::PropertyDelete => Ok(CapabilityGrant::PropertyDelete {
+            obj: grant_obj(&grant)?,
+            prop: grant_property(&grant)?,
+        }),
+        Kind::VerbRead => Ok(CapabilityGrant::VerbRead {
+            obj: grant_obj(&grant)?,
+            verb: grant_verb(&grant)?,
+        }),
+        Kind::VerbWrite => Ok(CapabilityGrant::VerbWrite {
+            obj: grant_obj(&grant)?,
+            verb: grant_verb(&grant)?,
+        }),
+        Kind::VerbProgram => Ok(CapabilityGrant::VerbProgram {
+            obj: grant_obj(&grant)?,
+            verb: grant_verb(&grant)?,
+        }),
+        Kind::VerbAdd => Ok(CapabilityGrant::VerbAdd(grant_obj(&grant)?)),
+        Kind::VerbCall => Ok(CapabilityGrant::VerbCall {
+            obj: grant_obj(&grant)?,
+            verb: grant_verb(&grant)?,
+        }),
+        Kind::ObjectList => Ok(CapabilityGrant::ObjectList),
+        Kind::BuiltinCall => Ok(CapabilityGrant::BuiltinCall(grant_builtin(&grant)?)),
+    }
+}
+
 pub(crate) fn activation_to_flatbuffer(
     activation: &KernelActivation,
 ) -> Result<fb::Activation, TaskConversionError> {
@@ -1323,6 +1457,16 @@ pub(crate) fn activation_to_flatbuffer(
     let fb_permissions =
         convert_schema::obj_to_flatbuffer_struct(&activation.authority_principal());
 
+    let fb_grants = {
+        let authority = activation.authority();
+        let grants = authority.grants();
+        if grants.is_empty() {
+            None
+        } else {
+            Some(grants.iter().map(capability_grant_to_flatbuffer).collect())
+        }
+    };
+
     Ok(fb::Activation {
         frame: Box::new(fb_frame),
         this: Box::new(fb_this),
@@ -1332,6 +1476,7 @@ pub(crate) fn activation_to_flatbuffer(
         verbdef: Box::new(fb_verbdef),
         permissions: Box::new(fb_permissions),
         permissions_flags: activation.authority_flags().to_u16(),
+        grants: fb_grants,
     })
 }
 
@@ -1402,13 +1547,29 @@ pub(crate) fn activation_from_ref(
         .map_err(|e| TaskConversionError::DecodingError(format!("permissions_flags: {e}")))?;
     let permissions_flags = BitEnum::from_u16(permissions_flags_raw);
 
+    let grants = match fb
+        .grants()
+        .map_err(|e| TaskConversionError::DecodingError(format!("grants: {e}")))?
+    {
+        None => CapabilityGrants::empty(),
+        Some(grants_ref) => {
+            let mut grants = Vec::with_capacity(grants_ref.len());
+            for grant in grants_ref.iter() {
+                let grant =
+                    grant.map_err(|e| TaskConversionError::DecodingError(format!("grant: {e}")))?;
+                grants.push(capability_grant_from_ref(grant)?);
+            }
+            CapabilityGrants::from_vec(grants)
+        }
+    };
+
     Ok(KernelActivation::from_parts(
         frame,
         this,
         player,
         verb_name,
         verbdef.as_resolved(),
-        TaskPermissions::new(permissions, permissions_flags),
+        TaskPermissions::with_grants(permissions, permissions_flags, grants),
     ))
 }
 
@@ -2092,5 +2253,94 @@ mod tests {
         );
         let serialized = moo_stack_frame_to_flatbuffer(&frame);
         assert!(serialized.is_ok());
+    }
+
+    fn grant_samples() -> Vec<CapabilityGrant> {
+        let obj = Obj::mk_id(7);
+        let prop = moor_var::Symbol::mk("secret");
+        let verb = uuid::Uuid::new_v4();
+        let builtin = moor_var::Symbol::mk("server_log");
+        vec![
+            CapabilityGrant::ObjectRead(obj),
+            CapabilityGrant::ObjectWrite(obj),
+            CapabilityGrant::ObjectRename(obj),
+            CapabilityGrant::ObjectMove(obj),
+            CapabilityGrant::ObjectRecycle(obj),
+            CapabilityGrant::ObjectChparent(obj),
+            CapabilityGrant::PropertyRead { obj, prop },
+            CapabilityGrant::PropertyWrite { obj, prop },
+            CapabilityGrant::PropertyDefine(obj),
+            CapabilityGrant::PropertyDelete { obj, prop },
+            CapabilityGrant::VerbRead { obj, verb },
+            CapabilityGrant::VerbWrite { obj, verb },
+            CapabilityGrant::VerbProgram { obj, verb },
+            CapabilityGrant::VerbAdd(obj),
+            CapabilityGrant::VerbCall { obj, verb },
+            CapabilityGrant::ObjectList,
+            CapabilityGrant::BuiltinCall(builtin),
+        ]
+    }
+
+    fn activation_with_grants(grants: CapabilityGrants) -> KernelActivation {
+        KernelActivation::from_parts(
+            KernelFrame::Bf(KernelBuiltinFrame::from_parts(
+                moor_compiler::BuiltinId(0),
+                moor_var::List::mk_list(&[]),
+                None,
+                None,
+                None,
+            )),
+            v_obj(SYSTEM_OBJECT),
+            SYSTEM_OBJECT,
+            moor_var::Symbol::mk("test"),
+            moor_common::model::ResolvedVerb::new(
+                uuid::Uuid::new_v4(),
+                SYSTEM_OBJECT,
+                SYSTEM_OBJECT,
+                BitEnum::default(),
+                moor_common::model::VerbArgsSpec::this_none_this(),
+            ),
+            TaskPermissions::with_grants(SYSTEM_OBJECT, BitEnum::default(), grants),
+        )
+    }
+
+    fn roundtrip_activation(activation: &KernelActivation) -> KernelActivation {
+        use planus::{ReadAsRoot, WriteAsOffset};
+        let fb_activation = activation_to_flatbuffer(activation).unwrap();
+        let mut builder = planus::Builder::new();
+        let offset = fb_activation.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let fb_ref = fb::ActivationRef::read_as_root(bytes).unwrap();
+        activation_from_ref(fb_ref).unwrap()
+    }
+
+    #[test]
+    fn capability_grants_roundtrip_through_flatbuffer() {
+        use planus::{ReadAsRoot, WriteAsOffset};
+
+        for expected in grant_samples() {
+            let fb_grant = capability_grant_to_flatbuffer(expected);
+            let mut builder = planus::Builder::new();
+            let offset = fb_grant.prepare(&mut builder);
+            let bytes = builder.finish(offset, None);
+            let grant_ref = fb::CapabilityGrantRef::read_as_root(bytes).unwrap();
+            let restored = capability_grant_from_ref(grant_ref).unwrap();
+            assert_eq!(restored, expected);
+        }
+    }
+
+    #[test]
+    fn activation_grants_survive_flatbuffer_roundtrip() {
+        let grants = CapabilityGrants::from_vec(grant_samples());
+        let activation = activation_with_grants(grants.clone());
+        let restored = roundtrip_activation(&activation);
+        assert_eq!(restored.authority_grants(), &grants);
+    }
+
+    #[test]
+    fn activation_without_grants_roundtrips_to_empty() {
+        let activation = activation_with_grants(CapabilityGrants::empty());
+        let restored = roundtrip_activation(&activation);
+        assert!(restored.authority_grants().is_empty());
     }
 }
