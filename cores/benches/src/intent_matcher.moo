@@ -43,12 +43,7 @@ object INTENT_MATCHER [
   method lowercase owner: ARCH_WIZARD
     ":lowercase(STR string) => STR with ASCII letters lowercased.";
     {string} = args;
-    from = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    to = "abcdefghijklmnopqrstuvwxyz";
-    for i in [1..26]
-      string = strsub(string, from[i], to[i], 1);
-    endfor
-    return string;
+    return strtr(string, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz", 1);
   endmethod
 
   method words owner: ARCH_WIZARD
