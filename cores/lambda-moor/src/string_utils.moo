@@ -360,10 +360,7 @@ object STRING_UTILS [
       from = lower;
       to = caps;
     endif
-    for i in [1..26]
-      string = strsub(string, from[i], to[i], 1);
-    endfor
-    return string;
+    return strtr(string, from, to, 1);
   endmethod
 
   method "capitalize capitalise" owner: HACKER
