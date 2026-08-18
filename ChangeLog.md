@@ -185,6 +185,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Duplicate constants (both duplicate names and duplicate values) now detected and rejected in
   objdef compiler
+- Large objdef imports no longer stall while calculating verb source locations by repeatedly
+  scanning each object file from the beginning
 - Trailing newlines in objdef output corrected
 - Fixed duplicate declarations in compiler roundtrip proptests
 

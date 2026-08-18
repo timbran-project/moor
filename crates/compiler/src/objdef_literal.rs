@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::path::PathBuf;
+use std::{cell::OnceCell, path::PathBuf};
 
 use crate::{
     CompileOptions, ObjDefParseError, ObjFileContext, ObjPropDef, ObjPropOverride, ObjVerbDef,
@@ -89,6 +89,7 @@ struct LiteralParser<'a> {
     pos: usize,
     context: &'a mut ObjFileContext,
     depth: usize,
+    line_starts: OnceCell<Vec<usize>>,
 }
 
 impl<'a> LiteralParser<'a> {
@@ -98,6 +99,7 @@ impl<'a> LiteralParser<'a> {
             pos: 0,
             context,
             depth: 0,
+            line_starts: OnceCell::new(),
         }
     }
 
@@ -110,17 +112,21 @@ impl<'a> LiteralParser<'a> {
     }
 
     fn line_col(&self, pos: usize) -> (usize, usize) {
-        let mut line = 1;
-        let mut col = 1;
-        for ch in self.source[..pos.min(self.source.len())].chars() {
-            if ch == '\n' {
-                line += 1;
-                col = 1;
-            } else {
-                col += 1;
-            }
-        }
-        (line, col)
+        let line_starts = self.line_starts.get_or_init(|| {
+            let mut starts = vec![0];
+            starts.extend(
+                self.source
+                    .bytes()
+                    .enumerate()
+                    .filter_map(|(index, byte)| (byte == b'\n').then_some(index + 1)),
+            );
+            starts
+        });
+        let pos = pos.min(self.source.len());
+        let line_index = line_starts.partition_point(|&start| start <= pos) - 1;
+        let line_start = line_starts[line_index];
+        let col = self.source[line_start..pos].chars().count() + 1;
+        (line_index + 1, col)
     }
 
     fn parse_error(&self, message: &str) -> ObjDefParseError {
@@ -1477,5 +1483,30 @@ impl<'a> LiteralParser<'a> {
             ObjDefParseError::IncludeError(resolved.display().to_string(), e.to_string())
         })?;
         Ok(Some(v_binary(bytes)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_col_builds_and_reuses_line_index() {
+        let source = "first\nαβ\nlast\n";
+        let mut context = ObjFileContext::new();
+        let parser = LiteralParser::new(source, &mut context);
+
+        assert!(parser.line_starts.get().is_none());
+        assert_eq!(parser.line_col(0), (1, 1));
+        assert_eq!(parser.line_col(5), (1, 6));
+        assert_eq!(parser.line_col(6), (2, 1));
+        assert_eq!(parser.line_col(10), (2, 3));
+        assert_eq!(parser.line_col(11), (3, 1));
+        assert_eq!(parser.line_col(source.len()), (4, 1));
+        assert_eq!(parser.line_col(source.len() + 10), (4, 1));
+
+        let line_starts = parser.line_starts.get().unwrap().as_ptr();
+        assert_eq!(parser.line_col(8), (2, 2));
+        assert_eq!(parser.line_starts.get().unwrap().as_ptr(), line_starts);
     }
 }
