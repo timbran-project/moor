@@ -67,10 +67,7 @@ use moor_common::{
         },
         Session, SessionFactory, SystemControl, TaskId, WorkerError,
     },
-    threading::{
-        TaskPoolAffinityConfig, set_current_thread_background_priority,
-        set_task_pool_affinity_config, spawn_perf,
-    },
+    threading::{TaskPoolAffinityConfig, set_task_pool_affinity_config, spawn_perf},
     util::{
         PerfCounter, PerfIntensity, PerfTimerGuard, perf_timing_policy, set_perf_timing_policy,
     },
@@ -274,9 +271,12 @@ impl Scheduler {
     /// Execute the scheduler loop, run from the server process.
     pub fn run(mut self, bg_session_factory: Arc<dyn SessionFactory>) {
         // Rehydrate suspended tasks.
-        self.task_q.suspended.load_tasks(bg_session_factory);
-
-        set_current_thread_background_priority().ok();
+        if let Some(max_restored_task_id) = self.task_q.suspended.load_tasks(bg_session_factory) {
+            let next_restored_task_id = max_restored_task_id
+                .checked_add(1)
+                .expect("Restored task ID exhausted the task ID space");
+            self.next_task_id = self.next_task_id.max(next_restored_task_id);
+        }
 
         self.running = true;
         info!("Starting scheduler loop");

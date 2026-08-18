@@ -24,9 +24,100 @@ use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    time::Instant,
+    sync::mpsc::{self, Receiver, Sender},
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
 };
-use tracing::info;
+use tracing::{info, warn};
+
+const SLOW_OBJDEF_FILE_IMPORT: Duration = Duration::from_secs(5);
+
+enum ImportProgress {
+    Started {
+        path: PathBuf,
+        file_number: usize,
+        num_files: usize,
+    },
+    Finished,
+    Stop,
+}
+
+struct SlowImportMonitor {
+    sender: Sender<ImportProgress>,
+    worker: Option<JoinHandle<()>>,
+}
+
+impl SlowImportMonitor {
+    fn start() -> Self {
+        let (sender, receiver) = mpsc::channel();
+        let worker = thread::spawn(move || Self::run(receiver));
+        Self {
+            sender,
+            worker: Some(worker),
+        }
+    }
+
+    fn run(receiver: Receiver<ImportProgress>) {
+        loop {
+            let Ok(progress) = receiver.recv() else {
+                return;
+            };
+            let ImportProgress::Started {
+                path,
+                file_number,
+                num_files,
+            } = progress
+            else {
+                return;
+            };
+
+            match receiver.recv_timeout(SLOW_OBJDEF_FILE_IMPORT) {
+                Ok(ImportProgress::Finished) => {}
+                Ok(ImportProgress::Stop) | Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                Ok(ImportProgress::Started { .. }) => {
+                    unreachable!("objdef imports are monitored serially")
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    warn!(
+                        path = %path.display(),
+                        file_number,
+                        num_files,
+                        threshold = ?SLOW_OBJDEF_FILE_IMPORT,
+                        "Objdef file import is taking longer than expected"
+                    );
+                    match receiver.recv() {
+                        Ok(ImportProgress::Finished) => {}
+                        Ok(ImportProgress::Stop) | Err(_) => return,
+                        Ok(ImportProgress::Started { .. }) => {
+                            unreachable!("objdef imports are monitored serially")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn started(&self, path: &Path, file_number: usize, num_files: usize) {
+        let _ = self.sender.send(ImportProgress::Started {
+            path: path.to_path_buf(),
+            file_number,
+            num_files,
+        });
+    }
+
+    fn finished(&self) {
+        let _ = self.sender.send(ImportProgress::Finished);
+    }
+}
+
+impl Drop for SlowImportMonitor {
+    fn drop(&mut self) {
+        let _ = self.sender.send(ImportProgress::Stop);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
 
 /// Constants can be provided either as a pre-parsed map or as MOO file content to parse
 #[derive(Clone)]
@@ -242,6 +333,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         // Recursively collect all .moo files
         let filenames = Self::collect_moo_files_recursive(dirpath)
             .expect("Unable to recursively read import directory");
+        let num_files = filenames.len();
+        let mut num_loaded_files = 0;
+        let slow_import_monitor = SlowImportMonitor::start();
 
         // Find constants.moo in the root directory and parse it first
         let constants_file = filenames
@@ -249,13 +343,14 @@ impl<'a> ObjectDefinitionLoader<'a> {
             .find(|f| f.file_name().unwrap() == "constants.moo" && f.parent().unwrap() == dirpath);
 
         if let Some(constants_file) = constants_file {
-            let constants_file_contents = std::fs::read_to_string(constants_file)
-                .map_err(|e| ObjdefLoaderError::ObjectFileReadError(constants_file.clone(), e))?;
-            self.parse_objects(
+            num_loaded_files += 1;
+            self.load_objdef_file(
                 constants_file,
                 &mut context,
-                &constants_file_contents,
                 &compile_options,
+                num_loaded_files,
+                num_files,
+                &slow_import_monitor,
             )?;
         }
 
@@ -269,16 +364,17 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 continue;
             }
 
-            let object_file_contents = std::fs::read_to_string(object_file.clone())
-                .map_err(|e| ObjdefLoaderError::ObjectFileReadError(object_file.clone(), e))?;
-
-            self.parse_objects(
+            num_loaded_files += 1;
+            self.load_objdef_file(
                 &object_file,
                 &mut context,
-                &object_file_contents,
                 &compile_options,
+                num_loaded_files,
+                num_files,
+                &slow_import_monitor,
             )?;
         }
+        drop(slow_import_monitor);
 
         let num_loaded_verbs = self
             .object_definitions
@@ -322,6 +418,23 @@ impl<'a> ObjectDefinitionLoader<'a> {
             num_loaded_property_definitions,
             num_loaded_property_overrides,
         })
+    }
+
+    fn load_objdef_file(
+        &mut self,
+        path: &Path,
+        context: &mut ObjFileContext,
+        compile_options: &CompileOptions,
+        file_number: usize,
+        num_files: usize,
+        slow_import_monitor: &SlowImportMonitor,
+    ) -> Result<(), ObjdefLoaderError> {
+        slow_import_monitor.started(path, file_number, num_files);
+        let contents = std::fs::read_to_string(path)
+            .map_err(|e| ObjdefLoaderError::ObjectFileReadError(path.to_path_buf(), e))?;
+        self.parse_objects(path, context, &contents, compile_options)?;
+        slow_import_monitor.finished();
+        Ok(())
     }
 
     fn parse_objects(

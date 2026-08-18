@@ -59,9 +59,11 @@ use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard, atomic::AtomicBool},
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, Instant},
 };
-use tracing::error;
+use tracing::{error, info};
+
+const LARGE_SCAN_VALUE_BYTES: usize = 1024 * 1024;
 
 /// Handle a fjall error, with special handling for Poisoned errors.
 /// Returns true if this was a Poisoned error (caller should stop retrying).
@@ -116,6 +118,7 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
+    relation_name: &'static str,
     fjall_keyspace: fjall::Keyspace,
     /// Shared batch collector - all providers add to this during commit
     batch_collector: Arc<BatchCollector>,
@@ -187,11 +190,12 @@ where
     /// Unlike the old design, this does NOT spawn a background thread. All writes
     /// are collected into the shared batch and written by the central BatchWriter.
     pub fn new(
-        _relation_name: &str,
+        relation_name: &'static str,
         fjall_keyspace: fjall::Keyspace,
         batch_collector: Arc<BatchCollector>,
     ) -> Self {
         Self {
+            relation_name,
             fjall_keyspace,
             batch_collector,
             pending_ops: Arc::new(RwLock::new(PendingOperations::default())),
@@ -364,7 +368,7 @@ where
         let pending = self.pending_ops_read()?;
 
         // Scan backing store first
-        for entry in self.fjall_keyspace.iter() {
+        for (entry_number, entry) in self.fjall_keyspace.iter().enumerate() {
             let (key, value) = entry
                 .into_inner()
                 .map_err(|e| Error::RetrievalFailure(e.to_string()))?;
@@ -375,7 +379,30 @@ where
                 continue;
             }
 
+            let encoded_value_bytes = value.len();
+            let log_large_value = encoded_value_bytes >= LARGE_SCAN_VALUE_BYTES;
+            if log_large_value {
+                info!(
+                    relation = self.relation_name,
+                    domain = %domain,
+                    entry_number = entry_number + 1,
+                    encoded_value_bytes,
+                    "Decoding large relation value during scan"
+                );
+            }
+
+            let decode_start = Instant::now();
             let (ts, codomain) = decode_codomain_with_ts::<Self, Codomain>(self, value)?;
+            if log_large_value {
+                info!(
+                    relation = self.relation_name,
+                    domain = %domain,
+                    entry_number = entry_number + 1,
+                    encoded_value_bytes,
+                    elapsed = ?decode_start.elapsed(),
+                    "Decoded large relation value during scan"
+                );
+            }
             if predicate(&domain, &codomain) {
                 result.push((ts, domain, codomain));
             }

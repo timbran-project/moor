@@ -7,11 +7,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 1.0 series (`v1.0-release`) branch
 
+### Changed
+
+`db`:
+
+- Log startup relation scan and index insertion progress, including decode timing for unusually
+  large stored values.
+
+`objdef`:
+
+- Identify the current file when an objdef import takes longer than five seconds.
+
 ### Fixed
 
 `kernel`:
 
 - `kill_task(task_id())` now aborts the current task instead of completing successfully.
+- Advance task ID allocation past restored suspended tasks so startup hooks and forks cannot reuse
+  their IDs.
+- Keep the scheduler at normal thread priority and allow transaction renewal requests up to one
+  second to cross restart-time work bursts without reporting a false scheduler timeout.
 
 ## [1.0.2] - 2026-07-22
 

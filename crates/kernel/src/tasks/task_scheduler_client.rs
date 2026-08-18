@@ -500,9 +500,10 @@ impl TaskSchedulerClient {
             .send((self.task_id, TaskControlMsg::RequestNewTransaction(reply)))
             .expect("Could not deliver client message -- scheduler shut down?");
 
-        // Short timeout since this should be very fast - just a database call
+        // Keep this bounded so shutdown cannot strand a task waiting on the scheduler. A busy
+        // scheduler may have a burst of renewal requests ahead of us, especially after restart.
         receive
-            .recv_timeout(Duration::from_millis(100))
+            .recv_timeout(Duration::from_secs(1))
             .map_err(|_| SchedulerError::SchedulerNotResponding)?
     }
 }

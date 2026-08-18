@@ -18,7 +18,8 @@ use crate::{
     tx::{Error, RelationCodomain, RelationCodomainHashable, RelationDomain, Tx},
 };
 use moor_var::Symbol;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
+use tracing::info;
 
 #[cfg(test)]
 use crate::tx::{Canonical, Timestamp};
@@ -102,11 +103,29 @@ where
 
     pub fn seeded_index(&self) -> Result<Box<dyn RelationIndex<Domain, Codomain>>, Error> {
         let mut index = (self.index_factory)();
+
+        let scan_start = Instant::now();
+        info!(relation = %self.relation_name, "Scanning relation for startup index");
         let tuples = self.source.scan(&|_, _| true)?;
+        let tuple_count = tuples.len();
+        info!(
+            relation = %self.relation_name,
+            tuple_count,
+            elapsed = ?scan_start.elapsed(),
+            "Scanned relation for startup index"
+        );
+
+        let insert_start = Instant::now();
         for (ts, domain, codomain) in tuples {
             index.insert_entry(ts, domain, codomain);
         }
         index.set_provider_fully_loaded(true);
+        info!(
+            relation = %self.relation_name,
+            tuple_count,
+            elapsed = ?insert_start.elapsed(),
+            "Inserted relation into startup index"
+        );
         Ok(index)
     }
 

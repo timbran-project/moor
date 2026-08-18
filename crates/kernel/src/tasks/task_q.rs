@@ -528,7 +528,10 @@ impl SuspensionQ {
 
     /// Load all tasks from the tasks database. Called on startup to reconstitute the task list
     /// from the database.
-    pub(crate) fn load_tasks(&mut self, bg_session_factory: Arc<dyn SessionFactory>) {
+    pub(crate) fn load_tasks(
+        &mut self,
+        bg_session_factory: Arc<dyn SessionFactory>,
+    ) -> Option<TaskId> {
         // LambdaMOO doesn't do anything special to filter out tasks that are too old, or tasks that
         // are related to disconnected players, or anything like that.
         // We'll just start them all up and let the scheduler handle them.
@@ -539,6 +542,7 @@ impl SuspensionQ {
             .load_tasks()
             .expect("Unable to reconstitute tasks from tasks database");
         let num_tasks = tasks.len();
+        let max_task_id = tasks.iter().map(|task| task.task.task_id).max();
         for mut task in tasks {
             task.session = bg_session_factory
                 .clone()
@@ -640,7 +644,8 @@ impl SuspensionQ {
         if let Err(e) = self.tasks_database.delete_all_tasks() {
             error!(?e, "Could not delete suspended tasks from tasks database");
         }
-        info!(?num_tasks, "Loaded suspended tasks from tasks database")
+        info!(?num_tasks, "Loaded suspended tasks from tasks database");
+        max_task_id
     }
 
     /// Add a task to the set of suspended tasks.
@@ -1019,9 +1024,44 @@ mod tests {
     use super::*;
     use crate::tasks::{
         DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart,
+        TasksDb, TasksDbError,
     };
-    use moor_common::tasks::NoopClientSession;
+    use moor_common::tasks::{NoopClientSession, SessionError};
     use moor_var::SYSTEM_OBJECT;
+    use std::sync::Mutex;
+
+    struct LoadedTasksDb(Mutex<Option<Vec<SuspendedTask>>>);
+
+    impl TasksDb for LoadedTasksDb {
+        fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
+            Ok(self.0.lock().unwrap().take().unwrap())
+        }
+
+        fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn compact(&self) {}
+    }
+
+    struct NoopSessionFactory;
+
+    impl SessionFactory for NoopSessionFactory {
+        fn mk_background_session(
+            self: Arc<Self>,
+            _player: &Obj,
+        ) -> Result<Arc<dyn Session>, SessionError> {
+            Ok(mock_session())
+        }
+    }
 
     fn test_server_options() -> ServerOptions {
         ServerOptions {
@@ -1054,6 +1094,29 @@ mod tests {
 
     fn mock_session() -> Arc<dyn Session> {
         Arc::new(NoopClientSession::new())
+    }
+
+    fn mock_suspended_task(task_id: TaskId) -> SuspendedTask {
+        SuspendedTask {
+            enqueued_at: Timestamp::now(),
+            wake_condition: WakeCondition::Never,
+            task: mock_task(task_id),
+            session: mock_session(),
+            result_sender: None,
+            timer_generation: 0,
+        }
+    }
+
+    #[test]
+    fn load_tasks_reports_highest_restored_task_id() {
+        let tasks = vec![mock_suspended_task(4), mock_suspended_task(81)];
+        let mut sq = SuspensionQ::new(Box::new(LoadedTasksDb(Mutex::new(Some(tasks)))));
+
+        let max_task_id = sq.load_tasks(Arc::new(NoopSessionFactory));
+
+        assert_eq!(max_task_id, Some(81));
+        assert!(sq.tasks.contains_key(&4));
+        assert!(sq.tasks.contains_key(&81));
     }
 
     /// Verify that stale timer entries from prior suspensions of the same task
