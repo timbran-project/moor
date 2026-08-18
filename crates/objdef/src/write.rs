@@ -160,6 +160,8 @@ pub(crate) fn write_dump_object<W: Write>(
     o: &ObjectDefinition,
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
+    validate_verb_names(o)?;
+
     let object_decl = format!("object {}", canon_name(&o.oid, index_names));
     write!(writer, "{object_decl}")?;
     write_object_metadata_suffix(index_names, &o.metadata, writer)?;
@@ -182,6 +184,18 @@ pub(crate) fn write_dump_object<W: Write>(
         write_verb(index_names, "  ", v, &o.oid, writer)?;
     }
     writeln!(writer, "endobject")?;
+    Ok(())
+}
+
+pub(crate) fn validate_verb_names(object: &ObjectDefinition) -> Result<(), ObjectDumpError> {
+    for (verb_index, verb) in object.verbs.iter().enumerate() {
+        if verb.names.is_empty() || verb.names.iter().any(|name| name.as_arc_str().is_empty()) {
+            return Err(ObjectDumpError::EmptyVerbName {
+                obj: object.oid,
+                verb_index: verb_index + 1,
+            });
+        }
+    }
     Ok(())
 }
 
@@ -243,6 +257,7 @@ fn write_verb<W: Write>(
         .join(" ");
 
     let names = if v.names.len() == 1
+        && !v.names[0].as_arc_str().is_empty()
         && v.names[0]
             .as_arc_str()
             .chars()
@@ -443,4 +458,54 @@ fn is_bare_metadata_key(text: &str) -> bool {
         return false;
     }
     chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_common::util::BitEnum;
+    use moor_compiler::{CompileOptions, compile};
+
+    #[test]
+    fn empty_verb_name_prevents_dump() {
+        let object = ObjectDefinition {
+            oid: Obj::mk_id(1),
+            name: "empty verb".to_string(),
+            parent: NOTHING,
+            owner: Obj::mk_id(1),
+            location: NOTHING,
+            flags: BitEnum::new(),
+            metadata: Vec::new(),
+            verbs: vec![ObjVerbDef {
+                names: vec![Symbol::mk("")],
+                argspec: VerbArgsSpec::this_none_this(),
+                owner: Obj::mk_id(1),
+                flags: BitEnum::new_with(VerbFlag::Read),
+                program: ProgramType::MooR(
+                    compile("return 1;", CompileOptions::default()).unwrap(),
+                ),
+                metadata: Vec::new(),
+            }],
+            property_definitions: Vec::new(),
+            property_overrides: Vec::new(),
+        };
+        let mut output = Vec::new();
+        let error = write_dump_object(&HashMap::new(), &object, &mut output).unwrap_err();
+        assert!(matches!(
+            error,
+            ObjectDumpError::EmptyVerbName {
+                obj,
+                verb_index: 1
+            } if obj == Obj::mk_id(1)
+        ));
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let checkpoint_path = tempdir.path().join("checkpoint.in-progress");
+        let error = crate::dump_object_definitions(&[object], &checkpoint_path).unwrap_err();
+        assert!(matches!(
+            error,
+            ObjectDumpError::EmptyVerbName { verb_index: 1, .. }
+        ));
+        assert!(!checkpoint_path.exists());
+    }
 }

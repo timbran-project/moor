@@ -1207,20 +1207,35 @@ impl<'a> LiteralParser<'a> {
         self.parse_verb_body_until_end_keyword("endverb", "missing endverb")
     }
 
+    fn parse_verb_names(
+        &mut self,
+        allow_omitted_before_argspec: bool,
+    ) -> Result<Vec<Symbol>, ObjDefParseError> {
+        self.skip_trivia();
+        let (line, column) = self.line_col(self.pos);
+        if allow_omitted_before_argspec && self.peek_char() == Some('(') {
+            return Err(ObjDefParseError::EmptyVerbName { line, column });
+        }
+        if self.peek_char() != Some('"') {
+            return Ok(vec![Symbol::mk(self.parse_propchars()?.trim())]);
+        }
+
+        let names = self.parse_string_value()?;
+        let names = names
+            .split_whitespace()
+            .map(|name| Symbol::mk(name.trim()))
+            .collect::<Vec<_>>();
+        if names.is_empty() {
+            return Err(ObjDefParseError::EmptyVerbName { line, column });
+        }
+        Ok(names)
+    }
+
     fn parse_verb_decl(
         &mut self,
         compile_options: &CompileOptions,
     ) -> Result<ObjVerbDef, ObjDefParseError> {
-        self.skip_trivia();
-        let names = if self.peek_char() == Some('"') {
-            let names = self.parse_string_value()?;
-            names
-                .split_whitespace()
-                .map(|name| Symbol::mk(name.trim()))
-                .collect::<Vec<_>>()
-        } else {
-            vec![Symbol::mk(self.parse_propchars()?.trim())]
-        };
+        let names = self.parse_verb_names(true)?;
 
         self.skip_trivia();
         self.expect_char('(', "expected '(' after verb name")?;
@@ -1282,16 +1297,7 @@ impl<'a> LiteralParser<'a> {
         &mut self,
         compile_options: &CompileOptions,
     ) -> Result<ObjVerbDef, ObjDefParseError> {
-        self.skip_trivia();
-        let names = if self.peek_char() == Some('"') {
-            let names = self.parse_string_value()?;
-            names
-                .split_whitespace()
-                .map(|name| Symbol::mk(name.trim()))
-                .collect::<Vec<_>>()
-        } else {
-            vec![Symbol::mk(self.parse_propchars()?.trim())]
-        };
+        let names = self.parse_verb_names(false)?;
 
         self.skip_trivia();
         if !self.eat_keyword("owner") {

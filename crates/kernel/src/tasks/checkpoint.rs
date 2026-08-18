@@ -137,7 +137,7 @@ fn perform_export(
     })?;
     info!("Dumping objects to {checkpoint_path:?}");
     dump_object_definitions(&objects, checkpoint_path).map_err(|e| {
-        error!(?e, "Failed to dump objects");
+        error!(error = %e, "Failed to dump objects");
         SchedulerError::CouldNotStartTask
     })?;
     let final_path = checkpoint_path.with_extension("moo");

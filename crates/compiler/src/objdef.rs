@@ -142,6 +142,10 @@ pub enum ObjDefParseError {
     DuplicateConstant(String, String),
     #[error("Object definition literal nesting exceeds maximum depth of {max_depth}")]
     LiteralNestingTooDeep { max_depth: usize },
+    #[error(
+        "Verb declaration at {line}:{column} has an empty name; edit the objdef and give the verb a non-empty name"
+    )]
+    EmptyVerbName { line: usize, column: usize },
 }
 
 impl ObjDefParseError {
@@ -663,6 +667,40 @@ mod tests {
             &mut ObjFileContext::new(),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn test_rejects_empty_verb_names() {
+        for (declaration, end) in [
+            (r#"verb "" (any any any) owner: #1 flags: "rd""#, "endverb"),
+            (
+                r#"verb "   " (any any any) owner: #1 flags: "rd""#,
+                "endverb",
+            ),
+            (r#"verb  (any any any) owner: #1 flags: "rd""#, "endverb"),
+            (r#"method "" owner: #1"#, "endmethod"),
+        ] {
+            let spec = format!(
+                r#"
+                    object #1
+                        owner: #1
+
+                        {declaration}
+                            return 1;
+                        {end}
+                    endobject"#
+            );
+            let Err(error) = compile_object_definitions(
+                &spec,
+                &CompileOptions::default(),
+                &mut ObjFileContext::new(),
+            ) else {
+                panic!("empty verb name was accepted");
+            };
+
+            assert!(matches!(&error, ObjDefParseError::EmptyVerbName { .. }));
+            assert!(error.to_string().contains("give the verb a non-empty name"));
+        }
     }
 
     #[test]

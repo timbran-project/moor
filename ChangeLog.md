@@ -159,6 +159,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `parse_command()` result map: `argstr` key/value types were swapped (key used `v_str`, value used
   `use_sym_or_str`) and `prep` key used `v_str` instead of `use_sym_or_str`.
 - `kill_task(task_id())` now aborts the current task instead of completing successfully.
+- `add_verb()` and `set_verb_info()` now reject empty and all-space verb names, matching LambdaMOO.
 - Stale timer wheel entries no longer cause spurious task wakes; added monotonic generation counter
   to `TimerEntry` and `SuspendedTask` so that re-suspended tasks discard leftover timer entries from
   previous suspensions
@@ -188,6 +189,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Large objdef imports no longer stall while calculating verb source locations by repeatedly
   scanning each object file from the beginning
 - Adjacent closing delimiters on nested flyweights no longer parse as right-shift operators
+- Objdef imports and checkpoint exports reject empty verb names with actionable diagnostics
 - Trailing newlines in objdef output corrected
 - Fixed duplicate declarations in compiler roundtrip proptests
 

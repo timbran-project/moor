@@ -40,6 +40,11 @@ pub enum ObjectDumpError {
         reason: String,
     },
 
+    #[error(
+        "Cannot dump object {obj}: verb {verb_index} has an empty name; repair it with set_verb_info({obj}, {verb_index}, ...) before retrying the checkpoint"
+    )]
+    EmptyVerbName { obj: Obj, verb_index: usize },
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -346,6 +351,10 @@ pub fn dump_object_definitions(
     object_defs: &[ObjectDefinition],
     directory_path: &Path,
 ) -> Result<(), ObjectDumpError> {
+    for object in object_defs {
+        crate::write::validate_verb_names(object)?;
+    }
+
     // Extract constant names and file names
     let (index_names, file_names) = extract_object_constants(object_defs);
 
