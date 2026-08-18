@@ -546,7 +546,10 @@ impl SuspensionQ {
 
     /// Load all tasks from the tasks database. Called on startup to reconstitute the task list
     /// from the database.
-    pub(crate) fn load_tasks(&mut self, bg_session_factory: Arc<dyn SessionFactory>) {
+    pub(crate) fn load_tasks(
+        &mut self,
+        bg_session_factory: Arc<dyn SessionFactory>,
+    ) -> Option<TaskId> {
         // LambdaMOO doesn't do anything special to filter out tasks that are too old, or tasks that
         // are related to disconnected players, or anything like that.
         // We'll just start them all up and let the scheduler handle them.
@@ -557,6 +560,7 @@ impl SuspensionQ {
             .load_tasks()
             .expect("Unable to reconstitute tasks from tasks database");
         let num_tasks = tasks.len();
+        let max_task_id = tasks.iter().map(|task| task.task.task_id).max();
         for mut task in tasks {
             task.session = bg_session_factory
                 .clone()
@@ -658,7 +662,8 @@ impl SuspensionQ {
         if let Err(e) = self.tasks_database.delete_all_tasks() {
             error!(?e, "Could not delete suspended tasks from tasks database");
         }
-        info!(?num_tasks, "Loaded suspended tasks from tasks database")
+        info!(?num_tasks, "Loaded suspended tasks from tasks database");
+        max_task_id
     }
 
     /// Add a task to the set of suspended tasks.

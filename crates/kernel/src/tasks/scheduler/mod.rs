@@ -277,7 +277,12 @@ impl Scheduler {
             if lc.state != SchedulerState::Created {
                 return Err(SchedulerError::SchedulerNotResponding);
             }
-            lc.task_q.suspended.load_tasks(bg_session_factory);
+            if let Some(max_restored_task_id) = lc.task_q.suspended.load_tasks(bg_session_factory) {
+                let next_restored_task_id = max_restored_task_id
+                    .checked_add(1)
+                    .expect("Restored task ID exhausted the task ID space");
+                lc.next_task_id = lc.next_task_id.max(next_restored_task_id);
+            }
             lc.state = SchedulerState::Running;
         }
 
@@ -579,9 +584,11 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tasks::TasksDbError;
     use moor_common::tasks::{
         ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
     };
+    use moor_common::util::Timestamp;
     use moor_db::{DatabaseConfig, TxDB};
     use std::collections::HashSet;
     use std::sync::Barrier;
@@ -595,6 +602,28 @@ mod tests {
         ) -> Result<Arc<dyn Session>, SessionError> {
             Ok(Arc::new(NoopClientSession::new()))
         }
+    }
+
+    struct LoadedTasksDb(Mutex<Option<Vec<SuspendedTask>>>);
+
+    impl TasksDb for LoadedTasksDb {
+        fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
+            Ok(self.0.lock().take().unwrap())
+        }
+
+        fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn compact(&self) {}
     }
 
     struct BlockingCommitSession {
@@ -702,6 +731,69 @@ mod tests {
             None,
             None,
         )
+    }
+
+    fn suspended_task(task_id: TaskId) -> SuspendedTask {
+        let server_options = ServerOptions {
+            bg_seconds: 0.0,
+            bg_ticks: 0,
+            fg_seconds: 0.0,
+            fg_ticks: 0,
+            max_stack_depth: 0,
+            dump_interval: None,
+            gc_interval: None,
+            max_task_retries: DEFAULT_MAX_TASK_RETRIES,
+            max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+        };
+        SuspendedTask {
+            enqueued_at: Timestamp::now(),
+            wake_condition: WakeCondition::Never,
+            task: Task::new(
+                task_id,
+                SYSTEM_OBJECT,
+                SYSTEM_OBJECT,
+                TaskStart::StartEval {
+                    player: SYSTEM_OBJECT,
+                    program: Default::default(),
+                    initial_env: None,
+                },
+                &server_options,
+                Arc::new(AtomicBool::new(false)),
+            ),
+            session: Arc::new(NoopClientSession::new()),
+            result_sender: None,
+            timer_generation: 0,
+        }
+    }
+
+    #[test]
+    fn restored_task_ids_advance_allocator() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let tasks = vec![suspended_task(4), suspended_task(81)];
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(LoadedTasksDb(Mutex::new(Some(tasks)))),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        {
+            let lifecycle = scheduler.lifecycle.lock();
+            assert_eq!(lifecycle.next_task_id, 82);
+            assert!(lifecycle.task_q.suspended.tasks.contains_key(&4));
+            assert!(lifecycle.task_q.suspended.tasks.contains_key(&81));
+        }
+
+        scheduler.stop(None).expect("scheduler should stop");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
     }
 
     fn insert_active_task(
