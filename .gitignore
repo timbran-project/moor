@@ -59,8 +59,6 @@ certs/
 # Cowbell core (managed by cores/fetch-cowbell.sh)
 cores/cowbell/
 
-# Meadow web client (managed by clients/fetch-meadow.sh)
-clients/meadow/
 clients/moor-web-mcp/*.local.yaml
 clients/moor-web-mcp/*.local.json
 

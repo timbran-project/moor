@@ -37,8 +37,7 @@ This configuration runs:
 
 ### Using Pre-built Images (Recommended)
 
-The `docker-compose.yml` is configured to use pre-built Docker images from the Codeberg container
-registry:
+The `docker-compose.yml` is configured to use pre-built images from GitHub Container Registry:
 
 1. **Copy this directory** to your deployment location:
    ```bash
@@ -64,8 +63,8 @@ If you prefer to build images locally on your machine:
 3. Ensure you're in the mooR source directory (parent of `deploy/`)
 4. Run: `./start.sh`
 
-Note: Both backend and frontend images are pre-built and available from Codeberg. Local builds are
-only necessary if you're developing or need to customize the deployment.
+The backend image includes the compiled Meadow assets. Local builds are only necessary when
+developing or customizing the deployment.
 
 ### For ARM64 Systems
 
@@ -327,6 +326,6 @@ To upgrade to a newer version of mooR:
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

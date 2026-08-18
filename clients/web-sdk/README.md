@@ -14,10 +14,10 @@ It provides TypesScript bindings to call the moor-web-host API.
 - WebSocket attach/reattach protocol helpers
 - FlatBuffer decoding/encoding helpers
 
-## Publishing
+## Building
 
-This package is published to the Codeberg npm registry under the `@moor` scope, following the same
-release pattern used by `@moor/schema`.
+This package is installed from the root npm workspace and is not fetched from an external package
+registry. Run `npm run web-sdk:build` from the repository root.
 
 ## License
 

@@ -25,7 +25,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Add an `export DIRECTORY` command that writes a complete database snapshot as objdef files and
   only moves the output from its `.in-progress` path after the export succeeds.
 
+`frontend`:
+
+- Include the Meadow web client in the mooR source tree and build it with the schema and web SDK
+  from a single npm workspace, without fetching packages from the former Codeberg repositories.
+
+`deployment`:
+
+- Use GitHub and the GitHub Container Registry for source, release, Cowbell, and container image
+  references.
+
 ### Fixed
+
+`build`:
+
+- Make frontend Docker builds self-contained and portable across x86-64 and ARM64 hosts.
+- Restore the required unsafe blocks around x86 CPUID intrinsics for Rust 1.92.
 
 `kernel`:
 

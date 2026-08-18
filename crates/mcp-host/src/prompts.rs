@@ -265,7 +265,7 @@ Use the `moo_function_help` tool to get documentation for any builtin function.
 ## Reference
 
 - Full grammar: https://raw.githubusercontent.com/rdaum/moor/refs/heads/main/crates/compiler/src/moo.pest
-- Documentation: https://timbran.codeberg.page/moor-book-html/
+- Documentation: https://timbran.org/book/html/
 "#;
 
 const MOO_OBJECT_MODEL_PROMPT: &str = r#"# MOO Object Model Reference

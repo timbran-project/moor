@@ -139,6 +139,7 @@ services:
   moor-frontend:
     build:
       context: .
+      dockerfile: clients/meadow/Dockerfile
       target: frontend
       network: host
     container_name: "moor-frontend"

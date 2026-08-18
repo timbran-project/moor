@@ -14,13 +14,15 @@ enhancements.
 
 📖 **For documentation, see our [mooR Book](https://timbran.org/book/html/).**
 
-> **mooR 1.0.0:** mooR has reached its first stable 1.0 release. Stable releases live on the `1.0`
-> release branch and in the Releases tab / published images. If you are reading `main`, you are
-> looking at next-version development work. See the [Status](#status) section below for details.
-
-> **📦 Repository Migration Notice (August 2025):** We've recently moved our primary repository from
-> GitHub to [Codeberg](https://codeberg.org/timbran/moor). If you're viewing this on GitHub, please
-> consider switching to Codeberg for the latest updates, issue tracking, and contributions.
+> **Which version should I use?**
+>
+> Use the stable [`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2), the
+> `v1.0-release` branch, or the published
+> [`ghcr.io/timbran-project/moor:1.0.2`](https://github.com/orgs/timbran-project/packages/container/package/moor)
+> image for running worlds and evaluating mooR. `main` tracks next-version development work.
+>
+> Development, issues, releases, and pull requests are hosted in the
+> [`timbran-project/moor`](https://github.com/timbran-project/moor) GitHub repository.
 
 ## What is a MOO? And Why?
 
@@ -82,21 +84,20 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR is in the **1.0 stable** series. The core runtime and database formats are stable for this
-release line, and it successfully runs databases imported from LambdaMOO with real-world workloads
-and extensive stress and performance testing.
+mooR [`1.0.2`](https://github.com/timbran-project/moor/releases/tag/1.0.2) is the current stable
+release. The core runtime and database formats are stable for the 1.0 series.
 
 **Release branch policy**:
 
 - `main` branch: next-version development (new features land here first)
-- `1.0` branch: stable release line (bug fixes, stability improvements, documentation)
-- Bug fixes land on `main` first, then are cherry-picked to `1.0` when safe
-- Stable tags are cut from the `1.0` branch; releases and images publish from there
+- `v1.0-release` branch: stable release line for bug fixes, stability work, and documentation
+- Bug fixes land on `main` first, then are cherry-picked to `v1.0-release` when safe
+- Stable tags, packages, and images are published from `v1.0-release`
 - Database formats and APIs are stable for the 1.0 series
 
-**Repository**: The primary mooR repository is hosted on
-[Codeberg](https://codeberg.org/timbran/moor) with a mirror on GitHub. All issues filed and pull
-requests submitted need to come through Codeberg, and not GitHub.
+**Repository**: The primary mooR repository is
+[github.com/timbran-project/moor](https://github.com/timbran-project/moor). File issues and submit
+pull requests on GitHub.
 
 ## Quick Start
 
@@ -169,7 +170,7 @@ npm run full:dev
 This starts the moor-daemon and web development server, accessible at
 [http://localhost:3000](http://localhost:3000). This setup excludes telnet and provides
 hot-reloading for frontend development, but it requires installing some dependencies. See
-[the Meadow repository](https://codeberg.org/timbran/meadow) for details.
+[the in-tree Meadow documentation](clients/meadow/README.md) for details.
 
 ## Deployment Options
 
@@ -222,8 +223,8 @@ The `deploy/` directory contains a series of production-ready configuration exam
 All production configurations use IPC for single-machine deployments and include automated testing
 scripts. See each deployment's README for specific setup instructions. If you run into problems with
 these scripts, please file an issue on our
-[Codeberg issue tracker](https://codeberg.org/timbran/moor/issues) as they may fall out of date with
-the latest changes.
+[GitHub issue tracker](https://github.com/timbran-project/moor/issues) as they may fall out of date
+with the latest changes.
 
 For testing the current state of these deployment scenarios:
 
@@ -258,7 +259,7 @@ mooR offers several opportunities for contribution. For detailed contribution gu
 
 ### Getting Involved
 
-- **Issues**: Check our [Codeberg Issues](https://codeberg.org/timbran/moor/issues) for current
+- **Issues**: Check our [GitHub Issues](https://github.com/timbran-project/moor/issues) for current
   needs
 - **Discussion**: Join our [Discord](https://discord.gg/Ec94y5983z) community
 - **Experience**: Visit the [Timbran Hotel](https://moo.timbran.org) and explore and code
@@ -269,7 +270,7 @@ mooR offers several opportunities for contribution. For detailed contribution gu
 ## Bug Reports
 
 Found a bug or have a feature request? Please file an issue on our
-[Codeberg issue tracker](https://codeberg.org/timbran/moor/issues). Bug reports from `main` are
+[GitHub issue tracker](https://github.com/timbran-project/moor/issues). Bug reports from `main` are
 welcome, but if you're looking for stability, use the `1.0` release branch.
 
 When reporting bugs, please include:

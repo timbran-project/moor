@@ -4,12 +4,7 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
-    "paths": {
-      "@moor/schema/*": [
-        "../../crates/schema/schema/*"
-      ]
-    },
+    "rootDir": "src",
     "strict": true,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,

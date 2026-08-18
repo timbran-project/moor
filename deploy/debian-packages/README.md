@@ -98,58 +98,30 @@ The `--no-build` flag uses the existing release binaries. Omit it to rebuild fro
 
 #### Web Client Package
 
-Meadow is managed in a [separate repository](https://codeberg.org/timbran/meadow). To build its
-Debian package:
+Meadow is maintained under `clients/meadow/`. To build its Debian package from the repository root:
 
 ```bash
-cd ../meadow
-npm install
-npm run build:deb
+npm ci
+npm run meadow:build:deb
 ```
 
 ## Installing Packages
 
-### Option 1: Install from APT Repository (Recommended)
+### Option 1: Install from Release Downloads
 
-The easiest way to install mooR is from the Codeberg package repository:
-
-```bash
-# Add the repository signing key
-sudo curl https://codeberg.org/api/packages/timbran/debian/repository.key \
-    -o /etc/apt/keyrings/timbran-moor.asc
-
-# Add the repository (for Debian Bookworm / Ubuntu 22.04+)
-echo "deb [signed-by=/etc/apt/keyrings/timbran-moor.asc] https://codeberg.org/api/packages/timbran/debian bookworm main" \
-    | sudo tee /etc/apt/sources.list.d/moor.list
-
-# Update and install
-sudo apt update
-sudo apt install moor-daemon moor-telnet-host moor-web-host meadow
-```
-
-This handles dependencies automatically and makes future upgrades simple with `apt upgrade`.
-
-### Option 2: Install from Release Downloads
-
-Download `.deb` packages from the [releases page](https://codeberg.org/timbran/moor/releases) and
-install manually:
+Download `.deb` packages from the [releases page](https://github.com/timbran-project/moor/releases)
+and select the files for your system architecture. Install them with `apt` so distribution
+dependencies are resolved:
 
 ```bash
-# 1. Install daemon first (core service)
-sudo dpkg -i moor-daemon_*.deb
-
-# 2. Install hosts (depend on daemon being installed)
-sudo dpkg -i moor-telnet-host_*.deb
-sudo dpkg -i moor-web-host_*.deb
-
-# 3. Install web client (optional, needs nginx or similar)
-sudo dpkg -i meadow_*.deb
-
-# Fix any missing dependencies
-sudo apt-get install -f
+sudo apt install \
+    ./moor-daemon_*.deb \
+    ./moor-telnet-host_*.deb \
+    ./moor-web-host_*.deb \
+    ./moor-curl-worker_*.deb
 ```
 
-### Option 3: Install Locally-Built Packages
+### Option 2: Install Locally-Built Packages
 
 If you built packages yourself (see Building Packages above):
 
@@ -660,6 +632,6 @@ Or use the binaries directly from the `target/release/` directory after `cargo b
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

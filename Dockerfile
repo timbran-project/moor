@@ -1,14 +1,18 @@
 # Frontend build stage
 FROM node:20-bookworm AS frontend-build
 WORKDIR /moor-frontend
-RUN apt update && apt -y install git flatbuffers-compiler
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends flatbuffers-compiler git && \
+    rm -rf /var/lib/apt/lists/*
 COPY ./.git ./.git
+RUN mkdir -p .git/objects
 COPY package.json package-lock.json* ./
-COPY clients/ ./clients/
+COPY clients/meadow/ ./clients/meadow/
+COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
+COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
-RUN rm -rf clients/meadow/.git
 RUN npm ci
-RUN npm run build --prefix clients/meadow
+RUN npm run web:build
 
 # Backend build stage
 FROM rust:1.92-bookworm AS backend-build

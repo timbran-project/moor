@@ -4,20 +4,21 @@
 # Multi-stage build: Frontend build stage
 FROM node:20-bookworm AS frontend-build
 WORKDIR /moor-frontend
-# Install git for git hash lookup during build and local package resolution
-RUN apt update && apt -y install git flatbuffers-compiler
+# Install the schema compiler used by the npm FlatBuffers runtime
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends flatbuffers-compiler git && \
+    rm -rf /var/lib/apt/lists/*
 # Copy .git directory so vite can get the git hash
 COPY ./.git ./.git
-# Copy root package files; postinstall will find meadow already present and pack local deps
+RUN mkdir -p .git/objects
+# Copy the root workspace and local web packages
 COPY package.json package-lock.json* ./
-# Copy the web client and its local dependencies
-COPY clients/ ./clients/
+COPY clients/meadow/ ./clients/meadow/
+COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
+COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
-# Remove meadow's .git so fetch-meadow.sh (postinstall) treats it as non-repo and skips updates
-RUN rm -rf clients/meadow/.git
 RUN npm ci
-# Build the meadow web client
-RUN npm run build --prefix clients/meadow
+RUN npm run web:build
 
 # Backend build stage - runs on native x86_64 platform
 FROM rust:1.92-bookworm AS backend-build
@@ -106,7 +107,7 @@ EXPOSE 8080
 # nginx-based frontend image
 FROM --platform=linux/arm64 nginx:alpine AS frontend
 COPY --from=frontend-build /moor-frontend/clients/meadow/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY clients/meadow/nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80
 
 # Default stage
