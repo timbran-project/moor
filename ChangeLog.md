@@ -34,6 +34,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Use GitHub and the GitHub Container Registry for source, release, Cowbell, and container image
   references.
+- Add GitHub Actions validation for Rust, web workspaces, deployment manifests, Meadow packaging,
+  Cowbell, license headers, and Elle consistency histories.
 
 ### Fixed
 
