@@ -24,10 +24,9 @@ pub(crate) fn extract_anonymous_refs(var: &Var, refs: &mut HashSet<Obj>) {
 /// Recursively extract anonymous object references from a Var
 fn extract_anonymous_refs_recursive(var: &Var, refs: &mut HashSet<Obj>) {
     match var.variant() {
-        moor_var::Variant::Obj(obj)
-            if obj.is_anonymous() => {
-                refs.insert(obj);
-            }
+        moor_var::Variant::Obj(obj) if obj.is_anonymous() => {
+            refs.insert(obj);
+        }
         moor_var::Variant::List(list) => {
             for item in list.iter() {
                 extract_anonymous_refs_recursive(&item, refs);

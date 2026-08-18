@@ -161,10 +161,8 @@ pub fn collect_object(
     }
 
     // Alphabetize properties. Verbs should remain in their original order.
-    od.property_definitions
-        .sort_by_key(|a| a.name.as_arc_str());
-    od.property_overrides
-        .sort_by_key(|a| a.name.as_arc_str());
+    od.property_definitions.sort_by_key(|a| a.name.as_arc_str());
+    od.property_overrides.sort_by_key(|a| a.name.as_arc_str());
     Ok((num_verbdefs, num_propdefs, num_propoverrides, od))
 }
 

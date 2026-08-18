@@ -17,30 +17,34 @@ set -e
 # Build script for moor-web-client debian package
 # This script creates a debian package containing the built web client static files
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 VERSION="1.0.0~beta1-1"
 PACKAGE_NAME="moor-web-client"
 BUILD_DIR="debian-pkg-web-client"
+OUTPUT_DIR="$REPO_ROOT/target/debian"
 
 echo "Building ${PACKAGE_NAME} ${VERSION}..."
 
 # Clean up any previous build
-rm -rf ${BUILD_DIR}
-rm -f ${PACKAGE_NAME}_${VERSION}_all.deb
+rm -rf "$BUILD_DIR"
+rm -f "$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
 
 # Create package directory structure
-mkdir -p ${BUILD_DIR}/DEBIAN
-mkdir -p ${BUILD_DIR}/usr/share/moor/web-client
-mkdir -p ${BUILD_DIR}/usr/share/doc/${PACKAGE_NAME}
+mkdir -p "$BUILD_DIR/DEBIAN"
+mkdir -p "$BUILD_DIR/usr/share/moor/web-client"
+mkdir -p "$BUILD_DIR/usr/share/doc/$PACKAGE_NAME"
+mkdir -p "$OUTPUT_DIR"
 
 # Copy built web client files
 echo "Copying web client files from dist/..."
-cp -r dist/* ${BUILD_DIR}/usr/share/moor/web-client/
+cp -r dist/. "$BUILD_DIR/usr/share/moor/web-client/"
 
 # Copy documentation
-cp deploy/debian-packages/nginx-for-debian.conf ${BUILD_DIR}/usr/share/doc/${PACKAGE_NAME}/
+cp deploy/debian-packages/nginx-for-debian.conf "$BUILD_DIR/usr/share/doc/$PACKAGE_NAME/"
 
 # Create control file
-cat > ${BUILD_DIR}/DEBIAN/control <<EOF
+cat > "$BUILD_DIR/DEBIAN/control" <<EOF
 Package: ${PACKAGE_NAME}
 Version: ${VERSION}
 Architecture: all
@@ -56,7 +60,7 @@ EOF
 
 # Build the package
 echo "Building debian package..."
-dpkg-deb --root-owner-group --build ${BUILD_DIR} target/debian/${PACKAGE_NAME}_${VERSION}_all.deb
+dpkg-deb --root-owner-group --build "$BUILD_DIR" "$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
 
 # Sign the package if GPG_KEY_ID is set
 if [ -n "$GPG_KEY_ID" ]; then
@@ -66,13 +70,13 @@ if [ -n "$GPG_KEY_ID" ]; then
     echo "Installing dpkg-sig..."
     apt-get update && apt-get install -y dpkg-sig
   fi
-  dpkg-sig --sign builder -k "$GPG_KEY_ID" target/debian/${PACKAGE_NAME}_${VERSION}_all.deb
+  dpkg-sig --sign builder -k "$GPG_KEY_ID" "$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
   echo "Package signed successfully"
 else
   echo "No GPG_KEY_ID set, skipping package signing"
 fi
 
-echo "Package built successfully: target/debian/${PACKAGE_NAME}_${VERSION}_all.deb"
+echo "Package built successfully: $OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
 
 # Clean up
-rm -rf ${BUILD_DIR}
+rm -rf "$BUILD_DIR"
