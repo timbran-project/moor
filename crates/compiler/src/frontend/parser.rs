@@ -38,6 +38,8 @@ struct Parser<'a> {
     builder: CstBuilder,
     emitted: usize,
     expr_stops: Vec<SyntaxKind>,
+    flyweight_depth: usize,
+    pending_flyweight_closers: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -49,6 +51,8 @@ impl<'a> Parser<'a> {
             builder: CstBuilder::new(),
             emitted: 0,
             expr_stops: Vec::new(),
+            flyweight_depth: 0,
+            pending_flyweight_closers: 0,
         }
     }
 
@@ -809,6 +813,7 @@ impl<'a> Parser<'a> {
         let checkpoint = self.builder.checkpoint();
         self.builder
             .start_node_at(checkpoint, SyntaxKind::FlyweightExpr);
+        self.flyweight_depth += 1;
         self.bump_significant();
 
         if self.starts_expr() {
@@ -819,7 +824,7 @@ impl<'a> Parser<'a> {
             self.consume_error_node_until(&[SyntaxKind::Comma, SyntaxKind::Gt]);
         }
 
-        while self.cursor.bump_if(SyntaxKind::Comma) {
+        while self.pending_flyweight_closers == 0 && self.cursor.bump_if(SyntaxKind::Comma) {
             self.emit_to_cursor();
             if self.cursor.at(SyntaxKind::Dot) {
                 self.bump_significant();
@@ -844,8 +849,44 @@ impl<'a> Parser<'a> {
             break;
         }
 
-        self.expect_and_emit(SyntaxKind::Gt, "expected '>'");
+        self.consume_flyweight_close();
+        self.flyweight_depth -= 1;
         self.builder.finish_node();
+    }
+
+    fn consume_flyweight_close(&mut self) {
+        if self.pending_flyweight_closers > 0 {
+            self.builder.token(SyntaxKind::Gt, ">");
+            self.pending_flyweight_closers -= 1;
+            return;
+        }
+
+        if self.cursor.at(SyntaxKind::Gt) {
+            self.bump_significant();
+            return;
+        }
+        let Some(closer_count) = self.packed_flyweight_closer_count() else {
+            self.cursor.push_error("expected '>'");
+            return;
+        };
+
+        self.emit_until(self.cursor.current_raw_index());
+        let _ = self.cursor.bump();
+        self.emitted = self.cursor.raw_index();
+        self.builder.token(SyntaxKind::Gt, ">");
+        self.pending_flyweight_closers = closer_count - 1;
+    }
+
+    fn packed_flyweight_closer_count(&self) -> Option<usize> {
+        let closer_count = match self.cursor.current_kind() {
+            SyntaxKind::Shr => 2,
+            SyntaxKind::LShr => 3,
+            _ => return None,
+        };
+        if closer_count > self.flyweight_depth || is_expr_start(self.cursor.nth_kind(1)) {
+            return None;
+        }
+        Some(closer_count)
     }
 
     fn parse_try_expr(&mut self) {
@@ -1053,7 +1094,7 @@ impl<'a> Parser<'a> {
     }
 
     fn postfix_kind(&self) -> Option<PostfixOp> {
-        if self.expr_stops.contains(&self.cursor.current_kind()) {
+        if self.at_expr_stop() {
             return None;
         }
         match self.cursor.current_kind() {
@@ -1066,7 +1107,7 @@ impl<'a> Parser<'a> {
     }
 
     fn infix_binding_power(&self) -> Option<(u8, u8, SyntaxKind, InfixOp)> {
-        if self.expr_stops.contains(&self.cursor.current_kind()) {
+        if self.at_expr_stop() {
             return None;
         }
         match self.cursor.current_kind() {
@@ -1096,6 +1137,19 @@ impl<'a> Parser<'a> {
             SyntaxKind::Caret => Some((11, 11, SyntaxKind::BinExpr, InfixOp::Binary)),
             _ => None,
         }
+    }
+
+    fn at_expr_stop(&self) -> bool {
+        if self.pending_flyweight_closers > 0 {
+            return self.expr_stops.contains(&SyntaxKind::Gt);
+        }
+
+        let kind = self.cursor.current_kind();
+        if self.expr_stops.contains(&kind) {
+            return true;
+        }
+
+        self.expr_stops.contains(&SyntaxKind::Gt) && self.packed_flyweight_closer_count().is_some()
     }
 
     fn parse_call_arg_list(&mut self) {

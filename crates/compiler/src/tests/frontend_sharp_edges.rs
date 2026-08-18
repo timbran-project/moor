@@ -13,7 +13,10 @@
 
 use moor_common::model::CompileError;
 
-use crate::{CompileOptions, ast::render_parse_shape, parse_program_frontend, unparse};
+use crate::{
+    CompileOptions, ast::render_parse_shape, frontend::parser::parse_to_syntax_node,
+    parse_program_frontend, unparse,
+};
 
 fn parse_shape(source: &str) -> String {
     let parse = parse_program_frontend(source, CompileOptions::default()).unwrap();
@@ -325,6 +328,55 @@ fn preserves_flyweight_slots_and_contents() {
   )
 )"#;
     assert_eq!(shape, expected.trim());
+}
+
+#[test]
+fn preserves_nested_flyweight_closers() {
+    let shape = parse_shape("return <#230, .check = <#229, .value = q>>;");
+    let expected = r#"
+(stmts
+  (expr
+    (return
+      (flyweight
+        (value #230)
+        (slot check
+          (flyweight
+            (value #229)
+            (slot value
+              (id q)
+            )
+          )
+        )
+      )
+    )
+  )
+)"#;
+    assert_eq!(shape, expected.trim());
+
+    let source = "return <#1, .a = <#2, .b = <#3>>>;";
+    let shape = parse_shape(source);
+    assert_eq!(shape.matches("(flyweight").count(), 3);
+
+    let (root, errors) = parse_to_syntax_node(source);
+    assert!(errors.is_empty(), "{errors:?}");
+    assert_eq!(root.to_string(), source);
+}
+
+#[test]
+fn preserves_shifts_inside_flyweights() {
+    let shape = parse_shape("return <#1, .value = 16>>2>;");
+    assert!(shape.contains("(binary >>"));
+
+    let shape = parse_shape("return <#1, .value = 16>>>2>;");
+    assert!(shape.contains("(binary >>>"));
+}
+
+#[test]
+fn rejects_unmatched_packed_flyweight_closer_losslessly() {
+    let source = "return <#1>>;";
+    let (root, errors) = parse_to_syntax_node(source);
+    assert!(!errors.is_empty());
+    assert_eq!(root.to_string(), source);
 }
 
 #[test]

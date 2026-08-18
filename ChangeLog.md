@@ -187,6 +187,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   objdef compiler
 - Large objdef imports no longer stall while calculating verb source locations by repeatedly
   scanning each object file from the beginning
+- Adjacent closing delimiters on nested flyweights no longer parse as right-shift operators
 - Trailing newlines in objdef output corrected
 - Fixed duplicate declarations in compiler roundtrip proptests
 
