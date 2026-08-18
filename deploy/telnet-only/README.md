@@ -33,8 +33,7 @@ security.
 
 ### Using Pre-built Images (Recommended)
 
-The `docker-compose.yml` is configured to use pre-built Docker images from the Codeberg container
-registry:
+The `docker-compose.yml` is configured to use pre-built images from GitHub Container Registry:
 
 1. **Copy this directory** to your deployment location:
    ```bash
@@ -248,6 +247,6 @@ If the telnet host cannot connect to the daemon:
 
 ## Support
 
-- Issues: [Codeberg Issues](https://codeberg.org/timbran/moor/issues)
+- Issues: [GitHub Issues](https://github.com/timbran-project/moor/issues)
 - Documentation: [mooR Book](https://timbran.org/book/html/)
 - Community: [Discord](https://discord.gg/Ec94y5983z)

@@ -472,11 +472,6 @@ monitor logs for suspicious activity.
 - [debian-packages/build-web-client-deb.sh](debian-packages/build-web-client-deb.sh) - Build web
   client package
 
-### Other Files
-
-- [Dockerfile-forgejo-builder](Dockerfile-forgejo-builder) - CI/CD builder image (for Forgejo
-  Actions)
-
 ## Testing Deployments
 
 Automated test scripts are provided to validate that deployment configurations work correctly.
@@ -578,8 +573,9 @@ requires a real domain with valid DNS. To fully test SSL:
 ### Documentation
 
 - **mooR Book**: [https://timbran.org/book/html/](https://timbran.org/book/html/)
-- **Repository**: [https://codeberg.org/timbran/moor](https://codeberg.org/timbran/moor)
-- **Issues**: [https://codeberg.org/timbran/moor/issues](https://codeberg.org/timbran/moor/issues)
+- **Repository**: [https://github.com/timbran-project/moor](https://github.com/timbran-project/moor)
+- **Issues**:
+  [https://github.com/timbran-project/moor/issues](https://github.com/timbran-project/moor/issues)
 
 ### Community
 
@@ -602,7 +598,7 @@ Contributions to deployment configurations are welcome! Please:
 1. Test thoroughly in your environment
 2. Document prerequisites and setup steps
 3. Follow existing style and structure
-4. Submit pull requests to [Codeberg](https://codeberg.org/timbran/moor)
+4. Submit pull requests to [GitHub](https://github.com/timbran-project/moor)
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for more details.
 

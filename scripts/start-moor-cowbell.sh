@@ -49,15 +49,10 @@ if [ ! -d "cores/cowbell/src" ]; then
     ./cores/fetch-cowbell.sh
 fi
 
-# Ensure meadow is fetched and dependencies installed
-MEADOW_DIR="${MEADOW_PATH:-clients/meadow}"
-if [ ! -d "$MEADOW_DIR" ]; then
-    echo "Meadow web client not found, fetching..."
-    ./clients/fetch-meadow.sh
-fi
-if [ ! -d "$MEADOW_DIR/node_modules" ]; then
-    echo "Installing meadow dependencies..."
-    (cd "$MEADOW_DIR" && npm install)
+# Ensure web workspace dependencies are installed
+if [ ! -d "node_modules" ]; then
+    echo "Installing web workspace dependencies..."
+    npm install
 fi
 
 export USER_ID=$(id -u)

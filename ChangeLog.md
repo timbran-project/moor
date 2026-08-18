@@ -18,7 +18,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Identify the current file when an objdef import takes longer than five seconds.
 
+`frontend`:
+
+- Include the Meadow web client in the mooR source tree and build it with the schema and web SDK
+  from a single npm workspace, without fetching packages from the former Codeberg repositories.
+
+`deployment`:
+
+- Use GitHub and the GitHub Container Registry for source, release, Cowbell, and container image
+  references.
+
 ### Fixed
+
+`build`:
+
+- Make frontend Docker builds self-contained and portable across x86-64 and ARM64 hosts.
+- Restore the required unsafe blocks around x86 CPUID intrinsics for Rust 1.92.
 
 `kernel`:
 

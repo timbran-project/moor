@@ -21,7 +21,7 @@ spec:
     spec:
       initContainers:
         - name: copy-web-client
-          image: codeberg.org/timbran/moor:latest
+          image: ghcr.io/timbran-project/moor:latest
           command: ["cp", "-r", "/moor/web-client/.", "/web-client/"]
           volumeMounts:
             - name: web-client-files

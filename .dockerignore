@@ -40,7 +40,6 @@ development-export/
 *.md
 
 # CI/CD
-.forgejo/
 .github/
 
 # Testing artifacts
