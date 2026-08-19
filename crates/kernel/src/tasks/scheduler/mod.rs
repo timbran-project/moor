@@ -1042,11 +1042,35 @@ mod tests {
         });
 
         commit_entered.wait();
-        scheduler.stop(None).expect("scheduler should stop");
-        assert_eq!(scheduler.state(), SchedulerState::Stopped);
+        let (stop_done_send, stop_done_recv) = flume::bounded(1);
+        let stop_scheduler = scheduler.clone();
+        let stop = std::thread::spawn(move || {
+            let result = stop_scheduler.stop(None);
+            stop_done_send.send(result).ok();
+        });
+        let wait_started = std::time::Instant::now();
+        while scheduler.state() != SchedulerState::Stopping {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(1),
+                "scheduler did not enter stopping state"
+            );
+            std::thread::yield_now();
+        }
+        assert!(
+            stop_done_recv
+                .recv_timeout(Duration::from_millis(25))
+                .is_err(),
+            "scheduler stopped before the in-flight callback finished"
+        );
 
         release_commit.wait();
         callback.join().expect("suspend callback should exit");
+        stop_done_recv
+            .recv_timeout(Duration::from_secs(1))
+            .expect("scheduler shutdown should finish after the callback")
+            .expect("scheduler should stop");
+        stop.join().expect("shutdown thread should stop");
+        assert_eq!(scheduler.state(), SchedulerState::Stopped);
 
         let lc = scheduler.lifecycle.lock();
         assert!(!lc.task_q.active.contains_key(&task_id));
@@ -1147,14 +1171,38 @@ mod tests {
             std::thread::yield_now();
         }
 
-        scheduler.stop(None).expect("scheduler should stop");
+        let (stop_done_send, stop_done_recv) = flume::bounded(1);
+        let stop_scheduler = scheduler.clone();
+        let stop = std::thread::spawn(move || {
+            let result = stop_scheduler.stop(None);
+            stop_done_send.send(result).ok();
+        });
+        let wait_started = std::time::Instant::now();
+        while scheduler.state() != SchedulerState::Stopping {
+            assert!(
+                wait_started.elapsed() < Duration::from_secs(1),
+                "scheduler did not enter stopping state"
+            );
+            std::thread::yield_now();
+        }
+        assert!(
+            stop_done_recv
+                .recv_timeout(Duration::from_millis(25))
+                .is_err(),
+            "scheduler stopped before the in-flight callback finished"
+        );
+
+        release_commit.wait();
+        callback.join().expect("suspend callback should exit");
+        stop_done_recv
+            .recv_timeout(Duration::from_secs(1))
+            .expect("scheduler shutdown should finish after the callback")
+            .expect("scheduler should stop");
+        stop.join().expect("shutdown thread should stop");
         gc.join()
             .expect("GC sweep thread should stop")
             .expect("cancelled GC sweep should exit cleanly");
         assert!(!scheduler.lifecycle.lock().gc_sweep_in_progress);
-
-        release_commit.wait();
-        callback.join().expect("suspend callback should exit");
         assert_eq!(scheduler.handle_task_exists(task_id), None);
 
         threads

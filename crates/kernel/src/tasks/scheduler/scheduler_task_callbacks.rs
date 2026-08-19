@@ -74,6 +74,16 @@ impl Scheduler {
         // Make sure the old thread is dead.
         task.kill_switch.store(true, Ordering::SeqCst);
 
+        if lc.state != SchedulerState::Running {
+            debug!(task_id, "Discarding transaction retry during shutdown");
+            lc.task_q.remove_message_queue(task_id);
+            if lc.task_q.active.contains_key(&task_id) {
+                lc.task_q
+                    .send_task_result(task_id, Err(TaskAbortedCancelled));
+            }
+            return;
+        }
+
         // Remove from active tasks to get session/result_sender
         let Some(old_tc) = lc.task_q.active.remove(&task_id) else {
             error!(
@@ -138,25 +148,47 @@ impl Scheduler {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
 
-        warn!(?task_id, "Task cancelled");
-
-        // Extract session and player under lock.
-        let session = {
+        // Extract session and player under lock. Shutdown cancellation does not publish an
+        // "Aborted" message or commit buffered output; the shutdown notice has already been sent.
+        let (session, shutting_down) = {
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
             lc.task_q.remove_message_queue(task_id);
+            let shutting_down = lc.state != SchedulerState::Running;
 
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
-                warn!(task_id, "Task not found for abort");
+                if lc.state == SchedulerState::Running {
+                    warn!(task_id, "Task not found for abort");
+                } else {
+                    debug!(task_id, "Cancelled task already detached during shutdown");
+                }
                 return;
             };
             let session = task.session.clone();
-            let player = task.player;
-            if let Err(send_error) = session.send_system_msg(player, "Aborted.") {
-                warn!("Could not send abort message to player: {:?}", send_error);
+            if shutting_down {
+                debug!(task_id, "Task cancelled during shutdown");
+                (session, true)
+            } else {
+                warn!(task_id, "Task cancelled");
+                let player = task.player;
+                if let Err(send_error) = session.send_system_msg(player, "Aborted.") {
+                    warn!("Could not send abort message to player: {send_error:?}");
+                }
+                (session, false)
             }
-            session
         };
+
+        if shutting_down {
+            if let Err(e) = session.rollback() {
+                debug!(task_id, error = ?e, "Could not rollback cancelled session during shutdown");
+            }
+            let mut lc = self.lifecycle.lock();
+            if lc.task_q.active.contains_key(&task_id) {
+                lc.task_q
+                    .send_task_result(task_id, Err(TaskAbortedCancelled));
+            }
+            return;
+        }
 
         // Session commit (potential I/O) outside the lock.
         if session.commit().is_err() {
@@ -415,6 +447,16 @@ impl Scheduler {
         // active to suspended is performed under one lifecycle lock acquisition.
         let session = {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                debug!(task_id, "Discarding suspension request during shutdown");
+                lc.discard_pending_sends(task_id);
+                lc.task_q.remove_message_queue(task_id);
+                if lc.task_q.active.contains_key(&task_id) {
+                    lc.task_q
+                        .send_task_result(task_id, Err(TaskAbortedCancelled));
+                }
+                return;
+            }
             let Some(tc) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found for suspend request");
                 return;
@@ -436,6 +478,16 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        if lc.state != SchedulerState::Running {
+            debug!(task_id, "Cancelling suspension completed during shutdown");
+            lc.discard_pending_sends(task_id);
+            lc.task_q.remove_message_queue(task_id);
+            if lc.task_q.active.contains_key(&task_id) {
+                lc.task_q
+                    .send_task_result(task_id, Err(TaskAbortedCancelled));
+            }
+            return;
+        }
         let Some(tc) = lc.task_q.active.get(&task_id) else {
             debug!(task_id, "Task removed while suspension was committing");
             return;
@@ -537,6 +589,16 @@ impl Scheduler {
         // request. The active-to-suspended move remains atomic under the lock.
         let (session, player) = {
             let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                debug!(task_id, "Discarding input request during shutdown");
+                lc.discard_pending_sends(task_id);
+                lc.task_q.remove_message_queue(task_id);
+                if lc.task_q.active.contains_key(&task_id) {
+                    lc.task_q
+                        .send_task_result(task_id, Err(TaskAbortedCancelled));
+                }
+                return;
+            }
             let Some(tc) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found for input request");
                 return;
@@ -558,6 +620,20 @@ impl Scheduler {
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
+        {
+            let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                debug!(task_id, "Cancelling input request during shutdown");
+                lc.discard_pending_sends(task_id);
+                lc.task_q.remove_message_queue(task_id);
+                if lc.task_q.active.contains_key(&task_id) {
+                    lc.task_q
+                        .send_task_result(task_id, Err(TaskAbortedCancelled));
+                }
+                return;
+            }
+        }
+
         if session
             .request_input(player, input_request_id, metadata)
             .is_err()
@@ -568,6 +644,19 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        if lc.state != SchedulerState::Running {
+            debug!(
+                task_id,
+                "Cancelling registered input request during shutdown"
+            );
+            lc.discard_pending_sends(task_id);
+            lc.task_q.remove_message_queue(task_id);
+            if lc.task_q.active.contains_key(&task_id) {
+                lc.task_q
+                    .send_task_result(task_id, Err(TaskAbortedCancelled));
+            }
+            return;
+        }
         let Some(tc) = lc.task_q.active.get(&task_id) else {
             debug!(task_id, "Task removed while input request was registering");
             return;
@@ -710,8 +799,17 @@ impl Scheduler {
 
     pub fn handle_shutdown(&self, msg: Option<String>) {
         info!("Shutting down scheduler. Reason: {msg:?}");
-        self.stop(msg)
-            .expect("Could not shutdown scheduler cleanly");
+        let scheduler = self.clone();
+        if let Err(e) = std::thread::Builder::new()
+            .name("moor-scheduler-shutdown".to_string())
+            .spawn(move || {
+                if let Err(e) = scheduler.stop(msg) {
+                    error!(error = ?e, "Could not shutdown scheduler cleanly");
+                }
+            })
+        {
+            error!(error = ?e, "Could not start scheduler shutdown thread");
+        }
     }
 
     pub fn handle_force_input(

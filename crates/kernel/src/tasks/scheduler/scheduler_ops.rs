@@ -328,7 +328,8 @@ impl Scheduler {
 
     /// Stop the scheduler run loop.
     pub(crate) fn stop(&self, msg: Option<String>) -> Result<(), SchedulerError> {
-        // Send shutdown notification and kill all active tasks while holding the lock.
+        // Stop accepting work, notify sessions, and ask active tasks to cancel. Keep their
+        // scheduler records until their callbacks finish so shutdown can wait on real progress.
         {
             let mut lc = self.lifecycle.lock();
             if lc.state != SchedulerState::Running {
@@ -339,22 +340,43 @@ impl Scheduler {
             // Notify all live tasks of shutdown.
             for (_, task) in lc.task_q.active.iter() {
                 let _ = task.session.notify_shutdown(msg.clone());
-            }
-            warn!("Issuing clean shutdown...");
-
-            // Kill all active tasks.
-            for (_, task) in lc.task_q.active.drain() {
                 task.kill_switch.store(true, Ordering::SeqCst);
             }
+            info!(
+                active_tasks = lc.task_q.active.len(),
+                "Stopping scheduler tasks"
+            );
         }
 
-        warn!("Waiting for tasks to finish...");
-
-        // Wait for all active tasks to drain, polling with short sleeps.
-        // Tasks complete quickly once killed, so this is bounded.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
         loop {
-            let is_empty = self.lifecycle.lock().task_q.active.is_empty();
-            if is_empty {
+            let active_tasks = self.lifecycle.lock().task_q.active.len();
+            if active_tasks == 0 {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                let mut lc = self.lifecycle.lock();
+                let remaining = lc.task_q.active.len();
+                let task_ids = lc.task_q.active.keys().copied().collect::<Vec<_>>();
+                for task_id in task_ids {
+                    lc.discard_pending_sends(task_id);
+                    lc.task_q.remove_message_queue(task_id);
+                    let Some(mut task) = lc.task_q.active.remove(&task_id) else {
+                        continue;
+                    };
+                    lc.task_q.suspended.enqueue_dependents_for(task_id);
+                    if let Some(result_sender) = task.result_sender.take() {
+                        TaskQ::send_task_result_direct(
+                            task_id,
+                            Some(result_sender),
+                            Err(TaskAbortedCancelled),
+                        );
+                    }
+                }
+                warn!(
+                    remaining,
+                    "Timed out waiting for scheduler tasks; detaching them"
+                );
                 break;
             }
             std::thread::sleep(Duration::from_millis(1));
@@ -367,7 +389,7 @@ impl Scheduler {
             .shutdown(msg)
             .expect("Could not cleanly shutdown system");
 
-        warn!("All tasks finished.  Stopping scheduler.");
+        info!("Scheduler tasks stopped");
         {
             let mut lc = self.lifecycle.lock();
             lc.state = SchedulerState::Stopped;

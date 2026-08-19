@@ -29,8 +29,9 @@ use std::{
 };
 
 use crate::task_context::{
-    TransactionRenewalError, commit_current_transaction, rollback_current_transaction,
-    with_current_transaction, with_current_transaction_mut, with_new_transaction,
+    TransactionRenewalError, commit_current_transaction, has_active_task,
+    rollback_current_transaction, with_current_transaction, with_current_transaction_mut,
+    with_new_transaction,
 };
 use ahash::AHasher;
 
@@ -287,6 +288,10 @@ impl Task {
         while task.vm_host.is_running() {
             // Check kill switch.
             if task.kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
+                if has_active_task() {
+                    rollback_current_transaction()
+                        .expect("Could not rollback cancelled task transaction");
+                }
                 task_scheduler_client.abort_cancelled();
                 break;
             }

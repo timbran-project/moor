@@ -504,13 +504,16 @@ fn invoke_server_started_hook(
 pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Result<(), Report> {
     let DaemonRuntime {
         zmq_context,
-        kill_switch,
+        kill_switch: shutdown_requested,
         emergency_checkpoint,
         ready_signal,
         local_transport,
         local_runtime_sender,
         local_worker_handler_sender,
     } = runtime;
+    // External callers and signal handlers request an orderly shutdown. Components keep
+    // running until the scheduler has cancelled and drained its active tasks.
+    let kill_switch = Arc::new(AtomicBool::new(false));
     let DaemonRuntimeConfig {
         version,
         config,
@@ -904,6 +907,24 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         .start(rpc_server.clone())
         .map_err(|e| eyre!("Failed to start scheduler: {e}"))?;
 
+    let shutdown_watcher_requested = shutdown_requested.clone();
+    let shutdown_watcher_kill_switch = kill_switch.clone();
+    let shutdown_watcher_scheduler = scheduler_client.clone();
+    spawn_efficient("moor-shutdown", move || {
+        loop {
+            if shutdown_watcher_kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            if shutdown_watcher_requested.load(std::sync::atomic::Ordering::Relaxed) {
+                if let Err(e) = shutdown_watcher_scheduler.submit_shutdown("System shutting down") {
+                    error!("Failed to submit shutdown request: {e}");
+                }
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    })?;
+
     // Invoke server_started hook if it exists
     invoke_server_started_hook(&scheduler_client, &rpc_server)?;
 
@@ -930,6 +951,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
     if let Some(emergency_checkpoint) = emergency_checkpoint {
         let sigusr1_kill_switch = kill_switch.clone();
+        let sigusr1_shutdown_requested = shutdown_requested.clone();
         let sigusr1_scheduler_client = scheduler_client.clone();
         spawn_efficient("moor-sigusr1", move || {
             loop {
@@ -949,7 +971,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                             );
                         }
                     }
-                    sigusr1_kill_switch.store(true, std::sync::atomic::Ordering::SeqCst);
+                    sigusr1_shutdown_requested.store(true, std::sync::atomic::Ordering::SeqCst);
                     break;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(100));
@@ -969,8 +991,12 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     }
     warn!("RPC thread exited. Departing...");
 
-    if let Err(e) = scheduler_client.submit_shutdown("System shutting down") {
-        error!("Failed to send shutdown signal to scheduler: {}", e);
+    // A transport can also stop independently of an external shutdown request. In that
+    // case the scheduler is still running and must be stopped before its threads are joined.
+    if scheduler_client.check_status().is_ok()
+        && let Err(e) = scheduler_client.submit_shutdown("System shutting down")
+    {
+        error!("Failed to send shutdown signal to scheduler: {e}");
     }
 
     if let Err(e) = scheduler_loop_jh.join() {
