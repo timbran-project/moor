@@ -7,6 +7,7 @@ RUN apt-get update && \
 COPY ./.git ./.git
 RUN mkdir -p .git/objects
 COPY package.json package-lock.json* ./
+COPY dprint.json ./
 COPY clients/meadow/ ./clients/meadow/
 COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
 COPY clients/web-sdk/ ./clients/web-sdk/
