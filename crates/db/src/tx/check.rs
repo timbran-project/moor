@@ -113,11 +113,7 @@ where
 
     /// Helper to create a ConflictInfo for this relation.
     fn make_conflict_info(&self, domain: &Domain, conflict_type: ConflictType) -> ConflictInfo {
-        ConflictInfo {
-            relation_name: self.relation_name,
-            domain_key: format!("{}", domain),
-            conflict_type,
-        }
+        crate::tx::make_conflict_info(self.relation_name, domain, conflict_type)
     }
 
     /// Check the forked index for conflicts with the given working set.

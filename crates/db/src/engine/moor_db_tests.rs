@@ -19,9 +19,9 @@ mod tests {
     use crate::engine::moor_db::MoorDB;
     use moor_common::{
         model::{
-            CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind, ObjectQuery,
-            ObjectRef, PropAttrs, PropFlag, TaskPermissions, ValSet, VerbArgsSpec, VerbAttrs,
-            VerbFlag, WorldStateError,
+            CommitResult, ConflictTarget, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind,
+            ObjectQuery, ObjectRef, PropAttrs, PropFlag, TaskPermissions, ValSet, VerbArgsSpec,
+            VerbAttrs, VerbFlag, WorldStateError,
         },
         util::BitEnum,
     };
@@ -2612,10 +2612,21 @@ mod tests {
         assert!(matches!(tx2.commit(), Ok(CommitResult::Success { .. })));
 
         // Second commit should fail due to conflict
+        let CommitResult::ConflictRetry {
+            conflict_info: Some(conflict_info),
+        } = tx3.commit().unwrap()
+        else {
+            panic!("expected property conflict details");
+        };
         assert!(matches!(
-            tx3.commit().unwrap(),
-            CommitResult::ConflictRetry { .. }
+            &conflict_info.target,
+            Some(ConflictTarget::Property {
+                object,
+                uuid,
+                name: Some(name),
+            }) if *object == obj && *uuid == prop_uuid && *name == Symbol::mk("test")
         ));
+        assert!(conflict_info.to_string().contains(&format!("{obj}.test")));
 
         // Verify final value
         let tx4 = db.start_transaction();

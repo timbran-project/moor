@@ -210,7 +210,40 @@ pub struct Tx {
     pub snapshot_version: u64,
 }
 
-pub use moor_common::model::{ConflictInfo, ConflictType};
+pub use moor_common::model::{ConflictInfo, ConflictTarget, ConflictType};
+
+/// Build conflict metadata while retaining structured information for known key types.
+pub(crate) fn make_conflict_info<Domain: RelationDomain>(
+    relation_name: moor_var::Symbol,
+    domain: &Domain,
+    conflict_type: ConflictType,
+) -> ConflictInfo {
+    use std::any::Any;
+
+    let any_domain = domain as &dyn Any;
+    let relation = relation_name.as_string();
+    let target = if matches!(relation.as_str(), "object_propvalues" | "object_propflags") {
+        any_domain
+            .downcast_ref::<crate::model::ObjAndUUIDHolder>()
+            .map(|holder| ConflictTarget::Property {
+                object: holder.obj(),
+                uuid: holder.uuid(),
+                name: None,
+            })
+    } else {
+        any_domain
+            .downcast_ref::<moor_var::Obj>()
+            .copied()
+            .map(ConflictTarget::Object)
+    };
+
+    ConflictInfo {
+        relation_name,
+        domain_key: format!("{domain}"),
+        target,
+        conflict_type,
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {

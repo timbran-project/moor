@@ -194,6 +194,7 @@ mod tests {
             info: ConflictInfo {
                 relation_name: "test".into(),
                 domain_key: "k1".to_string(),
+                target: None,
                 conflict_type: ConflictType::ConcurrentWrite,
             },
             domain: TestDomain(1),
@@ -218,6 +219,7 @@ mod tests {
             info: ConflictInfo {
                 relation_name: "test".into(),
                 domain_key: "k1".to_string(),
+                target: None,
                 conflict_type: ConflictType::ConcurrentWrite,
             },
             domain: TestDomain(1),
@@ -245,6 +247,7 @@ mod tests {
             info: ConflictInfo {
                 relation_name: "test".into(),
                 domain_key: "k1".to_string(),
+                target: None,
                 conflict_type: ConflictType::ConcurrentWrite,
             },
             domain: TestDomain(1),

@@ -43,8 +43,22 @@ mod verbdef;
 mod verbs;
 mod world_state;
 
-use moor_var::Symbol;
+use moor_var::{Obj, Symbol};
+use uuid::Uuid;
 pub use world_state::{WorldStateCountOp, WorldStateError, WorldStatePerf, WorldStateTimerOp};
+
+/// Domain-specific target associated with a transaction conflict.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ConflictTarget {
+    /// A relation keyed directly by an object.
+    Object(Obj),
+    /// A property value or permissions tuple.
+    Property {
+        object: Obj,
+        uuid: Uuid,
+        name: Option<Symbol>,
+    },
+}
 
 /// Information about a transaction conflict.
 /// Used to help diagnose which relation and key caused a commit conflict.
@@ -54,6 +68,8 @@ pub struct ConflictInfo {
     pub relation_name: Symbol,
     /// A string representation of the domain key that caused the conflict
     pub domain_key: String,
+    /// Structured target information when the relation key has a known meaning.
+    pub target: Option<ConflictTarget>,
     /// Description of the conflict type
     pub conflict_type: ConflictType,
 }
@@ -84,6 +100,23 @@ impl std::fmt::Display for ConflictType {
 
 impl std::fmt::Display for ConflictInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ConflictTarget::Property {
+            object,
+            uuid,
+            name: Some(name),
+        }) = &self.target
+        {
+            return write!(
+                f,
+                "conflict in relation '{}' on property '{}.{}' (uuid {}, {})",
+                self.relation_name,
+                object,
+                name.as_string(),
+                uuid,
+                self.conflict_type
+            );
+        }
+
         write!(
             f,
             "conflict in relation '{}' on key '{}' ({})",

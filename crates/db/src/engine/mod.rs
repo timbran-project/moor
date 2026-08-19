@@ -28,3 +28,5 @@ mod ws_transaction;
 
 pub(crate) use moor_db::MoorDB;
 pub use moor_db::SEQUENCE_MAX_OBJECT;
+#[cfg(test)]
+pub(crate) use relation_defs::relation_key_unchanged;

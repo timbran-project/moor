@@ -429,6 +429,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::relation_key_unchanged;
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct TestDomain(u64);
@@ -441,6 +442,43 @@ mod tests {
     #[derive(Clone, PartialEq, Eq, Hash, Debug)]
     struct TestCodomain(u64);
     impl RelationCodomain for TestCodomain {}
+
+    fn fully_loaded_index() -> HashRelationIndex<TestDomain, TestCodomain> {
+        let mut index = HashRelationIndex::new();
+        index.set_provider_fully_loaded(true);
+        index
+    }
+
+    #[test]
+    fn exact_rebase_key_check_uses_timestamp_and_existence() {
+        let key = TestDomain(1);
+        let unrelated = TestDomain(2);
+        let value = TestCodomain(100);
+
+        let mut checked = fully_loaded_index();
+        checked.insert_entry(Timestamp(10), key.clone(), value.clone());
+
+        let mut winner = checked.clone();
+        winner.insert_entry(Timestamp(11), unrelated, TestCodomain(200));
+        assert!(relation_key_unchanged(&checked, &winner, &key));
+
+        winner.insert_entry(Timestamp(12), key.clone(), value);
+        assert!(!relation_key_unchanged(&checked, &winner, &key));
+
+        let missing = TestDomain(3);
+        assert!(relation_key_unchanged(&checked, &winner, &missing));
+        winner.insert_entry(Timestamp(13), missing.clone(), TestCodomain(300));
+        assert!(!relation_key_unchanged(&checked, &winner, &missing));
+    }
+
+    #[test]
+    fn exact_rebase_key_check_requires_authoritative_indexes() {
+        let key = TestDomain(1);
+        let checked = HashRelationIndex::<TestDomain, TestCodomain>::new();
+        let winner = fully_loaded_index();
+
+        assert!(!relation_key_unchanged(&checked, &winner, &key));
+    }
 
     #[test]
     fn test_basic_hash_relation_index() {

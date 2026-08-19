@@ -53,8 +53,9 @@ use crate::{
 use moor_common::tasks::AbortLimitReason;
 use moor_common::{
     model::{
-        CommitResult, DispatchFlagsSource, ObjFlag, ResolvedVerb, TaskPermissions, VerbDispatch,
-        VerbLookup, WorldState, WorldStateError, command_verb_argspec,
+        CommitResult, ConflictInfo, ConflictTarget, DispatchFlagsSource, ObjFlag, ResolvedVerb,
+        TaskPermissions, VerbDispatch, VerbLookup, WorldState, WorldStateError,
+        command_verb_argspec,
     },
     tasks::{CommandError, CommandError::PermissionDenied, Exception, TaskId},
     util::{BitEnum, Instant, parse_into_words},
@@ -312,6 +313,92 @@ impl Task {
         self.retry_state = snapshot;
     }
 
+    fn conflict_task_origin(&self) -> String {
+        match self.state.task_start() {
+            TaskStart::StartCommandVerb {
+                player, command, ..
+            } => format!("command {command:?} by {player}"),
+            TaskStart::StartDoCommand {
+                player, command, ..
+            } => format!("do_command {command:?} by {player}"),
+            TaskStart::StartVerb { vloc, verb, .. } => {
+                format!("verb {}:{verb}", to_literal(vloc))
+            }
+            TaskStart::StartFork { fork_request, .. } => format!(
+                "fork {}:{} (parent {})",
+                to_literal(&fork_request.activation.this),
+                fork_request.activation.verb_name,
+                fork_request.parent_task_id
+            ),
+            TaskStart::StartEval { player, .. } => format!("eval by {player}"),
+            TaskStart::StartExceptionHandler { player, .. } => {
+                format!("exception handler for {player}")
+            }
+            TaskStart::StartBatchWorldState {
+                player, actions, ..
+            } => format!("batch of {} actions for {player}", actions.len()),
+        }
+    }
+
+    fn log_conflict_retry(&self, boundary: &'static str, conflict_info: Option<&ConflictInfo>) {
+        let task = self.conflict_task_origin();
+        let Some(conflict_info) = conflict_info else {
+            warn!(
+                task_id = self.task_id,
+                retry = self.retries,
+                %task,
+                boundary,
+                "Transaction conflict without key details; retrying task"
+            );
+            return;
+        };
+
+        let relation = conflict_info.relation_name;
+        let conflict_type = conflict_info.conflict_type;
+        match &conflict_info.target {
+            Some(ConflictTarget::Property {
+                object,
+                uuid,
+                name: Some(name),
+            }) => {
+                let property = format!("{object}.{}", name.as_string());
+                warn!(
+                    task_id = self.task_id,
+                    retry = self.retries,
+                    %task,
+                    boundary,
+                    type = %conflict_type,
+                    %relation,
+                    %uuid,
+                    "Transaction conflict on {property}; retrying task"
+                );
+            }
+            Some(ConflictTarget::Object(object)) => {
+                warn!(
+                    task_id = self.task_id,
+                    retry = self.retries,
+                    %task,
+                    boundary,
+                    type = %conflict_type,
+                    %relation,
+                    "Transaction conflict on {object}; retrying task"
+                );
+            }
+            _ => {
+                let key = &conflict_info.domain_key;
+                warn!(
+                    task_id = self.task_id,
+                    retry = self.retries,
+                    %task,
+                    boundary,
+                    type = %conflict_type,
+                    %relation,
+                    "Transaction conflict on {key}; retrying task"
+                );
+            }
+        }
+    }
+
     #[inline]
     fn sync_authority_from_vm(&mut self) {
         let authority_principal = self.vm_host.vm_exec_state().task_authority_principal();
@@ -427,8 +514,8 @@ impl Task {
                         }
                         Some(self)
                     }
-                    Ok((CommitResult::ConflictRetry { .. }, _)) => {
-                        warn!("Conflict during commit before fork dispatch");
+                    Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                        self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
                         session.rollback().unwrap();
                         task_scheduler_client.conflict_retry(self);
                         None
@@ -473,8 +560,11 @@ impl Task {
                             self.refresh_retry_state();
                             return Some(self);
                         }
-                        Ok((CommitResult::ConflictRetry { .. }, _)) => {
-                            warn!("Conflict during task_recv immediate resume");
+                        Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                            self.log_conflict_retry(
+                                "task_recv immediate resume",
+                                conflict_info.as_ref(),
+                            );
                             session.rollback().unwrap();
                             task_scheduler_client.conflict_retry(self);
                             return None;
@@ -516,8 +606,8 @@ impl Task {
                             self.refresh_retry_state();
                             return Some(self);
                         }
-                        Ok((CommitResult::ConflictRetry { .. }, _)) => {
-                            warn!("Conflict during immediate resume transaction");
+                        Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                            self.log_conflict_retry("immediate resume", conflict_info.as_ref());
                             session.rollback().unwrap();
                             task_scheduler_client.conflict_retry(self);
                             return None;
@@ -540,8 +630,8 @@ impl Task {
                 let commit_result = commit_current_transaction()
                     .expect("Could not commit world state before suspend");
 
-                if let CommitResult::ConflictRetry { .. } = commit_result {
-                    warn!("Conflict during commit before suspend");
+                if let CommitResult::ConflictRetry { conflict_info } = commit_result {
+                    self.log_conflict_retry("suspend", conflict_info.as_ref());
                     session.rollback().unwrap();
                     task_scheduler_client.conflict_retry(self);
                     return None;
@@ -568,8 +658,8 @@ impl Task {
                 let commit_result = commit_current_transaction()
                     .expect("Could not commit world state before suspend");
 
-                if let CommitResult::ConflictRetry { .. } = commit_result {
-                    warn!("Conflict during commit before suspend");
+                if let CommitResult::ConflictRetry { conflict_info } = commit_result {
+                    self.log_conflict_retry("input suspend", conflict_info.as_ref());
                     session.rollback().unwrap();
                     task_scheduler_client.conflict_retry(self);
                     return None;
@@ -633,10 +723,11 @@ impl Task {
                             commit_current_transaction().expect("Could not attempt commit");
 
                         let CommitResult::Success { .. } = commit_result else {
-                            error!(
-                                "Conflict during commit before exception handling, asking scheduler to retry task ({})",
-                                self.task_id
-                            );
+                            let conflict_info = match commit_result {
+                                CommitResult::ConflictRetry { conflict_info } => conflict_info,
+                                CommitResult::Success { .. } => unreachable!(),
+                            };
+                            self.log_conflict_retry("exception handling", conflict_info.as_ref());
                             session.rollback().unwrap();
                             task_scheduler_client.conflict_retry(self);
                             return None;
@@ -666,23 +757,19 @@ impl Task {
 
                 let commit_result = commit_current_transaction().expect("Could not attempt commit");
 
-                let CommitResult::Success {
-                    mutations_made,
-                    timestamp,
-                } = commit_result
-                else {
-                    warn!(
-                        "Conflict during commit before complete, asking scheduler to retry task for task_id: {}, player {}, retry # {}, task_start: {}",
-                        self.task_id,
-                        self.player,
-                        self.retries,
-                        self.state.task_start().diagnostic(),
-                    );
-                    session.rollback().unwrap();
+                let (mutations_made, timestamp) = match commit_result {
+                    CommitResult::Success {
+                        mutations_made,
+                        timestamp,
+                    } => (mutations_made, timestamp),
+                    CommitResult::ConflictRetry { conflict_info } => {
+                        self.log_conflict_retry("task completion", conflict_info.as_ref());
+                        session.rollback().unwrap();
 
-                    // Backoff is handled by the scheduler via suspension-based retry
-                    task_scheduler_client.conflict_retry(self);
-                    return None;
+                        // Backoff is handled by the scheduler via suspension-based retry
+                        task_scheduler_client.conflict_retry(self);
+                        return None;
+                    }
                 };
 
                 self.vm_host.stop();

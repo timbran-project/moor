@@ -427,3 +427,61 @@ impl Drop for MoorDB {
         info!("MoorDB shutdown complete");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::relation_defs::RebaseCheck;
+    use moor_common::{model::CommitResult, util::BitEnum};
+    use moor_var::Obj;
+
+    #[test]
+    fn rebase_check_resolves_bloom_hits_against_snapshot_keys() {
+        let db = MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let obj = Obj::mk_id(1);
+
+        let checked = db.snapshot_planes.load_root();
+        let mut ours = db.start_transaction();
+        ours.set_object_name(&obj, "ours".to_string()).unwrap();
+
+        // The same Obj key in another relation guarantees a bloom hit, but it
+        // does not overlap the object_name write.
+        let mut unrelated = db.start_transaction();
+        unrelated.set_object_flags(&obj, BitEnum::new()).unwrap();
+        assert!(matches!(
+            unrelated.commit().unwrap(),
+            CommitResult::Success { .. }
+        ));
+        let winner = db.snapshot_planes.load_root();
+
+        let ws = ours.into_working_sets().unwrap();
+        let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
+        let checkers = db.relations.begin_check_all(&checked);
+        assert_eq!(
+            checkers.rebase_check(&relation_ws, &checked, &winner),
+            RebaseCheck::ExactlyDisjoint
+        );
+
+        let checked = winner;
+        let mut ours = db.start_transaction();
+        ours.set_object_name(&obj, "ours".to_string()).unwrap();
+
+        let mut overlapping = db.start_transaction();
+        overlapping
+            .set_object_name(&obj, "theirs".to_string())
+            .unwrap();
+        assert!(matches!(
+            overlapping.commit().unwrap(),
+            CommitResult::Success { .. }
+        ));
+        let winner = db.snapshot_planes.load_root();
+
+        let ws = ours.into_working_sets().unwrap();
+        let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
+        let checkers = db.relations.begin_check_all(&checked);
+        assert!(matches!(
+            checkers.rebase_check(&relation_ws, &checked, &winner),
+            RebaseCheck::ActualOverlap(_)
+        ));
+    }
+}

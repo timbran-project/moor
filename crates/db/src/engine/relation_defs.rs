@@ -11,6 +11,38 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+/// Result of checking whether prepared writes can be rebased onto a CAS winner.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum RebaseCheck {
+    /// The cumulative bloom filter proves the write sets are disjoint.
+    BloomDisjoint,
+    /// Snapshot indexes prove the write sets are disjoint after a bloom hit.
+    ExactlyDisjoint,
+    /// At least one written key changed after the transaction was prepared.
+    ActualOverlap(moor_common::model::ConflictInfo),
+}
+
+/// Return whether a key has the same authoritative state in two relation indexes.
+pub(crate) fn relation_key_unchanged<Domain, Codomain>(
+    checked: &dyn crate::tx::RelationIndex<Domain, Codomain>,
+    winner: &dyn crate::tx::RelationIndex<Domain, Codomain>,
+    key: &Domain,
+) -> bool
+where
+    Domain: crate::tx::RelationDomain,
+    Codomain: crate::tx::RelationCodomain,
+{
+    // Snapshot indexes are normally fully loaded. If that invariant is ever
+    // relaxed, absence is not authoritative and exact rebase must fail safe.
+    if !checked.is_provider_fully_loaded() || !winner.is_provider_fully_loaded() {
+        return false;
+    }
+
+    let checked_ts = checked.index_lookup(key).map(|entry| entry.ts);
+    let winner_ts = winner.index_lookup(key).map(|entry| entry.ts);
+    checked_ts == winner_ts
+}
+
 /// Generates database relation boilerplate code.
 ///
 /// This macro takes a list of relation definitions and generates all the necessary
@@ -162,11 +194,11 @@ macro_rules! define_relations {
                                 return Err(info);
                             }
                             // For other errors, create a generic conflict info
-                            return Err(moor_common::model::ConflictInfo {
-                                relation_name: self.$field.relation_name(),
-                                domain_key: format!("<unknown>"),
-                                conflict_type: moor_common::model::ConflictType::ConcurrentWrite,
-                            });
+                            return Err($crate::tx::make_conflict_info(
+                                self.$field.relation_name(),
+                                &format!("<unknown>"),
+                                moor_common::model::ConflictType::ConcurrentWrite,
+                            ));
                         }
                     )*
                     Ok(())
@@ -241,42 +273,60 @@ macro_rules! define_relations {
                     })
                 }
 
-                /// After a CAS failure, attempt to rebase our prepared indexes onto the
-                /// winner's snapshot. Tests our working set keys against the winner's
-                /// bloom filter for key-level conflict detection.
+                /// Determine whether prepared operations can be rebased after a CAS loss.
                 ///
-                /// Returns `Some(new_snapshot)` if rebase succeeded, `None` if there's a
-                /// possible key overlap requiring full re-check.
-                fn try_rebase(
+                /// A bloom miss proves disjointness without index lookups. On a bloom hit
+                /// or unavailable coverage, compare the written keys in the snapshot that
+                /// was checked with the CAS winner. This exact fallback is read-only and
+                /// does not clone or rewrite the working set.
+                fn rebase_check(
                     &self,
                     ws: &RelationWorkingSets,
-                    checked_version: u64,
+                    checked: &std::sync::Arc<WorldStateSnapshot>,
+                    winner: &std::sync::Arc<WorldStateSnapshot>,
+                ) -> $crate::engine::relation_defs::RebaseCheck {
+                    let bloom_proves_disjoint = checked.version >= winner.bloom_since_version
+                        && winner.commit_bloom.as_ref().is_some_and(|winner_bloom| {
+                            true $(&& ws.$field.tuples_ref().keys().all(|key| {
+                                !winner_bloom.might_contain(key)
+                            }))*
+                        });
+
+                    if bloom_proves_disjoint {
+                        return $crate::engine::relation_defs::RebaseCheck::BloomDisjoint;
+                    }
+
+                    $(
+                        for key in ws.$field.tuples_ref().keys() {
+                            if !$crate::engine::relation_defs::relation_key_unchanged(
+                                &*checked.$field,
+                                &*winner.$field,
+                                key,
+                            ) {
+                                return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(
+                                    $crate::tx::make_conflict_info(
+                                        self.$field.relation_name(),
+                                        key,
+                                        moor_common::model::ConflictType::ConcurrentWrite,
+                                    ),
+                                );
+                            }
+                        }
+                    )*
+
+                    $crate::engine::relation_defs::RebaseCheck::ExactlyDisjoint
+                }
+
+                /// Rebuild prepared indexes on top of a winner proven disjoint from the
+                /// transaction's working set.
+                fn build_rebased_snapshot(
+                    &self,
+                    ws: &RelationWorkingSets,
                     winner: &std::sync::Arc<WorldStateSnapshot>,
                     committed_ts: crate::tx::Timestamp,
                     combined_caches: crate::engine::moor_db::Caches,
                     our_bloom: &crate::tx::CommitBloom,
-                ) -> Option<std::sync::Arc<WorldStateSnapshot>> {
-                    if checked_version < winner.bloom_since_version {
-                        return None;
-                    }
-
-                    // If the winner has a bloom filter, test our keys against it.
-                    // Any hit means possible key overlap — bail to full retry.
-                    if let Some(ref winner_bloom) = winner.commit_bloom {
-                        $(
-                            for key in ws.$field.tuples_ref().keys() {
-                                if winner_bloom.might_contain(key) {
-                                    return None;
-                                }
-                            }
-                        )*
-                    } else {
-                        // Winner has no bloom filter (e.g. initial snapshot).
-                        // This shouldn't happen in normal operation, but be safe.
-                        return None;
-                    }
-
-                    // No key overlap detected. Build rebased snapshot.
+                ) -> std::sync::Arc<WorldStateSnapshot> {
                     // Apply the same span guard as build_snapshot: if the winner's
                     // bloom has accumulated too many versions, reset instead of merging.
                     const MAX_BLOOM_SPAN: u64 = 32;
@@ -298,14 +348,14 @@ macro_rules! define_relations {
                         winner.caches.clone()
                     };
 
-                    Some(std::sync::Arc::new(WorldStateSnapshot {
+                    std::sync::Arc::new(WorldStateSnapshot {
                         version: winner.version + 1,
                         committed_ts: winner.committed_ts.max(committed_ts),
                         caches,
                         $( $field: self.$field.rebased_snapshot_index(&winner.$field, &ws.$field), )*
                         commit_bloom: Some(merged_bloom),
                         bloom_since_version,
-                    }))
+                    })
                 }
             }
 
