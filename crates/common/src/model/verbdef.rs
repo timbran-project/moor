@@ -201,9 +201,10 @@ impl ResolvedVerb {
 
 impl Named for VerbDef {
     fn matches_name(&self, name: Symbol) -> bool {
+        let name = name.as_str();
         self.names()
             .iter()
-            .any(|verb| verbcasecmp(&verb.as_arc_str(), &name.as_arc_str()))
+            .any(|verb| verbcasecmp(verb.as_str(), name))
     }
 
     fn names(&self) -> &[Symbol] {
