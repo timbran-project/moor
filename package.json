@@ -11,7 +11,7 @@
     "crates/schema/schema"
   ],
   "scripts": {
-    "schema:generate": "npm run generate --workspace @moor/schema",
+    "schema:generate": "npm run generate --workspace @moor/schema && dprint fmt \"crates/schema/schema/generated/**/*.ts\"",
     "web-sdk:build": "npm run build --workspace @moor/web-sdk",
     "web-mcp:build": "npm run build --workspace @moor/web-mcp",
     "web-mcp:typecheck": "npm run typecheck --workspace @moor/web-mcp",
