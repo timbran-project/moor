@@ -17,6 +17,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `objdef`:
 
 - Identify the current file when an objdef import takes longer than five seconds.
+- Report progress while collecting objects for a full objdef export and identify individual objects
+  that take longer than five seconds.
+
+`moor-emh`:
+
+- Add an `export DIRECTORY` command that writes a complete database snapshot as objdef files and
+  only moves the output from its `.in-progress` path after the export succeeds.
 
 ### Fixed
 

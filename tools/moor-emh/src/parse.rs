@@ -128,6 +128,7 @@ pub(crate) enum ReplCommand {
     Prog(String),
     List(String),
     Dump(String),
+    Export(String),
     Load(String),
     Reload(String),
     Su(String),
@@ -160,6 +161,7 @@ pub(crate) fn parse_repl_command(line: &str) -> ReplCommand {
         "prog" => ReplCommand::Prog(args),
         "list" => ReplCommand::List(args),
         "dump" => ReplCommand::Dump(args),
+        "export" => ReplCommand::Export(args),
         "load" => ReplCommand::Load(args),
         "reload" => ReplCommand::Reload(args),
         "su" => ReplCommand::Su(args),
@@ -290,6 +292,10 @@ mod tests {
         assert_eq!(
             parse_repl_command("load --file object.moo"),
             ReplCommand::Load("--file object.moo".to_string())
+        );
+        assert_eq!(
+            parse_repl_command("export recovery.moo"),
+            ReplCommand::Export("recovery.moo".to_string())
         );
     }
 
