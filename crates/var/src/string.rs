@@ -300,6 +300,21 @@ fn cmp_case_insensitive(lhs: &str, rhs: &str) -> Ordering {
     }
 }
 
+#[inline]
+pub(crate) fn cmp_case_insensitive_ascii(lhs: &str, rhs: &str) -> Ordering {
+    for (lhs_byte, rhs_byte) in lhs.bytes().zip(rhs.bytes()) {
+        match lhs_byte
+            .to_ascii_lowercase()
+            .cmp(&rhs_byte.to_ascii_lowercase())
+        {
+            Ordering::Equal => continue,
+            ordering => return ordering,
+        }
+    }
+
+    lhs.len().cmp(&rhs.len())
+}
+
 /// Unicode case-insensitive find - streaming match with a first-char filter.
 pub(crate) fn unicode_find_ci(subject: &str, needle: &str, skip_chars: usize) -> Option<usize> {
     if needle.is_empty() {
@@ -844,7 +859,7 @@ impl From<String> for Str {
 
 #[cfg(test)]
 mod tests {
-    use super::Str;
+    use super::{Str, cmp_case_insensitive, cmp_case_insensitive_ascii};
     use crate::{
         IndexMode, Sequence,
         error::ErrorCode::E_RANGE,
@@ -859,6 +874,24 @@ mod tests {
         match s.variant() {
             Variant::Str(s) => assert_eq!(s.as_str(), "hello"),
             _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_ascii_comparison_matches_unicode_comparison() {
+        let pairs = [
+            ("", ""),
+            ("A", "a"),
+            ("alpha", "BETA"),
+            ("alphabet", "ALPHA"),
+            ("same-prefix-a", "SAME-PREFIX-B"),
+        ];
+
+        for (lhs, rhs) in pairs {
+            assert_eq!(
+                cmp_case_insensitive_ascii(lhs, rhs),
+                cmp_case_insensitive(lhs, rhs)
+            );
         }
     }
 
