@@ -35,7 +35,7 @@ fertile_attr = { "fertile" ~ ":" ~ boolean}
 read_attr = { "readable" ~ ":" ~ boolean }
 write_attr = { "writeable" ~ ":" ~ boolean }
 
-verb_decl = { ^"verb" ~ verb_name ~ "(" ~ verbargspec ~ ")" ~ owner_attr ~ flags_attr ~ verb_statements  }
+verb_decl = { ^"verb" ~ verb_name? ~ "(" ~ verbargspec ~ ")" ~ owner_attr ~ flags_attr ~ verb_statements  }
 verb_statements = { statements ~ "endverb" }
 
 // A verb name for a textdump is actually more permissive than ident, since you can embed them in :("string") style dispatch

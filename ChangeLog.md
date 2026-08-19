@@ -40,10 +40,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `kernel`:
 
 - `kill_task(task_id())` now aborts the current task instead of completing successfully.
+- Make `add_verb()` and `set_verb_info()` reject empty and all-space verb names, matching LambdaMOO.
 - Advance task ID allocation past restored suspended tasks so startup hooks and forks cannot reuse
   their IDs.
 - Keep the scheduler at normal thread priority and allow transaction renewal requests up to one
   second to cross restart-time work bursts without reporting a false scheduler timeout.
+
+`objdef`:
+
+- Reject imports and checkpoint exports containing empty verb names with actionable diagnostics.
 
 ## [1.0.2] - 2026-07-22
 

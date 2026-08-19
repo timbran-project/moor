@@ -158,10 +158,16 @@ fn parse_verb_info(info: &List) -> Result<VerbAttrs, Error> {
                 }
             }
 
-            // Split the names string into a list of symbols
+            let names = names.as_str().trim_start_matches(' ');
+            if names.is_empty() {
+                return Err(
+                    E_INVARG.msg("Verb names must contain at least one non-space character")
+                );
+            }
+
             let name_strings = names
-                .as_str()
                 .split(' ')
+                .filter(|name| !name.is_empty())
                 .map(Symbol::mk)
                 .collect::<Vec<_>>();
 
@@ -914,4 +920,38 @@ pub(crate) fn register_bf_verbs(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("disassemble")] = bf_disassemble;
     builtins[offset_for_builtin("respond_to")] = bf_respond_to;
     builtins[offset_for_builtin("prepositions")] = bf_prepositions;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn verb_info(names: &str) -> Var {
+        v_list(&[v_obj(Obj::mk_id(1)), v_str("rxd"), v_str(names)])
+    }
+
+    #[test]
+    fn verb_info_rejects_empty_names() {
+        for names in ["", " ", "    "] {
+            let info = verb_info(names);
+            let error = parse_verb_info(info.as_list().unwrap()).unwrap_err();
+
+            assert_eq!(error.err_type, E_INVARG);
+            assert_eq!(
+                error.message(),
+                "Verb names must contain at least one non-space character"
+            );
+        }
+    }
+
+    #[test]
+    fn verb_info_accepts_nonempty_names_after_leading_spaces() {
+        let info = verb_info("  foo  bar");
+        let attrs = parse_verb_info(info.as_list().unwrap()).unwrap();
+
+        assert_eq!(
+            attrs.names.unwrap(),
+            vec![Symbol::mk("foo"), Symbol::mk("bar")]
+        );
+    }
 }

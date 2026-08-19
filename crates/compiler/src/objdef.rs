@@ -118,6 +118,10 @@ pub enum ObjDefParseError {
     DuplicateConstant(String, String),
     #[error("Object definition literal nesting exceeds maximum depth of {max_depth}")]
     LiteralNestingTooDeep { max_depth: usize },
+    #[error(
+        "Verb declaration at {line}:{column} has an empty name; edit the objdef and give the verb a non-empty name"
+    )]
+    EmptyVerbName { line: usize, column: usize },
 }
 
 impl ObjDefParseError {
@@ -935,8 +939,9 @@ fn compile_object_definition(
     for pair in pairs {
         match pair.as_rule() {
             Rule::verb_decl => {
+                let position = pair.line_col();
                 let inner = pair.into_inner();
-                let vd = parse_verb_decl(inner, options, context)?;
+                let vd = parse_verb_decl(inner, options, context, position)?;
                 objdef.verbs.push(vd);
             }
             Rule::prop_def => {
@@ -1071,6 +1076,7 @@ fn parse_verb_decl(
     mut pairs: Pairs<Rule>,
     compile_options: &CompileOptions,
     context: &mut ObjFileContext,
+    (line, column): (usize, usize),
 ) -> Result<ObjVerbDef, ObjDefParseError> {
     // First is the verb_names
     let mut vd = ObjVerbDef {
@@ -1081,29 +1087,31 @@ fn parse_verb_decl(
         program: ProgramType::MooR(Default::default()),
     };
 
-    let verb_names = pairs.next().unwrap();
-    let verb_names = verb_names.into_inner().next().unwrap();
+    let first_pair = pairs.next().unwrap();
+    let argspec_pair = if first_pair.as_rule() == Rule::verb_name {
+        let verb_names = first_pair.into_inner().next().unwrap();
 
-    // verb names have to be parsed as a string.
-    // And then we split on spaces.
-    match verb_names.as_rule() {
-        Rule::string => {
-            let verb_names = parse_string_literal(verb_names)?;
-            let verb_names = verb_names.split_whitespace();
-            for name in verb_names {
-                let name = Symbol::mk(name.trim());
-                vd.names.push(name);
+        // Verb names are parsed as a string and then split on spaces.
+        match verb_names.as_rule() {
+            Rule::string => {
+                let verb_names = parse_string_literal(verb_names)?;
+                for name in verb_names.split_whitespace() {
+                    vd.names.push(Symbol::mk(name.trim()));
+                }
+            }
+            _ => {
+                vd.names.push(Symbol::mk(verb_names.as_str().trim()));
             }
         }
-        _ => {
-            let verb_name = verb_names.as_str().trim();
-            let name = Symbol::mk(verb_name);
-            vd.names.push(name);
+        if vd.names.is_empty() {
+            return Err(ObjDefParseError::EmptyVerbName { line, column });
         }
-    }
+        pairs.next().unwrap()
+    } else {
+        return Err(ObjDefParseError::EmptyVerbName { line, column });
+    };
 
-    // Then the verbargpsec
-    let argspec_pair = pairs.next().unwrap();
+    // Then the verb argspec.
     match argspec_pair.as_rule() {
         Rule::verbargspec => {
             let mut inner = argspec_pair.into_inner();
@@ -1263,6 +1271,32 @@ mod tests {
         assert_eq!(odef.verbs[1].argspec.iobj, ArgSpec::This);
         assert_eq!(odef.verbs[1].owner, Obj::mk_id(2));
         assert_eq!(odef.verbs[1].flags, VerbFlag::r());
+    }
+
+    #[test]
+    fn object_rejects_empty_verb_names() {
+        for verb_name in [r#""""#, r#""   ""#, ""] {
+            let spec = format!(
+                r#"
+                    object #1
+                        owner: #1
+
+                        verb {verb_name} (any any any) owner: #1 flags: "rd"
+                            return 1;
+                        endverb
+                    endobject"#
+            );
+            let Err(error) = compile_object_definitions(
+                &spec,
+                &CompileOptions::default(),
+                &mut ObjFileContext::new(),
+            ) else {
+                panic!("empty verb name was accepted");
+            };
+
+            assert!(matches!(&error, ObjDefParseError::EmptyVerbName { .. }));
+            assert!(error.to_string().contains("give the verb a non-empty name"));
+        }
     }
 
     // Verify property definition / setting

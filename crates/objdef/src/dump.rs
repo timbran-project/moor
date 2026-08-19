@@ -44,6 +44,11 @@ pub enum ObjectDumpError {
         reason: String,
     },
 
+    #[error(
+        "Cannot dump object {obj}: verb {verb_index} has an empty name; repair it with set_verb_info({obj}, {verb_index}, ...) before retrying the checkpoint"
+    )]
+    EmptyVerbName { obj: Obj, verb_index: usize },
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -407,6 +412,10 @@ pub fn dump_object_definitions(
     object_defs: &[ObjectDefinition],
     directory_path: &Path,
 ) -> Result<(), ObjectDumpError> {
+    for object in object_defs {
+        validate_verb_names(object)?;
+    }
+
     // Extract constant names and file names
     let (index_names, file_names) = extract_object_constants(object_defs);
 
@@ -519,6 +528,8 @@ pub fn dump_object(
     index_names: &HashMap<Obj, String>,
     o: &ObjectDefinition,
 ) -> Result<Vec<String>, ObjectDumpError> {
+    validate_verb_names(o)?;
+
     let mut lines = Vec::new();
     let indent = "  ";
     lines.push(format!("object {}", canon_name(&o.oid, index_names)));
@@ -546,6 +557,18 @@ pub fn dump_object(
     }
     lines.push("endobject".to_string());
     Ok(lines)
+}
+
+fn validate_verb_names(object: &ObjectDefinition) -> Result<(), ObjectDumpError> {
+    for (verb_index, verb) in object.verbs.iter().enumerate() {
+        if verb.names.is_empty() || verb.names.iter().any(|name| name.as_arc_str().is_empty()) {
+            return Err(ObjectDumpError::EmptyVerbName {
+                obj: object.oid,
+                verb_index: verb_index + 1,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn dump_object_header(
@@ -613,6 +636,7 @@ fn dump_verb(
     // If there's only a single name, and it doesn't contain any funky characters, we can
     // output just it, without any escaping. Otherwise, use a standard string literal.
     let names = if v.names.len() == 1
+        && !v.names[0].as_arc_str().is_empty()
         && v.names[0]
             .to_string()
             .chars()
@@ -702,17 +726,20 @@ fn dump_property_override(
 
 #[cfg(test)]
 mod tests {
-    use crate::{ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions};
+    use crate::{
+        ObjectDefinitionLoader, collect_object_definitions, dump_object, dump_object_definitions,
+    };
     use moor_common::{
-        model::{CommitResult, ObjectKind, PropFlag, WorldStateSource},
+        model::{CommitResult, ObjectKind, PropFlag, VerbArgsSpec, VerbFlag, WorldStateSource},
         util::BitEnum,
     };
-    use moor_compiler::{CompileOptions, compile};
+    use moor_compiler::{CompileOptions, ObjVerbDef, ObjectDefinition, compile};
     use moor_db::{Database, DatabaseConfig, TxDB};
     use moor_textdump::{TextdumpImportOptions, textdump_load};
     use moor_var::{
-        Obj, SYSTEM_OBJECT, Symbol, Var,
+        NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var,
         program::{
+            ProgramType,
             labels::Label,
             names::Name,
             opcode::{ScatterArgs, ScatterLabel},
@@ -720,7 +747,47 @@ mod tests {
         v_int, v_list, v_obj, v_str,
     };
     use semver::Version;
-    use std::{path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+    #[test]
+    fn empty_verb_name_prevents_dump() {
+        let object = ObjectDefinition {
+            oid: Obj::mk_id(1),
+            name: "empty verb".to_string(),
+            parent: NOTHING,
+            owner: Obj::mk_id(1),
+            location: NOTHING,
+            flags: BitEnum::new(),
+            verbs: vec![ObjVerbDef {
+                names: vec![Symbol::mk("")],
+                argspec: VerbArgsSpec::this_none_this(),
+                owner: Obj::mk_id(1),
+                flags: VerbFlag::r(),
+                program: ProgramType::MooR(
+                    compile("return 1;", CompileOptions::default()).unwrap(),
+                ),
+            }],
+            property_definitions: Vec::new(),
+            property_overrides: Vec::new(),
+        };
+        let error = dump_object(&HashMap::new(), &object).unwrap_err();
+        assert!(matches!(
+            error,
+            super::ObjectDumpError::EmptyVerbName {
+                obj,
+                verb_index: 1
+            } if obj == Obj::mk_id(1)
+        ));
+
+        let tempdir = tempfile::tempdir().unwrap();
+        let checkpoint_path = tempdir.path().join("checkpoint.in-progress");
+        let error = dump_object_definitions(&[object], &checkpoint_path).unwrap_err();
+        assert!(matches!(
+            error,
+            super::ObjectDumpError::EmptyVerbName { verb_index: 1, .. }
+        ));
+        assert!(!checkpoint_path.exists());
+    }
 
     /// 1. Load from a classical textdump
     /// 2. Dump to a objdef dump
