@@ -180,8 +180,7 @@ impl Var {
     #[inline(always)]
     pub fn str_is_ascii(&self) -> bool {
         self.tag == TAG_EMPTY_STR
-            || self.tag == TAG_SYMBOL_STR
-            || (self.tag == TAG_STR && self.meta[2] == 1)
+            || (matches!(self.tag, TAG_STR | TAG_SYMBOL_STR) && self.meta[2] == 1)
     }
 
     // === String search and replace operations with cached ASCII optimization ===
@@ -1496,6 +1495,18 @@ impl Var {
 
     // === Comparison helpers ===
 
+    #[inline]
+    fn str_eq_case_insensitive(&self, other: &Var) -> bool {
+        let lhs = self.as_str().unwrap();
+        let rhs = other.as_str().unwrap();
+
+        if self.str_is_ascii() && other.str_is_ascii() {
+            return lhs.as_str().eq_ignore_ascii_case(rhs.as_str());
+        }
+
+        lhs == rhs
+    }
+
     pub fn eq_case_sensitive(&self, other: &Var) -> bool {
         match (self.variant(), other.variant()) {
             (Variant::Str(s1), Variant::Str(s2)) => s1.as_str() == s2.as_str(),
@@ -1725,7 +1736,7 @@ impl PartialEq for Var {
             let self_is_str = matches!(self.tag, TAG_STR | TAG_EMPTY_STR | TAG_SYMBOL_STR);
             let other_is_str = matches!(other.tag, TAG_STR | TAG_EMPTY_STR | TAG_SYMBOL_STR);
             if self_is_str && other_is_str {
-                return self.as_str().unwrap() == other.as_str().unwrap();
+                return self.str_eq_case_insensitive(other);
             }
             let self_is_list = matches!(self.tag, TAG_LIST | TAG_EMPTY_LIST);
             let other_is_list = matches!(other.tag, TAG_LIST | TAG_EMPTY_LIST);
@@ -1747,8 +1758,7 @@ impl PartialEq for Var {
             }
             // Complex types - delegate to their PartialEq
             TAG_EMPTY_STR => true,
-            TAG_SYMBOL_STR => self.as_str().unwrap() == other.as_str().unwrap(),
-            TAG_STR => self.as_str().unwrap() == other.as_str().unwrap(),
+            TAG_SYMBOL_STR | TAG_STR => self.str_eq_case_insensitive(other),
             TAG_EMPTY_LIST => true,
             TAG_LIST => self.as_list().unwrap() == other.as_list().unwrap(),
             TAG_MAP => self.as_map().unwrap() == other.as_map().unwrap(),
@@ -1798,7 +1808,13 @@ impl Var {
             (Variant::Int(l), Variant::Int(r)) => l.cmp(&r),
             (Variant::Float(l), Variant::Float(r)) => l.total_cmp(&r),
             (Variant::List(l), Variant::List(r)) => l.cmp(r),
-            (Variant::Str(l), Variant::Str(r)) => l.cmp(r),
+            (Variant::Str(l), Variant::Str(r)) => {
+                if self.str_is_ascii() && other.str_is_ascii() {
+                    string::cmp_case_insensitive_ascii(l.as_str(), r.as_str())
+                } else {
+                    l.cmp(r)
+                }
+            }
             (Variant::Map(l), Variant::Map(r)) => l.cmp(r),
             (Variant::Err(l), Variant::Err(r)) => l.cmp(r),
             (Variant::Flyweight(l), Variant::Flyweight(r)) => l.cmp(r),
@@ -2065,6 +2081,32 @@ mod tests {
     fn test_ordering() {
         assert!(Var::mk_integer(1) < Var::mk_integer(2));
         assert!(Var::mk_none() < Var::mk_integer(0));
+    }
+
+    #[test]
+    fn test_ascii_string_ordering_is_case_insensitive() {
+        assert_eq!(
+            Var::mk_str("Alpha").cmp(&Var::mk_str("alpha")),
+            Ordering::Equal
+        );
+        assert_eq!(
+            Var::mk_str("alpha").cmp(&Var::mk_str("BETA")),
+            Ordering::Less
+        );
+        assert_eq!(
+            Var::mk_str("alphabet").cmp(&Var::mk_str("ALPHA")),
+            Ordering::Greater
+        );
+    }
+
+    #[test]
+    fn test_symbol_backed_string_caches_non_ascii() {
+        let symbol_string = v_symbol_str(Symbol::mk("Éclair"));
+        let ordinary_string = Var::mk_str("éCLAIR");
+
+        assert!(!symbol_string.str_is_ascii());
+        assert_eq!(symbol_string.cmp(&ordinary_string), Ordering::Equal);
+        assert_eq!(symbol_string, ordinary_string);
     }
 
     #[test]
