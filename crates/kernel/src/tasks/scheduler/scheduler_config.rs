@@ -116,7 +116,12 @@ impl Scheduler {
         } else {
             info!("No dump_interval found on #0");
         }
-        if let Some(gc_interval) = load_int_sysprop(&SYSTEM_OBJECT, *GC_INTERVAL, tx.as_ref()) {
+        if !self.config.features.anonymous_objects {
+            info!("Automatic garbage collection disabled because anonymous objects are disabled");
+            so.gc_interval = None;
+        } else if let Some(gc_interval) =
+            load_int_sysprop(&SYSTEM_OBJECT, *GC_INTERVAL, tx.as_ref())
+        {
             info!("Loaded gc_interval from database: {} seconds", gc_interval);
             so.gc_interval = Some(gc_interval);
         } else {
