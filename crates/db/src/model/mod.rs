@@ -28,14 +28,14 @@ fn extract_anonymous_refs_recursive(var: &Var, refs: &mut HashSet<Obj>) {
             refs.insert(obj);
         }
         moor_var::Variant::List(list) => {
-            for item in list.iter() {
-                extract_anonymous_refs_recursive(&item, refs);
+            for item in list.iter_ref() {
+                extract_anonymous_refs_recursive(item, refs);
             }
         }
         moor_var::Variant::Map(map) => {
-            for (key, value) in map.iter() {
-                extract_anonymous_refs_recursive(&key, refs);
-                extract_anonymous_refs_recursive(&value, refs);
+            for (key, value) in map.iter_ref() {
+                extract_anonymous_refs_recursive(key, refs);
+                extract_anonymous_refs_recursive(value, refs);
             }
         }
         moor_var::Variant::Flyweight(flyweight) => {
@@ -48,8 +48,8 @@ fn extract_anonymous_refs_recursive(var: &Var, refs: &mut HashSet<Obj>) {
                 extract_anonymous_refs_recursive(slot_value, refs);
             }
 
-            for item in flyweight.contents().iter() {
-                extract_anonymous_refs_recursive(&item, refs);
+            for item in flyweight.contents().iter_ref() {
+                extract_anonymous_refs_recursive(item, refs);
             }
         }
         moor_var::Variant::Err(error) => {
