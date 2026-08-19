@@ -14,12 +14,13 @@
 use crate::{
     AdminSessionFactory, MooAdminHelper,
     commands::{
-        cmd_dump, cmd_get, cmd_list, cmd_load, cmd_prog, cmd_props, cmd_reload, cmd_set, cmd_su,
-        cmd_verbs, eval_expression, exec_code_block, print_help,
+        cmd_dump, cmd_export, cmd_get, cmd_list, cmd_load, cmd_prog, cmd_props, cmd_reload,
+        cmd_set, cmd_su, cmd_verbs, eval_expression, exec_code_block, print_help,
     },
     parse::{ReplCommand, ensure_args, parse_repl_command},
 };
 use eyre::Report;
+use moor_db::TxDB;
 use moor_kernel::{SchedulerClient, config::FeaturesConfig};
 use moor_var::Obj;
 use rustyline::Editor;
@@ -31,6 +32,7 @@ pub(crate) fn repl(
     scheduler_client: SchedulerClient,
     session_factory: Arc<AdminSessionFactory>,
     features: Arc<FeaturesConfig>,
+    database: TxDB,
     wizard: Obj,
     mut rl: Editor<MooAdminHelper, rustyline::history::DefaultHistory>,
 ) -> Result<(), Report> {
@@ -151,6 +153,14 @@ pub(crate) fn repl(
                         }
                         if let Err(e) = cmd_dump(&scheduler_client, &current_wizard, &args) {
                             error!("Dump failed: {}", e);
+                        }
+                    }
+                    ReplCommand::Export(args) => {
+                        if !ensure_args(&args, "export DIRECTORY") {
+                            continue;
+                        }
+                        if let Err(e) = cmd_export(&database, &args) {
+                            error!("Export failed: {}", e);
                         }
                     }
                     ReplCommand::Load(args) => {

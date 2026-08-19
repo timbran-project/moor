@@ -15,11 +15,14 @@ use crate::{import_export_hierarchy, import_export_id};
 use moor_common::model::{HasUuid, Named, ObjFlag, PropFlag, ValSet, loader::SnapshotInterface};
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
-use std::collections::HashMap;
-use std::io::Write;
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::Path,
+    time::{Duration, Instant},
+};
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Error, Debug)]
 pub enum ObjectDumpError {
@@ -60,9 +63,30 @@ pub fn collect_object_definitions(
     let mut num_verbdefs = 0;
     let mut num_propdefs = 0;
     let mut num_propoverrides = 0;
+    let started = Instant::now();
+    let num_objects = object_ids.len();
 
-    for o in object_ids.iter() {
+    for (index, o) in object_ids.iter().enumerate() {
+        if index % 100 == 0 {
+            info!(
+                completed = index,
+                total = num_objects,
+                object = %o,
+                elapsed = ?started.elapsed(),
+                "Collecting object definitions"
+            );
+        }
+
+        let object_started = Instant::now();
         let (verbdefs, propdefs, overrides, od) = collect_object(loader, &o)?;
+        let object_elapsed = object_started.elapsed();
+        if object_elapsed >= Duration::from_secs(5) {
+            warn!(
+                object = %o,
+                elapsed = ?object_elapsed,
+                "Object definition collection is taking longer than expected"
+            );
+        }
         object_defs.push(od);
         num_verbdefs += verbdefs;
         num_propdefs += propdefs;

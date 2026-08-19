@@ -20,7 +20,9 @@ use eyre::{Report, bail, eyre};
 use moor_common::model::{Named, ObjectKind, ValSet};
 use moor_common::tasks::{SchedulerError, SessionFactory};
 use moor_compiler::to_literal;
+use moor_db::{Database, TxDB};
 use moor_kernel::{SchedulerClient, config::FeaturesConfig, tasks::TaskNotification};
+use moor_objdef::{collect_object_definitions, dump_object_definitions};
 use moor_var::{Obj, Symbol};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
@@ -47,6 +49,7 @@ pub(crate) fn print_help() {
     println!("  prog #OBJ:VERB                     Program a verb (multi-line)");
     println!("  list #OBJ:VERB                     Show verb code");
     println!("  dump #OBJ [--file PATH]            Dump object to file or console");
+    println!("  export DIRECTORY                    Export database as objdef files");
     println!("  load [--file PATH] [options]       Load object from file or console");
     println!("  reload [#OBJ] [--file PATH]        Replace object contents from file or console");
     println!("  su #OBJ                            Switch to different player object");
@@ -664,6 +667,69 @@ pub(crate) fn cmd_dump(
         println!("{} lines dumped", lines.len());
     }
 
+    Ok(())
+}
+
+/// Export the complete database to an objdef directory.
+pub(crate) fn cmd_export(database: &TxDB, args: &str) -> Result<(), Report> {
+    let parsed = parse_flags(args);
+    let Some(output_arg) = parsed.first_positional() else {
+        bail!("Usage: export DIRECTORY");
+    };
+
+    let output_path = PathBuf::from(output_arg);
+    let Some(output_name) = output_path.file_name() else {
+        bail!("Export path must name a directory");
+    };
+
+    if output_path.exists() {
+        bail!("Export path already exists: {}", output_path.display());
+    }
+
+    let mut in_progress_name = output_name.to_os_string();
+    in_progress_name.push(".in-progress");
+    let in_progress_path = output_path.with_file_name(in_progress_name);
+    if in_progress_path.exists() {
+        bail!(
+            "Incomplete export path already exists: {}",
+            in_progress_path.display()
+        );
+    }
+
+    info!(path = ?output_path, "Creating database snapshot for objdef export");
+    let snapshot = database
+        .create_snapshot()
+        .map_err(|e| eyre!("Failed to create database snapshot: {e}"))?;
+
+    println!("Collecting objects from database snapshot...");
+    let objects = collect_object_definitions(snapshot.as_ref())
+        .map_err(|e| eyre!("Failed to collect object definitions: {e}"))?;
+
+    println!(
+        "Writing {} objects to {}...",
+        objects.len(),
+        in_progress_path.display()
+    );
+    dump_object_definitions(&objects, &in_progress_path).map_err(|e| {
+        eyre!(
+            "Failed to write objdef export to {}: {e}",
+            in_progress_path.display()
+        )
+    })?;
+
+    std::fs::rename(&in_progress_path, &output_path).map_err(|e| {
+        eyre!(
+            "Failed to finalize objdef export from {} to {}: {e}",
+            in_progress_path.display(),
+            output_path.display()
+        )
+    })?;
+
+    print_success(format!(
+        "Exported {} objects to {}",
+        objects.len(),
+        output_path.display()
+    ));
     Ok(())
 }
 

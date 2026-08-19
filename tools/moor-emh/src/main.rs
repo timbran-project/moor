@@ -469,7 +469,7 @@ impl Completer for MooAdminHelper {
         if !line_before_cursor.contains(' ') {
             let commands = [
                 "help", "?", "quit", "exit", "get", "set", "props", "verbs", "list", "prog",
-                "dump", "load", "reload", "su",
+                "dump", "export", "load", "reload", "su",
             ];
             let matches: Vec<Pair> = commands
                 .iter()
@@ -576,6 +576,10 @@ impl Completer for MooAdminHelper {
                     return Ok((flag_start, matches));
                 }
             }
+        }
+
+        if let Some(partial_path) = line_before_cursor.strip_prefix("export ") {
+            return self.complete_filename(partial_path, "export ".len());
         }
 
         // Verb completion for list/prog commands (check this BEFORE property completion)
@@ -758,6 +762,7 @@ fn main() -> Result<(), Report> {
                 resolved_db_path.display()
             )
         })?;
+    let export_database = database.clone();
     let database = Box::new(database);
 
     // Find wizard before handing database to scheduler
@@ -805,6 +810,7 @@ fn main() -> Result<(), Report> {
         scheduler_client.clone(),
         session_factory,
         features,
+        export_database,
         wizard,
         rl,
     );

@@ -9,6 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+`moor-emh`:
+
+- Add an `export DIRECTORY` command that writes a complete database snapshot as objdef files and
+  only moves the output from its `.in-progress` path after the export succeeds.
+
 `kernel`:
 
 - New algorithm builtins in `bf_algorithms.rs` for bounded searches over caller-supplied MOO values:
@@ -134,6 +139,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Lexical scopes and list/range comprehensions are now always enabled. The corresponding compiler
   options and feature compatibility checks were removed; deprecated daemon and `moorc` feature flags
   are accepted for old configs, but false values warn and are treated as enabled.
+
+`objdef`:
+
+- Report progress while collecting objects for a full objdef export and identify individual objects
+  that take longer than five seconds.
 
 ### Fixed
 
