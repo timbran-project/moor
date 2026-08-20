@@ -128,6 +128,9 @@ pub enum DatabaseOpenError {
         relation: &'static str,
         detail: String,
     },
+
+    #[error("transaction timestamp space is exhausted in database at {path:?}")]
+    TransactionTimestampExhausted { path: PathBuf },
 }
 
 pub trait Database: Send + Sync + WorldStateSource {

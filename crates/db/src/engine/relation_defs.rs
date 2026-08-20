@@ -390,7 +390,7 @@ macro_rules! define_relations {
                                 detail: e.to_string(),
                             })?;
 
-                        // Create provider with shared batch collector
+                        // Create the provider for this relation keyspace.
                         let [<$field _provider>] = FjallProvider::new(
                             stringify!($field),
                             [<$field _partition>],
@@ -413,25 +413,27 @@ macro_rules! define_relations {
                     committed_ts: crate::tx::Timestamp,
                     caches: std::sync::Arc<crate::engine::moor_db::Caches>,
                     db_path: &std::path::Path,
-                ) -> Result<WorldStateSnapshot, crate::DatabaseOpenError> {
-                    Ok(WorldStateSnapshot {
+                ) -> Result<(WorldStateSnapshot, crate::tx::Timestamp), crate::DatabaseOpenError> {
+                    let mut max_persisted_ts = crate::tx::Timestamp(0);
+                    $(
+                        let ([<$field _index>], [<$field _max_ts>]) = self.$field
+                            .seeded_index_with_max_timestamp()
+                            .map_err(|e| crate::DatabaseOpenError::SeedRelation {
+                                path: db_path.to_path_buf(),
+                                relation: stringify!($field),
+                                detail: e.to_string(),
+                            })?;
+                        max_persisted_ts = max_persisted_ts.max([<$field _max_ts>]);
+                    )*
+
+                    Ok((WorldStateSnapshot {
                         version,
                         committed_ts,
                         caches,
-                        $(
-                            $field: {
-                                let index = self.$field.seeded_index()
-                                    .map_err(|e| crate::DatabaseOpenError::SeedRelation {
-                                        path: db_path.to_path_buf(),
-                                        relation: stringify!($field),
-                                        detail: e.to_string(),
-                                    })?;
-                                std::sync::Arc::from(index)
-                            },
-                        )*
+                        $( $field: std::sync::Arc::from([<$field _index>]), )*
                         commit_bloom: None,
                         bloom_since_version: 0,
-                    })
+                    }, max_persisted_ts))
                 }
 
                 fn snapshot_with_all_fully_loaded(

@@ -53,7 +53,7 @@ use std::{
     },
 };
 use tempfile::TempDir;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 mod commit_pipeline;
 mod snapshot_planes;
@@ -259,7 +259,7 @@ impl MoorDB {
             fresh = true;
         }
 
-        let start_tx_num = sequences_partition
+        let stored_next_tx = sequences_partition
             .get(15_u64.to_le_bytes())
             .map_err(|e| DatabaseOpenError::ReadSequence {
                 path: path_buf.clone(),
@@ -317,13 +317,24 @@ impl MoorDB {
         let batch_writer = BatchWriter::new(keyspace.clone());
 
         let relations = Relations::init(&keyspace, &config, &path_buf)?;
-        let initial_root = Arc::new(relations.snapshot(
-            0,
-            Timestamp(start_tx_num.saturating_sub(1)),
-            Arc::new(Caches::new()),
-            &path_buf,
-        )?);
-        let snapshot_planes = SnapshotPlanes::new(initial_root);
+        let (mut initial_root, max_persisted_ts) =
+            relations.snapshot(0, Timestamp(0), Arc::new(Caches::new()), &path_buf)?;
+        let next_persisted_tx = max_persisted_ts.0.checked_add(1).ok_or_else(|| {
+            DatabaseOpenError::TransactionTimestampExhausted {
+                path: path_buf.clone(),
+            }
+        })?;
+        let start_tx_num = stored_next_tx.max(next_persisted_tx).max(1);
+        initial_root.committed_ts = Timestamp(start_tx_num - 1);
+        if start_tx_num > stored_next_tx {
+            warn!(
+                stored_next_tx,
+                max_persisted_timestamp = max_persisted_ts.0,
+                recovered_next_tx = start_tx_num,
+                "Advancing stale transaction sequence from persisted relation timestamps"
+            );
+        }
+        let snapshot_planes = SnapshotPlanes::new(Arc::new(initial_root));
 
         let s = Arc::new(Self {
             monotonic: CachePadded::new(AtomicU64::new(start_tx_num)),
@@ -401,8 +412,66 @@ impl Drop for MoorDB {
 mod tests {
     use super::*;
     use crate::engine::relation_defs::RebaseCheck;
+    use fjall::PersistMode;
     use moor_common::{model::CommitResult, util::BitEnum};
     use moor_var::Obj;
+
+    fn overwrite_next_transaction(path: &Path, value: u64) {
+        let database = Database::builder(path).open().unwrap();
+        let sequences = database
+            .keyspace("sequences", KeyspaceCreateOptions::default)
+            .unwrap();
+        sequences
+            .insert(15_usize.to_le_bytes(), value.to_le_bytes())
+            .unwrap();
+        database.persist(PersistMode::SyncAll).unwrap();
+    }
+
+    #[test]
+    fn reopen_repairs_stale_transaction_sequence_from_relation_timestamps() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        for _ in 0..40 {
+            drop(db.start_transaction());
+        }
+        let mut tx = db.start_transaction();
+        let persisted_timestamp = tx.tx.ts.0;
+        tx.set_object_name(&Obj::mk_id(1), "persisted".to_string())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.stop().unwrap();
+        drop(db);
+
+        overwrite_next_transaction(path, 0);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        assert_eq!(tx.tx.ts.0, persisted_timestamp + 1);
+    }
+
+    #[test]
+    fn reopen_preserves_transaction_sequence_ahead_of_relation_timestamps() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        drop(db);
+
+        overwrite_next_transaction(path, 100);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        assert_eq!(tx.tx.ts.0, 100);
+    }
 
     #[test]
     fn rebase_check_resolves_bloom_hits_against_snapshot_keys() {

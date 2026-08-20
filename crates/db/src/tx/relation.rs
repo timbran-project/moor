@@ -15,13 +15,13 @@
 
 use crate::{
     provider::Provider,
-    tx::{Error, RelationCodomain, RelationCodomainHashable, RelationDomain, Tx},
+    tx::{Error, RelationCodomain, RelationCodomainHashable, RelationDomain, Timestamp, Tx},
 };
 use moor_var::Symbol;
 use std::sync::Arc;
 
 #[cfg(test)]
-use crate::tx::{Canonical, Timestamp};
+use crate::tx::Canonical;
 use crate::tx::{
     CheckRelation, RelationIndex, RelationTransaction,
     indexes::{HashRelationIndex, SecondaryIndexRelation},
@@ -31,6 +31,7 @@ use arc_swap::ArcSwap;
 
 /// Represents the current "canonical" state of a relation.
 type IndexFactory<Domain, Codomain> = fn() -> Box<dyn RelationIndex<Domain, Codomain>>;
+type SeededIndex<Domain, Codomain> = (Box<dyn RelationIndex<Domain, Codomain>>, Timestamp);
 
 fn primary_index_factory<Domain, Codomain>() -> Box<dyn RelationIndex<Domain, Codomain>>
 where
@@ -101,13 +102,21 @@ where
     }
 
     pub fn seeded_index(&self) -> Result<Box<dyn RelationIndex<Domain, Codomain>>, Error> {
+        self.seeded_index_with_max_timestamp()
+            .map(|(index, _)| index)
+    }
+
+    /// Seed an index from the provider and report the newest persisted tuple timestamp.
+    pub fn seeded_index_with_max_timestamp(&self) -> Result<SeededIndex<Domain, Codomain>, Error> {
         let mut index = (self.index_factory)();
         let tuples = self.source.scan(&|_, _| true)?;
+        let mut max_timestamp = Timestamp(0);
         for (ts, domain, codomain) in tuples {
+            max_timestamp = max_timestamp.max(ts);
             index.insert_entry(ts, domain, codomain);
         }
         index.set_provider_fully_loaded(true);
-        Ok(index)
+        Ok((index, max_timestamp))
     }
 
     pub fn start_from_index(
