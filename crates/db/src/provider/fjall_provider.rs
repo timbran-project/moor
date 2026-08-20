@@ -49,31 +49,13 @@ use crate::{
 };
 use byteview::ByteView;
 use fjall::Slice;
-use flume::Sender;
 use moor_common::model::WorldStateTimerOp;
-use moor_common::threading::{set_current_thread_background_priority, spawn_efficient};
-use moor_common::util::{Timestamp as MonoTimestamp, signal_fatal_db_error};
+use moor_common::util::Timestamp as MonoTimestamp;
 use planus::{ReadAsRoot, WriteAsOffset};
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard, atomic::AtomicBool},
-    thread::JoinHandle,
-    time::Duration,
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
-use tracing::error;
-
-/// Handle a fjall error, with special handling for Poisoned errors.
-/// Returns true if this was a Poisoned error (caller should stop retrying).
-fn handle_fjall_error(e: &fjall::Error, operation: &str) -> bool {
-    if matches!(e, fjall::Error::Poisoned) {
-        // Use the common fatal error handler - it will log once and signal shutdown
-        signal_fatal_db_error(operation, "database poisoned (fsync failure)");
-        true
-    } else {
-        error!("Database error during {operation}: {e}");
-        false
-    }
-}
 
 /// Tracks pending operations during a commit for read-your-writes consistency.
 ///
@@ -659,88 +641,5 @@ where
 
     fn decode(&self, stored: Self::Stored) -> Result<T, Error> {
         FjallCodec.decode(stored)
-    }
-}
-
-// ============================================================================
-// SequenceWriter - Background writer for sequence persistence
-// ============================================================================
-
-/// Background writer for sequence values.
-///
-/// Similar to FjallProvider but specialized for the fixed-size sequence array.
-/// Writes are sent to a background thread to avoid blocking the commit path.
-pub struct SequenceWriter {
-    ops: Sender<[i64; 16]>,
-    kill_switch: Arc<AtomicBool>,
-    jh: Arc<Mutex<Option<JoinHandle<()>>>>,
-}
-
-impl SequenceWriter {
-    /// Create a new sequence writer with a background thread.
-    pub fn new(keyspace: fjall::Keyspace) -> Self {
-        let kill_switch = Arc::new(AtomicBool::new(false));
-        let (ops_tx, ops_rx) = flume::unbounded::<[i64; 16]>();
-
-        let ks = kill_switch.clone();
-        let jh = spawn_efficient("moor-seq-writer", move || {
-            set_current_thread_background_priority().ok();
-            loop {
-                if ks.load(std::sync::atomic::Ordering::Relaxed) {
-                    // Drain remaining writes before exiting
-                    while let Ok(seq_values) = ops_rx.try_recv() {
-                        Self::write_sequences(&keyspace, &seq_values);
-                    }
-                    break;
-                }
-
-                match ops_rx.recv_timeout(Duration::from_millis(100)) {
-                    Ok(seq_values) => {
-                        Self::write_sequences(&keyspace, &seq_values);
-                    }
-                    Err(flume::RecvTimeoutError::Timeout) => continue,
-                    Err(flume::RecvTimeoutError::Disconnected) => break,
-                }
-            }
-        })
-        .expect("failed to spawn sequence writer thread");
-
-        Self {
-            ops: ops_tx,
-            kill_switch,
-            jh: Arc::new(Mutex::new(Some(jh))),
-        }
-    }
-
-    fn write_sequences(keyspace: &fjall::Keyspace, seq_values: &[i64; 16]) {
-        for (i, val) in seq_values.iter().enumerate() {
-            if let Err(e) = keyspace.insert(i.to_le_bytes(), val.to_le_bytes()) {
-                handle_fjall_error(&e, &format!("sequence {i} persist"));
-            }
-        }
-    }
-
-    /// Queue sequence values for background persistence.
-    pub fn write(&self, seq_values: [i64; 16]) {
-        if let Err(e) = self.ops.send(seq_values) {
-            error!("Failed to queue sequence write: {}", e);
-        }
-    }
-
-    /// Stop the background writer thread.
-    pub fn stop(&self) {
-        self.kill_switch
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-
-        let mut jh = self.jh.lock().unwrap();
-        if let Some(jh) = jh.take() {
-            jh.join().unwrap();
-        }
-    }
-}
-
-impl Drop for SequenceWriter {
-    fn drop(&mut self) {
-        self.stop();
     }
 }

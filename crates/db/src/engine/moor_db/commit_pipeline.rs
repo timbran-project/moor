@@ -80,28 +80,31 @@ impl MoorDB {
     fn persist_commit(
         &self,
         persist_ops: &super::RelationPersistOps,
+        publication_version: u64,
         tx_timestamp: crate::tx::Timestamp,
     ) {
-        let batch = self
-            .relations
-            .persist_ops_to_batch(persist_ops, tx_timestamp);
-        if !batch.is_empty() {
-            self.batch_writer.write(batch);
-        }
-
-        self.last_write_commit
-            .store(tx_timestamp.0, std::sync::atomic::Ordering::Release);
-        self.batch_writer.send_barrier(tx_timestamp);
+        let mut batch =
+            self.relations
+                .persist_ops_to_batch(persist_ops, publication_version, tx_timestamp);
 
         self.sequences[15].store(
             self.monotonic.load(std::sync::atomic::Ordering::Relaxed) as i64,
             std::sync::atomic::Ordering::Relaxed,
         );
-        let mut seq_values = [0i64; 16];
         for (i, seq) in self.sequences.iter().enumerate() {
-            seq_values[i] = seq.load(std::sync::atomic::Ordering::Relaxed);
+            batch.insert_encoded(
+                self.sequences_partition.clone(),
+                i.to_le_bytes().to_vec(),
+                seq.load(std::sync::atomic::Ordering::Relaxed)
+                    .to_le_bytes()
+                    .to_vec(),
+            );
         }
-        self.sequence_writer.write(seq_values);
+
+        self.batch_writer.write(batch);
+        self.batch_writer.send_barrier(publication_version);
+        self.last_write_version
+            .fetch_max(publication_version, std::sync::atomic::Ordering::Release);
     }
 
     /// Execute the write-commit path for a transaction via CAS loop.
@@ -194,11 +197,12 @@ impl MoorDB {
         drop(_t);
 
         // Phase 2: Try to publish
+        let publication_version = next_root.version;
         if self
             .snapshot_planes
             .try_publish_write_root(current_root.version, next_root)
         {
-            self.persist_commit(&persist_ops, tx_timestamp);
+            self.persist_commit(&persist_ops, publication_version, tx_timestamp);
             return CommitResult::Success {
                 mutations_made: true,
                 timestamp: tx_timestamp.0,
@@ -240,11 +244,12 @@ impl MoorDB {
             );
 
             // Rebase succeeded — no key overlap. Try CAS again.
+            let publication_version = rebased.version;
             if self
                 .snapshot_planes
                 .try_publish_write_root(winner.version, rebased)
             {
-                self.persist_commit(&persist_ops, tx_timestamp);
+                self.persist_commit(&persist_ops, publication_version, tx_timestamp);
                 return CommitResult::Success {
                     mutations_made: true,
                     timestamp: tx_timestamp.0,

@@ -463,6 +463,7 @@ macro_rules! define_relations {
                 fn persist_ops_to_batch(
                     &self,
                     ops: &RelationPersistOps,
+                    version: u64,
                     timestamp: crate::tx::Timestamp,
                 ) -> crate::provider::batch_writer::CommitBatch {
                     let mut all_ops = Vec::new();
@@ -471,7 +472,7 @@ macro_rules! define_relations {
                             all_ops.extend(self.$field.provider().encode_persist_ops(&ops.$field));
                         }
                     )*
-                    crate::provider::batch_writer::CommitBatch::from_ops(timestamp, all_ops)
+                    crate::provider::batch_writer::CommitBatch::from_ops(version, timestamp, all_ops)
                 }
 
                 /// Stop all relation providers.
