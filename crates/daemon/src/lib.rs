@@ -239,7 +239,7 @@ fn perform_import(
     import_path: &PathBuf,
     mut loader_interface: Box<dyn LoaderInterface>,
     version: semver::Version,
-) -> Result<(), Report> {
+) -> Result<bool, Report> {
     let start = std::time::Instant::now();
     // We have two ways of loading textdump.
     // legacy "textdump" format from LambdaMOO,
@@ -288,7 +288,7 @@ fn perform_import(
 
         match result {
             CommitResult::Success { .. } => {
-                info!("Import complete in {:?}", start.elapsed());
+                info!("Import transaction published in {:?}", start.elapsed());
             }
             _ => {
                 error!("Import failed due to commit failure: {:?}", result);
@@ -299,7 +299,7 @@ fn perform_import(
         warn!("Loaded requested rollback, not committing results");
         // Just dropping the transaction (LoaderInterface) is sufficient here.
     }
-    Ok(())
+    Ok(commit)
 }
 
 /// Generate ED25519 keypair and write to PEM files
@@ -615,12 +615,25 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                 .loader_client()
                 .map_err(|e| eyre!("Unable to get loader interface from database: {}", e))?;
 
-            if let Err(import_error) = perform_import(
+            let import_result = perform_import(
                 config.as_ref(),
                 import_path,
                 loader_interface,
                 version.clone(),
-            ) {
+            )
+            .and_then(|committed| {
+                if !committed {
+                    return Ok(());
+                }
+                info!("Waiting for imported world state to be committed into Fjall");
+                database.wait_for_persistence().map_err(|error| {
+                    eyre!("Failed to commit imported world state into Fjall: {error}")
+                })?;
+                info!("Imported world state committed into Fjall");
+                Ok(())
+            });
+
+            if let Err(import_error) = import_result {
                 error!("Import failed: {}", import_error);
 
                 // Delete only the database file/directory if the import fails since it was freshly created.

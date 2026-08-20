@@ -164,6 +164,15 @@ impl TxDB {
     pub fn mark_all_fully_loaded(&self) {
         self.storage.mark_all_fully_loaded();
     }
+
+    /// Wait until the current published state has been committed into Fjall.
+    ///
+    /// This does not request an fsync or wait for LSM maintenance.
+    pub fn wait_for_persistence(&self) -> Result<(), WorldStateError> {
+        self.storage
+            .wait_for_persistence()
+            .map_err(WorldStateError::DatabaseError)
+    }
 }
 
 impl WorldStateSource for TxDB {
