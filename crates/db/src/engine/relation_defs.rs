@@ -368,12 +368,9 @@ macro_rules! define_relations {
                 /// # Parameters
                 /// - `keyspace`: The fjall database to create keyspaces in
                 /// - `config`: Database configuration containing keyspace options
-                /// - `batch_collector`: Shared batch collector for all providers
-                ///
                 fn init(
                     keyspace: &fjall::Database,
                     config: &DatabaseConfig,
-                    batch_collector: std::sync::Arc<crate::provider::batch_writer::BatchCollector>,
                     db_path: &std::path::Path,
                 ) -> Result<Self, crate::DatabaseOpenError> {
                     $(
@@ -397,7 +394,6 @@ macro_rules! define_relations {
                         let [<$field _provider>] = FjallProvider::new(
                             stringify!($field),
                             [<$field _partition>],
-                            batch_collector.clone(),
                         );
 
                         // Create relation with symbolized field name
@@ -465,14 +461,18 @@ macro_rules! define_relations {
                     ops: &RelationPersistOps,
                     version: u64,
                     timestamp: crate::tx::Timestamp,
-                ) -> crate::provider::batch_writer::CommitBatch {
+                ) -> Result<crate::provider::batch_writer::CommitBatch, crate::tx::Error> {
                     let mut all_ops = Vec::new();
                     $(
                         if !ops.$field.is_empty() {
-                            all_ops.extend(self.$field.provider().encode_persist_ops(&ops.$field));
+                            all_ops.extend(self.$field.provider().encode_persist_ops(&ops.$field)?);
                         }
                     )*
-                    crate::provider::batch_writer::CommitBatch::from_ops(version, timestamp, all_ops)
+                    Ok(crate::provider::batch_writer::CommitBatch::from_ops(
+                        version,
+                        timestamp,
+                        all_ops,
+                    ))
                 }
 
                 /// Stop all relation providers.

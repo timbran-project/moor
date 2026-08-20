@@ -30,7 +30,7 @@ use crate::{
     engine::relation_defs::define_relations,
     provider::{
         Migrator,
-        batch_writer::{BatchCollector, BatchWriter},
+        batch_writer::BatchWriter,
         fjall_migration::{self, FjallMigrator},
         fjall_provider::FjallProvider,
         fjall_snapshot_loader::FjallSnapshotLoader,
@@ -122,14 +122,8 @@ pub struct MoorDB {
     snapshot_planes: SnapshotPlanes,
     sequences: Arc<[CachePadded<AtomicI64>; 16]>,
     sequences_partition: fjall::Keyspace,
-    /// Shared batch collector — still passed to FjallProviders during init for
-    /// use in read-your-writes paths. The commit pipeline no longer uses it.
-    #[allow(dead_code)]
-    batch_collector: Arc<BatchCollector>,
     /// Single background writer for all fjall operations
     batch_writer: BatchWriter,
-    /// Newest published snapshot version queued for persistence.
-    last_write_version: AtomicU64,
     /// Keeps temp directory alive for the lifetime of the database when using
     /// an ephemeral path. Dropped after fjall shuts down in `Drop`.
     _tmpdir: Option<TempDir>,
@@ -152,17 +146,11 @@ impl TransactionContext for MoorDB {
 impl MoorDB {
     /// Create a snapshot-based SnapshotInterface for consistent read-only access
     pub fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, crate::tx::Error> {
-        let last_write_version = self
-            .last_write_version
-            .load(std::sync::atomic::Ordering::Acquire);
-        if last_write_version > 0 {
-            self.batch_writer
-                .wait_for_barrier(last_write_version, std::time::Duration::from_secs(10))
-                .map_err(crate::tx::Error::StorageFailure)?;
-        }
-
-        // Get a database-wide snapshot
-        let snapshot = self.keyspace.snapshot();
+        let published_version = self.snapshot_planes.load_root().version;
+        let snapshot = self
+            .batch_writer
+            .snapshot(published_version, std::time::Duration::from_secs(10))
+            .map_err(crate::tx::Error::StorageFailure)?;
 
         // Return a custom SnapshotInterface implementation that uses this snapshot
         Ok(Box::new(FjallSnapshotLoader {
@@ -199,30 +187,30 @@ impl MoorDB {
     }
 
     /// Stop background workers and drain queued persistence work.
-    pub fn stop(&self) {
-        let last_write_version = self
-            .last_write_version
-            .load(std::sync::atomic::Ordering::Acquire);
+    pub fn stop(&self) -> Result<(), String> {
+        let published_version = self.snapshot_planes.load_root().version;
 
-        // Stop batch writer - this drains the queue and waits for completion
         info!(
-            "Stopping batch writer (last write version: {})",
-            last_write_version
+            "Stopping batch writer (published version: {})",
+            published_version
         );
-        self.batch_writer.stop();
+        let stop_result = self.batch_writer.stop();
 
-        // Verify all writes completed
         let final_completed = self.batch_writer.completed_version();
-        if last_write_version > 0 && final_completed < last_write_version {
-            error!(
-                "Batch writer stopped before completing all writes: expected {}, got {}",
-                last_write_version, final_completed
+        if published_version > 0 && final_completed < published_version {
+            let detail = format!(
+                "batch writer stopped before completing all writes: expected {published_version}, got {final_completed}"
             );
-        } else if last_write_version > 0 {
+            error!("{detail}");
+            self.relations.stop_all();
+            return Err(stop_result.err().unwrap_or(detail));
+        }
+        if published_version > 0 {
             info!("All writes completed up to version {}", final_completed);
         }
 
         self.relations.stop_all();
+        stop_result
     }
 
     /// Open (or initialize) a database and return `(db, fresh)`.
@@ -326,11 +314,9 @@ impl MoorDB {
             }
         }
 
-        // Create shared batch collector and writer for all providers
-        let batch_collector = Arc::new(BatchCollector::new());
         let batch_writer = BatchWriter::new(keyspace.clone());
 
-        let relations = Relations::init(&keyspace, &config, batch_collector.clone(), &path_buf)?;
+        let relations = Relations::init(&keyspace, &config, &path_buf)?;
         let initial_root = Arc::new(relations.snapshot(
             0,
             Timestamp(start_tx_num.saturating_sub(1)),
@@ -345,10 +331,8 @@ impl MoorDB {
             snapshot_planes,
             sequences,
             sequences_partition,
-            batch_collector,
             batch_writer,
             keyspace,
-            last_write_version: AtomicU64::new(0),
             _tmpdir: tmpdir,
         });
 
@@ -406,7 +390,9 @@ impl MoorDB {
 impl Drop for MoorDB {
     fn drop(&mut self) {
         info!("MoorDB::drop() called - initiating shutdown");
-        self.stop();
+        if let Err(error) = self.stop() {
+            error!("MoorDB shutdown failed: {error}");
+        }
         info!("MoorDB shutdown complete");
     }
 }

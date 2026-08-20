@@ -30,7 +30,7 @@ use moor_common::model::{CommitResult, ConflictInfo, ConflictTarget, WorldStateT
 use moor_common::util::Instant;
 use moor_var::{NOTHING, Obj, Symbol};
 use std::time::Duration;
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 /// Maximum number of rebase attempts after the initial CAS before giving up.
 const MAX_REBASE_ATTEMPTS: u32 = 16;
@@ -83,9 +83,19 @@ impl MoorDB {
         publication_version: u64,
         tx_timestamp: crate::tx::Timestamp,
     ) {
-        let mut batch =
-            self.relations
-                .persist_ops_to_batch(persist_ops, publication_version, tx_timestamp);
+        let mut batch = match self.relations.persist_ops_to_batch(
+            persist_ops,
+            publication_version,
+            tx_timestamp,
+        ) {
+            Ok(batch) => batch,
+            Err(error) => {
+                Self::report_persistence_failure(&format!(
+                    "failed to encode transaction {publication_version}: {error}"
+                ));
+                return;
+            }
+        };
 
         self.sequences[15].store(
             self.monotonic.load(std::sync::atomic::Ordering::Relaxed) as i64,
@@ -101,10 +111,17 @@ impl MoorDB {
             );
         }
 
-        self.batch_writer.write(batch);
-        self.batch_writer.send_barrier(publication_version);
-        self.last_write_version
-            .fetch_max(publication_version, std::sync::atomic::Ordering::Release);
+        if let Err(error) = self.batch_writer.write(batch) {
+            Self::report_persistence_failure(&format!(
+                "failed to enqueue transaction {publication_version}: {error}"
+            ));
+        }
+    }
+
+    fn report_persistence_failure(detail: &str) {
+        error!("FATAL: {detail}");
+        #[cfg(not(test))]
+        moor_common::util::signal_fatal_db_error("transaction persistence", detail);
     }
 
     /// Execute the write-commit path for a transaction via CAS loop.
