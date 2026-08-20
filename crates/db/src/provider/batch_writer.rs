@@ -11,20 +11,15 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Coalescing batch writer for fjall operations.
+//! Ordered background writer for atomic Fjall transaction batches.
 //!
-//! Instead of writing every transaction's changes immediately, we buffer writes
-//! in per-partition HashMaps where later writes to the same key overwrite earlier ones.
-//! This reduces actual I/O when the same keys are written repeatedly.
-//!
-//! Flush triggers:
-//! - Total pending ops exceed threshold
-//! - Time since last flush exceeds interval
-//! - Barrier request (for snapshots)
-//! - Shutdown
+//! Published transactions may reach this thread out of order because their CAS
+//! winners enqueue from different task threads. The writer holds only those
+//! out-of-order transactions and commits each contiguous transaction to Fjall
+//! immediately as its own cross-keyspace write batch.
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -37,7 +32,7 @@ use flume::{Receiver, Sender};
 use moor_common::threading::spawn_efficient;
 use moor_common::util::Timestamp as MonoTimestamp;
 use parking_lot::Mutex;
-use tracing::{error, info, trace, warn};
+use tracing::{error, trace, warn};
 
 use crate::db_counters;
 use crate::tx::{Error, Timestamp};
@@ -101,13 +96,6 @@ impl CommitBatch {
         });
     }
 
-    pub fn delete(&mut self, partition: fjall::Keyspace, key: Vec<u8>) {
-        self.operations.push(BatchOp {
-            partition,
-            op_type: BatchOpType::Delete { key },
-        });
-    }
-
     pub fn insert_encoded(&mut self, partition: fjall::Keyspace, key: Vec<u8>, value: Vec<u8>) {
         self.insert(partition, key, Arc::new(EncodedBatchValue(value)));
     }
@@ -121,141 +109,31 @@ impl CommitBatch {
     }
 }
 
-/// Manages the current commit batch. Shared across all FjallProviders.
-#[derive(Default)]
-pub struct BatchCollector {
-    current: Mutex<Option<CommitBatch>>,
-}
-
-impl BatchCollector {
-    pub fn new() -> Self {
-        Self {
-            current: Mutex::new(None),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn start_commit(&self, timestamp: Timestamp, expected_operations: usize) {
-        let mut current = self.current.lock();
-        debug_assert!(
-            current.is_none(),
-            "Previous commit batch not finished (timestamp {:?})",
-            current.as_ref().map(|b| b.timestamp)
-        );
-        *current = Some(CommitBatch::with_capacity(
-            0,
-            timestamp,
-            expected_operations,
-        ));
-    }
-
-    pub fn insert(&self, partition: fjall::Keyspace, key: Vec<u8>, value: Arc<dyn BatchValue>) {
-        let mut current = self.current.lock();
-        current
-            .as_mut()
-            .expect("No active commit batch - call start_commit() first")
-            .insert(partition, key, value);
-    }
-
-    pub fn delete(&self, partition: fjall::Keyspace, key: Vec<u8>) {
-        let mut current = self.current.lock();
-        current
-            .as_mut()
-            .expect("No active commit batch - call start_commit() first")
-            .delete(partition, key);
-    }
-
-    #[allow(dead_code)]
-    pub fn finish_commit(&self) -> CommitBatch {
-        self.current
-            .lock()
-            .take()
-            .expect("No active commit batch to finish")
-    }
-
-    #[allow(dead_code)]
-    pub fn abort_commit(&self) {
-        self.current.lock().take();
-    }
-}
-
-/// Pending operation for a key - either insert with value or delete.
-#[derive(Clone)]
-enum PendingOp {
-    Insert(Arc<dyn BatchValue>),
-    Delete,
-}
-
-/// Per-partition coalescing buffer.
-struct PartitionBuffer {
-    keyspace: fjall::Keyspace,
-    pending: HashMap<Vec<u8>, PendingOp>,
-}
-
-impl PartitionBuffer {
-    fn new(keyspace: fjall::Keyspace) -> Self {
-        Self {
-            keyspace,
-            pending: HashMap::new(),
-        }
-    }
-
-    fn insert(&mut self, key: Vec<u8>, value: Arc<dyn BatchValue>) {
-        self.pending.insert(key, PendingOp::Insert(value));
-    }
-
-    fn delete(&mut self, key: Vec<u8>) {
-        self.pending.insert(key, PendingOp::Delete);
-    }
-
-    fn len(&self) -> usize {
-        self.pending.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.pending.is_empty()
-    }
-
-    fn clear(&mut self) {
-        self.pending.clear();
-    }
-}
-
 /// Message sent to the writer thread.
 enum WriterMsg {
-    /// Persist a published transaction's relation and sequence changes.
-    Write(CommitBatch),
-    /// Mark the end of all writes for a published transaction.
-    TransactionBarrier(u64),
-    /// Flush through a transaction boundary and reply when it is durable enough for a snapshot.
-    FlushBarrier(u64, oneshot::Sender<Result<(), String>>),
+    /// Persist one complete published transaction.
+    Commit(CommitBatch),
+    /// Return a cross-keyspace snapshot after committing through this version.
+    Snapshot {
+        through_version: u64,
+        reply: oneshot::Sender<Result<fjall::Snapshot, String>>,
+    },
 }
 
-/// Bounds for coalescing published transactions into one Fjall batch.
-const MAX_PENDING_OPS: usize = 50_000;
-const MAX_COALESCE_INTERVAL: Duration = Duration::from_millis(100);
 const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 struct WriterState {
-    buffers: HashMap<String, PartitionBuffer>,
     waiting_batches: BTreeMap<u64, CommitBatch>,
-    transaction_barriers: BTreeSet<u64>,
+    snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
-    ready_version: u64,
-    total_pending: usize,
-    pending_since: Option<Instant>,
 }
 
 impl WriterState {
     fn new() -> Self {
         Self {
-            buffers: HashMap::new(),
             waiting_batches: BTreeMap::new(),
-            transaction_barriers: BTreeSet::new(),
+            snapshot_waiters: Vec::new(),
             next_version: 1,
-            ready_version: 0,
-            total_pending: 0,
-            pending_since: None,
         }
     }
 
@@ -264,85 +142,16 @@ impl WriterState {
         if version < self.next_version || self.waiting_batches.insert(version, batch).is_some() {
             return Err(format!("duplicate persistence batch for version {version}"));
         }
-        self.merge_ready_versions();
         Ok(())
-    }
-
-    fn add_transaction_barrier(&mut self, version: u64) -> Result<(), String> {
-        if version < self.next_version || !self.transaction_barriers.insert(version) {
-            return Err(format!(
-                "duplicate transaction barrier for version {version}"
-            ));
-        }
-        self.merge_ready_versions();
-        Ok(())
-    }
-
-    fn merge_ready_versions(&mut self) {
-        loop {
-            if !self.transaction_barriers.contains(&self.next_version) {
-                return;
-            }
-            let Some(batch) = self.waiting_batches.remove(&self.next_version) else {
-                return;
-            };
-
-            self.transaction_barriers.remove(&self.next_version);
-            Self::merge_batch(&mut self.buffers, batch, &mut self.total_pending);
-            self.ready_version = self.next_version;
-            self.next_version += 1;
-            self.pending_since.get_or_insert_with(Instant::now);
-        }
-    }
-
-    fn merge_batch(
-        buffers: &mut HashMap<String, PartitionBuffer>,
-        batch: CommitBatch,
-        total_pending: &mut usize,
-    ) {
-        for op in batch.operations {
-            let partition_name = op.partition.name().to_string();
-            let buffer = buffers
-                .entry(partition_name)
-                .or_insert_with(|| PartitionBuffer::new(op.partition.clone()));
-
-            let previous_len = buffer.len();
-            match op.op_type {
-                BatchOpType::Insert { key, value } => buffer.insert(key, value),
-                BatchOpType::Delete { key } => buffer.delete(key),
-            }
-            if buffer.len() > previous_len {
-                *total_pending += 1;
-            }
-        }
-    }
-
-    fn flush_due(&self) -> bool {
-        self.total_pending >= MAX_PENDING_OPS
-            || self
-                .pending_since
-                .is_some_and(|started| started.elapsed() >= MAX_COALESCE_INTERVAL)
-    }
-
-    fn has_ready_boundary(&self, completed_version: u64) -> bool {
-        self.ready_version > completed_version
-    }
-
-    fn clear_flushed(&mut self) {
-        for buffer in self.buffers.values_mut() {
-            buffer.clear();
-        }
-        self.total_pending = 0;
-        self.pending_since = None;
     }
 }
 
-/// Coalescing batch writer that deduplicates writes before hitting fjall.
+/// Background writer that commits published transactions to Fjall in version order.
 pub struct BatchWriter {
     sender: Sender<WriterMsg>,
     kill_switch: Arc<AtomicBool>,
     completed_version: Arc<AtomicU64>,
-    join_handle: Mutex<Option<JoinHandle<()>>>,
+    join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
 }
 
 impl BatchWriter {
@@ -355,7 +164,7 @@ impl BatchWriter {
         let completed = completed_version.clone();
 
         let join_handle = spawn_efficient("moor-batch-writer", move || {
-            Self::writer_loop(db, receiver, ks, completed);
+            Self::writer_loop(db, receiver, ks, completed)
         })
         .expect("failed to spawn batch writer thread");
 
@@ -372,140 +181,135 @@ impl BatchWriter {
         receiver: Receiver<WriterMsg>,
         kill_switch: Arc<AtomicBool>,
         completed_version: Arc<AtomicU64>,
-    ) {
+    ) -> Result<(), String> {
+        let result = Self::run_writer(db, receiver, kill_switch, completed_version);
+        if let Err(error) = &result {
+            error!("Batch writer failed: {error}");
+            #[cfg(not(test))]
+            moor_common::util::signal_fatal_db_error("batch writer", error);
+        }
+        result
+    }
+
+    fn run_writer(
+        db: fjall::Database,
+        receiver: Receiver<WriterMsg>,
+        kill_switch: Arc<AtomicBool>,
+        completed_version: Arc<AtomicU64>,
+    ) -> Result<(), String> {
         let mut state = WriterState::new();
-        let mut flush_waiters = Vec::new();
 
         loop {
             if kill_switch.load(Ordering::Relaxed) {
                 while let Ok(msg) = receiver.try_recv() {
-                    if let Err(error) = Self::handle_message(msg, &mut state, &mut flush_waiters, 0)
-                    {
-                        Self::fail_writer(&error, &mut flush_waiters);
-                        return;
-                    }
+                    Self::handle_message(
+                        &db,
+                        msg,
+                        &mut state,
+                        completed_version.load(Ordering::Acquire),
+                    )?;
+                    Self::persist_ready(&db, &mut state, &completed_version)?;
                 }
 
-                if !state.waiting_batches.is_empty() || !state.transaction_barriers.is_empty() {
+                if !state.waiting_batches.is_empty() {
                     let error = format!(
                         "batch writer stopped with a gap before version {}",
                         state.next_version
                     );
-                    Self::fail_writer(&error, &mut flush_waiters);
-                    return;
+                    Self::fail_snapshot_waiters(&mut state, &error);
+                    return Err(error);
                 }
 
-                if state.has_ready_boundary(completed_version.load(Ordering::Acquire)) {
-                    info!(
-                        pending_ops = state.total_pending,
-                        "Flushing batch writer at shutdown"
-                    );
-                    if let Err(error) = Self::flush_ready(&db, &mut state, &completed_version) {
-                        Self::fail_writer(&error, &mut flush_waiters);
-                        return;
-                    }
-                }
-                Self::reply_completed_waiters(
-                    &mut flush_waiters,
+                Self::reply_ready_snapshots(
+                    &db,
+                    &mut state,
                     completed_version.load(Ordering::Acquire),
                 );
-                break;
-            }
-
-            let completed = completed_version.load(Ordering::Acquire);
-            let waiter_ready = flush_waiters
-                .iter()
-                .any(|(version, _)| *version <= state.ready_version);
-            if (state.flush_due() || waiter_ready) && state.has_ready_boundary(completed) {
-                if let Err(error) = Self::flush_ready(&db, &mut state, &completed_version) {
-                    Self::fail_writer(&error, &mut flush_waiters);
-                    return;
-                }
-                Self::reply_completed_waiters(
-                    &mut flush_waiters,
-                    completed_version.load(Ordering::Acquire),
-                );
-                continue;
+                return Ok(());
             }
 
             match receiver.recv_timeout(RECEIVE_POLL_INTERVAL) {
                 Ok(msg) => {
-                    if let Err(error) =
-                        Self::handle_message(msg, &mut state, &mut flush_waiters, completed)
-                    {
-                        Self::fail_writer(&error, &mut flush_waiters);
-                        return;
-                    }
-                    while let Ok(msg) = receiver.try_recv() {
-                        if let Err(error) =
-                            Self::handle_message(msg, &mut state, &mut flush_waiters, completed)
-                        {
-                            Self::fail_writer(&error, &mut flush_waiters);
-                            return;
-                        }
-                    }
+                    Self::handle_message(
+                        &db,
+                        msg,
+                        &mut state,
+                        completed_version.load(Ordering::Acquire),
+                    )?;
+                    Self::persist_ready(&db, &mut state, &completed_version)?;
                 }
                 Err(flume::RecvTimeoutError::Timeout) => {}
-                Err(flume::RecvTimeoutError::Disconnected) => break,
+                Err(flume::RecvTimeoutError::Disconnected) => {
+                    let error = "batch writer channel disconnected".to_string();
+                    Self::fail_snapshot_waiters(&mut state, &error);
+                    return Err(error);
+                }
             }
         }
     }
 
     fn handle_message(
+        db: &fjall::Database,
         msg: WriterMsg,
         state: &mut WriterState,
-        flush_waiters: &mut Vec<(u64, oneshot::Sender<Result<(), String>>)>,
         completed_version: u64,
     ) -> Result<(), String> {
         match msg {
-            WriterMsg::Write(batch) => state.add_batch(batch),
-            WriterMsg::TransactionBarrier(version) => state.add_transaction_barrier(version),
-            WriterMsg::FlushBarrier(version, reply) => {
-                if version <= completed_version {
-                    reply.send(Ok(())).ok();
+            WriterMsg::Commit(batch) => state.add_batch(batch),
+            WriterMsg::Snapshot {
+                through_version,
+                reply,
+            } => {
+                if through_version <= completed_version {
+                    reply.send(Ok(db.snapshot())).ok();
                 } else {
-                    flush_waiters.push((version, reply));
+                    state.snapshot_waiters.push((through_version, reply));
                 }
                 Ok(())
             }
         }
     }
 
-    fn flush_ready(
+    fn persist_ready(
         db: &fjall::Database,
         state: &mut WriterState,
         completed_version: &AtomicU64,
     ) -> Result<(), String> {
-        if state.total_pending == 0 {
-            completed_version.store(state.ready_version, Ordering::Release);
-            state.pending_since = None;
-            return Ok(());
-        }
+        while let Some(batch) = state.waiting_batches.remove(&state.next_version) {
+            let version = batch.version;
+            if let Err(error) = Self::commit_batch(db, batch) {
+                Self::fail_snapshot_waiters(state, &error);
+                return Err(error);
+            }
 
+            completed_version.store(version, Ordering::Release);
+            state.next_version += 1;
+            Self::reply_ready_snapshots(db, state, version);
+        }
+        Ok(())
+    }
+
+    fn commit_batch(db: &fjall::Database, batch: CommitBatch) -> Result<(), String> {
         let start = Instant::now();
-        let op_count = state.total_pending;
+        let version = batch.version;
+        let transaction = batch.timestamp.0;
+        let op_count = batch.operations.len();
         let encode_start = Instant::now();
         let mut encoded_bytes = 0usize;
-
         let mut write_batch = db.batch();
 
-        for buffer in state.buffers.values() {
-            if buffer.is_empty() {
-                continue;
-            }
-            for (key, op) in &buffer.pending {
-                match op {
-                    PendingOp::Insert(value) => {
-                        let encoded = value
-                            .encode()
-                            .map_err(|error| format!("failed to encode batch value: {error}"))?;
-                        encoded_bytes += key.len() + encoded.len();
-                        write_batch.insert(&buffer.keyspace, key.clone(), encoded);
-                    }
-                    PendingOp::Delete => {
-                        encoded_bytes += key.len();
-                        write_batch.remove(&buffer.keyspace, key.clone());
-                    }
+        for op in batch.operations {
+            match op.op_type {
+                BatchOpType::Insert { key, value } => {
+                    let encoded = value
+                        .encode()
+                        .map_err(|error| format!("failed to encode batch value: {error}"))?;
+                    encoded_bytes += key.len() + encoded.len();
+                    write_batch.insert(&op.partition, key, encoded);
+                }
+                BatchOpType::Delete { key } => {
+                    encoded_bytes += key.len();
+                    write_batch.remove(&op.partition, key);
                 }
             }
         }
@@ -519,15 +323,13 @@ impl BatchWriter {
             .map_err(|error| format!("failed to commit Fjall write batch: {error}"))?;
         let commit_elapsed = commit_start.elapsed();
 
-        state.clear_flushed();
-        completed_version.store(state.ready_version, Ordering::Release);
-
         let elapsed = start.elapsed();
         if elapsed > Duration::from_secs(1) {
             warn!(
                 op_count,
                 encoded_bytes,
-                ready_version = state.ready_version,
+                version,
+                transaction,
                 ?encode_elapsed,
                 ?commit_elapsed,
                 outstanding_flushes_before,
@@ -540,38 +342,36 @@ impl BatchWriter {
         Ok(())
     }
 
-    fn reply_completed_waiters(
-        waiters: &mut Vec<(u64, oneshot::Sender<Result<(), String>>)>,
+    fn reply_ready_snapshots(
+        db: &fjall::Database,
+        state: &mut WriterState,
         completed_version: u64,
     ) {
-        let mut pending = Vec::with_capacity(waiters.len());
-        for (version, reply) in waiters.drain(..) {
+        let mut pending = Vec::with_capacity(state.snapshot_waiters.len());
+        for (version, reply) in state.snapshot_waiters.drain(..) {
             if version <= completed_version {
-                reply.send(Ok(())).ok();
+                reply.send(Ok(db.snapshot())).ok();
             } else {
                 pending.push((version, reply));
             }
         }
-        *waiters = pending;
+        state.snapshot_waiters = pending;
     }
 
-    fn fail_writer(detail: &str, waiters: &mut Vec<(u64, oneshot::Sender<Result<(), String>>)>) {
-        error!("Batch writer failed: {detail}");
-        #[cfg(not(test))]
-        moor_common::util::signal_fatal_db_error("batch writer", detail);
-        for (_, reply) in waiters.drain(..) {
+    fn fail_snapshot_waiters(state: &mut WriterState, detail: &str) {
+        for (_, reply) in state.snapshot_waiters.drain(..) {
             reply.send(Err(detail.to_string())).ok();
         }
     }
 
-    pub fn write(&self, batch: CommitBatch) {
+    pub fn write(&self, batch: CommitBatch) -> Result<(), String> {
         let version = batch.version;
         let ts = batch.timestamp;
         let op_count = batch.operations.len();
-        let msg = WriterMsg::Write(batch);
+        let msg = WriterMsg::Commit(batch);
 
         match self.sender.try_send(msg) {
-            Ok(()) => {}
+            Ok(()) => Ok(()),
             Err(flume::TrySendError::Full(msg)) => {
                 db_counters()
                     .counters
@@ -581,10 +381,9 @@ impl BatchWriter {
                     version, ts.0, op_count
                 );
                 let start = MonoTimestamp::now();
-                if let Err(e) = self.sender.send(msg) {
-                    error!("Failed to send batch to writer: {}", e);
-                    return;
-                }
+                self.sender
+                    .send(msg)
+                    .map_err(|_| "batch writer channel disconnected".to_string())?;
                 let elapsed = start.elapsed();
                 db_counters().timers_rare.record_elapsed(
                     WorldStateTimerOp::BatchWriterBackpressureBlock,
@@ -596,33 +395,10 @@ impl BatchWriter {
                         version, ts.0, elapsed
                     );
                 }
+                Ok(())
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                error!("BatchWriter channel disconnected");
-            }
-        }
-    }
-
-    pub fn send_barrier(&self, version: u64) {
-        let msg = WriterMsg::TransactionBarrier(version);
-        match self.sender.try_send(msg) {
-            Ok(()) => {}
-            Err(flume::TrySendError::Full(msg)) => {
-                db_counters()
-                    .counters
-                    .inc(WorldStateCountOp::BatchWriterBackpressure);
-                let start = MonoTimestamp::now();
-                if let Err(e) = self.sender.send(msg) {
-                    warn!("Failed to send barrier: {}", e);
-                    return;
-                }
-                db_counters().timers_rare.record_elapsed(
-                    WorldStateTimerOp::BatchWriterBackpressureBlock,
-                    start.instant().elapsed(),
-                );
-            }
-            Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Failed to send barrier: channel disconnected");
+                Err("batch writer channel disconnected".to_string())
             }
         }
     }
@@ -631,34 +407,44 @@ impl BatchWriter {
         self.completed_version.load(Ordering::Acquire)
     }
 
-    pub fn wait_for_barrier(&self, version: u64, timeout: Duration) -> Result<(), String> {
-        if self.completed_version.load(Ordering::Acquire) >= version {
-            return Ok(());
-        }
-
+    pub fn snapshot(
+        &self,
+        through_version: u64,
+        timeout: Duration,
+    ) -> Result<fjall::Snapshot, String> {
         let (reply, receiver) = oneshot::channel();
-        let msg = WriterMsg::FlushBarrier(version, reply);
+        let msg = WriterMsg::Snapshot {
+            through_version,
+            reply,
+        };
         self.sender
             .send(msg)
             .map_err(|_| "batch writer channel disconnected".to_string())?;
-        receiver
-            .recv_timeout(timeout)
-            .map_err(|error| format!("timed out waiting for write barrier {version}: {error}"))?
+        receiver.recv_timeout(timeout).map_err(|error| {
+            format!(
+                "timed out waiting for Fjall snapshot through version {through_version}: {error}"
+            )
+        })?
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&self) -> Result<(), String> {
         self.kill_switch.store(true, Ordering::SeqCst);
 
         let mut jh = self.join_handle.lock();
         if let Some(handle) = jh.take() {
-            handle.join().ok();
+            return handle
+                .join()
+                .map_err(|_| "batch writer thread panicked".to_string())?;
         }
+        Ok(())
     }
 }
 
 impl Drop for BatchWriter {
     fn drop(&mut self) {
-        self.stop();
+        if let Err(error) = self.stop() {
+            error!("Failed to stop batch writer: {error}");
+        }
     }
 }
 
@@ -666,7 +452,6 @@ impl Drop for BatchWriter {
 mod tests {
     use super::*;
     use fjall::{KeyspaceCreateOptions, Readable};
-    use std::thread;
 
     fn test_database() -> (tempfile::TempDir, fjall::Database) {
         let tempdir = tempfile::tempdir().unwrap();
@@ -686,23 +471,21 @@ mod tests {
     }
 
     #[test]
-    fn transaction_barrier_is_required_before_flush() {
+    fn transaction_is_committed_before_snapshot() {
         let (_tempdir, database) = test_database();
         let partition = database
             .keyspace("values", KeyspaceCreateOptions::default)
             .unwrap();
         let writer = BatchWriter::new(database);
 
-        writer.write(encoded_batch(1, &partition, b"key", b"value"));
-        thread::sleep(MAX_COALESCE_INTERVAL + Duration::from_millis(25));
+        writer
+            .write(encoded_batch(1, &partition, b"key", b"value"))
+            .unwrap();
+        let snapshot = writer.snapshot(1, Duration::from_secs(1)).unwrap();
 
-        assert_eq!(writer.completed_version(), 0);
-        assert_eq!(partition.get(b"key").unwrap(), None);
-
-        writer.send_barrier(1);
-        writer.wait_for_barrier(1, Duration::from_secs(1)).unwrap();
+        assert_eq!(writer.completed_version(), 1);
         assert_eq!(
-            partition.get(b"key").unwrap().as_deref(),
+            snapshot.get(&partition, b"key").unwrap().as_deref(),
             Some(&b"value"[..])
         );
     }
@@ -715,23 +498,24 @@ mod tests {
             .unwrap();
         let writer = BatchWriter::new(database);
 
-        writer.write(encoded_batch(2, &partition, b"key", b"newer"));
-        writer.send_barrier(2);
-        thread::sleep(Duration::from_millis(25));
+        writer
+            .write(encoded_batch(2, &partition, b"key", b"newer"))
+            .unwrap();
         assert_eq!(writer.completed_version(), 0);
 
-        writer.write(encoded_batch(1, &partition, b"key", b"older"));
-        writer.send_barrier(1);
-        writer.wait_for_barrier(2, Duration::from_secs(1)).unwrap();
+        writer
+            .write(encoded_batch(1, &partition, b"key", b"older"))
+            .unwrap();
+        let snapshot = writer.snapshot(2, Duration::from_secs(1)).unwrap();
 
         assert_eq!(
-            partition.get(b"key").unwrap().as_deref(),
+            snapshot.get(&partition, b"key").unwrap().as_deref(),
             Some(&b"newer"[..])
         );
     }
 
     #[test]
-    fn explicit_barrier_coalesces_multiple_transactions() {
+    fn separate_transactions_use_separate_fjall_batches() {
         let (_tempdir, database) = test_database();
         let partition = database
             .keyspace("values", KeyspaceCreateOptions::default)
@@ -739,15 +523,19 @@ mod tests {
         let writer = BatchWriter::new(database.clone());
         let initial_seqno = database.visible_seqno();
 
-        writer.write(encoded_batch(1, &partition, b"one", b"1"));
-        writer.send_barrier(1);
-        writer.write(encoded_batch(2, &partition, b"two", b"2"));
-        writer.send_barrier(2);
-        writer.wait_for_barrier(2, Duration::from_secs(1)).unwrap();
+        writer
+            .write(encoded_batch(1, &partition, b"key", b"first"))
+            .unwrap();
+        writer
+            .write(encoded_batch(2, &partition, b"key", b"second"))
+            .unwrap();
+        let snapshot = writer.snapshot(2, Duration::from_secs(1)).unwrap();
 
-        assert_eq!(database.visible_seqno(), initial_seqno + 1);
-        assert_eq!(partition.get(b"one").unwrap().as_deref(), Some(&b"1"[..]));
-        assert_eq!(partition.get(b"two").unwrap().as_deref(), Some(&b"2"[..]));
+        assert_eq!(database.visible_seqno(), initial_seqno + 2);
+        assert_eq!(
+            snapshot.get(&partition, b"key").unwrap().as_deref(),
+            Some(&b"second"[..])
+        );
     }
 
     #[test]
@@ -764,10 +552,8 @@ mod tests {
         batch.insert_encoded(first.clone(), b"key".to_vec(), b"first".to_vec());
         batch.insert_encoded(second.clone(), b"key".to_vec(), b"second".to_vec());
 
-        writer.write(batch);
-        writer.send_barrier(1);
-        writer.wait_for_barrier(1, Duration::from_secs(1)).unwrap();
-        let snapshot = database.snapshot();
+        writer.write(batch).unwrap();
+        let snapshot = writer.snapshot(1, Duration::from_secs(1)).unwrap();
 
         assert_eq!(
             snapshot.get(&first, b"key").unwrap().as_deref(),
@@ -788,23 +574,36 @@ mod tests {
     }
 
     #[test]
-    fn failed_encoding_does_not_complete_barrier_or_discard_as_success() {
+    fn failed_encoding_does_not_complete_snapshot_boundary() {
         let (_tempdir, database) = test_database();
         let partition = database
             .keyspace("values", KeyspaceCreateOptions::default)
             .unwrap();
         let writer = BatchWriter::new(database);
-        let mut batch = CommitBatch::with_capacity(1, Timestamp(1), 1);
+        let mut batch = CommitBatch::with_capacity(2, Timestamp(2), 1);
         batch.insert(partition.clone(), b"key".to_vec(), Arc::new(FailingValue));
 
-        writer.write(batch);
-        writer.send_barrier(1);
-        let error = writer
-            .wait_for_barrier(1, Duration::from_secs(1))
-            .unwrap_err();
+        writer.write(batch).unwrap();
+
+        let (reply, receiver) = oneshot::channel();
+        writer
+            .sender
+            .send(WriterMsg::Snapshot {
+                through_version: 2,
+                reply,
+            })
+            .unwrap();
+
+        writer
+            .write(encoded_batch(1, &partition, b"other", b"value"))
+            .unwrap();
+        let error = match receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            Ok(_) => panic!("snapshot unexpectedly succeeded"),
+            Err(error) => error,
+        };
 
         assert!(error.contains("failed to encode batch value"));
-        assert_eq!(writer.completed_version(), 0);
+        assert_eq!(writer.completed_version(), 1);
         assert_eq!(partition.get(b"key").unwrap(), None);
     }
 }

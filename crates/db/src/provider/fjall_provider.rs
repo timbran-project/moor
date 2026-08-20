@@ -35,62 +35,24 @@
 //!
 //! - **UTF-8 types** (`StringHolder`): Direct UTF-8 byte encoding without additional framing.
 //!
-//! ## Batched Writing
+//! ## Transaction persistence
 //!
-//! All providers share a single BatchCollector. During a commit's apply phase, each provider
-//! adds its operations to the shared batch. After apply completes, MoorDB sends the entire
-//! batch to a single BatchWriter thread for atomic persistence via fjall's WriteBatch API.
-//! This reduces I/O contention and enables atomic multi-relation commits.
+//! The database commit pipeline collects operations from every relation into one
+//! transaction batch. A single background writer commits those batches to Fjall
+//! atomically and in publication order.
 
 use crate::{
     db_counters,
-    provider::batch_writer::{BatchCollector, BatchValue},
+    provider::batch_writer::BatchValue,
     tx::{EncodeFor, Error, RelationCodomain, RelationDomain, Timestamp},
 };
 use byteview::ByteView;
 use fjall::Slice;
 use moor_common::model::WorldStateTimerOp;
-use moor_common::util::Timestamp as MonoTimestamp;
 use planus::{ReadAsRoot, WriteAsOffset};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
-};
+use std::{marker::PhantomData, sync::Arc};
 
-/// Tracks pending operations during a commit for read-your-writes consistency.
-///
-/// Even though writes go to the shared BatchCollector, we still track them here
-/// so reads during the commit window see uncommitted changes.
-struct PendingOperations<Domain, Codomain>
-where
-    Domain: RelationDomain,
-    Codomain: RelationCodomain,
-{
-    /// Keys that have been deleted but delete hasn't flushed to backing store yet
-    pending_deletes: HashSet<Domain>,
-    /// Keys that have been written but write hasn't flushed to backing store yet
-    pending_writes: HashMap<Domain, (Timestamp, Codomain)>,
-}
-
-impl<Domain, Codomain> Default for PendingOperations<Domain, Codomain>
-where
-    Domain: RelationDomain,
-    Codomain: RelationCodomain,
-{
-    fn default() -> Self {
-        Self {
-            pending_deletes: HashSet::new(),
-            pending_writes: HashMap::new(),
-        }
-    }
-}
-
-/// A backing persistence provider that uses a shared BatchCollector for writes.
-///
-/// All providers share a single BatchCollector. During a commit's apply phase,
-/// each provider adds its operations to the shared batch. After apply completes,
-/// MoorDB sends the entire batch to a single BatchWriter thread for atomic
-/// persistence via fjall's WriteBatch API.
+/// Fjall backing provider used for startup reads and encoding transaction writes.
 #[derive(Clone)]
 pub(crate) struct FjallProvider<Domain, Codomain>
 where
@@ -98,14 +60,7 @@ where
     Codomain: RelationCodomain,
 {
     fjall_keyspace: fjall::Keyspace,
-    /// Shared batch collector - all providers add to this during commit
-    batch_collector: Arc<BatchCollector>,
-    /// Shared state tracking operations in-flight for read-your-writes consistency
-    pending_ops: Arc<RwLock<PendingOperations<Domain, Codomain>>>,
-    /// Bloom filter of domains known to not exist in the backing store.
-    /// Lock-free negative cache — avoids redundant fjall lookups for missing keys.
-    /// False positives cause a skipped lookup (harmless since the key doesn't exist).
-    tombstone_bloom: Arc<crate::tx::AtomicBloom>,
+    marker: PhantomData<fn() -> (Domain, Codomain)>,
 }
 
 fn decode_codomain_with_ts<P, Codomain>(
@@ -164,53 +119,15 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    /// Create a new provider that uses the shared BatchCollector for writes.
-    ///
-    /// Unlike the old design, this does NOT spawn a background thread. All writes
-    /// are collected into the shared batch and written by the central BatchWriter.
-    pub fn new(
-        _relation_name: &str,
-        fjall_keyspace: fjall::Keyspace,
-        batch_collector: Arc<BatchCollector>,
-    ) -> Self {
+    pub fn new(_relation_name: &str, fjall_keyspace: fjall::Keyspace) -> Self {
         Self {
             fjall_keyspace,
-            batch_collector,
-            pending_ops: Arc::new(RwLock::new(PendingOperations::default())),
-            tombstone_bloom: Arc::new(crate::tx::AtomicBloom::new()),
+            marker: PhantomData,
         }
     }
 
     pub fn partition(&self) -> &fjall::Keyspace {
         &self.fjall_keyspace
-    }
-
-    fn pending_ops_read(
-        &self,
-    ) -> Result<RwLockReadGuard<'_, PendingOperations<Domain, Codomain>>, Error> {
-        let start = MonoTimestamp::now();
-        let guard = self.pending_ops.read().map_err(|_| {
-            Error::StorageFailure("Failed to acquire pending ops read lock".to_string())
-        })?;
-        db_counters().timers_hot.record_elapsed(
-            WorldStateTimerOp::ProviderPendingOpsReadLockWait,
-            start.instant().elapsed(),
-        );
-        Ok(guard)
-    }
-
-    fn pending_ops_write(
-        &self,
-    ) -> Result<RwLockWriteGuard<'_, PendingOperations<Domain, Codomain>>, Error> {
-        let start = MonoTimestamp::now();
-        let guard = self.pending_ops.write().map_err(|_| {
-            Error::StorageFailure("Failed to acquire pending ops write lock".to_string())
-        })?;
-        db_counters().timers_hot.record_elapsed(
-            WorldStateTimerOp::ProviderPendingOpsWriteLockWait,
-            start.instant().elapsed(),
-        );
-        Ok(guard)
     }
 }
 
@@ -221,12 +138,10 @@ where
     Self: EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
 {
     /// Encode deferred persistence operations into batch ops for the BatchWriter.
-    /// Does not update pending_ops — the imbl index (already published via CAS)
-    /// is the source of truth for reads.
     pub fn encode_persist_ops(
         &self,
         ops: &[crate::tx::PersistOp<Domain, Codomain>],
-    ) -> Vec<super::batch_writer::BatchOp> {
+    ) -> Result<Vec<super::batch_writer::BatchOp>, Error> {
         use super::batch_writer::{BatchOp, BatchOpType};
         use crate::tx::PersistOp;
 
@@ -238,35 +153,33 @@ where
                     domain,
                     codomain,
                 } => {
-                    if let Ok(key_bytes) = <Self as EncodeFor<Domain>>::encode(self, domain) {
-                        let batch_value: Arc<dyn super::batch_writer::BatchValue> =
-                            Arc::new(FjallBatchValue {
-                                provider: self.clone(),
-                                timestamp: *ts,
-                                codomain: codomain.clone(),
-                            });
-                        batch_ops.push(BatchOp {
-                            partition: self.fjall_keyspace.clone(),
-                            op_type: BatchOpType::Insert {
-                                key: key_bytes.to_vec(),
-                                value: batch_value,
-                            },
+                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
+                    let batch_value: Arc<dyn super::batch_writer::BatchValue> =
+                        Arc::new(FjallBatchValue {
+                            provider: self.clone(),
+                            timestamp: *ts,
+                            codomain: codomain.clone(),
                         });
-                    }
+                    batch_ops.push(BatchOp {
+                        partition: self.fjall_keyspace.clone(),
+                        op_type: BatchOpType::Insert {
+                            key: key_bytes.to_vec(),
+                            value: batch_value,
+                        },
+                    });
                 }
                 PersistOp::Del { ts: _, domain } => {
-                    if let Ok(key_bytes) = <Self as EncodeFor<Domain>>::encode(self, domain) {
-                        batch_ops.push(BatchOp {
-                            partition: self.fjall_keyspace.clone(),
-                            op_type: BatchOpType::Delete {
-                                key: key_bytes.to_vec(),
-                            },
-                        });
-                    }
+                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
+                    batch_ops.push(BatchOp {
+                        partition: self.fjall_keyspace.clone(),
+                        op_type: BatchOpType::Delete {
+                            key: key_bytes.to_vec(),
+                        },
+                    });
                 }
             }
         }
-        batch_ops
+        Ok(batch_ops)
     }
 }
 
@@ -281,26 +194,7 @@ where
             .timers_hot
             .start(WorldStateTimerOp::ProviderTupleCheck);
 
-        // 1. Check pending operations for read-your-writes consistency
-        {
-            let pending = self.pending_ops_read()?;
-
-            if pending.pending_deletes.contains(domain) {
-                return Ok(None);
-            }
-
-            if let Some((ts, value)) = pending.pending_writes.get(domain) {
-                return Ok(Some((*ts, value.clone())));
-            }
-        }
-
-        // 2. Check bloom filter — if the key was previously seen as absent,
-        //    skip the fjall lookup entirely. Lock-free, no false negatives.
-        if self.tombstone_bloom.might_contain(domain) {
-            return Ok(None);
-        }
-
-        // 3. Hit backing store
+        // Hit backing store
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ProviderTupleLoad);
@@ -310,8 +204,6 @@ where
             .get(key_stored)
             .map_err(|e| Error::RetrievalFailure(e.to_string()))?
         else {
-            // Database miss — record in bloom filter for future lookups
-            self.tombstone_bloom.insert(domain);
             return Ok(None);
         };
         let (ts, codomain) = decode_codomain_with_ts::<Self, Codomain>(self, result)?;
@@ -319,47 +211,18 @@ where
     }
 
     fn put(&self, timestamp: Timestamp, domain: &Domain, codomain: &Codomain) -> Result<(), Error> {
-        // Add to pending writes (bloom filter false positives are harmless —
-        // pending_ops is checked before the bloom filter on reads)
-        {
-            let mut pending = self.pending_ops_write()?;
-
-            pending
-                .pending_writes
-                .insert(domain.clone(), (timestamp, codomain.clone()));
-            pending.pending_deletes.remove(domain);
-        }
-
-        // Encode and add to shared batch collector
         let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
-        let batch_value = Arc::new(FjallBatchValue {
-            provider: self.clone(),
-            timestamp,
-            codomain: codomain.clone(),
-        });
-
-        self.batch_collector
-            .insert(self.fjall_keyspace.clone(), key_bytes.to_vec(), batch_value);
-
-        Ok(())
+        let value = encode_codomain_with_ts(self, timestamp, codomain)?;
+        self.fjall_keyspace
+            .insert(key_bytes, value)
+            .map_err(|error| Error::StorageFailure(error.to_string()))
     }
 
     fn del(&self, _timestamp: Timestamp, domain: &Domain) -> Result<(), Error> {
-        // Add to pending deletes immediately
-        {
-            let mut pending = self.pending_ops_write()?;
-            pending.pending_deletes.insert(domain.clone());
-            // Also remove from pending writes if it was there
-            pending.pending_writes.remove(domain);
-        }
-
-        // Encode and add to shared batch collector
         let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
-
-        self.batch_collector
-            .delete(self.fjall_keyspace.clone(), key_bytes.to_vec());
-
-        Ok(())
+        self.fjall_keyspace
+            .remove(key_bytes)
+            .map_err(|error| Error::StorageFailure(error.to_string()))
     }
 
     fn scan<F>(&self, predicate: &F) -> Result<Vec<(Timestamp, Domain, Codomain)>, Error>
@@ -368,31 +231,16 @@ where
     {
         let mut result = Vec::new();
 
-        // Get snapshot of pending operations
-        let pending = self.pending_ops_read()?;
-
-        // Scan backing store first
+        // Scan backing store
         for entry in self.fjall_keyspace.iter() {
             let (key, value) = entry
                 .into_inner()
                 .map_err(|e| Error::RetrievalFailure(e.to_string()))?;
             let domain = <Self as EncodeFor<Domain>>::decode(self, ByteView::from(key))?;
 
-            // Skip if this domain is pending deletion
-            if pending.pending_deletes.contains(&domain) {
-                continue;
-            }
-
             let (ts, codomain) = decode_codomain_with_ts::<Self, Codomain>(self, value)?;
             if predicate(&domain, &codomain) {
                 result.push((ts, domain, codomain));
-            }
-        }
-
-        // Add pending writes that match the predicate
-        for (domain, (ts, codomain)) in &pending.pending_writes {
-            if predicate(domain, codomain) {
-                result.push((*ts, domain.clone(), codomain.clone()));
             }
         }
 
@@ -641,5 +489,33 @@ where
 
     fn decode(&self, stored: Self::Stored) -> Result<T, Error> {
         FjallCodec.decode(stored)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::Provider;
+    use fjall::KeyspaceCreateOptions;
+
+    #[test]
+    fn a_previous_miss_does_not_mask_a_later_value() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let database = fjall::Database::builder(tempdir.path()).open().unwrap();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let provider = FjallProvider::<Obj, Obj>::new("values", partition.clone());
+        let key = Obj::mk_id(7);
+        let value = Obj::mk_id(8);
+
+        assert_eq!(provider.get(&key).unwrap(), None);
+
+        let encoded_key =
+            <FjallProvider<Obj, Obj> as EncodeFor<Obj>>::encode(&provider, &key).unwrap();
+        let encoded_value = encode_codomain_with_ts(&provider, Timestamp(1), &value).unwrap();
+        partition.insert(encoded_key, encoded_value).unwrap();
+
+        assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(1), value)));
     }
 }
