@@ -16,7 +16,6 @@
 //! `MoorDB` owns relation snapshots, transaction seeding, serialized write
 //! commit application, and background durability workers.
 
-use crate::provider::fjall_provider;
 use crate::{
     AnonymousObjectMetadata, ObjAndUUIDHolder, StringHolder,
     cache::{
@@ -54,7 +53,7 @@ use std::{
     },
 };
 use tempfile::TempDir;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 mod commit_pipeline;
 mod snapshot_planes;
@@ -123,14 +122,13 @@ pub struct MoorDB {
     relations: Relations,
     snapshot_planes: SnapshotPlanes,
     sequences: Arc<[CachePadded<AtomicI64>; 16]>,
-    /// Background writer for sequence persistence
-    sequence_writer: fjall_provider::SequenceWriter,
+    sequences_partition: fjall::Keyspace,
     /// Shared batch collector for all providers
     batch_collector: Arc<BatchCollector>,
     /// Single background writer for all fjall operations
     batch_writer: BatchWriter,
-    /// Last write transaction timestamp that completed
-    last_write_commit: AtomicU64,
+    /// Newest published snapshot version queued for persistence.
+    last_write_version: AtomicU64,
     /// Keeps temp directory alive for the lifetime of the database when using
     /// an ephemeral path. Dropped after fjall shuts down in `Drop`.
     _tmpdir: Option<TempDir>,
@@ -153,22 +151,13 @@ impl TransactionContext for MoorDB {
 impl MoorDB {
     /// Create a snapshot-based SnapshotInterface for consistent read-only access
     pub fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, crate::tx::Error> {
-        // Wait for all write transactions up to the last completed write to finish
-        // This ensures the snapshot captures all committed write data
-        let last_write_timestamp = Timestamp(
-            self.last_write_commit
-                .load(std::sync::atomic::Ordering::Acquire),
-        );
-        if last_write_timestamp.0 > 0
-            && let Err(e) = self
-                .batch_writer
-                .wait_for_barrier(last_write_timestamp, std::time::Duration::from_secs(10))
-        {
-            warn!(
-                "Timeout waiting for write barrier {} before snapshot: {}",
-                last_write_timestamp.0, e
-            );
-            // Continue anyway - the snapshot might be slightly inconsistent but we don't want to fail completely
+        let last_write_version = self
+            .last_write_version
+            .load(std::sync::atomic::Ordering::Acquire);
+        if last_write_version > 0 {
+            self.batch_writer
+                .wait_for_barrier(last_write_version, std::time::Duration::from_secs(10))
+                .map_err(crate::tx::Error::StorageFailure)?;
         }
 
         // Get a database-wide snapshot
@@ -209,31 +198,28 @@ impl MoorDB {
 
     /// Stop background workers and drain queued persistence work.
     pub fn stop(&self) {
-        // Get the last write timestamp before stopping the writer
-        let last_write_timestamp = Timestamp(
-            self.last_write_commit
-                .load(std::sync::atomic::Ordering::Acquire),
-        );
+        let last_write_version = self
+            .last_write_version
+            .load(std::sync::atomic::Ordering::Acquire);
 
         // Stop batch writer - this drains the queue and waits for completion
         info!(
-            "Stopping batch writer (last write timestamp: {})",
-            last_write_timestamp.0
+            "Stopping batch writer (last write version: {})",
+            last_write_version
         );
         self.batch_writer.stop();
 
         // Verify all writes completed
-        let final_completed = self.batch_writer.completed_timestamp();
-        if last_write_timestamp.0 > 0 && final_completed < last_write_timestamp.0 {
+        let final_completed = self.batch_writer.completed_version();
+        if last_write_version > 0 && final_completed < last_write_version {
             error!(
                 "Batch writer stopped before completing all writes: expected {}, got {}",
-                last_write_timestamp.0, final_completed
+                last_write_version, final_completed
             );
-        } else if last_write_timestamp.0 > 0 {
-            info!("All writes completed up to timestamp {}", final_completed);
+        } else if last_write_version > 0 {
+            info!("All writes completed up to version {}", final_completed);
         }
 
-        self.sequence_writer.stop();
         self.relations.stop_all();
     }
 
@@ -298,20 +284,17 @@ impl MoorDB {
         let initial_root = Arc::new(relations.snapshot(0, Arc::new(Caches::new())));
         let snapshot_planes = SnapshotPlanes::new(initial_root);
 
-        // Create background sequence writer
-        let sequence_writer = fjall_provider::SequenceWriter::new(sequences_partition.clone());
-
         let s = Arc::new(Self {
             monotonic: CachePadded::new(AtomicU64::new(start_tx_num)),
             commit_apply_lock: Mutex::new(()),
             relations,
             snapshot_planes,
             sequences,
-            sequence_writer,
+            sequences_partition,
             batch_collector,
             batch_writer,
             keyspace,
-            last_write_commit: AtomicU64::new(0),
+            last_write_version: AtomicU64::new(0),
             _tmpdir: tmpdir,
         });
 
