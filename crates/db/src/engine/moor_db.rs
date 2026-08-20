@@ -180,6 +180,14 @@ impl MoorDB {
         }))
     }
 
+    /// Wait for the current published world state to be committed into Fjall.
+    ///
+    /// This is an application-level handoff boundary, not an fsync request.
+    pub fn wait_for_persistence(&self) -> Result<(), String> {
+        let published_version = self.snapshot_planes.load_root().version;
+        self.batch_writer.wait_for_version(published_version)
+    }
+
     /// Create a transaction bound to the current published snapshot.
     pub(crate) fn start_transaction(self: &Arc<Self>) -> WorldStateTransaction {
         self.relations

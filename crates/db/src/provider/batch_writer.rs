@@ -113,6 +113,11 @@ impl CommitBatch {
 enum WriterMsg {
     /// Persist one complete published transaction.
     Commit(CommitBatch),
+    /// Confirm that Fjall has committed through this publication version.
+    Barrier {
+        through_version: u64,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     /// Return a cross-keyspace snapshot after committing through this version.
     Snapshot {
         through_version: u64,
@@ -124,6 +129,7 @@ const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 struct WriterState {
     waiting_batches: BTreeMap<u64, CommitBatch>,
+    barrier_waiters: Vec<(u64, oneshot::Sender<Result<(), String>>)>,
     snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
 }
@@ -132,6 +138,7 @@ impl WriterState {
     fn new() -> Self {
         Self {
             waiting_batches: BTreeMap::new(),
+            barrier_waiters: Vec::new(),
             snapshot_waiters: Vec::new(),
             next_version: 1,
         }
@@ -216,10 +223,11 @@ impl BatchWriter {
                         "batch writer stopped with a gap before version {}",
                         state.next_version
                     );
-                    Self::fail_snapshot_waiters(&mut state, &error);
+                    Self::fail_waiters(&mut state, &error);
                     return Err(error);
                 }
 
+                Self::reply_ready_barriers(&mut state, completed_version.load(Ordering::Acquire));
                 Self::reply_ready_snapshots(
                     &db,
                     &mut state,
@@ -241,7 +249,7 @@ impl BatchWriter {
                 Err(flume::RecvTimeoutError::Timeout) => {}
                 Err(flume::RecvTimeoutError::Disconnected) => {
                     let error = "batch writer channel disconnected".to_string();
-                    Self::fail_snapshot_waiters(&mut state, &error);
+                    Self::fail_waiters(&mut state, &error);
                     return Err(error);
                 }
             }
@@ -256,6 +264,17 @@ impl BatchWriter {
     ) -> Result<(), String> {
         match msg {
             WriterMsg::Commit(batch) => state.add_batch(batch),
+            WriterMsg::Barrier {
+                through_version,
+                reply,
+            } => {
+                if through_version <= completed_version {
+                    reply.send(Ok(())).ok();
+                } else {
+                    state.barrier_waiters.push((through_version, reply));
+                }
+                Ok(())
+            }
             WriterMsg::Snapshot {
                 through_version,
                 reply,
@@ -278,12 +297,13 @@ impl BatchWriter {
         while let Some(batch) = state.waiting_batches.remove(&state.next_version) {
             let version = batch.version;
             if let Err(error) = Self::commit_batch(db, batch) {
-                Self::fail_snapshot_waiters(state, &error);
+                Self::fail_waiters(state, &error);
                 return Err(error);
             }
 
             completed_version.store(version, Ordering::Release);
             state.next_version += 1;
+            Self::reply_ready_barriers(state, version);
             Self::reply_ready_snapshots(db, state, version);
         }
         Ok(())
@@ -342,6 +362,18 @@ impl BatchWriter {
         Ok(())
     }
 
+    fn reply_ready_barriers(state: &mut WriterState, completed_version: u64) {
+        let mut pending = Vec::with_capacity(state.barrier_waiters.len());
+        for (version, reply) in state.barrier_waiters.drain(..) {
+            if version <= completed_version {
+                reply.send(Ok(())).ok();
+            } else {
+                pending.push((version, reply));
+            }
+        }
+        state.barrier_waiters = pending;
+    }
+
     fn reply_ready_snapshots(
         db: &fjall::Database,
         state: &mut WriterState,
@@ -358,7 +390,10 @@ impl BatchWriter {
         state.snapshot_waiters = pending;
     }
 
-    fn fail_snapshot_waiters(state: &mut WriterState, detail: &str) {
+    fn fail_waiters(state: &mut WriterState, detail: &str) {
+        for (_, reply) in state.barrier_waiters.drain(..) {
+            reply.send(Err(detail.to_string())).ok();
+        }
         for (_, reply) in state.snapshot_waiters.drain(..) {
             reply.send(Err(detail.to_string())).ok();
         }
@@ -405,6 +440,22 @@ impl BatchWriter {
 
     pub fn completed_version(&self) -> u64 {
         self.completed_version.load(Ordering::Acquire)
+    }
+
+    /// Wait until Fjall has accepted every transaction through `through_version`.
+    ///
+    /// This does not request an fsync or wait for memtable flushing or compaction.
+    pub fn wait_for_version(&self, through_version: u64) -> Result<(), String> {
+        let (reply, receiver) = oneshot::channel();
+        self.sender
+            .send(WriterMsg::Barrier {
+                through_version,
+                reply,
+            })
+            .map_err(|_| "batch writer channel disconnected".to_string())?;
+        receiver.recv().map_err(|error| {
+            format!("failed waiting for Fjall through version {through_version}: {error}")
+        })?
     }
 
     pub fn snapshot(
@@ -486,6 +537,26 @@ mod tests {
         assert_eq!(writer.completed_version(), 1);
         assert_eq!(
             snapshot.get(&partition, b"key").unwrap().as_deref(),
+            Some(&b"value"[..])
+        );
+    }
+
+    #[test]
+    fn persistence_barrier_waits_for_transaction() {
+        let (_tempdir, database) = test_database();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let writer = BatchWriter::new(database);
+
+        writer
+            .write(encoded_batch(1, &partition, b"key", b"value"))
+            .unwrap();
+        writer.wait_for_version(1).unwrap();
+
+        assert_eq!(writer.completed_version(), 1);
+        assert_eq!(
+            partition.get(b"key").unwrap().as_deref(),
             Some(&b"value"[..])
         );
     }
