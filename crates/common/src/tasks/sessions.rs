@@ -418,10 +418,14 @@ struct Inner {
     received: Vec<NarrativeEvent>,
     committed: Vec<NarrativeEvent>,
 }
+
+/// An input request captured by [`MockClientSession`].
+pub type MockInputRequest = (Obj, Uuid, Option<Vec<(Symbol, Var)>>);
+
 pub struct MockClientSession {
     inner: RwLock<Inner>,
     system: Arc<RwLock<Vec<String>>>,
-    input_requests: Arc<RwLock<Vec<(Obj, Uuid, Option<Vec<(Symbol, Var)>>)>>>,
+    input_requests: Arc<RwLock<Vec<MockInputRequest>>>,
 }
 impl MockClientSession {
     pub fn new() -> Self {
@@ -445,7 +449,7 @@ impl MockClientSession {
     pub fn system(&self) -> Vec<String> {
         self.system.read().unwrap().clone()
     }
-    pub fn input_requests(&self) -> Vec<(Obj, Uuid, Option<Vec<(Symbol, Var)>>)> {
+    pub fn input_requests(&self) -> Vec<MockInputRequest> {
         self.input_requests.read().unwrap().clone()
     }
 }
