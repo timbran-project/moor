@@ -581,13 +581,14 @@ impl Scheduler {
         &self,
         task_id: TaskId,
         task: Box<Task>,
+        input_player: Obj,
         metadata: Option<Vec<(Symbol, Var)>>,
     ) {
         let input_request_id = Uuid::new_v4();
 
         // Keep the task visible while committing output and registering the input
         // request. The active-to-suspended move remains atomic under the lock.
-        let (session, player) = {
+        let session = {
             let mut lc = self.lifecycle.lock();
             if lc.state != SchedulerState::Running {
                 debug!(task_id, "Discarding input request during shutdown");
@@ -608,7 +609,7 @@ impl Scheduler {
                 return;
             }
             tc.phase = RunningTaskPhase::RequestingInput;
-            (tc.session.clone(), tc.player)
+            tc.session.clone()
         };
 
         // Session commit (potential I/O) outside the lock — flushes output
@@ -635,7 +636,7 @@ impl Scheduler {
         }
 
         if session
-            .request_input(player, input_request_id, metadata)
+            .request_input(input_player, input_request_id, metadata)
             .is_err()
         {
             warn!("Could not request input from session; aborting task");
@@ -671,8 +672,9 @@ impl Scheduler {
             .active
             .remove(&task_id)
             .expect("transitioning task disappeared while lifecycle lock was held");
-        lc.task_q.suspended.add_task(
-            WakeCondition::Input(input_request_id),
+        lc.task_q.suspended.add_input_task(
+            input_request_id,
+            input_player,
             task,
             tc.session,
             tc.result_sender,

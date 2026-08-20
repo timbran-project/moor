@@ -425,8 +425,8 @@ pub struct SuspensionQ {
     /// Tasks waiting for other tasks to complete (O(1) lookup by dependency)
     task_dependencies: HashMap<TaskId, Vec<TaskId>, BuildHasherDefault<AHasher>>,
 
-    /// Tasks waiting for input by request ID (O(1) lookup)
-    input_requests: HashMap<uuid::Uuid, TaskId, BuildHasherDefault<AHasher>>,
+    /// Tasks waiting for input by request ID, with the requested player connection.
+    input_requests: HashMap<uuid::Uuid, (TaskId, Obj), BuildHasherDefault<AHasher>>,
 
     /// Tasks waiting for worker responses by request ID (O(1) lookup)
     worker_requests: HashMap<uuid::Uuid, TaskId, BuildHasherDefault<AHasher>>,
@@ -602,7 +602,8 @@ impl SuspensionQ {
                         .push(task_id);
                 }
                 WakeCondition::Input(input_request_id) => {
-                    self.input_requests.insert(*input_request_id, task_id);
+                    self.input_requests
+                        .insert(*input_request_id, (task_id, task.task.player()));
                 }
                 WakeCondition::Worker(worker_request_id) => {
                     self.worker_requests.insert(*worker_request_id, task_id);
@@ -714,7 +715,8 @@ impl SuspensionQ {
                 true
             }
             WakeCondition::Input(input_request_id) => {
-                self.input_requests.insert(*input_request_id, task_id);
+                self.input_requests
+                    .insert(*input_request_id, (task_id, task.player()));
                 // TODO No point in saving, because we'll probably never get the input, I think. But we
                 //  could re-evaluate this
                 false
@@ -781,6 +783,26 @@ impl SuspensionQ {
         }
 
         self.tasks.insert(task_id, sr);
+    }
+
+    /// Add a task waiting for input from a specific player connection.
+    pub(crate) fn add_input_task(
+        &mut self,
+        input_request_id: Uuid,
+        input_player: Obj,
+        task: Box<Task>,
+        session: Arc<dyn Session>,
+        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    ) {
+        let task_id = task.task_id;
+        self.add_task(
+            WakeCondition::Input(input_request_id),
+            task,
+            session,
+            result_sender,
+        );
+        self.input_requests
+            .insert(input_request_id, (task_id, input_player));
     }
 
     /// Remove a task from the set of suspended tasks.
@@ -855,23 +877,25 @@ impl SuspensionQ {
         }
     }
 
-    /// Pull a task from the suspended list that is waiting for input, for the given player.
+    /// Pull a task waiting for input from the responding connection or player.
     /// Uses O(1) lookup instead of O(n) linear scan.
     pub(crate) fn pull_task_for_input(
         &mut self,
         input_request_id: Uuid,
+        connection: &Obj,
         player: &Obj,
     ) -> Option<SuspendedTask> {
         // O(1) lookup by input request ID
-        let &task_id = self.input_requests.get(&input_request_id)?;
+        let &(task_id, input_player) = self.input_requests.get(&input_request_id)?;
 
-        // Verify the task still exists and check permissions
-        let suspended_task = self.tasks.get(&task_id)?;
-        if suspended_task.task.authority_principal().ne(player) {
+        // Input must come from the connection selected by read().
+        if input_player.ne(connection) && input_player.ne(player) {
             warn!(
                 ?task_id,
                 ?input_request_id,
+                ?connection,
                 ?player,
+                ?input_player,
                 "Task input request received for wrong player"
             );
             return None;
@@ -1068,12 +1092,20 @@ mod tests {
     }
 
     fn mock_task(task_id: TaskId) -> Box<Task> {
+        mock_task_with_identity(task_id, SYSTEM_OBJECT, SYSTEM_OBJECT)
+    }
+
+    fn mock_task_with_identity(
+        task_id: TaskId,
+        player: Obj,
+        authority_principal: Obj,
+    ) -> Box<Task> {
         Task::new(
             task_id,
-            SYSTEM_OBJECT,
-            SYSTEM_OBJECT,
+            player,
+            authority_principal,
             TaskStart::StartEval {
-                player: SYSTEM_OBJECT,
+                player,
                 program: Default::default(),
                 initial_env: None,
             },
@@ -1084,6 +1116,35 @@ mod tests {
 
     fn mock_session() -> Arc<dyn Session> {
         Arc::new(NoopClientSession::new())
+    }
+
+    #[test]
+    fn input_request_is_bound_to_requested_player_not_task_authority() {
+        let task_id = 42;
+        let task_player = Obj::mk_id(2);
+        let authority_principal = Obj::mk_id(3);
+        let input_player = Obj::mk_id(4);
+        let wrong_player = Obj::mk_id(5);
+        let input_request_id = Uuid::new_v4();
+        let mut sq = SuspensionQ::new(Box::new(NoopTasksDb {}));
+
+        sq.add_input_task(
+            input_request_id,
+            input_player,
+            mock_task_with_identity(task_id, task_player, authority_principal),
+            mock_session(),
+            None,
+        );
+
+        assert!(
+            sq.pull_task_for_input(input_request_id, &wrong_player, &wrong_player)
+                .is_none(),
+            "input from another player must not consume the request"
+        );
+        let suspended = sq
+            .pull_task_for_input(input_request_id, &input_player, &input_player)
+            .expect("the requested player should fulfill the input request");
+        assert_eq!(suspended.task.task_id, task_id);
     }
 
     /// Verify that stale timer entries from prior suspensions of the same task

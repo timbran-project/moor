@@ -530,23 +530,30 @@ impl RpcMessageHandler {
     pub fn request_client_input(
         &self,
         client_id: Uuid,
-        player: Obj,
+        input_player: Obj,
         input_request_id: Uuid,
         metadata: Option<Vec<(Symbol, Var)>>,
     ) -> Result<(), Error> {
-        // Validate first - check that the player matches the logged-in player for this client
         let Some(logged_in_player) = self.connections.player_object_for_client(client_id) else {
             return Err(eyre::eyre!("No connection for player"));
         };
-        if logged_in_player != player {
-            return Err(eyre::eyre!("Player mismatch"));
-        }
+        let current_connection = self.connections.connection_object_for_client(client_id);
+        let target_client_id =
+            if logged_in_player == input_player || current_connection == Some(input_player) {
+                client_id
+            } else {
+                self.connections
+                    .client_ids_for(input_player)?
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| eyre::eyre!("No connection for player {input_player}"))?
+            };
 
         let event = ClientEvent::RequestInput {
             request_id: input_request_id,
             metadata: metadata.unwrap_or_default(),
         };
-        self.transport.publish_client_event(client_id, event)
+        self.transport.publish_client_event(target_client_id, event)
     }
 
     pub fn send_system_message(

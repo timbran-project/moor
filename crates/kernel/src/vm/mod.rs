@@ -15,13 +15,13 @@ use moor_common::{
     model::CapabilityGrant,
     tasks::{AbortLimitReason, Exception},
 };
-use moor_var::{Obj, Symbol, Var};
+use moor_var::{Obj, Var};
 
 // Re-export types from moor-vm that kernel code uses.
 pub use moor_vm::FinallyReason;
 pub use moor_vm::Fork;
 pub(crate) use moor_vm::{Activation, Frame, MooStackFrame};
-pub use moor_vm::{CommandVerbExecutionRequest, VerbExecutionRequest};
+pub use moor_vm::{CommandVerbExecutionRequest, TaskInputRequest, VerbExecutionRequest};
 
 pub(crate) mod kernel_host;
 pub(crate) mod vm_call;
@@ -39,7 +39,7 @@ pub enum VMHostResponse {
     Suspend(Box<TaskSuspend>),
     /// Tell the task Johnny 5 needs input from the client (`read` invocation).
     /// Optional metadata provides UI hints for rich input prompts.
-    SuspendNeedInput(Option<Vec<(Symbol, Var)>>),
+    SuspendNeedInput(Box<TaskInputRequest>),
     /// Task timed out or exceeded ticks.
     AbortLimit(AbortLimitReason),
     /// Tell the task that execution has completed, and the task is successful.

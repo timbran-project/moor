@@ -134,19 +134,20 @@ impl SchedulerClient {
         })
     }
 
-    /// Receive input that the (suspended) task previously requested, using the given
-    /// `input_request_id`.
+    /// Receive input that the suspended task requested from the authenticated connection.
     /// The request is identified by the `input_request_id`, and given the input and resumed under
     /// a new transaction.
     pub fn submit_requested_input(
         &self,
+        connection: &Obj,
         player: &Obj,
         input_request_id: uuid::Uuid,
         input: Var,
     ) -> Result<(), SchedulerError> {
+        let connection = *connection;
         let player = *player;
         self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
-            scheduler.submit_task_input_inner(player, input_request_id, input)
+            scheduler.submit_task_input_inner(connection, player, input_request_id, input)
         })
     }
 

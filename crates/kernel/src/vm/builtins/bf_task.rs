@@ -11,11 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::task_context::current_task_scheduler_client;
+use crate::task_context::{current_task_scheduler_client, with_current_transaction};
 use crate::tasks::{
     TaskStart,
     task_telemetry::{ActiveTaskPhase, TaskTelemetry},
 };
+use crate::vm::TaskInputRequest;
 use crate::vm::builtins::BfErr::ErrValue;
 use crate::vm::builtins::BfRet::{Ret, VmInstr};
 use crate::vm::builtins::{BfCallState, BfErr, BfRet, BuiltinFunction, world_state_bf_err};
@@ -24,11 +25,10 @@ use crate::vm::{FinallyReason, TaskSuspend};
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_TYPE, Symbol, Var, Variant, v_arc_str, v_float, v_int, v_list, v_list_iter,
-    v_map, v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_PERM, E_TYPE, Symbol, Var, Variant, v_arc_str, v_float, v_int, v_list,
+    v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
 };
 use std::time::{Duration, SystemTime};
-use tracing::warn;
 
 /// Usage: `any suspend([num seconds])`
 /// Suspends the current task for the given number of seconds. If no argument,
@@ -180,34 +180,46 @@ fn bf_wait_task(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
 /// Usage: `str read([obj player [, map metadata]])`
 /// Suspends until the player enters a line of input. Optional metadata provides UI hints
-/// (input_type, prompt, choices, min/max) for rich clients. Player must be current player.
+/// (input_type, prompt, choices, min/max) for rich clients.
 fn bf_read(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() > 2 {
         return Err(ErrValue(E_ARGS.msg("read() requires 0 to 2 arguments")));
     }
 
-    // We don't actually support reading from arbitrary connections that aren't the current player,
-    // so we'll raise E_INVARG for anything else, because we don't support LambdaMOO's
-    // network listener model.
-    if !bf_args.args.is_empty() {
+    let current_player = bf_args.player();
+    let input_player = if !bf_args.args.is_empty() {
         let Some(requested_player) = bf_args.args[0].as_object() else {
             return Err(ErrValue(
-                E_ARGS.msg("read() requires an object as the first argument"),
+                E_TYPE.msg("read() requires an object as the first argument"),
             ));
         };
-        let player = bf_args.exec_state.top().player();
-        if requested_player != player {
-            // We log this because we'd like to know if cores are trying to do this.
-            warn!(
-                requested_player = ?requested_player,
-                caller = ?bf_args.exec_state.caller(),
-                ?player,
-                "read() called with non-current player");
+
+        let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+        if !authority.is_wizard() && !authority.can_call_builtin(bf_args.name) {
+            let owns_player = with_current_transaction(|world_state| {
+                if !world_state.valid(&requested_player)? {
+                    return Ok(false);
+                }
+                Ok(world_state.owner_of(&requested_player)? == authority.principal())
+            })
+            .map_err(world_state_bf_err)?;
+            if !owns_player {
+                return Err(ErrValue(E_PERM.msg(
+                    "read() requires wizard permissions or ownership of the requested player",
+                )));
+            }
+        }
+
+        requested_player
+    } else {
+        let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
+        if !authority.is_wizard() && !authority.can_call_builtin(bf_args.name) {
             return Err(ErrValue(
-                E_ARGS.msg("read() requires the current player as the first argument"),
+                E_PERM.msg("read() without a player requires wizard permissions"),
             ));
         }
-    }
+        current_player
+    };
 
     // Parse optional metadata (similar to bf_notify)
     let metadata = if bf_args.args.len() == 2 {
@@ -256,7 +268,12 @@ fn bf_read(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Set return value for task retry scenarios
     bf_args.exec_state.set_return_value(v_str(""));
 
-    Ok(VmInstr(ExecutionResult::TaskNeedInput(metadata)))
+    Ok(VmInstr(ExecutionResult::TaskNeedInput(Box::new(
+        TaskInputRequest {
+            player: input_player,
+            metadata,
+        },
+    ))))
 }
 
 /// Usage: `list queued_tasks()`

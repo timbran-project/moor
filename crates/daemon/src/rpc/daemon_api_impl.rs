@@ -390,7 +390,8 @@ impl RuntimeApi for RpcMessageHandler {
                 let _ = self
                     .connections
                     .record_client_activity(client_id, connection);
-                if let Err(e) = scheduler_client.submit_requested_input(&player, request_id, input)
+                if let Err(e) =
+                    scheduler_client.submit_requested_input(&connection, &player, request_id, input)
                 {
                     error!(error = ?e, "Error submitting requested input");
                     return Err(RpcMessageError::InternalError(e.to_string()));

@@ -414,8 +414,8 @@ impl VmHost {
                 ExecutionResult::TaskSuspend(delay) => {
                     return Suspend(Box::new(delay));
                 }
-                ExecutionResult::TaskNeedInput(metadata) => {
-                    return VMHostResponse::SuspendNeedInput(metadata);
+                ExecutionResult::TaskNeedInput(request) => {
+                    return VMHostResponse::SuspendNeedInput(request);
                 }
                 ExecutionResult::Complete(a) => {
                     return VMHostResponse::CompleteSuccess(a);

@@ -74,6 +74,15 @@ pub struct VerbExecutionRequest {
     pub program_key: VerbProgramKey,
 }
 
+/// A task request to read input from a player's connection.
+#[derive(Debug, Clone)]
+pub struct TaskInputRequest {
+    /// Player or connection object from which input is requested.
+    pub player: Obj,
+    /// Optional client-facing input metadata.
+    pub metadata: Option<Vec<(Symbol, Var)>>,
+}
+
 impl VerbExecutionRequest {
     #[allow(clippy::too_many_arguments)]
     #[inline]
@@ -440,8 +449,8 @@ pub enum ExecutionResult {
     /// If the duration is None, then the task is suspended indefinitely, until it is killed or
     /// resumed using `resume()` or `kill_task()`.
     TaskSuspend(TaskSuspend),
-    /// Request input from the client, with optional metadata for UI hints.
-    TaskNeedInput(Option<Vec<(Symbol, Var)>>),
+    /// Request input from a player's connection, with optional metadata for UI hints.
+    TaskNeedInput(Box<TaskInputRequest>),
     /// Rollback the current transaction and restart the task in a new transaction.
     /// This can happen when a conflict occurs during execution, independent of a commit.
     TaskRollbackRestart,

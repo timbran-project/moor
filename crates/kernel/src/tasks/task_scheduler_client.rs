@@ -121,9 +121,14 @@ impl TaskSchedulerClient {
             .handle_task_suspend(self.task_id, resume_condition, task);
     }
 
-    pub fn request_input(&self, task: Box<Task>, metadata: Option<Vec<(Symbol, Var)>>) {
+    pub fn request_input(
+        &self,
+        task: Box<Task>,
+        input_player: Obj,
+        metadata: Option<Vec<(Symbol, Var)>>,
+    ) {
         self.scheduler
-            .handle_task_request_input(self.task_id, task, metadata);
+            .handle_task_request_input(self.task_id, task, input_player, metadata);
     }
 
     pub fn task_list(&self) -> Vec<TaskDescription> {

@@ -32,8 +32,8 @@ pub use activation::{Activation, BuiltinFrame, CallProgram, Frame};
 pub use config::FeaturesConfig;
 pub use environment::Environment;
 pub use moo_execute::{
-    CommandVerbExecutionRequest, ExecutionResult, Fork, FrameExecutionContext, TaskSuspend,
-    VerbExecutionRequest, moo_frame_execute,
+    CommandVerbExecutionRequest, ExecutionResult, Fork, FrameExecutionContext, TaskInputRequest,
+    TaskSuspend, VerbExecutionRequest, moo_frame_execute,
 };
 pub use moo_frame::{
     CachedProgramPtr, CatchType, ForRangeScope, ForSequenceScope, FrameProgram, MooStackFrame,

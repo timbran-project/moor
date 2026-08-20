@@ -964,7 +964,7 @@ mod tests {
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_request_input(task_id, task, None);
+            callback_scheduler.handle_task_request_input(task_id, task, SYSTEM_OBJECT, None);
         });
 
         commit_entered.wait();

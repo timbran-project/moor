@@ -656,7 +656,7 @@ impl Task {
                 task_scheduler_client.suspend(delay.as_ref().clone(), self);
                 None
             }
-            VMHostResponse::SuspendNeedInput(metadata) => {
+            VMHostResponse::SuspendNeedInput(input_request) => {
                 // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
 
                 // Attempt commit... See comments/notes on Suspend above.
@@ -676,7 +676,11 @@ impl Task {
                 trace_task_suspend!(self.task_id, "Waiting for input");
 
                 // Consume us, passing back to the scheduler that we're waiting for input.
-                task_scheduler_client.request_input(self, metadata);
+                task_scheduler_client.request_input(
+                    self,
+                    input_request.player,
+                    input_request.metadata,
+                );
                 None
             }
             VMHostResponse::ContinueOk => Some(self),
@@ -1567,24 +1571,25 @@ mod tests {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use moor_common::{
         model::{
-            ArgSpec, ObjFlag, ObjectKind, PrepSpec, VerbArgsSpec, VerbFlag, WorldState,
+            ArgSpec, ObjFlag, ObjectKind, ObjectRef, PrepSpec, VerbArgsSpec, VerbFlag, WorldState,
             WorldStateError, WorldStateSource,
             loader::{LoaderInterface, SnapshotInterface},
         },
         tasks::{
-            CommandError, NoopClientSession, NoopSystemControl, SchedulerError, SessionError,
-            SessionFactory,
+            CommandError, MockClientSession, NoopClientSession, NoopSystemControl, SchedulerError,
+            SessionError, SessionFactory,
         },
         util::BitEnum,
     };
     use moor_compiler::{CompileOptions, Program, compile};
     use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
     use moor_var::{
-        E_DIV, NOTHING, Obj, SYSTEM_OBJECT, Symbol, program::ProgramType, v_int, v_str,
+        E_DIV, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_int,
+        v_str,
     };
 
     use crate::{
@@ -1888,6 +1893,110 @@ mod tests {
             .unwrap();
         let result = wait_result(&handle).unwrap();
         assert_eq!(result, v_int(123));
+    }
+
+    #[test]
+    fn read_uses_task_player_when_authority_differs() {
+        let verb = Symbol::mk("read_helper");
+        let (client, _sched) = setup_scheduler(&[TestVerb {
+            name: verb,
+            program: compile("return read();", CompileOptions::default()).unwrap(),
+            argspec: VerbArgsSpec::this_none_this(),
+        }]);
+        let player = Obj::mk_id(4);
+        let session = Arc::new(MockClientSession::new());
+        let handle = client
+            .submit_verb_task(
+                &player,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                verb,
+                List::mk_list(&[]),
+                v_empty_str(),
+                &SYSTEM_OBJECT,
+                session.clone(),
+            )
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let input_request_id = loop {
+            if let Some((input_player, input_request_id, _)) =
+                session.input_requests().into_iter().next()
+            {
+                assert_eq!(input_player, player);
+                break input_request_id;
+            }
+            if let Ok((_, result)) = handle.receiver().try_recv() {
+                match result {
+                    Ok(TaskNotification::Suspended) => {}
+                    Ok(TaskNotification::Result(value)) => {
+                        panic!("read task returned before requesting input: {value:?}")
+                    }
+                    Err(error) => panic!("read task aborted before requesting input: {error:?}"),
+                }
+            }
+            assert!(Instant::now() < deadline, "input request timed out");
+            std::thread::yield_now();
+        };
+
+        client
+            .submit_requested_input(&player, &player, input_request_id, v_str("hello"))
+            .unwrap();
+        assert_eq!(wait_result(&handle).unwrap(), v_str("hello"));
+    }
+
+    #[test]
+    fn read_can_target_another_player_with_wizard_authority() {
+        let verb = Symbol::mk("read_other_helper");
+        let (client, _sched) = setup_scheduler(&[TestVerb {
+            name: verb,
+            program: compile("return read(#0);", CompileOptions::default()).unwrap(),
+            argspec: VerbArgsSpec::this_none_this(),
+        }]);
+        let task_player = Obj::mk_id(4);
+        let input_player = SYSTEM_OBJECT;
+        let session = Arc::new(MockClientSession::new());
+        let handle = client
+            .submit_verb_task(
+                &task_player,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                verb,
+                List::mk_list(&[]),
+                v_empty_str(),
+                &SYSTEM_OBJECT,
+                session.clone(),
+            )
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let input_request_id = loop {
+            if let Some((requested_player, input_request_id, _)) =
+                session.input_requests().into_iter().next()
+            {
+                assert_eq!(requested_player, input_player);
+                break input_request_id;
+            }
+            if let Ok((_, result)) = handle.receiver().try_recv() {
+                match result {
+                    Ok(TaskNotification::Suspended) => {}
+                    Ok(TaskNotification::Result(value)) => {
+                        panic!("read task returned before requesting input: {value:?}")
+                    }
+                    Err(error) => panic!("read task aborted before requesting input: {error:?}"),
+                }
+            }
+            assert!(Instant::now() < deadline, "input request timed out");
+            std::thread::yield_now();
+        };
+
+        client
+            .submit_requested_input(
+                &input_player,
+                &input_player,
+                input_request_id,
+                v_str("remote"),
+            )
+            .unwrap();
+        assert_eq!(wait_result(&handle).unwrap(), v_str("remote"));
     }
 
     #[test]

@@ -106,6 +106,7 @@ impl Scheduler {
 
     pub(crate) fn submit_task_input_inner(
         &self,
+        connection: Obj,
         player: Obj,
         input_request_id: Uuid,
         input: Var,
@@ -116,10 +117,10 @@ impl Scheduler {
         // the given input, clearing the input request out.
 
         // Find the task that requested this input, if any
-        let Some(sr) = lc
-            .task_q
-            .suspended
-            .pull_task_for_input(input_request_id, &player)
+        let Some(sr) =
+            lc.task_q
+                .suspended
+                .pull_task_for_input(input_request_id, &connection, &player)
         else {
             warn!(?input_request_id, "Input request not found");
             return Err(InputRequestNotFound(input_request_id.as_u128()));

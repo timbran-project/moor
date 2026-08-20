@@ -244,7 +244,7 @@ impl TaskQ {
         };
 
         let task_id = task.task_id;
-        let player = task.authority_principal();
+        let player = task.player();
 
         // Brand new kill switch for the resumed task.
         let kill_switch = Arc::new(AtomicBool::new(false));

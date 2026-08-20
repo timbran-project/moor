@@ -421,6 +421,7 @@ struct Inner {
 pub struct MockClientSession {
     inner: RwLock<Inner>,
     system: Arc<RwLock<Vec<String>>>,
+    input_requests: Arc<RwLock<Vec<(Obj, Uuid, Option<Vec<(Symbol, Var)>>)>>>,
 }
 impl MockClientSession {
     pub fn new() -> Self {
@@ -430,6 +431,7 @@ impl MockClientSession {
                 committed: vec![],
             }),
             system: Arc::new(Default::default()),
+            input_requests: Arc::new(Default::default()),
         }
     }
     pub fn received(&self) -> Vec<NarrativeEvent> {
@@ -442,6 +444,9 @@ impl MockClientSession {
     }
     pub fn system(&self) -> Vec<String> {
         self.system.read().unwrap().clone()
+    }
+    pub fn input_requests(&self) -> Vec<(Obj, Uuid, Option<Vec<(Symbol, Var)>>)> {
+        self.input_requests.read().unwrap().clone()
     }
 }
 
@@ -470,16 +475,21 @@ impl Session for MockClientSession {
                 committed: vec![],
             }),
             system: self.system.clone(),
+            input_requests: self.input_requests.clone(),
         }))
     }
 
     fn request_input(
         &self,
         player: Obj,
-        _input_request_id: Uuid,
-        _metadata: Option<Vec<(Symbol, Var)>>,
+        input_request_id: Uuid,
+        metadata: Option<Vec<(Symbol, Var)>>,
     ) -> Result<(), SessionError> {
-        panic!("MockClientSession::request_input called for player {player}")
+        self.input_requests
+            .write()
+            .unwrap()
+            .push((player, input_request_id, metadata));
+        Ok(())
     }
 
     fn send_event(&self, _player: Obj, msg: Box<NarrativeEvent>) -> Result<(), SessionError> {
