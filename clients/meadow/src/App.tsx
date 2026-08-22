@@ -1500,6 +1500,7 @@ function AppContent({
         connectWS,
         encryptionKeyForHistory,
         encryptionState.hasCheckedOnce,
+        encryptionState.statusError,
         eventLogEnabled,
         fetchCurrentPresentations,
         fetchInitialHistory,
@@ -2259,7 +2260,14 @@ function EncryptionWrapper() {
 }
 
 function AppWrapper() {
-    const { authState, rotatePlayerIdentity, setPlayerConnected, updateReconnectCredentials } = useAuthContext();
+    const {
+        authState,
+        clearInitialAttach,
+        disconnect,
+        rotatePlayerIdentity,
+        setPlayerConnected,
+        updateReconnectCredentials,
+    } = useAuthContext();
     const { addPresentation, removePresentation } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
@@ -2547,6 +2555,8 @@ function AppWrapper() {
             handlePresentMessage={handlePresentMessage}
             handleUnpresentMessage={handleUnpresentMessage}
             handleDataMessage={handleDataMessage}
+            onAuthFailure={disconnect}
+            onInitialAttachComplete={clearInitialAttach}
         >
             <AppContent
                 narrativeRef={narrativeRef}

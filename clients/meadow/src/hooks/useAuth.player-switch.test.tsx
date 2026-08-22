@@ -137,4 +137,27 @@ describe("useAuth player switching", () => {
         expect(localStorage.getItem("history_auth_token")).toBe("owner-token");
         expect(localStorage.getItem("history_player_oid")).toBe("oid:1");
     });
+
+    it("clears initial-attach state after the first successful attach", async () => {
+        installLocalStorageMock();
+        vi.stubGlobal("fetch", vi.fn());
+        const { result } = renderHook(() => useAuth(vi.fn()));
+
+        act(() => {
+            result.current.establishSession({
+                playerOid: "oid:7",
+                authToken: "auth-token",
+                historyPlayerOid: "oid:7",
+                historyAuthToken: "auth-token",
+                playerFlags: 0,
+                reconnectCredentials: null,
+            });
+        });
+        expect(result.current.authState.player?.isInitialAttach).toBe(true);
+
+        act(() => {
+            result.current.clearInitialAttach();
+        });
+        expect(result.current.authState.player?.isInitialAttach).toBe(false);
+    });
 });

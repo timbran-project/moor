@@ -477,14 +477,9 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
     const clearInitialAttach = useCallback(() => {
         setAuthState(prev => {
             if (!prev.player) return prev;
-            // Check if user has history encryption - if not, keep isInitialAttach true
-            // so reconnects will trigger user_connected (otherwise they'd see a blank page)
-            const hasEventLogEncryption = localStorage.getItem(
-                `moor_event_log_identity_${prev.player.oid}`,
-            ) !== null;
             return {
                 ...prev,
-                player: { ...prev.player, isInitialAttach: !hasEventLogEncryption },
+                player: { ...prev.player, isInitialAttach: false },
             };
         });
     }, []);

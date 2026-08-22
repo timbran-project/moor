@@ -216,4 +216,95 @@ describe("useWebSocket reconnect behavior", () => {
             mockHost.restore();
         }
     });
+
+    it("reports initial authentication failure without reconnecting", async () => {
+        vi.useFakeTimers();
+        const mockHost = installMockWebHostWebSocket();
+        const onAuthFailure = vi.fn();
+
+        try {
+            installLocalStorageMock();
+            const player = {
+                oid: "oid:7",
+                authToken: "invalid-token",
+                connected: false,
+                flags: 0,
+                isInitialAttach: true,
+            };
+
+            const { result } = renderHook(() =>
+                useWebSocket(
+                    player,
+                    vi.fn(),
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    onAuthFailure,
+                )
+            );
+
+            await act(async () => {
+                await result.current.connect("connect");
+            });
+
+            act(() => {
+                mockHost.takeConnection(0)?.serverClose(4401, "invalid token");
+            });
+
+            expect(onAuthFailure).toHaveBeenCalledOnce();
+            await act(async () => {
+                vi.advanceTimersByTime(3000);
+            });
+            expect(mockHost.connections).toHaveLength(1);
+        } finally {
+            mockHost.restore();
+        }
+    });
+
+    it("reports completion after the first successful initial attach", async () => {
+        const mockHost = installMockWebHostWebSocket();
+        const onInitialAttachComplete = vi.fn();
+
+        try {
+            installLocalStorageMock();
+            const player = {
+                oid: "oid:7",
+                authToken: "auth-1",
+                connected: false,
+                flags: 0,
+                isInitialAttach: true,
+            };
+
+            const { result } = renderHook(() =>
+                useWebSocket(
+                    player,
+                    vi.fn(),
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    onInitialAttachComplete,
+                )
+            );
+
+            await act(async () => {
+                await result.current.connect("connect");
+            });
+            act(() => {
+                mockHost.takeConnection(0)?.serverOpen();
+            });
+
+            expect(onInitialAttachComplete).toHaveBeenCalledOnce();
+        } finally {
+            mockHost.restore();
+        }
+    });
 });

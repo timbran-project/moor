@@ -344,7 +344,14 @@ export const useWebSocket = (
                 5,
             );
         }
-    }, [handleMessage, onPlayerConnectedChange, onSystemMessage, player, onInitialAttachComplete]);
+    }, [
+        handleMessage,
+        onAuthFailure,
+        onInitialAttachComplete,
+        onPlayerConnectedChange,
+        onSystemMessage,
+        player,
+    ]);
 
     // Keep connectRef updated so reconnect timeouts use current function
     useEffect(() => {

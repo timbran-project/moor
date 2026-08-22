@@ -59,6 +59,8 @@ interface WebSocketProviderProps {
     handlePresentMessage: (presentData: PresentationData) => void;
     handleUnpresentMessage: (id: string) => void;
     handleDataMessage: (event: DataMessageHandlerEvent) => void;
+    onAuthFailure: () => void;
+    onInitialAttachComplete: () => void;
 }
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
@@ -72,6 +74,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     handlePresentMessage,
     handleUnpresentMessage,
     handleDataMessage,
+    onAuthFailure,
+    onInitialAttachComplete,
 }) => {
     const webSocketHook = useWebSocket(
         player,
@@ -90,6 +94,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         handlePresentMessage,
         handleUnpresentMessage,
         handleDataMessage,
+        onAuthFailure,
+        onInitialAttachComplete,
     );
 
     return (
