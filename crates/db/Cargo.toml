@@ -48,6 +48,7 @@ moor-schema = { path = "../schema" }
 moor-var = { path = "../var" }
 
 # Core Runtime & System
+probe.workspace = true
 
 # Serialization & Data Formats
 planus.workspace = true

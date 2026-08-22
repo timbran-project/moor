@@ -2055,7 +2055,15 @@ impl WorldStateTransaction {
 
         // Extract DB handle before consuming self
         let db = self.db.clone();
-        let ws = self.into_working_sets()?;
+        probe::probe!(moor_v1, db_commit_prepare_start);
+        let ws = match self.into_working_sets() {
+            Ok(ws) => ws,
+            Err(error) => {
+                probe::probe!(moor_v1, db_commit_prepare_done, 1);
+                return Err(error);
+            }
+        };
+        probe::probe!(moor_v1, db_commit_prepare_done, 0);
 
         // Dispatch commit work directly under the DB commit lock.
         drop(_t);

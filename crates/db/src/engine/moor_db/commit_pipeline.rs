@@ -34,6 +34,7 @@ use moor_common::model::{
     CommitResult, ConflictInfo, ConflictTarget, WorldStateError, WorldStateTimerOp,
 };
 use moor_common::util::Instant;
+use probe::probe;
 use std::time::Duration;
 use tracing::{error, trace, warn};
 
@@ -55,8 +56,10 @@ fn enrich_conflict_info(
 impl MoorDB {
     /// Publish read-only cache updates for the transaction snapshot version.
     pub(crate) fn commit_read_only(&self, snapshot_version: u64, combined_caches: Caches) {
+        probe!(moor_v1, db_commit_read_only_start, snapshot_version);
         self.snapshot_planes
             .publish_read_only_cache(snapshot_version, combined_caches);
+        probe!(moor_v1, db_commit_read_only_done, snapshot_version);
     }
 
     /// Persist a successfully published snapshot to the durable store.
@@ -68,6 +71,7 @@ impl MoorDB {
         property_definition_changes: Vec<PropertyDefinitionChange>,
         admission: CommitAdmission,
     ) {
+        probe!(moor_v1, db_commit_persist_start, publication_version);
         let mut batch = match self.relations.working_sets_to_batch(
             working_sets,
             publication_version,
@@ -78,6 +82,7 @@ impl MoorDB {
                 Self::report_persistence_failure(&format!(
                     "failed to encode transaction {publication_version}: {error}"
                 ));
+                probe!(moor_v1, db_commit_persist_done, publication_version, 1);
                 return;
             }
         };
@@ -99,7 +104,10 @@ impl MoorDB {
             Self::report_persistence_failure(&format!(
                 "failed to enqueue transaction {publication_version}: {error}"
             ));
+            probe!(moor_v1, db_commit_persist_done, publication_version, 2);
+            return;
         }
+        probe!(moor_v1, db_commit_persist_done, publication_version, 0);
     }
 
     fn report_persistence_failure(detail: &str) {
@@ -130,6 +138,13 @@ impl MoorDB {
         let tx_bloom = ws.tx_bloom.clone();
         let (mut relation_ws, verb_cache, prop_cache, ancestry_cache) =
             ws.extract_relation_working_sets();
+        probe!(
+            moor_v1,
+            db_commit_start,
+            snapshot_version,
+            tx_timestamp.0,
+            num_tuples
+        );
 
         // Read-only fast path
         if !has_mutations {
@@ -141,6 +156,7 @@ impl MoorDB {
                     ancestry_cache,
                 },
             );
+            probe!(moor_v1, db_commit_done, snapshot_version, 0);
             return Ok(CommitResult::Success {
                 mutations_made: false,
                 timestamp: tx_timestamp.0,
@@ -165,16 +181,20 @@ impl MoorDB {
                     .is_some_and(|snap_bloom| !tx_bloom.might_intersect(snap_bloom)));
 
         if !skip_conflict_check {
+            probe!(moor_v1, db_commit_check_start, snapshot_version);
             let _t = counters
                 .timers_hot
                 .start(WorldStateTimerOp::CommitCheckPhase);
             if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
+                probe!(moor_v1, db_commit_check_done, snapshot_version, 1);
                 let conflict_info = enrich_conflict_info(&current_root, conflict_info);
                 trace!("Transaction conflict during commit: {conflict_info}");
+                probe!(moor_v1, db_commit_done, snapshot_version, 2);
                 return Ok(CommitResult::ConflictRetry {
                     conflict_info: Some(conflict_info),
                 });
             }
+            probe!(moor_v1, db_commit_check_done, snapshot_version, 0);
         }
 
         if start_time.elapsed() > Duration::from_secs(5) {
@@ -184,6 +204,7 @@ impl MoorDB {
             );
         }
 
+        probe!(moor_v1, db_commit_apply_start, snapshot_version);
         let _t = counters
             .timers_hot
             .start(WorldStateTimerOp::CommitApplyPhase);
@@ -200,25 +221,42 @@ impl MoorDB {
         let next_root =
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
+        probe!(moor_v1, db_commit_apply_done, snapshot_version);
 
-        let admission =
-            self.batch_writer
-                .admit_commit(tx_timestamp)
-                .map_err(|error| match error {
-                    CommitAdmissionError::Timeout { waited } => {
-                        WorldStateError::DatabaseOverloaded(waited)
-                    }
-                    CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
-                        "Database commit queue admission is unavailable".to_string(),
-                    ),
-                })?;
+        let admission = self
+            .batch_writer
+            .admit_commit(tx_timestamp)
+            .inspect_err(|_| {
+                probe!(moor_v1, db_commit_done, snapshot_version, 4);
+            })
+            .map_err(|error| match error {
+                CommitAdmissionError::Timeout { waited } => {
+                    WorldStateError::DatabaseOverloaded(waited)
+                }
+                CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
+                    "Database commit queue admission is unavailable".to_string(),
+                ),
+            })?;
 
         // Phase 2: Try to publish
         let publication_version = next_root.version;
+        probe!(
+            moor_v1,
+            db_commit_publish_start,
+            current_root.version,
+            publication_version
+        );
         if self
             .snapshot_planes
             .try_publish_write_root(current_root.version, next_root)
         {
+            probe!(
+                moor_v1,
+                db_commit_publish_done,
+                current_root.version,
+                publication_version,
+                1
+            );
             self.persist_commit(
                 relation_ws,
                 publication_version,
@@ -226,11 +264,19 @@ impl MoorDB {
                 property_definition_changes,
                 admission,
             );
+            probe!(moor_v1, db_commit_done, snapshot_version, 1);
             return Ok(CommitResult::Success {
                 mutations_made: true,
                 timestamp: tx_timestamp.0,
             });
         }
+        probe!(
+            moor_v1,
+            db_commit_publish_done,
+            current_root.version,
+            publication_version,
+            0
+        );
 
         // Phase 3: CAS failed — try to rebase onto the winner's snapshot.
         // Bloom misses prove disjointness cheaply. Bloom hits are checked
@@ -239,8 +285,21 @@ impl MoorDB {
         for _rebase in 0..MAX_REBASE_ATTEMPTS {
             let winner = self.snapshot_planes.load_root();
 
+            probe!(
+                moor_v1,
+                db_commit_rebase_start,
+                checked_root.version,
+                winner.version
+            );
             let rebase_check = checkers.rebase_check(&relation_ws, &checked_root, &winner);
             if let RebaseCheck::ActualOverlap(conflict_info) = rebase_check {
+                probe!(
+                    moor_v1,
+                    db_commit_rebase_done,
+                    checked_root.version,
+                    winner.version,
+                    2
+                );
                 let conflict_info = enrich_conflict_info(&winner, conflict_info);
                 trace!(
                     checked_version = checked_root.version,
@@ -248,6 +307,7 @@ impl MoorDB {
                     %conflict_info,
                     "Transaction found an exact key overlap after CAS loss"
                 );
+                probe!(moor_v1, db_commit_done, snapshot_version, 2);
                 return Ok(CommitResult::ConflictRetry {
                     conflict_info: Some(conflict_info),
                 });
@@ -276,6 +336,13 @@ impl MoorDB {
                 .snapshot_planes
                 .try_publish_write_root(winner.version, rebased)
             {
+                probe!(
+                    moor_v1,
+                    db_commit_rebase_done,
+                    checked_root.version,
+                    winner.version,
+                    1
+                );
                 self.persist_commit(
                     relation_ws,
                     publication_version,
@@ -283,17 +350,26 @@ impl MoorDB {
                     property_definition_changes,
                     admission,
                 );
+                probe!(moor_v1, db_commit_done, snapshot_version, 1);
                 return Ok(CommitResult::Success {
                     mutations_made: true,
                     timestamp: tx_timestamp.0,
                 });
             }
+            probe!(
+                moor_v1,
+                db_commit_rebase_done,
+                checked_root.version,
+                winner.version,
+                0
+            );
 
             // Another writer won. The prepared operations have now been proven
             // safe through this winner, so compare only the next interval.
             checked_root = winner;
         }
 
+        probe!(moor_v1, db_commit_done, snapshot_version, 3);
         Ok(CommitResult::ConflictRetry {
             conflict_info: None,
         })

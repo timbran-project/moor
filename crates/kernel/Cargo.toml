@@ -90,6 +90,7 @@ log.workspace = true
 
 # Core Runtime & System
 libc.workspace = true
+probe.workspace = true
 
 # Serialization & Data Formats
 serde.workspace = true

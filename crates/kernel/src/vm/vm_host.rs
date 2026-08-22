@@ -469,6 +469,7 @@ impl VmHost {
         }
 
         // Pick the right kind of execution flow depending on the activation -- builtin or MOO?
+        let task_id = self.vm_exec_state.task_id;
         let mut tick_count = self.vm_exec_state.tick_count;
         let tick_slice = self.vm_exec_state.tick_slice;
         let activation = self.vm_exec_state.top_mut();
@@ -479,6 +480,17 @@ impl VmHost {
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
+                let (verb_uuid_high, verb_uuid_low) = activation.verbdef.uuid().as_u64_pair();
+                probe::probe!(
+                    moor_v1,
+                    verb_run_start,
+                    task_id,
+                    verb_uuid_high,
+                    verb_uuid_low,
+                    verb_definer.as_u64(),
+                    fr.pc,
+                    std::ptr::addr_of!(fr.pc)
+                );
                 let mut host = KernelHost;
                 let frame_context = FrameExecutionContext::new(
                     authority,
@@ -494,6 +506,15 @@ impl VmHost {
                     &frame_context,
                     fr,
                     vm_exec_params.config,
+                );
+                probe::probe!(
+                    moor_v1,
+                    verb_run_done,
+                    task_id,
+                    verb_uuid_high,
+                    verb_uuid_low,
+                    verb_definer.as_u64(),
+                    fr.pc
                 );
                 (result, tick_count)
             }
@@ -596,6 +617,18 @@ impl VmHost {
     /// Returns None if the activation stack is empty (e.g., task not yet initialized).
     pub fn verb_name(&self) -> Option<Symbol> {
         self.vm_exec_state.try_top().map(|a| a.verb_name)
+    }
+
+    /// Return the identity of the root verb for this task.
+    pub fn root_verb_identity(&self) -> Option<(u64, u64, Obj, Symbol)> {
+        let activation = self.vm_exec_state.stack.first()?;
+        let (uuid_high, uuid_low) = activation.verbdef.uuid().as_u64_pair();
+        Some((
+            uuid_high,
+            uuid_low,
+            activation.verb_definer(),
+            activation.verb_name,
+        ))
     }
 
     /// Try to get the verb definer of the current activation.

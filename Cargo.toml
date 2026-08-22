@@ -102,6 +102,7 @@ cap-std = "4.0"
 libc = "0.2"
 mimalloc = "0.1"
 signal-hook = "0.4"
+probe = "0.5"
 
 # Command Line & Configuration
 clap = "4.5"

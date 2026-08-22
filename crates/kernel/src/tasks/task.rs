@@ -81,6 +81,7 @@ use moor_common::{
 use moor_var::program::ProgramType;
 use moor_vm::ExecState;
 use moor_vm::Frame;
+use probe::probe;
 
 static HUH_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("huh"));
 static HANDLE_UNCAUGHT_ERROR_SYM: LazyLock<Symbol> =
@@ -279,6 +280,31 @@ impl Task {
     ) {
         // Transaction context is already set up by the caller
 
+        let task_id = task.task_id;
+        if let Some((uuid_high, uuid_low, definer, verb_name)) = task.vm_host.root_verb_identity() {
+            let verb_name = verb_name.as_str();
+            probe!(
+                moor_v1,
+                task_run_start,
+                task_id,
+                uuid_high,
+                uuid_low,
+                definer.as_u64(),
+                verb_name.as_ptr(),
+                verb_name.len()
+            );
+        } else {
+            probe!(
+                moor_v1,
+                task_run_start,
+                task_id,
+                0_u64,
+                0_u64,
+                0_u64,
+                std::ptr::null::<u8>(),
+                0_usize
+            );
+        }
         trace_task_start!(task.task_id);
 
         while task.vm_host.is_running() {
@@ -304,6 +330,7 @@ impl Task {
             }
         }
 
+        probe!(moor_v1, task_run_done, task_id);
         // Transaction is automatically cleaned up by _tx_guard drop
     }
 

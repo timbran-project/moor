@@ -3470,6 +3470,7 @@ dependencies = [
  "parking_lot",
  "paste",
  "planus",
+ "probe",
  "rand 0.10.2",
  "semver",
  "serde",
@@ -3569,6 +3570,7 @@ dependencies = [
  "paste",
  "planus",
  "pretty_assertions",
+ "probe",
  "rand 0.10.2",
  "ripemd",
  "rusty_paseto",
@@ -3849,6 +3851,7 @@ dependencies = [
  "moor-common",
  "moor-compiler",
  "moor-var",
+ "probe",
  "serde",
  "smallvec",
  "strum",
@@ -4695,6 +4698,12 @@ checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
  "elliptic-curve",
 ]
+
+[[package]]
+name = "probe"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "136558b6e1ebaecc92755d0ffaf9421f519531bed30cc2ad23b22cb00965cc5e"
 
 [[package]]
 name = "proc-macro-error-attr2"

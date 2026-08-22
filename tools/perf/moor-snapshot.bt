@@ -1,0 +1,321 @@
+/*
+ * Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+ * software: you can redistribute it and/or modify it under the terms of the GNU
+ * Affero General Public License as published by the Free Software Foundation,
+ * version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU Affero General Public License along
+ * with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+BEGIN
+{
+    @capture_start = nsecs;
+}
+
+usdt:*:moor_v1:task_run_start
+{
+    @task_state[tid] = (
+        nsecs,
+        (uint64)arg0,
+        (uint64)arg1,
+        (uint64)arg2,
+        (uint64)arg3
+    );
+    if ((uint64)arg4 != 0 &&
+        @verb_name_seen[(uint64)arg1, (uint64)arg2, (uint64)arg3, (uint64)arg4] == 0) {
+        @verb_names[(uint64)arg1, (uint64)arg2, (uint64)arg3, (uint64)arg4] =
+            str(uptr((uint8 *)arg4), (uint32)arg5);
+        @verb_name_seen[(uint64)arg1, (uint64)arg2, (uint64)arg3, (uint64)arg4] = 1;
+    }
+}
+
+usdt:*:moor_v1:task_run_done
+{
+    $state = @task_state[tid];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @task_count[$cpu, $state.1, $state.2, $state.3, $state.4]++;
+        @task_total[$cpu, $state.1, $state.2, $state.3, $state.4] += $elapsed;
+        if ($elapsed > @task_max[$cpu, $state.1, $state.2, $state.3, $state.4]) {
+            @task_max[$cpu, $state.1, $state.2, $state.3, $state.4] = $elapsed;
+        }
+        @task_hist[$cpu, $state.1, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        delete(@task_state[tid]);
+    } else {
+        @unmatched[cpu, 100]++;
+    }
+}
+
+usdt:*:moor_v1:task_commit_start
+{
+    @stage_start[tid, 0] = nsecs;
+}
+
+usdt:*:moor_v1:task_commit_done
+{
+    $cpu = cpu;
+    @stage_outcome[$cpu, 0, 0]++;
+    if (@stage_start[tid, 0] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 0];
+        @stage_count[$cpu, 0]++;
+        @stage_total[$cpu, 0] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 0]) {
+            @stage_max[$cpu, 0] = $elapsed;
+        }
+        @stage_hist[$cpu, 0] = hist($elapsed, 3);
+        delete(@stage_start[tid, 0]);
+    } else {
+        @unmatched[$cpu, 0]++;
+    }
+}
+
+usdt:*:moor_v1:verb_name
+{
+    if (@verb_name_seen[(uint64)arg0, (uint64)arg1, (uint64)arg2, (uint64)arg3] == 0) {
+        @verb_names[(uint64)arg0, (uint64)arg1, (uint64)arg2, (uint64)arg3] =
+            str(uptr((uint8 *)arg3), (uint32)arg4);
+        @verb_name_seen[(uint64)arg0, (uint64)arg1, (uint64)arg2, (uint64)arg3] = 1;
+    }
+}
+
+usdt:*:moor_v1:verb_run_start
+{
+    @verb_state[tid] = (
+        nsecs,
+        (uint64)arg0,
+        (uint64)arg1,
+        (uint64)arg2,
+        (uint64)arg3,
+        (uint64)arg4,
+        (uint64)arg5
+    );
+}
+
+usdt:*:moor_v1:verb_run_done
+{
+    $state = @verb_state[tid];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @verb_count[$cpu, $state.2, $state.3, $state.4]++;
+        @verb_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
+        if ($elapsed > @verb_max[$cpu, $state.2, $state.3, $state.4]) {
+            @verb_max[$cpu, $state.2, $state.3, $state.4] = $elapsed;
+        }
+        @verb_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        delete(@verb_state[tid]);
+    } else {
+        @unmatched[cpu, 101]++;
+    }
+}
+
+profile:hz:$3
+/pid == $2 && @verb_state[tid].6 != 0/
+{
+    $state = @verb_state[tid];
+    $pc = *uptr((uint16 *)$state.6);
+    @pc_samples[cpu, $state.2, $state.3, $state.4, $pc]++;
+}
+
+usdt:*:moor_v1:db_commit_start
+{
+    @stage_start[tid, 1] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg1;
+    @stage_outcome[$cpu, 1, $outcome]++;
+    if (@stage_start[tid, 1] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 1];
+        @stage_count[$cpu, 1]++;
+        @stage_total[$cpu, 1] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 1]) {
+            @stage_max[$cpu, 1] = $elapsed;
+        }
+        @stage_hist[$cpu, 1] = hist($elapsed, 3);
+        delete(@stage_start[tid, 1]);
+    } else {
+        @unmatched[$cpu, 1]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_prepare_start
+{
+    @stage_start[tid, 2] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_prepare_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg0;
+    @stage_outcome[$cpu, 2, $outcome]++;
+    if (@stage_start[tid, 2] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 2];
+        @stage_count[$cpu, 2]++;
+        @stage_total[$cpu, 2] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 2]) {
+            @stage_max[$cpu, 2] = $elapsed;
+        }
+        @stage_hist[$cpu, 2] = hist($elapsed, 3);
+        delete(@stage_start[tid, 2]);
+    } else {
+        @unmatched[$cpu, 2]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_read_only_start
+{
+    @stage_start[tid, 3] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_read_only_done
+{
+    $cpu = cpu;
+    @stage_outcome[$cpu, 3, 0]++;
+    if (@stage_start[tid, 3] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 3];
+        @stage_count[$cpu, 3]++;
+        @stage_total[$cpu, 3] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 3]) {
+            @stage_max[$cpu, 3] = $elapsed;
+        }
+        @stage_hist[$cpu, 3] = hist($elapsed, 3);
+        delete(@stage_start[tid, 3]);
+    } else {
+        @unmatched[$cpu, 3]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_check_start
+{
+    @stage_start[tid, 4] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_check_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg1;
+    @stage_outcome[$cpu, 4, $outcome]++;
+    if (@stage_start[tid, 4] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 4];
+        @stage_count[$cpu, 4]++;
+        @stage_total[$cpu, 4] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 4]) {
+            @stage_max[$cpu, 4] = $elapsed;
+        }
+        @stage_hist[$cpu, 4] = hist($elapsed, 3);
+        delete(@stage_start[tid, 4]);
+    } else {
+        @unmatched[$cpu, 4]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_apply_start
+{
+    @stage_start[tid, 5] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_apply_done
+{
+    $cpu = cpu;
+    @stage_outcome[$cpu, 5, 0]++;
+    if (@stage_start[tid, 5] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 5];
+        @stage_count[$cpu, 5]++;
+        @stage_total[$cpu, 5] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 5]) {
+            @stage_max[$cpu, 5] = $elapsed;
+        }
+        @stage_hist[$cpu, 5] = hist($elapsed, 3);
+        delete(@stage_start[tid, 5]);
+    } else {
+        @unmatched[$cpu, 5]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_publish_start
+{
+    @stage_start[tid, 6] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_publish_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg2;
+    @stage_outcome[$cpu, 6, $outcome]++;
+    if (@stage_start[tid, 6] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 6];
+        @stage_count[$cpu, 6]++;
+        @stage_total[$cpu, 6] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 6]) {
+            @stage_max[$cpu, 6] = $elapsed;
+        }
+        @stage_hist[$cpu, 6] = hist($elapsed, 3);
+        delete(@stage_start[tid, 6]);
+    } else {
+        @unmatched[$cpu, 6]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_rebase_start
+{
+    @stage_start[tid, 7] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_rebase_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg2;
+    @stage_outcome[$cpu, 7, $outcome]++;
+    if (@stage_start[tid, 7] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 7];
+        @stage_count[$cpu, 7]++;
+        @stage_total[$cpu, 7] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 7]) {
+            @stage_max[$cpu, 7] = $elapsed;
+        }
+        @stage_hist[$cpu, 7] = hist($elapsed, 3);
+        delete(@stage_start[tid, 7]);
+    } else {
+        @unmatched[$cpu, 7]++;
+    }
+}
+
+usdt:*:moor_v1:db_commit_persist_start
+{
+    @stage_start[tid, 8] = nsecs;
+}
+
+usdt:*:moor_v1:db_commit_persist_done
+{
+    $cpu = cpu;
+    $outcome = (uint64)arg1;
+    @stage_outcome[$cpu, 8, $outcome]++;
+    if (@stage_start[tid, 8] != 0) {
+        $elapsed = nsecs - @stage_start[tid, 8];
+        @stage_count[$cpu, 8]++;
+        @stage_total[$cpu, 8] += $elapsed;
+        if ($elapsed > @stage_max[$cpu, 8]) {
+            @stage_max[$cpu, 8] = $elapsed;
+        }
+        @stage_hist[$cpu, 8] = hist($elapsed, 3);
+        delete(@stage_start[tid, 8]);
+    } else {
+        @unmatched[$cpu, 8]++;
+    }
+}
+
+interval:s:$1
+{
+    @capture_end = nsecs;
+    exit();
+}

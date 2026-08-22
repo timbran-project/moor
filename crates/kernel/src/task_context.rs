@@ -312,9 +312,8 @@ pub fn commit_current_transaction() -> Result<CommitResult, WorldStateError> {
             .borrow_mut()
             .take()
             .expect("No active task context to commit");
-
-        #[cfg(feature = "trace_events")]
         let task_id = task_ctx.task_id;
+
         #[cfg(feature = "trace_events")]
         let thread_id = {
             let mut hasher = DefaultHasher::new();
@@ -322,7 +321,9 @@ pub fn commit_current_transaction() -> Result<CommitResult, WorldStateError> {
             hasher.finish()
         };
 
+        probe::probe!(moor_v1, task_commit_start, task_id);
         let result = task_ctx.world_state.commit();
+        probe::probe!(moor_v1, task_commit_done, task_id);
 
         #[cfg(feature = "trace_events")]
         {
