@@ -77,6 +77,8 @@ describe("useOAuth2Session", () => {
         expect(establishSession).toHaveBeenCalledWith({
             authToken: "auth-token",
             playerOid: "oid:42",
+            historyAuthToken: "auth-token",
+            historyPlayerOid: "oid:42",
             playerFlags: 2,
             reconnectCredentials: {
                 clientToken: "client-token",
