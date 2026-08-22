@@ -44,10 +44,13 @@ pub trait ConnectionRegistry {
         player_obj: Obj,
     ) -> Result<(), eyre::Error>;
 
-    /// Switch the player for a given client connection.
-    /// This is used when a player calls switch_player().
-    fn switch_player_for_client(&self, client_id: Uuid, new_player: Obj)
-    -> Result<(), eyre::Error>;
+    /// Switch every client attached to a connection object to a new player.
+    /// Returns the client IDs that must be notified after the registry update commits.
+    fn switch_player_for_connection(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+    ) -> Result<Vec<Uuid>, eyre::Error>;
 
     /// Create a new connection object for the given client.
     fn new_connection(&self, params: NewConnectionParams) -> Result<Obj, RpcMessageError>;
@@ -268,6 +271,66 @@ mod tests {
         // Client IDs should work for both connection and player objects
         assert_eq!(db.client_ids_for(connection_obj).unwrap(), vec![client_id]);
         assert_eq!(db.client_ids_for(player_obj).unwrap(), vec![client_id]);
+    }
+
+    #[test]
+    fn test_switch_player_updates_both_connection_indexes() {
+        use moor_var::Obj;
+
+        let db = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let client_id = Uuid::new_v4();
+        let old_player = Obj::mk_id(100);
+        let new_player = Obj::mk_id(101);
+        let connection_obj = db
+            .new_connection(NewConnectionParams {
+                client_id,
+                hostname: "switch.test".to_string(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: Some(old_player),
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+
+        let switched_clients = db
+            .switch_player_for_connection(connection_obj, new_player)
+            .unwrap();
+
+        assert_eq!(switched_clients, vec![client_id]);
+        assert_eq!(db.player_object_for_client(client_id), Some(new_player));
+        assert!(db.client_ids_for(old_player).unwrap().is_empty());
+        assert_eq!(db.client_ids_for(new_player).unwrap(), vec![client_id]);
+
+        db.switch_player_for_connection(connection_obj, new_player)
+            .unwrap();
+        assert_eq!(db.client_ids_for(new_player).unwrap(), vec![client_id]);
+    }
+
+    #[test]
+    fn test_rejected_switch_preserves_player_indexes() {
+        use moor_var::Obj;
+
+        let db = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let client_id = Uuid::new_v4();
+        let old_player = Obj::mk_id(100);
+        db.new_connection(NewConnectionParams {
+            client_id,
+            hostname: "switch.test".to_string(),
+            local_port: 7777,
+            remote_port: 12345,
+            player: Some(old_player),
+            acceptable_content_types: None,
+            connection_attributes: None,
+        })
+        .unwrap();
+
+        assert!(
+            db.switch_player_for_connection(Obj::mk_id(-999), Obj::mk_id(101))
+                .is_err()
+        );
+        assert_eq!(db.player_object_for_client(client_id), Some(old_player));
+        assert_eq!(db.client_ids_for(old_player).unwrap(), vec![client_id]);
     }
 
     #[test]

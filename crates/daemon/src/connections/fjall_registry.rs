@@ -668,81 +668,94 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Ok(())
     }
 
-    fn switch_player_for_client(&self, client_id: Uuid, new_player: Obj) -> Result<(), Error> {
+    fn switch_player_for_connection(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+    ) -> Result<Vec<Uuid>, Error> {
         let inner = self.inner.lock().unwrap();
 
-        // Get old player if any
-        let old_player = match inner
-            .client_player_table
-            .get(client_id.as_u128().to_le_bytes())?
-        {
-            Some(bytes) => Some(Obj::from_bytes(bytes.as_ref())?),
-            None => None,
-        };
-
-        // Get connection_obj for this client
-        let connection_obj = match inner
-            .client_connection_table
-            .get(client_id.as_u128().to_le_bytes())?
-        {
-            Some(bytes) => Obj::from_bytes(bytes.as_ref())?,
-            None => bail!("No connection found for client {:?}", client_id),
-        };
-
-        // Get the connection record
         let conn_oid_bytes = connection_obj.as_bytes();
         let connections_record = match inner.connection_records_table.get(conn_oid_bytes)? {
             Some(bytes) => connections_records_from_bytes(&bytes)?,
-            None => bail!("No connection records found"),
+            None => bail!("No connection records found for {connection_obj:?}"),
         };
 
-        let connection_record = connections_record
+        if connections_record.connections.is_empty() {
+            bail!("Connection {connection_obj:?} has no clients");
+        }
+
+        let switched_client_ids: HashSet<u128> = connections_record
             .connections
             .iter()
-            .find(|cr| cr.client_id == client_id.as_u128())
-            .ok_or_else(|| eyre::eyre!("No client found"))?
-            .clone();
+            .map(|record| record.client_id)
+            .collect();
+        let client_ids: Vec<Uuid> = connections_record
+            .connections
+            .iter()
+            .map(|record| Uuid::from_u128(record.client_id))
+            .collect();
 
-        // Update client -> player mapping
-        inner
-            .client_player_table
-            .insert(client_id.as_u128().to_le_bytes(), new_player.as_bytes())?;
-
-        // Remove from old player's connections if exists
-        if let Some(old_player_obj) = old_player {
-            let old_player_bytes = old_player_obj.as_bytes();
-            if let Some(bytes) = inner.player_clients_table.get(old_player_bytes)? {
-                let mut old_conns = connections_records_from_bytes(&bytes)?;
-                old_conns
-                    .connections
-                    .retain(|cr| cr.client_id != client_id.as_u128());
-
-                if old_conns.connections.is_empty() {
-                    inner.player_clients_table.remove(old_player_bytes)?;
-                } else {
-                    let encoded = connections_records_to_bytes(&old_conns)?;
-                    inner
-                        .player_clients_table
-                        .insert(old_player_bytes, encoded)?;
-                }
+        let mut affected_players = vec![new_player];
+        for record in &connections_record.connections {
+            let client_id_bytes = record.client_id.to_le_bytes();
+            let Some(bytes) = inner.client_player_table.get(client_id_bytes)? else {
+                continue;
+            };
+            let old_player = Obj::from_bytes(bytes.as_ref())?;
+            if !affected_players.contains(&old_player) {
+                affected_players.push(old_player);
             }
         }
 
-        // Add to new player's connections
-        let new_player_bytes = new_player.as_bytes();
-        let mut new_conns = match inner.player_clients_table.get(new_player_bytes)? {
-            Some(bytes) => connections_records_from_bytes(&bytes)?,
-            None => ConnectionsRecords {
-                connections: vec![],
-            },
-        };
-        new_conns.connections.push(connection_record);
-        let encoded = connections_records_to_bytes(&new_conns)?;
-        inner
-            .player_clients_table
-            .insert(new_player_bytes, encoded)?;
+        let mut player_updates = Vec::with_capacity(affected_players.len());
+        for player in affected_players {
+            let mut records = match inner.player_clients_table.get(player.as_bytes())? {
+                Some(bytes) => connections_records_from_bytes(&bytes)?,
+                None => ConnectionsRecords {
+                    connections: vec![],
+                },
+            };
+            records
+                .connections
+                .retain(|record| !switched_client_ids.contains(&record.client_id));
 
-        Ok(())
+            if player == new_player {
+                records
+                    .connections
+                    .extend(connections_record.connections.iter().cloned());
+            }
+
+            let encoded = if records.connections.is_empty() {
+                None
+            } else {
+                Some(connections_records_to_bytes(&records)?)
+            };
+            player_updates.push((player, encoded));
+        }
+
+        // The client-to-player and player-to-client indexes form one logical update.
+        let mut batch = inner.keyspace.batch();
+        for record in &connections_record.connections {
+            batch.insert(
+                &inner.client_player_table,
+                record.client_id.to_le_bytes(),
+                new_player.as_bytes(),
+            );
+        }
+        for (player, encoded) in player_updates {
+            match encoded {
+                Some(encoded) => {
+                    batch.insert(&inner.player_clients_table, player.as_bytes(), encoded);
+                }
+                None => {
+                    batch.remove(&inner.player_clients_table, player.as_bytes());
+                }
+            }
+        }
+        batch.commit()?;
+
+        Ok(client_ids)
     }
 
     fn new_connection(&self, params: NewConnectionParams) -> Result<Obj, RpcMessageError> {

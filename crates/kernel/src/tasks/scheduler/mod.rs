@@ -629,6 +629,7 @@ mod tests {
     struct BlockingCommitSession {
         commit_entered: Arc<Barrier>,
         release_commit: Arc<Barrier>,
+        connection_obj: Option<Obj>,
     }
 
     impl Session for BlockingCommitSession {
@@ -703,7 +704,15 @@ mod tests {
             &self,
             _player: Option<Obj>,
         ) -> Result<Vec<ConnectionDetails>, SessionError> {
-            Ok(vec![])
+            let Some(connection_obj) = self.connection_obj else {
+                return Ok(vec![]);
+            };
+            Ok(vec![ConnectionDetails {
+                connection_obj,
+                peer_addr: String::new(),
+                idle_seconds: 0.0,
+                acceptable_content_types: vec![],
+            }])
         }
 
         fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
@@ -720,17 +729,77 @@ mod tests {
         }
     }
 
-    fn scheduler() -> Scheduler {
+    fn scheduler_with_system_control(system_control: Arc<dyn SystemControl>) -> Scheduler {
         let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),
             Box::new(crate::tasks::NoopTasksDb {}),
             Arc::new(Config::default()),
-            Arc::new(NoopSystemControl::default()),
+            system_control,
             None,
             None,
         )
+    }
+
+    fn scheduler() -> Scheduler {
+        scheduler_with_system_control(Arc::new(NoopSystemControl::default()))
+    }
+
+    struct FailingSwitchSystemControl;
+
+    impl SystemControl for FailingSwitchSystemControl {
+        fn shutdown(&self, _msg: Option<String>) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn listen(
+            &self,
+            _handler_object: Obj,
+            _host_type: &str,
+            _port: u16,
+            _options: Vec<(Symbol, Var)>,
+        ) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn unlisten(&self, _port: u16, _host_type: &str) -> Result<(), Error> {
+            Ok(())
+        }
+
+        fn listeners(&self) -> Result<Vec<moor_common::tasks::ListenerInfo>, Error> {
+            Ok(vec![])
+        }
+
+        fn switch_player(&self, _connection_obj: Obj, _new_player: Obj) -> Result<(), Error> {
+            Err(E_INVARG.with_msg(|| "Injected player switch failure".to_string()))
+        }
+
+        fn rotate_enrollment_token(&self) -> Result<String, Error> {
+            Ok(String::new())
+        }
+
+        fn player_event_log_stats(
+            &self,
+            _player: Obj,
+            _since: Option<SystemTime>,
+            _until: Option<SystemTime>,
+        ) -> Result<moor_common::tasks::EventLogStats, Error> {
+            Ok(moor_common::tasks::EventLogStats::default())
+        }
+
+        fn purge_player_event_log(
+            &self,
+            _player: Obj,
+            _before: Option<SystemTime>,
+            _drop_pubkey: bool,
+        ) -> Result<moor_common::tasks::EventLogPurgeResult, Error> {
+            Ok(moor_common::tasks::EventLogPurgeResult::default())
+        }
+
+        fn workers_info(&self) -> Result<Vec<moor_common::tasks::WorkerInfo>, Error> {
+            Ok(vec![])
+        }
     }
 
     fn suspended_task(task_id: TaskId) -> SuspendedTask {
@@ -833,6 +902,28 @@ mod tests {
     }
 
     #[test]
+    fn failed_player_switch_preserves_scheduler_player() {
+        let scheduler = scheduler_with_system_control(Arc::new(FailingSwitchSystemControl));
+        let task_id = 47;
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: Arc::new(Barrier::new(1)),
+            release_commit: Arc::new(Barrier::new(1)),
+            connection_obj: Some(Obj::mk_id(-1)),
+        });
+        let _task = insert_active_task(&scheduler, task_id, session);
+
+        assert!(
+            scheduler
+                .handle_switch_player_from_task(task_id, Obj::mk_id(100))
+                .is_err()
+        );
+        assert_eq!(
+            scheduler.lifecycle.lock().task_q.active[&task_id].player,
+            SYSTEM_OBJECT
+        );
+    }
+
+    #[test]
     fn lifecycle_rejects_work_before_start_and_after_stop() {
         let scheduler = scheduler();
         let client = scheduler.client().unwrap();
@@ -910,6 +1001,7 @@ mod tests {
         let session = Arc::new(BlockingCommitSession {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
+            connection_obj: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -959,6 +1051,7 @@ mod tests {
         let session = Arc::new(BlockingCommitSession {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
+            connection_obj: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1033,6 +1126,7 @@ mod tests {
         let session = Arc::new(BlockingCommitSession {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
+            connection_obj: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1094,6 +1188,7 @@ mod tests {
         let session = Arc::new(BlockingCommitSession {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
+            connection_obj: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1151,6 +1246,7 @@ mod tests {
         let session = Arc::new(BlockingCommitSession {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
+            connection_obj: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 

@@ -1062,14 +1062,18 @@ impl Scheduler {
             })?
             .connection_obj;
 
-        // TODO: Make the task-player and connection-registry changes atomic. A
-        // system-control failure currently leaves task.player set to new_player.
-        task.player = new_player;
-
         drop(lc);
 
-        // Switch the player through the system control (which handles connection registry and host notification)
         self.system_control
-            .switch_player(connection_obj, new_player)
+            .switch_player(connection_obj, new_player)?;
+
+        // The registry is the durable commit point. Update scheduler metadata only after it
+        // succeeds so a rejected switch leaves the running task associated with its old player.
+        let mut lc = self.lifecycle.lock();
+        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+            task.player = new_player;
+        }
+
+        Ok(())
     }
 }
