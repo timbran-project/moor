@@ -95,6 +95,12 @@ comments:
       comment_char: "//"
       trailing_lines: 1
   - columns: 80
+    extension: mjs
+    commenter:
+      type: line
+      comment_char: "//"
+      trailing_lines: 1
+  - columns: 80
     extension: ts
     commenter:
       type: line
