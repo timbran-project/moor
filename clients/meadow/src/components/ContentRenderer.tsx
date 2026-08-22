@@ -44,6 +44,18 @@ const HOLD_THRESHOLD_MS = 300;
 const isExternalLink = (url: string) => url.startsWith("http://") || url.startsWith("https://");
 const isAllowedLinkUrl = (url: string) => isExternalLink(url) || url.startsWith("moo://");
 
+export function normalizeEmbeddedUri(uri: string, baseUrl: string = window.location.href): string | null {
+    try {
+        const parsed = new URL(uri, baseUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            return null;
+        }
+        return parsed.href;
+    } catch {
+        return null;
+    }
+}
+
 export const ContentRenderer: React.FC<ContentRendererProps> = ({
     content,
     contentType = "text/plain",
@@ -349,12 +361,20 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
             case "text/x-uri": {
                 const uri = getContentString("").trim();
+                const safeUri = normalizeEmbeddedUri(uri);
+                if (!safeUri) {
+                    return (
+                        <span className={`content-text${staleClass}`}>
+                            Embedded content was blocked because its URL is unsafe.
+                        </span>
+                    );
+                }
                 return (
                     <iframe
-                        src={uri}
+                        src={safeUri}
                         className={`content-iframe${staleClass}`}
-                        title="Welcome content"
-                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                        title="Embedded content"
+                        sandbox="allow-scripts"
                     />
                 );
             }
