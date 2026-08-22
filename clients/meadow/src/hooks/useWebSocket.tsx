@@ -29,7 +29,6 @@ export const useWebSocket = (
     player: Player | null,
     onSystemMessage: (message: string, duration?: number) => void,
     onPlayerConnectedChange?: (connected: boolean) => void,
-    onPlayerFlagsChange?: (flags: number) => void,
     onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
     onNarrativeMessage?: (
         content: string | string[],
@@ -119,18 +118,21 @@ export const useWebSocket = (
 
                     lastSocketActivityAtRef.current = Date.now();
 
-                    handleClientEventFlatBuffer(
-                        data,
+                    handleClientEventFlatBuffer(data, {
                         onSystemMessage,
                         onNarrativeMessage,
                         onPresentMessage,
                         onUnpresentMessage,
                         onDataMessage,
-                        onPlayerFlagsChange,
                         onPlayerSwitched,
+                        onCredentialsUpdated: ({ clientId, clientToken }) => {
+                            sessionStorage.setItem("client_token", clientToken);
+                            sessionStorage.setItem("client_id", clientId);
+                            console.log("[WS] Updated session credentials from server event", { clientId });
+                        },
                         lastEventTimestampRef,
-                        setInputMetadata,
-                    );
+                        onInputMetadata: setInputMetadata,
+                    });
                 } else {
                     console.error("Unexpected non-binary WebSocket message:", event.data);
                 }
@@ -144,7 +146,6 @@ export const useWebSocket = (
         onPresentMessage,
         onUnpresentMessage,
         onDataMessage,
-        onPlayerFlagsChange,
         onPlayerSwitched,
     ]);
 

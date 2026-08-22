@@ -35,7 +35,6 @@ interface WebSocketProviderProps {
     player: Player | null;
     showMessage: (message: string, duration?: number) => void;
     setPlayerConnected: (connected: boolean) => void;
-    setPlayerFlags: (flags: number) => void;
     setPlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
     handleNarrativeMessage: (
         content: string | string[],
@@ -60,7 +59,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     player,
     showMessage,
     setPlayerConnected,
-    setPlayerFlags,
     setPlayerIdentity,
     handleNarrativeMessage,
     handlePresentMessage,
@@ -71,7 +69,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         player,
         showMessage,
         setPlayerConnected,
-        setPlayerFlags,
         (identity: PlayerIdentityUpdate) => {
             void setPlayerIdentity(identity.playerOid, identity.authToken);
         },

@@ -14,20 +14,21 @@
 import { DataEvent } from "@moor/schema/generated/moor-common/data-event";
 import { EventUnion } from "@moor/schema/generated/moor-common/event-union";
 import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
-import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
-import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
-import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
 import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
 import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
 import {
+    decodeCredentialsUpdatedEvent,
     decodePlayerSwitchedEvent,
     dispatchClientEvent,
     parseWsNarrativeEventMessage,
     PlayerIdentityUpdate,
     schedulerErrorToNarrative,
+    SessionCredentialsUpdate,
 } from "@moor/web-sdk";
-import * as flatbuffers from "flatbuffers";
+import type { MutableRefObject } from "react";
 
+import { InputMetadata } from "../types/input";
+import { PresentationData } from "../types/presentation";
 import { parseInputMetadata } from "./input-metadata.js";
 import { MoorVar } from "./MoorVar.js";
 import { EventMetadata, LinkPreview, NarrativeMessageHandler } from "./rpc-fb-shared";
@@ -69,47 +70,6 @@ function tryDecodeDataMessageFromNarrative(
         };
     } catch {
         return null;
-    }
-}
-
-function uuidBytesToString(bytes: Uint8Array): string | null {
-    if (bytes.length !== 16) {
-        return null;
-    }
-
-    const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-function maybeHandleCredentialsUpdatedEvent(bytes: Uint8Array): boolean {
-    try {
-        const event = ClientEvent.getRootAsClientEvent(new flatbuffers.ByteBuffer(bytes));
-        if (event.eventType() !== ClientEventUnion.CredentialsUpdatedEvent) {
-            return false;
-        }
-
-        const creds = event.event(new CredentialsUpdatedEvent());
-        if (!creds) {
-            console.warn("[WS] CredentialsUpdatedEvent missing payload");
-            return true;
-        }
-
-        const clientToken = creds.clientToken()?.token();
-        const clientIdBytes = creds.clientId()?.dataArray();
-        const clientId = clientIdBytes ? uuidBytesToString(clientIdBytes) : null;
-
-        if (!clientToken || !clientId) {
-            console.warn("[WS] CredentialsUpdatedEvent missing fields");
-            return true;
-        }
-
-        sessionStorage.setItem("client_token", clientToken);
-        sessionStorage.setItem("client_id", clientId);
-        console.log("[WS] Updated session credentials from server event", { clientId });
-        return true;
-    } catch (error) {
-        console.error("[WS] Failed to decode CredentialsUpdatedEvent:", error);
-        return false;
     }
 }
 
@@ -198,18 +158,31 @@ function handleTaskError(
     console.warn(`[WS] Unhandled task error type: ${SchedulerErrorUnion[errorType]}`, schedulerError);
 }
 
-export function handleClientEventFlatBuffer(
-    bytes: Uint8Array,
-    onSystemMessage?: (message: string, duration?: number) => void,
-    onNarrativeMessage?: NarrativeMessageHandler,
-    onPresentMessage?: (presentData: any) => void,
-    onUnpresentMessage?: (id: string) => void,
-    onDataMessage?: (event: DataMessageHandlerEvent) => void,
-    onPlayerFlagsChange?: (flags: number) => void,
-    onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
-    lastEventTimestampRef?: React.MutableRefObject<bigint | null>,
-    onInputMetadata?: (metadata: import("../types/input").InputMetadata | null) => void,
-): void {
+export interface ClientEventHandlers {
+    onSystemMessage?: (message: string, duration?: number) => void;
+    onNarrativeMessage?: NarrativeMessageHandler;
+    onPresentMessage?: (presentData: PresentationData) => void;
+    onUnpresentMessage?: (id: string) => void;
+    onDataMessage?: (event: DataMessageHandlerEvent) => void;
+    onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void;
+    onCredentialsUpdated?: (credentials: SessionCredentialsUpdate) => void;
+    lastEventTimestampRef?: MutableRefObject<bigint | null>;
+    onInputMetadata?: (metadata: InputMetadata | null) => void;
+}
+
+export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientEventHandlers): void {
+    const {
+        onSystemMessage,
+        onNarrativeMessage,
+        onPresentMessage,
+        onUnpresentMessage,
+        onDataMessage,
+        onPlayerSwitched,
+        onCredentialsUpdated,
+        lastEventTimestampRef,
+        onInputMetadata,
+    } = handlers;
+
     try {
         dispatchClientEvent(bytes, {
             onNarrativeEventMessage: (narrative) => {
@@ -376,8 +349,13 @@ export function handleClientEventFlatBuffer(
             onTaskSuccessEvent: (_taskSuccess) => {
                 // Task completed successfully - these now come via HTTP response for verb invocations
             },
-            onCredentialsUpdatedEvent: () => {
-                maybeHandleCredentialsUpdatedEvent(bytes);
+            onCredentialsUpdatedEvent: (credentials) => {
+                const update = decodeCredentialsUpdatedEvent(credentials);
+                if (!update) {
+                    console.warn("[WS] CredentialsUpdatedEvent missing fields");
+                    return;
+                }
+                onCredentialsUpdated?.(update);
             },
             onPlayerSwitchedEvent: (playerSwitched) => {
                 const identity = decodePlayerSwitchedEvent(playerSwitched);
@@ -388,11 +366,6 @@ export function handleClientEventFlatBuffer(
                 onPlayerSwitched?.(identity);
             },
             onUnknownEvent: (eventType) => {
-                if (eventType === ClientEventUnion.CredentialsUpdatedEvent) {
-                    if (maybeHandleCredentialsUpdatedEvent(bytes)) {
-                        return;
-                    }
-                }
                 console.warn(`[WS] Unknown event type: ${eventType}`);
             },
             onMalformedEvent: (eventType, expected) => {

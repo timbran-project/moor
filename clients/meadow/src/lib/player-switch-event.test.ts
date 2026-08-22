@@ -17,9 +17,9 @@ import { AuthToken } from "@moor/schema/generated/moor-rpc/auth-token";
 import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
 import { PlayerSwitchedEvent } from "@moor/schema/generated/moor-rpc/player-switched-event";
-import { decodePlayerSwitchedEvent, dispatchClientEvent } from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 import { describe, expect, it } from "vitest";
+import { handleClientEventFlatBuffer } from "./rpc-fb-ws";
 
 function playerSwitchedEventBytes(player: number, token: string): Uint8Array {
     const builder = new flatbuffers.Builder(256);
@@ -45,9 +45,9 @@ describe("PlayerSwitchedEvent", () => {
     it("dispatches the new player identity and auth token", () => {
         let identity = null;
 
-        dispatchClientEvent(playerSwitchedEventBytes(42, "new-auth-token"), {
-            onPlayerSwitchedEvent: (event) => {
-                identity = decodePlayerSwitchedEvent(event);
+        handleClientEventFlatBuffer(playerSwitchedEventBytes(42, "new-auth-token"), {
+            onPlayerSwitched: (update) => {
+                identity = update;
             },
         });
 

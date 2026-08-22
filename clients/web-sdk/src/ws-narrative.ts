@@ -20,7 +20,7 @@ import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-eve
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
 
 import { uuObjIdToString } from "./curie.js";
-import { parsePresentationValue } from "./presentations.js";
+import { parsePresentationValue, PresentationData } from "./presentations.js";
 
 export interface WsEventMetadata {
     verb?: string;
@@ -68,13 +68,7 @@ export interface WsNotifyEvent {
 
 export interface WsPresentEvent {
     kind: "present";
-    presentData: {
-        id: string | null;
-        content: string | null;
-        content_type: string;
-        target: string | null;
-        attributes: Array<[string, string]>;
-    };
+    presentData: PresentationData;
 }
 
 export interface WsUnpresentEvent {
