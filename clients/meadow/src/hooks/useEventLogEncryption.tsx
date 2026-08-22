@@ -44,9 +44,7 @@ export const useEventLogEncryption = (
     authToken: string | null,
     playerOid: string | null,
 ) => {
-    const [encryptionState, setEncryptionState] = useState<EncryptionState>(() =>
-        initialEncryptionState(playerOid)
-    );
+    const [encryptionState, setEncryptionState] = useState<EncryptionState>(() => initialEncryptionState(playerOid));
     const scopedEncryptionState = encryptionState.playerOid === playerOid
         ? encryptionState
         : initialEncryptionState(playerOid);

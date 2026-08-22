@@ -105,13 +105,18 @@ describe("useAuth player switching", () => {
         localStorage.setItem("history_player_oid", "oid:1");
         localStorage.setItem("player_flags", "7");
 
-        vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {
-            status: 200,
-            headers: {
-                "X-Moor-Player": "oid:42",
-                "X-Moor-Player-Flags": "2",
-            },
-        })));
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () =>
+                new Response(null, {
+                    status: 200,
+                    headers: {
+                        "X-Moor-Player": "oid:42",
+                        "X-Moor-Player-Flags": "2",
+                    },
+                })
+            ),
+        );
 
         const onSystemMessage = vi.fn();
         const { result } = renderHook(() => useAuth(onSystemMessage));

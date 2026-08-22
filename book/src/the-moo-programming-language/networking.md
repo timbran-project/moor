@@ -305,6 +305,46 @@ instead.
 > a weird ancient MOO holdover. The best way to log a player in after suspending is to use the
 > `switch_player()` function to switch their unlogged in negative object to their player object.
 
+### Switching an Existing Connection
+
+The wizard-only `switch_player()` function changes the player that owns an open connection. The
+physical connection remains open, and the server gives the client a new authentication token.
+
+The one-argument form switches the connection that initiated the current task:
+
+```moo
+switch_player(#74);
+```
+
+This form uses `false` for both `silent` and `preserve_history`. Thus, the target player becomes the
+active player and the history owner.
+
+The four-argument form selects the connection and both switch controls:
+
+```moo
+switch_player(connection(), #74, true, true);
+```
+
+This example selects the current connection. It also requests a quiet transition and retains the
+existing history owner. This form is useful for one human who controls several in-world characters.
+
+A positive player object can own multiple connections. If `source` is the current task's player, the
+function selects the connection that initiated the task. For another player, the source must select
+exactly one connection.
+
+Use a negative connection object to select one connection from another player's connection list:
+
+```moo
+other_connections = connections(#20);
+switch_player(other_connections[1][1], #74, false, false);
+```
+
+The function returns `E_INVARG` if another player source has multiple connections. This rule
+prevents the server from switching an arbitrary connection.
+
+See [`switch_player()`](built-in-functions/server.md#switch_player) for the argument matrix and
+error conditions.
+
 If an in-bound network connection does not successfully log in within a certain period of time, the
 server will automatically shut down the connection, thereby freeing up the resources associated with
 maintaining it. Let L be the object handling the listening point on which the connection was

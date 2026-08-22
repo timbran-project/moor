@@ -540,18 +540,72 @@ connections()
 
 ### `switch_player`
 
-**Description:** Switches the current session to a different player object. **Arguments:**
+**Description:** Associates a network connection with a different player object.
 
-- : The target player object `new_player`
+**Syntax:**
+
+```moo
+none switch_player(obj target)
+none switch_player(obj source, obj target [, bool silent [, bool preserve_history]])
+```
+
+**Arguments:**
+
+- `source`: The player or connection to switch. If omitted, the function uses the current task's
+  connection.
+- `target`: The new player object for the connection.
+- `silent`: A client hint for a quiet identity transition. The default is `false`.
+- `preserve_history`: If true, retains the current history owner. The default is `false`.
+
+The server includes `silent` in the `PlayerSwitched` client event. Each host or client defines how
+it uses this hint. The hint does not suppress output from MOO verbs.
+
+`preserve_history` controls the owner of subsequent persistent history. It does not change the
+active player. See
+[Event Logging](../../the-system/event-logging.md#player-switches-and-history-ownership).
+
+| `silent` | `preserve_history` | Client hint       | History owner          |
+| -------- | ------------------ | ----------------- | ---------------------- |
+| `false`  | `false`            | Normal transition | Target player          |
+| `true`   | `false`            | Quiet transition  | Target player          |
+| `false`  | `true`             | Normal transition | Existing history owner |
+| `true`   | `true`             | Quiet transition  | Existing history owner |
+
+**Source selection:**
+
+- If `source` is omitted, the function switches the connection that initiated the current task.
+- If `source` is the current task's player, the function also uses that task's connection.
+- If `source` is a connection object, the function switches that exact connection.
+- If another player has one connection, the function switches that connection.
+- If another player has multiple connections, the function returns `E_INVARG`.
+
+If code must select the connection that initiated the current task, use `connection()`.
+
+**Returns:** `none`
 
 **Permission Requirements:**
 
 - Wizard-only
 
-**Notes:**
+**Errors:**
 
-- The target must be a valid player object
-- Intended for workflows that suspend a task and later attach it to a logged-in player
+- `E_ARGS`: The function received an unsupported number of arguments.
+- `E_TYPE`: An object argument or Boolean argument has the wrong type.
+- `E_PERM`: The caller does not have wizard permissions.
+- `E_INVARG`: The target is not a valid player, or the source does not select one connection.
+
+**Examples:**
+
+```moo
+// Switch this task's connection and select the target player's history.
+switch_player(#74);
+
+// Switch this task's connection and retain the current history owner.
+switch_player(connection(), #74, true, true);
+
+// Switch one specific connection owned by another player.
+switch_player(#-91, #74, false, false);
+```
 
 ### `worker_request`
 

@@ -41,6 +41,34 @@ The system automatically springs into action whenever your MOO code generates an
 There's no special coding required on your part—simply use `notify()` as you normally would, and the
 logging happens transparently in the background.
 
+## Player Switches and History Ownership
+
+Each web client session has an active player and a history owner. These objects are usually the
+same. The
+[`switch_player()`](../the-moo-programming-language/built-in-functions/server.md#switch_player)
+function can keep them separate.
+
+The active player controls authentication, command permissions, and live event routing. The history
+owner controls storage, history retrieval, and the encryption key for the session.
+
+If `preserve_history` is `false`, the target player becomes the history owner. The web client then
+uses that player's history and encryption key. It can show an encryption setup or unlock prompt.
+
+If `preserve_history` is `true`, the existing history owner does not change. The web client retains
+that owner's history and local encryption key.
+
+In Meadow, `preserve_history` selects the history and encryption scope. The `silent` client hint
+does not select this scope.
+
+A sequence of preserving switches keeps the same history owner. A later switch with
+`preserve_history` set to `false` selects a new history owner.
+
+History preservation applies to events addressed to the active player. Events addressed to other
+players continue to use their own history and encryption keys.
+
+If the selected history owner has no public key, the server cannot persist encrypted events for that
+owner. Live events still reach connected clients.
+
 ## Privacy and Encryption
 
 **Encryption is mandatory.** All events are encrypted before storage using modern age encryption
