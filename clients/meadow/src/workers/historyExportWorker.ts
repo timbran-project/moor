@@ -25,6 +25,7 @@ import * as flatbuffers from "flatbuffers";
 import { decryptEventBlob } from "../lib/age-decrypt.js";
 import { buildAuthHeaders } from "../lib/authHeaders";
 import { MoorVar } from "../lib/MoorVar.js";
+import { advanceHistoryExportCursor } from "./historyExportPagination";
 
 // Message types
 export interface StartExportMessage {
@@ -157,32 +158,35 @@ async function fetchAllHistoryEncrypted(authToken: string, ageIdentity: string):
             break;
         }
 
-        // Extract encrypted blobs and track oldest event ID for pagination
+        // Extract encrypted blobs from this page.
         for (let i = 0; i < eventsLength; i++) {
             const encryptedBlob = historicalEvents[i]?.encryptedBlob;
             if (!encryptedBlob) continue;
             allEncryptedBlobs.push(encryptedBlob);
-
-            // Track the event ID for the first event (oldest in this batch)
-            if (i === 0) {
-                try {
-                    // We need to decrypt briefly just to get the event ID for pagination
-                    // This is unavoidable since event IDs are inside the encrypted blob
-                    const decryptedBytes = await decryptEventBlob(encryptedBlob, ageIdentity);
-                    const envelope = parseNarrativeEventEnvelope(decryptedBytes);
-                    if (envelope?.eventId) {
-                        oldestEventId = envelope.eventId;
-                    }
-                } catch (err) {
-                    console.error("Failed to extract event ID for pagination:", err);
-                }
-            }
         }
 
-        // If we got fewer events than requested, we've reached the end
+        // A short page is terminal and does not need another cursor.
         if (eventsLength < batchSize) {
             hasMore = false;
+            continue;
         }
+
+        const cursorBlob = historicalEvents[0]?.encryptedBlob;
+        if (!cursorBlob) {
+            throw new Error("History export cannot continue because the cursor event has no encrypted payload");
+        }
+
+        let candidateCursor: string | undefined;
+        try {
+            const decryptedBytes = await decryptEventBlob(cursorBlob, ageIdentity);
+            const envelope = parseNarrativeEventEnvelope(decryptedBytes);
+            candidateCursor = envelope?.eventId;
+        } catch (error) {
+            console.error("Failed to extract event ID for pagination:", error);
+            throw new Error("History export cannot continue because the page cursor could not be decrypted");
+        }
+
+        oldestEventId = advanceHistoryExportCursor(oldestEventId, candidateCursor);
     }
 
     return allEncryptedBlobs;
