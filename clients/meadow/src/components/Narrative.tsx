@@ -519,6 +519,24 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
     // Add historical messages (prepend to existing messages) - for initial load
     const addHistoricalMessages = useCallback((historicalMessages: NarrativeMessage[]) => {
+        const historicalKeys = new Set(
+            historicalMessages
+                .map(messageDedupKey)
+                .filter((key): key is string => key !== null),
+        );
+
+        if (historicalKeys.size > 0) {
+            pendingMessagesRef.current = pendingMessagesRef.current.filter(item => {
+                const key = messageDedupKey(item.message);
+                return key === null || !historicalKeys.has(key);
+            });
+
+            if (pendingMessagesRef.current.length === 0 && pendingMessageTimerRef.current) {
+                clearTimeout(pendingMessageTimerRef.current);
+                pendingMessageTimerRef.current = null;
+            }
+        }
+
         setMessages(prev => {
             // Preserve any live messages that arrived after history boundary
             const liveMessages = prev.filter(msg => !msg.isHistorical);

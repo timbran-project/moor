@@ -179,12 +179,7 @@ function AppContent({
     const lastLiveNarrativeAtRef = useRef<number>(Date.now());
     const lastHistoryBatchSignatureRef = useRef<string | null>(null);
     const lastHistoryBatchAppliedAtRef = useRef<number>(0);
-    const recentLiveEventIdsRef = useRef<Map<string, { count: number; firstSeenAt: number; lastSeenAt: number }>>(
-        new Map(),
-    );
-
     const HISTORY_BATCH_DEDUP_WINDOW_MS = 2 * 60 * 1000;
-    const LIVE_EVENT_DIAG_RETENTION_MS = 5 * 60 * 1000;
 
     const isTouchDevice = useTouchDevice();
     const [forceSplitMode, setForceSplitMode] = useState(false);
@@ -2594,7 +2589,7 @@ function AppWrapper() {
                 }
             }
         }
-    }, [mcpHandler]);
+    }, [mcpHandler, LIVE_EVENT_DIAG_RETENTION_MS]);
 
     const handlePresentMessage = (presentData: PresentationData) => {
         addPresentation(presentData);

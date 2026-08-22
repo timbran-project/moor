@@ -15,6 +15,7 @@ import { virtual } from "@guidepup/virtual-screen-reader";
 import { act, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { OutputWindow } from "./OutputWindow";
+import { ToastProvider } from "./Toast";
 
 // Helper to create a message
 function createMessage(id: string, content: string, opts: {
@@ -38,6 +39,10 @@ function createMessage(id: string, content: string, opts: {
         groupId: opts.groupId,
         eventMetadata: opts.eventMetadata,
     };
+}
+
+function renderOutputWindow(messages: ReturnType<typeof createMessage>[]) {
+    return render(<OutputWindow messages={messages} />, { wrapper: ToastProvider });
 }
 
 // Helper to collect announcements from virtual screen reader
@@ -79,7 +84,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("1", "You head north."),
         ];
 
-        const { container } = render(<OutputWindow messages={messages} />);
+        const { container } = renderOutputWindow(messages);
         const outputWindow = container.querySelector("#output_window");
         expect(outputWindow).not.toBeNull();
 
@@ -105,7 +110,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("3", "You arrive from the south."),
         ];
 
-        const { container } = render(<OutputWindow messages={messages} />);
+        const { container } = renderOutputWindow(messages);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -138,7 +143,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("6", "You arrive from the north."),
         ];
 
-        const { container } = render(<OutputWindow messages={messages} />);
+        const { container } = renderOutputWindow(messages);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -159,7 +164,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("1", "Initial message."),
         ];
 
-        const { container, rerender } = render(<OutputWindow messages={[...messages]} />);
+        const { container, rerender } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -198,7 +203,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("initial", "You are in the starting room."),
         ];
 
-        const { container, rerender } = render(<OutputWindow messages={[...messages]} />);
+        const { container, rerender } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -244,7 +249,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("1", "Initial message."),
         ];
 
-        const { container, rerender } = render(<OutputWindow messages={[...messages]} />);
+        const { container, rerender } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });

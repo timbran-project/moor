@@ -605,7 +605,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                     }
                 }
 
-                return groupedMessages.map((group, groupIndex) => {
+                return groupedMessages.map((group) => {
                     const firstMessage = group[0];
                     const result = [];
 

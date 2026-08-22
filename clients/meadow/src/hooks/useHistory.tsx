@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { parseHistoricalNarrativeEvent, toPresentationData } from "@moor/web-sdk";
+import { parseHistoricalNarrativeEvent } from "@moor/web-sdk";
 import { useCallback, useRef, useState } from "react";
 import { NarrativeMessage } from "../components/Narrative";
 import { MoorVar } from "../lib/MoorVar";

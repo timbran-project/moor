@@ -86,12 +86,14 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     // Auto-close after inactivity (only for non-preview mode)
     useEffect(() => {
         if (isPreview) return;
+
+        resetAutoClose();
         return () => {
             if (autoCloseTimerRef.current) {
                 clearTimeout(autoCloseTimerRef.current);
             }
         };
-    }, [isPreview]);
+    }, [isPreview, resetAutoClose]);
 
     // Close on click outside (only for non-preview mode)
     useEffect(() => {

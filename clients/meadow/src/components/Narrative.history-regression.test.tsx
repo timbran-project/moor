@@ -34,12 +34,12 @@ interface MockHistoryItem {
     timestamp: number;
 }
 
-function installMatchMediaMock() {
+function installMatchMediaMock(matches = false) {
     Object.defineProperty(window, "matchMedia", {
         configurable: true,
         writable: true,
         value: (query: string) => ({
-            matches: false,
+            matches,
             media: query,
             onchange: null,
             addListener: () => {},
@@ -146,7 +146,7 @@ describe("Narrative history merge regressions", () => {
     });
 
     it("does not append queued live duplicate after history merge of same event id", async () => {
-        installMatchMediaMock();
+        installMatchMediaMock(true);
         vi.useFakeTimers();
         const narrativeRef = createRef<NarrativeRef>();
         const { container } = render(
