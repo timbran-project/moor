@@ -10,9 +10,6 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import * as flatbuffers from "flatbuffers";
-import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { Obj } from "@moor/schema/generated/moor-common/obj";
 import { ObjId } from "@moor/schema/generated/moor-common/obj-id";
 import { ObjUnion } from "@moor/schema/generated/moor-common/obj-union";
@@ -22,6 +19,9 @@ import { DaemonToClientReplyUnion } from "@moor/schema/generated/moor-rpc/daemon
 import { LoginResult } from "@moor/schema/generated/moor-rpc/login-result";
 import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { ReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
+import { act, renderHook } from "@testing-library/react";
+import * as flatbuffers from "flatbuffers";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAuth } from "./useAuth";
 
 const keypairCalls: Array<{ password: string; identifier: string }> = [];

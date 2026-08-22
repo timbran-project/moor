@@ -38,11 +38,11 @@ vi.mock("@monaco-editor/react", async () => {
     };
 
     const MockEditor = (props: {
-            beforeMount?: (monaco: typeof monacoInstance) => void;
-            onMount?: (editor: typeof editor, monaco: typeof monacoInstance) => void;
-            onChange?: (value: string) => void;
-            value?: string;
-        }) => {
+        beforeMount?: (monaco: typeof monacoInstance) => void;
+        onMount?: (editor: typeof editor, monaco: typeof monacoInstance) => void;
+        onChange?: (value: string) => void;
+        value?: string;
+    }) => {
         const { beforeMount, onMount } = props;
         useEffect(() => {
             beforeMount?.(monacoInstance);
