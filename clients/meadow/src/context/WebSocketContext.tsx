@@ -36,7 +36,12 @@ interface WebSocketProviderProps {
     player: Player | null;
     showMessage: (message: string, duration?: number) => void;
     setPlayerConnected: (connected: boolean) => void;
-    rotatePlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
+    rotatePlayerIdentity: (
+        playerOid: string,
+        authToken: string,
+        silent: boolean,
+        preserveHistory: boolean,
+    ) => Promise<void>;
     updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
     handleNarrativeMessage: (
         content: string | string[],
@@ -73,7 +78,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         showMessage,
         setPlayerConnected,
         (identity: PlayerIdentityUpdate) => {
-            void rotatePlayerIdentity(identity.playerOid, identity.authToken);
+            void rotatePlayerIdentity(
+                identity.playerOid,
+                identity.authToken,
+                identity.silent,
+                identity.preserveHistory,
+            );
         },
         updateReconnectCredentials,
         handleNarrativeMessage,

@@ -227,6 +227,8 @@ impl SessionFactory for RpcServer {
         let session = RpcSession::new(
             client_id,
             *player,
+            *player,
+            *player,
             self.event_log().clone() as Arc<dyn EventLogOps>,
             self.mailbox_sender.clone(),
         );

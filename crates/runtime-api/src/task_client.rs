@@ -64,7 +64,12 @@ pub enum SessionEvent {
     /// Server is disconnecting this session.
     Disconnect,
     /// Player identity changed (e.g. after login verb).
-    PlayerSwitched { player: Obj, auth_token: AuthToken },
+    PlayerSwitched {
+        player: Obj,
+        auth_token: AuthToken,
+        silent: bool,
+        preserve_history: bool,
+    },
     /// MOO code set a connection option.
     SetConnectionOption {
         connection_obj: Obj,
@@ -425,10 +430,14 @@ async fn dispatcher_loop(
             ClientEvent::PlayerSwitched {
                 new_player,
                 new_auth_token,
+                silent,
+                preserve_history,
             } => {
                 let _ = session_tx.send(SessionEvent::PlayerSwitched {
                     player: new_player,
                     auth_token: new_auth_token,
+                    silent,
+                    preserve_history,
                 });
             }
             ClientEvent::SetConnectionOption {

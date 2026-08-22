@@ -13,6 +13,8 @@
 const AUTH_TOKEN_KEY = "auth_token";
 const PLAYER_OID_KEY = "player_oid";
 const PLAYER_FLAGS_KEY = "player_flags";
+const HISTORY_AUTH_TOKEN_KEY = "history_auth_token";
+const HISTORY_PLAYER_OID_KEY = "history_player_oid";
 const CLIENT_TOKEN_KEY = "client_token";
 const CLIENT_ID_KEY = "client_id";
 const CLIENT_SESSION_ACTIVE_KEY = "client_session_active";
@@ -31,6 +33,8 @@ export interface ReconnectCredentials {
 export interface AuthSession {
     playerOid: string;
     authToken: string;
+    historyPlayerOid: string;
+    historyAuthToken: string;
     playerFlags: number;
     reconnectCredentials: ReconnectCredentials | null;
 }
@@ -70,6 +74,8 @@ export function readAuthSession(): AuthSession | null {
     return {
         playerOid,
         authToken,
+        historyPlayerOid: localStorage.getItem(HISTORY_PLAYER_OID_KEY) ?? playerOid,
+        historyAuthToken: localStorage.getItem(HISTORY_AUTH_TOKEN_KEY) ?? authToken,
         playerFlags: Number.isFinite(parsedFlags) ? parsedFlags : 0,
         reconnectCredentials: readReconnectCredentials(),
     };
@@ -78,6 +84,8 @@ export function readAuthSession(): AuthSession | null {
 export function persistAuthSession(session: AuthSession): void {
     localStorage.setItem(AUTH_TOKEN_KEY, session.authToken);
     localStorage.setItem(PLAYER_OID_KEY, session.playerOid);
+    localStorage.setItem(HISTORY_PLAYER_OID_KEY, session.historyPlayerOid);
+    localStorage.setItem(HISTORY_AUTH_TOKEN_KEY, session.historyAuthToken);
     localStorage.setItem(PLAYER_FLAGS_KEY, session.playerFlags.toString());
     persistReconnectCredentials(session.reconnectCredentials);
     for (const key of OBSOLETE_AUTH_KEYS) {
@@ -97,6 +105,8 @@ export function clearAuthSession(): void {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(PLAYER_OID_KEY);
     localStorage.removeItem(PLAYER_FLAGS_KEY);
+    localStorage.removeItem(HISTORY_PLAYER_OID_KEY);
+    localStorage.removeItem(HISTORY_AUTH_TOKEN_KEY);
     for (const key of OBSOLETE_AUTH_KEYS) {
         localStorage.removeItem(key);
     }

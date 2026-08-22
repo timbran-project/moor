@@ -120,6 +120,8 @@ function AppContent({
     const player = authState.player;
     const authToken = player?.authToken ?? null;
     const playerOid = player?.oid ?? null;
+    const historyAuthToken = player?.historyAuthToken ?? null;
+    const historyPlayerOid = player?.historyOid ?? null;
     const playerFlags = player?.flags;
     const isPlayerConnected = Boolean(player?.connected);
     const hasProgrammerAccess = Boolean(
@@ -633,7 +635,7 @@ function AppContent({
         fetchMoreHistory,
         consumePresentationActions,
         isLoadingHistory,
-    } = useHistory(authToken, encryptionKeyForHistory);
+    } = useHistory(historyAuthToken, encryptionKeyForHistory);
 
     // Custom close handler for verb editor that also dismisses presentation
     const handleVerbEditorClose = useCallback(() => {
@@ -1201,47 +1203,42 @@ function AppContent({
         setExternalLinkModal(null);
     }, [externalLinkModal]);
 
-    // Track previous player OID to detect logout
-    const previousPlayerOidRef = useRef<string | null>(null);
+    const previousPlayerIdentityRef = useRef<{
+        playerOid: string | null;
+        historyPlayerOid: string | null;
+    }>({ playerOid: null, historyPlayerOid: null });
 
-    // Clean up all user-specific state when player logs out OR changes
+    // Reset authority-scoped UI after a player switch without replacing the live session or
+    // transcript. History state changes only when the switch selects a new history owner.
     useEffect(() => {
-        const currentPlayerOid = playerOid;
+        const previous = previousPlayerIdentityRef.current;
+        const playerChanged = previous.playerOid && previous.playerOid !== playerOid;
 
-        // Detect logout OR user switch: had a player, now different/none
-        if (previousPlayerOidRef.current && previousPlayerOidRef.current !== currentPlayerOid) {
-            console.log("[Cleanup] Player changed from", previousPlayerOidRef.current, "to", currentPlayerOid);
-            console.log("[Cleanup] WebSocket state before disconnect:", wsState);
-
-            // Disconnect WebSocket
-            console.log("[Cleanup] Calling disconnectWS()");
-            disconnectWS();
-            console.log("[Cleanup] After disconnectWS(), wsState:", wsState);
-
-            // Close any open editors
+        if (playerChanged) {
             closeEditor();
             closePropertyEditor();
             closePropertyValueEditor();
             closeTextEditor();
-
-            // Clear all presentations
             clearAllPresentations();
-
-            // Clear narrative messages
-            narrativeRef.current?.clearAll();
-
-            // Reset local state
-            setHistoryLoaded(false);
-            setPendingHistoricalMessages([]);
-            setShowEncryptionSetup(false);
-            setShowPasswordPrompt(false);
-            setUserSkippedEncryption(false);
-            clearOAuth2UserInfo();
             setCurrentRoomLookMessageId(null);
             setIsCurrentRoomLookDockLatched(false);
+
+            if (!playerOid) {
+                disconnectWS();
+                narrativeRef.current?.clearAll();
+                clearOAuth2UserInfo();
+            }
+
+            if (previous.historyPlayerOid !== historyPlayerOid) {
+                setHistoryLoaded(false);
+                setPendingHistoricalMessages([]);
+                setShowEncryptionSetup(false);
+                setShowPasswordPrompt(false);
+                setUserSkippedEncryption(false);
+            }
         }
 
-        previousPlayerOidRef.current = currentPlayerOid;
+        previousPlayerIdentityRef.current = { playerOid, historyPlayerOid };
     }, [
         clearAllPresentations,
         clearOAuth2UserInfo,
@@ -1250,10 +1247,10 @@ function AppContent({
         closePropertyValueEditor,
         closeTextEditor,
         disconnectWS,
+        historyPlayerOid,
         narrativeRef,
         playerOid,
         setUserSkippedEncryption,
-        wsState,
     ]);
 
     // Comprehensive logout handler
@@ -2239,8 +2236,8 @@ function EncryptionWrapper() {
 
     return (
         <EncryptionProvider
-            authToken={authState.player?.authToken || null}
-            playerOid={authState.player?.oid || null}
+            authToken={authState.player?.historyAuthToken || null}
+            playerOid={authState.player?.historyOid || null}
         >
             <AppWrapper />
         </EncryptionProvider>

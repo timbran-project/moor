@@ -246,10 +246,14 @@ pub fn encode_client_event(event: &ClientEvent) -> Result<moor_rpc::ClientEvent,
         ClientEvent::PlayerSwitched {
             new_player,
             new_auth_token,
+            silent,
+            preserve_history,
         } => moor_rpc::ClientEventUnion::PlayerSwitchedEvent(Box::new(
             moor_rpc::PlayerSwitchedEvent {
                 new_player: obj_fb(new_player),
                 new_auth_token: auth_token_fb(new_auth_token),
+                silent: *silent,
+                preserve_history: *preserve_history,
             },
         )),
         ClientEvent::SetConnectionOption {
@@ -442,6 +446,12 @@ pub fn decode_client_event_ref(
             Ok(ClientEvent::PlayerSwitched {
                 new_player,
                 new_auth_token,
+                silent: switch
+                    .silent()
+                    .map_err(|e| RpcError::CouldNotDecode(format!("Missing silent: {e}")))?,
+                preserve_history: switch.preserve_history().map_err(|e| {
+                    RpcError::CouldNotDecode(format!("Missing preserve_history: {e}"))
+                })?,
             })
         }
         moor_rpc::ClientEventUnionRef::SetConnectionOptionEvent(set_opt) => {

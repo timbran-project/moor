@@ -14,46 +14,54 @@
 // ! Hook for managing event log encryption (Argon2 key derivation + age keypair generation)
 // ! Age keypair generation happens client-side - only public key is sent to server
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { identityFromDerivedBytes, publicKeyFromIdentity } from "../lib/age-decrypt";
 import { buildAuthHeaders } from "../lib/authHeaders";
 import { deriveKeyBytes } from "../lib/keyDerivation";
 
 interface EncryptionState {
+    playerOid: string | null;
     hasEncryption: boolean;
     isChecking: boolean;
     hasCheckedOnce: boolean; // Track if we've checked at least once
     ageIdentity: string | null; // AGE-SECRET-KEY-1... private key string
 }
 
+function initialEncryptionState(playerOid: string | null): EncryptionState {
+    const ageIdentity = playerOid
+        ? localStorage.getItem(`moor_event_log_identity_${playerOid}`)
+        : null;
+    return {
+        playerOid,
+        hasEncryption: false,
+        isChecking: false,
+        hasCheckedOnce: false,
+        ageIdentity,
+    };
+}
+
 export const useEventLogEncryption = (
     authToken: string | null,
     playerOid: string | null,
 ) => {
-    const [encryptionState, setEncryptionState] = useState<EncryptionState>(() => {
-        // Initialize with saved identity if available
-        if (playerOid) {
-            const storageKey = `moor_event_log_identity_${playerOid}`;
-            const savedIdentity = localStorage.getItem(storageKey);
-            return {
-                hasEncryption: false,
-                isChecking: false,
-                hasCheckedOnce: false,
-                ageIdentity: savedIdentity,
-            };
-        }
-        return {
-            hasEncryption: false,
-            isChecking: false,
-            hasCheckedOnce: false,
-            ageIdentity: null,
-        };
-    });
+    const [encryptionState, setEncryptionState] = useState<EncryptionState>(() =>
+        initialEncryptionState(playerOid)
+    );
+    const scopedEncryptionState = encryptionState.playerOid === playerOid
+        ? encryptionState
+        : initialEncryptionState(playerOid);
+
+    useEffect(() => {
+        setEncryptionState(initialEncryptionState(playerOid));
+    }, [playerOid]);
 
     const checkEncryptionStatus = useCallback(async () => {
         if (!authToken || !playerOid) return;
 
-        setEncryptionState(prev => ({ ...prev, isChecking: true }));
+        setEncryptionState({
+            ...initialEncryptionState(playerOid),
+            isChecking: true,
+        });
 
         try {
             const headers = buildAuthHeaders(authToken);
@@ -73,6 +81,7 @@ export const useEventLogEncryption = (
             const savedIdentity = localStorage.getItem(storageKey);
 
             setEncryptionState({
+                playerOid,
                 hasEncryption,
                 isChecking: false,
                 hasCheckedOnce: true,
@@ -80,7 +89,12 @@ export const useEventLogEncryption = (
             });
         } catch (error) {
             console.error("Error checking encryption status:", error);
-            setEncryptionState(prev => ({ ...prev, isChecking: false, hasCheckedOnce: true }));
+            setEncryptionState(prev => ({
+                ...prev,
+                playerOid,
+                isChecking: false,
+                hasCheckedOnce: true,
+            }));
         }
     }, [authToken, playerOid]);
 
@@ -127,6 +141,7 @@ export const useEventLogEncryption = (
             localStorage.setItem(storageKey, identity);
 
             setEncryptionState({
+                playerOid,
                 hasEncryption: true,
                 isChecking: false,
                 hasCheckedOnce: true,
@@ -158,6 +173,7 @@ export const useEventLogEncryption = (
 
             setEncryptionState(prev => ({
                 ...prev,
+                playerOid,
                 ageIdentity: identity,
             }));
 
@@ -176,16 +192,17 @@ export const useEventLogEncryption = (
 
         setEncryptionState(prev => ({
             ...prev,
+            playerOid,
             ageIdentity: null,
         }));
     }, [playerOid]);
 
     const getKeyForHistoryRequest = useCallback((): string | null => {
-        return encryptionState.ageIdentity;
-    }, [encryptionState.ageIdentity]);
+        return scopedEncryptionState.ageIdentity;
+    }, [scopedEncryptionState.ageIdentity]);
 
     return {
-        encryptionState,
+        encryptionState: scopedEncryptionState,
         checkEncryptionStatus,
         setupEncryption,
         unlockEncryption,

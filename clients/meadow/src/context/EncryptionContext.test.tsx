@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EncryptionProvider, useEncryptionContext } from "./EncryptionContext";
 
@@ -38,8 +39,16 @@ function EncryptionIdentity() {
     return <div>{encryptionState.ageIdentity ?? "none"}</div>;
 }
 
+let childMounts = 0;
+
+function MountCounter() {
+    const [mount] = useState(() => ++childMounts);
+    return <div data-testid="mount-counter">{mount}</div>;
+}
+
 describe("EncryptionProvider identity rotation", () => {
     afterEach(() => {
+        childMounts = 0;
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
     });
@@ -61,6 +70,7 @@ describe("EncryptionProvider identity rotation", () => {
         const { rerender } = render(
             <EncryptionProvider authToken="token-one" playerOid="oid:1">
                 <EncryptionIdentity />
+                <MountCounter />
             </EncryptionProvider>,
         );
         expect(screen.getByText("identity-one")).toBeDefined();
@@ -68,9 +78,11 @@ describe("EncryptionProvider identity rotation", () => {
         rerender(
             <EncryptionProvider authToken="token-two" playerOid="oid:2">
                 <EncryptionIdentity />
+                <MountCounter />
             </EncryptionProvider>,
         );
 
         await waitFor(() => expect(screen.getByText("identity-two")).toBeDefined());
+        expect(screen.getByTestId("mount-counter").textContent).toBe("1");
     });
 });

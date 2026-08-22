@@ -159,7 +159,13 @@ impl SystemControl for NoopSystemControl {
         Ok(())
     }
 
-    fn switch_player(&self, _connection_obj: Obj, _new_player: Obj) -> Result<(), Error> {
+    fn switch_player(
+        &self,
+        _connection_obj: Obj,
+        _new_player: Obj,
+        _silent: bool,
+        _preserve_history: bool,
+    ) -> Result<(), Error> {
         Ok(())
     }
 

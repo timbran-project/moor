@@ -91,6 +91,8 @@ export function useOAuth2Session(establishSession: EstablishSession, showMessage
                     establishSession({
                         authToken: result.auth_token,
                         playerOid: result.player,
+                        historyAuthToken: result.auth_token,
+                        historyPlayerOid: result.player,
                         playerFlags: result.player_flags,
                         reconnectCredentials: {
                             clientToken: result.client_token,
@@ -150,6 +152,8 @@ export function useOAuth2Session(establishSession: EstablishSession, showMessage
             establishSession({
                 authToken: result.auth_token,
                 playerOid: result.player,
+                historyAuthToken: result.auth_token,
+                historyPlayerOid: result.player,
                 playerFlags: result.player_flags ?? 0,
                 reconnectCredentials: result.client_token && result.client_id
                     ? {

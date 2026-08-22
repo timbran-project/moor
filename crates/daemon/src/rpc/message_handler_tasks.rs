@@ -11,12 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::rpc::{
-    message_handler::{
-        RpcMessageHandler, USER_CONNECTED_SYM, USER_CREATED_SYM, USER_DISCONNECTED_SYM,
-        USER_RECONNECTED_SYM,
-    },
-    session::RpcSession,
+use crate::rpc::message_handler::{
+    RpcMessageHandler, USER_CONNECTED_SYM, USER_CREATED_SYM, USER_DISCONNECTED_SYM,
+    USER_RECONNECTED_SYM,
 };
 use eyre::{Context, Error};
 use moor_common::model::ObjectRef;
@@ -36,12 +33,7 @@ impl RpcMessageHandler {
         connection: &Obj,
         initiation_type: moor_rpc::ConnectType,
     ) -> Result<(), Error> {
-        let session = Arc::new(RpcSession::new(
-            client_id,
-            *connection,
-            self.event_log.clone(),
-            self.mailbox_sender.clone(),
-        ));
+        let session = Arc::new(self.new_rpc_session(client_id, *connection, *player));
 
         let connected_verb = match initiation_type {
             moor_rpc::ConnectType::Connected => *USER_CONNECTED_SYM,
@@ -73,12 +65,7 @@ impl RpcMessageHandler {
         player: &Obj,
         connection: &Obj,
     ) -> Result<(), Error> {
-        let session = Arc::new(RpcSession::new(
-            client_id,
-            *connection,
-            self.event_log.clone(),
-            self.mailbox_sender.clone(),
-        ));
+        let session = Arc::new(self.new_rpc_session(client_id, *connection, *player));
 
         scheduler_client
             .submit_verb_task(

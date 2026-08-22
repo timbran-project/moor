@@ -12,5 +12,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["generated/**/*.ts"]
+  "include": ["generated/**/*.ts"],
+  "exclude": ["generated/all_schemas_generated.ts"]
 }

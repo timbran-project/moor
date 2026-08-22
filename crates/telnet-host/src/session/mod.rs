@@ -934,7 +934,7 @@ impl TelnetConnection {
                             trace!("TaskSuccess")
                             // We don't need to do anything with successes.
                         }
-                        ClientEvent::PlayerSwitched { new_player, new_auth_token } => {
+                        ClientEvent::PlayerSwitched { new_player, new_auth_token, .. } => {
                             info!("Switching player from {:?} to {} during authorization for client {}", self.player_object, new_player, self.client_id);
                             self.player_object = Some(new_player);
                             self.auth_token = Some(new_auth_token);
@@ -1603,6 +1603,7 @@ impl TelnetConnection {
             ClientEvent::PlayerSwitched {
                 new_player,
                 new_auth_token,
+                ..
             } => {
                 info!(
                     "Switching player from {} to {} for client {}",

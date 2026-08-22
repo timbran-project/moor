@@ -630,6 +630,7 @@ mod tests {
         commit_entered: Arc<Barrier>,
         release_commit: Arc<Barrier>,
         connection_obj: Option<Obj>,
+        source_connections: Option<Vec<Obj>>,
     }
 
     impl Session for BlockingCommitSession {
@@ -702,17 +703,21 @@ mod tests {
 
         fn connection_details(
             &self,
-            _player: Option<Obj>,
+            player: Option<Obj>,
         ) -> Result<Vec<ConnectionDetails>, SessionError> {
-            let Some(connection_obj) = self.connection_obj else {
-                return Ok(vec![]);
+            let connection_objs = match (player, &self.source_connections) {
+                (Some(_), Some(source_connections)) => source_connections.clone(),
+                _ => self.connection_obj.into_iter().collect(),
             };
-            Ok(vec![ConnectionDetails {
-                connection_obj,
-                peer_addr: String::new(),
-                idle_seconds: 0.0,
-                acceptable_content_types: vec![],
-            }])
+            Ok(connection_objs
+                .into_iter()
+                .map(|connection_obj| ConnectionDetails {
+                    connection_obj,
+                    peer_addr: String::new(),
+                    idle_seconds: 0.0,
+                    acceptable_content_types: vec![],
+                })
+                .collect())
         }
 
         fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
@@ -771,7 +776,13 @@ mod tests {
             Ok(vec![])
         }
 
-        fn switch_player(&self, _connection_obj: Obj, _new_player: Obj) -> Result<(), Error> {
+        fn switch_player(
+            &self,
+            _connection_obj: Obj,
+            _new_player: Obj,
+            _silent: bool,
+            _preserve_history: bool,
+        ) -> Result<(), Error> {
             Err(E_INVARG.with_msg(|| "Injected player switch failure".to_string()))
         }
 
@@ -909,13 +920,71 @@ mod tests {
             commit_entered: Arc::new(Barrier::new(1)),
             release_commit: Arc::new(Barrier::new(1)),
             connection_obj: Some(Obj::mk_id(-1)),
+            source_connections: None,
         });
         let _task = insert_active_task(&scheduler, task_id, session);
 
         assert!(
             scheduler
-                .handle_switch_player_from_task(task_id, Obj::mk_id(100))
+                .handle_switch_player_from_task(task_id, None, Obj::mk_id(100), false, false)
                 .is_err()
+        );
+        assert_eq!(
+            scheduler.lifecycle.lock().task_q.active[&task_id].player,
+            SYSTEM_OBJECT
+        );
+    }
+
+    #[test]
+    fn current_player_switch_uses_task_connection() {
+        let scheduler = scheduler();
+        let task_id = 48;
+        let current_connection = Obj::mk_id(-1);
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: Arc::new(Barrier::new(1)),
+            release_commit: Arc::new(Barrier::new(1)),
+            connection_obj: Some(current_connection),
+            source_connections: Some(vec![Obj::mk_id(-2), current_connection]),
+        });
+        let _task = insert_active_task(&scheduler, task_id, session);
+        let new_player = Obj::mk_id(100);
+
+        scheduler
+            .handle_switch_player_from_task(task_id, Some(SYSTEM_OBJECT), new_player, false, true)
+            .unwrap();
+
+        assert_eq!(
+            scheduler.lifecycle.lock().task_q.active[&task_id].player,
+            new_player
+        );
+    }
+
+    #[test]
+    fn switch_rejects_ambiguous_other_player_source() {
+        let scheduler = scheduler();
+        let task_id = 49;
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: Arc::new(Barrier::new(1)),
+            release_commit: Arc::new(Barrier::new(1)),
+            connection_obj: Some(Obj::mk_id(-1)),
+            source_connections: Some(vec![Obj::mk_id(-2), Obj::mk_id(-3)]),
+        });
+        let _task = insert_active_task(&scheduler, task_id, session);
+
+        let error = scheduler
+            .handle_switch_player_from_task(
+                task_id,
+                Some(Obj::mk_id(7)),
+                Obj::mk_id(100),
+                false,
+                false,
+            )
+            .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("source has multiple connections")
         );
         assert_eq!(
             scheduler.lifecycle.lock().task_q.active[&task_id].player,
@@ -1002,6 +1071,7 @@ mod tests {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
             connection_obj: None,
+            source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1052,6 +1122,7 @@ mod tests {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
             connection_obj: None,
+            source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1127,6 +1198,7 @@ mod tests {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
             connection_obj: None,
+            source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1189,6 +1261,7 @@ mod tests {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
             connection_obj: None,
+            source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1247,6 +1320,7 @@ mod tests {
             commit_entered: commit_entered.clone(),
             release_commit: release_commit.clone(),
             connection_obj: None,
+            source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 

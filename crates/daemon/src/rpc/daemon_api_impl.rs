@@ -35,7 +35,6 @@ use crate::rpc::message_handler::{
     BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
     db_counter_entries, sched_counter_entries,
 };
-use crate::rpc::session::RpcSession;
 use crate::runtime::RuntimeApi;
 
 fn require_player_flags(
@@ -408,12 +407,7 @@ impl RuntimeApi for RpcMessageHandler {
             } => {
                 let (connection, player) =
                     self.verify_tokens(client_token, auth_token, client_id)?;
-                let session = Arc::new(RpcSession::new(
-                    client_id,
-                    connection,
-                    self.event_log.clone(),
-                    self.mailbox_sender.clone(),
-                ));
+                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
                 let args_list = match args.variant() {
                     Variant::List(l) => l.clone(),
                     _ => moor_var::List::from_iter(std::iter::once(args)),
@@ -443,12 +437,7 @@ impl RuntimeApi for RpcMessageHandler {
             } => {
                 let (connection, player) =
                     self.verify_tokens(client_token, auth_token, client_id)?;
-                let session = Arc::new(RpcSession::new(
-                    client_id,
-                    connection,
-                    self.event_log.clone(),
-                    self.mailbox_sender.clone(),
-                ));
+                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
                 let task_handle = match scheduler_client.submit_eval_task(
                     &player,
                     &player,
@@ -498,12 +487,7 @@ impl RuntimeApi for RpcMessageHandler {
                     args = ?args,
                     "Submitting invoke-verb request"
                 );
-                let session = Arc::new(RpcSession::new(
-                    client_id,
-                    connection,
-                    self.event_log.clone(),
-                    self.mailbox_sender.clone(),
-                ));
+                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
                 let task_handle = match scheduler_client.submit_verb_task(
                     &player,
                     &object,
@@ -861,12 +845,7 @@ impl RpcMessageHandler {
             "Performing {:?} login for client: {}",
             connect_type, client_id
         );
-        let session = Arc::new(RpcSession::new(
-            client_id,
-            *connection,
-            self.event_log.clone(),
-            self.mailbox_sender.clone(),
-        ));
+        let session = Arc::new(self.new_rpc_session(client_id, *connection, *connection));
         let task_handle = match scheduler_client.submit_verb_task(
             connection,
             &ObjectRef::Id(*handler_object),
@@ -968,12 +947,7 @@ impl RpcMessageHandler {
                 "Connection not found".to_string(),
             ))?;
 
-        let session = Arc::new(RpcSession::new(
-            client_id,
-            connection,
-            self.event_log.clone(),
-            self.mailbox_sender.clone(),
-        ));
+        let session = Arc::new(self.new_rpc_session(client_id, connection, *player));
 
         if let Err(e) = self
             .connections
@@ -1047,12 +1021,7 @@ impl RpcMessageHandler {
                 "Connection not found".to_string(),
             ))?;
 
-        let session = Arc::new(RpcSession::new(
-            client_id,
-            connection,
-            self.event_log.clone(),
-            self.mailbox_sender.clone(),
-        ));
+        let session = Arc::new(self.new_rpc_session(client_id, connection, *player));
 
         let task_handle = match scheduler_client.submit_system_handler_task(
             player,

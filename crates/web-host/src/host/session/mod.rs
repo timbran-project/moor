@@ -257,6 +257,7 @@ impl ClientSession {
                         ClientEvent::PlayerSwitched {
                             new_player,
                             new_auth_token,
+                            ..
                         } => {
                             info!(
                                 old_player = ?self.player,

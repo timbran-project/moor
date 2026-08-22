@@ -1039,7 +1039,10 @@ impl Scheduler {
     pub fn handle_switch_player_from_task(
         &self,
         task_id: TaskId,
+        source: Option<Obj>,
         new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
     ) -> Result<(), Error> {
         let mut lc = self.lifecycle.lock();
 
@@ -1048,30 +1051,57 @@ impl Scheduler {
             return Err(E_INVARG.with_msg(|| "Task not found for switch_player".to_string()));
         };
 
-        // Get the connection details for the current session (player=None means "this session")
-        let connection_details = task.session.connection_details(None).map_err(|e| {
-            E_INVARG
-                .with_msg(|| format!("Failed to get connection details for current session: {e:?}"))
-        })?;
-
-        // There should be exactly one connection for the current session
-        let connection_obj = connection_details
+        let current_connection = task
+            .session
+            .connection_details(None)
+            .map_err(|e| {
+                E_INVARG.with_msg(|| {
+                    format!("Failed to get connection details for current session: {e:?}")
+                })
+            })?
             .first()
             .ok_or_else(|| {
                 E_INVARG.with_msg(|| "No connection found for current session".to_string())
             })?
             .connection_obj;
 
+        // A player can own several connections. If the task names its own player, retain the
+        // connection that initiated the task instead of selecting an arbitrary connection.
+        let connection_obj = if source.is_none() || source == Some(task.player) {
+            current_connection
+        } else {
+            let connection_details = task.session.connection_details(source).map_err(|e| {
+                E_INVARG.with_msg(|| {
+                    format!("Failed to get connection details for switch source: {e:?}")
+                })
+            })?;
+            let [connection] = connection_details.as_slice() else {
+                if connection_details.is_empty() {
+                    return Err(E_INVARG
+                        .with_msg(|| "No connection found for switch_player source".to_string()));
+                }
+                return Err(E_INVARG.with_msg(|| {
+                    "switch_player source has multiple connections; pass a connection object"
+                        .to_string()
+                }));
+            };
+            connection.connection_obj
+        };
+
         drop(lc);
 
         self.system_control
-            .switch_player(connection_obj, new_player)?;
+            .switch_player(connection_obj, new_player, silent, preserve_history)?;
 
         // The registry is the durable commit point. Update scheduler metadata only after it
         // succeeds so a rejected switch leaves the running task associated with its old player.
         let mut lc = self.lifecycle.lock();
-        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+        if connection_obj == current_connection
+            && let Some(task) = lc.task_q.active.get_mut(&task_id)
+        {
             task.player = new_player;
+            task.session
+                .switch_player_identity(new_player, preserve_history);
         }
 
         Ok(())

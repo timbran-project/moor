@@ -28,6 +28,8 @@ export interface SessionCredentialsUpdate {
 export interface PlayerIdentityUpdate {
     playerOid: string;
     authToken: string;
+    silent: boolean;
+    preserveHistory: boolean;
 }
 
 function concatByteArrays(chunks: Uint8Array[]): Uint8Array {
@@ -111,5 +113,10 @@ export function decodePlayerSwitchedEvent(playerSwitched: PlayerSwitchedEvent): 
     if (!playerOid || !authToken) {
         return null;
     }
-    return { playerOid, authToken };
+    return {
+        playerOid,
+        authToken,
+        silent: playerSwitched.silent(),
+        preserveHistory: playerSwitched.preserveHistory(),
+    };
 }

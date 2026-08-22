@@ -121,9 +121,15 @@ impl SystemControl for SystemControlHandle {
         Ok(listeners)
     }
 
-    fn switch_player(&self, connection_obj: Obj, new_player: Obj) -> Result<(), moor_var::Error> {
+    fn switch_player(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), moor_var::Error> {
         self.message_handler
-            .switch_player(connection_obj, new_player)
+            .switch_player(connection_obj, new_player, silent, preserve_history)
             .map_err(|e| moor_var::E_QUOTA.with_msg(|| e.to_string()))
     }
 

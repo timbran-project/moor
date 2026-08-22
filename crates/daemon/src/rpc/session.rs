@@ -26,7 +26,8 @@ use crate::event_log::{EventLogOps, logged_narrative_event_to_flatbuffer};
 /// A "session" that runs over the RPC system.
 pub struct RpcSession {
     client_id: Uuid,
-    player: Obj,
+    connection: Obj,
+    identity: Mutex<SessionIdentity>,
     /// Shared event log for persistent storage across all sessions
     event_log: Arc<dyn EventLogOps>,
     /// Transaction-local buffer for events pending commit (both logged and broadcast)
@@ -34,6 +35,12 @@ pub struct RpcSession {
     /// Transaction-local buffer for log-only events (logged but not broadcast)
     log_only_buffer: Mutex<Vec<(Obj, Box<NarrativeEvent>)>>,
     send: Sender<SessionActions>,
+}
+
+#[derive(Clone, Copy)]
+struct SessionIdentity {
+    active_player: Obj,
+    history_player: Obj,
 }
 
 pub enum SessionActions {
@@ -72,13 +79,19 @@ pub enum SessionActions {
 impl RpcSession {
     pub fn new(
         client_id: Uuid,
-        player: Obj,
+        connection: Obj,
+        active_player: Obj,
+        history_player: Obj,
         event_log: Arc<dyn EventLogOps>,
         sender: Sender<SessionActions>,
     ) -> Self {
         Self {
             client_id,
-            player,
+            connection,
+            identity: Mutex::new(SessionIdentity {
+                active_player,
+                history_player,
+            }),
             event_log,
             transaction_buffer: Mutex::new(Vec::new()),
             log_only_buffer: Mutex::new(Vec::new()),
@@ -88,6 +101,14 @@ impl RpcSession {
 }
 
 impl Session for RpcSession {
+    fn switch_player_identity(&self, new_player: Obj, preserve_history: bool) {
+        let mut identity = self.identity.lock().unwrap();
+        identity.active_player = new_player;
+        if !preserve_history {
+            identity.history_player = new_player;
+        }
+    }
+
     fn commit(&self) -> Result<(), SessionError> {
         let events: Vec<_> = {
             let mut transaction_buffer = self.transaction_buffer.lock().unwrap();
@@ -98,15 +119,23 @@ impl Session for RpcSession {
             log_only_buffer.drain(..).collect()
         };
 
-        // Log events from both buffers to the event log
+        let identity = *self.identity.lock().unwrap();
+
+        // Log events from both buffers to the event log. Only events addressed to the active
+        // player follow the session's selected history owner; events for other players do not.
         for (player, event) in events.iter().chain(log_only_events.iter()) {
-            let Some(pubkey) = self.event_log.get_pubkey(*player) else {
+            let history_player = if *player == identity.active_player {
+                identity.history_player
+            } else {
+                *player
+            };
+            let Some(pubkey) = self.event_log.get_pubkey(history_player) else {
                 continue;
             };
 
             // Convert to FlatBuffer LoggedNarrativeEvent (always encrypted)
             if let Ok((logged_event, presentation_action)) =
-                logged_narrative_event_to_flatbuffer(*player, event.clone(), pubkey)
+                logged_narrative_event_to_flatbuffer(history_player, event.clone(), pubkey)
             {
                 self.event_log.append(logged_event, presentation_action);
             }
@@ -126,9 +155,12 @@ impl Session for RpcSession {
     }
 
     fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
+        let identity = *self.identity.lock().unwrap();
         Ok(Arc::new(Self::new(
             self.client_id,
-            self.player,
+            self.connection,
+            identity.active_player,
+            identity.history_player,
             self.event_log.clone(),
             self.send.clone(),
         )))
@@ -183,7 +215,7 @@ impl Session for RpcSession {
         self.send
             .send(SessionActions::SendSystemMessage {
                 client_id: self.client_id,
-                connection: self.player,
+                connection: self.connection,
                 system_message: shutdown_msg,
             })
             .map_err(|e| SessionError::CommitError(e.to_string()))

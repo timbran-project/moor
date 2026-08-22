@@ -242,27 +242,47 @@ fn bf_connection(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_obj(connection_obj)))
 }
 
-/// Usage: `none switch_player(obj new_player)`
-/// Switches the current session to a different player object. The target must be
-/// a valid player object. Wizard-only. Intended for suspend/resume login flows.
+/// Usage: `none switch_player(obj target)` or
+/// `none switch_player(obj source, obj target [, bool silent [, bool preserve_history]])`
+/// Switches a session to a different player object. The target must be a valid player object.
+/// Wizard-only. `silent` suppresses connection messages. `preserve_history` keeps subsequent
+/// events in the source session's history.
 fn bf_switch_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() != 1 {
-        return Err(ErrValue(E_ARGS.msg("switch_player() requires 1 argument")));
+    if bf_args.args.is_empty() || bf_args.args.len() > 4 {
+        return Err(ErrValue(
+            E_ARGS.msg("switch_player() requires 1, 2, 3, or 4 arguments"),
+        ));
     }
 
-    let Some(new_player) = bf_args.args[0].as_object() else {
+    if bf_args.args.len() == 3 && bf_args.args[2].as_bool().is_none()
+        || bf_args.args.len() == 4
+            && (bf_args.args[2].as_bool().is_none() || bf_args.args[3].as_bool().is_none())
+    {
         return Err(ErrValue(
-            E_TYPE.msg("switch_player() requires an object as the first argument"),
+            E_TYPE.msg("switch_player() optional arguments must be booleans"),
+        ));
+    }
+
+    let (source, target_index) = if bf_args.args.len() == 1 {
+        (None, 0)
+    } else {
+        let Some(source) = bf_args.args[0].as_object() else {
+            return Err(ErrValue(
+                E_TYPE.msg("switch_player() source must be an object"),
+            ));
+        };
+        (Some(source), 1)
+    };
+    let Some(new_player) = bf_args.args[target_index].as_object() else {
+        return Err(ErrValue(
+            E_TYPE.msg("switch_player() target must be an object"),
         ));
     };
+    let silent = bf_args.args.len() >= 3 && bf_args.args[2].as_bool().unwrap();
+    let preserve_history = bf_args.args.len() == 4 && bf_args.args[3].as_bool().unwrap();
 
     bf_args.require_wizard_or_builtin_call_msg("switch_player() requires wizard permissions")?;
     let authority = bf_args.task_authority().map_err(world_state_bf_err)?;
-
-    // Check if we're already the target player - if so, no-op
-    if authority.principal() == new_player {
-        return Ok(RetNil);
-    }
 
     // Validate that the target player object exists and is accessible
     if !with_current_transaction(|ws| ws.valid(&new_player)).map_err(world_state_bf_err)? {
@@ -283,18 +303,23 @@ fn bf_switch_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Log the switch attempt for audit trail
     info!(
         wizard = ?authority.principal(),
-        from_player = ?authority.principal(),
+        source = ?source,
         to_player = ?new_player,
         task_id = ?bf_args.exec_state.task_id,
         "Player switch requested"
     );
 
     // Request the switch through the task scheduler
-    match current_task_scheduler_client().switch_player(new_player) {
+    match current_task_scheduler_client().switch_player(
+        source,
+        new_player,
+        silent,
+        preserve_history,
+    ) {
         Ok(_) => {
             info!(
                 wizard = ?authority.principal(),
-                from_player = ?authority.principal(),
+                source = ?source,
                 to_player = ?new_player,
                 "Player switch completed successfully"
             );
@@ -303,7 +328,7 @@ fn bf_switch_player(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         Err(e) => {
             warn!(
                 wizard = ?authority.principal(),
-                from_player = ?authority.principal(),
+                source = ?source,
                 to_player = ?new_player,
                 error = ?e,
                 "Player switch failed"

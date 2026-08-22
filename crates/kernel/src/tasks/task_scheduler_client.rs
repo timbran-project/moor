@@ -257,9 +257,20 @@ impl TaskSchedulerClient {
         self.scheduler.handle_task_telemetry(task_id)
     }
 
-    pub fn switch_player(&self, new_player: Obj) -> Result<(), Error> {
-        self.scheduler
-            .handle_switch_player_from_task(self.task_id, new_player)
+    pub fn switch_player(
+        &self,
+        source: Option<Obj>,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), Error> {
+        self.scheduler.handle_switch_player_from_task(
+            self.task_id,
+            source,
+            new_player,
+            silent,
+            preserve_history,
+        )
     }
 
     pub fn dump_object(&self, obj: Obj, use_constants: bool) -> Result<Vec<Var>, Error> {

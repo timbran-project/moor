@@ -50,6 +50,7 @@ pub trait ConnectionRegistry {
         &self,
         connection_obj: Obj,
         new_player: Obj,
+        preserve_history: bool,
     ) -> Result<Vec<Uuid>, eyre::Error>;
 
     /// Create a new connection object for the given client.
@@ -80,6 +81,9 @@ pub trait ConnectionRegistry {
 
     /// Retrieve the player object for the given client (if logged in).
     fn player_object_for_client(&self, client_id: Uuid) -> Option<Obj>;
+
+    /// Retrieve the player whose persistent history owns events from this client.
+    fn history_object_for_client(&self, client_id: Uuid) -> Option<Obj>;
 
     /// Remove the given client from the connection database.
     fn remove_client_connection(&self, client_id: Uuid) -> Result<(), eyre::Error>;
@@ -260,6 +264,7 @@ mod tests {
             Some(connection_obj)
         );
         assert_eq!(db.player_object_for_client(client_id), Some(player_obj));
+        assert_eq!(db.history_object_for_client(client_id), Some(player_obj));
 
         // Both connection and player should be in connections list
         let mut connections = db.connections();
@@ -294,17 +299,45 @@ mod tests {
             .unwrap();
 
         let switched_clients = db
-            .switch_player_for_connection(connection_obj, new_player)
+            .switch_player_for_connection(connection_obj, new_player, false)
             .unwrap();
 
         assert_eq!(switched_clients, vec![client_id]);
         assert_eq!(db.player_object_for_client(client_id), Some(new_player));
+        assert_eq!(db.history_object_for_client(client_id), Some(new_player));
         assert!(db.client_ids_for(old_player).unwrap().is_empty());
         assert_eq!(db.client_ids_for(new_player).unwrap(), vec![client_id]);
 
-        db.switch_player_for_connection(connection_obj, new_player)
+        db.switch_player_for_connection(connection_obj, new_player, false)
             .unwrap();
         assert_eq!(db.client_ids_for(new_player).unwrap(), vec![client_id]);
+    }
+
+    #[test]
+    fn test_switch_player_can_preserve_history_owner() {
+        use moor_var::Obj;
+
+        let db = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let client_id = Uuid::new_v4();
+        let old_player = Obj::mk_id(100);
+        let new_player = Obj::mk_id(101);
+        let connection_obj = db
+            .new_connection(NewConnectionParams {
+                client_id,
+                hostname: "switch.test".to_string(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: Some(old_player),
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+
+        db.switch_player_for_connection(connection_obj, new_player, true)
+            .unwrap();
+
+        assert_eq!(db.player_object_for_client(client_id), Some(new_player));
+        assert_eq!(db.history_object_for_client(client_id), Some(old_player));
     }
 
     #[test]
@@ -326,10 +359,11 @@ mod tests {
         .unwrap();
 
         assert!(
-            db.switch_player_for_connection(Obj::mk_id(-999), Obj::mk_id(101))
+            db.switch_player_for_connection(Obj::mk_id(-999), Obj::mk_id(101), false)
                 .is_err()
         );
         assert_eq!(db.player_object_for_client(client_id), Some(old_player));
+        assert_eq!(db.history_object_for_client(client_id), Some(old_player));
         assert_eq!(db.client_ids_for(old_player).unwrap(), vec![client_id]);
     }
 

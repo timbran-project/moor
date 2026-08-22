@@ -59,7 +59,7 @@ const EncryptionScope: React.FC<EncryptionProviderProps> = ({
 };
 
 export const EncryptionProvider: React.FC<EncryptionProviderProps> = (props) => {
-    return <EncryptionScope key={props.playerOid ?? "anonymous"} {...props} />;
+    return <EncryptionScope {...props} />;
 };
 
 export const useEncryptionContext = (): EncryptionContextType => {

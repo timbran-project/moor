@@ -88,6 +88,10 @@ pub struct WorkerInfo {
 //  Right now the same user can connect multiple times and we output and input on all connections,
 //  which is different from MOO's "reconnected" handling, but probably preferable.
 pub trait Session: Send + Sync {
+    /// Update the active player for this session after a connection switch commits. When history
+    /// is preserved, events addressed to the new player continue to use the prior history owner.
+    fn switch_player_identity(&self, _new_player: Obj, _preserve_history: bool) {}
+
     /// Commit for current activity, called by the scheduler when a task commits and *after* the world
     /// state has successfully been committed. This is the point at which the session should send
     /// its buffered output.
@@ -212,7 +216,13 @@ pub trait SystemControl: Send + Sync {
     fn listeners(&self) -> Result<Vec<ListenerInfo>, Error>;
 
     /// Switch the player for the given connection object to the new player.
-    fn switch_player(&self, connection_obj: Obj, new_player: Obj) -> Result<(), Error>;
+    fn switch_player(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), Error>;
 
     /// Rotate the enrollment token used for host enrollment, returning the new token string.
     fn rotate_enrollment_token(&self) -> Result<String, Error>;
@@ -380,7 +390,13 @@ impl SystemControl for NoopSystemControl {
         Ok(vec![])
     }
 
-    fn switch_player(&self, _connection_obj: Obj, _new_player: Obj) -> Result<(), Error> {
+    fn switch_player(
+        &self,
+        _connection_obj: Obj,
+        _new_player: Obj,
+        _silent: bool,
+        _preserve_history: bool,
+    ) -> Result<(), Error> {
         Ok(())
     }
 
@@ -605,7 +621,13 @@ impl SystemControl for MockClientSession {
         Ok(vec![(SYSTEM_OBJECT, String::from("tcp"), 8888, vec![])])
     }
 
-    fn switch_player(&self, _connection_obj: Obj, _new_player: Obj) -> Result<(), Error> {
+    fn switch_player(
+        &self,
+        _connection_obj: Obj,
+        _new_player: Obj,
+        _silent: bool,
+        _preserve_history: bool,
+    ) -> Result<(), Error> {
         let mut system = self.system.write().unwrap();
         system.push(String::from("switch_player"));
         Ok(())

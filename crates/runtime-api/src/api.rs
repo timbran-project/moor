@@ -302,6 +302,8 @@ pub enum ClientEvent {
     PlayerSwitched {
         new_player: Obj,
         new_auth_token: AuthToken,
+        silent: bool,
+        preserve_history: bool,
     },
     SetConnectionOption {
         connection_obj: Obj,

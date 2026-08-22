@@ -26,7 +26,11 @@ use std::{
 };
 use uuid::Uuid;
 
-use super::{hosts::Hosts, session::SessionActions, transport::Transport};
+use super::{
+    hosts::Hosts,
+    session::{RpcSession, SessionActions},
+    transport::Transport,
+};
 use crate::{
     connections::ConnectionRegistry, event_log::EventLogOps, tasks::task_monitor::TaskMonitor,
 };
@@ -141,7 +145,13 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
     fn handle_session_event(&self, session_event: SessionActions) -> Result<(), Error>;
 
     /// Switch the player for the given connection object to the new player.
-    fn switch_player(&self, connection_obj: Obj, new_player: Obj) -> Result<(), SessionError>;
+    fn switch_player(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), SessionError>;
 }
 
 /// Implementation of message handler that contains the actual business logic
@@ -165,6 +175,26 @@ pub struct RpcMessageHandler {
 }
 
 impl RpcMessageHandler {
+    pub(crate) fn new_rpc_session(
+        &self,
+        client_id: Uuid,
+        connection: Obj,
+        active_player: Obj,
+    ) -> RpcSession {
+        let history_player = self
+            .connections
+            .history_object_for_client(client_id)
+            .unwrap_or(active_player);
+        RpcSession::new(
+            client_id,
+            connection,
+            active_player,
+            history_player,
+            self.event_log.clone(),
+            self.mailbox_sender.clone(),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
@@ -440,10 +470,16 @@ impl MessageHandler for RpcMessageHandler {
         Ok(())
     }
 
-    fn switch_player(&self, connection_obj: Obj, new_player: Obj) -> Result<(), SessionError> {
+    fn switch_player(
+        &self,
+        connection_obj: Obj,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), SessionError> {
         let client_ids = self
             .connections
-            .switch_player_for_connection(connection_obj, new_player)
+            .switch_player_for_connection(connection_obj, new_player, preserve_history)
             .map_err(|_| SessionError::DeliveryError)?;
 
         let new_auth_token = self.make_auth_token(&new_player);
@@ -452,6 +488,8 @@ impl MessageHandler for RpcMessageHandler {
             let event = ClientEvent::PlayerSwitched {
                 new_player,
                 new_auth_token: new_auth_token.clone(),
+                silent,
+                preserve_history,
             };
             if let Err(e) = self.transport.publish_client_event(client_id, event) {
                 error!(

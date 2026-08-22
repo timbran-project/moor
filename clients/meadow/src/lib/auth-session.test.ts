@@ -43,6 +43,8 @@ describe("auth session persistence", () => {
         persistAuthSession({
             playerOid: "oid:42",
             authToken: "auth-token",
+            historyPlayerOid: "oid:1",
+            historyAuthToken: "history-token",
             playerFlags: 2,
             reconnectCredentials: {
                 clientId: "11111111-1111-1111-1111-111111111111",
@@ -53,6 +55,8 @@ describe("auth session persistence", () => {
         expect(readAuthSession()).toEqual({
             playerOid: "oid:42",
             authToken: "auth-token",
+            historyPlayerOid: "oid:1",
+            historyAuthToken: "history-token",
             playerFlags: 2,
             reconnectCredentials: {
                 clientId: "11111111-1111-1111-1111-111111111111",
@@ -75,6 +79,8 @@ describe("auth session persistence", () => {
         persistAuthSession({
             playerOid: "oid:42",
             authToken: "auth-token",
+            historyPlayerOid: "oid:42",
+            historyAuthToken: "auth-token",
             playerFlags: 2,
             reconnectCredentials: {
                 clientId: "11111111-1111-1111-1111-111111111111",

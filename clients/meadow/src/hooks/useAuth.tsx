@@ -33,11 +33,15 @@ import { objToCurie } from "../lib/var";
 export interface Player {
     oid: string;
     authToken: string;
+    historyOid: string;
+    historyAuthToken: string;
     connected: boolean;
     flags: number;
     clientToken?: string | null;
     clientId?: string | null;
     isInitialAttach?: boolean;
+    lastSwitchSilent?: boolean;
+    lastSwitchPreservedHistory?: boolean;
 }
 
 export interface AuthState {
@@ -64,7 +68,9 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             }
 
             // Check if event log encryption is set up for this player
-            const eventLogEncryptionKey = localStorage.getItem(`moor_event_log_identity_${session.playerOid}`);
+            const eventLogEncryptionKey = localStorage.getItem(
+                `moor_event_log_identity_${session.historyPlayerOid}`,
+            );
             const hasEventLogEncryption = eventLogEncryptionKey !== null;
 
             // Validate the stored auth token with the server
@@ -97,6 +103,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                     player: {
                         oid: session.playerOid,
                         authToken: session.authToken,
+                        historyOid: session.historyPlayerOid,
+                        historyAuthToken: session.historyAuthToken,
                         connected: false,
                         flags: session.playerFlags,
                         clientToken: session.reconnectCredentials?.clientToken,
@@ -131,6 +139,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             player: {
                 oid: session.playerOid,
                 authToken: session.authToken,
+                historyOid: session.historyPlayerOid,
+                historyAuthToken: session.historyAuthToken,
                 connected: false,
                 flags: session.playerFlags,
                 clientToken: session.reconnectCredentials?.clientToken,
@@ -319,6 +329,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             establishSession({
                 playerOid,
                 authToken,
+                historyPlayerOid: playerOid,
+                historyAuthToken: authToken,
                 playerFlags,
                 reconnectCredentials,
             });
@@ -373,11 +385,25 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         }));
     }, []);
 
-    const rotatePlayerIdentity = useCallback(async (playerOid: string, authToken: string) => {
+    const rotatePlayerIdentity = useCallback(async (
+        playerOid: string,
+        authToken: string,
+        silent: boolean,
+        preserveHistory: boolean,
+    ) => {
         const reconnectCredentials = readReconnectCredentials();
+        const previousSession = readAuthSession();
+        const historyPlayerOid = preserveHistory
+            ? previousSession?.historyPlayerOid ?? previousSession?.playerOid ?? playerOid
+            : playerOid;
+        const historyAuthToken = preserveHistory
+            ? previousSession?.historyAuthToken ?? previousSession?.authToken ?? authToken
+            : authToken;
         persistAuthSession({
             playerOid,
             authToken,
+            historyPlayerOid,
+            historyAuthToken,
             playerFlags: 0,
             reconnectCredentials,
         });
@@ -387,11 +413,15 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             player: {
                 oid: playerOid,
                 authToken,
+                historyOid: historyPlayerOid,
+                historyAuthToken,
                 flags: 0,
                 connected: prev.player?.connected ?? true,
                 clientId: reconnectCredentials?.clientId,
                 clientToken: reconnectCredentials?.clientToken,
                 isInitialAttach: false,
+                lastSwitchSilent: silent,
+                lastSwitchPreservedHistory: preserveHistory,
             },
         }));
 
@@ -425,6 +455,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             persistAuthSession({
                 playerOid,
                 authToken,
+                historyPlayerOid: currentSession.historyPlayerOid,
+                historyAuthToken: currentSession.historyAuthToken,
                 playerFlags: flags,
                 reconnectCredentials: readReconnectCredentials(),
             });

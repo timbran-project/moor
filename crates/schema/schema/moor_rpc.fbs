@@ -1130,6 +1130,8 @@ table TaskSuspendedEvent {
 table PlayerSwitchedEvent {
     new_player: MoorCommon.Obj (required);
     new_auth_token: AuthToken (required);
+    silent: bool = false;
+    preserve_history: bool = false;
 }
 
 table SetConnectionOptionEvent {

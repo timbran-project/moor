@@ -55,6 +55,7 @@ struct FjallInner {
     keyspace: Database,
     client_connection_table: Keyspace, // client_id (u128) -> connection_obj (Obj bytes)
     client_player_table: Keyspace, // client_id (u128) -> player_obj (Obj bytes), only after login
+    client_history_table: Keyspace, // client_id (u128) -> history owner (Obj bytes), only after login
     connection_records_table: Keyspace, // connection_obj (Obj bytes) -> ConnectionsRecords
     player_clients_table: Keyspace, // player_obj (Obj bytes) -> ConnectionsRecords, only after login
     connection_id_sequence: i32,
@@ -87,6 +88,9 @@ impl FjallConnectionRegistry {
         let client_player_table =
             keyspace.keyspace("client_player", KeyspaceCreateOptions::default)?;
 
+        let client_history_table =
+            keyspace.keyspace("client_history", KeyspaceCreateOptions::default)?;
+
         let connection_records_table =
             keyspace.keyspace("connection_records", KeyspaceCreateOptions::default)?;
 
@@ -103,6 +107,7 @@ impl FjallConnectionRegistry {
             keyspace,
             client_connection_table,
             client_player_table,
+            client_history_table,
             connection_records_table,
             player_clients_table,
             connection_id_sequence,
@@ -317,6 +322,7 @@ impl FjallConnectionRegistry {
         for key in invalid_mapping_keys {
             let _ = inner.client_connection_table.remove(&key);
             let _ = inner.client_player_table.remove(&key);
+            let _ = inner.client_history_table.remove(&key);
             invalid_entries_removed += 1;
         }
 
@@ -403,6 +409,7 @@ impl FjallConnectionRegistry {
                 .client_connection_table
                 .remove(client_id.to_le_bytes());
             let _ = inner.client_player_table.remove(client_id.to_le_bytes());
+            let _ = inner.client_history_table.remove(client_id.to_le_bytes());
             client_to_connection.remove(client_id);
             client_to_player.remove(client_id);
         }
@@ -425,6 +432,7 @@ impl FjallConnectionRegistry {
         for key in mapping_removals {
             let _ = inner.client_connection_table.remove(&key);
             let _ = inner.client_player_table.remove(&key);
+            let _ = inner.client_history_table.remove(&key);
             orphan_mappings_removed += 1;
         }
 
@@ -648,6 +656,9 @@ impl ConnectionRegistry for FjallConnectionRegistry {
                     .client_player_table
                     .insert(client_id.as_u128().to_le_bytes(), player_obj.as_bytes())?;
             }
+            inner
+                .client_history_table
+                .insert(client_id.as_u128().to_le_bytes(), player_obj.as_bytes())?;
 
             // Add to player connections if not already there
             if !player_conns
@@ -672,6 +683,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         &self,
         connection_obj: Obj,
         new_player: Obj,
+        preserve_history: bool,
     ) -> Result<Vec<Uuid>, Error> {
         let inner = self.inner.lock().unwrap();
 
@@ -742,6 +754,26 @@ impl ConnectionRegistry for FjallConnectionRegistry {
                 record.client_id.to_le_bytes(),
                 new_player.as_bytes(),
             );
+            if !preserve_history {
+                batch.insert(
+                    &inner.client_history_table,
+                    record.client_id.to_le_bytes(),
+                    new_player.as_bytes(),
+                );
+            } else if inner
+                .client_history_table
+                .get(record.client_id.to_le_bytes())?
+                .is_none()
+                && let Some(old_player) = inner
+                    .client_player_table
+                    .get(record.client_id.to_le_bytes())?
+            {
+                batch.insert(
+                    &inner.client_history_table,
+                    record.client_id.to_le_bytes(),
+                    old_player,
+                );
+            }
         }
         for (player, encoded) in player_updates {
             match encoded {
@@ -890,6 +922,15 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             else {
                 return Err(RpcMessageError::InternalError(
                     "Failed to write client-player mapping".to_string(),
+                ));
+            };
+
+            let Ok(()) = inner
+                .client_history_table
+                .insert(client_id.as_u128().to_le_bytes(), player_oid_bytes)
+            else {
+                return Err(RpcMessageError::InternalError(
+                    "Failed to write client-history mapping".to_string(),
                 ));
             };
 
@@ -1064,6 +1105,9 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             let _ = inner
                 .client_connection_table
                 .remove(client_uuid.as_u128().to_le_bytes());
+            let _ = inner
+                .client_history_table
+                .remove(client_uuid.as_u128().to_le_bytes());
 
             // Remove from player connections if logged in
             Self::remove_from_player_connections(&inner, client_uuid, client_id);
@@ -1211,6 +1255,15 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Obj::from_bytes(bytes.as_ref()).ok()
     }
 
+    fn history_object_for_client(&self, client_id: Uuid) -> Option<Obj> {
+        let inner = self.inner.lock().ok()?;
+        let bytes = inner
+            .client_history_table
+            .get(client_id.as_u128().to_le_bytes())
+            .ok()??;
+        Obj::from_bytes(bytes.as_ref()).ok()
+    }
+
     fn remove_client_connection(&self, client_id: Uuid) -> Result<(), Error> {
         debug!(client_id = ?client_id, "remove_client_connection: removing");
         let inner = self.inner.lock().unwrap();
@@ -1241,6 +1294,9 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             .remove(client_id.as_u128().to_le_bytes())?;
         inner
             .client_player_table
+            .remove(client_id.as_u128().to_le_bytes())?;
+        inner
+            .client_history_table
             .remove(client_id.as_u128().to_le_bytes())?;
 
         // Remove from connection records (flush cached timestamps first)

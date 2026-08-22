@@ -27,7 +27,12 @@ interface AuthContextType {
     establishSession: (session: AuthSession, isInitialAttach?: boolean) => void;
     setPlayerConnected: (connected: boolean) => void;
     updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
-    rotatePlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
+    rotatePlayerIdentity: (
+        playerOid: string,
+        authToken: string,
+        silent: boolean,
+        preserveHistory: boolean,
+    ) => Promise<void>;
     clearInitialAttach: () => void;
 }
 

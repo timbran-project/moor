@@ -4,8 +4,6 @@
   "private": true,
   "description": "FlatBuffer schemas and TypeScript bindings for mooR",
   "type": "module",
-  "main": "./dist/generated/all_schemas.js",
-  "types": "./dist/generated/all_schemas.d.ts",
   "exports": {
     "./generated/*": {
       "types": "./dist/generated/*.d.ts",
@@ -26,7 +24,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "generate": "rm -rf generated && mkdir -p generated && flatc --ts --gen-all -o generated all_schemas.fbs",
+    "generate": "node generate-typescript.mjs",
     "build": "npm run generate && rm -rf dist && tsc -p tsconfig.json"
   },
   "dependencies": {

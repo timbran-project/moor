@@ -21,7 +21,12 @@ import * as flatbuffers from "flatbuffers";
 import { describe, expect, it } from "vitest";
 import { handleClientEventFlatBuffer } from "./rpc-fb-ws";
 
-function playerSwitchedEventBytes(player: number, token: string): Uint8Array {
+function playerSwitchedEventBytes(
+    player: number,
+    token: string,
+    silent: boolean,
+    preserveHistory: boolean,
+): Uint8Array {
     const builder = new flatbuffers.Builder(256);
     const tokenString = builder.createString(token);
     const authToken = AuthToken.createAuthToken(builder, tokenString);
@@ -31,6 +36,8 @@ function playerSwitchedEventBytes(player: number, token: string): Uint8Array {
     PlayerSwitchedEvent.startPlayerSwitchedEvent(builder);
     PlayerSwitchedEvent.addNewPlayer(builder, playerObj);
     PlayerSwitchedEvent.addNewAuthToken(builder, authToken);
+    PlayerSwitchedEvent.addSilent(builder, silent);
+    PlayerSwitchedEvent.addPreserveHistory(builder, preserveHistory);
     const playerSwitched = PlayerSwitchedEvent.endPlayerSwitchedEvent(builder);
     const event = ClientEvent.createClientEvent(
         builder,
@@ -45,7 +52,7 @@ describe("PlayerSwitchedEvent", () => {
     it("dispatches the new player identity and auth token", () => {
         let identity = null;
 
-        handleClientEventFlatBuffer(playerSwitchedEventBytes(42, "new-auth-token"), {
+        handleClientEventFlatBuffer(playerSwitchedEventBytes(42, "new-auth-token", true, true), {
             onPlayerSwitched: (update) => {
                 identity = update;
             },
@@ -54,6 +61,8 @@ describe("PlayerSwitchedEvent", () => {
         expect(identity).toEqual({
             playerOid: "oid:42",
             authToken: "new-auth-token",
+            silent: true,
+            preserveHistory: true,
         });
     });
 });

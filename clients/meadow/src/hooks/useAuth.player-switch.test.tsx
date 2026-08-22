@@ -45,6 +45,8 @@ describe("useAuth player switching", () => {
         installLocalStorageMock();
         localStorage.setItem("auth_token", "old-token");
         localStorage.setItem("player_oid", "oid:1");
+        localStorage.setItem("history_auth_token", "old-token");
+        localStorage.setItem("history_player_oid", "oid:1");
         localStorage.setItem("player_flags", "7");
         sessionStorage.setItem("client_id", "11111111-1111-1111-1111-111111111111");
         sessionStorage.setItem("client_token", "client-token");
@@ -69,7 +71,7 @@ describe("useAuth player switching", () => {
         await waitFor(() => expect(result.current.authState.player?.oid).toBe("oid:1"));
 
         await act(async () => {
-            await result.current.rotatePlayerIdentity("oid:42", "new-token");
+            await result.current.rotatePlayerIdentity("oid:42", "new-token", false, false);
         });
 
         expect(fetchMock).toHaveBeenLastCalledWith("/auth/validate", {
@@ -79,6 +81,8 @@ describe("useAuth player switching", () => {
         expect(result.current.authState.player).toMatchObject({
             oid: "oid:42",
             authToken: "new-token",
+            historyOid: "oid:42",
+            historyAuthToken: "new-token",
             flags: 2,
             clientId: "11111111-1111-1111-1111-111111111111",
             clientToken: "client-token",
@@ -86,8 +90,46 @@ describe("useAuth player switching", () => {
         });
         expect(localStorage.getItem("auth_token")).toBe("new-token");
         expect(localStorage.getItem("player_oid")).toBe("oid:42");
+        expect(localStorage.getItem("history_auth_token")).toBe("new-token");
+        expect(localStorage.getItem("history_player_oid")).toBe("oid:42");
         expect(localStorage.getItem("player_flags")).toBe("2");
         expect(sessionStorage.getItem("client_id")).toBe("11111111-1111-1111-1111-111111111111");
         expect(sessionStorage.getItem("client_token")).toBe("client-token");
+    });
+
+    it("retains the prior history identity when requested", async () => {
+        installLocalStorageMock();
+        localStorage.setItem("auth_token", "owner-token");
+        localStorage.setItem("player_oid", "oid:1");
+        localStorage.setItem("history_auth_token", "owner-token");
+        localStorage.setItem("history_player_oid", "oid:1");
+        localStorage.setItem("player_flags", "7");
+
+        vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {
+            status: 200,
+            headers: {
+                "X-Moor-Player": "oid:42",
+                "X-Moor-Player-Flags": "2",
+            },
+        })));
+
+        const onSystemMessage = vi.fn();
+        const { result } = renderHook(() => useAuth(onSystemMessage));
+        await waitFor(() => expect(result.current.authState.player?.oid).toBe("oid:1"));
+
+        await act(async () => {
+            await result.current.rotatePlayerIdentity("oid:42", "character-token", true, true);
+        });
+
+        expect(result.current.authState.player).toMatchObject({
+            oid: "oid:42",
+            authToken: "character-token",
+            historyOid: "oid:1",
+            historyAuthToken: "owner-token",
+            lastSwitchSilent: true,
+            lastSwitchPreservedHistory: true,
+        });
+        expect(localStorage.getItem("history_auth_token")).toBe("owner-token");
+        expect(localStorage.getItem("history_player_oid")).toBe("oid:1");
     });
 });
