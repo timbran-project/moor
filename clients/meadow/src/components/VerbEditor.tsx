@@ -123,6 +123,8 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
     const errorDecorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
     const modelUriRef = useRef<string | null>(null);
     const contentRef = useRef(content);
+    const isCompilingRef = useRef(false);
+    const compileVerbRef = useRef<() => void>(() => {});
     const editorAriaLabel = `Code editor for verb ${verbName} on ${objectCurie}`;
 
     // Keep contentRef in sync with content state
@@ -443,7 +445,7 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
 
         // Add keybinding for Ctrl+Enter / Cmd+Enter to compile
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-            compileVerb();
+            compileVerbRef.current();
         });
 
         // Focus the editor only if not in embedded/split mode where it would steal focus
@@ -467,11 +469,13 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
     }, []);
 
     const compileVerb = useCallback(async () => {
-        if (isCompiling) return;
+        if (isCompilingRef.current) return;
 
+        isCompilingRef.current = true;
         setIsCompiling(true);
         setErrors([]);
         setCompileSuccess(false);
+        const contentAtCompile = contentRef.current;
 
         try {
             if (uploadAction && onSendMessage) {
@@ -485,7 +489,7 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                 }
 
                 // Send each line of content
-                const lines = content.split("\n");
+                const lines = contentAtCompile.split("\n");
                 for (const line of lines) {
                     const lineSent = onSendMessage(line);
                     if (!lineSent) {
@@ -502,7 +506,7 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                 // For now, assume success (real error handling would need server response parsing)
                 setErrors([]);
                 setCompileSuccess(true);
-                setLastCompiledContent(content);
+                setLastCompiledContent(contentAtCompile);
                 // Single announcement for screenreaders
                 setCompileAnnouncement("");
                 setTimeout(() => setCompileAnnouncement("Verb compiled successfully"), 50);
@@ -514,7 +518,7 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                     "@moor/schema/generated/moor-common/compile-error-union"
                 );
                 const { ParseError } = await import("@moor/schema/generated/moor-common/parse-error");
-                const result = await compileVerbFlatBuffer(authToken, objectCurie, verbName, content);
+                const result = await compileVerbFlatBuffer(authToken, objectCurie, verbName, contentAtCompile);
 
                 // Check for compilation errors
                 if (!result.success) {
@@ -752,7 +756,7 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                     // Successful compilation
                     setErrors([]);
                     setCompileSuccess(true);
-                    setLastCompiledContent(content);
+                    setLastCompiledContent(contentAtCompile);
 
                     // Single announcement for screenreaders
                     setCompileAnnouncement("");
@@ -776,7 +780,6 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
 
                     // Reload verb code from server to get any server-side formatting
                     // Only reload if content hasn't changed during compilation
-                    const contentAtCompile = content;
                     if (contentRef.current === contentAtCompile) {
                         try {
                             const verbValue = await getVerbCodeFlatBuffer(authToken, objectCurie, verbName);
@@ -827,13 +830,18 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
             setCompileAnnouncement("");
             setTimeout(() => setCompileAnnouncement(`Compilation failed. ${errorMessage}`), 50);
         } finally {
+            isCompilingRef.current = false;
             setIsCompiling(false);
             // Keep editing uninterrupted after toolbar or keyboard-triggered compiles.
             setTimeout(() => {
                 editorRef.current?.focus();
             }, 0);
         }
-    }, [authToken, content, objectCurie, verbName, uploadAction, onSendMessage, isCompiling]);
+    }, [authToken, objectCurie, verbName, uploadAction, onSendMessage]);
+
+    compileVerbRef.current = () => {
+        void compileVerb();
+    };
 
     const formatError = (error: CompileError): string => {
         if (error.type === "parse") {
