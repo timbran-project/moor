@@ -20,6 +20,7 @@ interface EncryptionContextType {
         isChecking: boolean;
         hasCheckedOnce: boolean;
         ageIdentity: string | null;
+        statusError: string | null;
     };
     checkEncryptionStatus: () => Promise<void>;
     setupEncryption: (password: string) => Promise<{ success: boolean; error?: string }>;

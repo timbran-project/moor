@@ -1297,7 +1297,11 @@ function AppContent({
         // Wait until we've checked the backend at least once before making decisions
         // Otherwise we briefly show setup prompt before knowing actual backend state
         if (
-            authState.player && !encryptionState.isChecking && encryptionState.hasCheckedOnce && !userSkippedEncryption
+            authState.player
+            && !encryptionState.isChecking
+            && encryptionState.hasCheckedOnce
+            && !encryptionState.statusError
+            && !userSkippedEncryption
         ) {
             const hasLocalKey = !!encryptionState.ageIdentity;
             const backendHasPubkey = encryptionState.hasEncryption;
@@ -1357,6 +1361,7 @@ function AppContent({
         encryptionState.ageIdentity,
         encryptionState.isChecking,
         encryptionState.hasCheckedOnce,
+        encryptionState.statusError,
         showEncryptionSetup,
         showPasswordPrompt,
         forgetKey,
@@ -1385,6 +1390,15 @@ function AppContent({
         }
 
         if (eventLogEnabled && !historyLoaded) {
+            if (encryptionState.statusError) {
+                setHistoryLoaded(true);
+                showMessage("History is unavailable; continuing without it", 4);
+                if (!wsState.isConnected) {
+                    setTimeout(() => connectWS(loginMode), 100);
+                }
+                return;
+            }
+
             if (!encryptionKeyForHistory) {
                 console.error(
                     "[HistoryError] No encryption key available. Cannot load history. User must set up encryption.",

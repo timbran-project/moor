@@ -25,6 +25,7 @@ interface EncryptionState {
     isChecking: boolean;
     hasCheckedOnce: boolean; // Track if we've checked at least once
     ageIdentity: string | null; // AGE-SECRET-KEY-1... private key string
+    statusError: string | null;
 }
 
 function initialEncryptionState(playerOid: string | null): EncryptionState {
@@ -37,6 +38,7 @@ function initialEncryptionState(playerOid: string | null): EncryptionState {
         isChecking: false,
         hasCheckedOnce: false,
         ageIdentity,
+        statusError: null,
     };
 }
 
@@ -69,6 +71,13 @@ export const useEventLogEncryption = (
 
             if (!response.ok) {
                 console.error("Failed to check encryption status:", response.status);
+                setEncryptionState(prev => ({
+                    ...prev,
+                    playerOid,
+                    isChecking: false,
+                    hasCheckedOnce: true,
+                    statusError: `Encryption status request failed with status ${response.status}`,
+                }));
                 return;
             }
 
@@ -84,6 +93,7 @@ export const useEventLogEncryption = (
                 isChecking: false,
                 hasCheckedOnce: true,
                 ageIdentity: savedIdentity,
+                statusError: null,
             });
         } catch (error) {
             console.error("Error checking encryption status:", error);
@@ -92,6 +102,9 @@ export const useEventLogEncryption = (
                 playerOid,
                 isChecking: false,
                 hasCheckedOnce: true,
+                statusError: error instanceof Error
+                    ? error.message
+                    : "Unable to check encryption status",
             }));
         }
     }, [authToken, playerOid]);
@@ -144,6 +157,7 @@ export const useEventLogEncryption = (
                 isChecking: false,
                 hasCheckedOnce: true,
                 ageIdentity: identity,
+                statusError: null,
             });
 
             return { success: true };
