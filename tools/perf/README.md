@@ -1,4 +1,26 @@
-# Activation Profiling
+# Performance Tools
+
+## Profile a running server
+
+To record ten seconds from the active `moor-daemon` or `moor` process and bundle the resulting
+`perf.data` with the exact executable image used by that process:
+
+```bash
+tools/perf/profile-running-moor.sh
+```
+
+Pass a duration and PID explicitly when needed:
+
+```bash
+tools/perf/profile-running-moor.sh --duration 30 428948
+```
+
+The archive is written to the current directory. Set `OUT_DIR` to put it elsewhere. If multiple
+matching processes are active, pass the desired PID as the final argument. The script checks access
+to the CPU performance counters before recording and reports how to adjust `perf_event_paranoid`
+when the kernel setting blocks access.
+
+## Profile activation paths
 
 Use these scripts to profile activation/frame construction paths in isolation from Criterion.
 
