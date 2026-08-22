@@ -23,7 +23,7 @@ import { EvalPanel } from "./components/EvalPanel";
 import { ExternalLinkModal } from "./components/ExternalLinkModal";
 import { InspectAction, InspectData, InspectPopover } from "./components/InspectPopover";
 import { Login, useWelcomeMessage } from "./components/Login";
-import { MessageBoard, useSystemMessage } from "./components/MessageBoard";
+import { MessageBoard, SystemMessageProvider, useSystemMessage } from "./components/MessageBoard";
 import { Narrative, NarrativeMessage, NarrativeRef } from "./components/Narrative";
 import { ObjectBrowser } from "./components/ObjectBrowser";
 import { ProfileSetupPanel } from "./components/ProfileSetupPanel";
@@ -2231,18 +2231,26 @@ function AppContent({
 }
 
 export function App() {
-    const { showMessage } = useSystemMessage();
-
     return (
         <ThemeProvider>
             <ToastProvider>
-                <AuthProvider showMessage={showMessage}>
-                    <PresentationProvider>
-                        <EncryptionWrapper />
-                    </PresentationProvider>
-                </AuthProvider>
+                <SystemMessageProvider>
+                    <AuthenticatedApp />
+                </SystemMessageProvider>
             </ToastProvider>
         </ThemeProvider>
+    );
+}
+
+function AuthenticatedApp() {
+    const { showMessage } = useSystemMessage();
+
+    return (
+        <AuthProvider showMessage={showMessage}>
+            <PresentationProvider>
+                <EncryptionWrapper />
+            </PresentationProvider>
+        </AuthProvider>
     );
 }
 

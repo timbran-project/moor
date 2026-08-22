@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 interface MessageBoardProps {
     className?: string;
@@ -22,32 +22,59 @@ interface SystemMessage {
     visible: boolean;
 }
 
-/**
- * Hook for managing system message state
- */
-export const useSystemMessage = () => {
+interface SystemMessageContextType {
+    systemMessage: SystemMessage;
+    showMessage: (message: string, duration?: number) => void;
+    hideMessage: () => void;
+}
+
+const SystemMessageContext = createContext<SystemMessageContextType | undefined>(undefined);
+
+export const SystemMessageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [systemMessage, setSystemMessage] = useState<SystemMessage>({
         message: "",
         visible: false,
     });
+    const dismissalTimerRef = useRef<number | null>(null);
+
+    const clearDismissalTimer = useCallback(() => {
+        if (dismissalTimerRef.current === null) return;
+        window.clearTimeout(dismissalTimerRef.current);
+        dismissalTimerRef.current = null;
+    }, []);
 
     const showMessage = useCallback((message: string, duration: number = 5) => {
+        clearDismissalTimer();
         setSystemMessage({ message, visible: true });
 
-        setTimeout(() => {
+        dismissalTimerRef.current = window.setTimeout(() => {
             setSystemMessage(prev => ({ ...prev, visible: false }));
+            dismissalTimerRef.current = null;
         }, duration * 1000);
-    }, []);
+    }, [clearDismissalTimer]);
 
     const hideMessage = useCallback(() => {
+        clearDismissalTimer();
         setSystemMessage(prev => ({ ...prev, visible: false }));
-    }, []);
+    }, [clearDismissalTimer]);
 
-    return {
-        systemMessage,
-        showMessage,
-        hideMessage,
-    };
+    useEffect(() => {
+        return () => clearDismissalTimer();
+    }, [clearDismissalTimer]);
+
+    return (
+        <SystemMessageContext.Provider value={{ systemMessage, showMessage, hideMessage }}>
+            {children}
+        </SystemMessageContext.Provider>
+    );
+};
+
+export const useSystemMessage = (): SystemMessageContextType => {
+    const context = useContext(SystemMessageContext);
+    if (!context) {
+        throw new Error("useSystemMessage must be used within a SystemMessageProvider");
+    }
+    return context;
 };
 
 /**
