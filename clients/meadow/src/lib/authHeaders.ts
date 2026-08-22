@@ -12,6 +12,7 @@
 //
 
 import { buildAuthHeaders as buildHeaders } from "@moor/web-sdk";
+import { clearAuthSession } from "./auth-session";
 
 export const buildAuthHeaders = (authToken: string): Record<string, string> => buildHeaders(authToken);
 
@@ -22,20 +23,7 @@ export const buildAuthHeaders = (authToken: string): Record<string, string> => b
 export const handleUnauthorized = () => {
     console.warn("Session unauthorized or expired. Clearing credentials and reloading...");
 
-    // Clear regular auth credentials
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("player_oid");
-    localStorage.removeItem("player_flags");
-
-    // Clear OAuth2 credentials
-    localStorage.removeItem("oauth2_auth_token");
-    localStorage.removeItem("oauth2_player_oid");
-    localStorage.removeItem("oauth2_player_flags");
-
-    // Clear connection credentials for this tab
-    sessionStorage.removeItem("client_token");
-    sessionStorage.removeItem("client_id");
-    localStorage.setItem("client_session_active", "false");
+    clearAuthSession();
 
     // Force reload to return to welcome/login screen
     window.location.href = "/";

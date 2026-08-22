@@ -14,6 +14,12 @@
 import { buildWsAttach } from "@moor/web-sdk";
 import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    isClientSessionActive,
+    readReconnectCredentials,
+    ReconnectCredentials,
+    setClientSessionActive,
+} from "../lib/auth-session";
 import { DataMessageHandlerEvent, EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
@@ -30,6 +36,7 @@ export const useWebSocket = (
     onSystemMessage: (message: string, duration?: number) => void,
     onPlayerConnectedChange?: (connected: boolean) => void,
     onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
+    onCredentialsUpdated?: (credentials: ReconnectCredentials) => void,
     onNarrativeMessage?: (
         content: string | string[],
         timestamp?: string,
@@ -125,11 +132,7 @@ export const useWebSocket = (
                         onUnpresentMessage,
                         onDataMessage,
                         onPlayerSwitched,
-                        onCredentialsUpdated: ({ clientId, clientToken }) => {
-                            sessionStorage.setItem("client_token", clientToken);
-                            sessionStorage.setItem("client_id", clientId);
-                            console.log("[WS] Updated session credentials from server event", { clientId });
-                        },
+                        onCredentialsUpdated,
                         lastEventTimestampRef,
                         onInputMetadata: setInputMetadata,
                     });
@@ -147,6 +150,7 @@ export const useWebSocket = (
         onUnpresentMessage,
         onDataMessage,
         onPlayerSwitched,
+        onCredentialsUpdated,
     ]);
 
     // Connect to WebSocket
@@ -188,13 +192,13 @@ export const useWebSocket = (
             // Build WebSocket URL
             const { host: baseUrl, secure: isSecure } = (await import("../lib/serverConfig")).getWebSocketBaseUrl();
 
-            // Get connection credentials from sessionStorage (per-tab)
-            const clientToken = sessionStorage.getItem("client_token");
-            const clientId = sessionStorage.getItem("client_id");
+            const reconnectCredentials = readReconnectCredentials();
+            const clientToken = reconnectCredentials?.clientToken ?? null;
+            const clientId = reconnectCredentials?.clientId ?? null;
             // Session active flag is retained for telemetry/coordination only.
             // Reattach hints are per-tab and should be sent whenever credentials exist.
-            const sessionActive = localStorage.getItem("client_session_active") === "true";
-            const includeClientHint = !!clientToken && !!clientId;
+            const sessionActive = isClientSessionActive();
+            const includeClientHint = reconnectCredentials !== null;
 
             if (player.isInitialAttach) {
                 console.log("[WebSocket] Initial attach - will trigger user_connected");
@@ -240,7 +244,7 @@ export const useWebSocket = (
                     connectionStatus: "connected",
                 }));
                 onSystemMessage("Connected!", 2);
-                localStorage.setItem("client_session_active", "true");
+                setClientSessionActive(true);
                 hasEverConnectedRef.current = true;
 
                 // Update player connection status
@@ -293,7 +297,7 @@ export const useWebSocket = (
                 }
 
                 if (event.reason === "LOGOUT") {
-                    localStorage.setItem("client_session_active", "false");
+                    setClientSessionActive(false);
                 }
 
                 // Update player connection status
@@ -449,7 +453,7 @@ export const useWebSocket = (
         }
 
         if (reason === "LOGOUT") {
-            localStorage.setItem("client_session_active", "false");
+            setClientSessionActive(false);
         }
 
         // Allow reconnect after a short delay

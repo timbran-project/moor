@@ -13,14 +13,21 @@
 
 import React, { createContext, useContext } from "react";
 import { AuthState, useAuth } from "../hooks/useAuth";
+import { AuthSession, ReconnectCredentials } from "../lib/auth-session";
 
 interface AuthContextType {
     authState: AuthState;
-    connect: (mode: "connect" | "create", username: string, password: string) => Promise<void>;
+    connect: (
+        mode: "connect" | "create",
+        username: string,
+        password: string,
+        encryptPassword?: string,
+    ) => Promise<void>;
     disconnect: () => void;
+    establishSession: (session: AuthSession, isInitialAttach?: boolean) => void;
     setPlayerConnected: (connected: boolean) => void;
-    setPlayerFlags: (flags: number) => void;
-    setPlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
+    updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
+    rotatePlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
     clearInitialAttach: () => void;
 }
 

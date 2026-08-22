@@ -46,6 +46,8 @@ describe("useAuth player switching", () => {
         localStorage.setItem("auth_token", "old-token");
         localStorage.setItem("player_oid", "oid:1");
         localStorage.setItem("player_flags", "7");
+        sessionStorage.setItem("client_id", "11111111-1111-1111-1111-111111111111");
+        sessionStorage.setItem("client_token", "client-token");
 
         const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
             const token = new Headers(init?.headers).get("X-Moor-Auth-Token");
@@ -67,7 +69,7 @@ describe("useAuth player switching", () => {
         await waitFor(() => expect(result.current.authState.player?.oid).toBe("oid:1"));
 
         await act(async () => {
-            await result.current.setPlayerIdentity("oid:42", "new-token");
+            await result.current.rotatePlayerIdentity("oid:42", "new-token");
         });
 
         expect(fetchMock).toHaveBeenLastCalledWith("/auth/validate", {
@@ -78,9 +80,14 @@ describe("useAuth player switching", () => {
             oid: "oid:42",
             authToken: "new-token",
             flags: 2,
+            clientId: "11111111-1111-1111-1111-111111111111",
+            clientToken: "client-token",
+            isInitialAttach: false,
         });
         expect(localStorage.getItem("auth_token")).toBe("new-token");
         expect(localStorage.getItem("player_oid")).toBe("oid:42");
         expect(localStorage.getItem("player_flags")).toBe("2");
+        expect(sessionStorage.getItem("client_id")).toBe("11111111-1111-1111-1111-111111111111");
+        expect(sessionStorage.getItem("client_token")).toBe("client-token");
     });
 });

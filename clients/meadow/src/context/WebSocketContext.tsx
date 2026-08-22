@@ -15,6 +15,7 @@ import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import React, { createContext, useContext } from "react";
 import { Player } from "../hooks/useAuth";
 import { useWebSocket, WebSocketState } from "../hooks/useWebSocket";
+import { ReconnectCredentials } from "../lib/auth-session";
 import { DataMessageHandlerEvent, EventMetadata, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
@@ -35,7 +36,8 @@ interface WebSocketProviderProps {
     player: Player | null;
     showMessage: (message: string, duration?: number) => void;
     setPlayerConnected: (connected: boolean) => void;
-    setPlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
+    rotatePlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
+    updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
     handleNarrativeMessage: (
         content: string | string[],
         timestamp?: string,
@@ -59,7 +61,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     player,
     showMessage,
     setPlayerConnected,
-    setPlayerIdentity,
+    rotatePlayerIdentity,
+    updateReconnectCredentials,
     handleNarrativeMessage,
     handlePresentMessage,
     handleUnpresentMessage,
@@ -70,8 +73,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         showMessage,
         setPlayerConnected,
         (identity: PlayerIdentityUpdate) => {
-            void setPlayerIdentity(identity.playerOid, identity.authToken);
+            void rotatePlayerIdentity(identity.playerOid, identity.authToken);
         },
+        updateReconnectCredentials,
         handleNarrativeMessage,
         handlePresentMessage,
         handleUnpresentMessage,

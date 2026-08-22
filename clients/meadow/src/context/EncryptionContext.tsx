@@ -36,7 +36,7 @@ interface EncryptionProviderProps {
     playerOid: string | null;
 }
 
-export const EncryptionProvider: React.FC<EncryptionProviderProps> = ({
+const EncryptionScope: React.FC<EncryptionProviderProps> = ({
     children,
     authToken,
     playerOid,
@@ -56,6 +56,10 @@ export const EncryptionProvider: React.FC<EncryptionProviderProps> = ({
             {children}
         </EncryptionContext.Provider>
     );
+};
+
+export const EncryptionProvider: React.FC<EncryptionProviderProps> = (props) => {
+    return <EncryptionScope key={props.playerOid ?? "anonymous"} {...props} />;
 };
 
 export const useEncryptionContext = (): EncryptionContextType => {

@@ -18,6 +18,15 @@ import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { ReplyResultUnion, unionToReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
 import * as flatbuffers from "flatbuffers";
 import { useCallback, useEffect, useState } from "react";
+import {
+    AuthSession,
+    clearAuthSession,
+    persistAuthSession,
+    persistReconnectCredentials,
+    readAuthSession,
+    readReconnectCredentials,
+    ReconnectCredentials,
+} from "../lib/auth-session";
 import { generateKeypairFromPassword } from "../lib/keyDerivation";
 import { objToCurie } from "../lib/var";
 
@@ -47,50 +56,27 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
     // Check for auth credentials in localStorage on mount and validate them
     useEffect(() => {
         const validateAndRestore = async () => {
-            const oauth2Token = localStorage.getItem("oauth2_auth_token");
-            const oauth2PlayerOid = localStorage.getItem("oauth2_player_oid");
-            const authToken = localStorage.getItem("auth_token");
-            const playerOid = localStorage.getItem("player_oid");
-            const playerFlags = localStorage.getItem("player_flags");
-            // Connection credentials are per-tab (sessionStorage) - may not exist in new tabs
-            const storedClientToken = sessionStorage.getItem("client_token");
-            const storedClientId = sessionStorage.getItem("client_id");
-
-            // Determine which auth token to validate
-            const tokenToValidate = authToken || oauth2Token;
-            const oidToRestore = playerOid || oauth2PlayerOid;
-            const flagsToRestore = playerFlags || localStorage.getItem("oauth2_player_flags");
-
-            // Must have auth token and player OID (but NOT client credentials - those are per-tab)
-            if (!tokenToValidate || !oidToRestore) {
-                // No user session - need fresh login
+            const session = readAuthSession();
+            if (!session) {
                 console.log("No user session - requiring fresh login");
-                localStorage.removeItem("auth_token");
-                localStorage.removeItem("player_oid");
-                localStorage.removeItem("player_flags");
-                localStorage.removeItem("oauth2_auth_token");
-                localStorage.removeItem("oauth2_player_oid");
-                localStorage.removeItem("oauth2_player_flags");
-                sessionStorage.removeItem("client_token");
-                sessionStorage.removeItem("client_id");
-                localStorage.setItem("client_session_active", "false");
+                clearAuthSession();
                 return;
             }
 
             // Check if event log encryption is set up for this player
-            const eventLogEncryptionKey = localStorage.getItem(`moor_event_log_identity_${oidToRestore}`);
+            const eventLogEncryptionKey = localStorage.getItem(`moor_event_log_identity_${session.playerOid}`);
             const hasEventLogEncryption = eventLogEncryptionKey !== null;
 
             // Validate the stored auth token with the server
             // Client credentials are optional - new tabs won't have them
             try {
                 const headers: Record<string, string> = {
-                    "X-Moor-Auth-Token": tokenToValidate,
+                    "X-Moor-Auth-Token": session.authToken,
                 };
                 // Only include client credentials if we have them (same tab reload)
-                if (storedClientToken && storedClientId) {
-                    headers["X-Moor-Client-Token"] = storedClientToken;
-                    headers["X-Moor-Client-Id"] = storedClientId;
+                if (session.reconnectCredentials) {
+                    headers["X-Moor-Client-Token"] = session.reconnectCredentials.clientToken;
+                    headers["X-Moor-Client-Id"] = session.reconnectCredentials.clientId;
                 }
 
                 const response = await fetch("/auth/validate", {
@@ -101,54 +87,35 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 if (!response.ok) {
                     // Validation failed - auth token expired or invalid
                     console.log("Auth token validation failed - clearing credentials");
-                    localStorage.removeItem("auth_token");
-                    localStorage.removeItem("player_oid");
-                    localStorage.removeItem("player_flags");
-                    localStorage.removeItem("oauth2_auth_token");
-                    localStorage.removeItem("oauth2_player_oid");
-                    localStorage.removeItem("oauth2_player_flags");
-                    sessionStorage.removeItem("client_token");
-                    sessionStorage.removeItem("client_id");
-                    localStorage.setItem("client_session_active", "false");
+                    clearAuthSession();
                     return;
                 }
 
                 // Auth token is valid - restore session
                 // Client credentials may be null (new tab) - WebSocket will create new connection
-                const flags = flagsToRestore ? parseInt(flagsToRestore, 10) : 0;
-
                 setAuthState({
                     player: {
-                        oid: oidToRestore,
-                        authToken: tokenToValidate,
+                        oid: session.playerOid,
+                        authToken: session.authToken,
                         connected: false,
-                        flags,
-                        clientToken: storedClientToken ?? undefined,
-                        clientId: storedClientId ?? undefined,
+                        flags: session.playerFlags,
+                        clientToken: session.reconnectCredentials?.clientToken,
+                        clientId: session.reconnectCredentials?.clientId,
                         // New tab (no client credentials) = new connection = trigger :user_connected
                         // Same tab reload with credentials = reattach = no :user_connected
                         // Also: if no event log encryption, treat as initial to trigger :user_connected
-                        isInitialAttach: !storedClientToken || !storedClientId || !hasEventLogEncryption,
+                        isInitialAttach: !session.reconnectCredentials || !hasEventLogEncryption,
                     },
                     isConnecting: false,
                     error: null,
                 });
 
-                if (oauth2Token) {
-                    onSystemMessage(
-                        hasEventLogEncryption
-                            ? "Authenticated via OAuth2! Loading history..."
-                            : "Authenticated via OAuth2!",
-                        2,
-                    );
-                } else {
-                    onSystemMessage(
-                        hasEventLogEncryption
-                            ? "Restoring session..."
-                            : "Session restored",
-                        2,
-                    );
-                }
+                onSystemMessage(
+                    hasEventLogEncryption
+                        ? "Restoring session..."
+                        : "Session restored",
+                    2,
+                );
             } catch (error) {
                 console.error("Error validating auth token:", error);
                 onSystemMessage("Error restoring session", 3);
@@ -157,6 +124,23 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
 
         validateAndRestore();
     }, [onSystemMessage]);
+
+    const establishSession = useCallback((session: AuthSession, isInitialAttach = true) => {
+        persistAuthSession(session);
+        setAuthState({
+            player: {
+                oid: session.playerOid,
+                authToken: session.authToken,
+                connected: false,
+                flags: session.playerFlags,
+                clientToken: session.reconnectCredentials?.clientToken,
+                clientId: session.reconnectCredentials?.clientId,
+                isInitialAttach,
+            },
+            isConnecting: false,
+            error: null,
+        });
+    }, []);
 
     const connect = useCallback(async (
         mode: "connect" | "create",
@@ -246,12 +230,6 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 return;
             }
 
-            // Store connection credentials for this tab (sessionStorage = per-tab)
-            if (clientToken && clientId) {
-                sessionStorage.setItem("client_token", clientToken);
-                sessionStorage.setItem("client_id", clientId);
-            }
-
             // Extract player info from LoginResult
             const resultType = replyResult.resultType();
             if (resultType !== ReplyResultUnion.ClientSuccess) {
@@ -328,11 +306,6 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
 
             const playerFlags = loginResult.playerFlags() || 0;
 
-            // Store auth state in localStorage for session persistence
-            localStorage.setItem("auth_token", authToken);
-            localStorage.setItem("player_oid", playerOid);
-            localStorage.setItem("player_flags", playerFlags.toString());
-
             // For create mode, store the generated encryption identity keyed by playerOid
             if (mode === "create" && generatedIdentity) {
                 const storageKey = `moor_event_log_identity_${playerOid}`;
@@ -340,21 +313,14 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 console.log("Stored encryption identity for new account:", playerOid);
             }
 
-            // Update player state (authorized but not yet connected)
-            const player: Player = {
-                oid: playerOid,
+            const reconnectCredentials = clientToken && clientId
+                ? { clientToken, clientId }
+                : null;
+            establishSession({
+                playerOid,
                 authToken,
-                connected: false,
-                flags: playerFlags,
-                clientToken: clientToken ?? null,
-                clientId: clientId ?? null,
-                isInitialAttach: true,
-            };
-
-            setAuthState({
-                player,
-                isConnecting: false,
-                error: null,
+                playerFlags,
+                reconnectCredentials,
             });
 
             // Check if user has history encryption to show appropriate message
@@ -373,23 +339,10 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 error: errorMessage,
             }));
         }
-    }, [onSystemMessage]);
+    }, [establishSession, onSystemMessage]);
 
     const disconnect = useCallback(() => {
-        // Clear OAuth2 credentials from localStorage
-        localStorage.removeItem("oauth2_auth_token");
-        localStorage.removeItem("oauth2_player_oid");
-        localStorage.removeItem("oauth2_player_flags");
-
-        // Clear regular auth credentials
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("player_oid");
-        localStorage.removeItem("player_flags");
-
-        // Clear connection credentials for this tab
-        sessionStorage.removeItem("client_token");
-        sessionStorage.removeItem("client_id");
-        localStorage.setItem("client_session_active", "false");
+        clearAuthSession();
 
         setAuthState({
             player: null,
@@ -406,31 +359,40 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         }));
     }, []);
 
-    const setPlayerFlags = useCallback((flags: number) => {
-        setAuthState(prev => ({
-            ...prev,
-            player: prev.player ? { ...prev.player, flags } : null,
-        }));
-    }, []);
-
-    const setPlayerIdentity = useCallback(async (playerOid: string, authToken: string) => {
-        localStorage.setItem("auth_token", authToken);
-        localStorage.setItem("player_oid", playerOid);
-        localStorage.setItem("player_flags", "0");
-        localStorage.removeItem("oauth2_auth_token");
-        localStorage.removeItem("oauth2_player_oid");
-        localStorage.removeItem("oauth2_player_flags");
-
+    const updateReconnectCredentials = useCallback((credentials: ReconnectCredentials) => {
+        persistReconnectCredentials(credentials);
         setAuthState(prev => ({
             ...prev,
             player: prev.player
                 ? {
                     ...prev.player,
-                    oid: playerOid,
-                    authToken,
-                    flags: 0,
+                    clientId: credentials.clientId,
+                    clientToken: credentials.clientToken,
                 }
                 : null,
+        }));
+    }, []);
+
+    const rotatePlayerIdentity = useCallback(async (playerOid: string, authToken: string) => {
+        const reconnectCredentials = readReconnectCredentials();
+        persistAuthSession({
+            playerOid,
+            authToken,
+            playerFlags: 0,
+            reconnectCredentials,
+        });
+
+        setAuthState(prev => ({
+            ...prev,
+            player: {
+                oid: playerOid,
+                authToken,
+                flags: 0,
+                connected: prev.player?.connected ?? true,
+                clientId: reconnectCredentials?.clientId,
+                clientToken: reconnectCredentials?.clientToken,
+                isInitialAttach: false,
+            },
         }));
 
         try {
@@ -456,12 +418,18 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 return;
             }
 
-            if (localStorage.getItem("auth_token") !== authToken) {
+            const currentSession = readAuthSession();
+            if (currentSession?.authToken !== authToken || currentSession.playerOid !== playerOid) {
                 return;
             }
-            localStorage.setItem("player_flags", flags.toString());
+            persistAuthSession({
+                playerOid,
+                authToken,
+                playerFlags: flags,
+                reconnectCredentials: readReconnectCredentials(),
+            });
             setAuthState(prev => {
-                if (prev.player?.authToken !== authToken) {
+                if (prev.player?.authToken !== authToken || prev.player.oid !== playerOid) {
                     return prev;
                 }
                 return {
@@ -493,9 +461,10 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         authState,
         connect,
         disconnect,
+        establishSession,
         setPlayerConnected,
-        setPlayerFlags,
-        setPlayerIdentity,
+        updateReconnectCredentials,
+        rotatePlayerIdentity,
         clearInitialAttach,
     };
 };

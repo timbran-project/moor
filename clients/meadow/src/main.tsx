@@ -49,6 +49,7 @@ import { useTextEditor } from "./hooks/useTextEditor";
 import { useTitle } from "./hooks/useTitle";
 import { useTouchDevice } from "./hooks/useTouchDevice";
 import { useVerbEditor } from "./hooks/useVerbEditor";
+import { readReconnectCredentials } from "./lib/auth-session";
 import { MoorVar } from "./lib/MoorVar";
 import { OAuth2UserInfo } from "./lib/oauth2";
 import { roomSnapshotToPresentation } from "./lib/room-snapshot-presentation";
@@ -110,7 +111,7 @@ function AppContent({
 }) {
     const { systemMessage, showMessage } = useSystemMessage();
     const { welcomeMessage, contentType, isServerReady } = useWelcomeMessage();
-    const { authState, connect, disconnect } = useAuthContext();
+    const { authState, connect, disconnect, establishSession } = useAuthContext();
     const { encryptionState, setupEncryption, forgetKey, getKeyForHistoryRequest } = useEncryptionContext();
     const systemTitle = useTitle();
     const [loginMode, setLoginMode] = useState<"connect" | "create">("connect");
@@ -1335,20 +1336,17 @@ function AppContent({
                     const { exchangeAuthCode } = await import("./lib/oauth2");
                     const result = await exchangeAuthCode(authCodeParam);
 
-                    localStorage.setItem("oauth2_auth_token", result.auth_token);
-                    localStorage.setItem("oauth2_player_oid", result.player);
-                    if (result.player_flags !== undefined) {
-                        localStorage.setItem("oauth2_player_flags", result.player_flags.toString());
-                    }
-                    if (result.client_token) {
-                        sessionStorage.setItem("client_token", result.client_token);
-                    }
-                    if (result.client_id) {
-                        sessionStorage.setItem("client_id", result.client_id);
-                    }
+                    establishSession({
+                        authToken: result.auth_token,
+                        playerOid: result.player,
+                        playerFlags: result.player_flags,
+                        reconnectCredentials: {
+                            clientToken: result.client_token,
+                            clientId: result.client_id,
+                        },
+                    });
 
                     showMessage("Logged in successfully via OAuth2!", 2);
-                    window.location.reload();
                 } catch (error) {
                     console.error("Auth code exchange failed:", error);
                     showMessage(
@@ -1366,12 +1364,17 @@ function AppContent({
             showMessage(`OAuth2 error: ${error}${details ? ` - ${details}` : ""}`, 5);
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-    }, [showMessage]);
+    }, [establishSession, showMessage]);
 
     // Handle login and WebSocket connection
-    const handleConnect = async (mode: "connect" | "create", username: string, password: string) => {
+    const handleConnect = async (
+        mode: "connect" | "create",
+        username: string,
+        password: string,
+        encryptPassword?: string,
+    ) => {
         setLoginMode(mode);
-        await connect(mode, username, password);
+        await connect(mode, username, password, encryptPassword);
     };
 
     // Handle OAuth2 account choice
@@ -1410,29 +1413,24 @@ function AppContent({
                 // Clear OAuth2 user info
                 setOAuth2UserInfo(null);
 
-                // Store credentials in localStorage for useAuth to pick it up (persists across reloads)
-                localStorage.setItem("oauth2_auth_token", result.auth_token);
-                localStorage.setItem("oauth2_player_oid", result.player);
-                if (result.player_flags !== undefined) {
-                    localStorage.setItem("oauth2_player_flags", result.player_flags.toString());
-                }
-                // Store connection credentials for this tab (sessionStorage = per-tab)
-                if (result.client_token) {
-                    sessionStorage.setItem("client_token", result.client_token);
-                }
-                if (result.client_id) {
-                    sessionStorage.setItem("client_id", result.client_id);
-                }
-
-                // If encryption password was provided, store it temporarily for auto-setup after reload
+                // Keep the password only until the authenticated encryption setup effect consumes it.
                 if (choice.encrypt_password) {
                     sessionStorage.setItem("pending_encrypt_password", choice.encrypt_password);
                 }
 
-                showMessage(`Account ${choice.mode === "oauth2_create" ? "created" : "linked"}! Connecting...`, 2);
+                establishSession({
+                    authToken: result.auth_token,
+                    playerOid: result.player,
+                    playerFlags: result.player_flags ?? 0,
+                    reconnectCredentials: result.client_token && result.client_id
+                        ? {
+                            clientToken: result.client_token,
+                            clientId: result.client_id,
+                        }
+                        : null,
+                });
 
-                // Reload to trigger auth flow
-                window.location.reload();
+                showMessage(`Account ${choice.mode === "oauth2_create" ? "created" : "linked"}! Connecting...`, 2);
             } else {
                 // Show specific error message if available
                 const errorMsg = result.error || "Failed to complete account setup. Please try again.";
@@ -2401,7 +2399,7 @@ function EncryptionWrapper() {
 }
 
 function AppWrapper() {
-    const { authState, setPlayerConnected, setPlayerIdentity } = useAuthContext();
+    const { authState, rotatePlayerIdentity, setPlayerConnected, updateReconnectCredentials } = useAuthContext();
     const { addPresentation, removePresentation } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
@@ -2493,7 +2491,7 @@ function AppWrapper() {
                     eventId: liveEventId,
                     seenCount: existing.count,
                     sinceFirstMs: now - existing.firstSeenAt,
-                    clientId: sessionStorage.getItem("client_id"),
+                    clientId: readReconnectCredentials()?.clientId ?? null,
                 });
             } else {
                 recentIds.set(liveEventId, {
@@ -2683,7 +2681,8 @@ function AppWrapper() {
             player={authState.player}
             showMessage={showMessage}
             setPlayerConnected={setPlayerConnected}
-            setPlayerIdentity={setPlayerIdentity}
+            rotatePlayerIdentity={rotatePlayerIdentity}
+            updateReconnectCredentials={updateReconnectCredentials}
             handleNarrativeMessage={handleNarrativeMessage}
             handlePresentMessage={handlePresentMessage}
             handleUnpresentMessage={handleUnpresentMessage}
