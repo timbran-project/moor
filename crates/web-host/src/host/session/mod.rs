@@ -254,6 +254,19 @@ impl ClientSession {
                             // Clear the pending task so we can process the next command
                             self.pending_task = None;
                         }
+                        ClientEvent::PlayerSwitched {
+                            new_player,
+                            new_auth_token,
+                        } => {
+                            info!(
+                                old_player = ?self.player,
+                                ?new_player,
+                                client_id = ?self.client_id,
+                                "Updating web session player"
+                            );
+                            self.player = *new_player;
+                            self.auth_token.clone_from(new_auth_token);
+                        }
                         _ => {}
                     }
 

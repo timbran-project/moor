@@ -12,6 +12,9 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
+import { PlayerSwitchedEvent } from "@moor/schema/generated/moor-rpc/player-switched-event";
+
+import { objToCurie } from "./curie.js";
 
 export const WS_KEEPALIVE_MARKER = 0x00;
 export const WS_HEARTBEAT_RESPONSE_MARKER = 0x01;
@@ -20,6 +23,11 @@ export const WS_HEARTBEAT_REQUEST_MARKER = 0x02;
 export interface SessionCredentialsUpdate {
     clientId: string;
     clientToken: string;
+}
+
+export interface PlayerIdentityUpdate {
+    playerOid: string;
+    authToken: string;
 }
 
 function concatByteArrays(chunks: Uint8Array[]): Uint8Array {
@@ -95,4 +103,13 @@ export function decodeCredentialsUpdatedEvent(
         return null;
     }
     return { clientId, clientToken };
+}
+
+export function decodePlayerSwitchedEvent(playerSwitched: PlayerSwitchedEvent): PlayerIdentityUpdate | null {
+    const playerOid = objToCurie(playerSwitched.newPlayer());
+    const authToken = playerSwitched.newAuthToken()?.token();
+    if (!playerOid || !authToken) {
+        return null;
+    }
+    return { playerOid, authToken };
 }

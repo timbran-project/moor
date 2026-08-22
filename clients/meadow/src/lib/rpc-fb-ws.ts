@@ -19,7 +19,13 @@ import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-u
 import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
 import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
 import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { dispatchClientEvent, parseWsNarrativeEventMessage, schedulerErrorToNarrative } from "@moor/web-sdk";
+import {
+    decodePlayerSwitchedEvent,
+    dispatchClientEvent,
+    parseWsNarrativeEventMessage,
+    PlayerIdentityUpdate,
+    schedulerErrorToNarrative,
+} from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 
 import { parseInputMetadata } from "./input-metadata.js";
@@ -200,6 +206,7 @@ export function handleClientEventFlatBuffer(
     onUnpresentMessage?: (id: string) => void,
     onDataMessage?: (event: DataMessageHandlerEvent) => void,
     onPlayerFlagsChange?: (flags: number) => void,
+    onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
     lastEventTimestampRef?: React.MutableRefObject<bigint | null>,
     onInputMetadata?: (metadata: import("../types/input").InputMetadata | null) => void,
 ): void {
@@ -368,6 +375,17 @@ export function handleClientEventFlatBuffer(
             },
             onTaskSuccessEvent: (_taskSuccess) => {
                 // Task completed successfully - these now come via HTTP response for verb invocations
+            },
+            onCredentialsUpdatedEvent: () => {
+                maybeHandleCredentialsUpdatedEvent(bytes);
+            },
+            onPlayerSwitchedEvent: (playerSwitched) => {
+                const identity = decodePlayerSwitchedEvent(playerSwitched);
+                if (!identity) {
+                    console.error("[WS] PlayerSwitchedEvent missing player or auth token");
+                    return;
+                }
+                onPlayerSwitched?.(identity);
             },
             onUnknownEvent: (eventType) => {
                 if (eventType === ClientEventUnion.CredentialsUpdatedEvent) {

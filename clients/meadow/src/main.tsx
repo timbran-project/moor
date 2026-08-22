@@ -2406,7 +2406,7 @@ function EncryptionWrapper() {
 }
 
 function AppWrapper() {
-    const { authState, setPlayerConnected, setPlayerFlags } = useAuthContext();
+    const { authState, setPlayerConnected, setPlayerFlags, setPlayerIdentity } = useAuthContext();
     const { addPresentation, removePresentation } = usePresentationContext();
     const { showMessage } = useSystemMessage();
     const narrativeRef = useRef<NarrativeRef | null>(null);
@@ -2689,6 +2689,7 @@ function AppWrapper() {
             showMessage={showMessage}
             setPlayerConnected={setPlayerConnected}
             setPlayerFlags={setPlayerFlags}
+            setPlayerIdentity={setPlayerIdentity}
             handleNarrativeMessage={handleNarrativeMessage}
             handlePresentMessage={handlePresentMessage}
             handleUnpresentMessage={handleUnpresentMessage}

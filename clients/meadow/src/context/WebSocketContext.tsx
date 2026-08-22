@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import React, { createContext, useContext } from "react";
 import { Player } from "../hooks/useAuth";
 import { useWebSocket, WebSocketState } from "../hooks/useWebSocket";
@@ -35,6 +36,7 @@ interface WebSocketProviderProps {
     showMessage: (message: string, duration?: number) => void;
     setPlayerConnected: (connected: boolean) => void;
     setPlayerFlags: (flags: number) => void;
+    setPlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
     handleNarrativeMessage: (
         content: string | string[],
         timestamp?: string,
@@ -59,6 +61,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     showMessage,
     setPlayerConnected,
     setPlayerFlags,
+    setPlayerIdentity,
     handleNarrativeMessage,
     handlePresentMessage,
     handleUnpresentMessage,
@@ -69,6 +72,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         showMessage,
         setPlayerConnected,
         setPlayerFlags,
+        (identity: PlayerIdentityUpdate) => {
+            void setPlayerIdentity(identity.playerOid, identity.authToken);
+        },
         handleNarrativeMessage,
         handlePresentMessage,
         handleUnpresentMessage,

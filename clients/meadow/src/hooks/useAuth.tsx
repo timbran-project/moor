@@ -413,6 +413,67 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         }));
     }, []);
 
+    const setPlayerIdentity = useCallback(async (playerOid: string, authToken: string) => {
+        localStorage.setItem("auth_token", authToken);
+        localStorage.setItem("player_oid", playerOid);
+        localStorage.setItem("player_flags", "0");
+        localStorage.removeItem("oauth2_auth_token");
+        localStorage.removeItem("oauth2_player_oid");
+        localStorage.removeItem("oauth2_player_flags");
+
+        setAuthState(prev => ({
+            ...prev,
+            player: prev.player
+                ? {
+                    ...prev.player,
+                    oid: playerOid,
+                    authToken,
+                    flags: 0,
+                }
+                : null,
+        }));
+
+        try {
+            const response = await fetch("/auth/validate", {
+                method: "GET",
+                headers: { "X-Moor-Auth-Token": authToken },
+            });
+            if (!response.ok) {
+                console.warn("Unable to refresh player flags after player switch");
+                return;
+            }
+
+            const validatedPlayer = response.headers.get("X-Moor-Player");
+            if (validatedPlayer && validatedPlayer !== playerOid) {
+                console.warn("Player switch validation returned a different player");
+                return;
+            }
+
+            const flagsHeader = response.headers.get("X-Moor-Player-Flags");
+            const flags = flagsHeader === null ? Number.NaN : Number.parseInt(flagsHeader, 10);
+            if (!Number.isFinite(flags)) {
+                console.warn("Player switch validation did not return player flags");
+                return;
+            }
+
+            if (localStorage.getItem("auth_token") !== authToken) {
+                return;
+            }
+            localStorage.setItem("player_flags", flags.toString());
+            setAuthState(prev => {
+                if (prev.player?.authToken !== authToken) {
+                    return prev;
+                }
+                return {
+                    ...prev,
+                    player: { ...prev.player, flags },
+                };
+            });
+        } catch (error) {
+            console.warn("Unable to refresh player flags after player switch", error);
+        }
+    }, []);
+
     const clearInitialAttach = useCallback(() => {
         setAuthState(prev => {
             if (!prev.player) return prev;
@@ -434,6 +495,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         disconnect,
         setPlayerConnected,
         setPlayerFlags,
+        setPlayerIdentity,
         clearInitialAttach,
     };
 };

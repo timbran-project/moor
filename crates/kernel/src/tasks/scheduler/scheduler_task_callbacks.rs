@@ -1062,7 +1062,8 @@ impl Scheduler {
             })?
             .connection_obj;
 
-        // Update the active task's player.
+        // TODO: Make the task-player and connection-registry changes atomic. A
+        // system-control failure currently leaves task.player set to new_player.
         task.player = new_player;
 
         drop(lc);

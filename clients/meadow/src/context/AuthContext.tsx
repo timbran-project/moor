@@ -20,6 +20,7 @@ interface AuthContextType {
     disconnect: () => void;
     setPlayerConnected: (connected: boolean) => void;
     setPlayerFlags: (flags: number) => void;
+    setPlayerIdentity: (playerOid: string, authToken: string) => Promise<void>;
     clearInitialAttach: () => void;
 }
 

@@ -12,6 +12,7 @@
 //
 
 import { buildWsAttach } from "@moor/web-sdk";
+import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DataMessageHandlerEvent, EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
@@ -29,6 +30,7 @@ export const useWebSocket = (
     onSystemMessage: (message: string, duration?: number) => void,
     onPlayerConnectedChange?: (connected: boolean) => void,
     onPlayerFlagsChange?: (flags: number) => void,
+    onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
     onNarrativeMessage?: (
         content: string | string[],
         timestamp?: string,
@@ -125,6 +127,7 @@ export const useWebSocket = (
                         onUnpresentMessage,
                         onDataMessage,
                         onPlayerFlagsChange,
+                        onPlayerSwitched,
                         lastEventTimestampRef,
                         setInputMetadata,
                     );
@@ -135,7 +138,15 @@ export const useWebSocket = (
                 console.error("Failed to parse WebSocket message:", error);
             }
         });
-    }, [onSystemMessage, onNarrativeMessage, onPresentMessage, onUnpresentMessage, onDataMessage, onPlayerFlagsChange]);
+    }, [
+        onSystemMessage,
+        onNarrativeMessage,
+        onPresentMessage,
+        onUnpresentMessage,
+        onDataMessage,
+        onPlayerFlagsChange,
+        onPlayerSwitched,
+    ]);
 
     // Connect to WebSocket
     const connect = useCallback(async (mode: "connect" | "create", force: boolean = false) => {

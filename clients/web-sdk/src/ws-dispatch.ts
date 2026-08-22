@@ -14,6 +14,7 @@
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
 import { CredentialsUpdatedEvent } from "@moor/schema/generated/moor-rpc/credentials-updated-event";
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
+import { PlayerSwitchedEvent } from "@moor/schema/generated/moor-rpc/player-switched-event";
 import { RequestInputEvent } from "@moor/schema/generated/moor-rpc/request-input-event";
 import { SystemMessageEvent } from "@moor/schema/generated/moor-rpc/system-message-event";
 import { TaskErrorEvent } from "@moor/schema/generated/moor-rpc/task-error-event";
@@ -28,6 +29,7 @@ export interface WsDispatchHandlers {
     onTaskErrorEvent?: (taskError: TaskErrorEvent) => void;
     onTaskSuccessEvent?: (taskSuccess: TaskSuccessEvent) => void;
     onCredentialsUpdatedEvent?: (credentials: CredentialsUpdatedEvent) => void;
+    onPlayerSwitchedEvent?: (playerSwitched: PlayerSwitchedEvent) => void;
     onIgnoredEvent?: (eventType: ClientEventUnion) => void;
     onUnknownEvent?: (eventType: ClientEventUnion) => void;
     onMalformedEvent?: (eventType: ClientEventUnion, expected: string) => void;
@@ -85,7 +87,14 @@ export function dispatchClientEvent(bytes: Uint8Array, handlers: WsDispatchHandl
             handlers.onCredentialsUpdatedEvent?.(eventUnion);
             return;
         }
-        case ClientEventUnion.PlayerSwitchedEvent:
+        case ClientEventUnion.PlayerSwitchedEvent: {
+            if (!(eventUnion instanceof PlayerSwitchedEvent)) {
+                handlers.onMalformedEvent?.(eventType, "PlayerSwitchedEvent");
+                return;
+            }
+            handlers.onPlayerSwitchedEvent?.(eventUnion);
+            return;
+        }
         case ClientEventUnion.SetConnectionOptionEvent:
         case ClientEventUnion.DisconnectEvent:
             handlers.onIgnoredEvent?.(eventType);
