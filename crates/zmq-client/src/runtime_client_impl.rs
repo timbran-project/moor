@@ -181,14 +181,12 @@ fn encode_client_request(
             handler_object,
             connect_args,
             do_attach,
-            event_log_pubkey,
             registration_data: _,
         } => mk_login_command_msg(
             &client_token,
             &handler_object,
             connect_args,
             do_attach,
-            event_log_pubkey,
             None,
         ),
         ClientRequest::Attach {

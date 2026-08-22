@@ -27,6 +27,7 @@ import {
     readReconnectCredentials,
     ReconnectCredentials,
 } from "../lib/auth-session";
+import { buildAuthHeaders } from "../lib/authHeaders";
 import { generateKeypairFromPassword } from "../lib/keyDerivation";
 import { objToCurie } from "../lib/var";
 
@@ -158,8 +159,6 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         password: string,
         encryptPassword?: string,
     ) => {
-        let generatedIdentity: string | null = null;
-
         try {
             setAuthState(prev => ({ ...prev, isConnecting: true, error: null }));
 
@@ -179,26 +178,6 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             const data = new URLSearchParams();
             data.set("player", username.trim());
             data.set("password", password);
-
-            // For create mode, generate encryption keypair using username as salt
-            // This is done BEFORE the server request so the pubkey can be bundled with account creation
-            // Use provided encryption password or fall back to account password
-            if (mode === "create") {
-                onSystemMessage("Setting up encryption...", 2);
-                const effectiveEncryptPassword = encryptPassword || password;
-                try {
-                    const { identity, publicKey } = await generateKeypairFromPassword(
-                        effectiveEncryptPassword,
-                        username.trim(),
-                    );
-                    generatedIdentity = identity;
-                    data.set("event_log_pubkey", publicKey);
-                    console.log("Generated encryption keypair for new account");
-                } catch (keyError) {
-                    console.error("Failed to generate encryption keypair:", keyError);
-                    // Continue without encryption - user can set it up later
-                }
-            }
 
             // Show connecting status
             onSystemMessage("Connecting to server...", 2);
@@ -316,11 +295,36 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
 
             const playerFlags = loginResult.playerFlags() || 0;
 
-            // For create mode, store the generated encryption identity keyed by playerOid
-            if (mode === "create" && generatedIdentity) {
-                const storageKey = `moor_event_log_identity_${playerOid}`;
-                localStorage.setItem(storageKey, generatedIdentity);
-                console.log("Stored encryption identity for new account:", playerOid);
+            // Register event-log encryption after account creation: derivation is keyed by the
+            // immutable player OID (never the mutable username) so recovery can reproduce the
+            // key on any device with just the password.
+            let encryptionSetupFailed = false;
+            if (mode === "create") {
+                onSystemMessage("Setting up encryption...", 2);
+                const effectiveEncryptPassword = encryptPassword || password;
+                try {
+                    const { identity, publicKey } = await generateKeypairFromPassword(
+                        effectiveEncryptPassword,
+                        playerOid,
+                    );
+
+                    const putHeaders = buildAuthHeaders(authToken);
+                    putHeaders["Content-Type"] = "application/json";
+                    const putResponse = await fetch("/v1/event-log/pubkey", {
+                        method: "PUT",
+                        headers: putHeaders,
+                        body: JSON.stringify({ public_key: publicKey }),
+                    });
+                    if (!putResponse.ok) {
+                        throw new Error(`Server error ${putResponse.status}`);
+                    }
+
+                    // Store the private identity locally only after the public key is registered
+                    localStorage.setItem(`moor_event_log_identity_${playerOid}`, identity);
+                } catch (keyError) {
+                    console.error("Failed to register event-log encryption:", keyError);
+                    encryptionSetupFailed = true;
+                }
             }
 
             const reconnectCredentials = clientToken && clientId
@@ -337,7 +341,14 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
 
             // Check if user has history encryption to show appropriate message
             const hasHistory = localStorage.getItem(`moor_event_log_identity_${playerOid}`) !== null;
-            onSystemMessage(hasHistory ? "Authenticated! Loading history..." : "Authenticated!", 2);
+            if (encryptionSetupFailed) {
+                onSystemMessage(
+                    "Authenticated, but history encryption could not be set up; you can enable it later in settings.",
+                    5,
+                );
+            } else {
+                onSystemMessage(hasHistory ? "Authenticated! Loading history..." : "Authenticated!", 2);
+            }
 
             // TODO: Fetch and display historical events and current presentations
             // WebSocket connection will be handled by useWebSocket hook

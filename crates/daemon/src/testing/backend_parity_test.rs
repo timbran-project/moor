@@ -339,7 +339,6 @@ mod tests {
                     handler_object: SYSTEM_OBJECT,
                     connect_args: Vec::new(),
                     do_attach: false,
-                    event_log_pubkey: None,
                     registration_data: None,
                 },
             )
@@ -355,7 +354,6 @@ mod tests {
                     handler_object: SYSTEM_OBJECT,
                     connect_args: vec!["connect".to_string(), "wizard".to_string()],
                     do_attach: true,
-                    event_log_pubkey: None,
                     registration_data: None,
                 },
             )
@@ -475,7 +473,6 @@ mod tests {
                 handler_object,
                 connect_args,
                 do_attach,
-                event_log_pubkey,
                 registration_data,
             } => {
                 if registration_data.is_some() {
@@ -486,7 +483,6 @@ mod tests {
                     &handler_object,
                     connect_args,
                     do_attach,
-                    event_log_pubkey,
                     None,
                 ))
             }

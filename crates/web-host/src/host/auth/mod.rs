@@ -185,48 +185,22 @@ impl FromRequestParts<WebHost> for EphemeralAuth {
 pub struct AuthRequest {
     player: String,
     password: String,
-    /// Optional event log public key for encryption (typically only for create)
-    event_log_pubkey: Option<String>,
 }
 
 pub async fn connect_auth_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ws_host): State<WebHost>,
-    Form(AuthRequest {
-        player,
-        password,
-        event_log_pubkey,
-    }): Form<AuthRequest>,
+    Form(AuthRequest { player, password }): Form<AuthRequest>,
 ) -> impl IntoResponse {
-    auth_handler(
-        LoginType::Connect,
-        addr,
-        ws_host,
-        player,
-        password,
-        event_log_pubkey,
-    )
-    .await
+    auth_handler(LoginType::Connect, addr, ws_host, player, password).await
 }
 
 pub async fn create_auth_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ws_host): State<WebHost>,
-    Form(AuthRequest {
-        player,
-        password,
-        event_log_pubkey,
-    }): Form<AuthRequest>,
+    Form(AuthRequest { player, password }): Form<AuthRequest>,
 ) -> impl IntoResponse {
-    auth_handler(
-        LoginType::Create,
-        addr,
-        ws_host,
-        player,
-        password,
-        event_log_pubkey,
-    )
-    .await
+    auth_handler(LoginType::Create, addr, ws_host, player, password).await
 }
 
 /// Stand-alone HTTP POST authentication handler which connects and then gets a valid authentication token
@@ -237,7 +211,6 @@ async fn auth_handler(
     host: WebHost,
     player: String,
     password: String,
-    event_log_pubkey: Option<String>,
 ) -> impl IntoResponse {
     debug!("Authenticating player: {}", player);
     let (client_id, rpc_client, client_token) = match host.establish_client_connection(addr).await {
@@ -263,7 +236,6 @@ async fn auth_handler(
         handler_object: host.handler_object,
         connect_args: words,
         do_attach: false,
-        event_log_pubkey,
         registration_data: None,
     };
 

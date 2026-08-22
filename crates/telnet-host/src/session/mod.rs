@@ -769,7 +769,6 @@ impl TelnetConnection {
                     handler_object: self.handler_object,
                     connect_args: vec![],
                     do_attach: false,
-                    event_log_pubkey: None,
                     registration_data: None,
                 },
             )
@@ -975,7 +974,6 @@ impl TelnetConnection {
                             handler_object: self.handler_object,
                             connect_args: words,
                             do_attach: true,
-                            event_log_pubkey: None,
                             registration_data: None,
                         },
                     ).await?;

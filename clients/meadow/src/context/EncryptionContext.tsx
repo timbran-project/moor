@@ -23,7 +23,10 @@ interface EncryptionContextType {
         statusError: string | null;
     };
     checkEncryptionStatus: () => Promise<void>;
-    setupEncryption: (password: string) => Promise<{ success: boolean; error?: string }>;
+    setupEncryption: (
+        password: string,
+        options?: { allowRekey?: boolean },
+    ) => Promise<{ success: boolean; error?: string }>;
     unlockEncryption: (password: string) => Promise<{ success: boolean; error?: string }>;
     forgetKey: () => void;
     getKeyForHistoryRequest: () => string | null;

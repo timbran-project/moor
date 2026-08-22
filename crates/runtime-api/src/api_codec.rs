@@ -741,11 +741,6 @@ pub fn decode_client_request(
             let connect_args =
                 extract_string_list_rpc(&login, "connect_args", |l| l.connect_args())?;
             let do_attach = extract_field_rpc(&login, "do_attach", |l| l.do_attach())?;
-            let event_log_pubkey = login
-                .event_log_pubkey()
-                .ok()
-                .flatten()
-                .map(|s| s.to_string());
             // registration_data is a VarMap in the FlatBuffer, not a Var;
             // extraction will be added when the typed API gains a VarMap field type.
             let registration_data: Option<Var> = None;
@@ -754,7 +749,6 @@ pub fn decode_client_request(
                 handler_object,
                 connect_args,
                 do_attach,
-                event_log_pubkey,
                 registration_data,
             })
         }

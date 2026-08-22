@@ -38,11 +38,10 @@ Runs the `connect` login command against the daemon. On success the response bod
 
 - Content-Type: `application/x-www-form-urlencoded`
 
-  | Field              | Type   | Required | Description                                      |
-  | ------------------ | ------ | -------- | ------------------------------------------------ |
-  | `player`           | string | Yes      | Player name                                      |
-  | `password`         | string | Yes      | Player password                                  |
-  | `event_log_pubkey` | string | No       | Optional age public key for event-log encryption |
+  | Field      | Type   | Required | Description     |
+  | ---------- | ------ | -------- | --------------- |
+  | `player`   | string | Yes      | Player name     |
+  | `password` | string | Yes      | Player password |
 
 **Responses**
 
@@ -70,11 +69,10 @@ verb is `:do_login_command("create", …)`.
 
 - Content-Type: `application/x-www-form-urlencoded`
 
-  | Field              | Type   | Required | Description                                      |
-  | ------------------ | ------ | -------- | ------------------------------------------------ |
-  | `player`           | string | Yes      | Player name                                      |
-  | `password`         | string | Yes      | Player password                                  |
-  | `event_log_pubkey` | string | No       | Optional age public key for event-log encryption |
+  | Field      | Type   | Required | Description     |
+  | ---------- | ------ | -------- | --------------- |
+  | `player`   | string | Yes      | Player name     |
+  | `password` | string | Yes      | Player password |
 
 **Responses**
 

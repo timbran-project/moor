@@ -253,7 +253,6 @@ impl RuntimeApi for RpcMessageHandler {
                 handler_object,
                 connect_args,
                 do_attach,
-                event_log_pubkey,
                 registration_data: _,
             } => {
                 let connection = self.client_auth(client_token, client_id)?;
@@ -265,7 +264,6 @@ impl RuntimeApi for RpcMessageHandler {
                     TypedLoginCommand {
                         args: connect_args,
                         attach: do_attach,
-                        event_log_pubkey,
                     },
                 )
             }
@@ -797,7 +795,6 @@ impl RuntimeApi for RpcMessageHandler {
 struct TypedLoginCommand {
     args: Vec<String>,
     attach: bool,
-    event_log_pubkey: Option<String>,
 }
 
 impl RpcMessageHandler {
@@ -896,10 +893,6 @@ impl RpcMessageHandler {
                 "Unable to update client connection".to_string(),
             ));
         };
-
-        if let Some(pubkey) = command.event_log_pubkey {
-            self.event_log.set_pubkey(player, pubkey);
-        }
 
         if command.attach {
             let fb_connect_type = match connect_type {

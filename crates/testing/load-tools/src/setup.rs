@@ -208,7 +208,6 @@ pub async fn create_user_session(
         vec!["connect".to_string(), "wizard".to_string()],
         false,
         None,
-        None,
     );
 
     let reply_bytes = rpc_client

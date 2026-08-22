@@ -452,7 +452,6 @@ pub enum ClientRequest {
         handler_object: Obj,
         connect_args: Vec<String>,
         do_attach: bool,
-        event_log_pubkey: Option<String>,
         registration_data: Option<Var>,
     },
     Attach {

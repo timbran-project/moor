@@ -110,7 +110,8 @@ function AppContent({
     const { systemMessage, showMessage } = useSystemMessage();
     const { welcomeMessage, contentType, isServerReady } = useWelcomeMessage();
     const { authState, connect, disconnect, establishSession } = useAuthContext();
-    const { encryptionState, setupEncryption, forgetKey, getKeyForHistoryRequest } = useEncryptionContext();
+    const { encryptionState, setupEncryption, unlockEncryption, forgetKey, getKeyForHistoryRequest } =
+        useEncryptionContext();
     const { clearOAuth2UserInfo, handleOAuth2AccountChoice, oauth2UserInfo } = useOAuth2Session(
         establishSession,
         showMessage,
@@ -2053,7 +2054,7 @@ function AppContent({
                 <EncryptionPasswordPrompt
                     systemTitle={systemTitle}
                     onUnlock={async (password) => {
-                        const result = await setupEncryption(password);
+                        const result = await unlockEncryption(password);
                         if (result.success) {
                             setShowPasswordPrompt(false);
                             setUserSkippedEncryption(false);
@@ -2076,7 +2077,9 @@ function AppContent({
                 <EncryptionSetupPrompt
                     systemTitle={systemTitle}
                     onSetup={async (password) => {
-                        const result = await setupEncryption(password);
+                        // Reached via "forgot password" (after EncryptionResetConfirm) or a fresh
+                        // account; allow the registered key to be replaced in both cases.
+                        const result = await setupEncryption(password, { allowRekey: true });
                         if (result.success) {
                             setShowEncryptionSetup(false);
                             setUserSkippedEncryption(false);

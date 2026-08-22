@@ -104,7 +104,7 @@ mod tests {
     ) -> moor_runtime_api::AuthToken {
         // Step 1: Welcome message call (empty args, do_attach: false)
         let welcome_message =
-            mk_login_command_msg(client_token, &SYSTEM_OBJECT, vec![], false, None, None);
+            mk_login_command_msg(client_token, &SYSTEM_OBJECT, vec![], false, None);
 
         let welcome_result = env.transport.process_client_message(
             env.message_handler.as_ref(),
@@ -130,7 +130,6 @@ mod tests {
             &SYSTEM_OBJECT,
             vec!["connect".to_string(), "wizard".to_string()],
             true,
-            None,
             None,
         );
 

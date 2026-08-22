@@ -28,7 +28,7 @@ interface EncryptionSettingsProps {
 
 export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvailable }) => {
     const { authState } = useAuthContext();
-    const { encryptionState, forgetKey, setupEncryption } = useEncryptionContext();
+    const { encryptionState, forgetKey, setupEncryption, unlockEncryption } = useEncryptionContext();
     const { exportState, startExport, cancelExport, downloadReady, dismissReady } = useHistoryExport();
     const systemTitle = useTitle();
     const [showForgetConfirm, setShowForgetConfirm] = useState(false);
@@ -366,7 +366,9 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
                     <EncryptionSetupPrompt
                         systemTitle={systemTitle}
                         onSetup={async (password) => {
-                            const result = await setupEncryption(password);
+                            // Explicit (re)setup request from settings; allow replacing a
+                            // registered key.
+                            const result = await setupEncryption(password, { allowRekey: true });
                             if (result.success) {
                                 setShowSetupPrompt(false);
                             }
@@ -380,7 +382,7 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
                     <EncryptionPasswordPrompt
                         systemTitle={systemTitle}
                         onUnlock={async (password) => {
-                            const result = await setupEncryption(password);
+                            const result = await unlockEncryption(password);
                             if (result.success) {
                                 setShowPasswordPrompt(false);
                             }

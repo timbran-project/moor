@@ -265,7 +265,7 @@ mod tests {
 
         // Step 1: Welcome message call
         let welcome_message =
-            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None, None);
+            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None);
 
         let welcome_result = env.transport.process_client_message(
             env.message_handler.as_ref(),
@@ -293,7 +293,6 @@ mod tests {
             &SYSTEM_OBJECT,
             vec!["connect".to_string(), "wizard".to_string()], // Same as user typing "connect wizard"
             true,
-            None,
             None,
         );
 
@@ -684,7 +683,7 @@ mod tests {
 
         // Welcome message call
         let welcome_message =
-            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None, None);
+            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None);
 
         let _welcome_result = env.transport.process_client_message(
             env.message_handler.as_ref(),
@@ -705,7 +704,6 @@ mod tests {
             &SYSTEM_OBJECT,
             vec!["connect".to_string(), "wizard".to_string()],
             true,
-            None,
             None,
         );
 
@@ -855,7 +853,7 @@ mod tests {
 
         // For non-wizard test, we'll connect as a guest (which should be non-wizard)
         let welcome_message_2 =
-            mk_login_command_msg(&client_token_2, &SYSTEM_OBJECT, vec![], false, None, None);
+            mk_login_command_msg(&client_token_2, &SYSTEM_OBJECT, vec![], false, None);
 
         let _welcome_result_2 = env.transport.process_client_message(
             env.message_handler.as_ref(),
@@ -870,7 +868,6 @@ mod tests {
             &SYSTEM_OBJECT,
             vec!["connect".to_string(), "guest".to_string()],
             true,
-            None,
             None,
         );
 
@@ -1051,7 +1048,7 @@ mod tests {
 
         // Welcome message
         let welcome_message =
-            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None, None);
+            mk_login_command_msg(&client_token, &SYSTEM_OBJECT, vec![], false, None);
         env.transport
             .process_client_message(
                 env.message_handler.as_ref(),
@@ -1071,7 +1068,6 @@ mod tests {
             &SYSTEM_OBJECT,
             vec!["connect".to_string(), "wizard".to_string()],
             true,
-            None,
             None,
         );
 

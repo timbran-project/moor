@@ -137,7 +137,6 @@ async fn call_oauth_login(
                 handler_object: web_host.handler_object,
                 connect_args: args,
                 do_attach,
-                event_log_pubkey: None,
                 registration_data: None,
             },
         )

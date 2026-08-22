@@ -1370,9 +1370,6 @@ components:
         password:
           type: string
           description: Player password
-        event_log_pubkey:
-          type: string
-          description: Optional age public key for event-log encryption
       required: [player, password]
 
     VersionResponse:

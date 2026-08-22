@@ -16,11 +16,11 @@
 
 /**
  * Derive 32 bytes from password using Argon2id KDF
- * Uses identifier (username or player OID) as salt for domain separation
- * Same password + same identifier = same bytes (deterministic)
+ * The player OID is used as salt for domain separation: it is immutable and known to
+ * both the creation and recovery paths, so (password, OID) reproduces the same key on
+ * any device. Never derive with a mutable identifier such as the username.
  *
- * For new accounts: use username as identifier (known at registration)
- * For existing accounts: use playerOid or username (both work if consistent)
+ * Same password + same identifier = same bytes (deterministic)
  */
 export async function deriveKeyBytes(password: string, identifier: string): Promise<Uint8Array> {
     const saltString = `moor-event-log-v1-${identifier}`;
@@ -62,11 +62,8 @@ export async function deriveKeyBytes(password: string, identifier: string): Prom
 }
 
 /**
- * Generate an age keypair from a password and identifier (username or player OID)
+ * Generate an age keypair from a password and identifier (the player OID)
  * Returns both the identity (private key) and public key
- *
- * For account creation: pass username as identifier
- * For existing accounts: pass username or playerOid (must be consistent with what was used at creation)
  */
 export async function generateKeypairFromPassword(
     password: string,

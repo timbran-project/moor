@@ -557,7 +557,6 @@ impl MoorClient {
             ],
             true,
             None,
-            None,
         );
 
         let operation = if is_reconnect {

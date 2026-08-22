@@ -12,7 +12,9 @@
 //
 
 // ! Hook for managing event log encryption (Argon2 key derivation + age keypair generation)
-// ! Age keypair generation happens client-side - only public key is sent to server
+// ! Age keypairs are derived deterministically from (password, player OID); only the
+// ! public key is sent to the server. Unlock and setup validate the derived public key
+// ! against the registered key before storing anything or reporting success.
 
 import { useCallback, useEffect, useState } from "react";
 import { identityFromDerivedBytes, publicKeyFromIdentity } from "../lib/age-decrypt";
@@ -40,6 +42,25 @@ function initialEncryptionState(playerOid: string | null): EncryptionState {
         ageIdentity,
         statusError: null,
     };
+}
+
+/// Fetch the age public key registered with the server for the authenticated player,
+/// or null when the player has no event-log encryption registered.
+async function fetchRegisteredPublicKey(authToken: string): Promise<string | null> {
+    const response = await fetch("/v1/event-log/pubkey", {
+        headers: buildAuthHeaders(authToken),
+    });
+    if (!response.ok) {
+        throw new Error(`Unable to check encryption status (${response.status})`);
+    }
+    const data = await response.json();
+    return data.public_key ?? null;
+}
+
+/// Persist the derived age identity locally, keyed by player OID. The server never
+/// receives the private identity.
+function storeIdentity(playerOid: string, identity: string): void {
+    localStorage.setItem(`moor_event_log_identity_${playerOid}`, identity);
 }
 
 export const useEventLogEncryption = (
@@ -109,26 +130,40 @@ export const useEventLogEncryption = (
         }
     }, [authToken, playerOid]);
 
-    const setupEncryption = useCallback(async (password: string): Promise<{ success: boolean; error?: string }> => {
+    const setupEncryption = useCallback(async (
+        password: string,
+        options?: { allowRekey?: boolean },
+    ): Promise<{ success: boolean; error?: string }> => {
         if (!authToken || !playerOid) {
             return { success: false, error: "Not authenticated" };
         }
 
         try {
-            console.log("Deriving encryption key for player:", playerOid);
+            const registeredPublicKey = await fetchRegisteredPublicKey(authToken);
+
             const bytes = await deriveKeyBytes(password, playerOid);
-
-            // Generate age identity from derived bytes (client-side)
-            console.log("Generating age keypair client-side...");
             const identity = identityFromDerivedBytes(bytes);
-            console.log("Generated identity:", identity.substring(0, 30) + "...");
-
-            // Extract public key from identity
             const publicKey = await publicKeyFromIdentity(identity);
-            console.log("Extracted public key:", publicKey);
 
-            // Send only the public key to server (NOT derived bytes or identity)
-            console.log("Sending public key to server...");
+            // A key is already registered: only overwrite it when the caller explicitly
+            // requested a reset. Otherwise this is a validate-and-restore operation.
+            if (registeredPublicKey && !options?.allowRekey) {
+                if (publicKey !== registeredPublicKey) {
+                    return { success: false, error: "Incorrect encryption password" };
+                }
+                storeIdentity(playerOid, identity);
+
+                setEncryptionState({
+                    playerOid,
+                    hasEncryption: true,
+                    isChecking: false,
+                    hasCheckedOnce: true,
+                    ageIdentity: identity,
+                    statusError: null,
+                });
+                return { success: true };
+            }
+
             const headers = buildAuthHeaders(authToken);
             headers["Content-Type"] = "application/json";
             const response = await fetch("/v1/event-log/pubkey", {
@@ -137,19 +172,13 @@ export const useEventLogEncryption = (
                 body: JSON.stringify({ public_key: publicKey }),
             });
 
-            console.log("Pubkey setup response status:", response.status);
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error("Pubkey setup failed:", errorText);
                 return { success: false, error: `Server error: ${response.status}` };
             }
 
-            const responseData = await response.json();
-            console.log("Pubkey setup response:", responseData);
-
-            // Store the private key (identity) locally - server never sees this
-            const storageKey = `moor_event_log_identity_${playerOid}`;
-            localStorage.setItem(storageKey, identity);
+            storeIdentity(playerOid, identity);
 
             setEncryptionState({
                 playerOid,
@@ -173,15 +202,20 @@ export const useEventLogEncryption = (
         }
 
         try {
+            const registeredPublicKey = await fetchRegisteredPublicKey(authToken);
+            if (!registeredPublicKey) {
+                return { success: false, error: "Encryption is not set up for this account" };
+            }
+
             const bytes = await deriveKeyBytes(password, playerOid);
-
-            // Generate age identity from derived bytes
             const identity = identityFromDerivedBytes(bytes);
+            const publicKey = await publicKeyFromIdentity(identity);
 
-            // TODO: Validate by fetching and decrypting a test event
+            if (publicKey !== registeredPublicKey) {
+                return { success: false, error: "Incorrect encryption password" };
+            }
 
-            const storageKey = `moor_event_log_identity_${playerOid}`;
-            localStorage.setItem(storageKey, identity);
+            storeIdentity(playerOid, identity);
 
             setEncryptionState(prev => ({
                 ...prev,
