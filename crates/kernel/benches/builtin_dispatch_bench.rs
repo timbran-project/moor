@@ -36,7 +36,9 @@ use moor_kernel::{
     },
     vm::{VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
-use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, v_empty_str, v_int, v_obj};
+use moor_var::{
+    List, NOTHING, SYSTEM_OBJECT, Symbol, v_empty_str, v_int, v_list, v_map, v_obj, v_str,
+};
 use std::{sync::Arc, time::Duration};
 
 const FULL_MOO_TICKS: usize = 20_000_000;
@@ -155,6 +157,7 @@ struct BuiltinDispatchContext {
     features: FeaturesConfig,
     builtin: BuiltinId,
     args: List,
+    iterations: usize,
     task_scheduler_client: TaskSchedulerClient,
     program_cache: TaskProgramCache,
 }
@@ -178,9 +181,18 @@ impl BuiltinDispatchContext {
             features,
             builtin,
             args,
+            iterations: DIRECT_BUILTIN_CALLS,
             task_scheduler_client: TaskSchedulerClient::new(0, scheduler),
             program_cache: TaskProgramCache::default(),
         }
+    }
+
+    fn with_builtin(name: &str, args: List, iterations: usize) -> Self {
+        let mut context = Self::with_program("while (1) 1; endwhile", FULL_MOO_TICKS);
+        context.builtin = BuiltinId(offset_for_builtin(name) as u16);
+        context.args = args;
+        context.iterations = iterations;
+        context
     }
 }
 
@@ -218,7 +230,7 @@ fn builtin_full_moo(
     BenchSampleResult::operations(black_box(ticks) as u64)
 }
 
-fn builtin_current_call_function_typeof(
+fn builtin_current_call_function(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
@@ -238,13 +250,13 @@ fn builtin_current_call_function_typeof(
         ctx.session.as_ref(),
         ctx.builtin,
         &ctx.args,
-        DIRECT_BUILTIN_CALLS,
+        ctx.iterations,
     );
     rollback_current_transaction().unwrap();
     BenchSampleResult::operations(black_box(calls) as u64)
 }
 
-fn builtin_direct_function_typeof(
+fn builtin_direct_function(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
@@ -263,7 +275,7 @@ fn builtin_direct_function_typeof(
         &ctx.features,
         ctx.builtin,
         &ctx.args,
-        DIRECT_BUILTIN_CALLS,
+        ctx.iterations,
     );
     rollback_current_transaction().unwrap();
     BenchSampleResult::operations(black_box(calls) as u64)
@@ -272,7 +284,8 @@ fn builtin_direct_function_typeof(
 benchmark_main!(
     BenchmarkMainOptions {
         filter_help: Some(
-            "all, full_moo, current_call, direct_function, typeof, or valid_task".to_string(),
+            "all, full_moo, current_call, direct_function, typeof, valid_task, tostr, or toliteral"
+                .to_string(),
         ),
         runtime: BenchmarkRuntimeOptions {
             warm_up_duration: Duration::from_millis(250),
@@ -314,20 +327,134 @@ benchmark_main!(
 
             g.throughput(Throughput::per_operation(1, "builtin_calls"))
                 .factory(&|| {
-                    BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
+                    BuiltinDispatchContext::with_builtin(
+                        "typeof",
+                        List::mk_list(&[v_int(1)]),
+                        DIRECT_BUILTIN_CALLS,
+                    )
                 })
                 .bench_sample(
                     "builtin_current_call_function_typeof",
-                    builtin_current_call_function_typeof,
+                    builtin_current_call_function,
                 );
 
             g.throughput(Throughput::per_operation(1, "builtin_calls"))
                 .factory(&|| {
-                    BuiltinDispatchContext::with_program("while (1) 1; endwhile", FULL_MOO_TICKS)
+                    BuiltinDispatchContext::with_builtin(
+                        "typeof",
+                        List::mk_list(&[v_int(1)]),
+                        DIRECT_BUILTIN_CALLS,
+                    )
+                })
+                .bench_sample("builtin_direct_function_typeof", builtin_direct_function);
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_builtin(
+                        "tostr",
+                        List::mk_list(&[v_str("planner_symbol_covered")]),
+                        1_000_000,
+                    )
+                })
+                .bench_sample("builtin_direct_tostr_string", builtin_direct_function);
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_builtin(
+                        "tostr",
+                        List::mk_list(&[
+                            v_str("task "),
+                            v_int(123_456),
+                            v_str(" on "),
+                            v_obj(SYSTEM_OBJECT),
+                            v_str(": "),
+                            v_str("planner_symbol_covered"),
+                        ]),
+                        500_000,
+                    )
+                })
+                .bench_sample("builtin_direct_tostr_mixed", builtin_direct_function);
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    let mut args = Vec::with_capacity(64);
+                    for value in 0..32 {
+                        args.push(v_str("planner_symbol_covered="));
+                        args.push(v_int(value));
+                    }
+                    BuiltinDispatchContext::with_builtin("tostr", List::mk_list(&args), 100_000)
                 })
                 .bench_sample(
-                    "builtin_direct_function_typeof",
-                    builtin_direct_function_typeof,
+                    "builtin_direct_tostr_many_arguments",
+                    builtin_direct_function,
+                );
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_builtin(
+                        "toliteral",
+                        List::mk_list(&[v_int(123_456)]),
+                        1_000_000,
+                    )
+                })
+                .bench_sample("builtin_direct_toliteral_integer", builtin_direct_function);
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_builtin(
+                        "toliteral",
+                        List::mk_list(&[v_str(
+                            "A quoted value: \"planner\".\nA second line with a tab:\tend.",
+                        )]),
+                        500_000,
+                    )
+                })
+                .bench_sample(
+                    "builtin_direct_toliteral_escaped_string",
+                    builtin_direct_function,
+                );
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    let value = v_list(&[
+                        v_int(42),
+                        v_str("quoted \"value\""),
+                        v_map(&[
+                            (v_str("name"), v_str("planner")),
+                            (v_str("values"), v_list(&[v_int(1), v_int(2), v_int(3)])),
+                        ]),
+                    ]);
+                    BuiltinDispatchContext::with_builtin(
+                        "toliteral",
+                        List::mk_list(&[value]),
+                        100_000,
+                    )
+                })
+                .bench_sample("builtin_direct_toliteral_nested", builtin_direct_function);
+
+            g.throughput(Throughput::per_operation(1, "builtin_calls"))
+                .factory(&|| {
+                    let mut pairs = Vec::with_capacity(32);
+                    for value in 0..32 {
+                        let nested = v_map(&[
+                            (v_str("active"), v_int(value & 1)),
+                            (v_str("sequence"), v_int(value)),
+                        ]);
+                        pairs.push((
+                            v_str(format!("planner-key-{value}").as_str()),
+                            v_list(&[v_int(value), v_str("planner_symbol_covered"), nested]),
+                        ));
+                    }
+                    let value = v_map(&pairs);
+                    BuiltinDispatchContext::with_builtin(
+                        "toliteral",
+                        List::mk_list(&[value]),
+                        25_000,
+                    )
+                })
+                .bench_sample(
+                    "builtin_direct_toliteral_large_nested",
+                    builtin_direct_function,
                 );
         });
     }

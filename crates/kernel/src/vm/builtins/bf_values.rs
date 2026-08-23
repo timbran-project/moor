@@ -19,11 +19,12 @@ use crate::{
         BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction, hash, world_state_bf_err,
     },
 };
+use moor_common::util::write_i64_decimal;
 use moor_compiler::{ObjDefParseError, offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
     ByteSized, E_ARGS, E_INVARG, E_MAXREC, E_RANGE, E_TYPE, ValueDiffOptions, Variant,
     decode_var_cbor, encode_var_cbor, v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str,
-    v_sym, value_diff, value_diff3,
+    v_string, v_sym, value_diff, value_diff3,
 };
 use std::fmt::Write;
 use uuid::Uuid;
@@ -41,6 +42,10 @@ fn bf_typeof(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// Integers are formatted as decimal numbers, floats with decimal notation, objects as "#N",
 /// errors as their name (e.g., "E_PERM"), and lists/maps as "{list}" or "[map]".
 fn bf_tostr(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() == 1 && matches!(bf_args.args[0].variant(), Variant::Str(_)) {
+        return Ok(Ret(bf_args.args[0].clone()));
+    }
+
     let mut result = String::with_capacity(bf_args.args.len().saturating_mul(16));
     for arg in bf_args.args.iter() {
         match arg.variant() {
@@ -48,22 +53,29 @@ fn bf_tostr(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Variant::Bool(true) => result.push_str("true"),
             Variant::Bool(false) => result.push_str("false"),
             Variant::Int(i) => {
-                let _ = write!(result, "{i}");
+                let _ = write_i64_decimal(&mut result, i);
             }
             Variant::Float(f) => {
                 let _ = write!(result, "{f:?}");
             }
             Variant::Str(s) => result.push_str(s.as_str()),
             Variant::Binary(b) => {
-                let _ = write!(result, "<binary {} bytes>", b.len());
+                result.push_str("<binary ");
+                let _ = write_i64_decimal(&mut result, b.len() as i64);
+                result.push_str(" bytes>");
             }
             Variant::Obj(o) => {
-                let _ = write!(result, "{o}");
+                if o.is_oid() {
+                    result.push('#');
+                    let _ = write_i64_decimal(&mut result, o.id().0 as i64);
+                } else {
+                    let _ = write!(result, "{o}");
+                }
             }
             Variant::List(_) => result.push_str("{list}"),
             Variant::Map(_) => result.push_str("[map]"),
             Variant::Sym(s) => {
-                let _ = write!(result, "{s}");
+                result.push_str(&s.as_arc_str());
             }
             Variant::Err(e) => result.push_str(&e.name().as_arc_str()),
             Variant::Flyweight(_) => result.push_str("<flyweight>"),
@@ -86,7 +98,7 @@ fn bf_tostr(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             }
         }
     }
-    Ok(Ret(v_str(result.as_str())))
+    Ok(Ret(v_string(result)))
 }
 
 /// Usage: `symbol tosym(str|bool|error|symbol value)`
@@ -133,7 +145,7 @@ fn bf_toliteral(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 
     let literal = to_literal(&bf_args.args[0]);
-    Ok(Ret(v_str(literal.as_str())))
+    Ok(Ret(v_string(literal)))
 }
 
 /// Usage: `any fromliteral(str literal)`

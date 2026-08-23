@@ -21,7 +21,7 @@ use crate::{
     parse_tree::Parse,
 };
 use base64::{Engine, engine::general_purpose};
-use moor_common::util::quote_str;
+use moor_common::util::{write_i64_decimal, write_quoted_str};
 use moor_var::{Obj, Var, Variant, program::opcode::ScatterLabel};
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -232,38 +232,41 @@ pub fn annotate_line_numbers(start_line_no: usize, tree: &mut [Stmt]) -> usize {
 /// other languages could have different representations.
 pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), DecompileError> {
     match v.variant() {
-        Variant::None => write!(writer, "None")?,
+        Variant::None => writer.write_str("None")?,
         Variant::Obj(oid) => write!(writer, "{oid}")?,
-        Variant::Bool(b) => write!(writer, "{b}")?,
-        Variant::Int(i) => write!(writer, "{i}")?,
+        Variant::Bool(b) => writer.write_str(if b { "true" } else { "false" })?,
+        Variant::Int(i) => write_i64_decimal(writer, i)?,
         Variant::Float(f) => write!(writer, "{f:?}")?,
         Variant::List(l) => {
-            write!(writer, "{{")?;
-            for (i, v) in l.iter().enumerate() {
+            writer.write_char('{')?;
+            for (i, v) in l.iter_ref().enumerate() {
                 if i > 0 {
-                    write!(writer, ", ")?;
+                    writer.write_str(", ")?;
                 }
-                write_literal(&v, writer)?;
+                write_literal(v, writer)?;
             }
-            write!(writer, "}}")?;
+            writer.write_char('}')?;
         }
-        Variant::Str(s) => write!(writer, "{}", quote_str(s.as_str()))?,
+        Variant::Str(s) => write_quoted_str(writer, s.as_str())?,
         Variant::Map(m) => {
-            write!(writer, "[")?;
-            for (i, (k, v)) in m.iter().enumerate() {
+            writer.write_char('[')?;
+            for (i, (k, v)) in m.iter_ref().enumerate() {
                 if i > 0 {
-                    write!(writer, ", ")?;
+                    writer.write_str(", ")?;
                 }
-                write_literal(&k, writer)?;
-                write!(writer, " -> ")?;
-                write_literal(&v, writer)?;
+                write_literal(k, writer)?;
+                writer.write_str(" -> ")?;
+                write_literal(v, writer)?;
             }
-            write!(writer, "]")?;
+            writer.write_char(']')?;
         }
         Variant::Err(e) => {
             let err_name = e.name().to_string().to_uppercase();
             if let Some(msg) = e.msg() {
-                write!(writer, "{}({})", err_name, quote_str(msg))?;
+                writer.write_str(&err_name)?;
+                writer.write_char('(')?;
+                write_quoted_str(writer, msg)?;
+                writer.write_char(')')?;
             } else {
                 write!(writer, "{err_name}")?;
             }
@@ -281,11 +284,11 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
             let v = fl.contents();
             if !v.is_empty() {
                 write!(writer, ", {{")?;
-                for (i, v) in v.iter().enumerate() {
+                for (i, v) in v.iter_ref().enumerate() {
                     if i > 0 {
                         write!(writer, ", ")?;
                     }
-                    write_literal(&v, writer)?;
+                    write_literal(v, writer)?;
                 }
                 write!(writer, "}}")?;
             }
@@ -407,6 +410,10 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
 }
 
 pub fn to_literal(v: &Var) -> String {
+    if let Some(value) = v.as_integer() {
+        return value.to_string();
+    }
+
     let mut buffer = String::new();
     write_literal(v, &mut buffer).expect("string writes cannot fail");
     buffer

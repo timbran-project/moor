@@ -257,29 +257,93 @@ pub fn unquote_str(s: &str) -> Result<String, String> {
 /// ```
 #[must_use]
 pub fn quote_str(s: &str) -> String {
-    let mut output = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            '\0' => output.push_str("\\0"),
-            // For control characters and non-printable characters, use hex escapes
-            c if c.is_control() && c != '\n' && c != '\r' && c != '\t' && c != '\0' => {
-                output.push_str(&format!("\\x{:02X}", c as u8));
-            }
-            // For non-ASCII characters that might cause issues, use unicode escapes
-            c if !c.is_ascii() && (c as u32) <= 0xFFFF => {
-                output.push_str(&format!("\\u{:04X}", c as u32));
-            }
-            // For characters above the BMP, we could use extended unicode, but for now just pass through
-            c => output.push(c),
+    let mut output = String::with_capacity(s.len().saturating_add(2));
+    write_quoted_str(&mut output, s).expect("string writes cannot fail");
+    output
+}
+
+/// Write an integer in decimal form without allocating an intermediate string.
+#[inline]
+pub fn write_i64_decimal<W: std::fmt::Write + ?Sized>(
+    writer: &mut W,
+    value: i64,
+) -> std::fmt::Result {
+    let mut digits = [0_u8; 20];
+    let mut cursor = digits.len();
+    let mut magnitude = value.unsigned_abs();
+
+    loop {
+        cursor -= 1;
+        digits[cursor] = b'0' + (magnitude % 10) as u8;
+        magnitude /= 10;
+        if magnitude == 0 {
+            break;
         }
     }
-    output.push('"');
-    output
+    if value < 0 {
+        cursor -= 1;
+        digits[cursor] = b'-';
+    }
+
+    // SAFETY: digits contains only ASCII decimal digits and an optional minus sign.
+    writer.write_str(unsafe { std::str::from_utf8_unchecked(&digits[cursor..]) })
+}
+
+/// Write a quoted MOO string literal without allocating an intermediate string.
+#[inline]
+pub fn write_quoted_str<W: std::fmt::Write + ?Sized>(writer: &mut W, s: &str) -> std::fmt::Result {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+
+    writer.write_char('"')?;
+    if s.bytes()
+        .all(|byte| byte.is_ascii_graphic() && byte != b'"' && byte != b'\\' || byte == b' ')
+    {
+        writer.write_str(s)?;
+        return writer.write_char('"');
+    }
+
+    let mut unescaped_start = 0;
+    for (offset, c) in s.char_indices() {
+        let escape = match c {
+            '"' => Some("\\\""),
+            '\\' => Some("\\\\"),
+            '\n' => Some("\\n"),
+            '\r' => Some("\\r"),
+            '\t' => Some("\\t"),
+            '\0' => Some("\\0"),
+            _ => None,
+        };
+        if let Some(escape) = escape {
+            writer.write_str(&s[unescaped_start..offset])?;
+            writer.write_str(escape)?;
+            unescaped_start = offset + c.len_utf8();
+            continue;
+        }
+
+        match c {
+            c if c.is_control() && c != '\n' && c != '\r' && c != '\t' && c != '\0' => {
+                let value = c as u8;
+                writer.write_str(&s[unescaped_start..offset])?;
+                writer.write_str("\\x")?;
+                writer.write_char(HEX[(value >> 4) as usize] as char)?;
+                writer.write_char(HEX[(value & 0x0f) as usize] as char)?;
+                unescaped_start = offset + c.len_utf8();
+            }
+            c if !c.is_ascii() && (c as u32) <= 0xFFFF => {
+                let value = c as u32;
+                writer.write_str(&s[unescaped_start..offset])?;
+                writer.write_str("\\u")?;
+                writer.write_char(HEX[((value >> 12) & 0x0f) as usize] as char)?;
+                writer.write_char(HEX[((value >> 8) & 0x0f) as usize] as char)?;
+                writer.write_char(HEX[((value >> 4) & 0x0f) as usize] as char)?;
+                writer.write_char(HEX[(value & 0x0f) as usize] as char)?;
+                unescaped_start = offset + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    writer.write_str(&s[unescaped_start..])?;
+    writer.write_char('"')
 }
 
 pub fn parse_into_words(input: &str) -> Vec<String> {
@@ -331,7 +395,16 @@ pub fn parse_into_words(input: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::{quote_str, unquote_str, verbcasecmp};
+    use crate::util::{quote_str, unquote_str, verbcasecmp, write_i64_decimal};
+
+    #[test]
+    fn decimal_writer_handles_i64_range() {
+        for value in [i64::MIN, -1, 0, 1, i64::MAX] {
+            let mut output = String::new();
+            write_i64_decimal(&mut output, value).unwrap();
+            assert_eq!(output, value.to_string());
+        }
+    }
 
     #[test]
     fn test_string_quote() {
