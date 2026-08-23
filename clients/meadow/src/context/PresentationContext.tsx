@@ -33,7 +33,11 @@ interface PresentationContextType {
     getTextEditorPresentations: () => Presentation[];
     getProfileSetupPresentations: () => Presentation[];
     dismissPresentation: (id: string, authToken: string) => Promise<void>;
-    fetchCurrentPresentations: (authToken: string, ageIdentity?: string | null) => Promise<boolean>;
+    fetchCurrentPresentations: (
+        authToken: string,
+        ageIdentity?: string | null,
+        isCurrent?: () => boolean,
+    ) => Promise<boolean>;
     clearAll: () => void;
 }
 

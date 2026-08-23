@@ -11,8 +11,22 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { AppShell } from "./app/AppShell";
+import type { EventMetadata, LinkPreview } from "../lib/rpc-fb";
 
-export function App() {
-    return <AppShell />;
+/**
+ * A narrative message buffered before the transcript surface is mounted.
+ */
+export interface NarrativeMessageContent {
+    content: string | string[];
+    contentType?: string;
+    noNewline?: boolean;
+    presentationHint?: string;
+    groupId?: string;
+    ttsText?: string;
+    thumbnail?: { contentType: string; data: string };
+    linkPreview?: LinkPreview;
+    eventMetadata?: EventMetadata;
+    rewritable?: { id: string; owner: string; ttl: number; fallback?: string };
+    rewriteTarget?: string;
+    eventTimestampMs?: number;
 }

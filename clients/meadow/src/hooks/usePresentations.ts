@@ -220,10 +220,22 @@ export const usePresentations = () => {
     }, [removePresentation]);
 
     // Fetch current presentations from the server (called on connect)
-    const fetchCurrentPresentations = useCallback(async (authToken: string, ageIdentity: string | null = null) => {
+    const fetchCurrentPresentations = useCallback(async (
+        authToken: string,
+        ageIdentity: string | null = null,
+        isCurrent: () => boolean = () => true,
+    ) => {
         try {
+            if (!isCurrent()) {
+                return false;
+            }
+
             // Get presentations as FlatBuffer
             const currentPresentations = await getCurrentPresentationsFlatBuffer(authToken);
+
+            if (!isCurrent()) {
+                return false;
+            }
 
             const presentationsLength = currentPresentations.presentationsLength();
 
@@ -239,6 +251,10 @@ export const usePresentations = () => {
                         presentationBytes = await decryptEventBlob(snapshot.encryptedBlob, ageIdentity);
                     }
 
+                    if (!isCurrent()) {
+                        return false;
+                    }
+
                     const parsedPresentation = parsePresentationBytes(presentationBytes, {
                         expectedId: snapshot.id,
                         fallback: {
@@ -252,6 +268,9 @@ export const usePresentations = () => {
 
                     const presentationData: PresentationData = toPresentationData(parsedPresentation);
 
+                    if (!isCurrent()) {
+                        return false;
+                    }
                     addPresentation(presentationData);
                 } catch (presentationError) {
                     console.error("Failed to process presentation:", presentationError);
@@ -261,6 +280,9 @@ export const usePresentations = () => {
 
             return true;
         } catch (error) {
+            if (!isCurrent()) {
+                return false;
+            }
             console.error("Error fetching current presentations:", error);
             return false;
         }

@@ -12,7 +12,7 @@
 //
 
 import { parseHistoricalNarrativeEvent } from "@moor/web-sdk";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { NarrativeMessage } from "../components/Narrative";
 import { MoorVar } from "../lib/MoorVar";
 import { fetchHistoryFlatBuffer, HistoryEvent } from "../lib/rpc-fb";
@@ -66,11 +66,17 @@ interface ConvertedHistoricalEvent {
     presentationAction?: HistoryPresentationAction;
 }
 
+export interface HistoryFetchResult {
+    messages: NarrativeMessage[];
+    presentationActions: HistoryPresentationAction[];
+}
+
+type IsCurrentHistoryRequest = () => boolean;
+
 export const useHistory = (authToken: string | null, encryptionKey: string | null = null) => {
     const [historyBoundary, setHistoryBoundary] = useState<number | null>(null);
     const [earliestHistoryEventId, setEarliestHistoryEventId] = useState<string | null>(null);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const lastPresentationActionsRef = useRef<HistoryPresentationAction[]>([]);
 
     // Set history boundary timestamp to prevent duplicates with WebSocket events
     const setHistoryBoundaryNow = useCallback((lastMessageBeforeDisconnect?: number) => {
@@ -148,11 +154,15 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
         limit: number = 100,
         sinceSeconds?: number,
         untilEvent?: string,
-    ): Promise<NarrativeMessage[]> => {
+        isCurrent: IsCurrentHistoryRequest = () => true,
+    ): Promise<HistoryFetchResult | null> => {
         if (!authToken) {
             throw new Error("No auth token available");
         }
 
+        if (!isCurrent()) {
+            return null;
+        }
         setIsLoadingHistory(true);
 
         try {
@@ -164,6 +174,10 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                 sinceSeconds,
                 untilEvent,
             );
+
+            if (!isCurrent()) {
+                return null;
+            }
 
             // Convert events to narrative messages
             const narrativeMessages: NarrativeMessage[] = [];
@@ -178,22 +192,32 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                     narrativeMessages.push(message);
                 }
             }
-            lastPresentationActionsRef.current = presentationActions;
-
             // Filter out MCP sequences before returning
             const filteredMessages = filterMCPSequences(narrativeMessages);
+
+            if (!isCurrent()) {
+                return null;
+            }
 
             // Update earliest event ID for pagination
             if (events.length > 0) {
                 setEarliestHistoryEventId(events[0].event_id);
             }
 
-            return filteredMessages;
+            return {
+                messages: filteredMessages,
+                presentationActions,
+            };
         } catch (error) {
+            if (!isCurrent()) {
+                return null;
+            }
             console.error("Failed to fetch more history:", error);
             throw error;
         } finally {
-            setIsLoadingHistory(false);
+            if (isCurrent()) {
+                setIsLoadingHistory(false);
+            }
         }
     }, [authToken, convertFlatBufferHistoricalEvent, encryptionKey]);
 
@@ -211,26 +235,29 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
     }, []);
 
     // Fetch initial history on connect (dynamically sized based on viewport)
-    const fetchInitialHistory = useCallback(async (): Promise<NarrativeMessage[]> => {
+    const fetchInitialHistory = useCallback(async (
+        isCurrent?: IsCurrentHistoryRequest,
+    ): Promise<HistoryFetchResult | null> => {
         const dynamicLimit = calculateInitialLoad();
-        return await fetchHistory(dynamicLimit, 86400); // 24 hours = 86400 seconds
+        return await fetchHistory(dynamicLimit, 86400, undefined, isCurrent); // 24 hours = 86400 seconds
     }, [fetchHistory, calculateInitialLoad]);
 
     // Fetch more history for infinite scroll
-    const fetchMoreHistory = useCallback(async (): Promise<NarrativeMessage[]> => {
+    const fetchMoreHistory = useCallback(async (
+        isCurrent?: IsCurrentHistoryRequest,
+    ): Promise<HistoryFetchResult | null> => {
         if (!earliestHistoryEventId) {
-            return [];
+            return { messages: [], presentationActions: [] };
         }
-        return await fetchHistory(50, undefined, earliestHistoryEventId);
+        return await fetchHistory(50, undefined, earliestHistoryEventId, isCurrent);
     }, [fetchHistory, earliestHistoryEventId]);
 
-    const consumePresentationActions = useCallback((): HistoryPresentationAction[] => {
-        if (lastPresentationActionsRef.current.length === 0) {
-            return [];
+    /** Clears request-owned state after invalidation. */
+    const resetHistoryRequestState = useCallback((resetPagination: boolean = false) => {
+        setIsLoadingHistory(false);
+        if (resetPagination) {
+            setEarliestHistoryEventId(null);
         }
-        const actions = lastPresentationActionsRef.current;
-        lastPresentationActionsRef.current = [];
-        return actions;
     }, []);
 
     return {
@@ -239,7 +266,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
         isHistoricalDuplicate,
         fetchInitialHistory,
         fetchMoreHistory,
-        consumePresentationActions,
+        resetHistoryRequestState,
         isLoadingHistory,
     };
 };
