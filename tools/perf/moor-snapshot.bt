@@ -38,7 +38,7 @@ usdt:*:moor_v1:task_run_start
 usdt:*:moor_v1:task_run_done
 {
     $state = @task_state[tid];
-    if ($state.0 != 0) {
+    if ($state.0 != (uint64)0) {
         $cpu = cpu;
         $elapsed = nsecs - $state.0;
         @task_count[$cpu, $state.1, $state.2, $state.3, $state.4]++;
@@ -63,7 +63,7 @@ usdt:*:moor_v1:task_commit_done
     $cpu = cpu;
     $outcome = (uint64)arg1;
     @stage_outcome[$cpu, 0, $outcome]++;
-    if (@stage_start[tid, 0] != 0) {
+    if (@stage_start[tid, 0] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 0];
         @stage_count[$cpu, 0]++;
         @stage_total[$cpu, 0] += $elapsed;
@@ -82,7 +82,7 @@ usdt:*:moor_v1:task_commit_done
  * across suspension and worker migration.
  */
 usdt:*:moor_v1:moo_activation_start
-/(uint64)arg2 == 0/
+/arg2 == 0/
 {
     $cpu = cpu;
     $task_id = (uint64)arg0;
@@ -104,7 +104,7 @@ usdt:*:moor_v1:moo_activation_done
     $task_id = (uint64)arg0;
     $depth = (uint64)arg1;
     $state = @verb_call_state[$task_id, $depth];
-    if ($state.0 != 0) {
+    if ($state.0 != (uint64)0) {
         $cpu = cpu;
         $elapsed = nsecs - $state.0;
         @verb_call_count[$cpu, $state.1, $state.2, $state.3]++;
@@ -133,7 +133,7 @@ usdt:*:moor_v1:verb_run_start
 usdt:*:moor_v1:verb_run_done
 {
     $state = @verb_state[tid];
-    if ($state.0 != 0) {
+    if ($state.0 != (uint64)0) {
         $cpu = cpu;
         $elapsed = nsecs - $state.0;
         @verb_count[$cpu, $state.2, $state.3, $state.4]++;
@@ -157,7 +157,7 @@ usdt:*:moor_v1:builtin_run_start
 usdt:*:moor_v1:builtin_run_done
 {
     $state = @builtin_state[tid];
-    if ($state.0 != 0) {
+    if ($state.0 != (uint64)0) {
         $cpu = cpu;
         $elapsed = nsecs - $state.0;
         @builtin_count[$cpu, $state.2]++;
@@ -173,7 +173,7 @@ usdt:*:moor_v1:builtin_run_done
 }
 
 profile:hz:$3
-/pid == $2 && @verb_state[tid].6 != 0/
+/pid == (uint32)$2 && @verb_state[tid].6 != (uint64)0/
 {
     $state = @verb_state[tid];
     $pc = *uptr((uint16 *)$state.6);
@@ -190,7 +190,7 @@ usdt:*:moor_v1:db_commit_done
     $cpu = cpu;
     $outcome = (uint64)arg1;
     @stage_outcome[$cpu, 1, $outcome]++;
-    if (@stage_start[tid, 1] != 0) {
+    if (@stage_start[tid, 1] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 1];
         @stage_count[$cpu, 1]++;
         @stage_total[$cpu, 1] += $elapsed;
@@ -214,7 +214,7 @@ usdt:*:moor_v1:db_commit_prepare_done
     $cpu = cpu;
     $outcome = (uint64)arg0;
     @stage_outcome[$cpu, 2, $outcome]++;
-    if (@stage_start[tid, 2] != 0) {
+    if (@stage_start[tid, 2] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 2];
         @stage_count[$cpu, 2]++;
         @stage_total[$cpu, 2] += $elapsed;
@@ -237,7 +237,7 @@ usdt:*:moor_v1:db_commit_read_only_done
 {
     $cpu = cpu;
     @stage_outcome[$cpu, 3, 0]++;
-    if (@stage_start[tid, 3] != 0) {
+    if (@stage_start[tid, 3] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 3];
         @stage_count[$cpu, 3]++;
         @stage_total[$cpu, 3] += $elapsed;
@@ -261,7 +261,7 @@ usdt:*:moor_v1:db_commit_check_done
     $cpu = cpu;
     $outcome = (uint64)arg1;
     @stage_outcome[$cpu, 4, $outcome]++;
-    if (@stage_start[tid, 4] != 0) {
+    if (@stage_start[tid, 4] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 4];
         @stage_count[$cpu, 4]++;
         @stage_total[$cpu, 4] += $elapsed;
@@ -284,7 +284,7 @@ usdt:*:moor_v1:db_commit_apply_done
 {
     $cpu = cpu;
     @stage_outcome[$cpu, 5, 0]++;
-    if (@stage_start[tid, 5] != 0) {
+    if (@stage_start[tid, 5] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 5];
         @stage_count[$cpu, 5]++;
         @stage_total[$cpu, 5] += $elapsed;
@@ -308,7 +308,7 @@ usdt:*:moor_v1:db_commit_publish_done
     $cpu = cpu;
     $outcome = (uint64)arg2;
     @stage_outcome[$cpu, 6, $outcome]++;
-    if (@stage_start[tid, 6] != 0) {
+    if (@stage_start[tid, 6] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 6];
         @stage_count[$cpu, 6]++;
         @stage_total[$cpu, 6] += $elapsed;
@@ -332,7 +332,7 @@ usdt:*:moor_v1:db_commit_rebase_done
     $cpu = cpu;
     $outcome = (uint64)arg2;
     @stage_outcome[$cpu, 7, $outcome]++;
-    if (@stage_start[tid, 7] != 0) {
+    if (@stage_start[tid, 7] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 7];
         @stage_count[$cpu, 7]++;
         @stage_total[$cpu, 7] += $elapsed;
@@ -356,7 +356,7 @@ usdt:*:moor_v1:db_commit_persist_done
     $cpu = cpu;
     $outcome = (uint64)arg1;
     @stage_outcome[$cpu, 8, $outcome]++;
-    if (@stage_start[tid, 8] != 0) {
+    if (@stage_start[tid, 8] != (uint64)0) {
         $elapsed = nsecs - @stage_start[tid, 8];
         @stage_count[$cpu, 8]++;
         @stage_total[$cpu, 8] += $elapsed;
