@@ -2527,11 +2527,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<Error>> for ErrorBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<Error>> for ErrorBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Error>;
 
@@ -2542,12 +2542,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Error>>
-            for ErrorBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Error>> for ErrorBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Error>;
 
@@ -2561,11 +2560,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<Error> for ErrorBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAsDefault<self::ErrorCode, self::ErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<Error> for ErrorBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Error> {
@@ -2903,11 +2902,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
-            > ::planus::WriteAs<::planus::Offset<NarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
+        > ::planus::WriteAs<::planus::Offset<NarrativeEvent>>
             for NarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<NarrativeEvent>;
@@ -2919,11 +2918,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
-            > ::planus::WriteAsOptional<::planus::Offset<NarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
+        > ::planus::WriteAsOptional<::planus::Offset<NarrativeEvent>>
             for NarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<NarrativeEvent>;
@@ -2938,11 +2937,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
-            > ::planus::WriteAsOffset<NarrativeEvent> for NarrativeEventBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Event>>,
+        > ::planus::WriteAsOffset<NarrativeEvent> for NarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NarrativeEvent> {
@@ -3588,10 +3587,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<EventMetadata>>
-            for EventMetadataBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<EventMetadata>> for EventMetadataBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<EventMetadata>;
 
@@ -3602,9 +3600,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<EventMetadata>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<EventMetadata>>
             for EventMetadataBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<EventMetadata>;
@@ -3619,9 +3617,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<EventMetadata> for EventMetadataBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<EventMetadata> for EventMetadataBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<EventMetadata> {
@@ -3957,8 +3955,8 @@ mod root {
             pub fn metadata<T4>(self, value: T4) -> NotifyEventBuilder<(T0, T1, T2, T3, T4)>
             where
                 T4: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::EventMetadata>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::EventMetadata>]>,
+                    >,
             {
                 let (v0, v1, v2, v3) = self.0;
                 NotifyEventBuilder((v0, v1, v2, v3, value))
@@ -3984,14 +3982,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::EventMetadata>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<NotifyEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::EventMetadata>]>>,
+        > ::planus::WriteAs<::planus::Offset<NotifyEvent>>
             for NotifyEventBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<NotifyEvent>;
@@ -4003,14 +3999,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::EventMetadata>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<NotifyEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::EventMetadata>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<NotifyEvent>>
             for NotifyEventBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<NotifyEvent>;
@@ -4025,14 +4019,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::EventMetadata>]>,
-                >,
-            > ::planus::WriteAsOffset<NotifyEvent> for NotifyEventBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::EventMetadata>]>>,
+        > ::planus::WriteAsOffset<NotifyEvent> for NotifyEventBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NotifyEvent> {
@@ -5104,10 +5096,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<DataEvent>> for DataEventBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<DataEvent>> for DataEventBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<DataEvent>;
 
@@ -5118,10 +5110,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DataEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DataEvent>>
             for DataEventBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<DataEvent>;
@@ -5136,10 +5128,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<DataEvent> for DataEventBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<DataEvent> for DataEventBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<DataEvent> {
@@ -5692,8 +5684,8 @@ mod root {
             pub fn attributes<T4>(self, value: T4) -> PresentationBuilder<(T0, T1, T2, T3, T4)>
             where
                 T4: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>,
+                    >,
             {
                 let (v0, v1, v2, v3) = self.0;
                 PresentationBuilder((v0, v1, v2, v3, value))
@@ -5712,14 +5704,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<Presentation>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>>,
+        > ::planus::WriteAs<::planus::Offset<Presentation>>
             for PresentationBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Presentation>;
@@ -5731,14 +5721,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<Presentation>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Presentation>>
             for PresentationBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Presentation>;
@@ -5753,14 +5741,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>,
-                >,
-            > ::planus::WriteAsOffset<Presentation> for PresentationBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationAttribute>]>>,
+        > ::planus::WriteAsOffset<Presentation> for PresentationBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Presentation> {
@@ -6053,9 +6039,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<PresentationAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<PresentationAttribute>>
             for PresentationAttributeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PresentationAttribute>;
@@ -6070,9 +6056,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PresentationAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PresentationAttribute>>
             for PresentationAttributeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PresentationAttribute>;
@@ -6087,9 +6073,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<PresentationAttribute>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<PresentationAttribute>
             for PresentationAttributeBuilder<(T0, T1)>
         {
             #[inline]
@@ -6369,10 +6355,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAs<::planus::Offset<Exception>> for ExceptionBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<Exception>> for ExceptionBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Exception>;
 
@@ -6383,10 +6369,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Exception>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Exception>>
             for ExceptionBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Exception>;
@@ -6401,10 +6387,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOffset<Exception> for ExceptionBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Error>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<Exception> for ExceptionBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Exception> {
@@ -6978,10 +6964,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<StringLexError>>
-            for StringLexErrorBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StringLexError>> for StringLexErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StringLexError>;
 
@@ -6992,9 +6977,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StringLexError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StringLexError>>
             for StringLexErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StringLexError>;
@@ -7009,9 +6994,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<StringLexError> for StringLexErrorBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StringLexError> for StringLexErrorBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StringLexError> {
@@ -7595,18 +7580,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<ParseError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<ParseError>>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             type Prepared = ::planus::Offset<ParseError>;
@@ -7618,18 +7603,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ParseError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ParseError>>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             type Prepared = ::planus::Offset<ParseError>;
@@ -7644,18 +7629,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<ParseError>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<ParseError>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             #[inline]
@@ -8031,9 +8016,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownBuiltinFunction>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownBuiltinFunction>>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownBuiltinFunction>;
@@ -8048,9 +8033,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownBuiltinFunction>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownBuiltinFunction>>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownBuiltinFunction>;
@@ -8065,9 +8050,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownBuiltinFunction>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownBuiltinFunction>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             #[inline]
@@ -8343,9 +8328,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownTypeConstant>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownTypeConstant>>
             for UnknownTypeConstantBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownTypeConstant>;
@@ -8360,9 +8345,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownTypeConstant>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownTypeConstant>>
             for UnknownTypeConstantBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownTypeConstant>;
@@ -8377,10 +8362,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownTypeConstant>
-            for UnknownTypeConstantBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownTypeConstant> for UnknownTypeConstantBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -8652,9 +8636,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownLoopLabel>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownLoopLabel>>
             for UnknownLoopLabelBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownLoopLabel>;
@@ -8669,9 +8653,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownLoopLabel>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownLoopLabel>>
             for UnknownLoopLabelBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownLoopLabel>;
@@ -8686,9 +8670,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownLoopLabel> for UnknownLoopLabelBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownLoopLabel> for UnknownLoopLabelBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -8958,9 +8942,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<DuplicateVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<DuplicateVariable>>
             for DuplicateVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVariable>;
@@ -8975,9 +8959,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DuplicateVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DuplicateVariable>>
             for DuplicateVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVariable>;
@@ -8992,9 +8976,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<DuplicateVariable> for DuplicateVariableBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<DuplicateVariable> for DuplicateVariableBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -9257,10 +9241,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<AssignToConst>>
-            for AssignToConstBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<AssignToConst>> for AssignToConstBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignToConst>;
 
@@ -9271,9 +9254,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<AssignToConst>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<AssignToConst>>
             for AssignToConstBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignToConst>;
@@ -9288,9 +9271,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<AssignToConst> for AssignToConstBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<AssignToConst> for AssignToConstBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AssignToConst> {
@@ -9559,9 +9542,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<DisabledFeature>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<DisabledFeature>>
             for DisabledFeatureBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DisabledFeature>;
@@ -9576,9 +9559,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DisabledFeature>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DisabledFeature>>
             for DisabledFeatureBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DisabledFeature>;
@@ -9593,9 +9576,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<DisabledFeature> for DisabledFeatureBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<DisabledFeature> for DisabledFeatureBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -9856,9 +9839,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<BadSlotName>> for BadSlotNameBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<BadSlotName>> for BadSlotNameBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<BadSlotName>;
 
@@ -9869,9 +9852,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<BadSlotName>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<BadSlotName>>
             for BadSlotNameBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<BadSlotName>;
@@ -9886,9 +9869,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<BadSlotName> for BadSlotNameBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<BadSlotName> for BadSlotNameBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<BadSlotName> {
@@ -10432,9 +10415,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<InvalidTypeLiteralAssignment>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<InvalidTypeLiteralAssignment>>
             for InvalidTypeLiteralAssignmentBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<InvalidTypeLiteralAssignment>;
@@ -10449,9 +10432,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<InvalidTypeLiteralAssignment>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<InvalidTypeLiteralAssignment>>
             for InvalidTypeLiteralAssignmentBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<InvalidTypeLiteralAssignment>;
@@ -10467,9 +10450,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<InvalidTypeLiteralAssignment>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<InvalidTypeLiteralAssignment>
             for InvalidTypeLiteralAssignmentBuilder<(T0, T1)>
         {
             #[inline]
@@ -10757,9 +10740,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<AssignmentToCapturedVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<AssignmentToCapturedVariable>>
             for AssignmentToCapturedVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignmentToCapturedVariable>;
@@ -10774,9 +10757,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<AssignmentToCapturedVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<AssignmentToCapturedVariable>>
             for AssignmentToCapturedVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignmentToCapturedVariable>;
@@ -10792,9 +10775,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<AssignmentToCapturedVariable>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<AssignmentToCapturedVariable>
             for AssignmentToCapturedVariableBuilder<(T0, T1)>
         {
             #[inline]
@@ -15318,10 +15301,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-            > ::planus::WriteAs<::planus::Offset<RecursiveMove>>
-            for RecursiveMoveBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+        > ::planus::WriteAs<::planus::Offset<RecursiveMove>> for RecursiveMoveBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RecursiveMove>;
 
@@ -15332,9 +15314,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RecursiveMove>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RecursiveMove>>
             for RecursiveMoveBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RecursiveMove>;
@@ -15349,9 +15331,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-            > ::planus::WriteAsOffset<RecursiveMove> for RecursiveMoveBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+        > ::planus::WriteAsOffset<RecursiveMove> for RecursiveMoveBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RecursiveMove> {
@@ -15846,9 +15828,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<PropertyNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<PropertyNotFound>>
             for PropertyNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyNotFound>;
@@ -15863,9 +15845,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PropertyNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropertyNotFound>>
             for PropertyNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyNotFound>;
@@ -15880,9 +15862,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<PropertyNotFound> for PropertyNotFoundBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<PropertyNotFound> for PropertyNotFoundBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -16386,9 +16368,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<PropertyDefinitionNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<PropertyDefinitionNotFound>>
             for PropertyDefinitionNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyDefinitionNotFound>;
@@ -16403,9 +16385,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PropertyDefinitionNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropertyDefinitionNotFound>>
             for PropertyDefinitionNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyDefinitionNotFound>;
@@ -16420,9 +16402,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<PropertyDefinitionNotFound>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<PropertyDefinitionNotFound>
             for PropertyDefinitionNotFoundBuilder<(T0, T1)>
         {
             #[inline]
@@ -16699,9 +16681,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<DuplicatePropertyDefinition>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<DuplicatePropertyDefinition>>
             for DuplicatePropertyDefinitionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicatePropertyDefinition>;
@@ -16716,9 +16698,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DuplicatePropertyDefinition>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DuplicatePropertyDefinition>>
             for DuplicatePropertyDefinitionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicatePropertyDefinition>;
@@ -16733,9 +16715,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<DuplicatePropertyDefinition>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<DuplicatePropertyDefinition>
             for DuplicatePropertyDefinitionBuilder<(T0, T1)>
         {
             #[inline]
@@ -17040,10 +17022,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<ChparentPropertyNameConflict>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<ChparentPropertyNameConflict>>
             for ChparentPropertyNameConflictBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<ChparentPropertyNameConflict>;
@@ -17058,10 +17040,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ChparentPropertyNameConflict>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ChparentPropertyNameConflict>>
             for ChparentPropertyNameConflictBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<ChparentPropertyNameConflict>;
@@ -17077,10 +17059,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<ChparentPropertyNameConflict>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<ChparentPropertyNameConflict>
             for ChparentPropertyNameConflictBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -17585,9 +17567,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<VerbNotFound>> for VerbNotFoundBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<VerbNotFound>> for VerbNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbNotFound>;
 
@@ -17598,9 +17580,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbNotFound>>
             for VerbNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbNotFound>;
@@ -17615,9 +17597,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<VerbNotFound> for VerbNotFoundBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<VerbNotFound> for VerbNotFoundBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbNotFound> {
@@ -18136,9 +18118,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<VerbDecodeError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<VerbDecodeError>>
             for VerbDecodeErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbDecodeError>;
@@ -18153,9 +18135,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbDecodeError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbDecodeError>>
             for VerbDecodeErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbDecodeError>;
@@ -18170,9 +18152,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<VerbDecodeError> for VerbDecodeErrorBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<VerbDecodeError> for VerbDecodeErrorBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -18655,10 +18637,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<DuplicateVerb>>
-            for DuplicateVerbBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<DuplicateVerb>> for DuplicateVerbBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVerb>;
 
@@ -18669,9 +18650,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DuplicateVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DuplicateVerb>>
             for DuplicateVerbBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVerb>;
@@ -18686,9 +18667,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<DuplicateVerb> for DuplicateVerbBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<DuplicateVerb> for DuplicateVerbBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<DuplicateVerb> {
@@ -20610,14 +20591,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<PropInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<PropInfo>>
             for PropInfoBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<PropInfo>;
@@ -20629,14 +20610,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<PropInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropInfo>>
             for PropInfoBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<PropInfo>;
@@ -20651,14 +20632,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<PropInfo> for PropInfoBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<PropInfo> for PropInfoBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<PropInfo> {
@@ -21125,15 +21106,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-            > ::planus::WriteAs<::planus::Offset<VerbInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+        > ::planus::WriteAs<::planus::Offset<VerbInfo>>
             for VerbInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             type Prepared = ::planus::Offset<VerbInfo>;
@@ -21145,15 +21126,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbInfo>>
             for VerbInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             type Prepared = ::planus::Offset<VerbInfo>;
@@ -21168,16 +21149,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-            > ::planus::WriteAsOffset<VerbInfo>
-            for VerbInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+        > ::planus::WriteAsOffset<VerbInfo> for VerbInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbInfo> {
@@ -21968,11 +21948,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-                T1: ::planus::WriteAsDefault<i16, i16>,
-                T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-            > ::planus::WriteAs<::planus::Offset<VerbArgsSpec>>
-            for VerbArgsSpecBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+            T1: ::planus::WriteAsDefault<i16, i16>,
+            T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+        > ::planus::WriteAs<::planus::Offset<VerbArgsSpec>> for VerbArgsSpecBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VerbArgsSpec>;
 
@@ -21983,10 +21962,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-                T1: ::planus::WriteAsDefault<i16, i16>,
-                T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbArgsSpec>>
+            T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+            T1: ::planus::WriteAsDefault<i16, i16>,
+            T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbArgsSpec>>
             for VerbArgsSpecBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VerbArgsSpec>;
@@ -22001,10 +21980,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-                T1: ::planus::WriteAsDefault<i16, i16>,
-                T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
-            > ::planus::WriteAsOffset<VerbArgsSpec> for VerbArgsSpecBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+            T1: ::planus::WriteAsDefault<i16, i16>,
+            T2: ::planus::WriteAsDefault<self::ArgSpec, self::ArgSpec>,
+        > ::planus::WriteAsOffset<VerbArgsSpec> for VerbArgsSpecBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbArgsSpec> {
@@ -22363,13 +22342,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
-            > ::planus::WriteAs<::planus::Offset<VerbDef>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
+        > ::planus::WriteAs<::planus::Offset<VerbDef>>
             for VerbDefBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             type Prepared = ::planus::Offset<VerbDef>;
@@ -22381,13 +22360,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbDef>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbDef>>
             for VerbDefBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             type Prepared = ::planus::Offset<VerbDef>;
@@ -22402,13 +22381,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
-            > ::planus::WriteAsOffset<VerbDef> for VerbDefBuilder<(T0, T1, T2, T3, T4, T5)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Symbol>]>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAs<::planus::Offset<self::VerbArgsSpec>>,
+        > ::planus::WriteAsOffset<VerbDef> for VerbDefBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbDef> {
@@ -22737,11 +22716,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<PropDef>> for PropDefBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<PropDef>> for PropDefBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PropDef>;
 
@@ -22752,11 +22731,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PropDef>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropDef>>
             for PropDefBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PropDef>;
@@ -22771,11 +22750,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
-            > ::planus::WriteAsOffset<PropDef> for PropDefBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
+        > ::planus::WriteAsOffset<PropDef> for PropDefBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<PropDef> {
@@ -23631,13 +23610,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAs<::planus::Offset<ObjAttrs>>
-            for ObjAttrsBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAs<::planus::Offset<ObjAttrs>> for ObjAttrsBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ObjAttrs>;
 
@@ -23648,12 +23626,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ObjAttrs>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ObjAttrs>>
             for ObjAttrsBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ObjAttrs>;
@@ -23668,12 +23646,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOffset<ObjAttrs> for ObjAttrsBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOffset<ObjAttrs> for ObjAttrsBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ObjAttrs> {
@@ -27204,9 +27182,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAs<::planus::Offset<VarMapPair>> for VarMapPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAs<::planus::Offset<VarMapPair>> for VarMapPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VarMapPair>;
 
@@ -27217,10 +27195,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VarMapPair>>
-            for VarMapPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VarMapPair>> for VarMapPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VarMapPair>;
 
@@ -27234,9 +27211,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAsOffset<VarMapPair> for VarMapPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAsOffset<VarMapPair> for VarMapPairBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VarMapPair> {
@@ -27721,10 +27698,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAs<::planus::Offset<FlyweightSlot>>
-            for FlyweightSlotBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAs<::planus::Offset<FlyweightSlot>> for FlyweightSlotBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<FlyweightSlot>;
 
@@ -27735,9 +27711,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<FlyweightSlot>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<FlyweightSlot>>
             for FlyweightSlotBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<FlyweightSlot>;
@@ -27752,9 +27728,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
-            > ::planus::WriteAsOffset<FlyweightSlot> for FlyweightSlotBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::Var>>,
+        > ::planus::WriteAsOffset<FlyweightSlot> for FlyweightSlotBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<FlyweightSlot> {
@@ -28016,11 +27992,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
-            > ::planus::WriteAs<::planus::Offset<VarFlyweight>>
-            for VarFlyweightBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
+        > ::planus::WriteAs<::planus::Offset<VarFlyweight>> for VarFlyweightBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VarFlyweight>;
 
@@ -28031,10 +28006,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VarFlyweight>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VarFlyweight>>
             for VarFlyweightBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VarFlyweight>;
@@ -28049,10 +28024,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
-            > ::planus::WriteAsOffset<VarFlyweight> for VarFlyweightBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FlyweightSlot>]>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::VarList>>,
+        > ::planus::WriteAsOffset<VarFlyweight> for VarFlyweightBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VarFlyweight> {
@@ -28368,12 +28343,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAs<::planus::Offset<VarLambda>>
-            for VarLambdaBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAs<::planus::Offset<VarLambda>> for VarLambdaBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<VarLambda>;
 
@@ -28384,11 +28358,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VarLambda>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VarLambda>>
             for VarLambdaBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<VarLambda>;
@@ -28403,11 +28377,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAsOffset<VarLambda> for VarLambdaBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredScatterArgs>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::VarList>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAsOffset<VarLambda> for VarLambdaBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VarLambda> {
@@ -29742,11 +29716,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<EnrollmentRequest>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<EnrollmentRequest>>
             for EnrollmentRequestBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<EnrollmentRequest>;
@@ -29761,11 +29735,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<EnrollmentRequest>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<EnrollmentRequest>>
             for EnrollmentRequestBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<EnrollmentRequest>;
@@ -29780,11 +29754,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<EnrollmentRequest>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<EnrollmentRequest>
             for EnrollmentRequestBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -30178,11 +30152,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAs<::planus::Offset<EnrollmentResponse>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAs<::planus::Offset<EnrollmentResponse>>
             for EnrollmentResponseBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<EnrollmentResponse>;
@@ -30197,11 +30171,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<EnrollmentResponse>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<EnrollmentResponse>>
             for EnrollmentResponseBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<EnrollmentResponse>;
@@ -30216,11 +30190,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOffset<EnrollmentResponse>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOffset<EnrollmentResponse>
             for EnrollmentResponseBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -30748,10 +30722,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<AbortLimit>> for AbortLimitBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<AbortLimit>> for AbortLimitBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<AbortLimit>;
 
@@ -30762,10 +30736,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<AbortLimit>>
+            T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<AbortLimit>>
             for AbortLimitBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<AbortLimit>;
@@ -30780,10 +30754,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<AbortLimit> for AbortLimitBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<self::AbortLimitReason, self::AbortLimitReason>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<AbortLimit> for AbortLimitBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortLimit> {
@@ -34435,9 +34409,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<TaskAbortedVerbNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<TaskAbortedVerbNotFound>>
             for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskAbortedVerbNotFound>;
@@ -34452,9 +34426,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<TaskAbortedVerbNotFound>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<TaskAbortedVerbNotFound>>
             for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskAbortedVerbNotFound>;
@@ -34469,9 +34443,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<TaskAbortedVerbNotFound>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<TaskAbortedVerbNotFound>
             for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
         {
             #[inline]
@@ -42900,10 +42874,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<StringLexError>>
-            for StringLexErrorBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StringLexError>> for StringLexErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StringLexError>;
 
@@ -42914,9 +42887,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StringLexError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StringLexError>>
             for StringLexErrorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StringLexError>;
@@ -42931,9 +42904,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<StringLexError> for StringLexErrorBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StringLexError> for StringLexErrorBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StringLexError> {
@@ -43517,18 +43490,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<ParseError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<ParseError>>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             type Prepared = ::planus::Offset<ParseError>;
@@ -43540,18 +43513,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ParseError>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ParseError>>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             type Prepared = ::planus::Offset<ParseError>;
@@ -43566,18 +43539,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<str>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsDefault<u64, u64>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-                T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<ParseError>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<str>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u64, u64>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+            T10: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<ParseError>
             for ParseErrorBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
         {
             #[inline]
@@ -43953,9 +43926,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownBuiltinFunction>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownBuiltinFunction>>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownBuiltinFunction>;
@@ -43970,9 +43943,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownBuiltinFunction>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownBuiltinFunction>>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownBuiltinFunction>;
@@ -43987,9 +43960,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownBuiltinFunction>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownBuiltinFunction>
             for UnknownBuiltinFunctionBuilder<(T0, T1)>
         {
             #[inline]
@@ -44265,9 +44238,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownTypeConstant>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownTypeConstant>>
             for UnknownTypeConstantBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownTypeConstant>;
@@ -44282,9 +44255,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownTypeConstant>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownTypeConstant>>
             for UnknownTypeConstantBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownTypeConstant>;
@@ -44299,10 +44272,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownTypeConstant>
-            for UnknownTypeConstantBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownTypeConstant> for UnknownTypeConstantBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -44574,9 +44546,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<UnknownLoopLabel>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<UnknownLoopLabel>>
             for UnknownLoopLabelBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownLoopLabel>;
@@ -44591,9 +44563,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UnknownLoopLabel>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UnknownLoopLabel>>
             for UnknownLoopLabelBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<UnknownLoopLabel>;
@@ -44608,9 +44580,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<UnknownLoopLabel> for UnknownLoopLabelBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<UnknownLoopLabel> for UnknownLoopLabelBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -44880,9 +44852,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<DuplicateVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<DuplicateVariable>>
             for DuplicateVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVariable>;
@@ -44897,9 +44869,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DuplicateVariable>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DuplicateVariable>>
             for DuplicateVariableBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DuplicateVariable>;
@@ -44914,9 +44886,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<DuplicateVariable> for DuplicateVariableBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<DuplicateVariable> for DuplicateVariableBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -45179,10 +45151,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<AssignToConst>>
-            for AssignToConstBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<AssignToConst>> for AssignToConstBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignToConst>;
 
@@ -45193,9 +45164,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<AssignToConst>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<AssignToConst>>
             for AssignToConstBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AssignToConst>;
@@ -45210,9 +45181,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<AssignToConst> for AssignToConstBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<AssignToConst> for AssignToConstBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AssignToConst> {
@@ -45481,9 +45452,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<DisabledFeature>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<DisabledFeature>>
             for DisabledFeatureBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DisabledFeature>;
@@ -45498,9 +45469,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DisabledFeature>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DisabledFeature>>
             for DisabledFeatureBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DisabledFeature>;
@@ -45515,9 +45486,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<DisabledFeature> for DisabledFeatureBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<DisabledFeature> for DisabledFeatureBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -45778,9 +45749,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<BadSlotName>> for BadSlotNameBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<BadSlotName>> for BadSlotNameBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<BadSlotName>;
 
@@ -45791,9 +45762,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<BadSlotName>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<BadSlotName>>
             for BadSlotNameBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<BadSlotName>;
@@ -45808,9 +45779,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<BadSlotName> for BadSlotNameBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CompileContext>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<BadSlotName> for BadSlotNameBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<BadSlotName> {
@@ -47087,9 +47058,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<VerbProgramSuccess>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<VerbProgramSuccess>>
             for VerbProgramSuccessBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbProgramSuccess>;
@@ -47104,9 +47075,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbProgramSuccess>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbProgramSuccess>>
             for VerbProgramSuccessBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbProgramSuccess>;
@@ -47121,9 +47092,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<VerbProgramSuccess> for VerbProgramSuccessBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<VerbProgramSuccess> for VerbProgramSuccessBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -47902,9 +47873,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<ConnectionAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<ConnectionAttribute>>
             for ConnectionAttributeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<ConnectionAttribute>;
@@ -47919,9 +47890,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ConnectionAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ConnectionAttribute>>
             for ConnectionAttributeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<ConnectionAttribute>;
@@ -47936,10 +47907,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<ConnectionAttribute>
-            for ConnectionAttributeBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<ConnectionAttribute> for ConnectionAttributeBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -48694,11 +48664,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAs<::planus::Offset<RegisterHost>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAs<::planus::Offset<RegisterHost>>
             for RegisterHostBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<RegisterHost>;
@@ -48710,11 +48680,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RegisterHost>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RegisterHost>>
             for RegisterHostBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<RegisterHost>;
@@ -48729,11 +48699,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAsOffset<RegisterHost> for RegisterHostBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAsOffset<RegisterHost> for RegisterHostBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RegisterHost> {
@@ -49815,11 +49785,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAs<::planus::Offset<HostPong>> for HostPongBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAs<::planus::Offset<HostPong>> for HostPongBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<HostPong>;
 
@@ -49830,11 +49800,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<HostPong>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<HostPong>>
             for HostPongBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<HostPong>;
@@ -49849,11 +49819,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
-            > ::planus::WriteAsOffset<HostPong> for HostPongBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Listener>]>>,
+        > ::planus::WriteAsOffset<HostPong> for HostPongBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<HostPong> {
@@ -50120,9 +50090,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<Listener>> for ListenerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<Listener>> for ListenerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Listener>;
 
@@ -50133,9 +50103,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Listener>> for ListenerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Listener>> for ListenerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Listener>;
 
@@ -50149,9 +50119,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<Listener> for ListenerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<Listener> for ListenerBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Listener> {
@@ -51561,10 +51531,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAsDefault<i64, i64>,
-                T2: ::planus::WriteAsDefault<i64, i64>,
-            > ::planus::WriteAs<::planus::Offset<Counter>> for CounterBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAsDefault<i64, i64>,
+            T2: ::planus::WriteAsDefault<i64, i64>,
+        > ::planus::WriteAs<::planus::Offset<Counter>> for CounterBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Counter>;
 
@@ -51575,11 +51545,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAsDefault<i64, i64>,
-                T2: ::planus::WriteAsDefault<i64, i64>,
-            > ::planus::WriteAsOptional<::planus::Offset<Counter>>
-            for CounterBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAsDefault<i64, i64>,
+            T2: ::planus::WriteAsDefault<i64, i64>,
+        > ::planus::WriteAsOptional<::planus::Offset<Counter>> for CounterBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Counter>;
 
@@ -51593,10 +51562,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAsDefault<i64, i64>,
-                T2: ::planus::WriteAsDefault<i64, i64>,
-            > ::planus::WriteAsOffset<Counter> for CounterBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAsDefault<i64, i64>,
+            T2: ::planus::WriteAsDefault<i64, i64>,
+        > ::planus::WriteAsOffset<Counter> for CounterBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter> {
@@ -51875,9 +51844,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-            > ::planus::WriteAs<::planus::Offset<CounterCategory>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
+        > ::planus::WriteAs<::planus::Offset<CounterCategory>>
             for CounterCategoryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CounterCategory>;
@@ -51892,9 +51861,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CounterCategory>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CounterCategory>>
             for CounterCategoryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CounterCategory>;
@@ -51909,9 +51878,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-            > ::planus::WriteAsOffset<CounterCategory> for CounterCategoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
+        > ::planus::WriteAsOffset<CounterCategory> for CounterCategoryBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -52203,9 +52172,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-            > ::planus::WriteAs<::planus::Offset<DaemonToHostPerfCounters>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
+        > ::planus::WriteAs<::planus::Offset<DaemonToHostPerfCounters>>
             for DaemonToHostPerfCountersBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DaemonToHostPerfCounters>;
@@ -52220,9 +52189,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DaemonToHostPerfCounters>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DaemonToHostPerfCounters>>
             for DaemonToHostPerfCountersBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DaemonToHostPerfCounters>;
@@ -52237,9 +52206,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-            > ::planus::WriteAsOffset<DaemonToHostPerfCounters>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
+        > ::planus::WriteAsOffset<DaemonToHostPerfCounters>
             for DaemonToHostPerfCountersBuilder<(T0, T1)>
         {
             #[inline]
@@ -53086,21 +53055,21 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAsDefault<bool, bool>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsDefault<bool, bool>,
-                T10: ::planus::WriteAsDefault<bool, bool>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsDefault<bool, bool>,
-                T13: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<ServerFeatures>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAsDefault<bool, bool>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsDefault<bool, bool>,
+            T10: ::planus::WriteAsDefault<bool, bool>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsDefault<bool, bool>,
+            T13: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<ServerFeatures>>
             for ServerFeaturesBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
         {
             type Prepared = ::planus::Offset<ServerFeatures>;
@@ -53112,21 +53081,21 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAsDefault<bool, bool>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsDefault<bool, bool>,
-                T10: ::planus::WriteAsDefault<bool, bool>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsDefault<bool, bool>,
-                T13: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<ServerFeatures>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAsDefault<bool, bool>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsDefault<bool, bool>,
+            T10: ::planus::WriteAsDefault<bool, bool>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsDefault<bool, bool>,
+            T13: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<ServerFeatures>>
             for ServerFeaturesBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
         {
             type Prepared = ::planus::Offset<ServerFeatures>;
@@ -53141,21 +53110,21 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsDefault<bool, bool>,
-                T6: ::planus::WriteAsDefault<bool, bool>,
-                T7: ::planus::WriteAsDefault<bool, bool>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsDefault<bool, bool>,
-                T10: ::planus::WriteAsDefault<bool, bool>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsDefault<bool, bool>,
-                T13: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<ServerFeatures>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsDefault<bool, bool>,
+            T6: ::planus::WriteAsDefault<bool, bool>,
+            T7: ::planus::WriteAsDefault<bool, bool>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsDefault<bool, bool>,
+            T10: ::planus::WriteAsDefault<bool, bool>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsDefault<bool, bool>,
+            T13: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<ServerFeatures>
             for ServerFeaturesBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
         {
             #[inline]
@@ -54168,8 +54137,8 @@ mod root {
             pub fn options<T3>(self, value: T3) -> HostBroadcastListenBuilder<(T0, T1, T2, T3)>
             where
                 T3: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_var::VarMapPair>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_var::VarMapPair>]>,
+                    >,
             {
                 let (v0, v1, v2) = self.0;
                 HostBroadcastListenBuilder((v0, v1, v2, value))
@@ -54198,13 +54167,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_var::VarMapPair>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<HostBroadcastListen>>
+        > ::planus::WriteAs<::planus::Offset<HostBroadcastListen>>
             for HostBroadcastListenBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<HostBroadcastListen>;
@@ -54219,13 +54188,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_var::VarMapPair>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<HostBroadcastListen>>
+        > ::planus::WriteAsOptional<::planus::Offset<HostBroadcastListen>>
             for HostBroadcastListenBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<HostBroadcastListen>;
@@ -54240,13 +54209,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_var::VarMapPair>]>,
                 >,
-            > ::planus::WriteAsOffset<HostBroadcastListen>
+        > ::planus::WriteAsOffset<HostBroadcastListen>
             for HostBroadcastListenBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -54583,9 +54552,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<HostBroadcastUnlisten>>
+            T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<HostBroadcastUnlisten>>
             for HostBroadcastUnlistenBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostBroadcastUnlisten>;
@@ -54600,9 +54569,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<HostBroadcastUnlisten>>
+            T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<HostBroadcastUnlisten>>
             for HostBroadcastUnlistenBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostBroadcastUnlisten>;
@@ -54617,9 +54586,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<HostBroadcastUnlisten>
+            T0: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<HostBroadcastUnlisten>
             for HostBroadcastUnlistenBuilder<(T0, T1)>
         {
             #[inline]
@@ -55434,9 +55403,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<WsRequestProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<WsRequestProperty>>
             for WsRequestPropertyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestProperty>;
@@ -55451,9 +55420,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsRequestProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsRequestProperty>>
             for WsRequestPropertyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestProperty>;
@@ -55468,9 +55437,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<WsRequestProperty> for WsRequestPropertyBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<WsRequestProperty> for WsRequestPropertyBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -55746,9 +55715,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<WsRequestProperties>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<WsRequestProperties>>
             for WsRequestPropertiesBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestProperties>;
@@ -55763,9 +55732,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsRequestProperties>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsRequestProperties>>
             for WsRequestPropertiesBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestProperties>;
@@ -55780,10 +55749,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<WsRequestProperties>
-            for WsRequestPropertiesBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<WsRequestProperties> for WsRequestPropertiesBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -56051,9 +56019,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<WsRequestSystemProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<WsRequestSystemProperty>>
             for WsRequestSystemPropertyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestSystemProperty>;
@@ -56068,9 +56036,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsRequestSystemProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsRequestSystemProperty>>
             for WsRequestSystemPropertyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestSystemProperty>;
@@ -56085,9 +56053,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<WsRequestSystemProperty>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<WsRequestSystemProperty>
             for WsRequestSystemPropertyBuilder<(T0, T1)>
         {
             #[inline]
@@ -56365,10 +56333,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<WsRequestVerbs>>
-            for WsRequestVerbsBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<WsRequestVerbs>> for WsRequestVerbsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestVerbs>;
 
@@ -56379,9 +56346,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsRequestVerbs>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsRequestVerbs>>
             for WsRequestVerbsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestVerbs>;
@@ -56396,9 +56363,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<WsRequestVerbs> for WsRequestVerbsBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<WsRequestVerbs> for WsRequestVerbsBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WsRequestVerbs> {
@@ -56659,9 +56626,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<WsRequestVerbCode>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<WsRequestVerbCode>>
             for WsRequestVerbCodeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestVerbCode>;
@@ -56676,9 +56643,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsRequestVerbCode>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsRequestVerbCode>>
             for WsRequestVerbCodeBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsRequestVerbCode>;
@@ -56693,9 +56660,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<WsRequestVerbCode> for WsRequestVerbCodeBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<WsRequestVerbCode> for WsRequestVerbCodeBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -57669,10 +57636,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<WsUpdateProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<WsUpdateProperty>>
             for WsUpdatePropertyBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<WsUpdateProperty>;
@@ -57687,10 +57654,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsUpdateProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsUpdateProperty>>
             for WsUpdatePropertyBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<WsUpdateProperty>;
@@ -57705,10 +57672,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<WsUpdateProperty> for WsUpdatePropertyBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<WsUpdateProperty> for WsUpdatePropertyBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(
@@ -57990,10 +57957,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<WsProgramVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<WsProgramVerb>>
             for WsProgramVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<WsProgramVerb>;
@@ -58005,10 +57972,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsProgramVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsProgramVerb>>
             for WsProgramVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<WsProgramVerb>;
@@ -58023,10 +57990,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<WsProgramVerb> for WsProgramVerbBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<WsProgramVerb> for WsProgramVerbBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WsProgramVerb> {
@@ -58692,12 +58659,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<WsQueryObjects>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<WsQueryObjects>>
             for WsQueryObjectsBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<WsQueryObjects>;
@@ -58709,12 +58676,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsQueryObjects>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsQueryObjects>>
             for WsQueryObjectsBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<WsQueryObjects>;
@@ -58729,13 +58696,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<WsQueryObjects>
-            for WsQueryObjectsBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<WsQueryObjects> for WsQueryObjectsBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WsQueryObjects> {
@@ -59883,9 +59849,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
-            > ::planus::WriteAs<::planus::Offset<WorldStateActionEntry>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
+        > ::planus::WriteAs<::planus::Offset<WorldStateActionEntry>>
             for WorldStateActionEntryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorldStateActionEntry>;
@@ -59900,9 +59866,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
-            > ::planus::WriteAsOptional<::planus::Offset<WorldStateActionEntry>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
+        > ::planus::WriteAsOptional<::planus::Offset<WorldStateActionEntry>>
             for WorldStateActionEntryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorldStateActionEntry>;
@@ -59917,9 +59883,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
-            > ::planus::WriteAsOffset<WorldStateActionEntry>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateActionUnion>,
+        > ::planus::WriteAsOffset<WorldStateActionEntry>
             for WorldStateActionEntryBuilder<(T0, T1)>
         {
             #[inline]
@@ -60175,8 +60141,8 @@ mod root {
             pub fn actions<T1>(self, value: T1) -> BatchWorldStateBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>,
+                    >,
             {
                 let (v0,) = self.0;
                 BatchWorldStateBuilder((v0, value))
@@ -60220,12 +60186,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>,
-                >,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<BatchWorldState>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<BatchWorldState>>
             for BatchWorldStateBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<BatchWorldState>;
@@ -60240,12 +60204,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>,
-                >,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<BatchWorldState>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<BatchWorldState>>
             for BatchWorldStateBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<BatchWorldState>;
@@ -60260,12 +60222,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>,
-                >,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<BatchWorldState> for BatchWorldStateBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateActionEntry>]>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<BatchWorldState> for BatchWorldStateBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(
@@ -60531,9 +60491,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<WsPropertyResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<WsPropertyResult>>
             for WsPropertyResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsPropertyResult>;
@@ -60548,9 +60508,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsPropertyResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsPropertyResult>>
             for WsPropertyResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsPropertyResult>;
@@ -60565,9 +60525,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<WsPropertyResult> for WsPropertyResultBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<WsPropertyResult> for WsPropertyResultBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -60801,8 +60761,8 @@ mod root {
             pub fn properties<T0>(self, value: T0) -> WsPropertiesResultBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
+                    >,
             {
                 WsPropertiesResultBuilder((value,))
             }
@@ -60823,10 +60783,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<WsPropertiesResult>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAs<::planus::Offset<WsPropertiesResult>>
             for WsPropertiesResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsPropertiesResult>;
@@ -60841,10 +60799,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<WsPropertiesResult>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsPropertiesResult>>
             for WsPropertiesResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsPropertiesResult>;
@@ -60859,10 +60815,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAsOffset<WsPropertiesResult> for WsPropertiesResultBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAsOffset<WsPropertiesResult> for WsPropertiesResultBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -61343,8 +61297,8 @@ mod root {
             pub fn verbs<T0>(self, value: T0) -> WsVerbsResultBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
+                    >,
             {
                 WsVerbsResultBuilder((value,))
             }
@@ -61362,10 +61316,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<WsVerbsResult>> for WsVerbsResultBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAs<::planus::Offset<WsVerbsResult>> for WsVerbsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsVerbsResult>;
 
@@ -61376,10 +61328,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<WsVerbsResult>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsVerbsResult>>
             for WsVerbsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsVerbsResult>;
@@ -61394,10 +61344,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAsOffset<WsVerbsResult> for WsVerbsResultBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAsOffset<WsVerbsResult> for WsVerbsResultBuilder<(T0,)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WsVerbsResult> {
@@ -61648,9 +61596,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<WsVerbCodeResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<WsVerbCodeResult>>
             for WsVerbCodeResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsVerbCodeResult>;
@@ -61665,9 +61613,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsVerbCodeResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsVerbCodeResult>>
             for WsVerbCodeResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsVerbCodeResult>;
@@ -61682,9 +61630,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<WsVerbCodeResult> for WsVerbCodeResultBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<WsVerbCodeResult> for WsVerbCodeResultBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -62451,9 +62399,7 @@ mod root {
             #[allow(clippy::type_complexity)]
             pub fn objects<T0>(self, value: T0) -> WsAllObjectsResultBuilder<(T0,)>
             where
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>,
-                >,
+                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
             {
                 WsAllObjectsResultBuilder((value,))
             }
@@ -62473,9 +62419,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAs<::planus::Offset<WsAllObjectsResult>>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAs<::planus::Offset<WsAllObjectsResult>>
             for WsAllObjectsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsAllObjectsResult>;
@@ -62489,9 +62434,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsAllObjectsResult>>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAsOptional<::planus::Offset<WsAllObjectsResult>>
             for WsAllObjectsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsAllObjectsResult>;
@@ -62505,9 +62449,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAsOffset<WsAllObjectsResult> for WsAllObjectsResultBuilder<(T0,)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAsOffset<WsAllObjectsResult> for WsAllObjectsResultBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -63003,9 +62946,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<WsVerbProgrammedResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<WsVerbProgrammedResult>>
             for WsVerbProgrammedResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsVerbProgrammedResult>;
@@ -63020,9 +62963,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsVerbProgrammedResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WsVerbProgrammedResult>>
             for WsVerbProgrammedResultBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WsVerbProgrammedResult>;
@@ -63037,9 +62980,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<WsVerbProgrammedResult>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<WsVerbProgrammedResult>
             for WsVerbProgrammedResultBuilder<(T0, T1)>
         {
             #[inline]
@@ -63566,9 +63509,7 @@ mod root {
             #[allow(clippy::type_complexity)]
             pub fn objects<T0>(self, value: T0) -> WsQueryObjectsResultBuilder<(T0,)>
             where
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>,
-                >,
+                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
             {
                 WsQueryObjectsResultBuilder((value,))
             }
@@ -63588,9 +63529,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAs<::planus::Offset<WsQueryObjectsResult>>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAs<::planus::Offset<WsQueryObjectsResult>>
             for WsQueryObjectsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsQueryObjectsResult>;
@@ -63604,9 +63544,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WsQueryObjectsResult>>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAsOptional<::planus::Offset<WsQueryObjectsResult>>
             for WsQueryObjectsResultBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<WsQueryObjectsResult>;
@@ -63620,9 +63559,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>,
-            > ::planus::WriteAsOffset<WsQueryObjectsResult> for WsQueryObjectsResultBuilder<(T0,)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Obj>]>>>
+            ::planus::WriteAsOffset<WsQueryObjectsResult> for WsQueryObjectsResultBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -65019,9 +64957,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
-            > ::planus::WriteAs<::planus::Offset<WorldStateResultEntry>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
+        > ::planus::WriteAs<::planus::Offset<WorldStateResultEntry>>
             for WorldStateResultEntryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorldStateResultEntry>;
@@ -65036,9 +64974,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
-            > ::planus::WriteAsOptional<::planus::Offset<WorldStateResultEntry>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
+        > ::planus::WriteAsOptional<::planus::Offset<WorldStateResultEntry>>
             for WorldStateResultEntryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorldStateResultEntry>;
@@ -65053,9 +64991,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
-            > ::planus::WriteAsOffset<WorldStateResultEntry>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsUnion<self::WorldStateResultUnion>,
+        > ::planus::WriteAsOffset<WorldStateResultEntry>
             for WorldStateResultEntryBuilder<(T0, T1)>
         {
             #[inline]
@@ -65281,8 +65219,8 @@ mod root {
             pub fn results<T0>(self, value: T0) -> BatchWorldStateReplyBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>,
+                    >,
             {
                 BatchWorldStateReplyBuilder((value,))
             }
@@ -65303,10 +65241,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<BatchWorldStateReply>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>>,
+        > ::planus::WriteAs<::planus::Offset<BatchWorldStateReply>>
             for BatchWorldStateReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<BatchWorldStateReply>;
@@ -65321,10 +65257,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<BatchWorldStateReply>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<BatchWorldStateReply>>
             for BatchWorldStateReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<BatchWorldStateReply>;
@@ -65339,10 +65273,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>,
-                >,
-            > ::planus::WriteAsOffset<BatchWorldStateReply> for BatchWorldStateReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::WorldStateResultEntry>]>>,
+        > ::planus::WriteAsOffset<BatchWorldStateReply> for BatchWorldStateReplyBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -67595,8 +67527,8 @@ mod root {
             ) -> ConnectionEstablishBuilder<(T0, T1, T2, T3)>
             where
                 T3: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
+                    >,
             {
                 let (v0, v1, v2) = self.0;
                 ConnectionEstablishBuilder((v0, v1, v2, value))
@@ -67622,8 +67554,8 @@ mod root {
             ) -> ConnectionEstablishBuilder<(T0, T1, T2, T3, T4)>
             where
                 T4: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
+                    >,
             {
                 let (v0, v1, v2, v3) = self.0;
                 ConnectionEstablishBuilder((v0, v1, v2, v3, value))
@@ -67654,16 +67586,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T4: ::planus::WriteAsOptional<
+            T4: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<ConnectionEstablish>>
+        > ::planus::WriteAs<::planus::Offset<ConnectionEstablish>>
             for ConnectionEstablishBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ConnectionEstablish>;
@@ -67678,16 +67610,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T4: ::planus::WriteAsOptional<
+            T4: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<ConnectionEstablish>>
+        > ::planus::WriteAsOptional<::planus::Offset<ConnectionEstablish>>
             for ConnectionEstablishBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ConnectionEstablish>;
@@ -67702,16 +67634,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T4: ::planus::WriteAsOptional<
+            T4: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAsOffset<ConnectionEstablish>
+        > ::planus::WriteAsOffset<ConnectionEstablish>
             for ConnectionEstablishBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
@@ -68176,8 +68108,8 @@ mod root {
             ) -> ReattachBuilder<(T0, T1, T2, T3, T4, T5)>
             where
                 T5: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4) = self.0;
                 ReattachBuilder((v0, v1, v2, v3, v4, value))
@@ -68203,8 +68135,8 @@ mod root {
             ) -> ReattachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
             where
                 T6: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5) = self.0;
                 ReattachBuilder((v0, v1, v2, v3, v4, v5, value))
@@ -68232,18 +68164,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T6: ::planus::WriteAsOptional<
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<Reattach>>
+        > ::planus::WriteAs<::planus::Offset<Reattach>>
             for ReattachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<Reattach>;
@@ -68255,18 +68187,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T6: ::planus::WriteAsOptional<
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<Reattach>>
+        > ::planus::WriteAsOptional<::planus::Offset<Reattach>>
             for ReattachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<Reattach>;
@@ -68281,18 +68213,18 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-                T6: ::planus::WriteAsOptional<
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<self::ConnectionAttribute>]>,
                 >,
-            > ::planus::WriteAsOffset<Reattach> for ReattachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+        > ::planus::WriteAsOffset<Reattach> for ReattachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Reattach> {
@@ -68651,10 +68583,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<RequestSysProp>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<RequestSysProp>>
             for RequestSysPropBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestSysProp>;
@@ -68666,10 +68598,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestSysProp>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestSysProp>>
             for RequestSysPropBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestSysProp>;
@@ -68684,10 +68616,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<RequestSysProp> for RequestSysPropBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<RequestSysProp> for RequestSysPropBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestSysProp> {
@@ -69046,12 +68978,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
-            > ::planus::WriteAs<::planus::Offset<LoginCommand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
+        > ::planus::WriteAs<::planus::Offset<LoginCommand>>
             for LoginCommandBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<LoginCommand>;
@@ -69063,12 +68995,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
-            > ::planus::WriteAsOptional<::planus::Offset<LoginCommand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
+        > ::planus::WriteAsOptional<::planus::Offset<LoginCommand>>
             for LoginCommandBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<LoginCommand>;
@@ -69083,12 +69015,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
-            > ::planus::WriteAsOffset<LoginCommand> for LoginCommandBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::VarMap>>,
+        > ::planus::WriteAsOffset<LoginCommand> for LoginCommandBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<LoginCommand> {
@@ -69527,8 +69459,8 @@ mod root {
             ) -> AttachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
             where
                 T6: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5) = self.0;
                 AttachBuilder((v0, v1, v2, v3, v4, v5, value))
@@ -69556,16 +69488,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsDefault<u16, u16>,
-                T6: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsDefault<u16, u16>,
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<Attach>>
+        > ::planus::WriteAs<::planus::Offset<Attach>>
             for AttachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<Attach>;
@@ -69577,16 +69509,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsDefault<u16, u16>,
-                T6: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsDefault<u16, u16>,
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<Attach>>
+        > ::planus::WriteAsOptional<::planus::Offset<Attach>>
             for AttachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<Attach>;
@@ -69601,16 +69533,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsDefault<u16, u16>,
-                T6: ::planus::WriteAsOptional<
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsDefault<u16, u16>,
+            T6: ::planus::WriteAsOptional<
                     ::planus::Offset<[::planus::Offset<super::moor_common::Symbol>]>,
                 >,
-            > ::planus::WriteAsOffset<Attach> for AttachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+        > ::planus::WriteAsOffset<Attach> for AttachBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Attach> {
@@ -69961,11 +69893,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<Command>> for CommandBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<Command>> for CommandBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Command>;
 
@@ -69976,11 +69908,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Command>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Command>>
             for CommandBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Command>;
@@ -69995,11 +69927,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<Command> for CommandBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<Command> for CommandBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
@@ -70294,10 +70226,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<Verbs>> for VerbsBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<Verbs>> for VerbsBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Verbs>;
 
@@ -70308,10 +70240,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<Verbs>> for VerbsBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<Verbs>> for VerbsBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Verbs>;
 
@@ -70325,10 +70257,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<Verbs> for VerbsBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<Verbs> for VerbsBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Verbs> {
@@ -70639,12 +70571,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAs<::planus::Offset<InvokeVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<InvokeVerb>>
             for InvokeVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<InvokeVerb>;
@@ -70656,12 +70588,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<InvokeVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<InvokeVerb>>
             for InvokeVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<InvokeVerb>;
@@ -70676,12 +70608,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOffset<InvokeVerb> for InvokeVerbBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<InvokeVerb> for InvokeVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<InvokeVerb> {
@@ -70995,10 +70927,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<Properties>> for PropertiesBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<Properties>> for PropertiesBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Properties>;
 
@@ -71009,10 +70941,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<Properties>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<Properties>>
             for PropertiesBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Properties>;
@@ -71027,10 +70959,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<Properties> for PropertiesBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<Properties> for PropertiesBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Properties> {
@@ -71352,11 +71284,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<Retrieve>> for RetrieveBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<Retrieve>> for RetrieveBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Retrieve>;
 
@@ -71367,11 +71299,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Retrieve>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Retrieve>>
             for RetrieveBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<Retrieve>;
@@ -71386,11 +71318,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<Retrieve> for RetrieveBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAsDefault<self::EntityType, self::EntityType>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<Retrieve> for RetrieveBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Retrieve> {
@@ -71722,13 +71654,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<Program>>
-            for ProgramBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<Program>> for ProgramBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Program>;
 
@@ -71739,12 +71670,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Program>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Program>>
             for ProgramBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Program>;
@@ -71759,12 +71690,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<Program> for ProgramBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<Program> for ProgramBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Program> {
@@ -72075,11 +72006,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<RequestedInput>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<RequestedInput>>
             for RequestedInputBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<RequestedInput>;
@@ -72091,11 +72022,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestedInput>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestedInput>>
             for RequestedInputBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<RequestedInput>;
@@ -72110,11 +72041,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<RequestedInput> for RequestedInputBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<RequestedInput> for RequestedInputBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestedInput> {
@@ -72438,12 +72369,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<OutOfBand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<OutOfBand>>
             for OutOfBandBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<OutOfBand>;
@@ -72455,12 +72386,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<OutOfBand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<OutOfBand>>
             for OutOfBandBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<OutOfBand>;
@@ -72475,12 +72406,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<OutOfBand> for OutOfBandBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<OutOfBand> for OutOfBandBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<OutOfBand> {
@@ -72795,10 +72726,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Eval>;
 
@@ -72809,10 +72740,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Eval>;
 
@@ -72826,10 +72757,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<Eval> for EvalBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<Eval> for EvalBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Eval> {
@@ -73083,9 +73014,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-            > ::planus::WriteAs<::planus::Offset<Resolve>> for ResolveBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+        > ::planus::WriteAs<::planus::Offset<Resolve>> for ResolveBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Resolve>;
 
@@ -73096,9 +73027,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Resolve>> for ResolveBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Resolve>> for ResolveBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Resolve>;
 
@@ -73112,9 +73043,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-            > ::planus::WriteAsOffset<Resolve> for ResolveBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+        > ::planus::WriteAsOffset<Resolve> for ResolveBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Resolve> {
@@ -73453,12 +73384,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<ClientPong>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<ClientPong>>
             for ClientPongBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ClientPong>;
@@ -73470,12 +73401,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ClientPong>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ClientPong>>
             for ClientPongBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<ClientPong>;
@@ -73490,12 +73421,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<ClientPong> for ClientPongBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<self::HostType, self::HostType>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<ClientPong> for ClientPongBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ClientPong> {
@@ -73777,10 +73708,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
-            > ::planus::WriteAs<::planus::Offset<RequestHistory>>
-            for RequestHistoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
+        > ::planus::WriteAs<::planus::Offset<RequestHistory>> for RequestHistoryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RequestHistory>;
 
@@ -73791,9 +73721,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestHistory>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestHistory>>
             for RequestHistoryBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RequestHistory>;
@@ -73808,9 +73738,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
-            > ::planus::WriteAsOffset<RequestHistory> for RequestHistoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HistoryRecall>>,
+        > ::planus::WriteAsOffset<RequestHistory> for RequestHistoryBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestHistory> {
@@ -74368,9 +74298,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<DismissPresentation>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<DismissPresentation>>
             for DismissPresentationBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DismissPresentation>;
@@ -74385,9 +74315,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<DismissPresentation>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DismissPresentation>>
             for DismissPresentationBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<DismissPresentation>;
@@ -74402,10 +74332,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<DismissPresentation>
-            for DismissPresentationBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<DismissPresentation> for DismissPresentationBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -74726,11 +74655,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<SetClientAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<SetClientAttribute>>
             for SetClientAttributeBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<SetClientAttribute>;
@@ -74745,11 +74674,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<SetClientAttribute>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SetClientAttribute>>
             for SetClientAttributeBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<SetClientAttribute>;
@@ -74764,11 +74693,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<SetClientAttribute>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<SetClientAttribute>
             for SetClientAttributeBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -75075,9 +75004,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<Detach>> for DetachBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<Detach>> for DetachBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Detach>;
 
@@ -75088,9 +75017,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<Detach>> for DetachBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<Detach>> for DetachBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<Detach>;
 
@@ -75104,9 +75033,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<Detach> for DetachBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<Detach> for DetachBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Detach> {
@@ -75646,9 +75575,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<SetEventLogPublicKey>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<SetEventLogPublicKey>>
             for SetEventLogPublicKeyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<SetEventLogPublicKey>;
@@ -75663,9 +75592,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<SetEventLogPublicKey>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SetEventLogPublicKey>>
             for SetEventLogPublicKeyBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<SetEventLogPublicKey>;
@@ -75680,10 +75609,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<SetEventLogPublicKey>
-            for SetEventLogPublicKeyBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<SetEventLogPublicKey> for SetEventLogPublicKeyBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -76504,11 +76432,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<UpdateProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<UpdateProperty>>
             for UpdatePropertyBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<UpdateProperty>;
@@ -76520,11 +76448,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<UpdateProperty>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<UpdateProperty>>
             for UpdatePropertyBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<UpdateProperty>;
@@ -76539,11 +76467,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<UpdateProperty> for UpdatePropertyBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<UpdateProperty> for UpdatePropertyBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<UpdateProperty> {
@@ -76884,11 +76812,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-            > ::planus::WriteAs<::planus::Offset<InvokeSystemHandler>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+        > ::planus::WriteAs<::planus::Offset<InvokeSystemHandler>>
             for InvokeSystemHandlerBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<InvokeSystemHandler>;
@@ -76903,11 +76831,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-            > ::planus::WriteAsOptional<::planus::Offset<InvokeSystemHandler>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+        > ::planus::WriteAsOptional<::planus::Offset<InvokeSystemHandler>>
             for InvokeSystemHandlerBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<InvokeSystemHandler>;
@@ -76922,11 +76850,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-            > ::planus::WriteAsOffset<InvokeSystemHandler>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+        > ::planus::WriteAsOffset<InvokeSystemHandler>
             for InvokeSystemHandlerBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -77250,10 +77178,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAs<::planus::Offset<CallSystemVerb>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<CallSystemVerb>>
             for CallSystemVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<CallSystemVerb>;
@@ -77265,10 +77193,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CallSystemVerb>>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CallSystemVerb>>
             for CallSystemVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<CallSystemVerb>;
@@ -77283,10 +77211,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-            > ::planus::WriteAsOffset<CallSystemVerb> for CallSystemVerbBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<CallSystemVerb> for CallSystemVerbBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<CallSystemVerb> {
@@ -79551,10 +79479,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-            > ::planus::WriteAs<::planus::Offset<NewConnection>>
-            for NewConnectionBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+        > ::planus::WriteAs<::planus::Offset<NewConnection>> for NewConnectionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<NewConnection>;
 
@@ -79565,9 +79492,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-            > ::planus::WriteAsOptional<::planus::Offset<NewConnection>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+        > ::planus::WriteAsOptional<::planus::Offset<NewConnection>>
             for NewConnectionBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<NewConnection>;
@@ -79582,9 +79509,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-            > ::planus::WriteAsOffset<NewConnection> for NewConnectionBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+        > ::planus::WriteAsOffset<NewConnection> for NewConnectionBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NewConnection> {
@@ -79978,12 +79905,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<LoginResult>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<LoginResult>>
             for LoginResultBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<LoginResult>;
@@ -79995,12 +79922,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<LoginResult>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<LoginResult>>
             for LoginResultBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<LoginResult>;
@@ -80015,12 +79942,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<LoginResult> for LoginResultBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<self::ConnectType, self::ConnectType>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<LoginResult> for LoginResultBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<LoginResult> {
@@ -80433,11 +80360,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<AttachResult>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<AttachResult>>
             for AttachResultBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<AttachResult>;
@@ -80449,11 +80376,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<AttachResult>>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<AttachResult>>
             for AttachResultBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<AttachResult>;
@@ -80468,11 +80395,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<bool, bool>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<AttachResult> for AttachResultBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAsDefault<bool, bool>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::ClientToken>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<AttachResult> for AttachResultBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AttachResult> {
@@ -81984,8 +81911,8 @@ mod root {
             pub fn verbs<T0>(self, value: T0) -> VerbsReplyBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
+                    >,
             {
                 VerbsReplyBuilder((value,))
             }
@@ -82003,10 +81930,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<VerbsReply>> for VerbsReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAs<::planus::Offset<VerbsReply>> for VerbsReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<VerbsReply>;
 
@@ -82017,10 +81942,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbsReply>> for VerbsReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbsReply>> for VerbsReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<VerbsReply>;
 
@@ -82034,10 +81957,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>,
-                >,
-            > ::planus::WriteAsOffset<VerbsReply> for VerbsReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::VerbInfo>]>>,
+        > ::planus::WriteAsOffset<VerbsReply> for VerbsReplyBuilder<(T0,)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbsReply> {
@@ -82260,8 +82181,8 @@ mod root {
             pub fn properties<T0>(self, value: T0) -> PropertiesReplyBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
+                    >,
             {
                 PropertiesReplyBuilder((value,))
             }
@@ -82282,11 +82203,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<PropertiesReply>>
-            for PropertiesReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAs<::planus::Offset<PropertiesReply>> for PropertiesReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<PropertiesReply>;
 
@@ -82300,10 +82218,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<PropertiesReply>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropertiesReply>>
             for PropertiesReplyBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<PropertiesReply>;
@@ -82318,10 +82234,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>,
-                >,
-            > ::planus::WriteAsOffset<PropertiesReply> for PropertiesReplyBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::PropInfo>]>>,
+        > ::planus::WriteAsOffset<PropertiesReply> for PropertiesReplyBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -82831,10 +82745,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<PropertyValue>>
-            for PropertyValueBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<PropertyValue>> for PropertyValueBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyValue>;
 
@@ -82845,9 +82758,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PropertyValue>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PropertyValue>>
             for PropertyValueBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PropertyValue>;
@@ -82862,9 +82775,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<PropertyValue> for PropertyValueBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::PropInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<PropertyValue> for PropertyValueBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<PropertyValue> {
@@ -83114,9 +83027,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAs<::planus::Offset<VerbValue>> for VerbValueBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAs<::planus::Offset<VerbValue>> for VerbValueBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbValue>;
 
@@ -83127,10 +83040,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbValue>>
-            for VerbValueBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VerbValue>> for VerbValueBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbValue>;
 
@@ -83144,9 +83056,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
-            > ::planus::WriteAsOffset<VerbValue> for VerbValueBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbInfo>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+        > ::planus::WriteAsOffset<VerbValue> for VerbValueBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbValue> {
@@ -83928,9 +83840,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAs<::planus::Offset<PresentationSnapshot>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAs<::planus::Offset<PresentationSnapshot>>
             for PresentationSnapshotBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PresentationSnapshot>;
@@ -83945,9 +83857,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PresentationSnapshot>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PresentationSnapshot>>
             for PresentationSnapshotBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PresentationSnapshot>;
@@ -83962,10 +83874,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOffset<PresentationSnapshot>
-            for PresentationSnapshotBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOffset<PresentationSnapshot> for PresentationSnapshotBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -84198,8 +84109,8 @@ mod root {
             pub fn presentations<T0>(self, value: T0) -> CurrentPresentationsBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>,
+                    >,
             {
                 CurrentPresentationsBuilder((value,))
             }
@@ -84220,8 +84131,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
-            > ::planus::WriteAs<::planus::Offset<CurrentPresentations>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
+        > ::planus::WriteAs<::planus::Offset<CurrentPresentations>>
             for CurrentPresentationsBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<CurrentPresentations>;
@@ -84236,8 +84147,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CurrentPresentations>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CurrentPresentations>>
             for CurrentPresentationsBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<CurrentPresentations>;
@@ -84252,8 +84163,8 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
-            > ::planus::WriteAsOffset<CurrentPresentations> for CurrentPresentationsBuilder<(T0,)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::PresentationSnapshot>]>>,
+        > ::planus::WriteAsOffset<CurrentPresentations> for CurrentPresentationsBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
@@ -86008,16 +85919,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u32, u32>,
-                T7: ::planus::WriteAsDefault<u32, u32>,
-                T8: ::planus::WriteAsDefault<u32, u32>,
-            > ::planus::WriteAs<::planus::Offset<ObjectInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u32, u32>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAs<::planus::Offset<ObjectInfo>>
             for ObjectInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<ObjectInfo>;
@@ -86029,16 +85940,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u32, u32>,
-                T7: ::planus::WriteAsDefault<u32, u32>,
-                T8: ::planus::WriteAsDefault<u32, u32>,
-            > ::planus::WriteAsOptional<::planus::Offset<ObjectInfo>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u32, u32>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAsOptional<::planus::Offset<ObjectInfo>>
             for ObjectInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<ObjectInfo>;
@@ -86053,16 +85964,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u32, u32>,
-                T7: ::planus::WriteAsDefault<u32, u32>,
-                T8: ::planus::WriteAsDefault<u32, u32>,
-            > ::planus::WriteAsOffset<ObjectInfo>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u32, u32>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAsOffset<ObjectInfo>
             for ObjectInfoBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             #[inline]
@@ -88107,8 +88018,8 @@ mod root {
             pub fn output<T1>(self, value: T1) -> VerbCallSuccessBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                    >,
             {
                 let (v0,) = self.0;
                 VerbCallSuccessBuilder((v0, value))
@@ -88130,11 +88041,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<VerbCallSuccess>>
+        > ::planus::WriteAs<::planus::Offset<VerbCallSuccess>>
             for VerbCallSuccessBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbCallSuccess>;
@@ -88149,11 +88060,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>>
+        > ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>>
             for VerbCallSuccessBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbCallSuccess>;
@@ -88168,11 +88079,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccessBuilder<(T0, T1)>
+        > ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccessBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -89891,9 +89802,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
-            > ::planus::WriteAs<::planus::Offset<NarrativeEventMessage>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
+        > ::planus::WriteAs<::planus::Offset<NarrativeEventMessage>>
             for NarrativeEventMessageBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<NarrativeEventMessage>;
@@ -89908,9 +89819,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
-            > ::planus::WriteAsOptional<::planus::Offset<NarrativeEventMessage>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
+        > ::planus::WriteAsOptional<::planus::Offset<NarrativeEventMessage>>
             for NarrativeEventMessageBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<NarrativeEventMessage>;
@@ -89925,9 +89836,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
-            > ::planus::WriteAsOffset<NarrativeEventMessage>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::NarrativeEvent>>,
+        > ::planus::WriteAsOffset<NarrativeEventMessage>
             for NarrativeEventMessageBuilder<(T0, T1)>
         {
             #[inline]
@@ -90175,9 +90086,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<MetadataPair>> for MetadataPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<MetadataPair>> for MetadataPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<MetadataPair>;
 
@@ -90188,9 +90099,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<MetadataPair>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<MetadataPair>>
             for MetadataPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<MetadataPair>;
@@ -90205,9 +90116,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<MetadataPair> for MetadataPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<MetadataPair> for MetadataPairBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetadataPair> {
@@ -90452,8 +90363,8 @@ mod root {
             pub fn metadata<T1>(self, value: T1) -> RequestInputEventBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::MetadataPair>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::MetadataPair>]>,
+                    >,
             {
                 let (v0,) = self.0;
                 RequestInputEventBuilder((v0, value))
@@ -90482,9 +90393,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
-            > ::planus::WriteAs<::planus::Offset<RequestInputEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
+        > ::planus::WriteAs<::planus::Offset<RequestInputEvent>>
             for RequestInputEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RequestInputEvent>;
@@ -90499,9 +90410,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestInputEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestInputEvent>>
             for RequestInputEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<RequestInputEvent>;
@@ -90516,9 +90427,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
-            > ::planus::WriteAsOffset<RequestInputEvent> for RequestInputEventBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::MetadataPair>]>>,
+        > ::planus::WriteAsOffset<RequestInputEvent> for RequestInputEventBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -90790,9 +90701,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<SystemMessageEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<SystemMessageEvent>>
             for SystemMessageEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<SystemMessageEvent>;
@@ -90807,9 +90718,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<SystemMessageEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SystemMessageEvent>>
             for SystemMessageEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<SystemMessageEvent>;
@@ -90824,9 +90735,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<SystemMessageEvent> for SystemMessageEventBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<SystemMessageEvent> for SystemMessageEventBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -91304,10 +91215,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAs<::planus::Offset<TaskErrorEvent>>
-            for TaskErrorEventBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAs<::planus::Offset<TaskErrorEvent>> for TaskErrorEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskErrorEvent>;
 
@@ -91318,9 +91228,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAsOptional<::planus::Offset<TaskErrorEvent>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAsOptional<::planus::Offset<TaskErrorEvent>>
             for TaskErrorEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskErrorEvent>;
@@ -91335,9 +91245,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAsOffset<TaskErrorEvent> for TaskErrorEventBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAsOffset<TaskErrorEvent> for TaskErrorEventBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent> {
@@ -91597,9 +91507,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<TaskSuccessEvent>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<TaskSuccessEvent>>
             for TaskSuccessEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskSuccessEvent>;
@@ -91614,9 +91524,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<TaskSuccessEvent>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<TaskSuccessEvent>>
             for TaskSuccessEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<TaskSuccessEvent>;
@@ -91631,9 +91541,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<TaskSuccessEvent> for TaskSuccessEventBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<TaskSuccessEvent> for TaskSuccessEventBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -92257,11 +92167,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<PlayerSwitchedEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<PlayerSwitchedEvent>>
             for PlayerSwitchedEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PlayerSwitchedEvent>;
@@ -92276,11 +92186,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<PlayerSwitchedEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<PlayerSwitchedEvent>>
             for PlayerSwitchedEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PlayerSwitchedEvent>;
@@ -92295,11 +92205,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<PlayerSwitchedEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<PlayerSwitchedEvent>
             for PlayerSwitchedEventBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -92608,10 +92518,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<SetConnectionOptionEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<SetConnectionOptionEvent>>
             for SetConnectionOptionEventBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<SetConnectionOptionEvent>;
@@ -92626,10 +92536,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<SetConnectionOptionEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SetConnectionOptionEvent>>
             for SetConnectionOptionEventBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<SetConnectionOptionEvent>;
@@ -92644,10 +92554,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<SetConnectionOptionEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<SetConnectionOptionEvent>
             for SetConnectionOptionEventBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -92943,9 +92853,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-            > ::planus::WriteAs<::planus::Offset<CredentialsUpdatedEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+        > ::planus::WriteAs<::planus::Offset<CredentialsUpdatedEvent>>
             for CredentialsUpdatedEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CredentialsUpdatedEvent>;
@@ -92960,9 +92870,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CredentialsUpdatedEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CredentialsUpdatedEvent>>
             for CredentialsUpdatedEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CredentialsUpdatedEvent>;
@@ -92977,9 +92887,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-            > ::planus::WriteAsOffset<CredentialsUpdatedEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+        > ::planus::WriteAsOffset<CredentialsUpdatedEvent>
             for CredentialsUpdatedEventBuilder<(T0, T1)>
         {
             #[inline]
@@ -94771,12 +94681,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<WorkerRequest>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<WorkerRequest>>
             for WorkerRequestBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<WorkerRequest>;
@@ -94788,12 +94698,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<WorkerRequest>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<WorkerRequest>>
             for WorkerRequestBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<WorkerRequest>;
@@ -94808,13 +94718,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<WorkerRequest>
-            for WorkerRequestBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<WorkerRequest> for WorkerRequestBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WorkerRequest> {
@@ -96022,9 +95931,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<AttachWorker>> for AttachWorkerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<AttachWorker>> for AttachWorkerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AttachWorker>;
 
@@ -96035,9 +95944,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<AttachWorker>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<AttachWorker>>
             for AttachWorkerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<AttachWorker>;
@@ -96052,9 +95961,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<AttachWorker> for AttachWorkerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<AttachWorker> for AttachWorkerBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AttachWorker> {
@@ -96314,9 +96223,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<WorkerPong>> for WorkerPongBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<WorkerPong>> for WorkerPongBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorkerPong>;
 
@@ -96327,10 +96236,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<WorkerPong>>
-            for WorkerPongBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<WorkerPong>> for WorkerPongBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<WorkerPong>;
 
@@ -96344,9 +96252,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<WorkerPong> for WorkerPongBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<WorkerPong> for WorkerPongBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<WorkerPong> {
@@ -96861,10 +96769,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<RequestResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<RequestResult>>
             for RequestResultBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestResult>;
@@ -96876,10 +96784,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestResult>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestResult>>
             for RequestResultBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestResult>;
@@ -96894,10 +96802,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<RequestResult> for RequestResultBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<RequestResult> for RequestResultBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestResult> {
@@ -97176,11 +97084,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
-            > ::planus::WriteAs<::planus::Offset<RequestError>>
-            for RequestErrorBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
+        > ::planus::WriteAs<::planus::Offset<RequestError>> for RequestErrorBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestError>;
 
@@ -97191,10 +97098,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RequestError>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RequestError>>
             for RequestErrorBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RequestError>;
@@ -97209,10 +97116,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
-            > ::planus::WriteAsOffset<RequestError> for RequestErrorBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::WorkerError>>,
+        > ::planus::WriteAsOffset<RequestError> for RequestErrorBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestError> {
@@ -100660,10 +100567,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAs<::planus::Offset<RpcMessageError>>
+            T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAs<::planus::Offset<RpcMessageError>>
             for RpcMessageErrorBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RpcMessageError>;
@@ -100678,10 +100585,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAsOptional<::planus::Offset<RpcMessageError>>
+            T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAsOptional<::planus::Offset<RpcMessageError>>
             for RpcMessageErrorBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<RpcMessageError>;
@@ -100696,10 +100603,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
-            > ::planus::WriteAsOffset<RpcMessageError> for RpcMessageErrorBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<self::RpcMessageErrorCode, self::RpcMessageErrorCode>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::SchedulerError>>,
+        > ::planus::WriteAsOffset<RpcMessageError> for RpcMessageErrorBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(
@@ -101201,9 +101108,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
-            > ::planus::WriteAs<::planus::Offset<HostToDaemonMsg>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
+        > ::planus::WriteAs<::planus::Offset<HostToDaemonMsg>>
             for HostToDaemonMsgBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostToDaemonMsg>;
@@ -101218,9 +101125,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
-            > ::planus::WriteAsOptional<::planus::Offset<HostToDaemonMsg>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
+        > ::planus::WriteAsOptional<::planus::Offset<HostToDaemonMsg>>
             for HostToDaemonMsgBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostToDaemonMsg>;
@@ -101235,9 +101142,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
-            > ::planus::WriteAsOffset<HostToDaemonMsg> for HostToDaemonMsgBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostToDaemonMessage>>,
+        > ::planus::WriteAsOffset<HostToDaemonMsg> for HostToDaemonMsgBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -101489,9 +101396,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
-            > ::planus::WriteAs<::planus::Offset<HostClientToDaemonMsg>>
+            T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
+        > ::planus::WriteAs<::planus::Offset<HostClientToDaemonMsg>>
             for HostClientToDaemonMsgBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostClientToDaemonMsg>;
@@ -101506,9 +101413,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
-            > ::planus::WriteAsOptional<::planus::Offset<HostClientToDaemonMsg>>
+            T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
+        > ::planus::WriteAsOptional<::planus::Offset<HostClientToDaemonMsg>>
             for HostClientToDaemonMsgBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HostClientToDaemonMsg>;
@@ -101523,9 +101430,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
-            > ::planus::WriteAsOffset<HostClientToDaemonMsg>
+            T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::HostClientToDaemonMessage>>,
+        > ::planus::WriteAsOffset<HostClientToDaemonMsg>
             for HostClientToDaemonMsgBuilder<(T0, T1)>
         {
             #[inline]
@@ -103638,9 +103545,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<HistoryRecallSinceEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<HistoryRecallSinceEvent>>
             for HistoryRecallSinceEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HistoryRecallSinceEvent>;
@@ -103655,9 +103562,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<HistoryRecallSinceEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<HistoryRecallSinceEvent>>
             for HistoryRecallSinceEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HistoryRecallSinceEvent>;
@@ -103672,9 +103579,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<HistoryRecallSinceEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<HistoryRecallSinceEvent>
             for HistoryRecallSinceEventBuilder<(T0, T1)>
         {
             #[inline]
@@ -103973,9 +103880,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<HistoryRecallUntilEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<HistoryRecallUntilEvent>>
             for HistoryRecallUntilEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HistoryRecallUntilEvent>;
@@ -103990,9 +103897,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<HistoryRecallUntilEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<HistoryRecallUntilEvent>>
             for HistoryRecallUntilEventBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<HistoryRecallUntilEvent>;
@@ -104007,9 +103914,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<HistoryRecallUntilEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<HistoryRecallUntilEvent>
             for HistoryRecallUntilEventBuilder<(T0, T1)>
         {
             #[inline]
@@ -105204,12 +105111,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAs<::planus::Offset<HistoricalNarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAs<::planus::Offset<HistoricalNarrativeEvent>>
             for HistoricalNarrativeEventBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<HistoricalNarrativeEvent>;
@@ -105224,12 +105131,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<HistoricalNarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<HistoricalNarrativeEvent>>
             for HistoricalNarrativeEventBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<HistoricalNarrativeEvent>;
@@ -105244,12 +105151,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOffset<HistoricalNarrativeEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOffset<HistoricalNarrativeEvent>
             for HistoricalNarrativeEventBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
@@ -105620,8 +105527,8 @@ mod root {
             pub fn events<T0>(self, value: T0) -> HistoryResponseBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>,
+                    >,
             {
                 HistoryResponseBuilder((value,))
             }
@@ -105783,16 +105690,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>,
-                >,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-            > ::planus::WriteAs<::planus::Offset<HistoryResponse>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+        > ::planus::WriteAs<::planus::Offset<HistoryResponse>>
             for HistoryResponseBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<HistoryResponse>;
@@ -105807,16 +105712,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>,
-                >,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-            > ::planus::WriteAsOptional<::planus::Offset<HistoryResponse>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+        > ::planus::WriteAsOptional<::planus::Offset<HistoryResponse>>
             for HistoryResponseBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             type Prepared = ::planus::Offset<HistoryResponse>;
@@ -105831,16 +105734,14 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>,
-                >,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-            > ::planus::WriteAsOffset<HistoryResponse>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::HistoricalNarrativeEvent>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+        > ::planus::WriteAsOffset<HistoryResponse>
             for HistoryResponseBuilder<(T0, T1, T2, T3, T4, T5, T6)>
         {
             #[inline]
@@ -106257,11 +106158,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAs<::planus::Offset<LoggedNarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAs<::planus::Offset<LoggedNarrativeEvent>>
             for LoggedNarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<LoggedNarrativeEvent>;
@@ -106276,11 +106177,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<LoggedNarrativeEvent>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<LoggedNarrativeEvent>>
             for LoggedNarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<LoggedNarrativeEvent>;
@@ -106295,11 +106196,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOffset<LoggedNarrativeEvent>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOffset<LoggedNarrativeEvent>
             for LoggedNarrativeEventBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -106596,9 +106497,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAs<::planus::Offset<StoredPresentation>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAs<::planus::Offset<StoredPresentation>>
             for StoredPresentationBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredPresentation>;
@@ -106613,9 +106514,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredPresentation>>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredPresentation>>
             for StoredPresentationBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredPresentation>;
@@ -106630,9 +106531,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<str>>,
-                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
-            > ::planus::WriteAsOffset<StoredPresentation> for StoredPresentationBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOffset<StoredPresentation> for StoredPresentationBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -106875,8 +106776,8 @@ mod root {
             pub fn presentations<T1>(self, value: T1) -> PlayerPresentationsBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredPresentation>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredPresentation>]>,
+                    >,
             {
                 let (v0,) = self.0;
                 PlayerPresentationsBuilder((v0, value))
@@ -106898,9 +106799,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
-            > ::planus::WriteAs<::planus::Offset<PlayerPresentations>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
+        > ::planus::WriteAs<::planus::Offset<PlayerPresentations>>
             for PlayerPresentationsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PlayerPresentations>;
@@ -106915,9 +106816,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<PlayerPresentations>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<PlayerPresentations>>
             for PlayerPresentationsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<PlayerPresentations>;
@@ -106932,10 +106833,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
-            > ::planus::WriteAsOffset<PlayerPresentations>
-            for PlayerPresentationsBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredPresentation>]>>,
+        > ::planus::WriteAsOffset<PlayerPresentations> for PlayerPresentationsBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -107265,10 +107165,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u8, u8>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredName>> for StoredNameBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u8, u8>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredName>> for StoredNameBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredName>;
 
@@ -107279,10 +107179,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u8, u8>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredName>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u8, u8>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredName>>
             for StoredNameBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredName>;
@@ -107297,10 +107197,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u8, u8>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredName> for StoredNameBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u8, u8>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredName> for StoredNameBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredName> {
@@ -107630,10 +107530,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-            > ::planus::WriteAs<::planus::Offset<StoredJumpLabel>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+        > ::planus::WriteAs<::planus::Offset<StoredJumpLabel>>
             for StoredJumpLabelBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredJumpLabel>;
@@ -107648,10 +107548,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredJumpLabel>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredJumpLabel>>
             for StoredJumpLabelBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredJumpLabel>;
@@ -107666,10 +107566,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-            > ::planus::WriteAsOffset<StoredJumpLabel> for StoredJumpLabelBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+        > ::planus::WriteAsOffset<StoredJumpLabel> for StoredJumpLabelBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(
@@ -108959,10 +108859,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
-            > ::planus::WriteAs<::planus::Offset<StoredVariable>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
+        > ::planus::WriteAs<::planus::Offset<StoredVariable>>
             for StoredVariableBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredVariable>;
@@ -108974,10 +108874,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredVariable>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredVariable>>
             for StoredVariableBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredVariable>;
@@ -108992,10 +108892,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
-            > ::planus::WriteAsOffset<StoredVariable> for StoredVariableBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsUnion<self::StoredVarNameUnion>,
+        > ::planus::WriteAsOffset<StoredVariable> for StoredVariableBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredVariable> {
@@ -109369,12 +109269,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredDecl>>
+            T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredDecl>>
             for StoredDeclBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<StoredDecl>;
@@ -109386,12 +109286,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredDecl>>
+            T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredDecl>>
             for StoredDeclBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<StoredDecl>;
@@ -109406,12 +109306,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<bool, bool>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredDecl> for StoredDeclBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<self::StoredDeclType, self::StoredDeclType>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredVariable>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredDecl> for StoredDeclBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredDecl> {
@@ -109698,9 +109598,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
-            > ::planus::WriteAs<::planus::Offset<StoredNameDeclPair>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
+        > ::planus::WriteAs<::planus::Offset<StoredNameDeclPair>>
             for StoredNameDeclPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredNameDeclPair>;
@@ -109715,9 +109615,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredNameDeclPair>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredNameDeclPair>>
             for StoredNameDeclPairBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredNameDeclPair>;
@@ -109732,9 +109632,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
-            > ::planus::WriteAsOffset<StoredNameDeclPair> for StoredNameDeclPairBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredDecl>>,
+        > ::planus::WriteAsOffset<StoredNameDeclPair> for StoredNameDeclPairBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -109997,8 +109897,8 @@ mod root {
             pub fn decls<T1>(self, value: T1) -> StoredNamesBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>,
+                    >,
             {
                 let (v0,) = self.0;
                 StoredNamesBuilder((v0, value))
@@ -110017,9 +109917,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
-            > ::planus::WriteAs<::planus::Offset<StoredNames>> for StoredNamesBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
+        > ::planus::WriteAs<::planus::Offset<StoredNames>> for StoredNamesBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredNames>;
 
@@ -110030,9 +109930,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredNames>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredNames>>
             for StoredNamesBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredNames>;
@@ -110047,9 +109947,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
-            > ::planus::WriteAsOffset<StoredNames> for StoredNamesBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredNameDeclPair>]>>,
+        > ::planus::WriteAsOffset<StoredNames> for StoredNamesBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredNames> {
@@ -110945,10 +110845,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<StoredScatterOptional>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<StoredScatterOptional>>
             for StoredScatterOptionalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredScatterOptional>;
@@ -110963,10 +110863,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredScatterOptional>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredScatterOptional>>
             for StoredScatterOptionalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredScatterOptional>;
@@ -110981,10 +110881,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<StoredScatterOptional>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<StoredScatterOptional>
             for StoredScatterOptionalBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -111787,8 +111687,8 @@ mod root {
             pub fn labels<T0>(self, value: T0) -> StoredScatterArgsBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>,
+                    >,
             {
                 StoredScatterArgsBuilder((value,))
             }
@@ -111829,9 +111729,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredScatterArgs>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredScatterArgs>>
             for StoredScatterArgsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredScatterArgs>;
@@ -111846,9 +111746,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredScatterArgs>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredScatterArgs>>
             for StoredScatterArgsBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredScatterArgs>;
@@ -111863,9 +111763,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredScatterArgs> for StoredScatterArgsBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterLabel>]>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredScatterArgs> for StoredScatterArgsBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -112230,11 +112130,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredForSequenceOperand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredForSequenceOperand>>
             for StoredForSequenceOperandBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<StoredForSequenceOperand>;
@@ -112249,11 +112149,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredForSequenceOperand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredForSequenceOperand>>
             for StoredForSequenceOperandBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<StoredForSequenceOperand>;
@@ -112268,11 +112168,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredForSequenceOperand>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredForSequenceOperand>
             for StoredForSequenceOperandBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -112645,10 +112545,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredForRangeOperand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredForRangeOperand>>
             for StoredForRangeOperandBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredForRangeOperand>;
@@ -112663,10 +112563,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredForRangeOperand>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredForRangeOperand>>
             for StoredForRangeOperandBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredForRangeOperand>;
@@ -112681,10 +112581,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredForRangeOperand>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredForRangeOperand>
             for StoredForRangeOperandBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -113020,10 +112920,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredRangeComprehend>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredRangeComprehend>>
             for StoredRangeComprehendBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredRangeComprehend>;
@@ -113038,10 +112938,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredRangeComprehend>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredRangeComprehend>>
             for StoredRangeComprehendBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StoredRangeComprehend>;
@@ -113056,10 +112956,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredRangeComprehend>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredRangeComprehend>
             for StoredRangeComprehendBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -113410,11 +113310,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<StoredListComprehend>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<StoredListComprehend>>
             for StoredListComprehendBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<StoredListComprehend>;
@@ -113429,11 +113329,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredListComprehend>>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredListComprehend>>
             for StoredListComprehendBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<StoredListComprehend>;
@@ -113448,11 +113348,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<StoredListComprehend>
+            T0: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<StoredListComprehend>
             for StoredListComprehendBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
@@ -113778,9 +113678,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u8, u8>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAs<::planus::Offset<StoredErrorOperand>>
+            T0: ::planus::WriteAsDefault<u8, u8>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAs<::planus::Offset<StoredErrorOperand>>
             for StoredErrorOperandBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredErrorOperand>;
@@ -113795,9 +113695,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u8, u8>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredErrorOperand>>
+            T0: ::planus::WriteAsDefault<u8, u8>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredErrorOperand>>
             for StoredErrorOperandBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StoredErrorOperand>;
@@ -113812,9 +113712,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u8, u8>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
-            > ::planus::WriteAsOffset<StoredErrorOperand> for StoredErrorOperandBuilder<(T0, T1)>
+            T0: ::planus::WriteAsDefault<u8, u8>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+        > ::planus::WriteAsOffset<StoredErrorOperand> for StoredErrorOperandBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
@@ -114091,10 +113991,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[u16]>>,
-            > ::planus::WriteAs<::planus::Offset<ForkVector>> for ForkVectorBuilder<(T0, T1)>
+        impl<T0: ::planus::WriteAsDefault<u64, u64>, T1: ::planus::WriteAs<::planus::Offset<[u16]>>>
+            ::planus::WriteAs<::planus::Offset<ForkVector>> for ForkVectorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<ForkVector>;
 
@@ -114104,10 +114002,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[u16]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ForkVector>>
+        impl<T0: ::planus::WriteAsDefault<u64, u64>, T1: ::planus::WriteAs<::planus::Offset<[u16]>>>
+            ::planus::WriteAsOptional<::planus::Offset<ForkVector>>
             for ForkVectorBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<ForkVector>;
@@ -114121,10 +114017,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAs<::planus::Offset<[u16]>>,
-            > ::planus::WriteAsOffset<ForkVector> for ForkVectorBuilder<(T0, T1)>
+        impl<T0: ::planus::WriteAsDefault<u64, u64>, T1: ::planus::WriteAs<::planus::Offset<[u16]>>>
+            ::planus::WriteAsOffset<ForkVector> for ForkVectorBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ForkVector> {
@@ -114680,9 +114574,7 @@ mod root {
                 value: T7,
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
             where
-                T7: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>,
-                >,
+                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
             {
                 let (v0, v1, v2, v3, v4, v5, v6) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, value))
@@ -114699,8 +114591,8 @@ mod root {
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
             where
                 T8: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, v7, value))
@@ -114719,8 +114611,8 @@ mod root {
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
             where
                 T9: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, value))
@@ -114739,8 +114631,8 @@ mod root {
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
             where
                 T10: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, value))
@@ -114759,8 +114651,8 @@ mod root {
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
             where
                 T11: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, value))
@@ -114779,8 +114671,8 @@ mod root {
             ) -> StoredMooRProgramBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
             where
                 T12: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) = self.0;
                 StoredMooRProgramBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, value))
@@ -114813,9 +114705,7 @@ mod root {
                 T13,
             )>
             where
-                T13: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>,
-                >,
+                T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12) = self.0;
                 StoredMooRProgramBuilder((
@@ -115190,27 +115080,7 @@ mod root {
             }
         }
 
-        impl<
-                T0,
-                T1,
-                T2,
-                T3,
-                T4,
-                T5,
-                T6,
-                T7,
-                T8,
-                T9,
-                T10,
-                T11,
-                T12,
-                T13,
-                T14,
-                T15,
-                T16,
-                T17,
-                T18,
-            >
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18>
             StoredMooRProgramBuilder<(
                 T0,
                 T1,
@@ -115323,27 +115193,27 @@ mod root {
         }
 
         impl<
-                T0,
-                T1,
-                T2,
-                T3,
-                T4,
-                T5,
-                T6,
-                T7,
-                T8,
-                T9,
-                T10,
-                T11,
-                T12,
-                T13,
-                T14,
-                T15,
-                T16,
-                T17,
-                T18,
-                T19,
-            >
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+        >
             StoredMooRProgramBuilder<(
                 T0,
                 T1,
@@ -115381,33 +115251,27 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
-                T8: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>,
-                >,
-                T9: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>,
-                >,
-                T10: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>,
-                >,
-                T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
-                T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
-                T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
-                T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
-                T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
-                T16: ::planus::WriteAsDefault<u64, u64>,
-                T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-                T18: ::planus::WriteAsDefault<u64, u64>,
-                T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-            > ::planus::WriteAs<::planus::Offset<StoredMooRProgram>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>>,
+            T10: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>>,
+            T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
+            T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
+            T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
+            T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+        > ::planus::WriteAs<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
                 T1,
@@ -115443,33 +115307,27 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
-                T8: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>,
-                >,
-                T9: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>,
-                >,
-                T10: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>,
-                >,
-                T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
-                T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
-                T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
-                T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
-                T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
-                T16: ::planus::WriteAsDefault<u64, u64>,
-                T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-                T18: ::planus::WriteAsDefault<u64, u64>,
-                T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StoredMooRProgram>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>>,
+            T10: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>>,
+            T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
+            T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
+            T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
+            T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
                 T1,
@@ -115505,33 +115363,27 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
-                T8: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>,
-                >,
-                T9: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>,
-                >,
-                T10: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>,
-                >,
-                T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
-                T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
-                T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
-                T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
-                T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
-                T16: ::planus::WriteAsDefault<u64, u64>,
-                T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-                T18: ::planus::WriteAsDefault<u64, u64>,
-                T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
-            > ::planus::WriteAsOffset<StoredMooRProgram>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u16]>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkVector>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredJumpLabel>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<self::StoredNames>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredScatterArgs>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForSequenceOperand>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredForRangeOperand>]>>,
+            T10: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredRangeComprehend>]>>,
+            T11: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredListComprehend>]>>,
+            T12: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredErrorOperand>]>>,
+            T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
+            T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+        > ::planus::WriteAsOffset<StoredMooRProgram>
             for StoredMooRProgramBuilder<(
                 T0,
                 T1,
@@ -120280,10 +120132,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<StartCommandVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StartCommandVerb>>
             for StartCommandVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StartCommandVerb>;
@@ -120298,10 +120150,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StartCommandVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartCommandVerb>>
             for StartCommandVerbBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StartCommandVerb>;
@@ -120316,10 +120168,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<StartCommandVerb> for StartCommandVerbBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StartCommandVerb> for StartCommandVerbBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(
@@ -120600,10 +120452,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<StartDoCommand>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StartDoCommand>>
             for StartDoCommandBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StartDoCommand>;
@@ -120615,10 +120467,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StartDoCommand>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartDoCommand>>
             for StartDoCommandBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<StartDoCommand>;
@@ -120633,10 +120485,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<StartDoCommand> for StartDoCommandBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StartDoCommand> for StartDoCommandBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartDoCommand> {
@@ -120952,12 +120804,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<StartVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StartVerb>>
             for StartVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<StartVerb>;
@@ -120969,12 +120821,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StartVerb>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartVerb>>
             for StartVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<StartVerb>;
@@ -120989,12 +120841,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<StartVerb> for StartVerbBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StartVerb> for StartVerbBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartVerb> {
@@ -121465,15 +121317,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAs<::planus::Offset<Fork>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAs<::planus::Offset<Fork>>
             for ForkBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             type Prepared = ::planus::Offset<Fork>;
@@ -121485,15 +121337,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Fork>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Fork>>
             for ForkBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             type Prepared = ::planus::Offset<Fork>;
@@ -121508,15 +121360,15 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-                T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
-                T6: ::planus::WriteAsDefault<u64, u64>,
-                T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-            > ::planus::WriteAsOffset<Fork> for ForkBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+            T5: ::planus::WriteAs<::planus::Offset<self::Activation>>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+        > ::planus::WriteAsOffset<Fork> for ForkBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Fork> {
@@ -121832,9 +121684,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<StartFork>> for StartForkBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<StartFork>> for StartForkBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StartFork>;
 
@@ -121845,10 +121697,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<StartFork>>
-            for StartForkBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartFork>> for StartForkBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StartFork>;
 
@@ -121862,9 +121713,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<StartFork> for StartForkBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::Fork>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<StartFork> for StartForkBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartFork> {
@@ -122108,9 +121959,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-            > ::planus::WriteAs<::planus::Offset<StartEval>> for StartEvalBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+        > ::planus::WriteAs<::planus::Offset<StartEval>> for StartEvalBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StartEval>;
 
@@ -122121,10 +121972,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-            > ::planus::WriteAsOptional<::planus::Offset<StartEval>>
-            for StartEvalBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartEval>> for StartEvalBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<StartEval>;
 
@@ -122138,9 +121988,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-            > ::planus::WriteAsOffset<StartEval> for StartEvalBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+        > ::planus::WriteAsOffset<StartEval> for StartEvalBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartEval> {
@@ -124605,11 +124455,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<PendingTimeout>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<PendingTimeout>>
             for PendingTimeoutBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PendingTimeout>;
@@ -124621,11 +124471,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<PendingTimeout>>
+            T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<PendingTimeout>>
             for PendingTimeoutBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<PendingTimeout>;
@@ -124640,11 +124490,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<PendingTimeout> for PendingTimeoutBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<self::AbortLimitReason>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<PendingTimeout> for PendingTimeoutBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<PendingTimeout> {
@@ -126547,8 +126397,8 @@ mod root {
             pub fn errors<T0>(self, value: T0) -> CatchErrorsBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::Error>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_common::Error>]>,
+                    >,
             {
                 CatchErrorsBuilder((value,))
             }
@@ -126565,9 +126415,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>,
-            > ::planus::WriteAs<::planus::Offset<CatchErrors>> for CatchErrorsBuilder<(T0,)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>>
+            ::planus::WriteAs<::planus::Offset<CatchErrors>> for CatchErrorsBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<CatchErrors>;
 
@@ -126577,10 +126426,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CatchErrors>>
-            for CatchErrorsBuilder<(T0,)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>>
+            ::planus::WriteAsOptional<::planus::Offset<CatchErrors>> for CatchErrorsBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<CatchErrors>;
 
@@ -126593,9 +126440,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>,
-            > ::planus::WriteAsOffset<CatchErrors> for CatchErrorsBuilder<(T0,)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_common::Error>]>>>
+            ::planus::WriteAsOffset<CatchErrors> for CatchErrorsBuilder<(T0,)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<CatchErrors> {
@@ -127074,9 +126920,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<CatchHandler>> for CatchHandlerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<CatchHandler>> for CatchHandlerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CatchHandler>;
 
@@ -127087,9 +126933,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<CatchHandler>>
+            T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<CatchHandler>>
             for CatchHandlerBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CatchHandler>;
@@ -127104,9 +126950,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
-                T1: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<CatchHandler> for CatchHandlerBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<self::CatchType>>,
+            T1: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<CatchHandler> for CatchHandlerBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<CatchHandler> {
@@ -131423,13 +131269,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<ScopeForSequence>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<ScopeForSequence>>
             for ScopeForSequenceBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             type Prepared = ::planus::Offset<ScopeForSequence>;
@@ -131444,13 +131290,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<ScopeForSequence>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ScopeForSequence>>
             for ScopeForSequenceBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             type Prepared = ::planus::Offset<ScopeForSequence>;
@@ -131465,13 +131311,13 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
-                T4: ::planus::WriteAsDefault<u16, u16>,
-                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<ScopeForSequence>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_program::StoredName>>,
+            T4: ::planus::WriteAsDefault<u16, u16>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<ScopeForSequence>
             for ScopeForSequenceBuilder<(T0, T1, T2, T3, T4, T5)>
         {
             #[inline]
@@ -131840,11 +131686,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAs<::planus::Offset<ScopeForRange>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAs<::planus::Offset<ScopeForRange>>
             for ScopeForRangeBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<ScopeForRange>;
@@ -131856,11 +131702,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOptional<::planus::Offset<ScopeForRange>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOptional<::planus::Offset<ScopeForRange>>
             for ScopeForRangeBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<ScopeForRange>;
@@ -131875,11 +131721,11 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T3: ::planus::WriteAsDefault<u16, u16>,
-            > ::planus::WriteAsOffset<ScopeForRange> for ScopeForRangeBuilder<(T0, T1, T2, T3)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T3: ::planus::WriteAsDefault<u16, u16>,
+        > ::planus::WriteAsOffset<ScopeForRange> for ScopeForRangeBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScopeForRange> {
@@ -132931,12 +132777,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAs<::planus::Offset<Scope>> for ScopeBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<Scope>> for ScopeBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Scope>;
 
@@ -132947,12 +132793,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOptional<::planus::Offset<Scope>>
+            T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOptional<::planus::Offset<Scope>>
             for ScopeBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<Scope>;
@@ -132967,12 +132813,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAsDefault<bool, bool>,
-            > ::planus::WriteAsOffset<Scope> for ScopeBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAs<::planus::Offset<self::ScopeType>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<Scope> for ScopeBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Scope> {
@@ -133500,9 +133346,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<CapturedVar>> for CapturedVarBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<CapturedVar>> for CapturedVarBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CapturedVar>;
 
@@ -133513,9 +133359,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CapturedVar>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CapturedVar>>
             for CapturedVarBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<CapturedVar>;
@@ -133530,9 +133376,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<CapturedVar> for CapturedVarBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredName>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<CapturedVar> for CapturedVarBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<CapturedVar> {
@@ -133920,13 +133766,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAs<::planus::Offset<BfFrame>>
-            for BfFrameBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<BfFrame>> for BfFrameBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<BfFrame>;
 
@@ -133937,12 +133782,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOptional<::planus::Offset<BfFrame>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<BfFrame>>
             for BfFrameBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<BfFrame>;
@@ -133957,12 +133802,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<bool, bool>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
-            > ::planus::WriteAsOffset<BfFrame> for BfFrameBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<bool, bool>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<BfFrame> for BfFrameBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<BfFrame> {
@@ -134462,17 +134307,17 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
-                T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
-                T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
-            > ::planus::WriteAs<::planus::Offset<MooStackFrame>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
+        > ::planus::WriteAs<::planus::Offset<MooStackFrame>>
             for MooStackFrameBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
         {
             type Prepared = ::planus::Offset<MooStackFrame>;
@@ -134484,17 +134329,17 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
-                T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
-                T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
-            > ::planus::WriteAsOptional<::planus::Offset<MooStackFrame>>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<MooStackFrame>>
             for MooStackFrameBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
         {
             type Prepared = ::planus::Offset<MooStackFrame>;
@@ -134509,17 +134354,17 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
-                T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
-                T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
-            > ::planus::WriteAsOffset<MooStackFrame>
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_program::StoredProgram>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<self::PcType>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EnvironmentScope>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T5: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Scope>]>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T7: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CatchHandler>]>>,
+            T8: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::FinallyReason>]>>,
+            T9: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CapturedVar>]>>,
+        > ::planus::WriteAsOffset<MooStackFrame>
             for MooStackFrameBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
         {
             #[inline]
@@ -136167,12 +136012,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAs<::planus::Offset<CapabilityGrant>>
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAs<::planus::Offset<CapabilityGrant>>
             for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<CapabilityGrant>;
@@ -136187,12 +136032,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOptional<::planus::Offset<CapabilityGrant>>
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOptional<::planus::Offset<CapabilityGrant>>
             for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<CapabilityGrant>;
@@ -136207,12 +136052,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
-                T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
-                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
-            > ::planus::WriteAsOffset<CapabilityGrant>
+            T0: ::planus::WriteAsDefault<self::CapabilityGrantKind, self::CapabilityGrantKind>,
+            T1: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Symbol>>,
+        > ::planus::WriteAsOffset<CapabilityGrant>
             for CapabilityGrantBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
@@ -136687,8 +136532,8 @@ mod root {
             ) -> ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
             where
                 T8: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7) = self.0;
                 ActivationBuilder((v0, v1, v2, v3, v4, v5, v6, v7, value))
@@ -136714,18 +136559,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T7: ::planus::WriteAsDefault<u16, u16>,
-                T8: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<Activation>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
+        > ::planus::WriteAs<::planus::Offset<Activation>>
             for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<Activation>;
@@ -136737,18 +136580,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T7: ::planus::WriteAsDefault<u16, u16>,
-                T8: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<Activation>>
+            T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Activation>>
             for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             type Prepared = ::planus::Offset<Activation>;
@@ -136763,18 +136604,16 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
-                T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
-                T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T7: ::planus::WriteAsDefault<u16, u16>,
-                T8: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>,
-                >,
-            > ::planus::WriteAsOffset<Activation>
+            T0: ::planus::WriteAs<::planus::Offset<self::Frame>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            T4: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::VerbDef>>,
+            T6: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T7: ::planus::WriteAsDefault<u16, u16>,
+            T8: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::CapabilityGrant>]>>,
+        > ::planus::WriteAsOffset<Activation>
             for ActivationBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
         {
             #[inline]
@@ -137166,11 +137005,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAs<::planus::Offset<VmExecState>>
-            for VmExecStateBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<VmExecState>> for VmExecStateBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
 
@@ -137181,10 +137019,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOptional<::planus::Offset<VmExecState>>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<VmExecState>>
             for VmExecStateBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
@@ -137199,10 +137037,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-            > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmExecState> {
@@ -137585,12 +137423,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-            > ::planus::WriteAs<::planus::Offset<VmHost>> for VmHostBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+        > ::planus::WriteAs<::planus::Offset<VmHost>> for VmHostBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<VmHost>;
 
@@ -137601,12 +137439,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-            > ::planus::WriteAsOptional<::planus::Offset<VmHost>>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+        > ::planus::WriteAsOptional<::planus::Offset<VmHost>>
             for VmHostBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<VmHost>;
@@ -137621,12 +137459,12 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u64, u64>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAsDefault<u64, u64>,
-                T3: ::planus::WriteAsDefault<u64, u64>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-            > ::planus::WriteAsOffset<VmHost> for VmHostBuilder<(T0, T1, T2, T3, T4)>
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+        > ::planus::WriteAsOffset<VmHost> for VmHostBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmHost> {
@@ -138253,8 +138091,8 @@ mod root {
             ) -> TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
             where
                 T12: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
-                >,
+                        ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
+                    >,
             {
                 let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) = self.0;
                 TaskBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, value))
@@ -138284,22 +138122,20 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u8, u8>,
-                T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
-                T10: ::planus::WriteAsDefault<u64, u64>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<Task>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u8, u8>,
+            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<Task>>
             for TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
         {
             type Prepared = ::planus::Offset<Task>;
@@ -138311,22 +138147,20 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u8, u8>,
-                T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
-                T10: ::planus::WriteAsDefault<u64, u64>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<Task>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u8, u8>,
+            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<Task>>
             for TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
         {
             type Prepared = ::planus::Offset<Task>;
@@ -138341,22 +138175,20 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAsDefault<u64, u64>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
-                T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
-                T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T6: ::planus::WriteAsDefault<u8, u8>,
-                T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
-                T8: ::planus::WriteAsDefault<bool, bool>,
-                T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
-                T10: ::planus::WriteAsDefault<u64, u64>,
-                T11: ::planus::WriteAsDefault<bool, bool>,
-                T12: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
-                >,
-            > ::planus::WriteAsOffset<Task>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T3: ::planus::WriteAs<::planus::Offset<self::TaskState>>,
+            T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
+            T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T6: ::planus::WriteAsDefault<u8, u8>,
+            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T8: ::planus::WriteAsDefault<bool, bool>,
+            T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<bool, bool>,
+            T12: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<Task>
             for TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
         {
             #[inline]
@@ -138774,10 +138606,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
-            > ::planus::WriteAs<::planus::Offset<SuspendedTask>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
+        > ::planus::WriteAs<::planus::Offset<SuspendedTask>>
             for SuspendedTaskBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<SuspendedTask>;
@@ -138789,10 +138621,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
-            > ::planus::WriteAsOptional<::planus::Offset<SuspendedTask>>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SuspendedTask>>
             for SuspendedTaskBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<SuspendedTask>;
@@ -138807,10 +138639,10 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAsDefault<u16, u16>,
-                T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
-                T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
-            > ::planus::WriteAsOffset<SuspendedTask> for SuspendedTaskBuilder<(T0, T1, T2)>
+            T0: ::planus::WriteAsDefault<u16, u16>,
+            T1: ::planus::WriteAs<::planus::Offset<self::WakeCondition>>,
+            T2: ::planus::WriteAs<::planus::Offset<self::Task>>,
+        > ::planus::WriteAsOffset<SuspendedTask> for SuspendedTaskBuilder<(T0, T1, T2)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<SuspendedTask> {
