@@ -37,7 +37,9 @@ STAGE_NAMES = {
 }
 
 OUTCOME_NAMES = {
-    (0, 0): "completed",
+    (0, 0): "success",
+    (0, 1): "conflict",
+    (0, 2): "error",
     (1, 0): "read_only_success",
     (1, 1): "write_success",
     (1, 2): "conflict",
@@ -66,6 +68,14 @@ U64_MASK = (1 << 64) - 1
 @dataclass(frozen=True)
 class IntervalStats:
     count: int
+    total: int
+    percentile95: int
+
+
+@dataclass(frozen=True)
+class VerbCallIntervalStats:
+    started: int
+    completed: int
     total: int
     percentile95: int
 
@@ -237,11 +247,32 @@ def interval_stats(
     return stats
 
 
+def verb_call_interval_stats(
+    current: dict[str, object],
+    previous: dict[str, object],
+) -> dict[tuple[int, ...], VerbCallIntervalStats]:
+    started = numeric_delta(
+        merged_numeric(current, "@verb_call_started", 3),
+        merged_numeric(previous, "@verb_call_started", 3),
+    )
+    completed = interval_stats(current, previous, "verb_call", 3)
+    return {
+        key: VerbCallIntervalStats(
+            started=started.get(key, 0),
+            completed=completed[key].count if key in completed else 0,
+            total=completed[key].total if key in completed else 0,
+            percentile95=completed[key].percentile95 if key in completed else 0,
+        )
+        for key in set(started) | set(completed)
+    }
+
+
 def print_section(
     title: str,
     rows: list[tuple[str, IntervalStats]],
     interval_seconds: float,
     limit: int,
+    count_label: str = "count",
 ) -> None:
     print(f"\n{title}")
     if not rows:
@@ -252,7 +283,7 @@ def print_section(
     interval_nanoseconds = interval_seconds * 1_000_000_000
     print(
         "% section  % core  identity                                       rate/s"
-        "   count       total        mean        p95~"
+        f" {count_label:>7}       total        mean        p95~"
     )
     for identity, stats in sorted(rows, key=lambda row: row[1].total, reverse=True)[
         :limit
@@ -267,6 +298,37 @@ def print_section(
             f" {stats.count / interval_seconds:>7.1f}"
             f" {stats.count:>7} {duration(stats.total):>11}"
             f" {duration(mean):>11} {duration(stats.percentile95):>11}"
+        )
+
+
+def print_verb_call_section(
+    rows: list[tuple[str, VerbCallIntervalStats]],
+    interval_seconds: float,
+    limit: int,
+) -> None:
+    print("\nMOO verb calls (sorted by completed-call elapsed total)")
+    if not rows:
+        print("  no verb calls started or completed in this interval")
+        return
+
+    denominator = sum(stats.total for _, stats in rows)
+    print(
+        "% elapsed  identity                                      start/s"
+        "  started   done  elapsed total  elapsed mean  elapsed p95~"
+    )
+    for identity, stats in sorted(
+        rows,
+        key=lambda row: (row[1].total, row[1].started),
+        reverse=True,
+    )[:limit]:
+        share = 100 * stats.total / denominator if denominator else 0.0
+        mean = stats.total // stats.completed if stats.completed else 0
+        print(
+            f"    {share:>6.2f}  {fitted_identity(identity):<45}"
+            f" {stats.started / interval_seconds:>7.1f}"
+            f" {stats.started:>8} {stats.completed:>6}"
+            f" {duration(stats.total):>14} {duration(mean):>13}"
+            f" {duration(stats.percentile95):>13}"
         )
 
 
@@ -374,6 +436,7 @@ def render(
     verb_map_output: Path | None,
 ) -> None:
     task_stats = interval_stats(current, previous, "task", 3)
+    verb_call_stats = verb_call_interval_stats(current, previous)
     verb_stats = interval_stats(current, previous, "verb", 3)
     builtin_stats = interval_stats(current, previous, "builtin", 1)
     stage_stats = interval_stats(current, previous, "stage", 1)
@@ -381,13 +444,14 @@ def render(
     if clear_screen:
         print("\033[2J\033[H", end="")
     else:
-        print("\n" + "=" * 113)
+        print("\n" + "=" * 123)
 
     now = datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     print(f"mootop  PID {pid}  last {interval_seconds:.3f}s  {now}")
     print(
         "active: "
         f"tasks={active_count(current, '@task_state')}  "
+        f"MOO calls={active_count(current, '@verb_call_state')}  "
         f"MOO={active_count(current, '@verb_state')}  "
         f"builtins={active_count(current, '@builtin_state')}  "
         f"commit stages={active_count(current, '@stage_start')}"
@@ -398,25 +462,36 @@ def render(
         print(f"WARNING: {warning}")
 
     print_section(
-        "Task execution by root verb (sorted by interval total)",
+        "Task execution slices by root verb (sorted by interval total)",
         [(verb_identity(key, verb_names), stats) for key, stats in task_stats.items()],
         interval_seconds,
         limit,
+        count_label="slices",
     )
-    print_section(
-        "MOO interpreter by verb (sorted by interval total)",
-        [(verb_identity(key, verb_names), stats) for key, stats in verb_stats.items()],
+    print_verb_call_section(
+        [
+            (verb_identity(key, verb_names), stats)
+            for key, stats in verb_call_stats.items()
+        ],
         interval_seconds,
         limit,
     )
     print_section(
-        "Native builtins (sorted by interval total)",
+        "MOO interpreter slices by verb (sorted by interval total)",
+        [(verb_identity(key, verb_names), stats) for key, stats in verb_stats.items()],
+        interval_seconds,
+        limit,
+        count_label="slices",
+    )
+    print_section(
+        "Native builtin slices (sorted by interval total)",
         [
             (builtin_names.get(key[0], f"builtin_id={key[0]}"), stats)
             for key, stats in builtin_stats.items()
         ],
         interval_seconds,
         limit,
+        count_label="slices",
     )
     print_section(
         "Database commit stages (sorted by interval total)",
@@ -426,6 +501,7 @@ def render(
         ],
         interval_seconds,
         limit,
+        count_label="done",
     )
 
     current_outcomes = merged_numeric(current, "@stage_outcome", 2)

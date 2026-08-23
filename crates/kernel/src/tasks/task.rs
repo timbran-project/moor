@@ -291,7 +291,7 @@ impl Task {
                 definer.as_u64()
             );
         } else {
-            probe!(moor_v1, task_run_start, task_id, 0_u64, 0_u64, 0_usize);
+            probe!(moor_v1, task_run_start, task_id, 0_u64, 0_u64, 0_u64);
         }
         trace_task_start!(task.task_id);
 

@@ -283,5 +283,5 @@ echo "Attaching mootop to ${PROCESS_NAME} (PID ${PID}); refresh=${INTERVAL}s" >&
 BPFTRACE_MAX_MAP_KEYS="${BPFTRACE_MAX_MAP_KEYS}" \
     BPFTRACE_MAX_STRLEN="${BPFTRACE_MAX_STRLEN}" \
     "${BPFTRACE_BIN}" -q -k -B none -f json -p "${PID}" \
-    "${SCRIPT_DIR}/moortop.bt" "${INTERVAL}" "${PID}" "${ONCE}" | \
+    "${SCRIPT_DIR}/moortop.bt" "${INTERVAL}" "${ONCE}" | \
     "${PYTHON_BIN}" "${SCRIPT_DIR}/render-moortop.py" "${RENDER_ARGS[@]}"

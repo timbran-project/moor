@@ -323,7 +323,12 @@ pub fn commit_current_transaction() -> Result<CommitResult, WorldStateError> {
 
         probe::probe!(moor_v1, task_commit_start, task_id);
         let result = task_ctx.world_state.commit();
-        probe::probe!(moor_v1, task_commit_done, task_id);
+        let outcome = match &result {
+            Ok(moor_common::model::CommitResult::Success { .. }) => 0_u64,
+            Ok(moor_common::model::CommitResult::ConflictRetry { .. }) => 1_u64,
+            Err(_) => 2_u64,
+        };
+        probe::probe!(moor_v1, task_commit_done, task_id, outcome);
 
         #[cfg(feature = "trace_events")]
         {

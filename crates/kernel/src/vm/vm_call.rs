@@ -115,9 +115,9 @@ impl ExecStateBuiltinExt for ExecState {
             config: exec_args.config,
         };
 
-        probe::probe!(moor_v1, builtin_run_start, task_id, bf_id.0);
+        probe::probe_lazy!(moor_v1, builtin_run_start, task_id, bf_id.0);
         let bf_result = bf(&mut bf_args);
-        probe::probe!(moor_v1, builtin_run_done, task_id, bf_id.0);
+        probe::probe_lazy!(moor_v1, builtin_run_done, task_id, bf_id.0);
 
         match bf_result {
             Ok(BfRet::Ret(result)) => {
@@ -184,9 +184,9 @@ impl ExecStateBuiltinExt for ExecState {
             config: exec_args.config,
         };
 
-        probe::probe!(moor_v1, builtin_run_start, task_id, bf_id.0);
+        probe::probe_lazy!(moor_v1, builtin_run_start, task_id, bf_id.0);
         let bf_result = bf(&mut bf_args);
-        probe::probe!(moor_v1, builtin_run_done, task_id, bf_id.0);
+        probe::probe_lazy!(moor_v1, builtin_run_done, task_id, bf_id.0);
         // _guard dropped here, records elapsed automatically
 
         // Emit builtin end trace event

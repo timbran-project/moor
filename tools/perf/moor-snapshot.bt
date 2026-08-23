@@ -18,6 +18,12 @@ BEGIN
     @capture_start = nsecs;
 }
 
+/*
+ * Each execution-state entry has one slot per thread. Verb spans and builtin
+ * spans of the same kind must not nest on one thread. The VM returns to the
+ * task loop before another span of either kind starts.
+ */
+
 usdt:*:moor_v1:task_run_start
 {
     @task_state[tid] = (
@@ -55,7 +61,8 @@ usdt:*:moor_v1:task_commit_start
 usdt:*:moor_v1:task_commit_done
 {
     $cpu = cpu;
-    @stage_outcome[$cpu, 0, 0]++;
+    $outcome = (uint64)arg1;
+    @stage_outcome[$cpu, 0, $outcome]++;
     if (@stage_start[tid, 0] != 0) {
         $elapsed = nsecs - @stage_start[tid, 0];
         @stage_count[$cpu, 0]++;
@@ -67,6 +74,46 @@ usdt:*:moor_v1:task_commit_done
         delete(@stage_start[tid, 0]);
     } else {
         @unmatched[$cpu, 0]++;
+    }
+}
+
+/*
+ * Activation kind 0 is a real verb call. Task ID and stack depth match calls
+ * across suspension and worker migration.
+ */
+usdt:*:moor_v1:moo_activation_start
+/(uint64)arg2 == 0/
+{
+    $cpu = cpu;
+    $task_id = (uint64)arg0;
+    $depth = (uint64)arg1;
+    $uuid_high = (uint64)arg3;
+    $uuid_low = (uint64)arg4;
+    $definer = (uint64)arg5;
+    @verb_call_started[$cpu, $uuid_high, $uuid_low, $definer]++;
+    @verb_call_state[$task_id, $depth] = (
+        nsecs,
+        $uuid_high,
+        $uuid_low,
+        $definer
+    );
+}
+
+usdt:*:moor_v1:moo_activation_done
+{
+    $task_id = (uint64)arg0;
+    $depth = (uint64)arg1;
+    $state = @verb_call_state[$task_id, $depth];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @verb_call_count[$cpu, $state.1, $state.2, $state.3]++;
+        @verb_call_total[$cpu, $state.1, $state.2, $state.3] += $elapsed;
+        if ($elapsed > @verb_call_max[$cpu, $state.1, $state.2, $state.3]) {
+            @verb_call_max[$cpu, $state.1, $state.2, $state.3] = $elapsed;
+        }
+        @verb_call_hist[$cpu, $state.1, $state.2, $state.3] = hist($elapsed, 3);
+        delete(@verb_call_state[$task_id, $depth]);
     }
 }
 

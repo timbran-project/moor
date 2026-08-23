@@ -35,7 +35,8 @@ pub enum FinallyReason {
 
 enum ActivationUnwind {
     Handled,
-    PopActivation,
+    PopMooActivation,
+    PopBuiltinActivation,
 }
 
 impl ExecState {
@@ -301,6 +302,11 @@ impl ExecState {
             Some(Self::make_stack_list_from(&self.stack, stack_start))
         };
 
+        for depth in (activation_idx + 1..self.stack.len()).rev() {
+            if matches!(self.stack[depth].frame, Frame::Moo(_)) {
+                self.probe_moo_activation_done(depth);
+            }
+        }
         self.stack.truncate(activation_idx + 1);
         let Some(activation) = self.stack.last_mut() else {
             return false;
@@ -334,7 +340,7 @@ impl ExecState {
     fn unwind_activation(activation: &mut Activation, why: &FinallyReason) -> ActivationUnwind {
         match &mut activation.frame {
             Frame::Moo(frame) => Self::unwind_moo_frame(frame, why),
-            Frame::Bf(_) => ActivationUnwind::PopActivation,
+            Frame::Bf(_) => ActivationUnwind::PopBuiltinActivation,
         }
     }
 
@@ -366,7 +372,7 @@ impl ExecState {
             }
         }
 
-        ActivationUnwind::PopActivation
+        ActivationUnwind::PopMooActivation
     }
 
     fn finish_unwind(why: FinallyReason) -> ExecutionResult {
@@ -380,11 +386,13 @@ impl ExecState {
     /// Unwind the activation stack until a frame handles `why` or the task completes.
     pub fn unwind_stack(&mut self, why: FinallyReason) -> ExecutionResult {
         while let Some(activation) = self.stack.last_mut() {
-            if matches!(
-                Self::unwind_activation(activation, &why),
-                ActivationUnwind::Handled
-            ) {
-                return ExecutionResult::More;
+            let unwind = Self::unwind_activation(activation, &why);
+            match unwind {
+                ActivationUnwind::Handled => return ExecutionResult::More,
+                ActivationUnwind::PopMooActivation => {
+                    self.probe_moo_activation_done(self.stack.len() - 1);
+                }
+                ActivationUnwind::PopBuiltinActivation => {}
             }
 
             self.stack.pop();

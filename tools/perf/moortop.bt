@@ -32,6 +32,12 @@ usdt:*:moor_v1:verb_metadata_done
     @verb_metadata_status = ((uint64)arg0, (uint64)arg1);
 }
 
+/*
+ * Each execution-state entry has one slot per thread. Verb spans and builtin
+ * spans of the same kind must not nest on one thread. The VM returns to the
+ * task loop before another span of either kind starts.
+ */
+
 usdt:*:moor_v1:task_run_start
 {
     @task_state[tid] = (
@@ -106,13 +112,51 @@ usdt:*:moor_v1:task_commit_start
 usdt:*:moor_v1:task_commit_done
 {
     $cpu = cpu;
-    @stage_outcome[$cpu, 0, 0]++;
+    $outcome = (uint64)arg1;
+    @stage_outcome[$cpu, 0, $outcome]++;
     if (@stage_start[tid, 0] != 0) {
         $elapsed = nsecs - @stage_start[tid, 0];
         @stage_count[$cpu, 0]++;
         @stage_total[$cpu, 0] += $elapsed;
         @stage_hist[$cpu, 0] = hist($elapsed, 3);
         delete(@stage_start[tid, 0]);
+    }
+}
+
+/*
+ * Activation kind 0 is a real verb call. Task ID and stack depth match calls
+ * across suspension and worker migration.
+ */
+usdt:*:moor_v1:moo_activation_start
+/(uint64)arg2 == 0/
+{
+    $cpu = cpu;
+    $task_id = (uint64)arg0;
+    $depth = (uint64)arg1;
+    $uuid_high = (uint64)arg3;
+    $uuid_low = (uint64)arg4;
+    $definer = (uint64)arg5;
+    @verb_call_started[$cpu, $uuid_high, $uuid_low, $definer]++;
+    @verb_call_state[$task_id, $depth] = (
+        nsecs,
+        $uuid_high,
+        $uuid_low,
+        $definer
+    );
+}
+
+usdt:*:moor_v1:moo_activation_done
+{
+    $task_id = (uint64)arg0;
+    $depth = (uint64)arg1;
+    $state = @verb_call_state[$task_id, $depth];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @verb_call_count[$cpu, $state.1, $state.2, $state.3]++;
+        @verb_call_total[$cpu, $state.1, $state.2, $state.3] += $elapsed;
+        @verb_call_hist[$cpu, $state.1, $state.2, $state.3] = hist($elapsed, 3);
+        delete(@verb_call_state[$task_id, $depth]);
     }
 }
 
@@ -267,6 +311,10 @@ interval:s:$1
     print(@task_count);
     print(@task_total);
     print(@task_hist);
+    print(@verb_call_started);
+    print(@verb_call_count);
+    print(@verb_call_total);
+    print(@verb_call_hist);
     print(@verb_count);
     print(@verb_total);
     print(@verb_hist);
@@ -285,11 +333,12 @@ interval:s:$1
         @verb_metadata_printed_generation = @verb_metadata_generation;
     }
     print(@task_state);
+    print(@verb_call_state);
     print(@verb_state);
     print(@builtin_state);
     print(@stage_start);
     printf("MOORTOP_END %llu\n", $now);
-    if ($3 != 0) {
+    if ($2 != 0) {
         exit();
     }
 }

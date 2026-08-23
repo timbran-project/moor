@@ -46,6 +46,15 @@ static BOOL_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bool_prot
 
 static SYM_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sym_proto"));
 
+#[derive(Clone, Copy)]
+#[repr(u64)]
+enum MooActivationKind {
+    Verb,
+    Fork,
+    Lambda,
+    Eval,
+}
+
 /// Per-task snapshot of program cache performance counters.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ProgramCacheLocalSnapshot {
@@ -98,6 +107,30 @@ pub struct ExecState {
 }
 
 impl ExecState {
+    #[inline]
+    fn probe_moo_activation_start(
+        &self,
+        depth: usize,
+        kind: MooActivationKind,
+        verbdef: ResolvedVerb,
+    ) {
+        probe::probe_lazy!(
+            moor_v1,
+            moo_activation_start,
+            self.task_id,
+            depth,
+            kind as u64,
+            verbdef.uuid().as_u64_pair().0,
+            verbdef.uuid().as_u64_pair().1,
+            verbdef.location().as_u64()
+        );
+    }
+
+    #[inline]
+    pub(crate) fn probe_moo_activation_done(&self, depth: usize) {
+        probe::probe_lazy!(moor_v1, moo_activation_done, self.task_id, depth);
+    }
+
     #[inline]
     fn args_list_to_var(args: List) -> Var {
         if args.is_empty() {
@@ -396,7 +429,9 @@ impl ExecState {
             current_activation,
             program,
         );
+        let depth = self.stack.len();
         self.stack.push(a);
+        self.probe_moo_activation_start(depth, MooActivationKind::Verb, resolved_verb);
     }
 
     /// Entry point from scheduler for beginning the dispatch of an initial command verb execution.
@@ -452,7 +487,9 @@ impl ExecState {
             command.iobjstr.take().map_or_else(v_empty_str, v_string),
         );
 
+        let depth = self.stack.len();
         self.stack.push(a);
+        self.probe_moo_activation_start(depth, MooActivationKind::Verb, resolved_verb);
     }
 
     /// Prepare a new stack & call hierarchy for invocation of a forked task.
@@ -476,7 +513,9 @@ impl ExecState {
 
         // TODO how to set the task_id in the parent activation, as we no longer have a reference
         //  to it?
+        let verbdef = a.verbdef;
         self.stack = vec![a];
+        self.probe_moo_activation_start(0, MooActivationKind::Fork, verbdef);
     }
 
     /// Execute a lambda call by creating a new lambda activation
@@ -488,7 +527,10 @@ impl ExecState {
         // Get current activation before borrowing self immutably
         let current_activation = self.top();
         let a = Activation::for_lambda_call(&lambda, current_activation, args.into_vec())?;
+        let verbdef = a.verbdef;
+        let depth = self.stack.len();
         self.stack.push(a);
+        self.probe_moo_activation_start(depth, MooActivationKind::Lambda, verbdef);
         Ok(())
     }
 }
@@ -677,7 +719,10 @@ impl ExecState {
             program,
             initial_env,
         );
+        let verbdef = a.verbdef;
+        let depth = self.stack.len();
         self.stack.push(a);
+        self.probe_moo_activation_start(depth, MooActivationKind::Eval, verbdef);
     }
 
     /// If a bf_<xxx> wrapper function is present on #0, invoke that instead.

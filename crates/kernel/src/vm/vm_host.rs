@@ -480,13 +480,12 @@ impl VmHost {
 
         let (result, new_tick_count) = match &mut activation.frame {
             Frame::Moo(fr) => {
-                let (verb_uuid_high, verb_uuid_low) = activation.verbdef.uuid().as_u64_pair();
-                probe::probe!(
+                probe::probe_lazy!(
                     moor_v1,
                     verb_run_start,
                     task_id,
-                    verb_uuid_high,
-                    verb_uuid_low,
+                    activation.verbdef.uuid().as_u64_pair().0,
+                    activation.verbdef.uuid().as_u64_pair().1,
                     verb_definer.as_u64(),
                     fr.pc,
                     std::ptr::addr_of!(fr.pc)
@@ -507,12 +506,12 @@ impl VmHost {
                     fr,
                     vm_exec_params.config,
                 );
-                probe::probe!(
+                probe::probe_lazy!(
                     moor_v1,
                     verb_run_done,
                     task_id,
-                    verb_uuid_high,
-                    verb_uuid_low,
+                    activation.verbdef.uuid().as_u64_pair().0,
+                    activation.verbdef.uuid().as_u64_pair().1,
                     verb_definer.as_u64(),
                     fr.pc
                 );
