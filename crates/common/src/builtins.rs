@@ -614,6 +614,41 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("mapkeys", Q(1), Q(1), vec![Typed(TYPE_MAP)], true),
         mk_builtin("mapvalues", Q(1), U, vec![Typed(TYPE_MAP)], true),
         mk_builtin("maphaskey", Q(2), Q(2), vec![Typed(TYPE_MAP), Any], true),
+        mk_builtin(
+            "mapmerge",
+            Q(2),
+            Q(2),
+            vec![Typed(TYPE_MAP), Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "mapintersection",
+            Q(2),
+            Q(2),
+            vec![Typed(TYPE_MAP), Typed(TYPE_MAP)],
+            true,
+        ),
+        mk_builtin(
+            "mapdifference",
+            Q(2),
+            Q(2),
+            vec![Typed(TYPE_MAP), Any],
+            true,
+        ),
+        mk_builtin(
+            "mapcontains",
+            Q(2),
+            Q(3),
+            vec![Typed(TYPE_MAP), Typed(TYPE_MAP), Any],
+            true,
+        ),
+        mk_builtin(
+            "mapproject",
+            Q(2),
+            Q(2),
+            vec![Typed(TYPE_MAP), Typed(TYPE_LIST)],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "map");

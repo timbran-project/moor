@@ -55,6 +55,24 @@
 ; return $tmp = mapdelete($tmp, E_PERM);
 []
 
+// test_map_algebra_builtins
+; return mapmerge(["a" -> 1, "b" -> 2], ["b" -> 20, "c" -> 30]);
+["a" -> 1, "b" -> 20, "c" -> 30]
+; return mapintersection(["a" -> 1, "b" -> 2], ["b" -> 20, "c" -> 30]);
+["b" -> 2]
+; return mapdifference(["a" -> 1, "b" -> 2, "c" -> 3], {"a", "c"});
+["b" -> 2]
+; return mapdifference(["a" -> 1, "b" -> 2, "c" -> 3], ["b" -> 0]);
+["a" -> 1, "c" -> 3]
+; return mapcontains(["a" -> 1, "b" -> 2], ["a" -> 1]);
+1
+; return mapcontains(["a" -> 1], ["b" -> 0]);
+0
+; return mapcontains(["a" -> 1], ["b" -> 0], 0);
+1
+; return mapproject(["a" -> 1, "b" -> 2, "c" -> 3], {"c", "a", "missing", "c"});
+["a" -> 1, "c" -> 3]
+
 // test_that_length_returns_the_number_of_entries_in_a_map
 ; return length(["3" -> "3", "1" -> "1", "4" -> "4", "5" -> "5", "9" -> "9", "2" -> "2"]);
 6
@@ -227,4 +245,3 @@ E_TYPE
 // test_map_slicing
 ; return slice({["a" -> 1, "b" -> 2], ["a" -> 5, "b" -> 6], ["b" -> 8]}, "a", 0);
 {1, 5, 0}
-
