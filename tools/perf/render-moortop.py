@@ -249,17 +249,21 @@ def print_section(
         return
 
     denominator = sum(stats.total for _, stats in rows)
+    interval_nanoseconds = interval_seconds * 1_000_000_000
     print(
-        "      %  identity                                       rate/s"
+        "% section  % core  identity                                       rate/s"
         "   count       total        mean        p95~"
     )
-    for identity, stats in sorted(
-        rows, key=lambda row: row[1].total, reverse=True
-    )[:limit]:
+    for identity, stats in sorted(rows, key=lambda row: row[1].total, reverse=True)[
+        :limit
+    ]:
         share = 100 * stats.total / denominator if denominator else 0.0
+        core_share = (
+            100 * stats.total / interval_nanoseconds if interval_nanoseconds else 0.0
+        )
         mean = stats.total // stats.count
         print(
-            f"  {share:>6.2f}  {fitted_identity(identity):<45}"
+            f"    {share:>6.2f}  {core_share:>6.2f}  {fitted_identity(identity):<45}"
             f" {stats.count / interval_seconds:>7.1f}"
             f" {stats.count:>7} {duration(stats.total):>11}"
             f" {duration(mean):>11} {duration(stats.percentile95):>11}"
@@ -377,7 +381,7 @@ def render(
     if clear_screen:
         print("\033[2J\033[H", end="")
     else:
-        print("\n" + "=" * 104)
+        print("\n" + "=" * 113)
 
     now = datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     print(f"mootop  PID {pid}  last {interval_seconds:.3f}s  {now}")
@@ -395,19 +399,13 @@ def render(
 
     print_section(
         "Task execution by root verb (sorted by interval total)",
-        [
-            (verb_identity(key, verb_names), stats)
-            for key, stats in task_stats.items()
-        ],
+        [(verb_identity(key, verb_names), stats) for key, stats in task_stats.items()],
         interval_seconds,
         limit,
     )
     print_section(
         "MOO interpreter by verb (sorted by interval total)",
-        [
-            (verb_identity(key, verb_names), stats)
-            for key, stats in verb_stats.items()
-        ],
+        [(verb_identity(key, verb_names), stats) for key, stats in verb_stats.items()],
         interval_seconds,
         limit,
     )

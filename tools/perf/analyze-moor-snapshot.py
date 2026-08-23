@@ -161,6 +161,7 @@ def print_summary(
     percentage_label: str,
     percentage_denominator: int | None = None,
     percentages_valid: bool = True,
+    capture_duration: int = 0,
 ) -> None:
     print(f"\n{title}")
     if not rows:
@@ -171,7 +172,8 @@ def print_summary(
         percentage_denominator = sum(sum(values) for _, values in rows)
 
     print(
-        f"  {percentage_label:>10}  identity                                      count"
+        f"  {percentage_label:>10}  {'% core':>8}  identity"
+        "                                      count"
         "       total         mean          p95          max"
     )
     for identity, values in sorted(rows, key=lambda row: sum(row[1]), reverse=True)[
@@ -183,8 +185,14 @@ def print_summary(
             if percentages_valid and percentage_denominator
             else f"{'--':>10}"
         )
+        core_percentage = (
+            f"{100 * total / capture_duration:>7.2f}%"
+            if percentages_valid and capture_duration
+            else f"{'--':>8}"
+        )
         print(
-            f"  {percentage}  {fitted_identity(identity):<45} {len(values):>6}"
+            f"  {percentage}  {core_percentage}  "
+            f"{fitted_identity(identity):<45} {len(values):>6}"
             f" {duration(total):>11}"
             f" {duration(int(statistics.mean(values))):>12}"
             f" {duration(percentile(values, 0.95)):>12}"
@@ -324,6 +332,7 @@ def parse_legacy(path: Path, limit: int) -> None:
         limit,
         "% section",
         percentages_valid=percentages_valid,
+        capture_duration=elapsed,
     )
     print_summary(
         "MOO interpreter cost by verb (sorted by total)",
@@ -331,6 +340,7 @@ def parse_legacy(path: Path, limit: int) -> None:
         limit,
         "% section",
         percentages_valid=percentages_valid,
+        capture_duration=elapsed,
     )
     task_commit_total = sum(stage_durations.get("task_commit", []))
     print_summary(
@@ -338,8 +348,9 @@ def parse_legacy(path: Path, limit: int) -> None:
         stage_rows,
         limit,
         "% commit",
-        task_commit_total,
-        percentages_valid,
+        percentage_denominator=task_commit_total,
+        percentages_valid=percentages_valid,
+        capture_duration=elapsed,
     )
 
     print("\nCommit outcomes")
@@ -434,10 +445,7 @@ def parse_legacy(path: Path, limit: int) -> None:
         aggregate_verb_rows,
         [],
         aggregate_stage_rows,
-        [
-            (stage, outcome, count)
-            for (stage, outcome), count in stage_outcomes.items()
-        ],
+        [(stage, outcome, count) for (stage, outcome), count in stage_outcomes.items()],
         percentages_valid,
     )
 
@@ -769,6 +777,7 @@ def print_aggregate_summary(
     percentage_label: str,
     percentages_valid: bool,
     percentage_denominator: int | None = None,
+    capture_duration: int = 0,
 ) -> None:
     print(f"\n{title}")
     if not rows:
@@ -779,7 +788,8 @@ def print_aggregate_summary(
         percentage_denominator = sum(stats.total for _, stats in rows)
 
     print(
-        f"  {percentage_label:>10}  identity                                      count"
+        f"  {percentage_label:>10}  {'% core':>8}  identity"
+        "                                      count"
         "       total         mean         p95~          max"
     )
     for identity, stats in sorted(rows, key=lambda row: row[1].total, reverse=True)[
@@ -788,6 +798,7 @@ def print_aggregate_summary(
         mean = stats.total // stats.count if stats.count else 0
         print(
             f"  {percentage(stats.total, percentage_denominator, percentages_valid, 10)}"
+            f"  {percentage(stats.total, capture_duration, percentages_valid, 8)}"
             f"  {fitted_identity(identity):<45} {stats.count:>6}"
             f" {duration(stats.total):>11}"
             f" {duration(mean):>12}"
@@ -822,9 +833,7 @@ def print_performance_watchlist(
             )
         printed = True
 
-    tail_rows = [
-        row for row in verb_rows if row[1].count >= WATCHLIST_MIN_SLICES
-    ]
+    tail_rows = [row for row in verb_rows if row[1].count >= WATCHLIST_MIN_SLICES]
     if tail_rows:
         identity, stats = max(
             tail_rows,
@@ -864,11 +873,7 @@ def print_performance_watchlist(
         printed = True
 
     task_commit_total = next(
-        (
-            stats.total
-            for identity, stats in stage_rows
-            if identity == "task_commit"
-        ),
+        (stats.total for identity, stats in stage_rows if identity == "task_commit"),
         0,
     )
     commit_substages = [
@@ -920,9 +925,7 @@ def parse_aggregate(
     capture_end = scalar_map(maps, "@capture_end", protocol_errors)
     task_stats = aggregate_stats(maps, histograms, "task", {1, 4}, protocol_errors)
     verb_stats = aggregate_stats(maps, histograms, "verb", {3}, protocol_errors)
-    builtin_stats = aggregate_stats(
-        maps, histograms, "builtin", {1}, protocol_errors
-    )
+    builtin_stats = aggregate_stats(maps, histograms, "builtin", {1}, protocol_errors)
     stage_stats = aggregate_stats(maps, histograms, "stage", {1}, protocol_errors)
     raw_names = keyed_map(maps, "@verb_names", protocol_errors)
     verb_names: dict[tuple[int, int, int], set[str]] = collections.defaultdict(set)
@@ -1148,6 +1151,7 @@ def parse_aggregate(
         limit,
         "% section",
         percentages_valid,
+        capture_duration=elapsed,
     )
     print_aggregate_summary(
         "MOO interpreter cost by verb (sorted by total)",
@@ -1155,6 +1159,7 @@ def parse_aggregate(
         limit,
         "% section",
         percentages_valid,
+        capture_duration=elapsed,
     )
     print_aggregate_summary(
         "Native builtin cost by builtin (sorted by total)",
@@ -1162,6 +1167,7 @@ def parse_aggregate(
         limit,
         "% section",
         percentages_valid,
+        capture_duration=elapsed,
     )
     print_aggregate_summary(
         "Database commit-stage cost (sorted by total)",
@@ -1169,7 +1175,8 @@ def parse_aggregate(
         limit,
         "% commit",
         percentages_valid,
-        task_commit_total,
+        percentage_denominator=task_commit_total,
+        capture_duration=elapsed,
     )
 
     print("\nCommit outcomes")

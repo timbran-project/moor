@@ -93,6 +93,11 @@ tools/perf/builtin-id-map.py 0 256 512
 The report calculates `p95~` from a fine-grained logarithmic histogram. The value is the upper limit
 of the selected histogram bucket.
 
+The `% section` column shows the share for each row in the measured section. The `% core` column
+divides the interval total by the capture duration. This value shows the equivalent use of one CPU
+core. Concurrent intervals can make the total more than 100%. Values from overlapping sections do
+not form a valid sum.
+
 The command checks for lost output and BPF helper errors. If it finds either condition, the report
 replaces all percentages with `--`.
 
