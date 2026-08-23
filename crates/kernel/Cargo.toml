@@ -99,8 +99,8 @@ xml-rs.workspace = true
 # Async Runtime & Concurrency
 arc-swap.workspace = true
 flume.workspace = true
-parking_lot.workspace = true
 papaya.workspace = true
+parking_lot.workspace = true
 
 # Authentication & Security
 age = { workspace = true, features = ["ssh"] }
