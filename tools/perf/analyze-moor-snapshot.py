@@ -61,6 +61,7 @@ UNMATCHED_NAMES = {
     **STAGE_NAMES,
     100: "task_run",
     101: "verb_run",
+    102: "builtin_run",
 }
 
 EVENT_FIELD_COUNTS = {
@@ -431,6 +432,7 @@ def parse_legacy(path: Path, limit: int) -> None:
     ]
     print_performance_watchlist(
         aggregate_verb_rows,
+        [],
         aggregate_stage_rows,
         [
             (stage, outcome, count)
@@ -796,6 +798,7 @@ def print_aggregate_summary(
 
 def print_performance_watchlist(
     verb_rows: list[tuple[str, AggregateStats]],
+    builtin_rows: list[tuple[str, AggregateStats]],
     stage_rows: list[tuple[str, AggregateStats]],
     outcome_rows: list[tuple[str, int, int]],
     percentages_valid: bool,
@@ -829,6 +832,33 @@ def print_performance_watchlist(
         )
         print(
             f"  Highest well-sampled MOO tail: {fitted_identity(identity)}"
+            f" p95~={duration(stats.percentile95)} across {stats.count:,} slices"
+        )
+        printed = True
+
+    builtin_total = sum(stats.total for _, stats in builtin_rows)
+    if builtin_total:
+        print("  Largest aggregate builtin costs:")
+        for identity, stats in sorted(
+            builtin_rows, key=lambda row: row[1].total, reverse=True
+        )[:3]:
+            share = 100 * stats.total / builtin_total
+            print(
+                f"    {share:>6.2f}%  {fitted_identity(identity):<45}"
+                f" total={duration(stats.total)} slices={stats.count:,}"
+            )
+        printed = True
+
+    builtin_tail_rows = [
+        row for row in builtin_rows if row[1].count >= WATCHLIST_MIN_SLICES
+    ]
+    if builtin_tail_rows:
+        identity, stats = max(
+            builtin_tail_rows,
+            key=lambda row: (row[1].percentile95, row[1].total),
+        )
+        print(
+            f"  Highest well-sampled builtin tail: {fitted_identity(identity)}"
             f" p95~={duration(stats.percentile95)} across {stats.count:,} slices"
         )
         printed = True
@@ -874,10 +904,14 @@ def print_performance_watchlist(
         printed = True
 
     if not printed:
-        print("  no completed MOO or commit intervals")
+        print("  no completed MOO, builtin, or commit intervals")
 
 
-def parse_aggregate(path: Path, limit: int) -> None:
+def parse_aggregate(
+    path: Path,
+    limit: int,
+    builtin_names: dict[int, str],
+) -> None:
     maps, histograms, lost_events, helper_errors, ignored_lines = read_aggregate_data(
         path
     )
@@ -886,6 +920,9 @@ def parse_aggregate(path: Path, limit: int) -> None:
     capture_end = scalar_map(maps, "@capture_end", protocol_errors)
     task_stats = aggregate_stats(maps, histograms, "task", {1, 4}, protocol_errors)
     verb_stats = aggregate_stats(maps, histograms, "verb", {3}, protocol_errors)
+    builtin_stats = aggregate_stats(
+        maps, histograms, "builtin", {1}, protocol_errors
+    )
     stage_stats = aggregate_stats(maps, histograms, "stage", {1}, protocol_errors)
     raw_names = keyed_map(maps, "@verb_names", protocol_errors)
     verb_names: dict[tuple[int, int, int], set[str]] = collections.defaultdict(set)
@@ -918,6 +955,15 @@ def parse_aggregate(path: Path, limit: int) -> None:
             protocol_errors.append(f"@verb maps have an invalid key: {key}")
             continue
         verb_rows.append((verb_name(*key, verb_names.get(key)), stats))
+
+    builtin_rows: list[tuple[str, AggregateStats]] = []
+    for key, stats in builtin_stats.items():
+        if len(key) != 1:
+            protocol_errors.append(f"@builtin maps have an invalid key: {key}")
+            continue
+        builtin_id = key[0]
+        identity = builtin_names.get(builtin_id, f"builtin_id={builtin_id}")
+        builtin_rows.append((identity, stats))
 
     stage_rows: list[tuple[str, AggregateStats]] = []
     task_commit_total = 0
@@ -961,6 +1007,7 @@ def parse_aggregate(path: Path, limit: int) -> None:
 
     task_states = tuple_map(maps, "@task_state", {2, 5}, protocol_errors)
     verb_states = tuple_map(maps, "@verb_state", {7}, protocol_errors)
+    builtin_states = tuple_map(maps, "@builtin_state", {3}, protocol_errors)
     stage_starts = numeric_map(maps, "@stage_start", protocol_errors)
     active: list[tuple[int, str, int, str]] = []
 
@@ -994,6 +1041,16 @@ def parse_aggregate(path: Path, limit: int) -> None:
             f" pc_start={pc_start}"
         )
         active.append((max(0, capture_end - started), "verb_run", tid, identity))
+
+    for key, state in builtin_states.items():
+        if len(key) != 1:
+            protocol_errors.append(f"@builtin_state has an invalid key: {key}")
+            continue
+        tid = key[0]
+        started, task_id, builtin_id = state
+        identity = builtin_names.get(builtin_id, f"builtin_id={builtin_id}")
+        identity = f"task={task_id} {identity}"
+        active.append((max(0, capture_end - started), "builtin_run", tid, identity))
 
     if not task_states and "@task_state" not in maps:
         task_starts = numeric_map(maps, "@task_start", protocol_errors)
@@ -1100,6 +1157,13 @@ def parse_aggregate(path: Path, limit: int) -> None:
         percentages_valid,
     )
     print_aggregate_summary(
+        "Native builtin cost by builtin (sorted by total)",
+        builtin_rows,
+        limit,
+        "% section",
+        percentages_valid,
+    )
+    print_aggregate_summary(
         "Database commit-stage cost (sorted by total)",
         stage_rows,
         limit,
@@ -1149,17 +1213,39 @@ def parse_aggregate(path: Path, limit: int) -> None:
 
     print_performance_watchlist(
         verb_rows,
+        builtin_rows,
         stage_rows,
         outcome_rows,
         percentages_valid,
     )
 
 
-def parse(path: Path, limit: int) -> None:
+def load_builtin_names(path: Path | None) -> dict[int, str]:
+    if path is None:
+        return {}
+
+    with path.open(encoding="utf-8") as source:
+        raw_names = json.load(source)
+    if not isinstance(raw_names, dict):
+        raise ValueError(f"builtin map is not a JSON object: {path}")
+
+    names: dict[int, str] = {}
+    for raw_id, name in raw_names.items():
+        try:
+            builtin_id = int(raw_id)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"builtin map has an invalid ID: {raw_id!r}") from error
+        if not isinstance(name, str):
+            raise ValueError(f"builtin map name for ID {builtin_id} is not a string")
+        names[builtin_id] = name
+    return names
+
+
+def parse(path: Path, limit: int, builtin_names: dict[int, str]) -> None:
     with path.open(encoding="utf-8") as source:
         first_line = next((line for line in source if line.strip()), "")
     if first_line.lstrip().startswith("{"):
-        parse_aggregate(path, limit)
+        parse_aggregate(path, limit, builtin_names)
         return
     parse_legacy(path, limit)
 
@@ -1174,8 +1260,13 @@ def main() -> None:
     parser.add_argument(
         "--limit", type=int, default=20, help="maximum rows per section"
     )
+    parser.add_argument(
+        "--builtin-map",
+        type=Path,
+        help="JSON map from builtin IDs to names",
+    )
     args = parser.parse_args()
-    parse(args.events, args.limit)
+    parse(args.events, args.limit, load_builtin_names(args.builtin_map))
 
 
 if __name__ == "__main__":

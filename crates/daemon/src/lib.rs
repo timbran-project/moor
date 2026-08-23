@@ -55,6 +55,7 @@ pub mod connections;
 mod curve_keys;
 mod enrollment;
 mod event_log;
+mod perf_diagnostics;
 mod rpc;
 mod runtime;
 mod system_control;
@@ -598,6 +599,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         Some(&paths.db_path),
         config.database.clone().unwrap_or_default(),
     )?;
+    let diagnostics_database = database.clone();
     let database = Box::new(database);
     info!(path = ?paths.db_path, "Opened database");
 
@@ -878,6 +880,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     );
     let scheduler_client = scheduler.client().unwrap();
 
+    let perf_diagnostics_thread =
+        perf_diagnostics::start(diagnostics_database, kill_switch.clone())?;
+
     // Background DB checkpoint thread
     (|| -> Result<(), Report> {
         let Some(output_path) = config.import_export.output_path.clone() else {
@@ -1014,6 +1019,10 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
     if let Err(e) = scheduler_loop_jh.join() {
         error!("Scheduler thread panicked: {:?}", e);
+    }
+    kill_switch.store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Err(e) = perf_diagnostics_thread.join() {
+        error!("Performance diagnostics thread panicked: {:?}", e);
     }
 
     // Shutdown tracing to flush any remaining events

@@ -107,6 +107,7 @@ impl ExecStateBuiltinExt for ExecState {
             flags,
             self.top().player(),
         ));
+        let task_id = self.task_id;
         let mut bf_args = BfCallState {
             exec_state: self,
             name: bf_name,
@@ -114,7 +115,9 @@ impl ExecStateBuiltinExt for ExecState {
             config: exec_args.config,
         };
 
+        probe::probe!(moor_v1, builtin_run_start, task_id, bf_id.0);
         let bf_result = bf(&mut bf_args);
+        probe::probe!(moor_v1, builtin_run_done, task_id, bf_id.0);
 
         match bf_result {
             Ok(BfRet::Ret(result)) => {
@@ -172,6 +175,7 @@ impl ExecStateBuiltinExt for ExecState {
         let verb_name = self.top().verb_name;
         let args = self.top().args().clone();
 
+        let task_id = self.task_id;
         let mut bf_args = BfCallState {
             exec_state: self,
             name: verb_name,
@@ -180,7 +184,9 @@ impl ExecStateBuiltinExt for ExecState {
             config: exec_args.config,
         };
 
+        probe::probe!(moor_v1, builtin_run_start, task_id, bf_id.0);
         let bf_result = bf(&mut bf_args);
+        probe::probe!(moor_v1, builtin_run_done, task_id, bf_id.0);
         // _guard dropped here, records elapsed automatically
 
         // Emit builtin end trace event

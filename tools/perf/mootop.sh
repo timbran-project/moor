@@ -14,52 +14,54 @@
 
 set -euo pipefail
 
-DURATION=${DURATION:-10}
-FREQUENCY=${FREQUENCY:-99}
-OUT_DIR=${OUT_DIR:-"${PWD}"}
+INTERVAL=${INTERVAL:-5}
+LIMIT=${LIMIT:-10}
 TARGET_PID=${TARGET_PID:-}
 TARGET_CONTAINER=${TARGET_CONTAINER:-}
 BPFTRACE_BIN=${BPFTRACE_BIN:-bpftrace}
 BPFTRACE_MAX_MAP_KEYS=${BPFTRACE_MAX_MAP_KEYS:-65536}
+BPFTRACE_MAX_STRLEN=${BPFTRACE_MAX_STRLEN:-128}
 PYTHON_BIN=${PYTHON_BIN:-python3}
 BUILTIN_SOURCE=${BUILTIN_SOURCE:-}
+VERB_MAP=${VERB_MAP:-}
+VERB_MAP_OUTPUT=${VERB_MAP_OUTPUT:-}
 CLI_PID=
 CLI_CONTAINER=
+ONCE=0
+NO_CLEAR=false
 WORK_DIR=
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${SCRIPT_DIR}/container-target.sh"
 
 usage() {
     cat <<'EOF'
-Usage: tools/perf/snapshot-running-moor.sh [-d SECONDS] [-c CONTAINER | PID]
+Usage: tools/perf/mootop.sh [OPTIONS] [PID]
 
-Attach to an active moor-daemon or moor process. Record task, verb, and database
-commit probes. The command writes a report and the aggregate data to a tarball.
+Show live mooR task, MOO verb, builtin, and commit costs. Press Ctrl-C to stop.
 
 Arguments:
   PID         Process to inspect instead of searching for a server
 
 Options:
   -c, --container CONTAINER
-              Inspect the moor process in this Docker container
-  -d, --duration SECONDS
-              Recording duration (default: 10)
+              Inspect the mooR process in this Docker container
+  -i, --interval SECONDS
+              Refresh interval (default: 5)
+  -l, --limit ROWS
+              Maximum rows in each section (default: 10)
+  --verb-map FILE
+              JSON object that maps verb UUIDs to names
+  --verb-map-output FILE
+              Write names from the attached process to this file
+              (default: ./moor-verb-map-PID.json)
+  --no-clear  Append screens instead of clearing the terminal
+  --once      Print one interval and stop
   -h, --help  Show this help text
 
 Environment:
-  TARGET_PID  Default PID when no PID argument is given
-  TARGET_CONTAINER
-              Default Docker container when no PID argument is given
-  DURATION    Default recording duration in seconds
-  FREQUENCY   MOO program-counter sample rate in hertz (default: 99)
-  OUT_DIR     Directory for the tarball (default: current directory)
-  BPFTRACE_BIN
-              bpftrace executable to use (default: bpftrace)
-  BPFTRACE_MAX_MAP_KEYS
-              Maximum entries in each BPF map (default: 65536)
+  TARGET_PID, TARGET_CONTAINER, INTERVAL, LIMIT, VERB_MAP, VERB_MAP_OUTPUT
+  BPFTRACE_BIN, BPFTRACE_MAX_MAP_KEYS, BPFTRACE_MAX_STRLEN, PYTHON_BIN
   BUILTIN_SOURCE
-              Path to the builtin registry source for offline name resolution
-  PYTHON_BIN  Python executable to use (default: python3)
 EOF
 }
 
@@ -100,23 +102,60 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -c|--container)
             [[ $# -ge 2 ]] || fail "missing value for $1"
-            [[ -z "${CLI_CONTAINER}" ]] || fail "only one container may be specified"
+            [[ -z "${CLI_CONTAINER}" ]] || fail "only one container can be specified"
             CLI_CONTAINER=$2
             shift 2
             ;;
         --container=*)
-            [[ -z "${CLI_CONTAINER}" ]] || fail "only one container may be specified"
+            [[ -z "${CLI_CONTAINER}" ]] || fail "only one container can be specified"
             CLI_CONTAINER=${1#*=}
             [[ -n "${CLI_CONTAINER}" ]] || fail "missing value for --container"
             shift
             ;;
-        -d|--duration)
+        -i|--interval)
             [[ $# -ge 2 ]] || fail "missing value for $1"
-            DURATION=$2
+            INTERVAL=$2
             shift 2
             ;;
-        --duration=*)
-            DURATION=${1#*=}
+        --interval=*)
+            INTERVAL=${1#*=}
+            shift
+            ;;
+        -l|--limit)
+            [[ $# -ge 2 ]] || fail "missing value for $1"
+            LIMIT=$2
+            shift 2
+            ;;
+        --limit=*)
+            LIMIT=${1#*=}
+            shift
+            ;;
+        --verb-map)
+            [[ $# -ge 2 ]] || fail "missing value for $1"
+            VERB_MAP=$2
+            shift 2
+            ;;
+        --verb-map=*)
+            VERB_MAP=${1#*=}
+            [[ -n "${VERB_MAP}" ]] || fail "missing value for --verb-map"
+            shift
+            ;;
+        --verb-map-output)
+            [[ $# -ge 2 ]] || fail "missing value for $1"
+            VERB_MAP_OUTPUT=$2
+            shift 2
+            ;;
+        --verb-map-output=*)
+            VERB_MAP_OUTPUT=${1#*=}
+            [[ -n "${VERB_MAP_OUTPUT}" ]] || fail "missing value for --verb-map-output"
+            shift
+            ;;
+        --no-clear)
+            NO_CLEAR=true
+            shift
+            ;;
+        --once)
+            ONCE=1
             shift
             ;;
         -h|--help)
@@ -132,14 +171,14 @@ while [[ $# -gt 0 ]]; do
             fail "unknown option: $1"
             ;;
         *)
-            [[ -z "${CLI_PID}" ]] || fail "only one PID may be specified"
+            [[ -z "${CLI_PID}" ]] || fail "only one PID can be specified"
             CLI_PID=$1
             shift
             ;;
     esac
 done
 
-[[ $# -eq 0 ]] || fail "only one PID may be specified"
+[[ $# -eq 0 ]] || fail "only one PID can be specified"
 if [[ -n "${CLI_PID}" && -n "${CLI_CONTAINER}" ]]; then
     fail "PID and container are mutually exclusive"
 fi
@@ -154,12 +193,14 @@ if [[ -n "${TARGET_PID}" && -n "${TARGET_CONTAINER}" ]]; then
     fail "TARGET_PID and TARGET_CONTAINER are mutually exclusive"
 fi
 
-[[ "${DURATION}" =~ ^[1-9][0-9]*$ ]] || fail "DURATION must be a positive integer"
-[[ "${FREQUENCY}" =~ ^[1-9][0-9]*$ ]] || fail "FREQUENCY must be a positive integer"
+[[ "${INTERVAL}" =~ ^[1-9][0-9]*$ ]] || fail "INTERVAL must be a positive integer"
+[[ "${LIMIT}" =~ ^[1-9][0-9]*$ ]] || fail "LIMIT must be a positive integer"
 [[ "${BPFTRACE_MAX_MAP_KEYS}" =~ ^[1-9][0-9]*$ ]] || \
     fail "BPFTRACE_MAX_MAP_KEYS must be a positive integer"
+[[ "${BPFTRACE_MAX_STRLEN}" =~ ^[1-9][0-9]*$ ]] || \
+    fail "BPFTRACE_MAX_STRLEN must be a positive integer"
 
-for command in "${BPFTRACE_BIN}" "${PYTHON_BIN}" readelf pgrep ps tar mktemp cp; do
+for command in "${BPFTRACE_BIN}" "${PYTHON_BIN}" dirname readelf pgrep ps mktemp; do
     command -v "${command}" >/dev/null 2>&1 || fail "required command not found: ${command}"
 done
 
@@ -194,66 +235,53 @@ case "${PROCESS_NAME}" in
         ;;
 esac
 
-if ! readelf -n "/proc/${PID}/exe" 2>/dev/null | grep -q 'Provider: moor_v1'; then
-    fail "process ${PID} does not contain the moor_v1 probes"
+PROBE_NOTES=$(readelf -n "/proc/${PID}/exe" 2>/dev/null)
+for probe_name in \
+    diagnostics_attached verb_metadata verb_metadata_done \
+    task_run_start verb_run_start builtin_run_start db_commit_start; do
+    if ! grep -q "Name: ${probe_name}" <<< "${PROBE_NOTES}"; then
+        fail "process ${PID} does not contain the ${probe_name} probe"
+    fi
+done
+
+if [[ -n "${VERB_MAP}" && ! -f "${VERB_MAP}" ]]; then
+    fail "verb map does not exist: ${VERB_MAP}"
 fi
+if [[ -z "${VERB_MAP_OUTPUT}" ]]; then
+    VERB_MAP_OUTPUT="${PWD}/moor-verb-map-${PID}.json"
+fi
+VERB_MAP_OUTPUT_DIR=$(dirname -- "${VERB_MAP_OUTPUT}")
+[[ -d "${VERB_MAP_OUTPUT_DIR}" ]] || \
+    fail "verb map output directory does not exist: ${VERB_MAP_OUTPUT_DIR}"
 
-mkdir -p -- "${OUT_DIR}"
-OUT_DIR=$(cd -- "${OUT_DIR}" && pwd)
-TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
-BUNDLE_NAME="moor-snapshot-${PROCESS_NAME}-${PID}-${TIMESTAMP}"
-ARCHIVE="${OUT_DIR}/${BUNDLE_NAME}.tar.gz"
-[[ ! -e "${ARCHIVE}" ]] || fail "output already exists: ${ARCHIVE}"
-
-WORK_DIR=$(mktemp -d -t moor-snapshot.XXXXXXXX)
+WORK_DIR=$(mktemp -d -t moortop.XXXXXXXX)
 trap cleanup EXIT
-BUNDLE_DIR="${WORK_DIR}/${BUNDLE_NAME}"
-mkdir -- "${BUNDLE_DIR}"
-AGGREGATES="${BUNDLE_DIR}/aggregates.jsonl"
-REPORT="${BUNDLE_DIR}/report.txt"
-ANALYSIS_ERROR="${BUNDLE_DIR}/analysis-error.txt"
-COLLECTOR_ERROR="${BUNDLE_DIR}/collector-error.txt"
-BUILTIN_MAP="${BUNDLE_DIR}/builtin-map.json"
-ANALYZER_ARGS=()
-
+BUILTIN_MAP="${WORK_DIR}/builtin-map.json"
 if [[ -z "${BUILTIN_SOURCE}" ]]; then
     BUILTIN_SOURCE="${SCRIPT_DIR}/../../crates/common/src/builtins.rs"
 fi
+
+RENDER_ARGS=(
+    --pid "${PID}"
+    --interval "${INTERVAL}"
+    --limit "${LIMIT}"
+    --verb-map-output "${VERB_MAP_OUTPUT}"
+)
 if [[ -f "${BUILTIN_SOURCE}" ]]; then
     "${PYTHON_BIN}" "${SCRIPT_DIR}/builtin-id-map.py" \
         --source "${BUILTIN_SOURCE}" --format json > "${BUILTIN_MAP}"
-    ANALYZER_ARGS+=(--builtin-map "${BUILTIN_MAP}")
+    RENDER_ARGS+=(--builtin-map "${BUILTIN_MAP}")
+fi
+if [[ -n "${VERB_MAP}" ]]; then
+    RENDER_ARGS+=(--verb-map "${VERB_MAP}")
+fi
+if [[ "${NO_CLEAR}" == true ]]; then
+    RENDER_ARGS+=(--no-clear)
 fi
 
-cp --dereference --preserve=mode -- "/proc/${PID}/exe" "${BUNDLE_DIR}/${PROCESS_NAME}"
-
-echo "Recording ${PROCESS_NAME} (PID ${PID}) for ${DURATION} seconds..."
-if ! BPFTRACE_MAX_MAP_KEYS="${BPFTRACE_MAX_MAP_KEYS}" \
-    "${BPFTRACE_BIN}" -q -k -f json -p "${PID}" -o "${AGGREGATES}" \
-    "${SCRIPT_DIR}/moor-snapshot.bt" "${DURATION}" "${PID}" "${FREQUENCY}" \
-    2> "${COLLECTOR_ERROR}"; then
-    tar -C "${WORK_DIR}" -czf "${ARCHIVE}" "${BUNDLE_NAME}"
-    cat "${COLLECTOR_ERROR}" >&2
-    echo >&2
-    echo "Capture failed. Partial data was preserved in ${ARCHIVE}" >&2
-    exit 1
-fi
-
-if ! "${PYTHON_BIN}" "${SCRIPT_DIR}/analyze-moor-snapshot.py" "${AGGREGATES}" \
-    "${ANALYZER_ARGS[@]}" \
-    > "${REPORT}" 2> "${ANALYSIS_ERROR}"; then
-    tar -C "${WORK_DIR}" -czf "${ARCHIVE}" "${BUNDLE_NAME}"
-    cat "${ANALYSIS_ERROR}" >&2
-    echo >&2
-    echo "Analysis failed. Aggregate data was preserved in ${ARCHIVE}" >&2
-    exit 1
-fi
-rm -- "${ANALYSIS_ERROR}"
-if [[ ! -s "${COLLECTOR_ERROR}" ]]; then
-    rm -- "${COLLECTOR_ERROR}"
-fi
-tar -C "${WORK_DIR}" -czf "${ARCHIVE}" "${BUNDLE_NAME}"
-
-cat "${REPORT}"
-echo
-echo "Wrote ${ARCHIVE}"
+echo "Attaching mootop to ${PROCESS_NAME} (PID ${PID}); refresh=${INTERVAL}s" >&2
+BPFTRACE_MAX_MAP_KEYS="${BPFTRACE_MAX_MAP_KEYS}" \
+    BPFTRACE_MAX_STRLEN="${BPFTRACE_MAX_STRLEN}" \
+    "${BPFTRACE_BIN}" -q -k -B none -f json -p "${PID}" \
+    "${SCRIPT_DIR}/moortop.bt" "${INTERVAL}" "${PID}" "${ONCE}" | \
+    "${PYTHON_BIN}" "${SCRIPT_DIR}/render-moortop.py" "${RENDER_ARGS[@]}"

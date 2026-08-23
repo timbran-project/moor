@@ -13,9 +13,23 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-BEGIN
+usdt:*:moor_v1:diagnostics_attached
 {
-    @capture_start = nsecs;
+    @diagnostics_heartbeat = nsecs;
+}
+
+usdt:*:moor_v1:verb_metadata
+{
+    @verb_names[(uint64)arg0, (uint64)arg1, (uint64)arg2] =
+        str(uptr((uint8 *)arg3), (uint32)arg4);
+    @verb_name_lengths[(uint64)arg0, (uint64)arg1, (uint64)arg2] =
+        (uint64)arg4;
+}
+
+usdt:*:moor_v1:verb_metadata_done
+{
+    @verb_metadata_generation++;
+    @verb_metadata_status = ((uint64)arg0, (uint64)arg1);
 }
 
 usdt:*:moor_v1:task_run_start
@@ -35,15 +49,52 @@ usdt:*:moor_v1:task_run_done
     if ($state.0 != 0) {
         $cpu = cpu;
         $elapsed = nsecs - $state.0;
-        @task_count[$cpu, $state.1, $state.2, $state.3, $state.4]++;
-        @task_total[$cpu, $state.1, $state.2, $state.3, $state.4] += $elapsed;
-        if ($elapsed > @task_max[$cpu, $state.1, $state.2, $state.3, $state.4]) {
-            @task_max[$cpu, $state.1, $state.2, $state.3, $state.4] = $elapsed;
-        }
-        @task_hist[$cpu, $state.1, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        @task_count[$cpu, $state.2, $state.3, $state.4]++;
+        @task_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
+        @task_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
         delete(@task_state[tid]);
-    } else {
-        @unmatched[cpu, 100]++;
+    }
+}
+
+usdt:*:moor_v1:verb_run_start
+{
+    @verb_state[tid] = (
+        nsecs,
+        (uint64)arg0,
+        (uint64)arg1,
+        (uint64)arg2,
+        (uint64)arg3
+    );
+}
+
+usdt:*:moor_v1:verb_run_done
+{
+    $state = @verb_state[tid];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @verb_count[$cpu, $state.2, $state.3, $state.4]++;
+        @verb_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
+        @verb_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        delete(@verb_state[tid]);
+    }
+}
+
+usdt:*:moor_v1:builtin_run_start
+{
+    @builtin_state[tid] = (nsecs, (uint64)arg0, (uint64)arg1);
+}
+
+usdt:*:moor_v1:builtin_run_done
+{
+    $state = @builtin_state[tid];
+    if ($state.0 != 0) {
+        $cpu = cpu;
+        $elapsed = nsecs - $state.0;
+        @builtin_count[$cpu, $state.2]++;
+        @builtin_total[$cpu, $state.2] += $elapsed;
+        @builtin_hist[$cpu, $state.2] = hist($elapsed, 3);
+        delete(@builtin_state[tid]);
     }
 }
 
@@ -60,77 +111,9 @@ usdt:*:moor_v1:task_commit_done
         $elapsed = nsecs - @stage_start[tid, 0];
         @stage_count[$cpu, 0]++;
         @stage_total[$cpu, 0] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 0]) {
-            @stage_max[$cpu, 0] = $elapsed;
-        }
         @stage_hist[$cpu, 0] = hist($elapsed, 3);
         delete(@stage_start[tid, 0]);
-    } else {
-        @unmatched[$cpu, 0]++;
     }
-}
-
-usdt:*:moor_v1:verb_run_start
-{
-    @verb_state[tid] = (
-        nsecs,
-        (uint64)arg0,
-        (uint64)arg1,
-        (uint64)arg2,
-        (uint64)arg3,
-        (uint64)arg4,
-        (uint64)arg5
-    );
-}
-
-usdt:*:moor_v1:verb_run_done
-{
-    $state = @verb_state[tid];
-    if ($state.0 != 0) {
-        $cpu = cpu;
-        $elapsed = nsecs - $state.0;
-        @verb_count[$cpu, $state.2, $state.3, $state.4]++;
-        @verb_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
-        if ($elapsed > @verb_max[$cpu, $state.2, $state.3, $state.4]) {
-            @verb_max[$cpu, $state.2, $state.3, $state.4] = $elapsed;
-        }
-        @verb_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
-        delete(@verb_state[tid]);
-    } else {
-        @unmatched[cpu, 101]++;
-    }
-}
-
-usdt:*:moor_v1:builtin_run_start
-{
-    $builtin_id = (uint64)arg1;
-    @builtin_state[tid] = (nsecs, (uint64)arg0, $builtin_id);
-}
-
-usdt:*:moor_v1:builtin_run_done
-{
-    $state = @builtin_state[tid];
-    if ($state.0 != 0) {
-        $cpu = cpu;
-        $elapsed = nsecs - $state.0;
-        @builtin_count[$cpu, $state.2]++;
-        @builtin_total[$cpu, $state.2] += $elapsed;
-        if ($elapsed > @builtin_max[$cpu, $state.2]) {
-            @builtin_max[$cpu, $state.2] = $elapsed;
-        }
-        @builtin_hist[$cpu, $state.2] = hist($elapsed, 3);
-        delete(@builtin_state[tid]);
-    } else {
-        @unmatched[cpu, 102]++;
-    }
-}
-
-profile:hz:$3
-/pid == $2 && @verb_state[tid].6 != 0/
-{
-    $state = @verb_state[tid];
-    $pc = *uptr((uint16 *)$state.6);
-    @pc_samples[cpu, $state.2, $state.3, $state.4, $pc]++;
 }
 
 usdt:*:moor_v1:db_commit_start
@@ -141,19 +124,13 @@ usdt:*:moor_v1:db_commit_start
 usdt:*:moor_v1:db_commit_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg1;
-    @stage_outcome[$cpu, 1, $outcome]++;
+    @stage_outcome[$cpu, 1, (uint64)arg1]++;
     if (@stage_start[tid, 1] != 0) {
         $elapsed = nsecs - @stage_start[tid, 1];
         @stage_count[$cpu, 1]++;
         @stage_total[$cpu, 1] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 1]) {
-            @stage_max[$cpu, 1] = $elapsed;
-        }
         @stage_hist[$cpu, 1] = hist($elapsed, 3);
         delete(@stage_start[tid, 1]);
-    } else {
-        @unmatched[$cpu, 1]++;
     }
 }
 
@@ -165,19 +142,13 @@ usdt:*:moor_v1:db_commit_prepare_start
 usdt:*:moor_v1:db_commit_prepare_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg0;
-    @stage_outcome[$cpu, 2, $outcome]++;
+    @stage_outcome[$cpu, 2, (uint64)arg0]++;
     if (@stage_start[tid, 2] != 0) {
         $elapsed = nsecs - @stage_start[tid, 2];
         @stage_count[$cpu, 2]++;
         @stage_total[$cpu, 2] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 2]) {
-            @stage_max[$cpu, 2] = $elapsed;
-        }
         @stage_hist[$cpu, 2] = hist($elapsed, 3);
         delete(@stage_start[tid, 2]);
-    } else {
-        @unmatched[$cpu, 2]++;
     }
 }
 
@@ -194,13 +165,8 @@ usdt:*:moor_v1:db_commit_read_only_done
         $elapsed = nsecs - @stage_start[tid, 3];
         @stage_count[$cpu, 3]++;
         @stage_total[$cpu, 3] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 3]) {
-            @stage_max[$cpu, 3] = $elapsed;
-        }
         @stage_hist[$cpu, 3] = hist($elapsed, 3);
         delete(@stage_start[tid, 3]);
-    } else {
-        @unmatched[$cpu, 3]++;
     }
 }
 
@@ -212,19 +178,13 @@ usdt:*:moor_v1:db_commit_check_start
 usdt:*:moor_v1:db_commit_check_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg1;
-    @stage_outcome[$cpu, 4, $outcome]++;
+    @stage_outcome[$cpu, 4, (uint64)arg1]++;
     if (@stage_start[tid, 4] != 0) {
         $elapsed = nsecs - @stage_start[tid, 4];
         @stage_count[$cpu, 4]++;
         @stage_total[$cpu, 4] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 4]) {
-            @stage_max[$cpu, 4] = $elapsed;
-        }
         @stage_hist[$cpu, 4] = hist($elapsed, 3);
         delete(@stage_start[tid, 4]);
-    } else {
-        @unmatched[$cpu, 4]++;
     }
 }
 
@@ -241,13 +201,8 @@ usdt:*:moor_v1:db_commit_apply_done
         $elapsed = nsecs - @stage_start[tid, 5];
         @stage_count[$cpu, 5]++;
         @stage_total[$cpu, 5] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 5]) {
-            @stage_max[$cpu, 5] = $elapsed;
-        }
         @stage_hist[$cpu, 5] = hist($elapsed, 3);
         delete(@stage_start[tid, 5]);
-    } else {
-        @unmatched[$cpu, 5]++;
     }
 }
 
@@ -259,19 +214,13 @@ usdt:*:moor_v1:db_commit_publish_start
 usdt:*:moor_v1:db_commit_publish_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg2;
-    @stage_outcome[$cpu, 6, $outcome]++;
+    @stage_outcome[$cpu, 6, (uint64)arg2]++;
     if (@stage_start[tid, 6] != 0) {
         $elapsed = nsecs - @stage_start[tid, 6];
         @stage_count[$cpu, 6]++;
         @stage_total[$cpu, 6] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 6]) {
-            @stage_max[$cpu, 6] = $elapsed;
-        }
         @stage_hist[$cpu, 6] = hist($elapsed, 3);
         delete(@stage_start[tid, 6]);
-    } else {
-        @unmatched[$cpu, 6]++;
     }
 }
 
@@ -283,19 +232,13 @@ usdt:*:moor_v1:db_commit_rebase_start
 usdt:*:moor_v1:db_commit_rebase_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg2;
-    @stage_outcome[$cpu, 7, $outcome]++;
+    @stage_outcome[$cpu, 7, (uint64)arg2]++;
     if (@stage_start[tid, 7] != 0) {
         $elapsed = nsecs - @stage_start[tid, 7];
         @stage_count[$cpu, 7]++;
         @stage_total[$cpu, 7] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 7]) {
-            @stage_max[$cpu, 7] = $elapsed;
-        }
         @stage_hist[$cpu, 7] = hist($elapsed, 3);
         delete(@stage_start[tid, 7]);
-    } else {
-        @unmatched[$cpu, 7]++;
     }
 }
 
@@ -307,24 +250,46 @@ usdt:*:moor_v1:db_commit_persist_start
 usdt:*:moor_v1:db_commit_persist_done
 {
     $cpu = cpu;
-    $outcome = (uint64)arg1;
-    @stage_outcome[$cpu, 8, $outcome]++;
+    @stage_outcome[$cpu, 8, (uint64)arg1]++;
     if (@stage_start[tid, 8] != 0) {
         $elapsed = nsecs - @stage_start[tid, 8];
         @stage_count[$cpu, 8]++;
         @stage_total[$cpu, 8] += $elapsed;
-        if ($elapsed > @stage_max[$cpu, 8]) {
-            @stage_max[$cpu, 8] = $elapsed;
-        }
         @stage_hist[$cpu, 8] = hist($elapsed, 3);
         delete(@stage_start[tid, 8]);
-    } else {
-        @unmatched[$cpu, 8]++;
     }
 }
 
 interval:s:$1
 {
-    @capture_end = nsecs;
-    exit();
+    $now = nsecs;
+    printf("MOORTOP_BEGIN %llu\n", $now);
+    print(@task_count);
+    print(@task_total);
+    print(@task_hist);
+    print(@verb_count);
+    print(@verb_total);
+    print(@verb_hist);
+    print(@builtin_count);
+    print(@builtin_total);
+    print(@builtin_hist);
+    print(@stage_count);
+    print(@stage_total);
+    print(@stage_hist);
+    print(@stage_outcome);
+    if (@verb_metadata_generation != @verb_metadata_printed_generation) {
+        print(@verb_names);
+        print(@verb_name_lengths);
+        print(@verb_metadata_generation);
+        print(@verb_metadata_status);
+        @verb_metadata_printed_generation = @verb_metadata_generation;
+    }
+    print(@task_state);
+    print(@verb_state);
+    print(@builtin_state);
+    print(@stage_start);
+    printf("MOORTOP_END %llu\n", $now);
+    if ($3 != 0) {
+        exit();
+    }
 }

@@ -15,6 +15,7 @@
 set -euo pipefail
 
 DURATION=${DURATION:-10}
+INTERVAL=${INTERVAL:-5}
 OUT_DIR=${OUT_DIR:-"${PWD}"}
 MOOR_PERF_IMAGE=${MOOR_PERF_IMAGE:-moor-perf-tools:local}
 MODE=
@@ -28,30 +29,34 @@ usage() {
     cat <<'EOF'
 Usage: tools/perf/run-containerized-moor-perf.sh [OPTIONS] MODE CONTAINER
 
-Run the mooR snapshot or perf collector in a diagnostic container. The target
-server remains in its existing container.
+Run a mooR performance tool in a diagnostic container. The target server stays
+in its existing container.
 
 Modes:
   snapshot    Record mooR task, verb, and database probes
   profile     Record sampled stacks with perf
+  top         Show live five-second probe deltas
 
 Options:
   -b, --build Build or rebuild the diagnostic image
   -d, --duration SECONDS
-              Recording duration (default: 10)
+              Snapshot or profile duration (default: 10)
+  -i, --interval SECONDS
+              Top refresh interval (default: 5)
   -o, --output DIRECTORY
               Archive directory (default: current directory)
   -h, --help  Show this help text
 
 Environment:
   DURATION        Default recording duration in seconds
+  INTERVAL        Default top refresh interval in seconds
   OUT_DIR         Default archive directory
   MOOR_PERF_IMAGE Diagnostic image name (default: moor-perf-tools:local)
   FREQUENCY       Sampling frequency in hertz
   BPFTRACE_MAX_MAP_KEYS
                   Maximum entries in each BPF map
   BPFTRACE_MAX_STRLEN
-                  Maximum captured verb-name length
+                  Maximum captured verb name length
 EOF
 }
 
@@ -62,7 +67,7 @@ fail() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        snapshot|profile)
+        snapshot|profile|top)
             [[ -z "${MODE}" ]] || fail "only one mode may be specified"
             MODE=$1
             shift
@@ -78,6 +83,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --duration=*)
             DURATION=${1#*=}
+            shift
+            ;;
+        -i|--interval)
+            [[ $# -ge 2 ]] || fail "missing value for $1"
+            INTERVAL=$2
+            shift 2
+            ;;
+        --interval=*)
+            INTERVAL=${1#*=}
             shift
             ;;
         -o|--output)
@@ -105,9 +119,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -n "${MODE}" ]] || fail "snapshot or profile mode is required"
+[[ -n "${MODE}" ]] || fail "snapshot, profile, or top mode is required"
 [[ -n "${TARGET_CONTAINER}" ]] || fail "Docker container is required"
 [[ "${DURATION}" =~ ^[1-9][0-9]*$ ]] || fail "DURATION must be a positive integer"
+[[ "${INTERVAL}" =~ ^[1-9][0-9]*$ ]] || fail "INTERVAL must be a positive integer"
 command -v docker >/dev/null 2>&1 || fail "required command not found: docker"
 
 mkdir -p -- "${OUT_DIR}"
@@ -133,6 +148,9 @@ docker_args=(
     --mount type=bind,src=/sys/kernel/debug,dst=/sys/kernel/debug
     --env OUT_DIR=/output
 )
+if [[ "${MODE}" == top && -t 0 && -t 1 ]]; then
+    docker_args+=(--interactive --tty)
+fi
 for variable in FREQUENCY BPFTRACE_MAX_MAP_KEYS BPFTRACE_MAX_STRLEN; do
     if [[ -n "${!variable:-}" ]]; then
         docker_args+=(--env "${variable}")
@@ -146,7 +164,17 @@ case "${MODE}" in
     profile)
         collector=/moor/tools/perf/profile-running-moor.sh
         ;;
+    top)
+        collector=/moor/tools/perf/mootop.sh
+        ;;
 esac
 
-docker "${docker_args[@]}" "${MOOR_PERF_IMAGE}" \
-    "${collector}" --duration "${DURATION}" "${TARGET_PID}"
+if [[ "${MODE}" == top ]]; then
+    docker "${docker_args[@]}" "${MOOR_PERF_IMAGE}" \
+        "${collector}" --interval "${INTERVAL}" \
+        --verb-map-output "/output/moor-verb-map-${TARGET_PID}.json" \
+        "${TARGET_PID}"
+else
+    docker "${docker_args[@]}" "${MOOR_PERF_IMAGE}" \
+        "${collector}" --duration "${DURATION}" "${TARGET_PID}"
+fi

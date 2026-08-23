@@ -281,29 +281,17 @@ impl Task {
         // Transaction context is already set up by the caller
 
         let task_id = task.task_id;
-        if let Some((uuid_high, uuid_low, definer, verb_name)) = task.vm_host.root_verb_identity() {
-            let verb_name = verb_name.as_str();
+        if let Some((uuid_high, uuid_low, definer)) = task.vm_host.root_verb_identity() {
             probe!(
                 moor_v1,
                 task_run_start,
                 task_id,
                 uuid_high,
                 uuid_low,
-                definer.as_u64(),
-                verb_name.as_ptr(),
-                verb_name.len()
+                definer.as_u64()
             );
         } else {
-            probe!(
-                moor_v1,
-                task_run_start,
-                task_id,
-                0_u64,
-                0_u64,
-                0_u64,
-                std::ptr::null::<u8>(),
-                0_usize
-            );
+            probe!(moor_v1, task_run_start, task_id, 0_u64, 0_u64, 0_usize);
         }
         trace_task_start!(task.task_id);
 

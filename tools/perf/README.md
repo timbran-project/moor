@@ -52,7 +52,8 @@ benchmark.
 
 ## Capture a mooR runtime snapshot
 
-Use the static `moor_v1` probes to measure task runs, MOO verb runs, and database commit stages:
+Use the static `moor_v1` probes to measure tasks, MOO verbs, native builtins, and database commit
+stages:
 
 ```bash
 sudo tools/perf/snapshot-running-moor.sh --duration 30 428948
@@ -72,8 +73,22 @@ user space.
 Each CPU has separate aggregate keys. The analyzer merges these keys after the capture. This design
 prevents concurrent initialization from losing the first sample.
 
-Task rows show the numeric task ID and the root verb identity. The verb identity uses the
-`#definer:name` format.
+Task rows show the numeric task ID and the root verb identity. Verb identities contain a definer and
+UUID because verb names are database data.
+
+Builtin rows show native builtin execution slices. An initial call is one slice. Each trampoline
+re-entry that calls native builtin code is another slice. Proxy overrides do not count as native
+builtin execution.
+
+The probes emit only numeric builtin IDs. The snapshot command reads `crates/common/src/builtins.rs`
+after capture and stores `builtin-map.json` in the archive. Set `BUILTIN_SOURCE` when the registry
+source is in a different location.
+
+Use the map tool to resolve IDs without a capture:
+
+```bash
+tools/perf/builtin-id-map.py 0 256 512
+```
 
 The report calculates `p95~` from a fine-grained logarithmic histogram. The value is the upper limit
 of the selected histogram bucket.
@@ -99,6 +114,52 @@ The result values have these meanings:
 - `db_publish`: `0` is a lost compare-and-swap and `1` is a published snapshot.
 - `db_rebase`: `0` is a lost compare-and-swap, `1` is a published snapshot, and `2` is an overlap.
 - `db_persist`: `0` is success, `1` is an encoding error, and `2` is an enqueue error.
+
+## Watch a running server
+
+Use `mootop` to show five-second deltas from the same probes:
+
+```bash
+sudo tools/perf/mootop.sh
+```
+
+Use `--interval` to change the refresh period. Use `--once` to print one interval and stop.
+
+The live values are approximate because userspace reads the cumulative maps while probes continue to
+update them. The tool never clears a live map, which avoids clear-and-update races between windows.
+
+When `mootop` attaches, the daemon reads verb names from its current database snapshot. It emits the
+names from a background diagnostics thread. The VM and scheduler hot paths do not read or copy verb
+names.
+
+`mootop` writes the names to `moor-verb-map-PID.json` in the current directory. Use
+`--verb-map-output` to select a different path:
+
+```bash
+sudo tools/perf/mootop.sh --verb-map-output /tmp/verb-map.json
+```
+
+The tool writes the map only after it receives every name. It reports a warning if the BPF map is
+too small or a name is too long. Increase `BPFTRACE_MAX_MAP_KEYS` or `BPFTRACE_MAX_STRLEN` and run
+the command again.
+
+The diagnostics thread checks the USDT semaphore once per second. It scans the database only when
+the probe changes from detached to attached. Do not open the active Fjall database from a second
+process.
+
+You can also start with an existing JSON map. This can supply names from a previous run:
+
+```json
+{
+  "5d18a043-8852-49af-932c-bbe8f80e0edf": "run_once"
+}
+```
+
+```bash
+sudo tools/perf/mootop.sh --verb-map verb-map.json
+```
+
+The live metadata replaces matching entries from the supplied map.
 
 ## Profile a running server
 
@@ -130,6 +191,7 @@ If the host has the required tools, attach to the server by its container name:
 ```bash
 sudo tools/perf/snapshot-running-moor.sh --duration 30 --container moor
 sudo tools/perf/profile-running-moor.sh --duration 30 --container moor
+sudo tools/perf/mootop.sh --container moor
 ```
 
 The scripts use `docker top` to find the host PID. This also works when an init process is PID 1 in
@@ -140,13 +202,14 @@ If the host does not have the required tools, use the diagnostic image:
 ```bash
 tools/perf/run-containerized-moor-perf.sh snapshot moor
 tools/perf/run-containerized-moor-perf.sh profile moor
+tools/perf/run-containerized-moor-perf.sh top moor
 ```
 
 The first command builds `moor-perf-tools:local` when the image does not exist. Use `--build` after
 you change the performance tools or switch to a different mooR version.
 
 Set `MOOR_PERF_IMAGE` to use a different image name. Set `OUT_DIR` or use `--output` to select the
-archive directory.
+archive directory. In `top` mode, the same directory receives `moor-verb-map-PID.json`.
 
 CAUTION: Use the diagnostic image only on a host that you administer. The privileged container can
 control the Docker host.

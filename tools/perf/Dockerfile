@@ -28,3 +28,4 @@ RUN apt-get update && \
 
 WORKDIR /moor
 COPY tools/perf/ /moor/tools/perf/
+COPY crates/common/src/builtins.rs /moor/crates/common/src/builtins.rs

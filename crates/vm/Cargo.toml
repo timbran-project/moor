@@ -32,6 +32,5 @@ smallvec.workspace = true
 tracing.workspace = true
 
 # Utilities & Helpers
-probe.workspace = true
 strum.workspace = true
 uuid.workspace = true

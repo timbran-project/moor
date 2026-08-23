@@ -63,6 +63,7 @@ signal-hook.workspace = true
 clap.workspace = true
 clap_derive.workspace = true
 planus.workspace = true
+probe.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

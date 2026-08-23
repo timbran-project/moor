@@ -341,17 +341,6 @@ impl Activation {
         });
         let player_var = v_obj(player);
         let verb_var = v_symbol_str(verb_name);
-        let verb_name_text = verb_name.as_str();
-        let (verb_uuid_high, verb_uuid_low) = resolved_verb.uuid().as_u64_pair();
-        probe::probe!(
-            moor_v1,
-            verb_name,
-            verb_uuid_high,
-            verb_uuid_low,
-            resolved_verb.location().as_u64(),
-            verb_name_text.as_ptr(),
-            verb_name_text.len()
-        );
         debug_assert!(args.as_list().is_some(), "call args must be a list");
 
         let moo_frame = match (program, source_frame) {

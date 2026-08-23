@@ -620,15 +620,10 @@ impl VmHost {
     }
 
     /// Return the identity of the root verb for this task.
-    pub fn root_verb_identity(&self) -> Option<(u64, u64, Obj, Symbol)> {
+    pub fn root_verb_identity(&self) -> Option<(u64, u64, Obj)> {
         let activation = self.vm_exec_state.stack.first()?;
         let (uuid_high, uuid_low) = activation.verbdef.uuid().as_u64_pair();
-        Some((
-            uuid_high,
-            uuid_low,
-            activation.verb_definer(),
-            activation.verb_name,
-        ))
+        Some((uuid_high, uuid_low, activation.verb_definer()))
     }
 
     /// Try to get the verb definer of the current activation.
