@@ -135,7 +135,8 @@ impl TaskSchedulerClient {
         self.scheduler.handle_request_tasks(self.task_id)
     }
 
-    pub fn task_exists(&self, task_id: TaskId) -> Option<Obj> {
+    #[inline]
+    pub fn task_exists(&self, task_id: TaskId) -> bool {
         self.scheduler.handle_task_exists(task_id)
     }
 

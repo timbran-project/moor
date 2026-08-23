@@ -53,7 +53,10 @@ use crate::{
         gc_thread::spawn_gc_mark_phase,
         sched_counters,
         task::Task,
-        task_q::{RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ, WakeCondition},
+        task_q::{
+            LiveTaskRegistry, RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ,
+            WakeCondition,
+        },
         task_scheduler_client::TaskSchedulerClient,
         task_telemetry::{TaskRunBaseline, TaskTelemetry, TaskTelemetrySource},
         tasks_db::TasksDb,
@@ -144,6 +147,9 @@ pub struct Scheduler {
     /// All mutable lifecycle state, protected by a single Mutex.
     pub(crate) lifecycle: Arc<Mutex<TaskLifecycle>>,
 
+    /// Lock-free task membership for queries that do not need lifecycle state.
+    pub(crate) live_tasks: LiveTaskRegistry,
+
     /// Database access (thread-safe, lock-free reads).
     pub(crate) database: Arc<dyn Database>,
 
@@ -212,6 +218,7 @@ impl Scheduler {
 
         let suspension_q = SuspensionQ::new(tasks_database);
         let task_q = TaskQ::new(suspension_q);
+        let live_tasks = task_q.live_tasks.clone();
         let default_server_options = ServerOptions {
             bg_seconds: DEFAULT_BG_SECONDS,
             bg_ticks: DEFAULT_BG_TICKS,
@@ -247,6 +254,7 @@ impl Scheduler {
 
         let s = Self {
             lifecycle: Arc::new(Mutex::new(lifecycle)),
+            live_tasks,
             database,
             config,
             server_options,
@@ -551,7 +559,7 @@ impl Scheduler {
                 session,
                 result_sender,
             } => {
-                lc.task_q.wake_task_thread(
+                if let Err(error) = lc.task_q.wake_task_thread(
                     task,
                     ResumeAction::Return(v_int(0)),
                     session,
@@ -560,7 +568,10 @@ impl Scheduler {
                     self.database.as_ref(),
                     self.builtin_registry.clone(),
                     self.config.clone(),
-                )?;
+                ) {
+                    lc.task_q.live_tasks.remove(task_id);
+                    return Err(error);
+                }
                 Ok(handle)
             }
         }
@@ -869,6 +880,8 @@ mod tests {
             assert!(lifecycle.task_q.suspended.tasks.contains_key(&4));
             assert!(lifecycle.task_q.suspended.tasks.contains_key(&81));
         }
+        assert!(scheduler.handle_task_exists(4));
+        assert!(scheduler.handle_task_exists(81));
 
         scheduler.stop(None).expect("scheduler should stop");
         threads
@@ -896,7 +909,9 @@ mod tests {
             kill_switch.clone(),
         );
 
-        scheduler.lifecycle.lock().task_q.active.insert(
+        let mut lifecycle = scheduler.lifecycle.lock();
+        lifecycle.task_q.register_task(task_id);
+        lifecycle.task_q.insert_active(
             task_id,
             RunningTask {
                 phase: RunningTaskPhase::Running,
@@ -909,7 +924,48 @@ mod tests {
                 result_sender: None,
             },
         );
+        drop(lifecycle);
         task
+    }
+
+    #[test]
+    fn task_existence_does_not_wait_for_lifecycle_lock() {
+        let scheduler = scheduler();
+        let task_id = 45;
+        insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+
+        let lifecycle = scheduler.lifecycle.lock();
+        let lookup_scheduler = scheduler.clone();
+        let (result_send, result_recv) = flume::bounded(1);
+        let lookup = std::thread::spawn(move || {
+            result_send
+                .send(lookup_scheduler.handle_task_exists(task_id))
+                .unwrap();
+        });
+
+        assert_eq!(
+            result_recv.recv_timeout(Duration::from_millis(100)),
+            Ok(true),
+            "task membership lookup must not acquire the lifecycle lock"
+        );
+        drop(lifecycle);
+        lookup.join().expect("task lookup should complete");
+    }
+
+    #[test]
+    fn terminal_task_result_removes_live_membership() {
+        let scheduler = scheduler();
+        let task_id = 46;
+        insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+        assert!(scheduler.handle_task_exists(task_id));
+
+        scheduler
+            .lifecycle
+            .lock()
+            .task_q
+            .send_task_result(task_id, Ok(v_int(0)));
+
+        assert!(!scheduler.handle_task_exists(task_id));
     }
 
     #[test]
@@ -1081,9 +1137,8 @@ mod tests {
         });
 
         commit_entered.wait();
-        assert_eq!(
+        assert!(
             scheduler.handle_task_exists(task_id),
-            Some(SYSTEM_OBJECT),
             "task must remain addressable while its session commit is in progress"
         );
         assert_eq!(
@@ -1132,9 +1187,8 @@ mod tests {
         });
 
         commit_entered.wait();
-        assert_eq!(
+        assert!(
             scheduler.handle_task_exists(task_id),
-            Some(SYSTEM_OBJECT),
             "task must remain addressable while its input request is in progress"
         );
         assert_eq!(
@@ -1373,7 +1427,7 @@ mod tests {
             .expect("GC sweep thread should stop")
             .expect("cancelled GC sweep should exit cleanly");
         assert!(!scheduler.lifecycle.lock().gc_sweep_in_progress);
-        assert_eq!(scheduler.handle_task_exists(task_id), None);
+        assert!(!scheduler.handle_task_exists(task_id));
 
         threads
             .join()

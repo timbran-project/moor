@@ -763,10 +763,8 @@ fn bf_valid_task(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let task_id = task_id as TaskId;
 
-    // Use atomic check that looks at both suspended and active tasks
-    let exists = current_task_scheduler_client()
-        .task_exists(task_id)
-        .is_some();
+    let exists = task_id == bf_args.exec_state.task_id
+        || current_task_scheduler_client().task_exists(task_id);
 
     Ok(Ret(bf_args.v_bool(exists)))
 }

@@ -194,7 +194,7 @@ impl BenchContext for BuiltinDispatchContext {
     }
 }
 
-fn builtin_full_moo_typeof(
+fn builtin_full_moo(
     ctx: &mut BuiltinDispatchContext,
     _chunk_size: usize,
     _chunk_num: usize,
@@ -271,7 +271,9 @@ fn builtin_direct_function_typeof(
 
 benchmark_main!(
     BenchmarkMainOptions {
-        filter_help: Some("all, full_moo, current_call, direct_function, or typeof".to_string()),
+        filter_help: Some(
+            "all, full_moo, current_call, direct_function, typeof, or valid_task".to_string(),
+        ),
         runtime: BenchmarkRuntimeOptions {
             warm_up_duration: Duration::from_millis(250),
             benchmark_duration: Duration::from_secs(1),
@@ -290,7 +292,25 @@ benchmark_main!(
                         FULL_MOO_TICKS,
                     )
                 })
-                .bench_sample("builtin_full_moo_typeof", builtin_full_moo_typeof);
+                .bench_sample("builtin_full_moo_typeof", builtin_full_moo);
+
+            g.throughput(Throughput::per_operation(1, "opcodes"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_program(
+                        "while (1) valid_task(0); endwhile",
+                        FULL_MOO_TICKS,
+                    )
+                })
+                .bench_sample("builtin_full_moo_valid_task_current", builtin_full_moo);
+
+            g.throughput(Throughput::per_operation(1, "opcodes"))
+                .factory(&|| {
+                    BuiltinDispatchContext::with_program(
+                        "while (1) valid_task(1); endwhile",
+                        FULL_MOO_TICKS,
+                    )
+                })
+                .bench_sample("builtin_full_moo_valid_task_missing", builtin_full_moo);
 
             g.throughput(Throughput::per_operation(1, "builtin_calls"))
                 .factory(&|| {

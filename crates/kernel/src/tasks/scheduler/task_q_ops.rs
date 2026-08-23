@@ -126,7 +126,8 @@ impl TaskQ {
             result_sender,
             ..
         } = suspended_task;
-        self.wake_task_thread(
+        let task_id = task.task_id;
+        let result = self.wake_task_thread(
             task,
             resume_action,
             session,
@@ -135,7 +136,11 @@ impl TaskQ {
             database,
             builtin_registry,
             config,
-        )
+        );
+        if result.is_err() {
+            self.live_tasks.remove(task_id);
+        }
+        result
     }
 
     #[inline]
@@ -189,6 +194,7 @@ impl TaskQ {
             server_options,
             kill_switch.clone(),
         );
+        self.register_task(task_id);
 
         let handle = TaskHandle(task_id, receiver);
 
@@ -261,7 +267,7 @@ impl TaskQ {
             run_baseline: run_baseline.clone(),
         };
 
-        self.active.insert(task_id, task_control);
+        self.insert_active(task_id, task_control);
 
         let scheduler_clone = scheduler.clone();
         let task_scheduler_client = TaskSchedulerClient::new(task_id, scheduler.clone());
@@ -372,20 +378,23 @@ impl TaskQ {
         result: Result<Var, SchedulerError>,
     ) {
         let Some(mut task_control) = self.active.remove(&task_id) else {
+            self.live_tasks.remove(task_id);
             warn!(task_id, "Task not found for notification, ignoring");
             return;
         };
         self.suspended.enqueue_dependents_for(task_id);
         let result_sender = task_control.result_sender.take();
-        Self::send_task_result_direct(task_id, result_sender, result);
+        self.send_task_result_direct(task_id, result_sender, result);
     }
 
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
     pub(super) fn send_task_result_direct(
+        &self,
         task_id: TaskId,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
         result: Result<Var, SchedulerError>,
     ) {
+        self.live_tasks.remove(task_id);
         let Some(result_sender) = result_sender else {
             warn!(
                 task_id,
@@ -438,7 +447,7 @@ impl TaskQ {
             run_baseline: run_baseline.clone(),
         };
 
-        self.active.insert(task_id, task_control);
+        self.insert_active(task_id, task_control);
 
         let scheduler_clone = scheduler.clone();
 
@@ -545,6 +554,7 @@ impl TaskQ {
                 return v_err(E_INVARG);
             }
         };
+        self.live_tasks.remove(victim_task_id);
         self.suspended.enqueue_dependents_for(victim_task_id);
         victim_task.kill_switch.store(true, Ordering::SeqCst);
         v_bool_int(false)
@@ -677,6 +687,7 @@ mod tests {
         player: Obj,
         authority_principal: Obj,
     ) {
+        task_q.register_task(task_id);
         task_q.suspended.add_task(
             WakeCondition::Never,
             task(task_id, player, authority_principal),
@@ -691,6 +702,7 @@ mod tests {
         player: Obj,
         authority_principal: Obj,
     ) {
+        task_q.register_task(task_id);
         task_q.suspended.add_task(
             WakeCondition::Input(Uuid::new_v4()),
             task(task_id, player, authority_principal),
@@ -700,7 +712,8 @@ mod tests {
     }
 
     fn add_active_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj) {
-        task_q.active.insert(
+        task_q.register_task(task_id);
+        task_q.insert_active(
             task_id,
             RunningTask {
                 phase: RunningTaskPhase::Running,
@@ -757,6 +770,39 @@ mod tests {
             task_q.authority_may_kill_task(99, authority(1, BitEnum::new())),
             Err(E_INVARG)
         );
+    }
+
+    #[test]
+    fn live_task_membership_ends_with_active_completion() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+        assert!(task_q.live_tasks.contains(10));
+
+        task_q.send_task_result(10, Ok(v_int(0)));
+
+        assert!(!task_q.live_tasks.contains(10));
+    }
+
+    #[test]
+    fn live_task_membership_survives_suspension_moves() {
+        let mut task_q = task_q();
+        add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
+        assert!(task_q.live_tasks.contains(10));
+
+        let suspended = task_q
+            .suspended
+            .remove_task(10)
+            .expect("suspended task should exist");
+        assert!(task_q.live_tasks.contains(10));
+
+        task_q.suspended.add_task(
+            WakeCondition::Never,
+            suspended.task,
+            suspended.session,
+            suspended.result_sender,
+        );
+        task_q.suspended.remove_task_terminal(10);
+        assert!(!task_q.live_tasks.contains(10));
     }
 
     #[test]

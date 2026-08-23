@@ -99,7 +99,8 @@ impl Scheduler {
                 "Maximum number of retries exceeded for task {}.  Aborting.",
                 task.task_id
             );
-            TaskQ::send_task_result_direct(task_id, old_tc.result_sender, Err(TaskAbortedError));
+            lc.task_q
+                .send_task_result_direct(task_id, old_tc.result_sender, Err(TaskAbortedError));
             return;
         }
         task.retries += 1;
@@ -347,7 +348,7 @@ impl Scheduler {
 
         // Report the original task as aborted (handler outcome doesn't affect this)
         lc.task_q.suspended.enqueue_dependents_for(task_id);
-        TaskQ::send_task_result_direct(
+        lc.task_q.send_task_result_direct(
             task_id,
             task.result_sender.take(),
             Err(TaskAbortedLimit(limit_reason)),
@@ -687,10 +688,9 @@ impl Scheduler {
         // TODO: add non-queued tasks.
     }
 
-    pub fn handle_task_exists(&self, check_task_id: TaskId) -> Option<Obj> {
-        let lc = self.lifecycle.lock();
-        // Check both suspended and active tasks atomically
-        lc.task_q.task_owner(check_task_id)
+    #[inline]
+    pub fn handle_task_exists(&self, check_task_id: TaskId) -> bool {
+        self.live_tasks.contains(check_task_id)
     }
 
     pub fn handle_kill_task(

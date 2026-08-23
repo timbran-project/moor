@@ -365,13 +365,11 @@ impl Scheduler {
                         continue;
                     };
                     lc.task_q.suspended.enqueue_dependents_for(task_id);
-                    if let Some(result_sender) = task.result_sender.take() {
-                        TaskQ::send_task_result_direct(
-                            task_id,
-                            Some(result_sender),
-                            Err(TaskAbortedCancelled),
-                        );
-                    }
+                    lc.task_q.send_task_result_direct(
+                        task_id,
+                        task.result_sender.take(),
+                        Err(TaskAbortedCancelled),
+                    );
                 }
                 warn!(
                     remaining,

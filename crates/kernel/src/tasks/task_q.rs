@@ -32,6 +32,7 @@ use moor_common::threading::{
     task_pool_pinning_mode,
 };
 use moor_var::{Obj, Var};
+use papaya::HashMap as PapayaHashMap;
 
 use crate::{
     tasks::{task::Task, task_pool::TaskThreadPool, task_telemetry::TaskRunBaseline},
@@ -58,6 +59,37 @@ use crate::tasks::task::TaskState;
 use crate::tasks::{TaskDescription, TaskNotification, TaskStart, TasksDb};
 use moor_common::tasks::{SchedulerError, Session, SessionFactory, TaskId};
 
+type LiveTasks = PapayaHashMap<TaskId, (), BuildHasherDefault<AHasher>>;
+
+/// Lock-free membership index for tasks accepted by the scheduler.
+#[derive(Clone)]
+pub(crate) struct LiveTaskRegistry {
+    tasks: Arc<LiveTasks>,
+}
+
+impl LiveTaskRegistry {
+    fn new() -> Self {
+        Self {
+            tasks: Arc::new(PapayaHashMap::with_hasher(BuildHasherDefault::default())),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn contains(&self, task_id: TaskId) -> bool {
+        self.tasks.pin().contains_key(&task_id)
+    }
+
+    #[inline]
+    pub(crate) fn insert(&self, task_id: TaskId) {
+        self.tasks.pin().insert(task_id, ());
+    }
+
+    #[inline]
+    pub(crate) fn remove(&self, task_id: TaskId) {
+        self.tasks.pin().remove(&task_id);
+    }
+}
+
 /// The internal state of the task queue.
 pub struct TaskQ {
     /// Information about the active, running tasks. The actual `Task` is owned by the task thread
@@ -74,6 +106,8 @@ pub struct TaskQ {
     /// Each message stores enqueue timestamp for mailbox-wait latency accounting.
     pub(crate) task_message_queues:
         HashMap<TaskId, VecDeque<(Timestamp, Var)>, BuildHasherDefault<AHasher>>,
+    /// Task membership shared with lock-free scheduler readers.
+    pub(crate) live_tasks: LiveTaskRegistry,
 }
 
 /// Scheduler-side phase for a task which still occupies the active-task slot.
@@ -112,6 +146,7 @@ pub(crate) struct RunningTask {
 
 impl TaskQ {
     pub fn new(suspended: SuspensionQ) -> Self {
+        let live_tasks = suspended.live_tasks.clone();
         // Use topology-derived logical core count for fallback worker sizing so the
         // scheduler pool is not accidentally limited by current-thread affinity.
         let fallback_threads = logical_core_count().max(1);
@@ -194,6 +229,7 @@ impl TaskQ {
                 suspended,
                 thread_pool,
                 task_message_queues: HashMap::default(),
+                live_tasks,
             };
         } else {
             info!(
@@ -210,7 +246,18 @@ impl TaskQ {
             suspended,
             thread_pool,
             task_message_queues: HashMap::default(),
+            live_tasks,
         }
+    }
+
+    #[inline]
+    pub(crate) fn insert_active(&mut self, task_id: TaskId, task: RunningTask) {
+        self.active.insert(task_id, task);
+    }
+
+    #[inline]
+    pub(crate) fn register_task(&self, task_id: TaskId) {
+        self.live_tasks.insert(task_id);
     }
 
     /// Check if a task exists and return its controlling principal.
@@ -444,6 +491,7 @@ pub struct SuspensionQ {
     next_generation: u64,
 
     tasks_database: Box<dyn TasksDb>,
+    live_tasks: LiveTaskRegistry,
 }
 
 impl SuspensionQ {
@@ -462,6 +510,7 @@ impl SuspensionQ {
             message_waiting_tasks: Vec::new(),
             next_generation: 0,
             tasks_database,
+            live_tasks: LiveTaskRegistry::new(),
         }
     }
 
@@ -658,6 +707,7 @@ impl SuspensionQ {
             }
 
             self.tasks.insert(task_id, task);
+            self.live_tasks.insert(task_id);
         }
         // Now delete them from the database.
         if let Err(e) = self.tasks_database.delete_all_tasks() {
@@ -858,6 +908,7 @@ impl SuspensionQ {
     pub(crate) fn remove_task_terminal(&mut self, task_id: TaskId) -> Option<SuspendedTask> {
         let task = self.remove_task(task_id);
         if task.is_some() {
+            self.live_tasks.remove(task_id);
             self.enqueue_dependents_for(task_id);
         }
         task
@@ -1116,6 +1167,26 @@ mod tests {
 
     fn mock_session() -> Arc<dyn Session> {
         Arc::new(NoopClientSession::new())
+    }
+
+    #[test]
+    fn live_task_registry_supports_concurrent_reads() {
+        let registry = LiveTaskRegistry::new();
+        registry.insert(42);
+
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                let registry = registry.clone();
+                scope.spawn(move || {
+                    for _ in 0..10_000 {
+                        assert!(registry.contains(42));
+                    }
+                });
+            }
+        });
+
+        registry.remove(42);
+        assert!(!registry.contains(42));
     }
 
     #[test]
