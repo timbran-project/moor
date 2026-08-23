@@ -323,9 +323,7 @@ object REACTION [
       endif
       "Merge any new bindings into context";
       if (maphaskey(result, 'bindings))
-        for key in (mapkeys(result['bindings]))
-          context[key] = result['bindings][key];
-        endfor
+        context = mapmerge(context, result['bindings]);
       endif
     endif
     "Execute each effect";
