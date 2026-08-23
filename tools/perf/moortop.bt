@@ -57,7 +57,7 @@ usdt:*:moor_v1:task_run_done
         $elapsed = nsecs - $state.0;
         @task_count[$cpu, $state.2, $state.3, $state.4]++;
         @task_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
-        @task_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        @task_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed);
         delete(@task_state[tid]);
     }
 }
@@ -81,7 +81,7 @@ usdt:*:moor_v1:verb_run_done
         $elapsed = nsecs - $state.0;
         @verb_count[$cpu, $state.2, $state.3, $state.4]++;
         @verb_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
-        @verb_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed, 3);
+        @verb_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed);
         delete(@verb_state[tid]);
     }
 }
@@ -99,7 +99,7 @@ usdt:*:moor_v1:builtin_run_done
         $elapsed = nsecs - $state.0;
         @builtin_count[$cpu, $state.2]++;
         @builtin_total[$cpu, $state.2] += $elapsed;
-        @builtin_hist[$cpu, $state.2] = hist($elapsed, 3);
+        @builtin_hist[$cpu, $state.2] = hist($elapsed);
         delete(@builtin_state[tid]);
     }
 }
@@ -118,7 +118,7 @@ usdt:*:moor_v1:task_commit_done
         $elapsed = nsecs - @stage_start[tid, 0];
         @stage_count[$cpu, 0]++;
         @stage_total[$cpu, 0] += $elapsed;
-        @stage_hist[$cpu, 0] = hist($elapsed, 3);
+        @stage_hist[$cpu, 0] = hist($elapsed);
         delete(@stage_start[tid, 0]);
     }
 }
@@ -155,7 +155,7 @@ usdt:*:moor_v1:moo_activation_done
         $elapsed = nsecs - $state.0;
         @verb_call_count[$cpu, $state.1, $state.2, $state.3]++;
         @verb_call_total[$cpu, $state.1, $state.2, $state.3] += $elapsed;
-        @verb_call_hist[$cpu, $state.1, $state.2, $state.3] = hist($elapsed, 3);
+        @verb_call_hist[$cpu, $state.1, $state.2, $state.3] = hist($elapsed);
         delete(@verb_call_state[$task_id, $depth]);
     }
 }
@@ -173,7 +173,7 @@ usdt:*:moor_v1:db_commit_done
         $elapsed = nsecs - @stage_start[tid, 1];
         @stage_count[$cpu, 1]++;
         @stage_total[$cpu, 1] += $elapsed;
-        @stage_hist[$cpu, 1] = hist($elapsed, 3);
+        @stage_hist[$cpu, 1] = hist($elapsed);
         delete(@stage_start[tid, 1]);
     }
 }
@@ -191,7 +191,7 @@ usdt:*:moor_v1:db_commit_prepare_done
         $elapsed = nsecs - @stage_start[tid, 2];
         @stage_count[$cpu, 2]++;
         @stage_total[$cpu, 2] += $elapsed;
-        @stage_hist[$cpu, 2] = hist($elapsed, 3);
+        @stage_hist[$cpu, 2] = hist($elapsed);
         delete(@stage_start[tid, 2]);
     }
 }
@@ -209,7 +209,7 @@ usdt:*:moor_v1:db_commit_read_only_done
         $elapsed = nsecs - @stage_start[tid, 3];
         @stage_count[$cpu, 3]++;
         @stage_total[$cpu, 3] += $elapsed;
-        @stage_hist[$cpu, 3] = hist($elapsed, 3);
+        @stage_hist[$cpu, 3] = hist($elapsed);
         delete(@stage_start[tid, 3]);
     }
 }
@@ -227,7 +227,7 @@ usdt:*:moor_v1:db_commit_check_done
         $elapsed = nsecs - @stage_start[tid, 4];
         @stage_count[$cpu, 4]++;
         @stage_total[$cpu, 4] += $elapsed;
-        @stage_hist[$cpu, 4] = hist($elapsed, 3);
+        @stage_hist[$cpu, 4] = hist($elapsed);
         delete(@stage_start[tid, 4]);
     }
 }
@@ -245,7 +245,7 @@ usdt:*:moor_v1:db_commit_apply_done
         $elapsed = nsecs - @stage_start[tid, 5];
         @stage_count[$cpu, 5]++;
         @stage_total[$cpu, 5] += $elapsed;
-        @stage_hist[$cpu, 5] = hist($elapsed, 3);
+        @stage_hist[$cpu, 5] = hist($elapsed);
         delete(@stage_start[tid, 5]);
     }
 }
@@ -263,7 +263,7 @@ usdt:*:moor_v1:db_commit_publish_done
         $elapsed = nsecs - @stage_start[tid, 6];
         @stage_count[$cpu, 6]++;
         @stage_total[$cpu, 6] += $elapsed;
-        @stage_hist[$cpu, 6] = hist($elapsed, 3);
+        @stage_hist[$cpu, 6] = hist($elapsed);
         delete(@stage_start[tid, 6]);
     }
 }
@@ -281,7 +281,7 @@ usdt:*:moor_v1:db_commit_rebase_done
         $elapsed = nsecs - @stage_start[tid, 7];
         @stage_count[$cpu, 7]++;
         @stage_total[$cpu, 7] += $elapsed;
-        @stage_hist[$cpu, 7] = hist($elapsed, 3);
+        @stage_hist[$cpu, 7] = hist($elapsed);
         delete(@stage_start[tid, 7]);
     }
 }
@@ -299,7 +299,7 @@ usdt:*:moor_v1:db_commit_persist_done
         $elapsed = nsecs - @stage_start[tid, 8];
         @stage_count[$cpu, 8]++;
         @stage_total[$cpu, 8] += $elapsed;
-        @stage_hist[$cpu, 8] = hist($elapsed, 3);
+        @stage_hist[$cpu, 8] = hist($elapsed);
         delete(@stage_start[tid, 8]);
     }
 }

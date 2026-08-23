@@ -108,8 +108,9 @@ Use the map tool to resolve IDs without a capture:
 tools/perf/builtin-id-map.py 0 256 512
 ```
 
-The report calculates `p95~` from a fine-grained logarithmic histogram. The value is the upper limit
-of the selected histogram bucket.
+The report calculates `p95~` from a power-of-two logarithmic histogram. The value is the upper limit
+of the selected histogram bucket. This portable histogram form works with bpftrace versions before
+0.20, but its percentile estimate is coarse.
 
 The `% section` column shows the share for each row in the measured section. The `% core` column
 divides the interval total by the capture duration. This value shows the equivalent use of one CPU
