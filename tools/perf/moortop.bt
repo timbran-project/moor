@@ -21,7 +21,7 @@ usdt:*:moor_v1:diagnostics_attached
 usdt:*:moor_v1:verb_metadata
 {
     @verb_names[(uint64)arg0, (uint64)arg1, (uint64)arg2] =
-        str(uptr((uint8 *)arg3), (uint32)arg4);
+        str(uptr((uint8 *)arg3));
     @verb_name_lengths[(uint64)arg0, (uint64)arg1, (uint64)arg2] =
         (uint64)arg4;
 }

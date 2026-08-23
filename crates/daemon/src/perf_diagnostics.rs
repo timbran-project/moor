@@ -51,6 +51,9 @@ fn emit_verb_metadata(database: &TxDB) -> Result<(usize, usize), WorldStateError
                 continue;
             };
             let name = name.as_str();
+            let mut probe_name = Vec::with_capacity(name.len() + 1);
+            probe_name.extend_from_slice(name.as_bytes());
+            probe_name.push(0);
             let (uuid_high, uuid_low) = verb.uuid().as_u64_pair();
             probe::probe!(
                 moor_v1,
@@ -58,7 +61,7 @@ fn emit_verb_metadata(database: &TxDB) -> Result<(usize, usize), WorldStateError
                 uuid_high,
                 uuid_low,
                 verb.location().as_u64(),
-                name.as_ptr(),
+                probe_name.as_ptr(),
                 name.len()
             );
             emitted += 1;
