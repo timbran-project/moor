@@ -1047,20 +1047,16 @@ fn bf_present(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(RetNil)
 }
 
-/// Usage: `list connected_players([int include_all])`
+/// Usage: `list connected_players([include_all])`
 /// Returns a list of all connected player objects. If include_all is true,
 /// includes connection objects (negative IDs) as well.
 fn bf_connected_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
-    let include_all = if bf_args.args.len() == 1 {
-        let Some(include_all) = bf_args.args[0].as_integer() else {
-            return Err(ErrValue(E_TYPE.msg(
-                "connected_players() requires an integer as the first argument",
-            )));
-        };
-        include_all == 1
-    } else {
-        false
-    };
+    if bf_args.args.len() > 1 {
+        return Err(ErrValue(
+            E_ARGS.msg("connected_players() requires 0 or 1 arguments"),
+        ));
+    }
+    let include_all = !bf_args.args.is_empty() && bf_args.args[0].is_true();
 
     let connected_player_set = current_session()
         .connected_players(include_all)
