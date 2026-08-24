@@ -123,6 +123,7 @@ replaces all percentages with `--`.
 The command permits 65,536 entries in each BPF map. Each observed CPU and identity pair uses an
 entry in each aggregate map. Each active verb call uses an entry keyed by task and activation depth.
 Each named verb uses an entry in the metadata map. Set `BPFTRACE_MAX_MAP_KEYS` to change this limit.
+The launcher also sets the `BPFTRACE_MAP_KEYS_MAX` name that bpftrace 0.17 uses.
 
 The capture cannot reconstruct an interval that started before attachment. It reports a completion
 without a start as an interval that was already active.
@@ -182,6 +183,8 @@ sudo tools/perf/mootop.sh --verb-map-output /tmp/verb-map.json
 The tool writes the map only after it receives every name. It reports a warning if the BPF map is
 too small or a name is too long. Increase `BPFTRACE_MAX_MAP_KEYS` or `BPFTRACE_MAX_STRLEN` and run
 the command again.
+
+The launcher also sets the `BPFTRACE_STRLEN` name that bpftrace 0.17 uses.
 
 An identity shows its UUID when the metadata does not contain its verb name. The cause can be an
 incomplete scan, a full BPF map, a long name, or a verb that changed after its task started.

@@ -69,7 +69,7 @@ U64_MASK = (1 << 64) - 1
 class IntervalStats:
     count: int
     total: int
-    percentile95: int
+    percentile95: int | None
 
 
 @dataclass(frozen=True)
@@ -77,7 +77,7 @@ class VerbCallIntervalStats:
     started: int
     completed: int
     total: int
-    percentile95: int
+    percentile95: int | None
 
 
 def duration(value: int) -> str:
@@ -88,6 +88,10 @@ def duration(value: int) -> str:
     if value >= 1_000:
         return f"{value / 1_000:.3f}us"
     return f"{value}ns"
+
+
+def optional_duration(value: int | None) -> str:
+    return "--" if value is None else duration(value)
 
 
 def object_name(raw: int) -> str:
@@ -214,10 +218,10 @@ def histogram_delta(
     return result
 
 
-def percentile95(buckets: dict[tuple[int, int], int]) -> int:
+def percentile95(buckets: dict[tuple[int, int], int]) -> int | None:
     count = sum(buckets.values())
     if count == 0:
-        return 0
+        return None
     target = max(1, math.ceil(count * 0.95))
     cumulative = 0
     for (_, maximum), bucket_count in sorted(buckets.items()):
@@ -270,7 +274,7 @@ def verb_call_interval_stats(
             started=started.get(key, 0),
             completed=completed[key].count if key in completed else 0,
             total=completed[key].total if key in completed else 0,
-            percentile95=completed[key].percentile95 if key in completed else 0,
+            percentile95=completed[key].percentile95 if key in completed else None,
         )
         for key in set(started) | set(completed)
     }
@@ -306,7 +310,7 @@ def print_section(
             f"    {share:>6.2f}  {core_share:>6.2f}  {fitted_identity(identity):<45}"
             f" {stats.count / interval_seconds:>7.1f}"
             f" {stats.count:>7} {duration(stats.total):>11}"
-            f" {duration(mean):>11} {duration(stats.percentile95):>11}"
+            f" {duration(mean):>11} {optional_duration(stats.percentile95):>11}"
         )
 
 
@@ -337,7 +341,7 @@ def print_verb_call_section(
             f" {stats.started / interval_seconds:>7.1f}"
             f" {stats.started:>8} {stats.completed:>6}"
             f" {duration(stats.total):>14} {duration(mean):>13}"
-            f" {duration(stats.percentile95):>13}"
+            f" {optional_duration(stats.percentile95):>13}"
         )
 
 

@@ -151,7 +151,12 @@ docker_args=(
 if [[ "${MODE}" == top && -t 0 && -t 1 ]]; then
     docker_args+=(--interactive --tty)
 fi
-for variable in FREQUENCY BPFTRACE_MAX_MAP_KEYS BPFTRACE_MAX_STRLEN; do
+for variable in \
+    FREQUENCY \
+    BPFTRACE_MAP_KEYS_MAX \
+    BPFTRACE_MAX_MAP_KEYS \
+    BPFTRACE_STRLEN \
+    BPFTRACE_MAX_STRLEN; do
     if [[ -n "${!variable:-}" ]]; then
         docker_args+=(--env "${variable}")
     fi
