@@ -225,6 +225,39 @@ impl WorldStateTransaction {
         Ok(ancestor_set)
     }
 
+    /// Return whether `obj` is valid and descends from `possible_ancestor`, including itself.
+    pub fn isa(&self, obj: &Obj, possible_ancestor: &Obj) -> Result<bool, WorldStateError> {
+        if !self.object_valid(obj)? {
+            return Ok(false);
+        }
+        if obj == possible_ancestor {
+            return Ok(true);
+        }
+
+        let cached_result = self
+            .ancestry_cache
+            .borrow()
+            .contains(obj, possible_ancestor);
+        if let Some(is_ancestor) = cached_result {
+            return Ok(is_ancestor);
+        }
+
+        let mut ancestors = vec![];
+        let mut current = *obj;
+        let mut is_ancestor = false;
+        loop {
+            current = self.get_object_parent(&current)?;
+            if current.is_nothing() {
+                break;
+            }
+            is_ancestor |= current == *possible_ancestor;
+            ancestors.push(current);
+        }
+        self.ancestry_cache.borrow_mut().fill(obj, &ancestors);
+
+        Ok(is_ancestor)
+    }
+
     pub fn get_objects(&self) -> Result<ObjSet, WorldStateError> {
         let objects = self
             .object_flags

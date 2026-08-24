@@ -1425,6 +1425,11 @@ impl WorldState for DbWorldState {
         self.get_tx().descendants(obj, include_self)
     }
 
+    fn isa(&self, obj: &Obj, possible_ancestor: &Obj) -> Result<bool, WorldStateError> {
+        let _t = db_counters().timers_hot.start(WorldStateTimerOp::Isa);
+        self.get_tx().isa(obj, possible_ancestor)
+    }
+
     fn ancestors_of(
         &self,
         _permissions: &TaskPermissions,

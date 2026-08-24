@@ -230,6 +230,49 @@ mod tests {
     }
 
     #[test]
+    fn test_isa() {
+        let db = test_db();
+        let mut tx = db.start_transaction();
+
+        let root = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "root"),
+            )
+            .unwrap();
+        let parent = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, root, NOTHING, BitEnum::new(), "parent"),
+            )
+            .unwrap();
+        let child = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, parent, NOTHING, BitEnum::new(), "child"),
+            )
+            .unwrap();
+        let other = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "other"),
+            )
+            .unwrap();
+
+        assert!(tx.isa(&child, &child).unwrap());
+        assert!(tx.isa(&child, &parent).unwrap());
+        assert!(tx.isa(&child, &root).unwrap());
+        assert!(!tx.isa(&child, &other).unwrap());
+        assert!(!tx.isa(&child, &NOTHING).unwrap());
+        assert!(!tx.isa(&Obj::mk_id(1000), &Obj::mk_id(1000)).unwrap());
+
+        tx.set_object_parent(&child, &other).unwrap();
+        assert!(tx.isa(&child, &other).unwrap());
+        assert!(!tx.isa(&child, &parent).unwrap());
+        assert!(!tx.isa(&child, &root).unwrap());
+    }
+
+    #[test]
     pub fn test_location_contents() {
         let db = test_db();
         let mut tx = db.start_transaction();

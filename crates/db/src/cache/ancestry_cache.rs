@@ -130,6 +130,23 @@ impl AncestryCache {
         result
     }
 
+    /// Check a cached ancestry chain without cloning it.
+    pub fn contains(&self, obj: &Obj, possible_ancestor: &Obj) -> Option<bool> {
+        let result = self
+            .inner
+            .entries
+            .get(obj)
+            .map(|ancestors| ancestors.contains(possible_ancestor));
+
+        if result.is_some() {
+            ancestry_cache_hit();
+        } else {
+            ancestry_cache_miss();
+        }
+
+        result
+    }
+
     pub fn flush(&mut self) {
         let entries_count = self.inner.entries.len() as isize;
         self.inner.flushed = true;

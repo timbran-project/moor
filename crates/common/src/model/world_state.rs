@@ -673,6 +673,9 @@ pub trait WorldState: Send {
         include_self: bool,
     ) -> Result<ObjSet, WorldStateError>;
 
+    /// Return whether `obj` is valid and descends from `possible_ancestor`, including itself.
+    fn isa(&self, obj: &Obj, possible_ancestor: &Obj) -> Result<bool, WorldStateError>;
+
     /// Get the list of ancestors of the given object (parent + parent-parents)
     fn ancestors_of(
         &self,
@@ -790,6 +793,7 @@ pub enum WorldStateTimerOp {
     ChildrenOf,
     OwnedObjects,
     DescendantsOf,
+    Isa,
     AncestorsOf,
     DbUsage,
     Commit,
