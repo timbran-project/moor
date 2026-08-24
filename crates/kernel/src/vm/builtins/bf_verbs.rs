@@ -15,6 +15,7 @@
 
 use strum::EnumCount;
 use tracing::{error, warn};
+use uuid::Uuid;
 
 use crate::{
     task_context::{with_current_transaction, with_current_transaction_mut},
@@ -46,7 +47,7 @@ use moor_var::{
 
 /// Usage: `list verb_info(obj object, str|int verb_desc)`
 /// Returns `{owner, perms, names}` where perms is a string of r/w/x/d flags.
-/// Verb can be identified by name or 1-based index. Raises E_VERBNF if not found.
+/// Verb can be identified by name, UUID, or 1-based index. Raises E_VERBNF if not found.
 fn bf_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 2 {
         return Err(BfErr::Code(E_ARGS));
@@ -72,6 +73,19 @@ fn bf_verb_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             })
             .map_err(world_state_bf_err)?
         }
+        Variant::Str(verb_desc) => with_current_transaction(|world_state| {
+            let verb_name = Symbol::mk(verb_desc.as_str());
+            match world_state.get_verb(&bf_args.task_permissions(), &obj, verb_name) {
+                Err(name_error @ WorldStateError::VerbNotFound(_, _)) => {
+                    let Ok(uuid) = Uuid::parse_str(verb_desc.as_str()) else {
+                        return Err(name_error);
+                    };
+                    world_state.get_verb_by_id(&bf_args.task_permissions(), &obj, uuid)
+                }
+                result => result,
+            }
+        })
+        .map_err(world_state_bf_err)?,
         _ => {
             let Ok(verb_name) = bf_args.args[1].as_symbol() else {
                 return Err(BfErr::Code(E_TYPE));

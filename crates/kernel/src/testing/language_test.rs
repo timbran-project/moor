@@ -20,8 +20,8 @@ mod tests {
 
     use moor_common::model::CompileError;
     use moor_common::model::{
-        ObjFlag, ObjectKind, PropFlag, TaskPermissions, VerbArgsSpec, VerbFlag, WorldState,
-        WorldStateSource,
+        HasUuid, ObjFlag, ObjectKind, PropFlag, TaskPermissions, VerbArgsSpec, VerbFlag,
+        WorldState, WorldStateSource,
     };
     use moor_common::tasks::NoopClientSession;
     use moor_compiler::{CompileOptions, Program, compile};
@@ -421,6 +421,46 @@ mod tests {
         assert_eq!(
             run_moo(r#"return `verb_info(#-1, "blerg") ! ANY => 42';"#),
             Ok(v_int(42))
+        );
+    }
+
+    #[test]
+    fn verb_info_accepts_verb_uuid() {
+        let db = test_db_with_verb("target", &Program::new());
+        let mut tx = db.new_world_state().unwrap();
+        let target = tx
+            .get_verb(&system_permissions(), &SYSTEM_OBJECT, Symbol::mk("target"))
+            .unwrap();
+        let source = format!(r#"return verb_info(#0, "{}");"#, target.uuid());
+        let program = compile(&source, CompileOptions::default()).unwrap();
+        tx.add_verb(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            vec![Symbol::mk("test")],
+            &SYSTEM_OBJECT,
+            VerbFlag::rxd(),
+            VerbArgsSpec::this_none_this(),
+            ProgramType::MooR(program),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        let state = db.new_world_state().unwrap();
+        let result = call_verb(
+            state,
+            Arc::new(NoopClientSession::new()),
+            BuiltinRegistry::new(),
+            "test",
+            List::mk_list(&[]),
+        );
+
+        assert_eq!(
+            result,
+            Ok(v_list(&[
+                v_obj(SYSTEM_OBJECT),
+                v_str("rxd"),
+                v_str("target")
+            ]))
         );
     }
 
