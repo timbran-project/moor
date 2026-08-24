@@ -1063,15 +1063,11 @@ fn bf_connected_players(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     let connected_player_set = current_session()
-        .connected_players()
+        .connected_players(include_all)
         .expect("Connected players should always be available");
-    let map = connected_player_set.iter().filter_map(|p| {
-        if !p.is_positive() && !include_all {
-            return None;
-        }
-        Some(v_obj(*p))
-    });
-    Ok(Ret(v_list_iter(map)))
+    Ok(Ret(v_list_iter(
+        connected_player_set.into_iter().map(v_obj),
+    )))
 }
 
 /// Usage: `int idle_seconds(obj player)`

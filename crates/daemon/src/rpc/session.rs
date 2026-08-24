@@ -21,7 +21,10 @@ use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionErro
 use moor_runtime_api::api::ClientEvent;
 use moor_var::{Obj, Symbol, Var};
 
-use crate::event_log::{EventLogOps, logged_narrative_event_to_flatbuffer};
+use crate::{
+    connections::ConnectionStateSource,
+    event_log::{EventLogOps, logged_narrative_event_to_flatbuffer},
+};
 
 /// A "session" that runs over the RPC system.
 pub struct RpcSession {
@@ -30,6 +33,7 @@ pub struct RpcSession {
     identity: Mutex<SessionIdentity>,
     /// Shared event log for persistent storage across all sessions
     event_log: Arc<dyn EventLogOps>,
+    connection_state: Arc<dyn ConnectionStateSource>,
     /// Transaction-local buffer for events pending commit (both logged and broadcast)
     transaction_buffer: Mutex<Vec<(Obj, Box<NarrativeEvent>)>>,
     /// Transaction-local buffer for log-only events (logged but not broadcast)
@@ -56,22 +60,7 @@ pub enum SessionActions {
         connection: Obj,
         system_message: String,
     },
-    RequestConnectionName(Uuid, Obj, oneshot::Sender<Result<String, SessionError>>),
     Disconnect(Uuid, Obj),
-    RequestConnectedPlayers(Uuid, oneshot::Sender<Result<Vec<Obj>, SessionError>>),
-    RequestConnectedSeconds(Uuid, Obj, oneshot::Sender<Result<f64, SessionError>>),
-    RequestIdleSeconds(Uuid, Obj, oneshot::Sender<Result<f64, SessionError>>),
-    RequestConnections(
-        Uuid,
-        Option<Obj>,
-        oneshot::Sender<Result<Vec<Obj>, SessionError>>,
-    ),
-    RequestConnectionDetails(
-        Uuid,
-        Option<Obj>,
-        oneshot::Sender<Result<Vec<ConnectionDetails>, SessionError>>,
-    ),
-    RequestClientAttributes(Uuid, Obj, oneshot::Sender<Result<Var, SessionError>>),
     SetClientAttribute(Uuid, Obj, Symbol, Var),
     PublishTaskCompletion(Uuid, ClientEvent),
 }
@@ -83,6 +72,7 @@ impl RpcSession {
         active_player: Obj,
         history_player: Obj,
         event_log: Arc<dyn EventLogOps>,
+        connection_state: Arc<dyn ConnectionStateSource>,
         sender: Sender<SessionActions>,
     ) -> Self {
         Self {
@@ -93,6 +83,7 @@ impl RpcSession {
                 history_player,
             }),
             event_log,
+            connection_state,
             transaction_buffer: Mutex::new(Vec::new()),
             log_only_buffer: Mutex::new(Vec::new()),
             send: sender,
@@ -162,6 +153,7 @@ impl Session for RpcSession {
             identity.active_player,
             identity.history_player,
             self.event_log.clone(),
+            self.connection_state.clone(),
             self.send.clone(),
         )))
     }
@@ -222,15 +214,7 @@ impl Session for RpcSession {
     }
 
     fn connection_name(&self, player: Obj) -> Result<String, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestConnectionName(
-                self.client_id,
-                player,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state.connection_name(player)
     }
 
     fn disconnect(&self, player: Obj) -> Result<(), SessionError> {
@@ -240,75 +224,33 @@ impl Session for RpcSession {
         Ok(())
     }
 
-    fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestConnectedPlayers(self.client_id, tx))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+    fn connected_players(&self, include_all: bool) -> Result<Vec<Obj>, SessionError> {
+        Ok(self.connection_state.connected_players(include_all))
     }
 
     fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestConnectedSeconds(
-                self.client_id,
-                player,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state.connected_seconds(player)
     }
 
     fn idle_seconds(&self, player: Obj) -> Result<f64, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestIdleSeconds(
-                self.client_id,
-                player,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state.idle_seconds(player)
     }
 
     fn connections(&self, player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestConnections(
-                self.client_id,
-                player,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state
+            .connections_for(self.client_id, player)
     }
 
     fn connection_details(
         &self,
         player: Option<Obj>,
     ) -> Result<Vec<ConnectionDetails>, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestConnectionDetails(
-                self.client_id,
-                player,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state
+            .connection_details(self.client_id, player)
     }
 
     fn connection_attributes(&self, obj: Obj) -> Result<Var, SessionError> {
-        let (tx, rx) = oneshot::channel();
-        self.send
-            .send(SessionActions::RequestClientAttributes(
-                self.client_id,
-                obj,
-                tx,
-            ))
-            .map_err(|_e| SessionError::DeliveryError)?;
-        rx.recv().map_err(|_e| SessionError::DeliveryError)?
+        self.connection_state.connection_attributes(obj)
     }
 
     fn set_connection_attribute(

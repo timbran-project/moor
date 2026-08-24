@@ -35,7 +35,7 @@ use crate::{
     connections::ConnectionRegistry, event_log::EventLogOps, tasks::task_monitor::TaskMonitor,
 };
 use moor_common::{
-    tasks::{ConnectionDetails, NarrativeEvent, SessionError},
+    tasks::{NarrativeEvent, SessionError},
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
     },
@@ -50,7 +50,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken, HostType, RpcMessageError,
     api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
 };
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
+use moor_var::{Obj, Symbol, Var};
 use rusty_paseto::prelude::Key;
 use tracing::{error, warn};
 
@@ -93,10 +93,6 @@ pub(crate) static BF_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bf"));
 
 /// If we don't hear from a host in this time, we consider it dead and its listeners gone.
 pub const HOST_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// Type alias for connection attributes result to reduce complexity
-type ConnectionAttributesResult =
-    Result<Vec<(Obj, std::collections::HashMap<Symbol, Var>)>, SessionError>;
 
 /// Internal listener info: (handler_object, host_type, port, options)
 type InternalListenerInfo = (Obj, HostType, u16, Vec<(Symbol, Var)>);
@@ -160,7 +156,7 @@ pub struct RpcMessageHandler {
     pub(crate) public_key: Key<32>,
     pub(crate) private_key: Key<64>,
 
-    pub(crate) connections: Box<dyn ConnectionRegistry + Send + Sync>,
+    pub(crate) connections: Arc<dyn ConnectionRegistry>,
     pub(crate) task_monitor: Arc<TaskMonitor>,
 
     pub(crate) hosts: Arc<RwLock<Hosts>>,
@@ -191,6 +187,7 @@ impl RpcMessageHandler {
             active_player,
             history_player,
             self.event_log.clone(),
+            self.connections.clone(),
             self.mailbox_sender.clone(),
         )
     }
@@ -200,7 +197,7 @@ impl RpcMessageHandler {
         config: Arc<Config>,
         public_key: Key<32>,
         private_key: Key<64>,
-        connections: Box<dyn ConnectionRegistry + Send + Sync>,
+        connections: Arc<dyn ConnectionRegistry>,
         hosts: Arc<RwLock<Hosts>>,
         mailbox_sender: Sender<SessionActions>,
         event_log: Arc<dyn EventLogOps>,
@@ -336,124 +333,9 @@ impl MessageHandler for RpcMessageHandler {
                     error!(error = ?e, "Unable to send system message");
                 }
             }
-            SessionActions::RequestConnectionName(_client_id, connection, reply) => {
-                let connection_send_result = match self.connection_name_for(connection) {
-                    Ok(c) => reply.send(Ok(c)),
-                    Err(e) => {
-                        if !matches!(e, SessionError::NoConnectionForPlayer(_)) {
-                            error!(error = ?e, "Unable to get connection name");
-                        }
-                        reply.send(Err(e))
-                    }
-                };
-                if let Err(e) = connection_send_result {
-                    error!(error = ?e, "Unable to send connection name");
-                }
-            }
             SessionActions::Disconnect(_client_id, connection) => {
                 if let Err(e) = self.disconnect(connection) {
                     error!(error = ?e, "Unable to disconnect client");
-                }
-            }
-            SessionActions::RequestConnectedPlayers(_client_id, reply) => {
-                let connected_players_send_result = match self.connected_players() {
-                    Ok(c) => reply.send(Ok(c)),
-                    Err(e) => {
-                        error!(error = ?e, "Unable to get connected players");
-                        reply.send(Err(e))
-                    }
-                };
-                if let Err(e) = connected_players_send_result {
-                    error!(error = ?e, "Unable to send connected players");
-                }
-            }
-            SessionActions::RequestConnectedSeconds(_client_id, connection, reply) => {
-                let connected_seconds_send_result = match self.connected_seconds_for(connection) {
-                    Ok(c) => reply.send(Ok(c)),
-                    Err(e) => {
-                        if !matches!(e, SessionError::NoConnectionForPlayer(_)) {
-                            error!(error = ?e, "Unable to get connected seconds");
-                        }
-                        reply.send(Err(e))
-                    }
-                };
-                if let Err(e) = connected_seconds_send_result {
-                    error!(error = ?e, "Unable to send connected seconds");
-                }
-            }
-            SessionActions::RequestIdleSeconds(_client_id, connection, reply) => {
-                let idle_seconds_send_result = match self.idle_seconds_for(connection) {
-                    Ok(c) => reply.send(Ok(c)),
-                    Err(e) => {
-                        if !matches!(e, SessionError::NoConnectionForPlayer(_)) {
-                            error!(error = ?e, "Unable to get idle seconds");
-                        }
-                        reply.send(Err(e))
-                    }
-                };
-                if let Err(e) = idle_seconds_send_result {
-                    error!(error = ?e, "Unable to send idle seconds");
-                }
-            }
-            SessionActions::RequestConnections(client_id, player, reply) => {
-                let connections_send_result = match self.connections_for(client_id, player) {
-                    Ok(c) => reply.send(Ok(c)),
-                    Err(e) => {
-                        if !matches!(e, SessionError::NoConnectionForPlayer(_)) {
-                            error!(error = ?e, "Unable to get connections");
-                        }
-                        reply.send(Err(e))
-                    }
-                };
-                if let Err(e) = connections_send_result {
-                    error!(error = ?e, "Unable to send connections");
-                }
-            }
-            SessionActions::RequestConnectionDetails(client_id, player, reply) => {
-                let connection_details_send_result =
-                    match self.connection_details_for(client_id, player) {
-                        Ok(details) => reply.send(Ok(details)),
-                        Err(e) => {
-                            if !matches!(e, SessionError::NoConnectionForPlayer(_)) {
-                                error!(error = ?e, "Unable to get connection details");
-                            }
-                            reply.send(Err(e))
-                        }
-                    };
-                if let Err(e) = connection_details_send_result {
-                    error!(error = ?e, "Unable to send connection details");
-                }
-            }
-            SessionActions::RequestClientAttributes(_client_id, obj, reply) => {
-                use moor_var::{v_list, v_map, v_obj, v_sym};
-
-                let handle_result = || -> Result<Var, SessionError> {
-                    if !obj.is_positive() {
-                        // This is a connection object - return just its attributes
-                        let attributes =
-                            self.get_connection_attributes_for_single_connection(obj)?;
-                        let attr_pairs: Vec<_> =
-                            attributes.into_iter().map(|(k, v)| (v_sym(k), v)).collect();
-                        Ok(v_map(&attr_pairs))
-                    } else {
-                        // This is a player object - return list of [connection_obj, attributes] pairs
-                        let connection_attrs_list =
-                            self.get_connection_attributes_for_player(obj)?;
-                        let items: Vec<_> = connection_attrs_list
-                            .into_iter()
-                            .map(|(conn_obj, attributes)| {
-                                let attr_pairs: Vec<_> =
-                                    attributes.into_iter().map(|(k, v)| (v_sym(k), v)).collect();
-                                v_list(&[v_obj(conn_obj), v_map(&attr_pairs)])
-                            })
-                            .collect();
-                        Ok(v_list(&items))
-                    }
-                };
-
-                let result = handle_result();
-                if let Err(e) = reply.send(result) {
-                    error!(error = ?e, "Unable to send client attributes");
                 }
             }
             SessionActions::SetClientAttribute(client_id, connection_obj, key, value) => {
@@ -510,15 +392,6 @@ impl RpcMessageHandler {
     fn publish_narrative_events(&self, events: &[(Obj, Box<NarrativeEvent>)]) -> Result<(), Error> {
         self.transport
             .publish_narrative_events(events, self.connections.as_ref())
-    }
-
-    // Helper methods that delegate to connections
-    pub fn connection_name_for(&self, connection: Obj) -> Result<String, SessionError> {
-        self.connections.connection_name_for(connection)
-    }
-
-    pub fn connected_seconds_for(&self, connection: Obj) -> Result<f64, SessionError> {
-        self.connections.connected_seconds_for(connection)
     }
 
     pub fn disconnect(&self, player: Obj) -> Result<(), SessionError> {
@@ -585,139 +458,6 @@ impl RpcMessageHandler {
         self.transport.publish_client_event(client_id, event)
     }
 
-    pub fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
-        let connections = self.connections.connections();
-        Ok(connections
-            .iter()
-            .filter(|o| o > &&SYSTEM_OBJECT)
-            .cloned()
-            .collect())
-    }
-
-    pub fn idle_seconds_for(&self, player: Obj) -> Result<f64, SessionError> {
-        let last_activity = self.connections.last_activity_for(player)?;
-        Ok(last_activity
-            .elapsed()
-            .map(|e| e.as_secs_f64())
-            .unwrap_or(0.0))
-    }
-
-    pub fn connections_for(
-        &self,
-        client_id: Uuid,
-        player: Option<Obj>,
-    ) -> Result<Vec<Obj>, SessionError> {
-        if let Some(target_player) = player {
-            // First find the client IDs for the player
-            let client_ids = self.connections.client_ids_for(target_player)?;
-            // Then return the connections for those client IDs
-            let mut connections = vec![];
-            for id in client_ids {
-                if let Some(connection) = self.connections.connection_object_for_client(id) {
-                    connections.push(connection);
-                }
-            }
-            Ok(connections)
-        } else {
-            // We want all connections for the player associated with this client_id, but we'll
-            // put the connection associated with the client_id first.  So let's get that first.
-            let mut connections = vec![];
-            if let Some(connection) = self.connections.connection_object_for_client(client_id) {
-                connections.push(connection);
-            }
-            // Now get all connections for the player associated with this client_id
-            let player_obj = self.connections.player_object_for_client(client_id);
-            if let Some(player_obj) = player_obj {
-                let client_ids = self.connections.client_ids_for(player_obj)?;
-                for id in client_ids {
-                    if let Some(connection) = self.connections.connection_object_for_client(id) {
-                        // Avoid adding the same connection again
-                        if !connections.contains(&connection) {
-                            connections.push(connection);
-                        }
-                    }
-                }
-            }
-            Ok(connections)
-        }
-    }
-
-    pub fn connection_details_for(
-        &self,
-        client_id: Uuid,
-        player: Option<Obj>,
-    ) -> Result<Vec<ConnectionDetails>, SessionError> {
-        if let Some(target_player) = player {
-            // Get connection details for the specified player
-            let client_ids = self.connections.client_ids_for(target_player)?;
-            let mut details = vec![];
-            for id in client_ids {
-                if let Some(connection_obj) = self.connections.connection_object_for_client(id) {
-                    let hostname = self.connections.connection_name_for(connection_obj)?;
-                    let idle_seconds = self.idle_seconds_for(connection_obj)?;
-                    let acceptable_content_types = self
-                        .connections
-                        .acceptable_content_types_for(connection_obj)?;
-                    details.push(ConnectionDetails {
-                        connection_obj,
-                        peer_addr: hostname,
-                        idle_seconds,
-                        acceptable_content_types,
-                    });
-                }
-            }
-            Ok(details)
-        } else {
-            // Get connection details for the player associated with this client_id
-            let mut details = vec![];
-
-            // Start with the connection for this specific client_id
-            if let Some(connection_obj) = self.connections.connection_object_for_client(client_id) {
-                let hostname = self.connections.connection_name_for(connection_obj)?;
-                let idle_seconds = self.idle_seconds_for(connection_obj)?;
-                let acceptable_content_types = self
-                    .connections
-                    .acceptable_content_types_for(connection_obj)?;
-                details.push(ConnectionDetails {
-                    connection_obj,
-                    peer_addr: hostname,
-                    idle_seconds,
-                    acceptable_content_types,
-                });
-            }
-
-            // Now get all other connections for the same player
-            if let Some(player_obj) = self.connections.player_object_for_client(client_id) {
-                let client_ids = self.connections.client_ids_for(player_obj)?;
-                for id in client_ids {
-                    if id != client_id {
-                        // Skip the one we already added
-                        if let Some(connection_obj) =
-                            self.connections.connection_object_for_client(id)
-                        {
-                            // Check if we already have this connection to avoid duplicates
-                            if !details.iter().any(|d| d.connection_obj == connection_obj) {
-                                let hostname =
-                                    self.connections.connection_name_for(connection_obj)?;
-                                let idle_seconds = self.idle_seconds_for(connection_obj)?;
-                                let acceptable_content_types = self
-                                    .connections
-                                    .acceptable_content_types_for(connection_obj)?;
-                                details.push(ConnectionDetails {
-                                    connection_obj,
-                                    peer_addr: hostname,
-                                    idle_seconds,
-                                    acceptable_content_types,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(details)
-        }
-    }
-
     fn set_client_attribute(
         &self,
         client_id: Uuid,
@@ -746,37 +486,5 @@ impl RpcMessageHandler {
         task_event: ClientEvent,
     ) -> Result<(), Error> {
         self.transport.publish_client_event(client_id, task_event)
-    }
-    /// Get attributes for a single connection object
-    fn get_connection_attributes_for_single_connection(
-        &self,
-        connection_obj: Obj,
-    ) -> Result<std::collections::HashMap<Symbol, Var>, SessionError> {
-        // Get attributes directly from the connection registry
-        // The connection registry now handles both player and connection objects
-        self.connections.get_client_attributes(connection_obj)
-    }
-
-    /// Get attributes for all connections of a player
-    fn get_connection_attributes_for_player(&self, player: Obj) -> ConnectionAttributesResult {
-        // Get all client IDs for this player
-        let client_ids = self.connections.client_ids_for(player)?;
-
-        let mut result = Vec::new();
-        for client_id in client_ids {
-            // Get the connection object for this client
-            let Some(connection_obj) = self.connections.connection_object_for_client(client_id)
-            else {
-                continue;
-            };
-
-            // Get attributes for this specific connection
-            let attributes = self
-                .get_connection_attributes_for_single_connection(connection_obj)
-                .unwrap_or_else(|_| std::collections::HashMap::new());
-            result.push((connection_obj, attributes));
-        }
-
-        Ok(result)
     }
 }

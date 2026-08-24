@@ -105,7 +105,7 @@ impl Session for OutputCaptureSession {
         Ok(())
     }
 
-    fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
+    fn connected_players(&self, _include_all: bool) -> Result<Vec<Obj>, SessionError> {
         Ok(vec![])
     }
 

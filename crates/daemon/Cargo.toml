@@ -75,6 +75,7 @@ zerocopy.workspace = true
 zmq.workspace = true
 
 # Async Runtime & Concurrency
+arc-swap.workspace = true
 flume.workspace = true
 oneshot.workspace = true
 papaya.workspace = true

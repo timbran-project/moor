@@ -29,8 +29,12 @@ use super::{
     transport::Transport,
 };
 use crate::{
-    connections::ConnectionRegistry, event_log::EventLogOps, rpc::MessageHandler,
-    runtime::RuntimeApi, system_control::SystemControlHandle, tasks::task_monitor::TaskMonitor,
+    connections::{ConnectionRegistry, ConnectionStateSource},
+    event_log::EventLogOps,
+    rpc::MessageHandler,
+    runtime::RuntimeApi,
+    system_control::SystemControlHandle,
+    tasks::task_monitor::TaskMonitor,
 };
 use moor_common::tasks::{Session, SessionError, SessionFactory};
 use moor_common::threading::spawn_efficient;
@@ -55,6 +59,7 @@ pub struct RpcServer {
 
     // Core server resources
     event_log: Arc<dyn EventLogOps>,
+    connection_state: Arc<dyn ConnectionStateSource>,
 }
 
 impl RpcServer {
@@ -63,7 +68,7 @@ impl RpcServer {
         kill_switch: Arc<AtomicBool>,
         public_key: Key<32>,
         private_key: Key<64>,
-        connections: Box<dyn ConnectionRegistry + Send + Sync>,
+        connections: Arc<dyn ConnectionRegistry>,
         event_log: Arc<dyn EventLogOps>,
         transport: Arc<dyn Transport>,
         config: Arc<Config>,
@@ -76,6 +81,7 @@ impl RpcServer {
             "Created connections list, with {} initial known connections",
             connections.connections().len()
         );
+        let connection_state: Arc<dyn ConnectionStateSource> = connections.clone();
         let (mailbox_sender, mailbox_receive) = flume::unbounded();
 
         // Create the task monitor with mailbox sender
@@ -89,7 +95,7 @@ impl RpcServer {
             config,
             public_key,
             private_key,
-            connections,
+            connections.clone(),
             hosts.clone(),
             mailbox_sender.clone(),
             event_log.clone() as Arc<dyn EventLogOps>,
@@ -113,6 +119,7 @@ impl RpcServer {
             mailbox_sender,
             mailbox_receive,
             event_log,
+            connection_state,
         };
 
         (server, task_monitor, system_control)
@@ -230,6 +237,7 @@ impl SessionFactory for RpcServer {
             *player,
             *player,
             self.event_log().clone() as Arc<dyn EventLogOps>,
+            self.connection_state.clone(),
             self.mailbox_sender.clone(),
         );
         let session = Arc::new(session);

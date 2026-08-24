@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Direct fjall-backed connection registry with no in-memory caching
+//! Fjall-backed connection registry with immutable read views for hot connection state.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -23,13 +23,14 @@ use std::{
 use crate::connections::{
     ConnectionRecord, ConnectionsRecords, FIRST_CONNECTION_ID,
     conversions::{connections_records_from_bytes, connections_records_to_bytes},
-    registry::{ConnectionRegistry, NewConnectionParams},
+    registry::{ConnectionRegistry, ConnectionStateSource, NewConnectionParams},
 };
+use arc_swap::ArcSwap;
 use eyre::{Error, bail};
 use fjall::{Database, Keyspace, KeyspaceCreateOptions};
-use moor_common::tasks::SessionError;
+use moor_common::tasks::{ConnectionDetails, SessionError};
 use moor_runtime_api::RpcMessageError;
-use moor_var::{Obj, Symbol, Var};
+use moor_var::{Obj, Symbol, Var, v_list, v_map, v_obj, v_sym};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 use zerocopy::IntoBytes;
@@ -41,13 +42,21 @@ struct ClientTimestamps {
     last_ping: SystemTime,
 }
 
-/// Direct fjall-backed connection registry
+/// Fjall-backed connection registry.
 pub struct FjallConnectionRegistry {
     inner: Arc<Mutex<FjallInner>>,
+    /// Immutable read view used by sessions for connection-presence queries.
+    connected_objects: ArcSwap<ConnectedObjects>,
     /// In-memory cache for timestamps (hot path optimization)
     timestamps: Arc<Mutex<HashMap<Uuid, ClientTimestamps>>>,
     /// Clients whose timestamps have been modified since last flush
     dirty_clients: Arc<Mutex<HashSet<Uuid>>>,
+}
+
+#[derive(Default)]
+struct ConnectedObjects {
+    players: Vec<Obj>,
+    all: Vec<Obj>,
 }
 
 struct FjallInner {
@@ -167,6 +176,7 @@ impl FjallConnectionRegistry {
 
         let registry = Self {
             inner: Arc::new(Mutex::new(inner)),
+            connected_objects: ArcSwap::from_pointee(ConnectedObjects::default()),
             timestamps: Arc::new(Mutex::new(timestamps_cache)),
             dirty_clients: Arc::new(Mutex::new(HashSet::new())),
         };
@@ -174,6 +184,40 @@ impl FjallConnectionRegistry {
         registry.prune_stale_records();
 
         Ok(registry)
+    }
+
+    fn publish_connected_objects(&self, inner: &FjallInner) {
+        let mut players = Vec::new();
+        for entry in inner.player_clients_table.iter() {
+            let Ok(key) = entry.key() else {
+                continue;
+            };
+            let Ok(player) = Obj::from_bytes(key.as_ref()) else {
+                continue;
+            };
+            if player.is_positive() {
+                players.push(player);
+            }
+        }
+        players.sort_unstable();
+        players.dedup();
+
+        let mut all = Vec::new();
+        for entry in inner.connection_records_table.iter() {
+            let Ok(key) = entry.key() else {
+                continue;
+            };
+            let Ok(connection) = Obj::from_bytes(key.as_ref()) else {
+                continue;
+            };
+            all.push(connection);
+        }
+        all.extend_from_slice(&players);
+        all.sort_unstable();
+        all.dedup();
+
+        self.connected_objects
+            .store(Arc::new(ConnectedObjects { players, all }));
     }
 
     /// Flush all dirty timestamps to the database.
@@ -510,6 +554,7 @@ impl FjallConnectionRegistry {
             }
         }
 
+        self.publish_connected_objects(&inner);
         drop(inner);
 
         if !removed_client_ids.is_empty() || orphan_mappings_removed > 0 {
@@ -615,6 +660,110 @@ impl FjallConnectionRegistry {
     }
 }
 
+impl ConnectionStateSource for FjallConnectionRegistry {
+    fn connected_players(&self, include_all: bool) -> Vec<Obj> {
+        let snapshot = self.connected_objects.load();
+        if include_all {
+            snapshot.all.clone()
+        } else {
+            snapshot.players.clone()
+        }
+    }
+
+    fn connection_name(&self, player: Obj) -> Result<String, SessionError> {
+        self.connection_name_for(player)
+    }
+
+    fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError> {
+        self.connected_seconds_for(player)
+    }
+
+    fn idle_seconds(&self, player: Obj) -> Result<f64, SessionError> {
+        let last_activity = self.last_activity_for(player)?;
+        Ok(last_activity
+            .elapsed()
+            .map(|elapsed| elapsed.as_secs_f64())
+            .unwrap_or(0.0))
+    }
+
+    fn connections_for(
+        &self,
+        client_id: Uuid,
+        player: Option<Obj>,
+    ) -> Result<Vec<Obj>, SessionError> {
+        if let Some(player) = player {
+            let connections = self
+                .client_ids_for(player)?
+                .into_iter()
+                .filter_map(|id| self.connection_object_for_client(id))
+                .collect();
+            return Ok(connections);
+        }
+
+        let mut connections = Vec::new();
+        if let Some(connection) = self.connection_object_for_client(client_id) {
+            connections.push(connection);
+        }
+        let Some(player) = self.player_object_for_client(client_id) else {
+            return Ok(connections);
+        };
+        for id in self.client_ids_for(player)? {
+            let Some(connection) = self.connection_object_for_client(id) else {
+                continue;
+            };
+            if !connections.contains(&connection) {
+                connections.push(connection);
+            }
+        }
+        Ok(connections)
+    }
+
+    fn connection_details(
+        &self,
+        client_id: Uuid,
+        player: Option<Obj>,
+    ) -> Result<Vec<ConnectionDetails>, SessionError> {
+        let connections = self.connections_for(client_id, player)?;
+        let mut details = Vec::with_capacity(connections.len());
+        for connection_obj in connections {
+            details.push(ConnectionDetails {
+                connection_obj,
+                peer_addr: self.connection_name_for(connection_obj)?,
+                idle_seconds: self.idle_seconds(connection_obj)?,
+                acceptable_content_types: self.acceptable_content_types_for(connection_obj)?,
+            });
+        }
+        Ok(details)
+    }
+
+    fn connection_attributes(&self, obj: Obj) -> Result<Var, SessionError> {
+        if !obj.is_positive() {
+            let attributes = self.get_client_attributes(obj)?;
+            let attributes: Vec<_> = attributes
+                .into_iter()
+                .map(|(key, value)| (v_sym(key), value))
+                .collect();
+            return Ok(v_map(&attributes));
+        }
+
+        let mut connections = Vec::new();
+        for client_id in self.client_ids_for(obj)? {
+            let Some(connection_obj) = self.connection_object_for_client(client_id) else {
+                continue;
+            };
+            let attributes = self
+                .get_client_attributes(connection_obj)
+                .unwrap_or_default();
+            let attributes: Vec<_> = attributes
+                .into_iter()
+                .map(|(key, value)| (v_sym(key), value))
+                .collect();
+            connections.push(v_list(&[v_obj(connection_obj), v_map(&attributes)]));
+        }
+        Ok(v_list(&connections))
+    }
+}
+
 impl ConnectionRegistry for FjallConnectionRegistry {
     fn associate_player_object(&self, connection_obj: Obj, player_obj: Obj) -> Result<(), Error> {
         let inner = self.inner.lock().unwrap();
@@ -676,6 +825,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             .player_clients_table
             .insert(player_oid_bytes, encoded)?;
 
+        self.publish_connected_objects(&inner);
         Ok(())
     }
 
@@ -787,6 +937,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         }
         batch.commit()?;
 
+        self.publish_connected_objects(&inner);
         Ok(client_ids)
     }
 
@@ -989,6 +1140,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             };
         }
 
+        self.publish_connected_objects(&inner);
         Ok(connection_id)
     }
 
@@ -1118,6 +1270,8 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             // Remove timestamp cache entry
             let _ = self.timestamps.lock().unwrap().remove(&client_uuid);
         }
+
+        self.publish_connected_objects(&inner);
     }
 
     fn flush(&self) {
@@ -1205,36 +1359,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
     }
 
     fn connections(&self) -> Vec<Obj> {
-        let Ok(inner) = self.inner.lock() else {
-            warn!("Poisoned connections inner lock during connections list");
-            return vec![];
-        };
-
-        let mut connections = Vec::new();
-
-        // Get all connection objects
-        for entry in inner.connection_records_table.iter() {
-            let Ok(key) = entry.key() else {
-                continue;
-            };
-            if let Ok(oid) = Obj::from_bytes(key.as_ref()) {
-                connections.push(oid);
-            }
-        }
-
-        // Get all player objects
-        for entry in inner.player_clients_table.iter() {
-            let Ok(key) = entry.key() else {
-                continue;
-            };
-            if let Ok(oid) = Obj::from_bytes(key.as_ref()) {
-                connections.push(oid);
-            }
-        }
-
-        connections.sort();
-        connections.dedup();
-        connections
+        self.connected_objects.load().all.clone()
     }
 
     fn connection_object_for_client(&self, client_id: Uuid) -> Option<Obj> {
@@ -1361,6 +1486,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             }
         }
 
+        self.publish_connected_objects(&inner);
         Ok(())
     }
 

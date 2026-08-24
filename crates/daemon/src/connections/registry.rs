@@ -11,13 +11,13 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::HashMap, time::SystemTime};
+use std::{collections::HashMap, sync::Arc, time::SystemTime};
 
 use uuid::Uuid;
 
 use crate::connections::fjall_registry::FjallConnectionRegistry;
 use eyre::Report as Error;
-use moor_common::tasks::SessionError;
+use moor_common::tasks::{ConnectionDetails, SessionError};
 use moor_runtime_api::RpcMessageError;
 use moor_var::{Obj, Symbol, Var};
 use std::path::Path;
@@ -34,7 +34,33 @@ pub struct NewConnectionParams {
     pub connection_attributes: Option<HashMap<Symbol, Var>>,
 }
 
-pub trait ConnectionRegistry {
+/// Read-only connection state shared with runtime sessions.
+pub trait ConnectionStateSource: Send + Sync {
+    /// Return connected players and, when requested, connection objects.
+    fn connected_players(&self, include_all: bool) -> Vec<Obj>;
+
+    fn connection_name(&self, player: Obj) -> Result<String, SessionError>;
+
+    fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError>;
+
+    fn idle_seconds(&self, player: Obj) -> Result<f64, SessionError>;
+
+    fn connections_for(
+        &self,
+        client_id: Uuid,
+        player: Option<Obj>,
+    ) -> Result<Vec<Obj>, SessionError>;
+
+    fn connection_details(
+        &self,
+        client_id: Uuid,
+        player: Option<Obj>,
+    ) -> Result<Vec<ConnectionDetails>, SessionError>;
+
+    fn connection_attributes(&self, obj: Obj) -> Result<Var, SessionError>;
+}
+
+pub trait ConnectionRegistry: ConnectionStateSource {
     /// Associate the given player object with the connection object.
     /// This is used when a player logs in.
     /// The connection object remains associated with the client.
@@ -114,18 +140,18 @@ pub struct ConnectionRegistryFactory;
 
 impl ConnectionRegistryFactory {
     /// Create in-memory only database (useful for testing)
-    pub fn in_memory_only() -> Result<Box<dyn ConnectionRegistry + Send + Sync>, Error> {
+    pub fn in_memory_only() -> Result<Arc<dyn ConnectionRegistry>, Error> {
         let db = FjallConnectionRegistry::open(None)?;
-        Ok(Box::new(db))
+        Ok(Arc::new(db))
     }
 
     /// Create database with Fjall persistence
     pub fn with_fjall_persistence<P: AsRef<Path>>(
         path: Option<P>,
-    ) -> Result<Box<dyn ConnectionRegistry + Send + Sync>, Error> {
+    ) -> Result<Arc<dyn ConnectionRegistry>, Error> {
         let path = path.as_ref().map(|p| p.as_ref());
         let db = FjallConnectionRegistry::open(path)?;
-        Ok(Box::new(db))
+        Ok(Arc::new(db))
     }
 }
 
@@ -157,6 +183,8 @@ mod tests {
         );
         assert_eq!(db.player_object_for_client(client_id), None);
         assert_eq!(db.connections(), vec![connection_obj]);
+        assert_eq!(db.connected_players(false), vec![]);
+        assert_eq!(db.connected_players(true), vec![connection_obj]);
     }
 
     #[test]
@@ -265,6 +293,7 @@ mod tests {
         );
         assert_eq!(db.player_object_for_client(client_id), Some(player_obj));
         assert_eq!(db.history_object_for_client(client_id), Some(player_obj));
+        assert_eq!(db.connected_players(false), vec![player_obj]);
 
         // Both connection and player should be in connections list
         let mut connections = db.connections();
@@ -272,6 +301,7 @@ mod tests {
         let mut expected = vec![connection_obj, player_obj];
         expected.sort();
         assert_eq!(connections, expected);
+        assert_eq!(db.connected_players(true), expected);
 
         // Client IDs should work for both connection and player objects
         assert_eq!(db.client_ids_for(connection_obj).unwrap(), vec![client_id]);
@@ -307,6 +337,7 @@ mod tests {
         assert_eq!(db.history_object_for_client(client_id), Some(new_player));
         assert!(db.client_ids_for(old_player).unwrap().is_empty());
         assert_eq!(db.client_ids_for(new_player).unwrap(), vec![client_id]);
+        assert_eq!(db.connected_players(false), vec![new_player]);
 
         db.switch_player_for_connection(connection_obj, new_player, false)
             .unwrap();
@@ -525,6 +556,7 @@ mod tests {
         let client_ids = db.client_ids_for(player_obj).unwrap();
         assert_eq!(client_ids, vec![client_id_2]);
         assert_eq!(db.player_object_for_client(client_id_2), Some(player_obj));
+        assert_eq!(db.connected_players(false), vec![player_obj]);
 
         // Remove second connection
         db.remove_client_connection(client_id_2).unwrap();
@@ -532,5 +564,7 @@ mod tests {
         // Player should have no connections
         let client_ids = db.client_ids_for(player_obj).unwrap();
         assert!(client_ids.is_empty());
+        assert!(db.connected_players(false).is_empty());
+        assert!(db.connected_players(true).is_empty());
     }
 }

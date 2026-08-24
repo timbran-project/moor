@@ -154,8 +154,8 @@ pub trait Session: Send + Sync {
     /// Disconnect the given player's connection.
     fn disconnect(&self, player: Obj) -> Result<(), SessionError>;
 
-    /// Return the list of other currently-connected players.
-    fn connected_players(&self) -> Result<Vec<Obj>, SessionError>;
+    /// Return the currently-connected players and, when requested, connection objects.
+    fn connected_players(&self, include_all: bool) -> Result<Vec<Obj>, SessionError>;
 
     /// Return how many seconds the given player has been connected.
     fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError>;
@@ -326,7 +326,7 @@ impl Session for NoopClientSession {
     fn disconnect(&self, _player: Obj) -> Result<(), SessionError> {
         Ok(())
     }
-    fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
+    fn connected_players(&self, _include_all: bool) -> Result<Vec<Obj>, SessionError> {
         Ok(vec![])
     }
 
@@ -550,7 +550,7 @@ impl Session for MockClientSession {
         Ok(())
     }
 
-    fn connected_players(&self) -> Result<Vec<Obj>, SessionError> {
+    fn connected_players(&self, _include_all: bool) -> Result<Vec<Obj>, SessionError> {
         Ok(vec![])
     }
 

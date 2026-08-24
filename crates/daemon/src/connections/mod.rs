@@ -24,7 +24,9 @@ mod registry;
 
 pub const FIRST_CONNECTION_ID: i32 = -4;
 
-pub use registry::{ConnectionRegistry, ConnectionRegistryFactory, NewConnectionParams};
+pub use registry::{
+    ConnectionRegistry, ConnectionRegistryFactory, ConnectionStateSource, NewConnectionParams,
+};
 
 /// In-memory representation of a connection record
 #[derive(Debug, Clone)]
