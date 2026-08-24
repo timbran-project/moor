@@ -82,38 +82,43 @@ usdt:*:moor_v1:task_commit_done
  * across suspension and worker migration.
  */
 usdt:*:moor_v1:moo_activation_start
-/arg2 == 0/
 {
     $cpu = cpu;
     $task_id = (uint64)arg0;
     $depth = (uint64)arg1;
+    $kind = arg2;
     $uuid_high = (uint64)arg3;
     $uuid_low = (uint64)arg4;
     $definer = (uint64)arg5;
-    @verb_call_started[$cpu, $uuid_high, $uuid_low, $definer]++;
-    @verb_call_state[$task_id, $depth] = (
+    @moo_activation_state[$task_id, $depth] = (
         nsecs,
+        $kind,
         $uuid_high,
         $uuid_low,
         $definer
     );
+    if ($kind == 0) {
+        @verb_call_started[$cpu, $uuid_high, $uuid_low, $definer]++;
+    }
 }
 
 usdt:*:moor_v1:moo_activation_done
 {
     $task_id = (uint64)arg0;
     $depth = (uint64)arg1;
-    $state = @verb_call_state[$task_id, $depth];
+    $state = @moo_activation_state[$task_id, $depth];
     if ($state.0 != (uint64)0) {
-        $cpu = cpu;
-        $elapsed = nsecs - $state.0;
-        @verb_call_count[$cpu, $state.1, $state.2, $state.3]++;
-        @verb_call_total[$cpu, $state.1, $state.2, $state.3] += $elapsed;
-        if ($elapsed > @verb_call_max[$cpu, $state.1, $state.2, $state.3]) {
-            @verb_call_max[$cpu, $state.1, $state.2, $state.3] = $elapsed;
+        if ($state.1 == 0) {
+            $cpu = cpu;
+            $elapsed = nsecs - $state.0;
+            @verb_call_count[$cpu, $state.2, $state.3, $state.4]++;
+            @verb_call_total[$cpu, $state.2, $state.3, $state.4] += $elapsed;
+            if ($elapsed > @verb_call_max[$cpu, $state.2, $state.3, $state.4]) {
+                @verb_call_max[$cpu, $state.2, $state.3, $state.4] = $elapsed;
+            }
+            @verb_call_hist[$cpu, $state.2, $state.3, $state.4] = hist($elapsed);
         }
-        @verb_call_hist[$cpu, $state.1, $state.2, $state.3] = hist($elapsed);
-        delete(@verb_call_state[$task_id, $depth]);
+        delete(@moo_activation_state[$task_id, $depth]);
     }
 }
 

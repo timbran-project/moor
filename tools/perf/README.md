@@ -160,6 +160,11 @@ Use `--interval` to change the refresh period. Use `--once` to print one interva
 The live values are approximate because userspace reads the cumulative maps while probes continue to
 update them. The tool never clears a live map, which avoids clear-and-update races between windows.
 
+The tool does not print its transient matching maps. Probes remove entries from these maps when an
+interval ends. bpftrace 0.17 can stop if removal occurs while userspace reads the same map.
+
+The active totals use a cumulative per-CPU map. Probes do not remove entries from this map.
+
 The verb-call start rate belongs to the current interval. Completed-call elapsed time belongs to the
 interval in which the call finishes. One completed call can span several earlier intervals.
 
@@ -177,6 +182,9 @@ sudo tools/perf/mootop.sh --verb-map-output /tmp/verb-map.json
 The tool writes the map only after it receives every name. It reports a warning if the BPF map is
 too small or a name is too long. Increase `BPFTRACE_MAX_MAP_KEYS` or `BPFTRACE_MAX_STRLEN` and run
 the command again.
+
+An identity shows its UUID when the metadata does not contain its verb name. The cause can be an
+incomplete scan, a full BPF map, a long name, or a verb that changed after its task started.
 
 The diagnostics thread checks the USDT semaphore once per second. It scans the database only when
 the probe changes from detached to attached. Do not open the active Fjall database from a second

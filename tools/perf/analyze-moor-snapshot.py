@@ -190,6 +190,8 @@ def read_aggregate_data(
                 retcode = record.get("retcode")
                 if (helper == "map_update_elem" and retcode == -17) or (
                     helper == "map_delete_elem" and retcode == -2
+                ) or (
+                    helper == "map_lookup_elem" and retcode == -2
                 ):
                     continue
                 message = record.get("msg", "helper call failed")
@@ -775,19 +777,23 @@ def parse_aggregate(
         valid_pc_samples.append(((key[0], key[1], key[2], key[3]), count))
 
     task_states = tuple_map(maps, "@task_state", {2, 5}, protocol_errors)
-    verb_call_states = tuple_map(maps, "@verb_call_state", {4}, protocol_errors)
+    moo_activation_states = tuple_map(
+        maps, "@moo_activation_state", {5}, protocol_errors
+    )
     verb_states = tuple_map(maps, "@verb_state", {7}, protocol_errors)
     builtin_states = tuple_map(maps, "@builtin_state", {3}, protocol_errors)
     stage_starts = numeric_map(maps, "@stage_start", protocol_errors)
     active: list[tuple[int, str, int, str]] = []
     active_verb_calls: list[tuple[int, int, int, str]] = []
 
-    for key, state in verb_call_states.items():
+    for key, state in moo_activation_states.items():
         if len(key) != 2:
-            protocol_errors.append(f"@verb_call_state has an invalid key: {key}")
+            protocol_errors.append(f"@moo_activation_state has an invalid key: {key}")
             continue
         task_id, depth = key
-        started, high, low, definer = state
+        started, kind, high, low, definer = state
+        if kind != 0:
+            continue
         identity_key = (high, low, definer)
         identity = verb_name(*identity_key, verb_names.get(identity_key))
         active_verb_calls.append(

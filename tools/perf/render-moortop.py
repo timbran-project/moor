@@ -129,6 +129,15 @@ def keyed_map(frame: dict[str, object], name: str) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def merge_frame_data(frame: dict[str, object], data: dict[str, object]) -> None:
+    for name, value in data.items():
+        previous = frame.get(name)
+        if isinstance(previous, dict) and isinstance(value, dict):
+            previous.update(value)
+            continue
+        frame[name] = value
+
+
 def merged_numeric(
     frame: dict[str, object],
     name: str,
@@ -405,10 +414,6 @@ def write_verb_map(path: Path, names: dict[str, str]) -> None:
     os.replace(temporary, path)
 
 
-def active_count(frame: dict[str, object], name: str) -> int:
-    return len(keyed_map(frame, name))
-
-
 def printf_text(data: object) -> str:
     if isinstance(data, str):
         return data
@@ -440,6 +445,7 @@ def render(
     verb_stats = interval_stats(current, previous, "verb", 3)
     builtin_stats = interval_stats(current, previous, "builtin", 1)
     stage_stats = interval_stats(current, previous, "stage", 1)
+    active = merged_numeric(current, "@active", 1)
 
     if clear_screen:
         print("\033[2J\033[H", end="")
@@ -450,15 +456,15 @@ def render(
     print(f"mootop  PID {pid}  last {interval_seconds:.3f}s  {now}")
     print(
         "active: "
-        f"tasks={active_count(current, '@task_state')}  "
-        f"MOO calls={active_count(current, '@verb_call_state')}  "
-        f"MOO={active_count(current, '@verb_state')}  "
-        f"builtins={active_count(current, '@builtin_state')}  "
-        f"commit stages={active_count(current, '@stage_start')}"
+        f"tasks={max(0, active.get((0,), 0))}  "
+        f"MOO calls={max(0, active.get((1,), 0))}  "
+        f"MOO={max(0, active.get((2,), 0))}  "
+        f"builtins={max(0, active.get((3,), 0))}  "
+        f"commit stages={max(0, active.get((4,), 0))}"
     )
     if verb_map_output is not None:
         print(f"verb metadata: names={len(verb_names)} map={verb_map_output}")
-    for warning in warnings:
+    for warning in dict.fromkeys(warnings):
         print(f"WARNING: {warning}")
 
     print_section(
@@ -553,6 +559,7 @@ def main() -> None:
     previous_timestamp = 0
     last_metadata_generation = 0
     attached_verb_names: dict[str, str] = {}
+    metadata_warnings: list[str] = []
     frame: dict[str, object] | None = None
     warnings: list[str] = []
     pending_warnings: list[str] = []
@@ -570,7 +577,14 @@ def main() -> None:
                 pending_warnings.append("bpftrace lost output events")
                 continue
             if record_type == "helper_error":
-                pending_warnings.append("bpftrace reported a helper error")
+                helper = record.get("helper", "unknown helper")
+                retcode = record.get("retcode")
+                if (helper == "map_update_elem" and retcode == -17) or (
+                    helper in {"map_delete_elem", "map_lookup_elem"} and retcode == -2
+                ):
+                    continue
+                message = record.get("msg", "helper call failed")
+                pending_warnings.append(f"{helper}: {message}")
                 continue
             if record_type == "printf":
                 message = printf_text(data)
@@ -589,6 +603,7 @@ def main() -> None:
                     interval_seconds = max(interval_seconds, 1e-9)
                     generation = scalar(frame, "@verb_metadata_generation")
                     if generation > last_metadata_generation:
+                        metadata_warnings = []
                         live_names = live_verb_names(frame)
                         name_lengths = live_verb_name_lengths(frame)
                         attached_verb_names.update(live_names)
@@ -603,25 +618,27 @@ def main() -> None:
                                 metadata_errors = 1
                             if metadata_errors:
                                 metadata_complete = False
-                                warnings.append(
+                                metadata_warnings.append(
                                     f"verb metadata scan reported {metadata_errors} errors"
                                 )
                             if expected_names != len(live_names):
                                 metadata_complete = False
-                                warnings.append(
+                                metadata_warnings.append(
                                     "verb metadata received "
                                     f"{len(live_names)} of {expected_names} names"
                                 )
                         else:
                             metadata_complete = False
-                            warnings.append("verb metadata status is unavailable")
+                            metadata_warnings.append(
+                                "verb metadata status is unavailable"
+                            )
                         truncated = sum(
                             len(name.encode("utf-8")) != name_lengths.get(verb_uuid)
                             for verb_uuid, name in live_names.items()
                         )
                         if truncated:
                             metadata_complete = False
-                            warnings.append(
+                            metadata_warnings.append(
                                 f"{truncated} verb names exceeded BPFTRACE_MAX_STRLEN"
                             )
                         if metadata_complete and args.verb_map_output is not None:
@@ -641,7 +658,7 @@ def main() -> None:
                         builtin_names,
                         resolved_verb_names,
                         sys.stdout.isatty() and not args.no_clear,
-                        warnings,
+                        [*warnings, *metadata_warnings],
                         args.verb_map_output,
                     )
                     previous = frame
@@ -652,7 +669,7 @@ def main() -> None:
             if frame is None:
                 continue
             if record_type in {"map", "hist"} and isinstance(data, dict):
-                frame.update(data)
+                merge_frame_data(frame, data)
     except KeyboardInterrupt:
         pass
 
