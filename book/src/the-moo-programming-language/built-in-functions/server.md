@@ -845,9 +845,8 @@ otherwise false. **Arguments:**
 
 ### `load_server_options`
 
-**Description:** Loads or reloads the server configuration options. **Arguments:**
-
-- `filename`: Optional path to a configuration file
+**Description:** Reloads options from `$server_options` and applicable properties on `#0`.
+**Arguments:** None
 
 ## Database Operations
 

@@ -32,16 +32,24 @@ use crate::tasks::scheduler::Scheduler;
 
 pub use moor_common::tasks::WorkerInfo;
 
-/// Information for invoking a timeout handler verb on #0.
-/// This contains the traceback data that should be passed to $handle_task_timeout.
-/// The abort reason is provided separately in TaskAbortLimitsReached.
-/// Structured similarly to Exception for consistency.
-#[derive(Debug, Clone)]
-pub struct TimeoutHandlerInfo {
-    /// Stack trace as Vars
-    pub stack: Vec<Var>,
-    /// Formatted backtrace strings
-    pub backtrace: Vec<Var>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum TaskLimitDisposition {
+    Commit {
+        mutations_made: bool,
+        timestamp: u64,
+    },
+    Rollback,
+}
+
+/// Information needed to finalize a task that reached a tick or time limit.
+pub(crate) struct TaskLimitInfo {
+    pub(crate) reason: AbortLimitReason,
+    pub(crate) disposition: TaskLimitDisposition,
+    pub(crate) this: Var,
+    pub(crate) verb_name: Symbol,
+    pub(crate) line_number: usize,
+    pub(crate) stack: Vec<Var>,
+    pub(crate) backtrace: Vec<Var>,
 }
 
 /// A handle for talking to the scheduler from within a task.
@@ -103,22 +111,13 @@ impl TaskSchedulerClient {
             .handle_task_transaction_renewal_failed(self.task_id);
     }
 
-    pub fn abort_limits_reached(
-        &self,
-        reason: AbortLimitReason,
-        this: Var,
-        verb_name: Symbol,
-        line_number: usize,
-        handler_info: TimeoutHandlerInfo,
-    ) {
-        self.scheduler.handle_task_abort_limits_reached(
-            self.task_id,
-            reason,
-            this,
-            verb_name,
-            line_number,
-            Box::new(handler_info),
-        );
+    pub(crate) fn abort_limits_reached(&self, limit_info: TaskLimitInfo) {
+        self.scheduler
+            .handle_task_abort_limits_reached(self.task_id, limit_info);
+    }
+
+    pub(crate) fn rollback_on_task_limit(&self) -> bool {
+        self.scheduler.rollback_on_task_limit()
     }
 
     pub fn suspend(&self, resume_condition: TaskSuspend, task: Box<Task>) {

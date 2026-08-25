@@ -7,12 +7,13 @@ five seconds, and background tasks may use 30,000 ticks and three seconds. These
 overridden from within the database by defining any or all of the following properties on
 $server_options and giving them integer values:
 
-| Property   | Description                                         |
-| ---------- | --------------------------------------------------- |
-| bg_seconds | The number of seconds allotted to background tasks. |
-| bg_ticks   | The number of ticks allotted to background tasks.   |
-| fg_seconds | The number of seconds allotted to foreground tasks. |
-| fg_ticks   | The number of ticks allotted to foreground tasks.   |
+| Property               | Description                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| bg_seconds             | The number of seconds allotted to background tasks.              |
+| bg_ticks               | The number of ticks allotted to background tasks.                |
+| fg_seconds             | The number of seconds allotted to foreground tasks.              |
+| fg_ticks               | The number of ticks allotted to foreground tasks.                |
+| rollback_on_task_limit | Whether a tick or time limit rolls back the current transaction. |
 
 The server ignores the values of `fg_ticks` and `bg_ticks` if they are less than 100 and similarly
 ignores `fg_seconds` and `bg_seconds` if their values are less than 1. This may help prevent utter
@@ -21,6 +22,41 @@ disaster should you accidentally give them uselessly-small values.
 Recall that command tasks and server tasks are deemed _foreground_ tasks, while forked, suspended,
 and reading tasks are defined as _background_ tasks. The settings of these variables take effect
 only at the beginning of execution or upon resumption of execution after suspending or reading.
+
+## Effects of a Tick or Time Limit
+
+When a task reaches its tick or time limit, mooR always stops the task. It sends a timeout message
+and starts `$handle_task_timeout` as a separate task.
+
+The `rollback_on_task_limit` option controls what happens to the stopped task's current transaction:
+
+| Option value            | Database changes | Buffered output | Pending `task_send()` messages |
+| ----------------------- | ---------------- | --------------- | ------------------------------ |
+| `false`, `0`, or absent | Commit           | Publish         | Deliver                        |
+| `true` or `1`           | Roll back        | Discard         | Discard                        |
+
+The default is `false`. This default matches older MOO servers, which cannot undo effects that occur
+before a task stops.
+
+Set the option on `$server_options`, and then reload the server options:
+
+```moo
+$server_options.rollback_on_task_limit = true;
+load_server_options();
+```
+
+Rollback applies only to the current transaction. It cannot undo an earlier `commit()`, `suspend()`,
+`read()`, or another operation that started a new transaction.
+
+Rollback also cannot undo an effect outside the transaction. For example, it does not cancel a
+forked task that was already scheduled or a request that was already sent to an external service.
+
+If a limit-time commit has a transaction conflict, mooR rolls back that attempt and retries the
+task. mooR reports the timeout only after an attempt commits successfully. If all retries fail, the
+scheduler reports retry exhaustion instead.
+
+mooR reads this option at startup. If you change the property while the server operates, call
+`load_server_options()` to apply the new value.
 
 The server also places a limit on the number of levels of nested verb calls, raising `E_MAXREC` from
 a verb-call expression if the limit is exceeded. The limit is 50 levels by default, but this can be

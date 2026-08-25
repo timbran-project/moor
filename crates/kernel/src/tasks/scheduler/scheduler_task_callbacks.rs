@@ -18,7 +18,7 @@ use rand::RngExt;
 
 use crate::tasks::{
     TaskDescription,
-    task_scheduler_client::{ActiveTaskDescriptions, TimeoutHandlerInfo},
+    task_scheduler_client::{ActiveTaskDescriptions, TaskLimitDisposition, TaskLimitInfo},
 };
 
 use super::*;
@@ -273,34 +273,51 @@ impl Scheduler {
         lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
     }
 
-    pub fn handle_task_abort_limits_reached(
+    pub(crate) fn handle_task_abort_limits_reached(
         &self,
         task_id: TaskId,
-        limit_reason: AbortLimitReason,
-        this: Var,
-        verb: Symbol,
-        line_number: usize,
-        handler_info: Box<TimeoutHandlerInfo>,
+        limit_info: TaskLimitInfo,
     ) {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortLimits);
+        let TaskLimitInfo {
+            reason: limit_reason,
+            disposition,
+            this,
+            verb_name: verb,
+            line_number,
+            stack,
+            backtrace,
+        } = limit_info;
 
         // Extract task and session under lock.
         let (mut task, session, player) = {
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
-            lc.task_q.remove_message_queue(task_id);
-
             let Some(task) = lc.task_q.active.remove(&task_id) else {
+                lc.discard_pending_sends(task_id);
+                lc.task_q.remove_message_queue(task_id);
                 warn!(task_id, "Task not found for abort");
                 return;
             };
+            match disposition {
+                TaskLimitDisposition::Commit {
+                    mutations_made,
+                    timestamp,
+                } => {
+                    if mutations_made {
+                        lc.last_mutation_timestamp = Some(timestamp);
+                    }
+                    lc.flush_pending_sends(task_id);
+                }
+                TaskLimitDisposition::Rollback => lc.discard_pending_sends(task_id),
+            }
+            lc.task_q.remove_message_queue(task_id);
             let session = task.session.clone();
             let player = task.player;
             (task, session, player)
         };
 
-        // Send abort notification and commit session outside the lock.
+        // Send the abort notification and finalize the session outside the lock.
         let abort_reason_text = match limit_reason {
             AbortLimitReason::Ticks(t) => {
                 warn!(?task_id, ticks = t, "Task aborted, ticks exceeded");
@@ -319,7 +336,24 @@ impl Scheduler {
             warn!("Could not send abort message to player: {e:?}");
         }
 
-        let _ = session.commit();
+        let handler_session = session.clone().fork();
+        let session_result = match disposition {
+            TaskLimitDisposition::Commit { .. } => session.commit(),
+            TaskLimitDisposition::Rollback => session.rollback(),
+        };
+        if let Err(error) = session_result {
+            let action = match disposition {
+                TaskLimitDisposition::Commit { .. } => "commit",
+                TaskLimitDisposition::Rollback => "rollback",
+            };
+            error!(
+                task_id,
+                boundary = "task limit",
+                action,
+                ?error,
+                "Session finalization failed after task limit"
+            );
+        }
 
         // Re-acquire lock for handler task submission.
         let mut lc = self.lifecycle.lock();
@@ -332,8 +366,8 @@ impl Scheduler {
 
         let handler_args = List::from_iter(vec![
             v_str(resource_str),
-            List::from_iter(handler_info.as_ref().stack.clone()).into(),
-            List::from_iter(handler_info.as_ref().backtrace.clone()).into(),
+            List::from_iter(stack).into(),
+            List::from_iter(backtrace).into(),
         ]);
 
         let handler_task_start = TaskStart::StartVerb {
@@ -352,6 +386,14 @@ impl Scheduler {
             handler_task_id, task_id
         );
 
+        let handler_session = handler_session.unwrap_or_else(|error| {
+            warn!(
+                task_id,
+                ?error,
+                "Could not fork session for task-limit handler"
+            );
+            session.clone()
+        });
         let handler_result = self.submit_task(
             &mut lc,
             handler_task_id,
@@ -359,7 +401,7 @@ impl Scheduler {
             &player,
             handler_task_start,
             None,
-            session.clone().fork().unwrap_or_else(|_| session.clone()),
+            handler_session,
         );
 
         match handler_result {

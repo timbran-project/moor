@@ -651,6 +651,7 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            rollback_on_task_limit: false,
         }
     }
 

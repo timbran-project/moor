@@ -18,7 +18,7 @@
 //! Each task has its own VM host which is responsible for executing the program.
 //! Each task has its own isolated transactional world state.
 //! Each task is given a semi-isolated "session" object through which I/O is performed.
-//! When a task fails, both the world state and I/O should be rolled back.
+//! Task completion policy determines whether failures commit or roll back world state and I/O.
 //! A task is generally tied 1:1 with a player connection, and usually come from one command, but
 //! they can also be 'forked' from other tasks.
 //!
@@ -71,7 +71,7 @@ use crate::{
     tasks::{
         SchedulerOp, ServerOptions, TaskStart, sched_counters,
         task_program_cache::TaskProgramCache,
-        task_scheduler_client::{TaskSchedulerClient, TimeoutHandlerInfo},
+        task_scheduler_client::{TaskLimitDisposition, TaskLimitInfo, TaskSchedulerClient},
     },
     vm::{TaskSuspend, VMHostResponse, builtins::BuiltinRegistry, vm_host::VmHost},
 };
@@ -1008,22 +1008,40 @@ impl Task {
 
                 // Collect traceback information for the handler
                 let (stack_list, backtrace_list) = self.vm_host.get_traceback();
-                let handler_info = TimeoutHandlerInfo {
-                    stack: stack_list,
-                    backtrace: backtrace_list,
+                let disposition = if task_scheduler_client.rollback_on_task_limit() {
+                    rollback_current_transaction().expect("Could not rollback world state");
+                    TaskLimitDisposition::Rollback
+                } else {
+                    match commit_current_transaction()
+                        .expect("Could not commit world state after task limit")
+                    {
+                        CommitResult::Success {
+                            mutations_made,
+                            timestamp,
+                        } => TaskLimitDisposition::Commit {
+                            mutations_made,
+                            timestamp,
+                        },
+                        CommitResult::ConflictRetry { conflict_info } => {
+                            self.log_conflict_retry("task limit", conflict_info.as_ref());
+                            session.rollback().unwrap();
+                            task_scheduler_client.conflict_retry(self, "task limit", conflict_info);
+                            return None;
+                        }
+                    }
                 };
 
-                // Stop execution, rollback transaction, and abort the task.
-                // The scheduler will handle invoking $handle_task_timeout as a separate task.
+                // The scheduler finalizes task effects and invokes $handle_task_timeout separately.
                 self.vm_host.stop();
-                rollback_current_transaction().expect("Could not rollback world state");
-                task_scheduler_client.abort_limits_reached(
+                task_scheduler_client.abort_limits_reached(TaskLimitInfo {
                     reason,
+                    disposition,
                     this,
                     verb_name,
                     line_number,
-                    handler_info,
-                );
+                    stack: stack_list,
+                    backtrace: backtrace_list,
+                });
                 None
             }
             VMHostResponse::RollbackRetry => {
@@ -1600,8 +1618,8 @@ mod tests {
 
     use moor_common::{
         model::{
-            ArgSpec, ObjFlag, ObjectKind, ObjectRef, PrepSpec, VerbArgsSpec, VerbFlag, WorldState,
-            WorldStateError, WorldStateSource,
+            ArgSpec, ObjFlag, ObjectKind, ObjectRef, PrepSpec, PropFlag, VerbArgsSpec, VerbFlag,
+            WorldState, WorldStateError, WorldStateSource,
             loader::{LoaderInterface, SnapshotInterface},
         },
         tasks::{
@@ -1613,8 +1631,8 @@ mod tests {
     use moor_compiler::{CompileOptions, Program, compile};
     use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
     use moor_var::{
-        E_DIV, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_int,
-        v_str,
+        E_DIV, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, program::ProgramType, v_empty_str,
+        v_int, v_obj, v_str,
     };
 
     use crate::{
@@ -1793,6 +1811,100 @@ mod tests {
         start_scheduler(Box::new(setup_database(verbs)))
     }
 
+    fn setup_task_limit_scheduler(
+        rollback_on_task_limit: Option<bool>,
+    ) -> (SchedulerClient, RunningScheduler, TxDB) {
+        let database = setup_database(&[]);
+        let mut tx = database.new_world_state().unwrap();
+        let server_options = tx
+            .create_object(
+                &system_permissions(),
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+
+        tx.define_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            Symbol::mk("server_options"),
+            &SYSTEM_OBJECT,
+            PropFlag::all_flags(),
+            Some(v_obj(server_options)),
+        )
+        .unwrap();
+        tx.define_property(
+            &system_permissions(),
+            &server_options,
+            &server_options,
+            Symbol::mk("fg_ticks"),
+            &SYSTEM_OBJECT,
+            PropFlag::all_flags(),
+            Some(v_int(200)),
+        )
+        .unwrap();
+        if let Some(rollback_on_task_limit) = rollback_on_task_limit {
+            tx.define_property(
+                &system_permissions(),
+                &server_options,
+                &server_options,
+                Symbol::mk("rollback_on_task_limit"),
+                &SYSTEM_OBJECT,
+                PropFlag::all_flags(),
+                Some(v_int(rollback_on_task_limit as i64)),
+            )
+            .unwrap();
+        }
+        tx.define_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            Symbol::mk("limit_test_value"),
+            &SYSTEM_OBJECT,
+            PropFlag::all_flags(),
+            Some(v_int(0)),
+        )
+        .unwrap();
+        tx.define_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            Symbol::mk("limit_test_messages"),
+            &SYSTEM_OBJECT,
+            PropFlag::all_flags(),
+            Some(v_int(0)),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        let database_probe = database.clone();
+        let (client, scheduler) = start_scheduler(Box::new(database));
+        (client, scheduler, database_probe)
+    }
+
+    fn limit_test_property(database: &TxDB, name: &str) -> Var {
+        let tx = database.new_world_state().unwrap();
+        let value = tx
+            .retrieve_property(&system_permissions(), &SYSTEM_OBJECT, Symbol::mk(name))
+            .unwrap();
+        tx.rollback().unwrap();
+        value
+    }
+
+    fn wait_for_limit_test_messages(database: &TxDB) -> Var {
+        for _ in 0..100 {
+            let value = limit_test_property(database, "limit_test_messages");
+            if value != v_int(0) {
+                return value;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("Timed out waiting for task-limit message receiver");
+    }
+
     fn setup_failing_scheduler(
         verbs: &[TestVerb],
     ) -> (SchedulerClient, RunningScheduler, Arc<AtomicUsize>) {
@@ -1880,6 +1992,78 @@ mod tests {
             }
             other => panic!("Expected TaskAbortedException, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn task_limit_commits_world_state_and_output_by_default() {
+        let (client, _sched, database) = setup_task_limit_scheduler(None);
+        let session = Arc::new(MockClientSession::new());
+        let handle = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                r#"
+                    fork receiver (0.05)
+                        #0.limit_test_messages = task_recv();
+                    endfork
+                    task_send(receiver, 42);
+                    #0.limit_test_value = 1;
+                    notify(#0, "before task limit");
+                    while (1)
+                    endwhile
+                "#
+                .to_string(),
+                None,
+                session.clone(),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+
+        let error = wait_result(&handle).unwrap_err();
+        assert!(matches!(error, SchedulerError::TaskAbortedLimit(_)));
+        assert_eq!(limit_test_property(&database, "limit_test_value"), v_int(1));
+        assert_eq!(
+            wait_for_limit_test_messages(&database),
+            List::from_iter([v_int(42)]).into()
+        );
+        assert_eq!(session.committed().len(), 1);
+        assert_eq!(session.system().len(), 1);
+    }
+
+    #[test]
+    fn task_limit_can_roll_back_world_state_and_output() {
+        let (client, _sched, database) = setup_task_limit_scheduler(Some(true));
+        let session = Arc::new(MockClientSession::new());
+        let handle = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                r#"
+                    fork receiver (0.05)
+                        #0.limit_test_messages = task_recv();
+                    endfork
+                    task_send(receiver, 42);
+                    #0.limit_test_value = 1;
+                    notify(#0, "before task limit");
+                    while (1)
+                    endwhile
+                "#
+                .to_string(),
+                None,
+                session.clone(),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+
+        let error = wait_result(&handle).unwrap_err();
+        assert!(matches!(error, SchedulerError::TaskAbortedLimit(_)));
+        assert_eq!(limit_test_property(&database, "limit_test_value"), v_int(0));
+        assert_eq!(
+            wait_for_limit_test_messages(&database),
+            List::from_iter([]).into()
+        );
+        assert!(session.committed().is_empty());
+        assert_eq!(session.system().len(), 1);
     }
 
     /// notify() dispatches to the scheduler (no crash, returns successfully)

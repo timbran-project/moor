@@ -150,6 +150,8 @@ pub struct ServerOptions {
     pub max_task_retries: u8,
     /// Maximum number of messages allowed in a task's mailbox (for task_send/task_recv).
     pub max_task_mailbox: usize,
+    /// Roll back database changes and buffered effects when a task reaches its tick or time limit.
+    pub rollback_on_task_limit: bool,
 }
 
 impl ServerOptions {

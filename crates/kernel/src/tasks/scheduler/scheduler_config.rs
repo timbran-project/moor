@@ -24,6 +24,8 @@ static DUMP_INTERVAL: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("dump_inter
 static GC_INTERVAL: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("gc_interval"));
 static MAX_TASK_RETRIES: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_task_retries"));
 static MAX_TASK_MAILBOX: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_task_mailbox"));
+static ROLLBACK_ON_TASK_LIMIT: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("rollback_on_task_limit"));
 
 fn load_int_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldState) -> Option<u64> {
     let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
@@ -50,6 +52,23 @@ fn load_float_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldStat
             warn!("${name} is not a non-negative number");
             None
         }
+    }
+}
+
+fn load_bool_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldState) -> Option<bool> {
+    let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+    let Ok(value) = tx.retrieve_property(&system_permissions, server_options_obj, name) else {
+        return None;
+    };
+    match value.as_bool() {
+        Some(value) => Some(value),
+        None => match value.as_integer() {
+            Some(value) => Some(value != 0),
+            None => {
+                warn!("${name} is not a boolean or integer");
+                None
+            }
+        },
     }
 }
 
@@ -106,6 +125,11 @@ impl Scheduler {
             load_int_sysprop(&server_options_obj, *MAX_TASK_MAILBOX, tx.as_ref())
         {
             so.max_task_mailbox = max_task_mailbox as usize;
+        }
+        if let Some(rollback_on_task_limit) =
+            load_bool_sysprop(&server_options_obj, *ROLLBACK_ON_TASK_LIMIT, tx.as_ref())
+        {
+            so.rollback_on_task_limit = rollback_on_task_limit;
         }
         if let Some(dump_interval) = load_int_sysprop(&SYSTEM_OBJECT, *DUMP_INTERVAL, tx.as_ref()) {
             info!(
@@ -192,5 +216,9 @@ impl Scheduler {
             info!("Using default gc_interval: {:?}", default_interval);
             Some(default_interval)
         }
+    }
+
+    pub(crate) fn rollback_on_task_limit(&self) -> bool {
+        self.server_options.load().rollback_on_task_limit
     }
 }

@@ -13,13 +13,20 @@ and then defining various properties on that object. The server checks for wheth
 following properties on that `$server_options` object and uses their values to control server
 operation:
 
-| Property        | Description                                         |
-| --------------- | --------------------------------------------------- |
-| bg_seconds      | The number of seconds allotted to background tasks. |
-| bg_ticks        | The number of ticks allotted to background tasks.   |
-| fg_seconds      | The number of seconds allotted to foreground tasks. |
-| fg_ticks        | The number of ticks allotted to foreground tasks.   |
-| max_stack_depth | The maximum number of levels of nested verb calls.  |
+| Property               | Description                                                      |
+| ---------------------- | ---------------------------------------------------------------- |
+| bg_seconds             | The number of seconds allotted to background tasks.              |
+| bg_ticks               | The number of ticks allotted to background tasks.                |
+| fg_seconds             | The number of seconds allotted to foreground tasks.              |
+| fg_ticks               | The number of ticks allotted to foreground tasks.                |
+| max_stack_depth        | The maximum number of levels of nested verb calls.               |
+| max_task_mailbox       | The maximum number of messages in one task mailbox.              |
+| max_task_retries       | The maximum number of transaction-conflict retries for one task. |
+| rollback_on_task_limit | Whether a tick or time limit rolls back the current transaction. |
+
+`rollback_on_task_limit` is false when the property does not exist. The server accepts a boolean or
+an integer value. For detailed behavior, read
+[Controlling the Execution of Tasks](controlling-the-execution-of-tasks.md#effects-of-a-tick-or-time-limit).
 
 > **Note**: The mooR server does NOT implement the `protect_*` properties (e.g., `protect_location`)
 > that were available in LambdaMOO and ToastStunt for restricting access to built-in functions and

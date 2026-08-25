@@ -82,7 +82,7 @@ impl TaskLifecycle {
     }
 
     /// Discard all buffered messages from the given task without delivering.
-    /// Called when a task aborts (conflict retry, cancelled, panicked, limits reached).
+    /// Called when task finalization rolls back its effects.
     pub(crate) fn discard_pending_sends(&mut self, task_id: TaskId) {
         self.pending_task_sends.remove(&task_id);
     }
