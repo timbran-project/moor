@@ -216,6 +216,7 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            rollback_on_task_limit: false,
         };
 
         /*
@@ -281,6 +282,7 @@ mod tests {
                 gc_interval: None,
                 max_task_retries: DEFAULT_MAX_TASK_RETRIES,
                 max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+                rollback_on_task_limit: false,
             };
 
             let task = Task::new(
@@ -345,6 +347,7 @@ mod tests {
                 gc_interval: None,
                 max_task_retries: DEFAULT_MAX_TASK_RETRIES,
                 max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+                rollback_on_task_limit: false,
             };
 
             let task = Task::new(
@@ -422,6 +425,7 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            rollback_on_task_limit: false,
         };
 
         // Create tasks with various time-based wake conditions
@@ -536,6 +540,7 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            rollback_on_task_limit: false,
         };
 
         let now = Instant::now();
@@ -612,6 +617,7 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            rollback_on_task_limit: false,
         };
 
         // Create a task with a future wake time

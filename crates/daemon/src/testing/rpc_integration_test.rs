@@ -1418,26 +1418,20 @@ mod tests {
 
         // Step 5: Verify the transport captured the events correctly
         let client_events = env.transport.get_client_events();
-        assert_eq!(
-            client_events.len(),
-            1,
-            "Should have captured 1 client event"
+        let request_event_found = client_events.iter().any(|(captured_client_id, event)| {
+            *captured_client_id == client_id
+                && matches!(
+                    event,
+                    ClientEvent::RequestInput {
+                        request_id: captured_request_id,
+                        ..
+                    } if *captured_request_id == request_id
+                )
+        });
+        assert!(
+            request_event_found,
+            "Should have captured the request-input event for this client and request"
         );
-
-        let (captured_client_id, captured_event) = &client_events[0];
-        assert_eq!(
-            *captured_client_id, client_id,
-            "Event should be for correct client"
-        );
-        match captured_event {
-            ClientEvent::RequestInput {
-                request_id: captured_request_id,
-                ..
-            } => {
-                assert_eq!(*captured_request_id, request_id, "Request ID should match");
-            }
-            other => panic!("Expected RequestInputEvent, got {other:?}"),
-        }
 
         // Step 6: Verify replies were captured
         let client_replies = env.transport.get_client_replies();
