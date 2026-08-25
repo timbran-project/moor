@@ -202,7 +202,7 @@ impl TaskClient {
         };
 
         let (subscribe, _) = services
-            .client_subscriptions(client_id)
+            .client_subscriptions(client_id, client_token.clone())
             .map_err(TaskClientError::Rpc)?;
 
         let waiters = Arc::new(Mutex::new(HashMap::new()));
@@ -686,7 +686,7 @@ mod tests {
         tx: &tokio::sync::mpsc::Sender<crate::api::ClientEventMessage>,
         event: ClientEvent,
     ) {
-        tx.send(crate::api::ClientEventMessage { event })
+        tx.send(crate::api::ClientEventMessage { sequence: 1, event })
             .await
             .expect("send test event");
     }

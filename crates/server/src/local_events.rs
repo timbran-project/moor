@@ -19,16 +19,14 @@ use std::{
 };
 
 use async_trait::async_trait;
-use moor_common::tasks::{Event, NarrativeEvent};
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::{
     RpcError,
     api::{
-        BroadcastEvent, BroadcastEventMessage, ClientBroadcastSubscription, ClientEvent,
-        ClientEventMessage, ClientEventSubscription, HostBroadcastEvent, HostEventSubscription,
+        BroadcastEvent, BroadcastEventMessage, ClientBroadcastSubscription, ClientEventMessage,
+        ClientEventSubscription, HostBroadcastEvent, HostEventSubscription,
     },
 };
-use moor_var::Obj;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -108,57 +106,17 @@ impl Transport for LocalEventBus {
         Ok(())
     }
 
-    fn publish_narrative_events(
-        &self,
-        events: &[(Obj, Box<NarrativeEvent>)],
-        connections: &dyn moor_daemon::connections::ConnectionRegistry,
-    ) -> Result<(), eyre::Error> {
-        for (player, event) in events {
-            let client_ids = connections.client_ids_for(*player)?;
-
-            let client_event = match &event.event {
-                Event::SetConnectionOption {
-                    connection,
-                    option,
-                    value,
-                } => {
-                    if let Some(&client_id) = client_ids.first() {
-                        connections.set_client_attribute(
-                            client_id,
-                            *option,
-                            Some(value.clone()),
-                        )?;
-                    }
-                    ClientEvent::SetConnectionOption {
-                        connection_obj: *connection,
-                        option_name: *option,
-                        value: value.clone(),
-                    }
-                }
-                _ => ClientEvent::Narrative {
-                    player: *player,
-                    event: event.as_ref().clone(),
-                },
-            };
-
-            let message = ClientEventMessage {
-                event: client_event,
-            };
-            for client_id in client_ids {
-                let sender = self.client_sender(client_id);
-                let _ = sender.send(message.clone());
-            }
-        }
-        Ok(())
-    }
-
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
         let _ = self.host_events.send(event);
         Ok(())
     }
 
-    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error> {
-        let message = ClientEventMessage { event };
+    fn publish_client_event(
+        &self,
+        client_id: Uuid,
+        message: ClientEventMessage,
+        _encoded: Vec<u8>,
+    ) -> Result<(), eyre::Error> {
         let sender = self.client_sender(client_id);
         let _ = sender.send(message);
         Ok(())
@@ -232,8 +190,15 @@ mod tests {
         let client_id = Uuid::new_v4();
         let mut sub = bus.subscribe_client_events(client_id);
 
-        bus.publish_client_event(client_id, ClientEvent::Disconnect)
-            .unwrap();
+        bus.publish_client_event(
+            client_id,
+            moor_runtime_api::api::ClientEventMessage {
+                sequence: 1,
+                event: ClientEvent::Disconnect,
+            },
+            Vec::new(),
+        )
+        .unwrap();
 
         let event = sub.recv_client_event().await.unwrap();
         assert!(matches!(event.event, ClientEvent::Disconnect));

@@ -25,7 +25,11 @@ use thiserror::Error;
 pub mod api;
 pub mod api_codec;
 #[cfg(feature = "task-client")]
+mod client_event_replay;
+#[cfg(feature = "task-client")]
 pub mod task_client;
+#[cfg(feature = "task-client")]
+pub use client_event_replay::RecoveringClientEventSubscription;
 pub use host::{HostType, extract_host_type};
 pub use tokens::{
     AuthToken, ClientToken, KeyError, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER,

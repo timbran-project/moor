@@ -28,20 +28,16 @@ use zmq::Socket;
 
 use super::message_handler::MessageHandler;
 use crate::{ReadySignal, signal_ready};
-use moor_common::tasks::{Event, NarrativeEvent};
 use moor_common::threading::spawn_efficient;
 use moor_kernel::SchedulerClient;
 use moor_rpc::{HostToDaemonMessageRef, MessageTypeRef};
 use moor_runtime_api::{
     CLIENT_BROADCAST_TOPIC, HOST_BROADCAST_TOPIC, RpcMessageError,
-    api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
-    api_codec::{
-        encode_broadcast_event_bytes, encode_client_event_bytes, encode_host_broadcast_event_bytes,
-    },
+    api::{BroadcastEvent, ClientEventMessage, HostBroadcastEvent},
+    api_codec::{encode_broadcast_event_bytes, encode_host_broadcast_event_bytes},
     scheduler_error_to_flatbuffer_struct,
 };
 use moor_schema::rpc as moor_rpc;
-use moor_var::Obj;
 /// Trait for the transport layer that handles communication between hosts and the daemon
 pub trait Transport: Send + Sync {
     /// Start the request processing loop with ZMQ proxy architecture
@@ -51,16 +47,15 @@ pub trait Transport: Send + Sync {
         scheduler_client: SchedulerClient,
         message_handler: Arc<dyn MessageHandler>,
     ) -> eyre::Result<()>;
-    /// Publish narrative events to clients
-    fn publish_narrative_events(
-        &self,
-        events: &[(Obj, Box<NarrativeEvent>)],
-        connections: &dyn crate::connections::ConnectionRegistry,
-    ) -> Result<(), eyre::Error>;
     /// Broadcast events to hosts
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error>;
     /// Publish event to specific client
-    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error>;
+    fn publish_client_event(
+        &self,
+        client_id: Uuid,
+        event: ClientEventMessage,
+        encoded: Vec<u8>,
+    ) -> Result<(), eyre::Error>;
     /// Broadcast events to all clients
     fn broadcast_client_event(&self, event: BroadcastEvent) -> Result<(), eyre::Error>;
 }
@@ -725,67 +720,6 @@ impl Transport for RpcTransport {
             std::thread::sleep(Duration::from_millis(1000));
         }
     }
-    /// Publish narrative events to clients
-    fn publish_narrative_events(
-        &self,
-        events: &[(Obj, Box<NarrativeEvent>)],
-        connections: &dyn crate::connections::ConnectionRegistry,
-    ) -> Result<(), eyre::Error> {
-        // Lock sockets if available
-        let publish_ipc = self.events_publish_ipc.as_ref().map(|p| p.lock().unwrap());
-        let publish_tcp = self.events_publish_tcp.as_ref().map(|p| p.lock().unwrap());
-
-        for (player, event) in events {
-            let client_ids = connections.client_ids_for(*player)?;
-
-            let client_event = match &event.event {
-                Event::SetConnectionOption {
-                    connection,
-                    option,
-                    value,
-                } => {
-                    if let Some(&client_id) = client_ids.first() {
-                        connections.set_client_attribute(
-                            client_id,
-                            *option,
-                            Some(value.clone()),
-                        )?;
-                    }
-                    ClientEvent::SetConnectionOption {
-                        connection_obj: *connection,
-                        option_name: *option,
-                        value: value.clone(),
-                    }
-                }
-                _ => ClientEvent::Narrative {
-                    player: *player,
-                    event: event.as_ref().clone(),
-                },
-            };
-
-            let event_bytes = encode_client_event_bytes(&client_event)
-                .map_err(|e| eyre::eyre!("Failed to encode client event: {e}"))?;
-
-            for client_id in &client_ids {
-                let payload = vec![client_id.as_bytes().to_vec(), event_bytes.clone()];
-                // Send to IPC socket if available
-                if let Some(ref ipc_pub) = publish_ipc {
-                    ipc_pub.send_multipart(payload.clone(), 0).map_err(|e| {
-                        error!(error = ?e, "Unable to send event to IPC");
-                        eyre::eyre!("Delivery error (IPC)")
-                    })?;
-                }
-                // Send to TCP socket if available
-                if let Some(ref tcp_pub) = publish_tcp {
-                    tcp_pub.send_multipart(payload, 0).map_err(|e| {
-                        error!(error = ?e, "Unable to send event to TCP");
-                        eyre::eyre!("Delivery error (TCP)")
-                    })?;
-                }
-            }
-        }
-        Ok(())
-    }
     /// Broadcast events to hosts
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
         let event_bytes = encode_host_broadcast_event_bytes(&event)
@@ -813,10 +747,13 @@ impl Transport for RpcTransport {
         Ok(())
     }
     /// Publish event to specific client
-    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error> {
-        let event_bytes = encode_client_event_bytes(&event)
-            .map_err(|e| eyre::eyre!("Failed to encode client event: {e}"))?;
-        let payload = vec![client_id.as_bytes().to_vec(), event_bytes];
+    fn publish_client_event(
+        &self,
+        client_id: Uuid,
+        _event: ClientEventMessage,
+        encoded: Vec<u8>,
+    ) -> Result<(), eyre::Error> {
+        let payload = vec![client_id.as_bytes().to_vec(), encoded];
 
         // Send to IPC socket if available
         if let Some(ref ipc_pub) = self.events_publish_ipc {

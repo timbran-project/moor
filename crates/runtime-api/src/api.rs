@@ -269,6 +269,7 @@ pub struct HistoryResponse {
 /// A decoded per-client event.
 #[derive(Debug, Clone)]
 pub struct ClientEventMessage {
+    pub sequence: u64,
     pub event: ClientEvent,
 }
 
@@ -371,7 +372,11 @@ pub trait HostEventSubscription: Send {
 pub trait HostServices: Send + Sync {
     fn runtime_client(&self) -> Arc<dyn RuntimeClient>;
 
-    fn client_subscriptions(&self, client_id: Uuid) -> Result<ClientSubscriptions, RpcError>;
+    fn client_subscriptions(
+        &self,
+        client_id: Uuid,
+        client_token: ClientToken,
+    ) -> Result<ClientSubscriptions, RpcError>;
 
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError>;
 }
@@ -441,6 +446,11 @@ pub enum ClientRequest {
         player: Obj,
         host_type: HostType,
         socket_addr: String,
+    },
+    ReplayClientEvents {
+        client_token: ClientToken,
+        after_sequence: u64,
+        limit: usize,
     },
     RequestSysProp {
         auth_token: Option<AuthToken>,
@@ -611,6 +621,10 @@ pub enum ClientReply {
     },
     ThanksPong {
         timestamp: u64,
+    },
+    ClientEvents {
+        events: Vec<ClientEventMessage>,
+        latest_sequence: u64,
     },
     VerbsReply {
         verbs: Vec<VerbDef>,

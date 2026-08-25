@@ -571,7 +571,7 @@ impl WebHost {
     ) -> Result<ClientSession, eyre::Error> {
         let (narrative_sub, broadcast_sub) = self
             .host_services
-            .client_subscriptions(client_id)
+            .client_subscriptions(client_id, client_token.clone())
             .map_err(|e| eyre::eyre!("Unable to subscribe to client events: {}", e))?;
 
         let realtime_domains: std::collections::HashSet<String> = self

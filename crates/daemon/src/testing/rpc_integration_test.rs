@@ -1371,6 +1371,7 @@ mod tests {
 
         // Step 1.5: Login as wizard to get auth token
         let auth_token = login_wizard(&env, client_id, &client_token);
+        env.transport.clear_client_events();
 
         // Step 2: Simulate the daemon sending a RequestInput event to the client
         let request_id = Uuid::new_v4();

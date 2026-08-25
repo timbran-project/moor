@@ -81,9 +81,12 @@ pub struct PendingTask {
 impl ClientSession {
     /// Build a CredentialsUpdatedEvent as serialized FlatBuffer bytes.
     fn build_credentials_event(&self) -> Result<Vec<u8>, moor_runtime_api::RpcMessageError> {
-        let event = ClientEvent::CredentialsUpdated {
-            client_id: self.client_id,
-            client_token: self.client_token.clone(),
+        let event = moor_runtime_api::api::ClientEventMessage {
+            sequence: 0,
+            event: ClientEvent::CredentialsUpdated {
+                client_id: self.client_id,
+                client_token: self.client_token.clone(),
+            },
         };
         encode_client_event_bytes(&event)
     }
@@ -281,7 +284,7 @@ impl ClientSession {
                     }
                     let use_data_channel = dc_open && is_realtime;
 
-                    let event_bytes = match encode_client_event_bytes(&event_msg.event) {
+                    let event_bytes = match encode_client_event_bytes(&event_msg) {
                         Ok(bytes) => bytes,
                         Err(e) => {
                             error!("Failed to encode client event for websocket: {}", e);

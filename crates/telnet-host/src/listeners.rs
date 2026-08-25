@@ -333,7 +333,7 @@ impl Listener {
 
             let (narrative_sub, broadcast_sub) = bootstrap
                 .host_services
-                .client_subscriptions(client_id)
+                .client_subscriptions(client_id, client_token.clone())
                 .map_err(|e| eyre::eyre!("Unable to subscribe for client events: {}", e))?;
 
             let is_tls = accepted.tls_acceptor.is_some();

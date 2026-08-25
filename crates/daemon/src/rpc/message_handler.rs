@@ -27,6 +27,7 @@ use std::{
 use uuid::Uuid;
 
 use super::{
+    client_event_buffer::{ClientEventBuffer, ClientEventBufferError},
     hosts::Hosts,
     session::{RpcSession, SessionActions},
     transport::Transport,
@@ -35,7 +36,7 @@ use crate::{
     connections::ConnectionRegistry, event_log::EventLogOps, tasks::task_monitor::TaskMonitor,
 };
 use moor_common::{
-    tasks::{NarrativeEvent, SessionError},
+    tasks::{Event, NarrativeEvent, SessionError},
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
     },
@@ -168,6 +169,7 @@ pub struct RpcMessageHandler {
     pub(crate) mailbox_sender: Sender<SessionActions>,
     pub(crate) event_log: Arc<dyn EventLogOps>,
     pub(crate) transport: Arc<dyn Transport>,
+    pub(crate) client_events: ClientEventBuffer,
 }
 
 impl RpcMessageHandler {
@@ -216,6 +218,7 @@ impl RpcMessageHandler {
             mailbox_sender,
             event_log,
             transport,
+            client_events: ClientEventBuffer::new(),
         }
     }
 }
@@ -288,7 +291,9 @@ impl MessageHandler for RpcMessageHandler {
         self.transport
             .broadcast_client_event(client_event)
             .map_err(|_| SessionError::DeliveryError)?;
-        self.connections.ping_check();
+        for client_id in self.connections.ping_check() {
+            self.client_events.remove_client(client_id);
+        }
 
         // Send ping to all hosts
         let host_event = HostBroadcastEvent::PingPong;
@@ -373,7 +378,7 @@ impl MessageHandler for RpcMessageHandler {
                 silent,
                 preserve_history,
             };
-            if let Err(e) = self.transport.publish_client_event(client_id, event) {
+            if let Err(e) = self.publish_client_event(client_id, event) {
                 error!(
                     client_id = ?client_id,
                     new_player = ?new_player,
@@ -390,8 +395,53 @@ impl MessageHandler for RpcMessageHandler {
 
 impl RpcMessageHandler {
     fn publish_narrative_events(&self, events: &[(Obj, Box<NarrativeEvent>)]) -> Result<(), Error> {
+        for (player, event) in events {
+            let client_ids = self.connections.client_ids_for(*player)?;
+            let client_event = match &event.event {
+                Event::SetConnectionOption {
+                    connection,
+                    option,
+                    value,
+                } => {
+                    if let Some(&client_id) = client_ids.first() {
+                        self.connections.set_client_attribute(
+                            client_id,
+                            *option,
+                            Some(value.clone()),
+                        )?;
+                    }
+                    ClientEvent::SetConnectionOption {
+                        connection_obj: *connection,
+                        option_name: *option,
+                        value: value.clone(),
+                    }
+                }
+                _ => ClientEvent::Narrative {
+                    player: *player,
+                    event: event.as_ref().clone(),
+                },
+            };
+
+            for client_id in client_ids {
+                self.publish_client_event(client_id, client_event.clone())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), Error> {
+        let (message, encoded) = match self.client_events.push(client_id, event) {
+            Ok(published) => published,
+            Err(error @ ClientEventBufferError::BacklogExceeded { .. }) => {
+                error!(?client_id, %error, "Disconnecting client with an unacknowledged event backlog");
+                let _ = self.connections.remove_client_connection(client_id);
+                self.client_events.remove_client(client_id);
+                return Err(error.into());
+            }
+            Err(error) => return Err(error.into()),
+        };
         self.transport
-            .publish_narrative_events(events, self.connections.as_ref())
+            .publish_client_event(client_id, message, encoded)
     }
 
     pub fn disconnect(&self, player: Obj) -> Result<(), SessionError> {
@@ -403,10 +453,7 @@ impl RpcMessageHandler {
 
         for client_id in &all_client_ids {
             // First send the disconnect event to the client
-            if let Err(e) = self
-                .transport
-                .publish_client_event(*client_id, event.clone())
-            {
+            if let Err(e) = self.publish_client_event(*client_id, event.clone()) {
                 error!(error = ?e, client_id = ?client_id, "Unable to send disconnect event to client");
             }
 
@@ -414,6 +461,7 @@ impl RpcMessageHandler {
             if let Err(e) = self.connections.remove_client_connection(*client_id) {
                 error!(error = ?e, "Unable to remove client connection for disconnect");
             }
+            self.client_events.remove_client(*client_id);
         }
 
         Ok(())
@@ -445,7 +493,7 @@ impl RpcMessageHandler {
             request_id: input_request_id,
             metadata: metadata.unwrap_or_default(),
         };
-        self.transport.publish_client_event(target_client_id, event)
+        self.publish_client_event(target_client_id, event)
     }
 
     pub fn send_system_message(
@@ -455,7 +503,7 @@ impl RpcMessageHandler {
         message: String,
     ) -> Result<(), Error> {
         let event = ClientEvent::SystemMessage { player, message };
-        self.transport.publish_client_event(client_id, event)
+        self.publish_client_event(client_id, event)
     }
 
     fn set_client_attribute(
@@ -470,7 +518,7 @@ impl RpcMessageHandler {
             .set_client_attribute(client_id, key, Some(value.clone()))?;
 
         // Send SetConnectionOption event to the host
-        self.transport.publish_client_event(
+        self.publish_client_event(
             client_id,
             ClientEvent::SetConnectionOption {
                 connection_obj,
@@ -485,6 +533,6 @@ impl RpcMessageHandler {
         client_id: Uuid,
         task_event: ClientEvent,
     ) -> Result<(), Error> {
-        self.transport.publish_client_event(client_id, task_event)
+        self.publish_client_event(client_id, task_event)
     }
 }

@@ -162,9 +162,30 @@ Used for direct communication between:
 
 Used for broadcasting events:
 
-- Narrative events to client connections (CLIENT_BROADCAST_TOPIC)
+- Narrative and session events to one client UUID topic
+- Ping events to all client connections (CLIENT_BROADCAST_TOPIC)
 - System events to hosts (HOST_BROADCAST_TOPIC)
 - Work assignments to workers (WORKER_BROADCAST_TOPIC)
+
+#### Targeted client event delivery
+
+ZeroMQ can discard a PUB message when a subscriber queue reaches its high-water mark. A successful
+PUB send does not confirm delivery.
+
+Each targeted `ClientEvent` contains a sequence number for one client. The daemon retains the event
+until the host acknowledges its sequence.
+
+The host uses PUB as the low-latency path. The host requests replay when it detects a gap or
+receives no event for five seconds.
+
+The replay request includes the client token and the last delivered sequence. The daemon
+authenticates the request, acknowledges older events, and returns the next retained events.
+
+The daemon retains at most 8,192 events or 16 MiB for each client. The total retention limit is 256
+MiB. The daemon disconnects a client that exceeds a limit.
+
+The retention buffer is in memory. A daemon restart removes unacknowledged events. Client broadcasts
+do not use this replay protocol.
 
 ### 3. Transport Security
 

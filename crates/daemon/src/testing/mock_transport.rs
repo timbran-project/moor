@@ -21,7 +21,7 @@ use moor_common::tasks::NarrativeEvent;
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::{
     RpcMessageError,
-    api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
+    api::{BroadcastEvent, ClientEvent, ClientEventMessage, HostBroadcastEvent},
 };
 use moor_schema::rpc as moor_rpc;
 use moor_var::Obj;
@@ -132,6 +132,11 @@ impl MockTransport {
     /// Get captured client events
     pub fn get_client_events(&self) -> Vec<(Uuid, ClientEvent)> {
         self.client_events.lock().unwrap().clone()
+    }
+
+    /// Clear captured per-client events without removing RPC replies.
+    pub fn clear_client_events(&self) {
+        self.client_events.lock().unwrap().clear();
     }
 
     /// Get captured client broadcast events
@@ -332,27 +337,26 @@ impl Transport for MockTransport {
         Ok(())
     }
 
-    fn publish_narrative_events(
-        &self,
-        events: &[(Obj, Box<NarrativeEvent>)],
-        _connections: &dyn crate::connections::ConnectionRegistry,
-    ) -> Result<(), eyre::Error> {
-        let mut captured = self.narrative_events.lock().unwrap();
-        for (player, event) in events {
-            captured.push((*player, (**event).clone()));
-        }
-        Ok(())
-    }
-
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
         let mut captured = self.host_events.lock().unwrap();
         captured.push(event);
         Ok(())
     }
 
-    fn publish_client_event(&self, client_id: Uuid, event: ClientEvent) -> Result<(), eyre::Error> {
+    fn publish_client_event(
+        &self,
+        client_id: Uuid,
+        message: ClientEventMessage,
+        _encoded: Vec<u8>,
+    ) -> Result<(), eyre::Error> {
+        if let ClientEvent::Narrative { player, event } = &message.event {
+            self.narrative_events
+                .lock()
+                .unwrap()
+                .push((*player, event.clone()));
+        }
         let mut captured = self.client_events.lock().unwrap();
-        captured.push((client_id, event));
+        captured.push((client_id, message.event));
         Ok(())
     }
 

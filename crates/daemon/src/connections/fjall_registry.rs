@@ -1194,14 +1194,14 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Ok(())
     }
 
-    fn ping_check(&self) {
+    fn ping_check(&self) -> Vec<Uuid> {
         // Timeout for ping response - if a client hasn't responded to pings in this time,
         // it's considered dead. This is ~3 ping cycles.
         const PING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
         let Ok(inner) = self.inner.lock() else {
             warn!("Poisoned connections inner lock during ping check");
-            return;
+            return Vec::new();
         };
 
         // Check timestamps in-memory cache for connections that haven't responded to pings
@@ -1250,6 +1250,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         }
         drop(timestamps);
 
+        let mut removed = Vec::with_capacity(to_remove.len());
         for (connection_id, client_id) in to_remove {
             let client_uuid = Uuid::from_u128(client_id);
 
@@ -1269,9 +1270,11 @@ impl ConnectionRegistry for FjallConnectionRegistry {
 
             // Remove timestamp cache entry
             let _ = self.timestamps.lock().unwrap().remove(&client_uuid);
+            removed.push(client_uuid);
         }
 
         self.publish_connected_objects(&inner);
+        removed
     }
 
     fn flush(&self) {

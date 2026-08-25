@@ -171,6 +171,19 @@ fn encode_client_request(
                 socket_addr,
             )
         }
+        ClientRequest::ReplayClientEvents {
+            client_token,
+            after_sequence,
+            limit,
+        } => moor_rpc::HostClientToDaemonMessage {
+            message: moor_rpc::HostClientToDaemonMessageUnion::ReplayClientEvents(Box::new(
+                moor_rpc::ReplayClientEvents {
+                    client_token: moor_runtime_api::client_token_fb(&client_token),
+                    after_sequence,
+                    limit: u32::try_from(limit).unwrap_or(u32::MAX),
+                },
+            )),
+        },
         ClientRequest::RequestSysProp {
             auth_token,
             object,
@@ -575,6 +588,26 @@ fn decode_client_reply_ref(
         U::ThanksPong(tp) => {
             let timestamp = tp.timestamp().unwrap_or(0);
             ClientReply::ThanksPong { timestamp }
+        }
+        U::ClientEvents(replay) => {
+            let events = replay
+                .events()
+                .map_err(|e| RpcError::CouldNotDecode(format!("Missing client events: {e}")))?
+                .iter()
+                .map(|event| {
+                    let event = event.map_err(|e| {
+                        RpcError::CouldNotDecode(format!("Invalid client event: {e}"))
+                    })?;
+                    moor_runtime_api::api_codec::decode_client_event_message_ref(event)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let latest_sequence = replay.latest_sequence().map_err(|e| {
+                RpcError::CouldNotDecode(format!("Missing latest client event sequence: {e}"))
+            })?;
+            ClientReply::ClientEvents {
+                events,
+                latest_sequence,
+            }
         }
         U::VerbsReply(vr) => {
             let verbs = vr

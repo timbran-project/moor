@@ -21,6 +21,7 @@
 //! - System messages and input requests
 
 mod api_codec;
+mod client_event_buffer;
 mod daemon_api_impl;
 #[cfg(test)]
 pub mod hosts;

@@ -696,7 +696,8 @@ union HostClientToDaemonMessageUnion {
     UpdateProperty,
     InvokeSystemHandler,
     CallSystemVerb,
-    BatchWorldState
+    BatchWorldState,
+    ReplayClientEvents
 }
 
 table ConnectionEstablish {
@@ -820,6 +821,12 @@ table ClientPong {
     socket_addr: string (required);  // SocketAddr as string
 }
 
+table ReplayClientEvents {
+    client_token: ClientToken (required);
+    after_sequence: uint64;
+    limit: uint32;
+}
+
 table RequestHistory {
     auth_token: AuthToken (required);
     history_recall: HistoryRecall (required);
@@ -917,7 +924,8 @@ union DaemonToClientReplyUnion {
     PropertyUpdated,
     SystemHandlerResponseReply,
     VerbCallResponse,
-    BatchWorldStateReply
+    BatchWorldStateReply,
+    ClientEvents
 }
 
 table NewConnection {
@@ -957,6 +965,11 @@ table EvalResult {
 
 table ThanksPong {
     timestamp: uint64;  // SystemTime as nanos since epoch
+}
+
+table ClientEvents {
+    events: [ClientEvent] (required);
+    latest_sequence: uint64;
 }
 
 table VerbsReply {
@@ -1149,6 +1162,7 @@ table CredentialsUpdatedEvent {
 
 table ClientEvent {
     event: ClientEventUnion (required);
+    sequence: uint64;
 }
 
 // ============================================================================

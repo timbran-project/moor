@@ -236,6 +236,22 @@ impl RuntimeApi for RpcMessageHandler {
                 Ok(ClientReply::ThanksPong { timestamp })
             }
 
+            ClientRequest::ReplayClientEvents {
+                client_token,
+                after_sequence,
+                limit,
+            } => {
+                self.client_auth(client_token, client_id)?;
+                let (events, latest_sequence) = self
+                    .client_events
+                    .replay(client_id, after_sequence, limit)
+                    .map_err(|error| RpcMessageError::InternalError(error.to_string()))?;
+                Ok(ClientReply::ClientEvents {
+                    events,
+                    latest_sequence,
+                })
+            }
+
             ClientRequest::RequestSysProp {
                 auth_token,
                 object,
@@ -368,6 +384,7 @@ impl RuntimeApi for RpcMessageHandler {
                     } else {
                         let _ = self.connections.remove_client_connection(client_id);
                     }
+                    self.client_events.remove_client(client_id);
                 } else {
                     let _ = self
                         .connections

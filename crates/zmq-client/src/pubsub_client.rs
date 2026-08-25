@@ -164,8 +164,7 @@ impl ClientEventMessage {
 
     pub fn decode(&self) -> Result<moor_runtime_api::api::ClientEventMessage, RpcError> {
         let event = self.event()?;
-        let event = moor_runtime_api::api_codec::decode_client_event_ref(event)?;
-        Ok(moor_runtime_api::api::ClientEventMessage { event })
+        moor_runtime_api::api_codec::decode_client_event_message_ref(event)
     }
 }
 

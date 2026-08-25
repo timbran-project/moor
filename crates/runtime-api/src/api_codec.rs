@@ -18,8 +18,9 @@
 use std::net::SocketAddr;
 
 use crate::api::{
-    self, BatchAction, BatchActionEntry, BroadcastEvent, ClientEvent, ClientReply, ClientRequest,
-    ConnectType, EntityType, HostBroadcastEvent, HostReply, HostRequest, ListenerInfo,
+    self, BatchAction, BatchActionEntry, BroadcastEvent, ClientEvent, ClientEventMessage,
+    ClientReply, ClientRequest, ConnectType, EntityType, HostBroadcastEvent, HostReply,
+    HostRequest, ListenerInfo,
 };
 use crate::{
     AuthToken, HostType, RpcErr, RpcError, RpcMessageError, auth_token_fb, auth_token_from_ref,
@@ -182,8 +183,10 @@ pub fn encode_host_success_bytes(reply: HostReply) -> Vec<u8> {
 // Event encode: typed event enums -> FlatBuffer owned structs / bytes
 // ===========================================================================
 
-pub fn encode_client_event(event: &ClientEvent) -> Result<moor_rpc::ClientEvent, RpcMessageError> {
-    let event = match event {
+pub fn encode_client_event(
+    message: &ClientEventMessage,
+) -> Result<moor_rpc::ClientEvent, RpcMessageError> {
+    let event = match &message.event {
         ClientEvent::Narrative { player, event } => {
             let event = convert::narrative_event_to_flatbuffer_struct(event)
                 .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
@@ -277,11 +280,14 @@ pub fn encode_client_event(event: &ClientEvent) -> Result<moor_rpc::ClientEvent,
             },
         )),
     };
-    Ok(moor_rpc::ClientEvent { event })
+    Ok(moor_rpc::ClientEvent {
+        sequence: message.sequence,
+        event,
+    })
 }
 
-pub fn encode_client_event_bytes(event: &ClientEvent) -> Result<Vec<u8>, RpcMessageError> {
-    let event = encode_client_event(event)?;
+pub fn encode_client_event_bytes(message: &ClientEventMessage) -> Result<Vec<u8>, RpcMessageError> {
+    let event = encode_client_event(message)?;
     let mut builder = planus::Builder::new();
     Ok(builder.finish(&event, None).to_vec())
 }
@@ -485,6 +491,16 @@ pub fn decode_client_event_ref(
             })
         }
     }
+}
+
+pub fn decode_client_event_message_ref(
+    message: moor_rpc::ClientEventRef<'_>,
+) -> Result<ClientEventMessage, RpcError> {
+    let sequence = message
+        .sequence()
+        .map_err(|e| RpcError::CouldNotDecode(format!("Missing client event sequence: {e}")))?;
+    let event = decode_client_event_ref(message)?;
+    Ok(ClientEventMessage { sequence, event })
 }
 
 pub fn decode_broadcast_event_ref(
@@ -717,6 +733,19 @@ pub fn decode_client_request(
                 player,
                 host_type,
                 socket_addr,
+            })
+        }
+        U::ReplayClientEvents(replay) => {
+            let client_token = replay
+                .client_token()
+                .rpc_err()
+                .and_then(|r| client_token_from_ref(r).rpc_err())?;
+            let after_sequence = replay.after_sequence().rpc_err()?;
+            let limit = replay.limit().rpc_err()? as usize;
+            Ok(ClientRequest::ReplayClientEvents {
+                client_token,
+                after_sequence,
+                limit,
             })
         }
         U::RequestSysProp(req) => {
@@ -1366,6 +1395,21 @@ pub fn encode_client_reply(
             }
         }
         ClientReply::ThanksPong { timestamp } => mk_thanks_pong_reply(timestamp),
+        ClientReply::ClientEvents {
+            events,
+            latest_sequence,
+        } => {
+            let events = events
+                .iter()
+                .map(encode_client_event)
+                .collect::<Result<Vec<_>, _>>()?;
+            moor_rpc::DaemonToClientReply {
+                reply: U::ClientEvents(Box::new(moor_rpc::ClientEvents {
+                    events,
+                    latest_sequence,
+                })),
+            }
+        }
         ClientReply::VerbsReply { verbs } => {
             let verbs_fb: Vec<common::VerbInfo> = verbs
                 .iter()
@@ -1951,4 +1995,28 @@ fn encode_ws_results(
 fn symbol_from_ref(sym_ref: moor_rpc::SymbolRef<'_>) -> Result<Symbol, RpcMessageError> {
     let value = sym_ref.value().rpc_err()?;
     Ok(Symbol::mk(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use moor_schema::rpc;
+    use planus::ReadAsRoot;
+
+    use crate::api::{ClientEvent, ClientEventMessage};
+
+    use super::{decode_client_event_message_ref, encode_client_event_bytes};
+
+    #[test]
+    fn client_event_sequence_round_trip() {
+        let original = ClientEventMessage {
+            sequence: 42,
+            event: ClientEvent::Disconnect,
+        };
+        let bytes = encode_client_event_bytes(&original).unwrap();
+        let event = rpc::ClientEventRef::read_as_root(&bytes).unwrap();
+        let decoded = decode_client_event_message_ref(event).unwrap();
+
+        assert_eq!(decoded.sequence, original.sequence);
+        assert!(matches!(decoded.event, ClientEvent::Disconnect));
+    }
 }

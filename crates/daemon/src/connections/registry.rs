@@ -89,7 +89,8 @@ pub trait ConnectionRegistry: ConnectionStateSource {
     fn notify_is_alive(&self, client_id: Uuid, connection: Obj) -> Result<(), eyre::Error>;
 
     /// Prune any connections that have not been active for longer than the required duration.
-    fn ping_check(&self);
+    /// Remove timed-out clients and return their IDs.
+    fn ping_check(&self) -> Vec<Uuid>;
 
     fn last_activity_for(&self, connection: Obj) -> Result<SystemTime, SessionError>;
 
