@@ -318,7 +318,7 @@ impl Task {
         self.retry_state = snapshot;
     }
 
-    fn conflict_task_origin(&self) -> String {
+    pub(crate) fn conflict_task_origin(&self) -> String {
         match self.state.task_start() {
             TaskStart::StartCommandVerb {
                 player, command, ..
@@ -346,9 +346,13 @@ impl Task {
     }
 
     fn log_conflict_retry(&self, boundary: &'static str, conflict_info: Option<&ConflictInfo>) {
+        if !tracing::enabled!(tracing::Level::DEBUG) {
+            return;
+        }
+
         let task = self.conflict_task_origin();
         let Some(conflict_info) = conflict_info else {
-            warn!(
+            tracing::debug!(
                 task_id = self.task_id,
                 retry = self.retries,
                 %task,
@@ -367,7 +371,7 @@ impl Task {
                 name: Some(name),
             }) => {
                 let property = format!("{object}.{}", name.as_string());
-                warn!(
+                tracing::debug!(
                     task_id = self.task_id,
                     retry = self.retries,
                     %task,
@@ -379,7 +383,7 @@ impl Task {
                 );
             }
             Some(ConflictTarget::Object(object)) => {
-                warn!(
+                tracing::debug!(
                     task_id = self.task_id,
                     retry = self.retries,
                     %task,
@@ -391,7 +395,7 @@ impl Task {
             }
             _ => {
                 let key = &conflict_info.domain_key;
-                warn!(
+                tracing::debug!(
                     task_id = self.task_id,
                     retry = self.retries,
                     %task,
@@ -522,19 +526,19 @@ impl Task {
                     Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
                         self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
                         session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self);
+                        task_scheduler_client.conflict_retry(self, "fork dispatch", conflict_info);
                         None
                     }
                     Ok((CommitResult::Success { .. }, None)) => {
                         error!("Fork dispatch did not return a new task id");
                         session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self);
+                        task_scheduler_client.conflict_retry(self, "fork dispatch", None);
                         None
                     }
                     Err(TransactionRenewalError::Commit(e)) => {
                         error!("Failed to commit before fork dispatch: {e:?}");
                         session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self);
+                        task_scheduler_client.conflict_retry(self, "fork dispatch", None);
                         None
                     }
                     Err(TransactionRenewalError::Begin(e)) => {
@@ -571,13 +575,21 @@ impl Task {
                                 conflict_info.as_ref(),
                             );
                             session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self);
+                            task_scheduler_client.conflict_retry(
+                                self,
+                                "task_recv immediate resume",
+                                conflict_info,
+                            );
                             return None;
                         }
                         Err(TransactionRenewalError::Commit(e)) => {
                             error!("Failed to commit before task_recv: {e:?}");
                             session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self);
+                            task_scheduler_client.conflict_retry(
+                                self,
+                                "task_recv immediate resume",
+                                None,
+                            );
                             return None;
                         }
                         Err(TransactionRenewalError::Begin(e)) => {
@@ -614,13 +626,17 @@ impl Task {
                         Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
                             self.log_conflict_retry("immediate resume", conflict_info.as_ref());
                             session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self);
+                            task_scheduler_client.conflict_retry(
+                                self,
+                                "immediate resume",
+                                conflict_info,
+                            );
                             return None;
                         }
                         Err(TransactionRenewalError::Commit(e)) => {
                             error!("Failed to commit before immediate resume: {e:?}");
                             session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self);
+                            task_scheduler_client.conflict_retry(self, "immediate resume", None);
                             return None;
                         }
                         Err(TransactionRenewalError::Begin(e)) => {
@@ -638,7 +654,7 @@ impl Task {
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("suspend", conflict_info.as_ref());
                     session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self);
+                    task_scheduler_client.conflict_retry(self, "suspend", conflict_info);
                     return None;
                 }
 
@@ -666,7 +682,7 @@ impl Task {
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("input suspend", conflict_info.as_ref());
                     session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self);
+                    task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
                     return None;
                 }
 
@@ -738,7 +754,11 @@ impl Task {
                             };
                             self.log_conflict_retry("exception handling", conflict_info.as_ref());
                             session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self);
+                            task_scheduler_client.conflict_retry(
+                                self,
+                                "exception handling",
+                                conflict_info,
+                            );
                             return None;
                         };
 
@@ -776,7 +796,11 @@ impl Task {
                         session.rollback().unwrap();
 
                         // Backoff is handled by the scheduler via suspension-based retry
-                        task_scheduler_client.conflict_retry(self);
+                        task_scheduler_client.conflict_retry(
+                            self,
+                            "task completion",
+                            conflict_info,
+                        );
                         return None;
                     }
                 };
@@ -887,15 +911,16 @@ impl Task {
                 // conform with MOO's expectations.
                 let commit_result = commit_current_transaction().expect("Could not attempt commit");
 
-                let CommitResult::Success { .. } = commit_result else {
-                    warn!(
-                        "Conflict during commit before exception, asking scheduler to retry task ({})",
-                        self.task_id
-                    );
+                if let CommitResult::ConflictRetry { conflict_info } = commit_result {
+                    self.log_conflict_retry("exception reporting", conflict_info.as_ref());
                     session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self);
+                    task_scheduler_client.conflict_retry(
+                        self,
+                        "exception reporting",
+                        conflict_info,
+                    );
                     return None;
-                };
+                }
 
                 // Format the backtrace for logging
                 let backtrace_str: String = exception
@@ -1008,7 +1033,7 @@ impl Task {
                 rollback_current_transaction().expect("Could not rollback world state");
 
                 session.rollback().unwrap();
-                task_scheduler_client.conflict_retry(self);
+                task_scheduler_client.conflict_retry(self, "explicit rollback", None);
                 None
             }
         }

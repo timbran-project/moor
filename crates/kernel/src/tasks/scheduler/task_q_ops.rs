@@ -484,7 +484,7 @@ impl TaskQ {
                     new_session.clone(),
                 );
 
-                info!(
+                trace!(
                     ?task_id,
                     retries = task.retries,
                     "Waking retry task from suspension"

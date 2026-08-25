@@ -20,7 +20,7 @@ use crate::{
     vm::{Fork, TaskSuspend},
 };
 use moor_common::{
-    model::{TaskPermissions, WorldState},
+    model::{ConflictInfo, TaskPermissions, WorldState},
     tasks::{
         AbortLimitReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
@@ -62,9 +62,14 @@ impl TaskSchedulerClient {
             .handle_task_success(self.task_id, var, mutations, timestamp);
     }
 
-    pub fn conflict_retry(&self, task: Box<Task>) {
+    pub fn conflict_retry(
+        &self,
+        task: Box<Task>,
+        boundary: &'static str,
+        conflict_info: Option<ConflictInfo>,
+    ) {
         self.scheduler
-            .handle_task_conflict_retry(self.task_id, task);
+            .handle_task_conflict_retry(self.task_id, task, boundary, conflict_info);
     }
 
     pub fn command_error(&self, error: CommandError) {

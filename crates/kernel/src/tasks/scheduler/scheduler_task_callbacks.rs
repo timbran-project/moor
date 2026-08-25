@@ -50,8 +50,13 @@ impl Scheduler {
         };
 
         // Session commit (potential I/O) outside the lock.
-        if session.commit().is_err() {
-            warn!("Could not commit session; aborting task");
+        if let Err(error) = session.commit() {
+            error!(
+                task_id,
+                boundary = "task completion",
+                ?error,
+                "Session commit failed after world-state commit; output may be lost"
+            );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
@@ -63,7 +68,13 @@ impl Scheduler {
         lc.task_q.send_task_result(task_id, Ok(value))
     }
 
-    pub fn handle_task_conflict_retry(&self, task_id: TaskId, mut task: Box<Task>) {
+    pub fn handle_task_conflict_retry(
+        &self,
+        task_id: TaskId,
+        mut task: Box<Task>,
+        boundary: &'static str,
+        conflict_info: Option<ConflictInfo>,
+    ) {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskConflictRetry);
 
@@ -94,10 +105,21 @@ impl Scheduler {
         };
 
         // If the number of retries has been exceeded, abort immediately
-        if task.retries >= self.server_options.load().max_task_retries {
+        let max_retries = self.server_options.load().max_task_retries;
+        if task.retries >= max_retries {
+            let task_origin = task.conflict_task_origin();
+            let conflict = conflict_info
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "details unavailable".to_string());
             error!(
-                "Maximum number of retries exceeded for task {}.  Aborting.",
-                task.task_id
+                task_id,
+                retries = task.retries,
+                max_retries,
+                task = %task_origin,
+                boundary,
+                %conflict,
+                "Task retry limit exhausted; aborting task"
             );
             lc.task_q
                 .send_task_result_direct(task_id, old_tc.result_sender, Err(TaskAbortedError));
@@ -114,7 +136,7 @@ impl Scheduler {
         let delay_ms = base_delay_ms << shift;
         let wake_time = Deadline::from_now(Duration::from_millis(delay_ms)).instant();
 
-        debug!(
+        trace!(
             task_id,
             retries = task.retries,
             delay_ms,
@@ -219,14 +241,17 @@ impl Scheduler {
         lc.flush_pending_sends(task_id);
         lc.task_q.remove_message_queue(task_id);
 
-        let result = if session_result.is_ok() {
-            Err(SchedulerError::CouldNotStartTask)
-        } else {
-            warn!(
-                task_id,
-                "Could not commit session after transaction renewal failure"
-            );
-            Err(TaskAbortedError)
+        let result = match session_result {
+            Ok(()) => Err(SchedulerError::CouldNotStartTask),
+            Err(error) => {
+                error!(
+                    task_id,
+                    boundary = "transaction renewal",
+                    ?error,
+                    "Session commit failed after world-state commit; output may be lost"
+                );
+                Err(TaskAbortedError)
+            }
         };
         lc.task_q.send_task_result(task_id, result);
     }
@@ -471,8 +496,13 @@ impl Scheduler {
         };
 
         // Session commit (potential I/O) outside the lock.
-        if session.commit().is_err() {
-            warn!("Could not commit session; aborting task");
+        if let Err(error) = session.commit() {
+            error!(
+                task_id,
+                boundary = "suspend",
+                ?error,
+                "Session commit failed after world-state commit; output may be lost"
+            );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
@@ -615,8 +645,13 @@ impl Scheduler {
 
         // Session commit (potential I/O) outside the lock — flushes output
         // up to the prompt point.
-        if session.commit().is_err() {
-            warn!("Could not commit session; aborting task");
+        if let Err(error) = session.commit() {
+            error!(
+                task_id,
+                boundary = "input suspend",
+                ?error,
+                "Session commit failed after world-state commit; output may be lost"
+            );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));

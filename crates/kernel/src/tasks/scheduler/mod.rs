@@ -36,10 +36,10 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-use moor_common::model::{CommitResult, TaskPermissions, WorldState};
+use moor_common::model::{CommitResult, ConflictInfo, TaskPermissions, WorldState};
 use moor_compiler::to_literal;
 use moor_db::Database;
 
