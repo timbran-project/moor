@@ -161,6 +161,10 @@ pub struct BatchWriter {
     join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
 }
 
+// If batch writes take longer than this, give a friendly warning to alert the user that something
+// might be up in I/O land.
+const WRITE_WARNING_DURATION: Duration = Duration::from_secs(5);
+
 impl BatchWriter {
     pub fn new(db: fjall::Database) -> Self {
         let kill_switch = Arc::new(AtomicBool::new(false));
@@ -344,7 +348,7 @@ impl BatchWriter {
         let commit_elapsed = commit_start.elapsed();
 
         let elapsed = start.elapsed();
-        if elapsed > Duration::from_secs(1) {
+        if elapsed > WRITE_WARNING_DURATION {
             warn!(
                 op_count,
                 encoded_bytes,
