@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
-    provider::fjall_provider::FjallCodec,
+    provider::fjall_provider::{FjallCodec, decode_fjall_value},
     tx::{EncodeFor, Error, Timestamp},
 };
 use moor_common::{
@@ -258,11 +258,7 @@ impl FjallSnapshotLoader {
     where
         FjallCodec: EncodeFor<Codomain, Stored = ByteView>,
     {
-        let result = ByteView::from(user_value);
-        let ts = Timestamp(u64::from_le_bytes(result[0..8].try_into().unwrap()));
-        let codomain_bytes = result.slice(8..);
-        let codomain = FjallCodec.decode(codomain_bytes)?;
-        Ok((ts, codomain))
+        decode_fjall_value(user_value)
     }
 
     /// Helper method to get a value from a snapshot using FjallCodec

@@ -50,7 +50,7 @@ use byteview::ByteView;
 use fjall::Slice;
 use moor_common::model::WorldStateTimerOp;
 use planus::{ReadAsRoot, WriteAsOffset};
-use std::{marker::PhantomData, sync::Arc};
+use std::{any::Any, marker::PhantomData};
 
 /// Fjall backing provider used for startup reads and encoding transaction writes.
 #[derive(Clone)]
@@ -59,58 +59,70 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
+    relation_name: &'static str,
     fjall_keyspace: fjall::Keyspace,
     marker: PhantomData<fn() -> (Domain, Codomain)>,
 }
 
-fn decode_codomain_with_ts<P, Codomain>(
-    provider: &P,
+const TIMESTAMP_BYTES: usize = std::mem::size_of::<u64>();
+
+fn frame_value(payload: &[u8], timestamp: Timestamp) -> Slice {
+    let mut framed = Vec::with_capacity(payload.len() + TIMESTAMP_BYTES);
+    framed.extend_from_slice(payload);
+    framed.extend_from_slice(&timestamp.0.to_le_bytes());
+    framed.into()
+}
+
+pub(crate) fn decode_fjall_value<Codomain>(
     user_value: Slice,
 ) -> Result<(Timestamp, Codomain), Error>
 where
-    P: EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFor<Codomain, Stored = ByteView>,
 {
-    let result = ByteView::from(user_value);
-    let ts = Timestamp(u64::from_le_bytes(result[0..8].try_into().unwrap()));
-    let codomain_bytes = result.slice(8..);
-    let codomain = provider.decode(codomain_bytes)?;
-    Ok((ts, codomain))
+    let stored = ByteView::from(user_value);
+    let Some(payload_len) = stored.len().checked_sub(TIMESTAMP_BYTES) else {
+        return Err(Error::EncodingFailure);
+    };
+    let timestamp = Timestamp(u64::from_le_bytes(
+        stored[payload_len..]
+            .try_into()
+            .map_err(|_| Error::EncodingFailure)?,
+    ));
+    let payload = stored.slice(..payload_len);
+    let codomain = FjallCodec.decode(payload)?;
+    Ok((timestamp, codomain))
 }
 
-fn encode_codomain_with_ts<P, Codomain>(
-    provider: &P,
-    ts: Timestamp,
-    codomain: &Codomain,
-) -> Result<Vec<u8>, Error>
-where
-    P: EncodeFor<Codomain, Stored = ByteView>,
-{
-    let codomain_stored = provider.encode(codomain)?;
-    let mut result = Vec::with_capacity(8 + codomain_stored.len());
-    result.extend_from_slice(&ts.0.to_le_bytes());
-    result.extend_from_slice(&codomain_stored);
-    Ok(result)
+pub(crate) trait EncodeFjallValue<T>: EncodeFor<T, Stored = ByteView> {
+    fn encode_fjall_value(&self, value: &T, timestamp: Timestamp) -> Result<Slice, Error>;
 }
 
-#[derive(Clone)]
-struct FjallBatchValue<Domain, Codomain>
+fn encode_flatbuffer<T>(root: impl WriteAsOffset<T>) -> ByteView {
+    let mut builder = planus::Builder::new();
+    let bytes = builder.finish(root, None);
+    ByteView::from(bytes)
+}
+
+fn frame_flatbuffer<T>(root: impl WriteAsOffset<T>, timestamp: Timestamp) -> Slice {
+    let mut builder = planus::Builder::new();
+    let bytes = builder.finish(root, None);
+    frame_value(bytes, timestamp)
+}
+
+struct FjallBatchValue<Codomain>
 where
-    Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    provider: FjallProvider<Domain, Codomain>,
-    timestamp: Timestamp,
     codomain: Codomain,
 }
 
-impl<Domain, Codomain> BatchValue for FjallBatchValue<Domain, Codomain>
+impl<Codomain> BatchValue for FjallBatchValue<Codomain>
 where
-    Domain: RelationDomain,
     Codomain: RelationCodomain,
-    FjallProvider<Domain, Codomain>: EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFjallValue<Codomain>,
 {
-    fn encode(&self) -> Result<Vec<u8>, Error> {
-        encode_codomain_with_ts(&self.provider, self.timestamp, &self.codomain)
+    fn encode(self: Box<Self>, timestamp: Timestamp) -> Result<Slice, Error> {
+        FjallCodec.encode_fjall_value(&self.codomain, timestamp)
     }
 }
 
@@ -119,8 +131,9 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    pub fn new(_relation_name: &str, fjall_keyspace: fjall::Keyspace) -> Self {
+    pub fn new(relation_name: &'static str, fjall_keyspace: fjall::Keyspace) -> Self {
         Self {
+            relation_name,
             fjall_keyspace,
             marker: PhantomData,
         }
@@ -136,50 +149,63 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
     Self: EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFjallValue<Codomain>,
 {
-    /// Encode deferred persistence operations into batch ops for the BatchWriter.
-    pub fn encode_persist_ops(
+    /// Consume a published working set into operations for the BatchWriter.
+    pub fn encode_working_set(
         &self,
-        ops: &[crate::tx::PersistOp<Domain, Codomain>],
+        working_set: crate::tx::WorkingSet<Domain, Codomain>,
     ) -> Result<Vec<super::batch_writer::BatchOp>, Error> {
         use super::batch_writer::{BatchOp, BatchOpType};
-        use crate::tx::PersistOp;
+        use crate::tx::OpType;
 
-        let mut batch_ops = Vec::with_capacity(ops.len());
-        for op in ops {
-            match op {
-                PersistOp::Put {
-                    ts,
-                    domain,
-                    codomain,
-                } => {
-                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
-                    let batch_value: Arc<dyn super::batch_writer::BatchValue> =
-                        Arc::new(FjallBatchValue {
-                            provider: self.clone(),
-                            timestamp: *ts,
-                            codomain: codomain.clone(),
-                        });
+        let mut batch_ops = Vec::with_capacity(working_set.len());
+        for (domain, op) in working_set.tuples() {
+            match op.operation {
+                OpType::Insert(codomain) | OpType::Update(codomain) => {
+                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, &domain)?;
+                    let source = self.batch_op_source(&domain);
+                    let batch_value: Box<dyn super::batch_writer::BatchValue> =
+                        Box::new(FjallBatchValue { codomain });
                     batch_ops.push(BatchOp {
                         partition: self.fjall_keyspace.clone(),
                         op_type: BatchOpType::Insert {
-                            key: key_bytes.to_vec(),
+                            key: key_bytes.into(),
                             value: batch_value,
                         },
+                        source,
                     });
                 }
-                PersistOp::Del { ts: _, domain } => {
-                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
+                OpType::Delete => {
+                    let key_bytes = <Self as EncodeFor<Domain>>::encode(self, &domain)?;
                     batch_ops.push(BatchOp {
                         partition: self.fjall_keyspace.clone(),
                         op_type: BatchOpType::Delete {
-                            key: key_bytes.to_vec(),
+                            key: key_bytes.into(),
                         },
+                        source: self.batch_op_source(&domain),
                     });
                 }
             }
         }
         Ok(batch_ops)
+    }
+
+    fn batch_op_source(&self, domain: &Domain) -> super::batch_writer::BatchOpSource {
+        use super::batch_writer::BatchOpSource;
+
+        if matches!(self.relation_name, "object_propvalues" | "object_propflags")
+            && let Some(holder) =
+                (domain as &dyn Any).downcast_ref::<crate::model::ObjAndUUIDHolder>()
+        {
+            return BatchOpSource::Property {
+                relation: self.relation_name,
+                object: holder.obj(),
+                uuid: holder.uuid(),
+            };
+        }
+
+        BatchOpSource::Relation(self.relation_name)
     }
 }
 
@@ -188,6 +214,7 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
     Self: EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFjallValue<Codomain>,
 {
     fn get(&self, domain: &Domain) -> Result<Option<(Timestamp, Codomain)>, Error> {
         let _t = db_counters()
@@ -206,13 +233,12 @@ where
         else {
             return Ok(None);
         };
-        let (ts, codomain) = decode_codomain_with_ts::<Self, Codomain>(self, result)?;
-        Ok(Some((ts, codomain)))
+        Ok(Some(decode_fjall_value(result)?))
     }
 
     fn put(&self, timestamp: Timestamp, domain: &Domain, codomain: &Codomain) -> Result<(), Error> {
         let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
-        let value = encode_codomain_with_ts(self, timestamp, codomain)?;
+        let value = FjallCodec.encode_fjall_value(codomain, timestamp)?;
         self.fjall_keyspace
             .insert(key_bytes, value)
             .map_err(|error| Error::StorageFailure(error.to_string()))
@@ -238,9 +264,9 @@ where
                 .map_err(|e| Error::RetrievalFailure(e.to_string()))?;
             let domain = <Self as EncodeFor<Domain>>::decode(self, ByteView::from(key))?;
 
-            let (ts, codomain) = decode_codomain_with_ts::<Self, Codomain>(self, value)?;
+            let (timestamp, codomain) = decode_fjall_value(value)?;
             if predicate(&domain, &codomain) {
-                result.push((ts, domain, codomain));
+                result.push((timestamp, domain, codomain));
             }
         }
 
@@ -275,9 +301,8 @@ use moor_common::{
     model::{ObjFlag, ObjSet, PropDefs, PropPerms, VerbDefs},
     util::BitEnum,
 };
-use moor_schema::convert::{
-    program_to_stored, stored_to_program, var_from_db_flatbuffer_ref, var_to_db_flatbuffer,
-};
+use moor_schema::convert::{stored_to_program, var_from_db_flatbuffer_ref, var_to_db_flatbuffer};
+use moor_schema::convert_program::encode_program_to_fb;
 use moor_var::{Obj, Var, program::ProgramType};
 // Per-type encoding implementations
 // Each type can be encoded regardless of whether it's used as Domain or Codomain
@@ -347,12 +372,7 @@ impl EncodeFor<Var> for FjallCodec {
         // Convert to FlatBuffer struct
         let fb_var = var_to_db_flatbuffer(value).map_err(|_| Error::EncodingFailure)?;
 
-        // Serialize to bytes
-        let mut builder = planus::Builder::new();
-        let offset = fb_var.prepare(&mut builder);
-        let bytes = builder.finish(offset, None);
-
-        Ok(ByteView::from(bytes))
+        Ok(encode_flatbuffer(fb_var))
     }
 
     fn decode(&self, stored: Self::Stored) -> Result<Var, Error> {
@@ -370,10 +390,7 @@ impl EncodeFor<VerbDefs> for FjallCodec {
     fn encode(&self, value: &VerbDefs) -> Result<Self::Stored, Error> {
         let fb_verbdefs = moor_schema::convert::verbdefs_to_flatbuffer(value)
             .map_err(|_| Error::EncodingFailure)?;
-        let mut builder = planus::Builder::new();
-        let offset = fb_verbdefs.prepare(&mut builder);
-        let bytes = builder.finish(offset, None);
-        Ok(ByteView::from(bytes))
+        Ok(encode_flatbuffer(fb_verbdefs))
     }
 
     fn decode(&self, stored: Self::Stored) -> Result<VerbDefs, Error> {
@@ -392,10 +409,7 @@ impl EncodeFor<PropDefs> for FjallCodec {
     fn encode(&self, value: &PropDefs) -> Result<Self::Stored, Error> {
         let fb_propdefs = moor_schema::convert::propdefs_to_flatbuffer(value)
             .map_err(|_| Error::EncodingFailure)?;
-        let mut builder = planus::Builder::new();
-        let offset = fb_propdefs.prepare(&mut builder);
-        let bytes = builder.finish(offset, None);
-        Ok(ByteView::from(bytes))
+        Ok(encode_flatbuffer(fb_propdefs))
     }
 
     fn decode(&self, stored: Self::Stored) -> Result<PropDefs, Error> {
@@ -434,10 +448,9 @@ impl EncodeFor<ProgramType> for FjallCodec {
     fn encode(&self, program: &ProgramType) -> Result<Self::Stored, Error> {
         match program {
             ProgramType::MooR(prog) => {
-                let stored = program_to_stored(prog)
+                let stored = encode_program_to_fb(prog)
                     .map_err(|e| Error::StorageFailure(format!("Failed to encode program: {e}")))?;
-                // StoredProgram is a ByteView wrapper - extract the inner ByteView
-                Ok(AsRef::<ByteView>::as_ref(&stored).clone())
+                Ok(encode_flatbuffer(stored))
             }
         }
     }
@@ -471,6 +484,91 @@ impl EncodeFor<ProgramType> for FjallCodec {
     }
 }
 
+macro_rules! impl_fjall_value_from_bytes {
+    ($type:ty) => {
+        impl EncodeFjallValue<$type> for FjallCodec {
+            fn encode_fjall_value(
+                &self,
+                value: &$type,
+                timestamp: Timestamp,
+            ) -> Result<Slice, Error> {
+                use zerocopy::IntoBytes;
+                Ok(frame_value(IntoBytes::as_bytes(value), timestamp))
+            }
+        }
+    };
+}
+
+macro_rules! impl_fjall_value_from_byteview {
+    ($type:ty) => {
+        impl EncodeFjallValue<$type> for FjallCodec {
+            fn encode_fjall_value(
+                &self,
+                value: &$type,
+                timestamp: Timestamp,
+            ) -> Result<Slice, Error> {
+                Ok(frame_value(AsRef::<ByteView>::as_ref(value), timestamp))
+            }
+        }
+    };
+}
+
+impl_fjall_value_from_bytes!(Obj);
+impl_fjall_value_from_bytes!(BitEnum<ObjFlag>);
+impl_fjall_value_from_bytes!(AnonymousObjectMetadata);
+impl_fjall_value_from_byteview!(ObjSet);
+impl_fjall_value_from_byteview!(PropPerms);
+
+impl EncodeFjallValue<StringHolder> for FjallCodec {
+    fn encode_fjall_value(
+        &self,
+        value: &StringHolder,
+        timestamp: Timestamp,
+    ) -> Result<Slice, Error> {
+        Ok(frame_value(value.0.as_bytes(), timestamp))
+    }
+}
+
+impl EncodeFjallValue<Var> for FjallCodec {
+    fn encode_fjall_value(&self, value: &Var, timestamp: Timestamp) -> Result<Slice, Error> {
+        let fb_var = var_to_db_flatbuffer(value).map_err(|_| Error::EncodingFailure)?;
+        Ok(frame_flatbuffer(fb_var, timestamp))
+    }
+}
+
+impl EncodeFjallValue<VerbDefs> for FjallCodec {
+    fn encode_fjall_value(&self, value: &VerbDefs, timestamp: Timestamp) -> Result<Slice, Error> {
+        let fb_verbdefs = moor_schema::convert::verbdefs_to_flatbuffer(value)
+            .map_err(|_| Error::EncodingFailure)?;
+        Ok(frame_flatbuffer(fb_verbdefs, timestamp))
+    }
+}
+
+impl EncodeFjallValue<PropDefs> for FjallCodec {
+    fn encode_fjall_value(&self, value: &PropDefs, timestamp: Timestamp) -> Result<Slice, Error> {
+        let fb_propdefs = moor_schema::convert::propdefs_to_flatbuffer(value)
+            .map_err(|_| Error::EncodingFailure)?;
+        Ok(frame_flatbuffer(fb_propdefs, timestamp))
+    }
+}
+
+impl EncodeFjallValue<ProgramType> for FjallCodec {
+    fn encode_fjall_value(
+        &self,
+        program: &ProgramType,
+        timestamp: Timestamp,
+    ) -> Result<Slice, Error> {
+        match program {
+            ProgramType::MooR(program) => {
+                let stored = encode_program_to_fb(program).map_err(|error| {
+                    Error::StorageFailure(format!("Failed to encode program: {error}"))
+                })?;
+                Ok(frame_flatbuffer(stored, timestamp))
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Blanket impl: FjallProvider delegates to FjallCodec for all types
 // ============================================================================
@@ -497,6 +595,7 @@ mod tests {
     use super::*;
     use crate::provider::Provider;
     use fjall::KeyspaceCreateOptions;
+    use moor_var::v_str;
 
     #[test]
     fn a_previous_miss_does_not_mask_a_later_value() {
@@ -511,11 +610,52 @@ mod tests {
 
         assert_eq!(provider.get(&key).unwrap(), None);
 
-        let encoded_key =
-            <FjallProvider<Obj, Obj> as EncodeFor<Obj>>::encode(&provider, &key).unwrap();
-        let encoded_value = encode_codomain_with_ts(&provider, Timestamp(1), &value).unwrap();
-        partition.insert(encoded_key, encoded_value).unwrap();
+        provider.put(Timestamp(17), &key, &value).unwrap();
 
-        assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(1), value)));
+        assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(17), value)));
+    }
+
+    #[test]
+    fn stored_values_suffix_the_timestamp_outside_the_codec_payload() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let database = fjall::Database::builder(tempdir.path()).open().unwrap();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let provider = FjallProvider::<Obj, Obj>::new("values", partition.clone());
+        let key = Obj::mk_id(7);
+        let value = Obj::mk_id(8);
+
+        provider.put(Timestamp(123), &key, &value).unwrap();
+
+        let encoded_key = FjallCodec.encode(&key).unwrap();
+        let encoded_value = FjallCodec.encode(&value).unwrap();
+        let stored = partition.get(encoded_key).unwrap().unwrap();
+        let payload_len = stored.len() - TIMESTAMP_BYTES;
+        assert_eq!(&stored[..payload_len], &*encoded_value);
+        assert_eq!(&stored[payload_len..], &123_u64.to_le_bytes());
+        assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(123), value)));
+    }
+
+    #[test]
+    fn flatbuffer_payload_remains_valid_inside_timestamp_frame() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let database = fjall::Database::builder(tempdir.path()).open().unwrap();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let provider = FjallProvider::<Obj, Var>::new("values", partition.clone());
+        let key = Obj::mk_id(7);
+        let value = v_str(&"context".repeat(1_024));
+
+        provider.put(Timestamp(456), &key, &value).unwrap();
+
+        let encoded_key = FjallCodec.encode(&key).unwrap();
+        let encoded_value = FjallCodec.encode(&value).unwrap();
+        let stored = partition.get(encoded_key).unwrap().unwrap();
+        let payload_len = stored.len() - TIMESTAMP_BYTES;
+        assert_eq!(&stored[..payload_len], &*encoded_value);
+        assert_eq!(&stored[payload_len..], &456_u64.to_le_bytes());
+        assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(456), value)));
     }
 }

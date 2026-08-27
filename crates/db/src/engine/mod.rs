@@ -23,6 +23,7 @@ pub(crate) mod moor_db;
 mod moor_db_concurrent_tests;
 #[cfg(test)]
 mod moor_db_tests;
+pub(crate) mod property_definitions;
 mod relation_defs;
 mod ws_transaction;
 

@@ -122,6 +122,9 @@ pub enum DatabaseOpenError {
     #[error("failed to mark fresh database version at {path:?}: {detail}")]
     MarkVersion { path: PathBuf, detail: String },
 
+    #[error("invalid tuple value format in database at {path:?}: {detail}")]
+    TupleValueFormat { path: PathBuf, detail: String },
+
     #[error("failed to seed relation {relation:?} from database at {path:?}: {detail}")]
     SeedRelation {
         path: PathBuf,
