@@ -28,7 +28,8 @@ use moor_common::{
 };
 use moor_var::{
     AnonymousObjid, ErrorCode, List, NOTHING, Obj, Symbol, UuObjid, Var, program::ProgramType,
-    v_binary, v_bool, v_err, v_float, v_flyweight, v_int, v_list, v_map, v_obj, v_str, v_sym,
+    v_binary, v_bool, v_err, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_obj, v_str,
+    v_sym,
 };
 
 #[derive(Clone, Copy)]
@@ -1458,9 +1459,22 @@ impl<'a> LiteralParser<'a> {
             let Some(error) = ErrorCode::parse_str(&self.source[start..self.pos]) else {
                 return Err(self.parse_error("invalid error value"));
             };
-            return Ok(Some(v_err(error)));
+            return self.parse_error_value(error).map(Some);
         }
         Ok(None)
+    }
+
+    fn parse_error_value(&mut self, error: ErrorCode) -> Result<Var, ObjDefParseError> {
+        self.skip_trivia();
+        if !self.eat_char('(') {
+            return Ok(v_err(error));
+        }
+
+        self.skip_trivia();
+        let message = self.parse_string_value()?;
+        self.skip_trivia();
+        self.expect_char(')', "expected ')' after error literal")?;
+        Ok(v_error(error.msg(message)))
     }
 
     fn parse_include_text(&mut self) -> Result<Option<Var>, ObjDefParseError> {

@@ -255,7 +255,8 @@ mod tests {
         model::{ArgSpec, PrepSpec, PropFlag},
     };
     use moor_var::{
-        E_INVIND, List, NOTHING, v_err, v_float, v_flyweight, v_int, v_list, v_map, v_obj, v_str,
+        E_INVIND, E_TYPE, Error, ErrorCode, List, NOTHING, v_err, v_error, v_float, v_flyweight,
+        v_int, v_list, v_map, v_obj, v_str,
     };
 
     fn compile_single_object(spec: &str) -> ObjectDefinition {
@@ -633,6 +634,47 @@ mod tests {
                 List::mk_list(&[v_int(1), v_int(2), v_int(3)]),
             )
         );
+    }
+
+    #[test]
+    fn rich_error_literals_round_trip() {
+        let spec = r#"
+                object #1
+                    parent: #1
+                    name: "Test Object"
+                    location: #3
+
+                    override temperature = E_TYPE("Cannot sub type TYPE_ERR and TYPE_ERR");
+                endobject"#;
+        let odef = compile_single_object(spec);
+        let error = odef.property_overrides[0]
+            .value
+            .as_ref()
+            .unwrap()
+            .as_error()
+            .unwrap();
+        assert_eq!(error.err_type(), E_TYPE);
+        assert_eq!(error.msg(), Some("Cannot sub type TYPE_ERR and TYPE_ERR"));
+        assert!(error.value().is_none());
+
+        let cases = [
+            Error::new(E_TYPE, Some("message".to_string()), None),
+            Error::new(
+                ErrorCode::ErrCustom(Symbol::mk("E_DATABASE")),
+                Some("custom failure".to_string()),
+                None,
+            ),
+        ];
+
+        for original in cases {
+            let literal =
+                crate::unparse::to_literal_objsub(&v_error(original.clone()), &HashMap::new(), 0);
+            let parsed = parse_literal_value(&literal).unwrap();
+            let parsed = parsed.as_error().unwrap();
+            assert_eq!(parsed.err_type(), original.err_type(), "{literal}");
+            assert_eq!(parsed.msg(), original.msg(), "{literal}");
+            assert_eq!(parsed.value(), original.value(), "{literal}");
+        }
     }
 
     #[test]
