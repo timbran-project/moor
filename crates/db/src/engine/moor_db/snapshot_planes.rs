@@ -14,9 +14,9 @@
 use super::{Caches, WorldStateSnapshot};
 use crate::tx::Tx;
 use arc_swap::ArcSwap;
-use moor_common::util::CachePadded;
 use std::sync::Arc;
-use std::sync::atomic::AtomicI64;
+
+use super::SequenceState;
 
 /// Read-mostly cache publication metadata.
 ///
@@ -124,6 +124,6 @@ impl SnapshotPlanes {
 pub(crate) struct TxSeed {
     pub(crate) tx: Tx,
     pub(crate) snapshot: Arc<WorldStateSnapshot>,
-    pub(crate) sequences: Arc<[CachePadded<AtomicI64>; 16]>,
+    pub(crate) sequences: Arc<SequenceState>,
     pub(crate) caches: Caches,
 }

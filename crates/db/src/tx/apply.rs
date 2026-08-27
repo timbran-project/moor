@@ -27,20 +27,6 @@ use super::{
     transaction::{OpType, WorkingSet},
 };
 
-/// A deferred persistence operation produced by `prepare_indexes`.
-/// Applied to the provider and batch writer only after a successful CAS publish.
-pub enum PersistOp<Domain, Codomain> {
-    Put {
-        ts: Timestamp,
-        domain: Domain,
-        codomain: Codomain,
-    },
-    Del {
-        ts: Timestamp,
-        domain: Domain,
-    },
-}
-
 type IndexInsert<Domain, Codomain> = (Timestamp, Domain, Codomain);
 type IndexTombstone<Domain> = (Timestamp, Domain);
 type IndexOps<Domain, Codomain> = (
@@ -139,50 +125,32 @@ where
     }
 
     /// Update the imbl index from the working set without touching the provider.
-    /// Returns a list of deferred persistence operations to be applied after a
-    /// successful CAS publish of the new snapshot.
-    pub fn prepare_indexes(
-        &mut self,
-        working_set: &WorkingSet<Domain, Codomain>,
-    ) -> Vec<PersistOp<Domain, Codomain>> {
+    pub fn prepare_indexes(&mut self, working_set: &WorkingSet<Domain, Codomain>) {
         if working_set.provider_fully_loaded() {
             self.index.set_provider_fully_loaded(true);
         }
 
         if working_set.is_empty() {
-            return Vec::new();
+            return;
         }
         self.dirty = true;
 
-        // Single pass: collect index ops and persist ops together.
         let total_ops = working_set.len();
         let mut inserts = Vec::with_capacity(total_ops);
         let mut tombstones = Vec::new();
-        let mut persist_ops = Vec::with_capacity(total_ops);
 
         for (domain, op) in working_set.tuples_ref().iter() {
             match &op.operation {
                 OpType::Insert(codomain) | OpType::Update(codomain) => {
-                    persist_ops.push(PersistOp::Put {
-                        ts: op.write_ts,
-                        domain: domain.clone(),
-                        codomain: codomain.clone(),
-                    });
                     inserts.push((op.write_ts, domain.clone(), codomain.clone()));
                 }
                 OpType::Delete => {
-                    persist_ops.push(PersistOp::Del {
-                        ts: op.write_ts,
-                        domain: domain.clone(),
-                    });
                     tombstones.push((op.write_ts, domain.clone()));
                 }
             }
         }
 
         Self::apply_batch_instrumented(&mut self.index, inserts, tombstones);
-
-        persist_ops
     }
 
     /// Borrow the updated index for snapshot building without consuming self.
@@ -331,7 +299,7 @@ mod tests {
                 guaranteed_unique: false,
             },
         );
-        let ws = WorkingSet::new(Box::new(tuples), Box::new(HashRelationIndex::new()));
+        let ws = WorkingSet::new(tuples, Box::new(HashRelationIndex::new()));
         let mut cr = relation.begin_check_from_index(&HashRelationIndex::new());
 
         cr.apply(ws).unwrap();
@@ -387,7 +355,7 @@ mod tests {
                 guaranteed_unique: false,
             },
         );
-        let working_set = WorkingSet::new(Box::new(tuples), base_index.fork());
+        let working_set = WorkingSet::new(tuples, base_index.fork());
 
         let rebased = checker.rebased_snapshot_index(&winner_index, &working_set);
 

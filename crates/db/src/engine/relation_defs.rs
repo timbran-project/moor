@@ -141,7 +141,7 @@ macro_rules! define_relations {
             /// This struct holds the checking state for all relations during the
             /// commit process, allowing batch operations across all relations.
             pub(crate) struct RelationCheckers {
-                $( $field: CheckRelation<$domain, $codomain, FjallProvider<$domain, $codomain>>, )*
+                $( $field: Option<CheckRelation<$domain, $codomain, FjallProvider<$domain, $codomain>>>, )*
             }
 
             #[derive(Clone)]
@@ -176,12 +176,6 @@ macro_rules! define_relations {
                 fn usage_bytes(&self) -> usize;
             }
 
-            /// Deferred persistence operations for all relations, produced by
-            /// `prepare_apply_all` and consumed after a successful CAS publish.
-            pub(crate) struct RelationPersistOps {
-                $( $field: Vec<crate::tx::PersistOp<$domain, $codomain>>, )*
-            }
-
             impl RelationCheckers {
                 /// Check all relations for conflicts with the given working sets.
                 ///
@@ -189,41 +183,44 @@ macro_rules! define_relations {
                 /// `Err(ConflictInfo)` if any relation has a conflict.
                 fn check_all(&mut self, ws: &mut RelationWorkingSets) -> Result<(), moor_common::model::ConflictInfo> {
                     $(
-                        if let Err(e) = self.$field.check(&mut ws.$field) {
-                            if let crate::tx::Error::Conflict(info) = e {
-                                return Err(info);
+                        if !ws.$field.is_empty() {
+                            let checker = self.$field.as_mut().expect("nonempty working set must have a checker");
+                            if let Err(e) = checker.check(&mut ws.$field) {
+                                if let crate::tx::Error::Conflict(info) = e {
+                                    return Err(info);
+                                }
+                                // For other errors, create a generic conflict info
+                                return Err($crate::tx::make_conflict_info(
+                                    checker.relation_name(),
+                                    &format!("<unknown>"),
+                                    moor_common::model::ConflictType::ConcurrentWrite,
+                                ));
                             }
-                            // For other errors, create a generic conflict info
-                            return Err($crate::tx::make_conflict_info(
-                                self.$field.relation_name(),
-                                &format!("<unknown>"),
-                                moor_common::model::ConflictType::ConcurrentWrite,
-                            ));
                         }
                     )*
                     Ok(())
                 }
 
                 /// Update imbl indexes from working sets without touching providers.
-                /// Returns deferred persistence operations and a bloom filter of
-                /// modified keys (used for fast rebase conflict detection).
+                /// Returns a bloom filter of modified keys for fast rebase conflict detection.
                 fn prepare_apply_all(
                     &mut self,
                     ws: &RelationWorkingSets,
-                ) -> (RelationPersistOps, crate::tx::CommitBloom) {
+                ) -> crate::tx::CommitBloom {
                     let mut bloom = crate::tx::CommitBloom::new();
-                    let ops = RelationPersistOps {
-                        $( $field: if !ws.$field.is_empty() {
+                    $(
+                        if !ws.$field.is_empty() {
                             // Insert all keys from this relation into the bloom filter
                             for key in ws.$field.tuples_ref().keys() {
                                 bloom.insert(key);
                             }
-                            self.$field.prepare_indexes(&ws.$field)
-                        } else {
-                            Vec::new()
-                        }, )*
-                    };
-                    (ops, bloom)
+                            self.$field
+                                .as_mut()
+                                .expect("nonempty working set must have a checker")
+                                .prepare_indexes(&ws.$field);
+                        }
+                    )*
+                    bloom
                 }
 
                 /// Build a candidate snapshot from the updated indexes without consuming self.
@@ -267,7 +264,10 @@ macro_rules! define_relations {
                         version: current_root.version + 1,
                         committed_ts: current_root.committed_ts.max(committed_ts),
                         caches,
-                        $( $field: self.$field.snapshot_index_or(&current_root.$field), )*
+                        $( $field: self.$field.as_ref().map_or_else(
+                            || current_root.$field.clone(),
+                            |checker| checker.snapshot_index_or(&current_root.$field),
+                        ), )*
                         commit_bloom: Some(bloom),
                         bloom_since_version,
                     })
@@ -305,7 +305,10 @@ macro_rules! define_relations {
                             ) {
                                 return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(
                                     $crate::tx::make_conflict_info(
-                                        self.$field.relation_name(),
+                                        self.$field
+                                            .as_ref()
+                                            .expect("nonempty working set must have a checker")
+                                            .relation_name(),
                                         key,
                                         moor_common::model::ConflictType::ConcurrentWrite,
                                     ),
@@ -352,7 +355,10 @@ macro_rules! define_relations {
                         version: winner.version + 1,
                         committed_ts: winner.committed_ts.max(committed_ts),
                         caches,
-                        $( $field: self.$field.rebased_snapshot_index(&winner.$field, &ws.$field), )*
+                        $( $field: self.$field.as_ref().map_or_else(
+                            || winner.$field.clone(),
+                            |checker| checker.rebased_snapshot_index(&winner.$field, &ws.$field),
+                        ), )*
                         commit_bloom: Some(merged_bloom),
                         bloom_since_version,
                     })
@@ -413,27 +419,27 @@ macro_rules! define_relations {
                     committed_ts: crate::tx::Timestamp,
                     caches: std::sync::Arc<crate::engine::moor_db::Caches>,
                     db_path: &std::path::Path,
-                ) -> Result<(WorldStateSnapshot, crate::tx::Timestamp), crate::DatabaseOpenError> {
-                    let mut max_persisted_ts = crate::tx::Timestamp(0);
+                ) -> Result<WorldStateSnapshot, crate::DatabaseOpenError> {
+                    let mut committed_ts = committed_ts;
                     $(
-                        let ([<$field _index>], [<$field _max_ts>]) = self.$field
+                        let ([<$field _index>], [<$field _max_timestamp>]) = self.$field
                             .seeded_index_with_max_timestamp()
                             .map_err(|e| crate::DatabaseOpenError::SeedRelation {
                                 path: db_path.to_path_buf(),
                                 relation: stringify!($field),
                                 detail: e.to_string(),
                             })?;
-                        max_persisted_ts = max_persisted_ts.max([<$field _max_ts>]);
+                        committed_ts = committed_ts.max([<$field _max_timestamp>]);
                     )*
 
-                    Ok((WorldStateSnapshot {
+                    Ok(WorldStateSnapshot {
                         version,
                         committed_ts,
                         caches,
                         $( $field: std::sync::Arc::from([<$field _index>]), )*
                         commit_bloom: None,
                         bloom_since_version: 0,
-                    }, max_persisted_ts))
+                    })
                 }
 
                 fn snapshot_with_all_fully_loaded(
@@ -456,18 +462,21 @@ macro_rules! define_relations {
                     })
                 }
 
-                /// Build a CommitBatch from deferred persistence operations.
-                /// Called after a successful CAS publish to persist changes to Fjall.
-                fn persist_ops_to_batch(
+                /// Consume published working sets into a Fjall commit batch.
+                fn working_sets_to_batch(
                     &self,
-                    ops: &RelationPersistOps,
+                    working_sets: RelationWorkingSets,
                     version: u64,
                     timestamp: crate::tx::Timestamp,
                 ) -> Result<crate::provider::batch_writer::CommitBatch, crate::tx::Error> {
                     let mut all_ops = Vec::new();
                     $(
-                        if !ops.$field.is_empty() {
-                            all_ops.extend(self.$field.provider().encode_persist_ops(&ops.$field)?);
+                        if !working_sets.$field.is_empty() {
+                            all_ops.extend(
+                                self.$field
+                                    .provider()
+                                    .encode_working_set(working_sets.$field)?,
+                            );
                         }
                     )*
                     Ok(crate::provider::batch_writer::CommitBatch::from_ops(
@@ -489,9 +498,15 @@ macro_rules! define_relations {
                 ///
                 /// Creates RelationCheckers for all relations, which can then be used
                 /// to check for conflicts during transaction commit.
-                fn begin_check_all(&self, snapshot: &WorldStateSnapshot) -> RelationCheckers {
+                fn begin_check_all(
+                    &self,
+                    snapshot: &WorldStateSnapshot,
+                    working_sets: &RelationWorkingSets,
+                ) -> RelationCheckers {
                     RelationCheckers {
-                        $( $field: self.$field.begin_check_from_index(&*snapshot.$field), )*
+                        $( $field: (!working_sets.$field.is_empty()).then(|| {
+                            self.$field.begin_check_from_index(&*snapshot.$field)
+                        }), )*
                     }
                 }
 
@@ -522,7 +537,7 @@ macro_rules! define_relations {
                     WorldStateTransaction {
                         tx,
                         db,
-                        $( $field: self.$field.start_from_index(&tx, &*snapshot.$field), )*
+                        $( $field: self.$field.start_from_snapshot(&tx, snapshot.$field.clone()), )*
                         sequences,
                         verb_resolution_cache: std::cell::RefCell::new(verb_resolution_cache),
                         prop_resolution_cache: std::cell::RefCell::new(prop_resolution_cache),
@@ -598,7 +613,7 @@ macro_rules! define_relations {
                 /// Relation transactions for each defined relation
                 $( pub(crate) $field: RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>>, )*
                 /// Array of sequence counters for object ID generation
-                pub(crate) sequences: Arc<[CachePadded<AtomicI64>; 16]>,
+                pub(crate) sequences: Arc<crate::engine::moor_db::SequenceState>,
                 /// Local fork of the verb resolution cache
                 pub(crate) verb_resolution_cache: std::cell::RefCell<VerbResolutionCache>,
                 /// Local fork of the property resolution cache

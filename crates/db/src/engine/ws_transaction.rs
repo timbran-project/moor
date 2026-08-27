@@ -21,7 +21,7 @@ use crate::{
     EntityMetadataKey, Error, ObjAndUUIDHolder, StringHolder,
     api::world_state::db_counters,
     engine::moor_db::{Caches, SEQUENCE_MAX_OBJECT, WorldStateTransaction},
-    provider::fjall_provider::FjallProvider,
+    provider::fjall_provider::{EncodeFjallValue, FjallCodec, FjallProvider},
     tx::{EncodeFor, RelationTransaction},
 };
 use byteview::ByteView;
@@ -118,6 +118,7 @@ where
     Codomain: crate::tx::RelationCodomain,
     FjallProvider<Domain, Codomain>:
         EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFjallValue<Codomain>,
 {
     table.upsert(d, c)
 }
@@ -133,6 +134,7 @@ where
     Codomain: crate::tx::RelationCodomain,
     FjallProvider<Domain, Codomain>:
         EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
+    FjallCodec: EncodeFjallValue<Codomain>,
 {
     table.insert_guaranteed_unique(d, c)
 }
@@ -2134,33 +2136,15 @@ impl WorldStateTransaction {
 
     /// Increment the given sequence, return the new value.
     pub fn increment_sequence(&self, seq: usize) -> i64 {
-        self.sequences[seq].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.sequences[seq].load(std::sync::atomic::Ordering::Relaxed)
+        self.sequences.increment(seq)
     }
 
     fn get_sequence(&self, seq: usize) -> i64 {
-        self.sequences[seq].load(std::sync::atomic::Ordering::Relaxed)
+        self.sequences.load(seq)
     }
 
     fn update_sequence_max(&self, seq: usize, value: i64) -> i64 {
-        loop {
-            let current = self.sequences[seq].load(std::sync::atomic::Ordering::Relaxed);
-            let max = std::cmp::max(current, value);
-            if max <= current {
-                return current;
-            }
-            if self.sequences[seq]
-                .compare_exchange(
-                    current,
-                    max,
-                    std::sync::atomic::Ordering::SeqCst,
-                    std::sync::atomic::Ordering::SeqCst,
-                )
-                .is_ok()
-            {
-                return current;
-            }
-        }
+        self.sequences.update_max(seq, value)
     }
 
     /// Renumber an object to a new object number, following LambdaMOO semantics.

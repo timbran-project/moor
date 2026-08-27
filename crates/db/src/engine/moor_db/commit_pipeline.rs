@@ -25,37 +25,17 @@
 
 use super::{Caches, MoorDB, WorkingSets, WorldStateSnapshot};
 use crate::api::world_state::db_counters;
+use crate::engine::property_definitions::{
+    PropertyDefinitionChange, collect_property_definition_changes,
+};
 use crate::engine::relation_defs::RebaseCheck;
 use moor_common::model::{CommitResult, ConflictInfo, ConflictTarget, WorldStateTimerOp};
 use moor_common::util::Instant;
-use moor_var::{NOTHING, Obj, Symbol};
 use std::time::Duration;
 use tracing::{error, trace, warn};
 
 /// Maximum number of rebase attempts after the initial CAS before giving up.
 const MAX_REBASE_ATTEMPTS: u32 = 16;
-
-fn property_name_at_snapshot(
-    root: &WorldStateSnapshot,
-    object: Obj,
-    uuid: uuid::Uuid,
-) -> Option<Symbol> {
-    let mut current = object;
-    for _ in 0..256 {
-        if let Some(entry) = root.object_propdefs.index_lookup(&current)
-            && let Some(propdef) = entry.value.find_ref(&uuid)
-        {
-            return Some(propdef.name());
-        }
-
-        let parent = root.object_parent.index_lookup(&current)?.value;
-        if parent == NOTHING || parent == current {
-            return None;
-        }
-        current = parent;
-    }
-    None
-}
 
 fn enrich_conflict_info(
     root: &WorldStateSnapshot,
@@ -64,7 +44,7 @@ fn enrich_conflict_info(
     if let Some(ConflictTarget::Property { object, uuid, name }) = &mut conflict_info.target
         && name.is_none()
     {
-        *name = property_name_at_snapshot(root, *object, *uuid);
+        *name = root.property_name(*object, *uuid);
     }
     conflict_info
 }
@@ -79,12 +59,13 @@ impl MoorDB {
     /// Persist a successfully published snapshot to the durable store.
     fn persist_commit(
         &self,
-        persist_ops: &super::RelationPersistOps,
+        working_sets: super::RelationWorkingSets,
         publication_version: u64,
         tx_timestamp: crate::tx::Timestamp,
+        property_definition_changes: Vec<PropertyDefinitionChange>,
     ) {
-        let mut batch = match self.relations.persist_ops_to_batch(
-            persist_ops,
+        let mut batch = match self.relations.working_sets_to_batch(
+            working_sets,
             publication_version,
             tx_timestamp,
         ) {
@@ -96,18 +77,17 @@ impl MoorDB {
                 return;
             }
         };
+        batch.set_property_definition_changes(property_definition_changes);
 
-        self.sequences[15].store(
-            self.monotonic.load(std::sync::atomic::Ordering::Relaxed) as i64,
-            std::sync::atomic::Ordering::Relaxed,
-        );
-        for (i, seq) in self.sequences.iter().enumerate() {
+        let dirty_sequences = self.sequences.claim_dirty();
+        for i in 0_usize..super::SEQUENCE_COUNT {
+            if dirty_sequences & (1_u16 << i) == 0 {
+                continue;
+            }
             batch.insert_encoded(
                 self.sequences_partition.clone(),
-                i.to_le_bytes().to_vec(),
-                seq.load(std::sync::atomic::Ordering::Relaxed)
-                    .to_le_bytes()
-                    .to_vec(),
+                i.to_le_bytes(),
+                self.sequences.load(i).to_le_bytes(),
             );
         }
 
@@ -167,7 +147,7 @@ impl MoorDB {
 
         // Phase 1: Check conflicts and prepare indexes against current snapshot
         let current_root = self.snapshot_planes.load_root();
-        let mut checkers = self.relations.begin_check_all(&current_root);
+        let mut checkers = self.relations.begin_check_all(&current_root, &relation_ws);
 
         // Skip conflict check if:
         // - No commits since our snapshot (existing fast path), OR
@@ -203,12 +183,16 @@ impl MoorDB {
         let _t = counters
             .timers_hot
             .start(WorldStateTimerOp::CommitApplyPhase);
-        let (persist_ops, bloom) = checkers.prepare_apply_all(&relation_ws);
+        let bloom = checkers.prepare_apply_all(&relation_ws);
         let combined_caches = Caches {
             verb_resolution_cache: verb_cache.fork(),
             prop_resolution_cache: prop_cache.fork(),
             ancestry_cache: ancestry_cache.fork(),
         };
+        let property_definition_changes = collect_property_definition_changes(
+            &*current_root.object_propdefs,
+            &relation_ws.object_propdefs,
+        );
         let next_root =
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
@@ -219,7 +203,12 @@ impl MoorDB {
             .snapshot_planes
             .try_publish_write_root(current_root.version, next_root)
         {
-            self.persist_commit(&persist_ops, publication_version, tx_timestamp);
+            self.persist_commit(
+                relation_ws,
+                publication_version,
+                tx_timestamp,
+                property_definition_changes,
+            );
             return CommitResult::Success {
                 mutations_made: true,
                 timestamp: tx_timestamp.0,
@@ -252,6 +241,10 @@ impl MoorDB {
                 prop_resolution_cache: prop_cache.fork(),
                 ancestry_cache: ancestry_cache.fork(),
             };
+            let property_definition_changes = collect_property_definition_changes(
+                &*winner.object_propdefs,
+                &relation_ws.object_propdefs,
+            );
             let rebased = checkers.build_rebased_snapshot(
                 &relation_ws,
                 &winner,
@@ -266,7 +259,12 @@ impl MoorDB {
                 .snapshot_planes
                 .try_publish_write_root(winner.version, rebased)
             {
-                self.persist_commit(&persist_ops, publication_version, tx_timestamp);
+                self.persist_commit(
+                    relation_ws,
+                    publication_version,
+                    tx_timestamp,
+                    property_definition_changes,
+                );
                 return CommitResult::Success {
                     mutations_made: true,
                     timestamp: tx_timestamp.0,

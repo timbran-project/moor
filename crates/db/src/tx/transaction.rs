@@ -23,7 +23,12 @@ use moor_common::model::WorldStateError;
 use moor_var::Symbol;
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::{collections::HashMap, hash::BuildHasherDefault, sync::Arc};
+use std::{
+    collections::HashMap,
+    hash::BuildHasherDefault,
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 type LocalCodomainIndexCache<Domain, Codomain> = RefCell<Option<Vec<(Codomain, Vec<Domain>)>>>;
 
@@ -39,8 +44,6 @@ where
     tx: Tx,
     relation_name: Symbol,
 
-    // Note: This is RefCell for interior mutability since even get/scan operations can modify the
-    //   index.
     index: Inner<Domain, Codomain>,
     backing_source: Arc<Source>,
 }
@@ -54,9 +57,62 @@ where
     // Lazily-built codomain -> domains overlay for local operations.
     // Invalidated on mutation, used to accelerate repeated codomain lookups.
     local_codomain_index_cache: LocalCodomainIndexCache<Domain, Codomain>,
-    master_entries: Box<dyn RelationIndex<Domain, Codomain>>,
+    master_entries: TransactionIndex<Domain, Codomain>,
     provider_fully_loaded: bool,
     has_local_mutations: bool,
+}
+
+enum TransactionIndex<Domain, Codomain>
+where
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    Shared(Arc<dyn RelationIndex<Domain, Codomain>>),
+    Owned(Box<dyn RelationIndex<Domain, Codomain>>),
+}
+
+impl<Domain, Codomain> TransactionIndex<Domain, Codomain>
+where
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    fn into_shared(self) -> Arc<dyn RelationIndex<Domain, Codomain>> {
+        match self {
+            Self::Shared(index) => index,
+            Self::Owned(index) => Arc::from(index),
+        }
+    }
+}
+
+impl<Domain, Codomain> Deref for TransactionIndex<Domain, Codomain>
+where
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    type Target = dyn RelationIndex<Domain, Codomain>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Shared(index) => &**index,
+            Self::Owned(index) => &**index,
+        }
+    }
+}
+
+impl<Domain, Codomain> DerefMut for TransactionIndex<Domain, Codomain>
+where
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        if let Self::Shared(index) = self {
+            *self = Self::Owned(index.fork());
+        }
+        let Self::Owned(index) = self else {
+            unreachable!();
+        };
+        &mut **index
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -111,13 +167,13 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    tuples: Box<WorkingSetTuples<Domain, Codomain>>,
+    tuples: WorkingSetTuples<Domain, Codomain>,
     /// The base index - a snapshot of the canonical state when the transaction started.
     /// Used for 3-way merge during conflict resolution:
     /// - base (this) = what we saw at transaction start
     /// - mine = our operation in tuples
     /// - theirs = current canonical state at commit time
-    base_index: Box<dyn RelationIndex<Domain, Codomain>>,
+    base_index: Arc<dyn RelationIndex<Domain, Codomain>>,
     provider_fully_loaded: bool,
 }
 
@@ -127,19 +183,15 @@ where
     Codomain: RelationCodomain,
 {
     pub fn new(
-        tuples: Box<WorkingSetTuples<Domain, Codomain>>,
+        tuples: WorkingSetTuples<Domain, Codomain>,
         base_index: Box<dyn RelationIndex<Domain, Codomain>>,
     ) -> WorkingSet<Domain, Codomain> {
-        WorkingSet {
-            tuples,
-            base_index,
-            provider_fully_loaded: false,
-        }
+        Self::new_shared(tuples, Arc::from(base_index), false)
     }
 
-    pub fn new_with_fully_loaded(
-        tuples: Box<WorkingSetTuples<Domain, Codomain>>,
-        base_index: Box<dyn RelationIndex<Domain, Codomain>>,
+    fn new_shared(
+        tuples: WorkingSetTuples<Domain, Codomain>,
+        base_index: Arc<dyn RelationIndex<Domain, Codomain>>,
         provider_fully_loaded: bool,
     ) -> WorkingSet<Domain, Codomain> {
         WorkingSet {
@@ -157,7 +209,7 @@ where
         self.tuples.is_empty()
     }
 
-    pub fn tuples(self) -> Box<WorkingSetTuples<Domain, Codomain>> {
+    pub fn tuples(self) -> WorkingSetTuples<Domain, Codomain> {
         self.tuples
     }
 
@@ -218,16 +270,25 @@ where
         canonical: Box<dyn RelationIndex<Domain, Codomain>>,
         backing_source: Source,
     ) -> RelationTransaction<Domain, Codomain, Source> {
+        Self::new_shared(
+            tx,
+            relation_name,
+            Arc::from(canonical),
+            Arc::new(backing_source),
+        )
+    }
+
+    pub(crate) fn new_shared(
+        tx: Tx,
+        relation_name: Symbol,
+        canonical: Arc<dyn RelationIndex<Domain, Codomain>>,
+        backing_source: Arc<Source>,
+    ) -> RelationTransaction<Domain, Codomain, Source> {
         let provider_fully_loaded = canonical.is_provider_fully_loaded();
         let inner = Inner {
-            // Most transactions perform at least one mutation; reserve a tiny initial
-            // capacity to avoid first-insert allocation cost on hot paths.
-            local_operations: HashMap::with_capacity_and_hasher(
-                4,
-                BuildHasherDefault::<AHasher>::default(),
-            ),
+            local_operations: HashMap::default(),
             local_codomain_index_cache: RefCell::new(None),
-            master_entries: canonical,
+            master_entries: TransactionIndex::Shared(canonical),
             provider_fully_loaded,
             has_local_mutations: false,
         };
@@ -235,7 +296,7 @@ where
             tx,
             relation_name,
             index: inner,
-            backing_source: backing_source.into(),
+            backing_source,
         }
     }
 
@@ -1120,10 +1181,16 @@ where
     }
 
     pub fn working_set(self) -> Result<WorkingSet<Domain, Codomain>, WorldStateError> {
-        Ok(WorkingSet::new_with_fully_loaded(
-            Box::new(self.index.local_operations),
-            self.index.master_entries,
-            self.index.provider_fully_loaded,
+        let Inner {
+            local_operations,
+            master_entries,
+            provider_fully_loaded,
+            ..
+        } = self.index;
+        Ok(WorkingSet::new_shared(
+            local_operations,
+            master_entries.into_shared(),
+            provider_fully_loaded,
         ))
     }
 }

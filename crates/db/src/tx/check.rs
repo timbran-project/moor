@@ -611,7 +611,7 @@ mod tests {
                 guaranteed_unique: false,
             },
         );
-        let mut ws = WorkingSet::new(Box::new(tuples), Box::new(HashRelationIndex::new()));
+        let mut ws = WorkingSet::new(tuples, Box::new(HashRelationIndex::new()));
         let mut cr = relation.begin_check_from_index(&HashRelationIndex::new());
 
         cr.check_with_resolver(&mut ws, RewriteToInsert).unwrap();

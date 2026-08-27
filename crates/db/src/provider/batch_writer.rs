@@ -28,46 +28,129 @@ use std::{
     time::{Duration, Instant},
 };
 
+use ahash::AHashMap;
 use flume::{Receiver, Sender};
+use moor_common::model::HasUuid;
 use moor_common::threading::spawn_efficient;
 use moor_common::util::Timestamp as MonoTimestamp;
+use moor_var::{Obj, Symbol};
 use parking_lot::Mutex;
 use tracing::{error, trace, warn};
+use uuid::Uuid;
 
 use crate::db_counters;
+use crate::engine::property_definitions::PropertyDefinitionChange;
 use crate::tx::{Error, Timestamp};
 use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
 
 /// A single operation to be written to fjall.
-#[derive(Clone)]
 pub struct BatchOp {
     /// The fjall partition (keyspace) to write to
     pub partition: fjall::Keyspace,
     /// The operation type
     pub op_type: BatchOpType,
+    /// Logical source of the operation for slow-write diagnostics.
+    pub source: BatchOpSource,
 }
 
-#[derive(Clone)]
+/// Logical source of a batch operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BatchOpSource {
+    Relation(&'static str),
+    Property {
+        relation: &'static str,
+        object: Obj,
+        uuid: Uuid,
+    },
+    Internal(&'static str),
+}
+
+impl std::fmt::Display for BatchOpSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Relation(relation) | Self::Internal(relation) => f.write_str(relation),
+            Self::Property {
+                relation,
+                object,
+                uuid,
+            } => write!(f, "{relation} {object} ({uuid})"),
+        }
+    }
+}
+
+struct BatchOpSourceDisplay<'a> {
+    source: &'a BatchOpSource,
+    property_names: &'a PropertyNames,
+}
+
+impl std::fmt::Display for BatchOpSourceDisplay<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let BatchOpSource::Property {
+            relation,
+            object,
+            uuid,
+        } = self.source
+        else {
+            return std::fmt::Display::fmt(self.source, f);
+        };
+
+        let Some(name) = self.property_names.by_uuid.get(uuid) else {
+            return std::fmt::Display::fmt(self.source, f);
+        };
+        write!(f, "{relation} {object}.{} ({uuid})", name.as_str())
+    }
+}
+
+struct PropertyNames {
+    by_uuid: AHashMap<Uuid, Symbol>,
+}
+
+impl PropertyNames {
+    fn new(by_uuid: AHashMap<Uuid, Symbol>) -> Self {
+        Self { by_uuid }
+    }
+
+    fn apply(&mut self, changes: impl IntoIterator<Item = PropertyDefinitionChange>) {
+        for change in changes {
+            match change {
+                PropertyDefinitionChange::Remove(uuid) => {
+                    self.by_uuid.remove(&uuid);
+                }
+                PropertyDefinitionChange::Upsert(definition) => {
+                    self.by_uuid.insert(definition.uuid(), definition.name());
+                }
+            }
+        }
+    }
+
+    fn display<'a>(&'a self, source: &'a BatchOpSource) -> BatchOpSourceDisplay<'a> {
+        BatchOpSourceDisplay {
+            source,
+            property_names: self,
+        }
+    }
+}
+
 pub enum BatchOpType {
     Insert {
-        key: Vec<u8>,
-        value: Arc<dyn BatchValue>,
+        key: fjall::Slice,
+        value: Box<dyn BatchValue>,
     },
     Delete {
-        key: Vec<u8>,
+        key: fjall::Slice,
     },
 }
 
 /// Value hook used by the writer thread to produce serialized bytes.
-pub trait BatchValue: Send + Sync {
-    fn encode(&self) -> Result<Vec<u8>, Error>;
+pub trait BatchValue: Send {
+    fn encode(self: Box<Self>, timestamp: Timestamp) -> Result<fjall::Slice, Error>;
 }
 
-struct EncodedBatchValue(Vec<u8>);
+struct EncodedBatchValue(fjall::Slice);
 
 impl BatchValue for EncodedBatchValue {
-    fn encode(&self) -> Result<Vec<u8>, Error> {
-        Ok(self.0.clone())
+    fn encode(self: Box<Self>, _timestamp: Timestamp) -> Result<fjall::Slice, Error> {
+        Ok(self.0)
     }
 }
 
@@ -77,6 +160,7 @@ pub struct CommitBatch {
     pub version: u64,
     pub timestamp: Timestamp,
     pub operations: Vec<BatchOp>,
+    property_definition_changes: Box<[PropertyDefinitionChange]>,
 }
 
 impl CommitBatch {
@@ -86,18 +170,33 @@ impl CommitBatch {
             version,
             timestamp,
             operations: Vec::with_capacity(expected_operations),
+            property_definition_changes: Box::default(),
         }
     }
 
-    pub fn insert(&mut self, partition: fjall::Keyspace, key: Vec<u8>, value: Arc<dyn BatchValue>) {
+    pub fn insert(
+        &mut self,
+        partition: fjall::Keyspace,
+        key: impl Into<fjall::Slice>,
+        value: Box<dyn BatchValue>,
+    ) {
         self.operations.push(BatchOp {
             partition,
-            op_type: BatchOpType::Insert { key, value },
+            op_type: BatchOpType::Insert {
+                key: key.into(),
+                value,
+            },
+            source: BatchOpSource::Internal("direct batch value"),
         });
     }
 
-    pub fn insert_encoded(&mut self, partition: fjall::Keyspace, key: Vec<u8>, value: Vec<u8>) {
-        self.insert(partition, key, Arc::new(EncodedBatchValue(value)));
+    pub fn insert_encoded(
+        &mut self,
+        partition: fjall::Keyspace,
+        key: impl Into<fjall::Slice>,
+        value: impl Into<fjall::Slice>,
+    ) {
+        self.insert(partition, key, Box::new(EncodedBatchValue(value.into())));
     }
 
     pub fn from_ops(version: u64, timestamp: Timestamp, operations: Vec<BatchOp>) -> Self {
@@ -105,7 +204,15 @@ impl CommitBatch {
             version,
             timestamp,
             operations,
+            property_definition_changes: Box::default(),
         }
+    }
+
+    pub(crate) fn set_property_definition_changes(
+        &mut self,
+        changes: Vec<PropertyDefinitionChange>,
+    ) {
+        self.property_definition_changes = changes.into_boxed_slice();
     }
 }
 
@@ -132,15 +239,17 @@ struct WriterState {
     barrier_waiters: Vec<(u64, oneshot::Sender<Result<(), String>>)>,
     snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
+    property_names: PropertyNames,
 }
 
 impl WriterState {
-    fn new() -> Self {
+    fn new(property_names: AHashMap<Uuid, Symbol>) -> Self {
         Self {
             waiting_batches: BTreeMap::new(),
             barrier_waiters: Vec::new(),
             snapshot_waiters: Vec::new(),
             next_version: 1,
+            property_names: PropertyNames::new(property_names),
         }
     }
 
@@ -164,9 +273,18 @@ pub struct BatchWriter {
 // If batch writes take longer than this, give a friendly warning to alert the user that something
 // might be up in I/O land.
 const WRITE_WARNING_DURATION: Duration = Duration::from_secs(5);
+const ENCODE_WARNING_DURATION: Duration = Duration::from_secs(1);
 
 impl BatchWriter {
+    #[cfg(test)]
     pub fn new(db: fjall::Database) -> Self {
+        Self::with_property_names(db, AHashMap::new())
+    }
+
+    pub(crate) fn with_property_names(
+        db: fjall::Database,
+        property_names: AHashMap<Uuid, Symbol>,
+    ) -> Self {
         let kill_switch = Arc::new(AtomicBool::new(false));
         let completed_version = Arc::new(AtomicU64::new(0));
         let (sender, receiver) = flume::bounded::<WriterMsg>(1000);
@@ -175,7 +293,7 @@ impl BatchWriter {
         let completed = completed_version.clone();
 
         let join_handle = spawn_efficient("moor-batch-writer", move || {
-            Self::writer_loop(db, receiver, ks, completed)
+            Self::writer_loop(db, receiver, ks, completed, property_names)
         })
         .expect("failed to spawn batch writer thread");
 
@@ -192,8 +310,9 @@ impl BatchWriter {
         receiver: Receiver<WriterMsg>,
         kill_switch: Arc<AtomicBool>,
         completed_version: Arc<AtomicU64>,
+        property_names: AHashMap<Uuid, Symbol>,
     ) -> Result<(), String> {
-        let result = Self::run_writer(db, receiver, kill_switch, completed_version);
+        let result = Self::run_writer(db, receiver, kill_switch, completed_version, property_names);
         if let Err(error) = &result {
             error!("Batch writer failed: {error}");
             #[cfg(not(test))]
@@ -207,8 +326,9 @@ impl BatchWriter {
         receiver: Receiver<WriterMsg>,
         kill_switch: Arc<AtomicBool>,
         completed_version: Arc<AtomicU64>,
+        property_names: AHashMap<Uuid, Symbol>,
     ) -> Result<(), String> {
-        let mut state = WriterState::new();
+        let mut state = WriterState::new(property_names);
 
         loop {
             if kill_switch.load(Ordering::Relaxed) {
@@ -300,7 +420,7 @@ impl BatchWriter {
     ) -> Result<(), String> {
         while let Some(batch) = state.waiting_batches.remove(&state.next_version) {
             let version = batch.version;
-            if let Err(error) = Self::commit_batch(db, batch) {
+            if let Err(error) = Self::commit_batch(db, batch, &mut state.property_names) {
                 Self::fail_waiters(state, &error);
                 return Err(error);
             }
@@ -313,27 +433,51 @@ impl BatchWriter {
         Ok(())
     }
 
-    fn commit_batch(db: &fjall::Database, batch: CommitBatch) -> Result<(), String> {
+    fn commit_batch(
+        db: &fjall::Database,
+        batch: CommitBatch,
+        property_names: &mut PropertyNames,
+    ) -> Result<(), String> {
         let start = Instant::now();
-        let version = batch.version;
-        let transaction = batch.timestamp.0;
-        let op_count = batch.operations.len();
+        let CommitBatch {
+            version,
+            timestamp,
+            operations,
+            property_definition_changes,
+        } = batch;
+        let transaction = timestamp.0;
+        let op_count = operations.len();
         let encode_start = Instant::now();
         let mut encoded_bytes = 0usize;
+        let mut slowest_encoding = None;
         let mut write_batch = db.batch();
 
-        for op in batch.operations {
-            match op.op_type {
+        for op in operations {
+            let BatchOp {
+                partition,
+                op_type,
+                source,
+            } = op;
+            match op_type {
                 BatchOpType::Insert { key, value } => {
+                    let op_encode_start = Instant::now();
                     let encoded = value
-                        .encode()
+                        .encode(timestamp)
                         .map_err(|error| format!("failed to encode batch value: {error}"))?;
-                    encoded_bytes += key.len() + encoded.len();
-                    write_batch.insert(&op.partition, key, encoded);
+                    let op_encode_elapsed = op_encode_start.elapsed();
+                    let op_encoded_bytes = key.len() + encoded.len();
+                    encoded_bytes += op_encoded_bytes;
+                    if slowest_encoding
+                        .as_ref()
+                        .is_none_or(|(_, elapsed, _)| op_encode_elapsed > *elapsed)
+                    {
+                        slowest_encoding = Some((source, op_encode_elapsed, op_encoded_bytes));
+                    }
+                    write_batch.insert(&partition, key, encoded);
                 }
                 BatchOpType::Delete { key } => {
                     encoded_bytes += key.len();
-                    write_batch.remove(&op.partition, key);
+                    write_batch.remove(&partition, key);
                 }
             }
         }
@@ -346,9 +490,31 @@ impl BatchWriter {
             .commit()
             .map_err(|error| format!("failed to commit Fjall write batch: {error}"))?;
         let commit_elapsed = commit_start.elapsed();
+        property_names.apply(property_definition_changes);
 
         let elapsed = start.elapsed();
-        if elapsed > WRITE_WARNING_DURATION {
+        if encode_elapsed > ENCODE_WARNING_DURATION
+            && let Some((slowest_target, slowest_encode_elapsed, slowest_encoded_bytes)) =
+                slowest_encoding
+        {
+            let slowest_target = property_names.display(&slowest_target);
+            warn!(
+                op_count,
+                encoded_bytes,
+                version,
+                transaction,
+                ?encode_elapsed,
+                ?commit_elapsed,
+                slowest_target = %slowest_target,
+                ?slowest_encode_elapsed,
+                slowest_encoded_bytes,
+                outstanding_flushes_before,
+                outstanding_flushes_after = db.outstanding_flushes(),
+                active_compactions_before,
+                active_compactions_after = db.active_compactions(),
+                "Slow batch encoding. This value used the most encoding time. Split large property values across properties."
+            );
+        } else if elapsed > WRITE_WARNING_DURATION {
             warn!(
                 op_count,
                 encoded_bytes,
@@ -507,6 +673,7 @@ impl Drop for BatchWriter {
 mod tests {
     use super::*;
     use fjall::{KeyspaceCreateOptions, Readable};
+    use moor_common::model::PropDef;
 
     fn test_database() -> (tempfile::TempDir, fjall::Database) {
         let tempdir = tempfile::tempdir().unwrap();
@@ -523,6 +690,37 @@ mod tests {
         let mut batch = CommitBatch::with_capacity(version, Timestamp(version), 1);
         batch.insert_encoded(partition.clone(), key.to_vec(), value.to_vec());
         batch
+    }
+
+    #[test]
+    fn property_source_uses_writer_local_name() {
+        let object = Obj::mk_id(42);
+        let uuid = Uuid::new_v4();
+        let source = BatchOpSource::Property {
+            relation: "object_propvalues",
+            object,
+            uuid,
+        };
+        let name = Symbol::mk("context");
+        let definition = PropDef::new(uuid, object, object, name);
+        let mut property_names = PropertyNames::new(AHashMap::new());
+        property_names.apply(vec![PropertyDefinitionChange::Upsert(definition)]);
+
+        let rendered = property_names.display(&source).to_string();
+        assert!(rendered.contains("object_propvalues"));
+        assert!(rendered.contains("context"));
+        assert!(rendered.contains(&uuid.to_string()));
+
+        let renamed = PropDef::new(uuid, object, object, Symbol::mk("history"));
+        property_names.apply(vec![PropertyDefinitionChange::Upsert(renamed)]);
+        let rendered = property_names.display(&source).to_string();
+        assert!(rendered.contains("history"));
+        assert!(!rendered.contains("context"));
+
+        property_names.apply(vec![PropertyDefinitionChange::Remove(uuid)]);
+        let rendered = property_names.display(&source).to_string();
+        assert!(!rendered.contains("context"));
+        assert!(rendered.contains(&uuid.to_string()));
     }
 
     #[test]
@@ -643,7 +841,7 @@ mod tests {
     struct FailingValue;
 
     impl BatchValue for FailingValue {
-        fn encode(&self) -> Result<Vec<u8>, Error> {
+        fn encode(self: Box<Self>, _timestamp: Timestamp) -> Result<fjall::Slice, Error> {
             Err(Error::EncodingFailure)
         }
     }
@@ -656,7 +854,7 @@ mod tests {
             .unwrap();
         let writer = BatchWriter::new(database);
         let mut batch = CommitBatch::with_capacity(2, Timestamp(2), 1);
-        batch.insert(partition.clone(), b"key".to_vec(), Arc::new(FailingValue));
+        batch.insert(partition.clone(), b"key".to_vec(), Box::new(FailingValue));
 
         writer.write(batch).unwrap();
 

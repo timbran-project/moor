@@ -41,19 +41,20 @@ use moor_common::model::loader::SnapshotInterface;
 use moor_common::util::CachePadded;
 use moor_common::util::Instant;
 use moor_common::{
-    model::{CommitResult, ObjFlag, PropDefs, PropPerms, VerbDefs},
+    model::{CommitResult, HasUuid, ObjFlag, PropDefs, PropPerms, ValSet, VerbDefs},
     util::BitEnum,
 };
-use moor_var::{Obj, Symbol, Var, program::ProgramType};
+use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicI64, AtomicU64},
+        atomic::{AtomicI64, AtomicU16, AtomicU64, Ordering},
     },
 };
 use tempfile::TempDir;
-use tracing::{error, info, warn};
+use tracing::{error, info};
+use uuid::Uuid;
 
 mod commit_pipeline;
 mod snapshot_planes;
@@ -75,6 +76,27 @@ define_relations! {
     entity_metadata => EntityMetadataKey, Var,
     object_last_move => Obj, Var,
     anonymous_object_metadata => Obj, AnonymousObjectMetadata,
+}
+
+impl WorldStateSnapshot {
+    /// Resolve a property name from the immutable indexes already owned by this snapshot.
+    pub(crate) fn property_name(&self, object: Obj, uuid: Uuid) -> Option<Symbol> {
+        let mut current = object;
+        for _ in 0..256 {
+            if let Some(entry) = self.object_propdefs.index_lookup(&current)
+                && let Some(definition) = entry.value.find_ref(&uuid)
+            {
+                return Some(definition.name());
+            }
+
+            let parent = self.object_parent.index_lookup(&current)?.value;
+            if parent == NOTHING || parent == current {
+                return None;
+            }
+            current = parent;
+        }
+        None
+    }
 }
 
 /// Transaction-scoped bundle of resolution caches.
@@ -114,13 +136,69 @@ impl Caches {
     }
 }
 
+const SEQUENCE_COUNT: usize = 15;
+const TUPLE_VALUE_FORMAT_KEY: &[u8] = b"__tuple_value_format__";
+const TUPLE_VALUE_FORMAT: &[u8] = b"timestamp-suffix-v1";
+
+pub(crate) struct SequenceState {
+    values: [CachePadded<AtomicI64>; SEQUENCE_COUNT],
+    dirty: AtomicU16,
+}
+
+impl SequenceState {
+    fn new() -> Self {
+        Self {
+            values: [(); SEQUENCE_COUNT].map(|_| CachePadded::new(AtomicI64::new(-1))),
+            dirty: AtomicU16::new(0),
+        }
+    }
+
+    fn set_initial(&self, sequence: usize, value: i64) {
+        self.values[sequence].store(value, Ordering::Relaxed);
+    }
+
+    pub(crate) fn load(&self, sequence: usize) -> i64 {
+        self.values[sequence].load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn increment(&self, sequence: usize) -> i64 {
+        let value = self.values[sequence].fetch_add(1, Ordering::Relaxed) + 1;
+        self.mark_dirty(sequence);
+        value
+    }
+
+    pub(crate) fn update_max(&self, sequence: usize, value: i64) -> i64 {
+        loop {
+            let current = self.values[sequence].load(Ordering::Relaxed);
+            if value <= current {
+                return current;
+            }
+            if self.values[sequence]
+                .compare_exchange(current, value, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                self.mark_dirty(sequence);
+                return current;
+            }
+        }
+    }
+
+    fn mark_dirty(&self, sequence: usize) {
+        self.dirty.fetch_or(1 << sequence, Ordering::Release);
+    }
+
+    fn claim_dirty(&self) -> u16 {
+        self.dirty.swap(0, Ordering::AcqRel)
+    }
+}
+
 /// Core storage engine for transactional world-state access.
 pub struct MoorDB {
     monotonic: CachePadded<AtomicU64>,
     keyspace: Database,
     relations: Relations,
     snapshot_planes: SnapshotPlanes,
-    sequences: Arc<[CachePadded<AtomicI64>; 16]>,
+    sequences: Arc<SequenceState>,
     sequences_partition: fjall::Keyspace,
     /// Single background writer for all fjall operations
     batch_writer: BatchWriter,
@@ -260,32 +338,42 @@ impl MoorDB {
                 detail: e.to_string(),
             })?;
 
-        let sequences = Arc::new([(); 16].map(|_| CachePadded::new(AtomicI64::new(-1))));
+        let sequences = Arc::new(SequenceState::new());
 
         let mut fresh = false;
         if !keyspace.keyspace_exists("object_location") {
             fresh = true;
         }
 
-        let stored_next_tx = sequences_partition
-            .get(15_u64.to_le_bytes())
-            .map_err(|e| DatabaseOpenError::ReadSequence {
-                path: path_buf.clone(),
-                index: 15,
-                detail: e.to_string(),
-            })?
-            .map(|b| {
-                b.get(..8)
-                    .and_then(|bytes| bytes.try_into().ok())
-                    .map(u64::from_le_bytes)
-                    .ok_or_else(|| DatabaseOpenError::DecodeSequence {
+        if fresh {
+            sequences_partition
+                .insert(TUPLE_VALUE_FORMAT_KEY, TUPLE_VALUE_FORMAT)
+                .map_err(|error| DatabaseOpenError::TupleValueFormat {
+                    path: path_buf.clone(),
+                    detail: format!("failed to write format marker: {error}"),
+                })?;
+        } else {
+            let stored_format =
+                sequences_partition
+                    .get(TUPLE_VALUE_FORMAT_KEY)
+                    .map_err(|error| DatabaseOpenError::TupleValueFormat {
                         path: path_buf.clone(),
-                        index: 15,
-                        len: b.len(),
-                    })
-            })
-            .transpose()?
-            .unwrap_or(1);
+                        detail: format!("failed to read format marker: {error}"),
+                    })?;
+            if stored_format.as_deref() != Some(TUPLE_VALUE_FORMAT) {
+                let found = stored_format
+                    .as_deref()
+                    .map(String::from_utf8_lossy)
+                    .map_or_else(|| "missing".to_string(), |value| value.into_owned());
+                return Err(DatabaseOpenError::TupleValueFormat {
+                    path: path_buf,
+                    detail: format!(
+                        "expected {}, found {found}",
+                        String::from_utf8_lossy(TUPLE_VALUE_FORMAT)
+                    ),
+                });
+            }
+        }
 
         if fresh {
             // Fresh database - mark it with the current version
@@ -298,7 +386,7 @@ impl MoorDB {
                 })?;
         } else {
             // Load sequences from existing database
-            for (i, seq) in sequences.iter().enumerate() {
+            for i in 0..SEQUENCE_COUNT {
                 let seq_value = sequences_partition
                     .get(i.to_le_bytes())
                     .map_err(|e| DatabaseOpenError::ReadSequence {
@@ -318,31 +406,29 @@ impl MoorDB {
                     })
                     .transpose()?
                     .unwrap_or(-1);
-                seq.store(seq_value, std::sync::atomic::Ordering::SeqCst);
+                sequences.set_initial(i, seq_value);
             }
         }
-
-        let batch_writer = BatchWriter::new(keyspace.clone());
 
         let relations = Relations::init(&keyspace, &config, &path_buf)?;
-        let (mut initial_root, max_persisted_ts) =
+        let initial_root =
             relations.snapshot(0, Timestamp(0), Arc::new(Caches::new()), &path_buf)?;
-        let next_persisted_tx = max_persisted_ts.0.checked_add(1).ok_or_else(|| {
-            DatabaseOpenError::TransactionTimestampExhausted {
+        let start_tx_num = initial_root
+            .committed_ts
+            .0
+            .checked_add(1)
+            .ok_or_else(|| DatabaseOpenError::TransactionTimestampExhausted {
                 path: path_buf.clone(),
-            }
-        })?;
-        let start_tx_num = stored_next_tx.max(next_persisted_tx).max(1);
-        initial_root.committed_ts = Timestamp(start_tx_num - 1);
-        if start_tx_num > stored_next_tx {
-            warn!(
-                stored_next_tx,
-                max_persisted_timestamp = max_persisted_ts.0,
-                recovered_next_tx = start_tx_num,
-                "Advancing stale transaction sequence from persisted relation timestamps"
-            );
-        }
+            })?
+            .max(1);
+        let property_names = initial_root
+            .object_propdefs
+            .iter()
+            .flat_map(|(_, entry)| entry.value.iter())
+            .map(|definition| (definition.uuid(), definition.name()))
+            .collect();
         let snapshot_planes = SnapshotPlanes::new(Arc::new(initial_root));
+        let batch_writer = BatchWriter::with_property_names(keyspace.clone(), property_names);
 
         let s = Arc::new(Self {
             monotonic: CachePadded::new(AtomicU64::new(start_tx_num)),
@@ -424,19 +510,33 @@ mod tests {
     use moor_common::{model::CommitResult, util::BitEnum};
     use moor_var::Obj;
 
-    fn overwrite_next_transaction(path: &Path, value: u64) {
-        let database = Database::builder(path).open().unwrap();
-        let sequences = database
-            .keyspace("sequences", KeyspaceCreateOptions::default)
-            .unwrap();
-        sequences
-            .insert(15_usize.to_le_bytes(), value.to_le_bytes())
-            .unwrap();
-        database.persist(PersistMode::SyncAll).unwrap();
+    #[test]
+    fn sequence_increment_returns_each_reserved_value_once() {
+        let sequences = Arc::new(SequenceState::new());
+        let mut threads = Vec::new();
+        for _ in 0..8 {
+            let sequences = sequences.clone();
+            threads.push(std::thread::spawn(move || {
+                (0..1_000)
+                    .map(|_| sequences.increment(SEQUENCE_MAX_OBJECT))
+                    .collect::<Vec<_>>()
+            }));
+        }
+
+        let mut values = threads
+            .into_iter()
+            .flat_map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>();
+        values.sort_unstable();
+        assert_eq!(values, (0..8_000).collect::<Vec<_>>());
+
+        let dirty = sequences.claim_dirty();
+        assert_ne!(dirty & (1 << SEQUENCE_MAX_OBJECT), 0);
+        assert_eq!(sequences.claim_dirty(), 0);
     }
 
     #[test]
-    fn reopen_repairs_stale_transaction_sequence_from_relation_timestamps() {
+    fn reopen_recovers_tuple_timestamps_before_starting_new_transactions() {
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path();
         let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
@@ -447,38 +547,52 @@ mod tests {
             drop(db.start_transaction());
         }
         let mut tx = db.start_transaction();
-        let persisted_timestamp = tx.tx.ts.0;
         tx.set_object_name(&Obj::mk_id(1), "persisted".to_string())
             .unwrap();
-        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        let CommitResult::Success {
+            timestamp: committed_timestamp,
+            ..
+        } = tx.commit().unwrap()
+        else {
+            panic!("write transaction did not commit");
+        };
         db.stop().unwrap();
         drop(db);
-
-        overwrite_next_transaction(path, 0);
 
         let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
             .unwrap()
             .0;
+        let root = reopened.snapshot_planes.load_root();
+        let entry = root.object_name.index_lookup(&Obj::mk_id(1)).unwrap();
+        assert_eq!(entry.ts, Timestamp(committed_timestamp));
+
         let tx = reopened.start_transaction();
-        assert_eq!(tx.tx.ts.0, persisted_timestamp + 1);
+        assert!(tx.tx.ts.0 > committed_timestamp);
     }
 
     #[test]
-    fn reopen_preserves_transaction_sequence_ahead_of_relation_timestamps() {
+    fn reopen_rejects_a_missing_tuple_value_format_marker() {
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path();
         let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
             .unwrap()
             .0;
+        db.stop().unwrap();
         drop(db);
 
-        overwrite_next_transaction(path, 100);
+        let database = Database::builder(path).open().unwrap();
+        let sequences = database
+            .keyspace("sequences", KeyspaceCreateOptions::default)
+            .unwrap();
+        sequences.remove(TUPLE_VALUE_FORMAT_KEY).unwrap();
+        database.persist(PersistMode::SyncAll).unwrap();
+        drop(sequences);
+        drop(database);
 
-        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
-            .unwrap()
-            .0;
-        let tx = reopened.start_transaction();
-        assert_eq!(tx.tx.ts.0, 100);
+        let Err(error) = MoorDB::try_open(Some(path), DatabaseConfig::default()) else {
+            panic!("database without a tuple value format marker was accepted");
+        };
+        assert!(matches!(error, DatabaseOpenError::TupleValueFormat { .. }));
     }
 
     #[test]
@@ -502,7 +616,10 @@ mod tests {
 
         let ws = ours.into_working_sets().unwrap();
         let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
-        let checkers = db.relations.begin_check_all(&checked);
+        let checkers = db.relations.begin_check_all(&checked, &relation_ws);
+        assert!(checkers.object_name.is_some());
+        assert!(checkers.object_flags.is_none());
+        assert!(checkers.object_propvalues.is_none());
         assert_eq!(
             checkers.rebase_check(&relation_ws, &checked, &winner),
             RebaseCheck::ExactlyDisjoint
@@ -524,7 +641,7 @@ mod tests {
 
         let ws = ours.into_working_sets().unwrap();
         let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
-        let checkers = db.relations.begin_check_all(&checked);
+        let checkers = db.relations.begin_check_all(&checked, &relation_ws);
         assert!(matches!(
             checkers.rebase_check(&relation_ws, &checked, &winner),
             RebaseCheck::ActualOverlap(_)

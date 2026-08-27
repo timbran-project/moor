@@ -26,13 +26,13 @@ use crate::tx::{
     CheckRelation, RelationIndex, RelationTransaction,
     indexes::{HashRelationIndex, SecondaryIndexRelation},
 };
+
+type SeededIndex<Domain, Codomain> = (Box<dyn RelationIndex<Domain, Codomain>>, Timestamp);
 #[cfg(test)]
 use arc_swap::ArcSwap;
 
 /// Represents the current "canonical" state of a relation.
 type IndexFactory<Domain, Codomain> = fn() -> Box<dyn RelationIndex<Domain, Codomain>>;
-type SeededIndex<Domain, Codomain> = (Box<dyn RelationIndex<Domain, Codomain>>, Timestamp);
-
 fn primary_index_factory<Domain, Codomain>() -> Box<dyn RelationIndex<Domain, Codomain>>
 where
     Domain: RelationDomain,
@@ -106,14 +106,15 @@ where
             .map(|(index, _)| index)
     }
 
-    /// Seed an index from the provider and report the newest persisted tuple timestamp.
-    pub fn seeded_index_with_max_timestamp(&self) -> Result<SeededIndex<Domain, Codomain>, Error> {
+    pub(crate) fn seeded_index_with_max_timestamp(
+        &self,
+    ) -> Result<SeededIndex<Domain, Codomain>, Error> {
         let mut index = (self.index_factory)();
         let tuples = self.source.scan(&|_, _| true)?;
         let mut max_timestamp = Timestamp(0);
-        for (ts, domain, codomain) in tuples {
-            max_timestamp = max_timestamp.max(ts);
-            index.insert_entry(ts, domain, codomain);
+        for (timestamp, domain, codomain) in tuples {
+            max_timestamp = max_timestamp.max(timestamp);
+            index.insert_entry(timestamp, domain, codomain);
         }
         index.set_provider_fully_loaded(true);
         Ok((index, max_timestamp))
@@ -130,6 +131,14 @@ where
             index.fork(),
             (*self.source).clone(),
         )
+    }
+
+    pub(crate) fn start_from_snapshot(
+        &self,
+        tx: &Tx,
+        index: Arc<dyn RelationIndex<Domain, Codomain>>,
+    ) -> RelationTransaction<Domain, Codomain, Source> {
+        RelationTransaction::new_shared(*tx, self.relation_name, index, self.source.clone())
     }
 
     pub fn begin_check_from_index(

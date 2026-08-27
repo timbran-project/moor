@@ -19,12 +19,12 @@ mod relation;
 mod resolve;
 mod transaction;
 
-pub use apply::PersistOp;
 pub use check::{CheckRelation, PotentialConflict, ProposedOp};
 pub use commit_bloom::CommitBloom;
 pub use indexes::RelationIndex;
 pub use relation::Relation;
 pub use resolve::{AcceptIdentical, ConflictResolver, FailOnConflict, SmartMergeResolver};
+pub(crate) use transaction::OpType;
 pub use transaction::{RelationTransaction, WorkingSet};
 
 use std::fmt::{Debug, Display};
