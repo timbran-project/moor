@@ -30,8 +30,7 @@
 //!
 //! - **FlatBuffer types** (`ProgramType`, `Var`, `VerbDefs`, `PropDefs`): Uses FlatBuffers via
 //!   the `planus` crate for efficient schema-based serialization with forward/backward
-//!   compatibility. `Var` uses `var_to_db_flatbuffer` which allows lambdas and anonymous object
-//!   references for DB storage.
+//!   compatibility. `Var` is written directly from its borrowed representation.
 //!
 //! - **UTF-8 types** (`StringHolder`): Direct UTF-8 byte encoding without additional framing.
 //!
@@ -43,7 +42,7 @@
 
 use crate::{
     db_counters,
-    provider::batch_writer::BatchValue,
+    provider::batch_writer::{BatchEncoder, BatchValue},
     tx::{EncodeFor, Error, RelationCodomain, RelationDomain, Timestamp},
 };
 use byteview::ByteView;
@@ -94,7 +93,12 @@ where
 }
 
 pub(crate) trait EncodeFjallValue<T>: EncodeFor<T, Stored = ByteView> {
-    fn encode_fjall_value(&self, value: &T, timestamp: Timestamp) -> Result<Slice, Error>;
+    fn encode_fjall_value(
+        &self,
+        value: &T,
+        timestamp: Timestamp,
+        encoder: &mut BatchEncoder,
+    ) -> Result<Slice, Error>;
 }
 
 fn encode_flatbuffer<T>(root: impl WriteAsOffset<T>) -> ByteView {
@@ -121,8 +125,12 @@ where
     Codomain: RelationCodomain,
     FjallCodec: EncodeFjallValue<Codomain>,
 {
-    fn encode(self: Box<Self>, timestamp: Timestamp) -> Result<Slice, Error> {
-        FjallCodec.encode_fjall_value(&self.codomain, timestamp)
+    fn encode(
+        self: Box<Self>,
+        timestamp: Timestamp,
+        encoder: &mut BatchEncoder,
+    ) -> Result<Slice, Error> {
+        FjallCodec.encode_fjall_value(&self.codomain, timestamp, encoder)
     }
 }
 
@@ -238,7 +246,7 @@ where
 
     fn put(&self, timestamp: Timestamp, domain: &Domain, codomain: &Codomain) -> Result<(), Error> {
         let key_bytes = <Self as EncodeFor<Domain>>::encode(self, domain)?;
-        let value = FjallCodec.encode_fjall_value(codomain, timestamp)?;
+        let value = FjallCodec.encode_fjall_value(codomain, timestamp, &mut BatchEncoder::new())?;
         self.fjall_keyspace
             .insert(key_bytes, value)
             .map_err(|error| Error::StorageFailure(error.to_string()))
@@ -301,7 +309,7 @@ use moor_common::{
     model::{ObjFlag, ObjSet, PropDefs, PropPerms, VerbDefs},
     util::BitEnum,
 };
-use moor_schema::convert::{stored_to_program, var_from_db_flatbuffer_ref, var_to_db_flatbuffer};
+use moor_schema::convert::{encode_db_var, stored_to_program, var_from_db_flatbuffer_ref};
 use moor_schema::convert_program::encode_program_to_fb;
 use moor_var::{Obj, Var, program::ProgramType};
 // Per-type encoding implementations
@@ -369,10 +377,9 @@ impl EncodeFor<Var> for FjallCodec {
     type Stored = ByteView;
 
     fn encode(&self, value: &Var) -> Result<Self::Stored, Error> {
-        // Convert to FlatBuffer struct
-        let fb_var = var_to_db_flatbuffer(value).map_err(|_| Error::EncodingFailure)?;
-
-        Ok(encode_flatbuffer(fb_var))
+        let mut builder = planus::Builder::new();
+        let encoded = encode_db_var(&mut builder, value).map_err(|_| Error::EncodingFailure)?;
+        Ok(ByteView::from(encoded))
     }
 
     fn decode(&self, stored: Self::Stored) -> Result<Var, Error> {
@@ -491,6 +498,7 @@ macro_rules! impl_fjall_value_from_bytes {
                 &self,
                 value: &$type,
                 timestamp: Timestamp,
+                _encoder: &mut BatchEncoder,
             ) -> Result<Slice, Error> {
                 use zerocopy::IntoBytes;
                 Ok(frame_value(IntoBytes::as_bytes(value), timestamp))
@@ -506,6 +514,7 @@ macro_rules! impl_fjall_value_from_byteview {
                 &self,
                 value: &$type,
                 timestamp: Timestamp,
+                _encoder: &mut BatchEncoder,
             ) -> Result<Slice, Error> {
                 Ok(frame_value(AsRef::<ByteView>::as_ref(value), timestamp))
             }
@@ -524,20 +533,32 @@ impl EncodeFjallValue<StringHolder> for FjallCodec {
         &self,
         value: &StringHolder,
         timestamp: Timestamp,
+        _encoder: &mut BatchEncoder,
     ) -> Result<Slice, Error> {
         Ok(frame_value(value.0.as_bytes(), timestamp))
     }
 }
 
 impl EncodeFjallValue<Var> for FjallCodec {
-    fn encode_fjall_value(&self, value: &Var, timestamp: Timestamp) -> Result<Slice, Error> {
-        let fb_var = var_to_db_flatbuffer(value).map_err(|_| Error::EncodingFailure)?;
-        Ok(frame_flatbuffer(fb_var, timestamp))
+    fn encode_fjall_value(
+        &self,
+        value: &Var,
+        timestamp: Timestamp,
+        encoder: &mut BatchEncoder,
+    ) -> Result<Slice, Error> {
+        let encoded =
+            encode_db_var(encoder.var_builder(), value).map_err(|_| Error::EncodingFailure)?;
+        Ok(frame_value(encoded, timestamp))
     }
 }
 
 impl EncodeFjallValue<VerbDefs> for FjallCodec {
-    fn encode_fjall_value(&self, value: &VerbDefs, timestamp: Timestamp) -> Result<Slice, Error> {
+    fn encode_fjall_value(
+        &self,
+        value: &VerbDefs,
+        timestamp: Timestamp,
+        _encoder: &mut BatchEncoder,
+    ) -> Result<Slice, Error> {
         let fb_verbdefs = moor_schema::convert::verbdefs_to_flatbuffer(value)
             .map_err(|_| Error::EncodingFailure)?;
         Ok(frame_flatbuffer(fb_verbdefs, timestamp))
@@ -545,7 +566,12 @@ impl EncodeFjallValue<VerbDefs> for FjallCodec {
 }
 
 impl EncodeFjallValue<PropDefs> for FjallCodec {
-    fn encode_fjall_value(&self, value: &PropDefs, timestamp: Timestamp) -> Result<Slice, Error> {
+    fn encode_fjall_value(
+        &self,
+        value: &PropDefs,
+        timestamp: Timestamp,
+        _encoder: &mut BatchEncoder,
+    ) -> Result<Slice, Error> {
         let fb_propdefs = moor_schema::convert::propdefs_to_flatbuffer(value)
             .map_err(|_| Error::EncodingFailure)?;
         Ok(frame_flatbuffer(fb_propdefs, timestamp))
@@ -557,6 +583,7 @@ impl EncodeFjallValue<ProgramType> for FjallCodec {
         &self,
         program: &ProgramType,
         timestamp: Timestamp,
+        _encoder: &mut BatchEncoder,
     ) -> Result<Slice, Error> {
         match program {
             ProgramType::MooR(program) => {

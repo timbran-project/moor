@@ -812,6 +812,8 @@ pub enum WorldStateTimerOp {
     ProviderTupleCheck,
     ProviderPendingOpsReadLockWait,
     ProviderPendingOpsWriteLockWait,
+    BatchWriterEncode,
+    BatchWriterCommit,
     BatchWriterBackpressureBlock,
 }
 
