@@ -375,11 +375,11 @@ impl BatchWriter {
         for index in 0..encoder_count {
             let receiver = encoder_receiver.clone();
             let sender = sender.clone();
-            let handle = moor_common::threading::spawn_perf(
-                format!("moor-db-enc-{index}"),
-                move || Self::encoder_loop(receiver, sender),
-            )
-            .expect("failed to spawn batch encoder thread");
+            let handle =
+                moor_common::threading::spawn_perf(format!("moor-db-enc-{index}"), move || {
+                    Self::encoder_loop(receiver, sender)
+                })
+                .expect("failed to spawn batch encoder thread");
             encoder_handles.push(handle);
         }
 
