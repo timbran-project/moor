@@ -15,7 +15,7 @@
 
 use crate::{convert_common, convert_errors, program as fb_program, var};
 use moor_var::{
-    Var, Variant,
+    Associative, Var, Variant,
     program::{
         names::Name,
         opcode::{ScatterArgs, ScatterLabel},
@@ -24,6 +24,7 @@ use moor_var::{
     v_binary, v_bool, v_empty_list, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_none,
     v_obj, v_str, v_sym,
 };
+use planus::{Builder, Offset, WriteAsOffset};
 use thiserror::Error;
 use var::{VarUnion, VarUnionRef};
 
@@ -225,6 +226,85 @@ pub enum ConversionContext {
     Database, // Allow everything
 }
 
+/// Serialize a database `Var` directly into a Planus builder.
+///
+/// The returned bytes borrow the builder. This path avoids constructing the owned generated
+/// schema tree and borrows strings and byte arrays directly from the source `Var`.
+pub fn encode_db_var<'a>(
+    builder: &'a mut Builder,
+    value: &Var,
+) -> Result<&'a [u8], VarConversionError> {
+    builder.clear();
+    let root = prepare_var(builder, value, ConversionContext::Database)?;
+    Ok(builder.finish(root, None))
+}
+
+fn prepare_var(
+    builder: &mut Builder,
+    value: &Var,
+    context: ConversionContext,
+) -> Result<Offset<var::Var>, VarConversionError> {
+    let variant = match value.variant() {
+        Variant::None => {
+            let value = var::VarNone::create(builder);
+            VarUnion::create_var_none(builder, value)
+        }
+        Variant::Bool(value) => {
+            let value = var::VarBool::create(builder, value);
+            VarUnion::create_var_bool(builder, value)
+        }
+        Variant::Int(value) => {
+            let value = var::VarInt::create(builder, value);
+            VarUnion::create_var_int(builder, value)
+        }
+        Variant::Float(value) => {
+            let value = var::VarFloat::create(builder, value);
+            VarUnion::create_var_float(builder, value)
+        }
+        Variant::Str(value) => {
+            let value = var::VarStr::create(builder, value.as_str());
+            VarUnion::create_var_str(builder, value)
+        }
+        Variant::Obj(value) => {
+            let value = convert_common::obj_to_flatbuffer_struct(&value);
+            let value = var::VarObj::create(builder, value);
+            VarUnion::create_var_obj(builder, value)
+        }
+        Variant::Sym(value) => {
+            let value = convert_common::symbol_to_flatbuffer_struct(&value);
+            let value = var::VarSym::create(builder, value);
+            VarUnion::create_var_sym(builder, value)
+        }
+        Variant::Binary(value) => {
+            let value = var::VarBinary::create(builder, value.as_bytes());
+            VarUnion::create_var_binary(builder, value)
+        }
+        Variant::List(value) => {
+            let mut elements = Vec::with_capacity(value.len());
+            for element in value.iter_ref() {
+                elements.push(prepare_var(builder, element, context)?);
+            }
+            let value = var::VarList::create(builder, elements);
+            VarUnion::create_var_list(builder, value)
+        }
+        Variant::Map(value) => {
+            let mut pairs = Vec::with_capacity(value.len());
+            for (key, value) in value.iter_ref() {
+                let key = prepare_var(builder, key, context)?;
+                let value = prepare_var(builder, value, context)?;
+                pairs.push(var::VarMapPair::create(builder, key, value));
+            }
+            let value = var::VarMap::create(builder, pairs);
+            VarUnion::create_var_map(builder, value)
+        }
+        Variant::Err(_) | Variant::Flyweight(_) | Variant::Lambda(_) => {
+            return var_to_flatbuffer_internal(value, context).map(|value| value.prepare(builder));
+        }
+    };
+
+    Ok(var::Var::create(builder, variant))
+}
+
 // ============================================================================
 // Main conversion functions
 // ============================================================================
@@ -292,8 +372,8 @@ pub fn var_to_flatbuffer_internal(
 
         Variant::List(l) => {
             let elements: Result<Vec<_>, _> = l
-                .iter()
-                .map(|elem| var_to_flatbuffer_internal(&elem, context))
+                .iter_ref()
+                .map(|elem| var_to_flatbuffer_internal(elem, context))
                 .collect();
             VarUnion::VarList(Box::new(var::VarList {
                 elements: elements?,
@@ -302,11 +382,11 @@ pub fn var_to_flatbuffer_internal(
 
         Variant::Map(m) => {
             let pairs: Result<Vec<_>, _> = m
-                .iter()
+                .iter_ref()
                 .map(|(k, v)| {
                     Ok(var::VarMapPair {
-                        key: Box::new(var_to_flatbuffer_internal(&k, context)?),
-                        value: Box::new(var_to_flatbuffer_internal(&v, context)?),
+                        key: Box::new(var_to_flatbuffer_internal(k, context)?),
+                        value: Box::new(var_to_flatbuffer_internal(v, context)?),
                     })
                 })
                 .collect();
@@ -327,8 +407,8 @@ pub fn var_to_flatbuffer_internal(
 
             let contents_elements: Result<Vec<_>, _> = f
                 .contents()
-                .iter()
-                .map(|elem| var_to_flatbuffer_internal(&elem, context))
+                .iter_ref()
+                .map(|elem| var_to_flatbuffer_internal(elem, context))
                 .collect();
 
             VarUnion::VarFlyweight(Box::new(var::VarFlyweight {
@@ -611,7 +691,10 @@ fn var_from_flatbuffer_ref_internal(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_var::{Obj, v_obj};
+    use moor_var::{
+        Obj, Symbol, v_binary, v_bool, v_float, v_int, v_list, v_map, v_none, v_obj, v_str, v_sym,
+    };
+    use planus::ReadAsRoot;
 
     #[test]
     fn test_lambda_rejected() {
@@ -634,5 +717,27 @@ mod tests {
         // DB should also accept (for completeness of round-trip)
         let db_fb = var_to_db_flatbuffer(&var).expect("DB serialization should succeed");
         assert!(matches!(db_fb.variant, var::VarUnion::VarObj(_)));
+    }
+
+    #[test]
+    fn direct_db_encoding_round_trips_common_values() {
+        let nested = v_list(&[
+            v_none(),
+            v_bool(true),
+            v_int(-42),
+            v_float(1.25),
+            v_str("large string history"),
+            v_obj(Obj::mk_id(7)),
+            v_sym(Symbol::mk("property")),
+            v_binary(vec![0, 1, 2, 255]),
+            v_map(&[(v_str("key"), v_list(&[v_int(1), v_int(2)]))]),
+        ]);
+
+        let mut builder = Builder::new();
+        let encoded = encode_db_var(&mut builder, &nested).unwrap();
+        let root = var::VarRef::read_as_root(encoded).unwrap();
+        let decoded = var_from_db_flatbuffer_ref(root).unwrap();
+
+        assert_eq!(decoded, nested);
     }
 }

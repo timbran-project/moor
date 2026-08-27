@@ -1865,10 +1865,10 @@ impl PartialOrd for Var {
 impl ByteSized for Var {
     fn size_bytes(&self) -> usize {
         match self.variant() {
-            Variant::List(l) => l.iter().map(|e| e.size_bytes()).sum::<usize>(),
+            Variant::List(l) => l.iter_ref().map(ByteSized::size_bytes).sum::<usize>(),
             Variant::Str(s) => s.as_str().len(),
             Variant::Map(m) => m
-                .iter()
+                .iter_ref()
                 .map(|(k, v)| k.size_bytes() + v.size_bytes())
                 .sum::<usize>(),
             Variant::Err(e) => {
@@ -1878,7 +1878,10 @@ impl ByteSized for Var {
             }
             Variant::Flyweight(f) => {
                 size_of::<Obj>()
-                    + f.contents().iter().map(|e| e.size_bytes()).sum::<usize>()
+                    + f.contents()
+                        .iter_ref()
+                        .map(ByteSized::size_bytes)
+                        .sum::<usize>()
                     + f.slots_storage()
                         .iter()
                         .map(|(_, v)| size_of::<Symbol>() + v.size_bytes())

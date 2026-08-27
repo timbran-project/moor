@@ -10,6 +10,14 @@ repository.workspace = true
 rust-version.workspace = true
 description = "FlatBuffer entities used for RPC and persistence, and conversions to/from"
 
+[dev-dependencies]
+micromeasure.workspace = true
+
+[target.'cfg(all(target_os = "linux"))']
+[[bench]]
+name = "var_encode_benches"
+harness = false
+
 [dependencies]
 # Internal Dependencies
 moor-common = { path = "../common" }

@@ -141,15 +141,40 @@ pub enum BatchOpType {
     },
 }
 
+/// Reusable serialization state owned by an encoding worker.
+pub struct BatchEncoder {
+    var_builder: planus::Builder,
+}
+
+impl BatchEncoder {
+    pub(crate) fn new() -> Self {
+        Self {
+            var_builder: planus::Builder::new(),
+        }
+    }
+
+    pub(crate) fn var_builder(&mut self) -> &mut planus::Builder {
+        &mut self.var_builder
+    }
+}
+
 /// Value hook used by the writer thread to produce serialized bytes.
 pub trait BatchValue: Send {
-    fn encode(self: Box<Self>, timestamp: Timestamp) -> Result<fjall::Slice, Error>;
+    fn encode(
+        self: Box<Self>,
+        timestamp: Timestamp,
+        encoder: &mut BatchEncoder,
+    ) -> Result<fjall::Slice, Error>;
 }
 
 struct EncodedBatchValue(fjall::Slice);
 
 impl BatchValue for EncodedBatchValue {
-    fn encode(self: Box<Self>, _timestamp: Timestamp) -> Result<fjall::Slice, Error> {
+    fn encode(
+        self: Box<Self>,
+        _timestamp: Timestamp,
+        _encoder: &mut BatchEncoder,
+    ) -> Result<fjall::Slice, Error> {
         Ok(self.0)
     }
 }
@@ -161,6 +186,40 @@ pub struct CommitBatch {
     pub timestamp: Timestamp,
     pub operations: Vec<BatchOp>,
     property_definition_changes: Box<[PropertyDefinitionChange]>,
+}
+
+struct EncodedBatchOp {
+    partition: fjall::Keyspace,
+    op_type: EncodedBatchOpType,
+}
+
+enum EncodedBatchOpType {
+    Insert {
+        key: fjall::Slice,
+        value: fjall::Slice,
+    },
+    Delete {
+        key: fjall::Slice,
+    },
+}
+
+struct EncodingStats {
+    elapsed: Duration,
+    encoded_bytes: usize,
+    slowest: Option<(BatchOpSource, Duration, usize)>,
+}
+
+struct EncodedCommitBatch {
+    version: u64,
+    timestamp: Timestamp,
+    operations: Vec<EncodedBatchOp>,
+    property_definition_changes: Box<[PropertyDefinitionChange]>,
+    encoding: EncodingStats,
+}
+
+struct EncodedBatchResult {
+    version: u64,
+    result: Result<EncodedCommitBatch, String>,
 }
 
 impl CommitBatch {
@@ -219,7 +278,7 @@ impl CommitBatch {
 /// Message sent to the writer thread.
 enum WriterMsg {
     /// Persist one complete published transaction.
-    Commit(CommitBatch),
+    Commit(EncodedBatchResult),
     /// Confirm that Fjall has committed through this publication version.
     Barrier {
         through_version: u64,
@@ -232,10 +291,18 @@ enum WriterMsg {
     },
 }
 
+enum EncoderMsg {
+    Commit(CommitBatch),
+    Stop,
+}
+
 const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(10);
+const ENCODE_QUEUE_CAPACITY: usize = 1000;
+const WRITER_QUEUE_CAPACITY: usize = 64;
+const MAX_ENCODER_THREADS: usize = 8;
 
 struct WriterState {
-    waiting_batches: BTreeMap<u64, CommitBatch>,
+    waiting_batches: BTreeMap<u64, Result<EncodedCommitBatch, String>>,
     barrier_waiters: Vec<(u64, oneshot::Sender<Result<(), String>>)>,
     snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
@@ -253,9 +320,11 @@ impl WriterState {
         }
     }
 
-    fn add_batch(&mut self, batch: CommitBatch) -> Result<(), String> {
+    fn add_batch(&mut self, batch: EncodedBatchResult) -> Result<(), String> {
         let version = batch.version;
-        if version < self.next_version || self.waiting_batches.insert(version, batch).is_some() {
+        if version < self.next_version
+            || self.waiting_batches.insert(version, batch.result).is_some()
+        {
             return Err(format!("duplicate persistence batch for version {version}"));
         }
         Ok(())
@@ -265,9 +334,11 @@ impl WriterState {
 /// Background writer that commits published transactions to Fjall in version order.
 pub struct BatchWriter {
     sender: Sender<WriterMsg>,
+    encoder_sender: Sender<EncoderMsg>,
     kill_switch: Arc<AtomicBool>,
     completed_version: Arc<AtomicU64>,
     join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
+    encoder_handles: Mutex<Vec<JoinHandle<Result<(), String>>>>,
 }
 
 // If batch writes take longer than this, give a friendly warning to alert the user that something
@@ -287,7 +358,9 @@ impl BatchWriter {
     ) -> Self {
         let kill_switch = Arc::new(AtomicBool::new(false));
         let completed_version = Arc::new(AtomicU64::new(0));
-        let (sender, receiver) = flume::bounded::<WriterMsg>(1000);
+        let (sender, receiver) = flume::bounded::<WriterMsg>(WRITER_QUEUE_CAPACITY);
+        let (encoder_sender, encoder_receiver) =
+            flume::bounded::<EncoderMsg>(ENCODE_QUEUE_CAPACITY);
 
         let ks = kill_switch.clone();
         let completed = completed_version.clone();
@@ -297,11 +370,52 @@ impl BatchWriter {
         })
         .expect("failed to spawn batch writer thread");
 
+        let encoder_count = Self::encoder_thread_count();
+        let mut encoder_handles = Vec::with_capacity(encoder_count);
+        for index in 0..encoder_count {
+            let receiver = encoder_receiver.clone();
+            let sender = sender.clone();
+            let handle = moor_common::threading::spawn_perf(
+                format!("moor-db-enc-{index}"),
+                move || Self::encoder_loop(receiver, sender),
+            )
+            .expect("failed to spawn batch encoder thread");
+            encoder_handles.push(handle);
+        }
+
         Self {
             sender,
+            encoder_sender,
             kill_switch,
             completed_version,
             join_handle: Mutex::new(Some(join_handle)),
+            encoder_handles: Mutex::new(encoder_handles),
+        }
+    }
+
+    fn encoder_thread_count() -> usize {
+        std::thread::available_parallelism()
+            .map(|cores| cores.get().div_ceil(8).clamp(1, MAX_ENCODER_THREADS))
+            .unwrap_or(1)
+    }
+
+    fn encoder_loop(
+        receiver: Receiver<EncoderMsg>,
+        sender: Sender<WriterMsg>,
+    ) -> Result<(), String> {
+        let mut encoder = BatchEncoder::new();
+        loop {
+            let msg = receiver
+                .recv()
+                .map_err(|_| "batch encoder channel disconnected".to_string())?;
+            let EncoderMsg::Commit(batch) = msg else {
+                return Ok(());
+            };
+
+            let encoded = Self::encode_batch(batch, &mut encoder);
+            sender
+                .send(WriterMsg::Commit(encoded))
+                .map_err(|_| "batch writer channel disconnected".to_string())?;
         }
     }
 
@@ -419,6 +533,13 @@ impl BatchWriter {
         completed_version: &AtomicU64,
     ) -> Result<(), String> {
         while let Some(batch) = state.waiting_batches.remove(&state.next_version) {
+            let batch = match batch {
+                Ok(batch) => batch,
+                Err(error) => {
+                    Self::fail_waiters(state, &error);
+                    return Err(error);
+                }
+            };
             let version = batch.version;
             if let Err(error) = Self::commit_batch(db, batch, &mut state.property_names) {
                 Self::fail_waiters(state, &error);
@@ -433,55 +554,99 @@ impl BatchWriter {
         Ok(())
     }
 
+    fn encode_batch(batch: CommitBatch, encoder: &mut BatchEncoder) -> EncodedBatchResult {
+        let version = batch.version;
+        let result = (|| {
+            let CommitBatch {
+                version,
+                timestamp,
+                operations,
+                property_definition_changes,
+            } = batch;
+            let start = Instant::now();
+            let mut encoded_bytes = 0usize;
+            let mut slowest = None;
+            let mut encoded_operations = Vec::with_capacity(operations.len());
+
+            for op in operations {
+                let BatchOp {
+                    partition,
+                    op_type,
+                    source,
+                } = op;
+                let op_type = match op_type {
+                    BatchOpType::Insert { key, value } => {
+                        let op_start = Instant::now();
+                        let value = value
+                            .encode(timestamp, encoder)
+                            .map_err(|error| format!("failed to encode batch value: {error}"))?;
+                        let elapsed = op_start.elapsed();
+                        let bytes = key.len() + value.len();
+                        encoded_bytes += bytes;
+                        if slowest
+                            .as_ref()
+                            .is_none_or(|(_, slowest_elapsed, _)| elapsed > *slowest_elapsed)
+                        {
+                            slowest = Some((source, elapsed, bytes));
+                        }
+                        EncodedBatchOpType::Insert { key, value }
+                    }
+                    BatchOpType::Delete { key } => {
+                        encoded_bytes += key.len();
+                        EncodedBatchOpType::Delete { key }
+                    }
+                };
+                encoded_operations.push(EncodedBatchOp { partition, op_type });
+            }
+
+            let elapsed = start.elapsed();
+            db_counters()
+                .timers_rare
+                .record_elapsed(WorldStateTimerOp::BatchWriterEncode, elapsed);
+
+            Ok(EncodedCommitBatch {
+                version,
+                timestamp,
+                operations: encoded_operations,
+                property_definition_changes,
+                encoding: EncodingStats {
+                    elapsed,
+                    encoded_bytes,
+                    slowest,
+                },
+            })
+        })();
+
+        EncodedBatchResult { version, result }
+    }
+
     fn commit_batch(
         db: &fjall::Database,
-        batch: CommitBatch,
+        batch: EncodedCommitBatch,
         property_names: &mut PropertyNames,
     ) -> Result<(), String> {
-        let start = Instant::now();
-        let CommitBatch {
+        let EncodedCommitBatch {
             version,
             timestamp,
             operations,
             property_definition_changes,
+            encoding,
         } = batch;
         let transaction = timestamp.0;
         let op_count = operations.len();
-        let encode_start = Instant::now();
-        let mut encoded_bytes = 0usize;
-        let mut slowest_encoding = None;
         let mut write_batch = db.batch();
 
         for op in operations {
-            let BatchOp {
-                partition,
-                op_type,
-                source,
-            } = op;
+            let EncodedBatchOp { partition, op_type } = op;
             match op_type {
-                BatchOpType::Insert { key, value } => {
-                    let op_encode_start = Instant::now();
-                    let encoded = value
-                        .encode(timestamp)
-                        .map_err(|error| format!("failed to encode batch value: {error}"))?;
-                    let op_encode_elapsed = op_encode_start.elapsed();
-                    let op_encoded_bytes = key.len() + encoded.len();
-                    encoded_bytes += op_encoded_bytes;
-                    if slowest_encoding
-                        .as_ref()
-                        .is_none_or(|(_, elapsed, _)| op_encode_elapsed > *elapsed)
-                    {
-                        slowest_encoding = Some((source, op_encode_elapsed, op_encoded_bytes));
-                    }
-                    write_batch.insert(&partition, key, encoded);
+                EncodedBatchOpType::Insert { key, value } => {
+                    write_batch.insert(&partition, key, value);
                 }
-                BatchOpType::Delete { key } => {
-                    encoded_bytes += key.len();
+                EncodedBatchOpType::Delete { key } => {
                     write_batch.remove(&partition, key);
                 }
             }
         }
-        let encode_elapsed = encode_start.elapsed();
 
         let outstanding_flushes_before = db.outstanding_flushes();
         let active_compactions_before = db.active_compactions();
@@ -490,20 +655,22 @@ impl BatchWriter {
             .commit()
             .map_err(|error| format!("failed to commit Fjall write batch: {error}"))?;
         let commit_elapsed = commit_start.elapsed();
+        db_counters()
+            .timers_rare
+            .record_elapsed(WorldStateTimerOp::BatchWriterCommit, commit_elapsed);
         property_names.apply(property_definition_changes);
 
-        let elapsed = start.elapsed();
-        if encode_elapsed > ENCODE_WARNING_DURATION
+        if encoding.elapsed > ENCODE_WARNING_DURATION
             && let Some((slowest_target, slowest_encode_elapsed, slowest_encoded_bytes)) =
-                slowest_encoding
+                encoding.slowest
         {
             let slowest_target = property_names.display(&slowest_target);
             warn!(
                 op_count,
-                encoded_bytes,
+                encoded_bytes = encoding.encoded_bytes,
                 version,
                 transaction,
-                ?encode_elapsed,
+                encode_elapsed = ?encoding.elapsed,
                 ?commit_elapsed,
                 slowest_target = %slowest_target,
                 ?slowest_encode_elapsed,
@@ -514,13 +681,13 @@ impl BatchWriter {
                 active_compactions_after = db.active_compactions(),
                 "Slow batch encoding. This value used the most encoding time. Split large property values across properties."
             );
-        } else if elapsed > WRITE_WARNING_DURATION {
+        } else if commit_elapsed > WRITE_WARNING_DURATION {
             warn!(
                 op_count,
-                encoded_bytes,
+                encoded_bytes = encoding.encoded_bytes,
                 version,
                 transaction,
-                ?encode_elapsed,
+                encode_elapsed = ?encoding.elapsed,
                 ?commit_elapsed,
                 outstanding_flushes_before,
                 outstanding_flushes_after = db.outstanding_flushes(),
@@ -573,22 +740,22 @@ impl BatchWriter {
         let version = batch.version;
         let ts = batch.timestamp;
         let op_count = batch.operations.len();
-        let msg = WriterMsg::Commit(batch);
+        let msg = EncoderMsg::Commit(batch);
 
-        match self.sender.try_send(msg) {
+        match self.encoder_sender.try_send(msg) {
             Ok(()) => Ok(()),
             Err(flume::TrySendError::Full(msg)) => {
                 db_counters()
                     .counters
                     .inc(WorldStateCountOp::BatchWriterBackpressure);
                 trace!(
-                    "BatchWriter backpressure: queue full, blocking on version {} / transaction {} ({} ops)",
+                    "BatchWriter backpressure: encoding queue full, blocking on version {} / transaction {} ({} ops)",
                     version, ts.0, op_count
                 );
                 let start = MonoTimestamp::now();
-                self.sender
+                self.encoder_sender
                     .send(msg)
-                    .map_err(|_| "batch writer channel disconnected".to_string())?;
+                    .map_err(|_| "batch encoder channel disconnected".to_string())?;
                 let elapsed = start.elapsed();
                 db_counters().timers_rare.record_elapsed(
                     WorldStateTimerOp::BatchWriterBackpressureBlock,
@@ -596,14 +763,14 @@ impl BatchWriter {
                 );
                 if elapsed > Duration::from_secs(1) {
                     warn!(
-                        "BatchWriter backpressure: blocked version {} / transaction {} for {:?}",
+                        "BatchWriter backpressure: encoding queue blocked version {} / transaction {} for {:?}",
                         version, ts.0, elapsed
                     );
                 }
                 Ok(())
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                Err("batch writer channel disconnected".to_string())
+                Err("batch encoder channel disconnected".to_string())
             }
         }
     }
@@ -649,15 +816,33 @@ impl BatchWriter {
     }
 
     pub fn stop(&self) -> Result<(), String> {
-        self.kill_switch.store(true, Ordering::SeqCst);
+        let mut encoder_error = None;
+        let mut encoder_handles = self.encoder_handles.lock();
+        for _ in 0..encoder_handles.len() {
+            self.encoder_sender.send(EncoderMsg::Stop).ok();
+        }
+        for handle in encoder_handles.drain(..) {
+            match handle.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    encoder_error.get_or_insert(error);
+                }
+                Err(_) => {
+                    encoder_error.get_or_insert("batch encoder thread panicked".to_string());
+                }
+            };
+        }
+        drop(encoder_handles);
 
+        self.kill_switch.store(true, Ordering::SeqCst);
         let mut jh = self.join_handle.lock();
         if let Some(handle) = jh.take() {
-            return handle
+            let writer_result = handle
                 .join()
                 .map_err(|_| "batch writer thread panicked".to_string())?;
+            writer_result?;
         }
-        Ok(())
+        encoder_error.map_or(Ok(()), Err)
     }
 }
 
@@ -841,7 +1026,11 @@ mod tests {
     struct FailingValue;
 
     impl BatchValue for FailingValue {
-        fn encode(self: Box<Self>, _timestamp: Timestamp) -> Result<fjall::Slice, Error> {
+        fn encode(
+            self: Box<Self>,
+            _timestamp: Timestamp,
+            _encoder: &mut BatchEncoder,
+        ) -> Result<fjall::Slice, Error> {
             Err(Error::EncodingFailure)
         }
     }
