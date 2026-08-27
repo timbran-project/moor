@@ -16,10 +16,13 @@ object BENCH_SUBSCRIBER [
   property fanout (owner: ARCH_WIZARD, flags: "rw") = 0;
   property fanout_cursor (owner: ARCH_WIZARD, flags: "rw") = 1;
   property fanout_direct_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
+  property history_entry (owner: ARCH_WIZARD, flags: "rw") = "";
+  property history_running (owner: ARCH_WIZARD, flags: "rw") = 0;
   property last_attacker (owner: ARCH_WIZARD, flags: "rw") = #-1;
   property mode (owner: ARCH_WIZARD, flags: "rw") = 0;
   property momentum (owner: ARCH_WIZARD, flags: "rw") = 50.0;
   property state_writes (owner: ARCH_WIZARD, flags: "rw") = 2;
+  property string_history (owner: ARCH_WIZARD, flags: "rw") = {};
   property work_iterations (owner: ARCH_WIZARD, flags: "rw") = 10;
 
   method fixed_update owner: ARCH_WIZARD
@@ -171,6 +174,33 @@ object BENCH_SUBSCRIBER [
     return 1;
   endmethod
 
+  method start_string_history_appends owner: ARCH_WIZARD
+    ":start_string_history_appends(INT append_count, NUM append_delay) => INT task_id";
+    {append_count, append_delay} = args;
+    fork history_task_id (0)
+      this:run_string_history_appends(append_count, append_delay);
+    endfork
+    return history_task_id;
+  endmethod
+
+  method run_string_history_appends owner: ARCH_WIZARD
+    ":run_string_history_appends(INT append_count, NUM append_delay) => NONE";
+    {append_count, append_delay} = args;
+    counter = this.counter;
+    try
+      for i in [1..append_count]
+        counter = counter + 1;
+        this.string_history = {@this.string_history, this.history_entry + ":" + tostr(counter)};
+        commit();
+        suspend(append_delay);
+      endfor
+    finally
+      this.counter = counter;
+      this.history_running = 0;
+      commit();
+    endtry
+  endmethod
+
   method reset owner: ARCH_WIZARD
     this.counter = 0;
     this.data = {};
@@ -178,6 +208,9 @@ object BENCH_SUBSCRIBER [
     this.momentum = 50.0;
     this.defender_momentum = 50.0;
     this.fanout_cursor = 1;
+    this.history_entry = "";
+    this.history_running = 0;
     this.last_attacker = #-1;
+    this.string_history = {};
   endmethod
 endobject

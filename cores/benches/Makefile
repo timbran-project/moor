@@ -9,6 +9,13 @@ SUBSCRIBERS ?= 256
 WORK_PER_TICK ?= 20
 INTENT_ITERATIONS ?= 20
 APPEND_MODE ?= 0
+HISTORY_WRITERS ?= 4
+HISTORY_ENTRIES ?= 1024
+HISTORY_ENTRY_BYTES ?= 2048
+HISTORY_APPENDS ?= 20
+HISTORY_APPEND_DELAY ?= 0
+HISTORY_SETTLE_SECONDS ?= 5
+HISTORY_TIMEOUT ?= 360
 FANOUT ?= 4
 CHECKS_PER_TICK ?= 2
 STATE_WRITES ?= 4
@@ -23,7 +30,7 @@ TEST_DIRECTORY = tests
 OUTPUT_DIRECTORY = .
 MOORC = cargo run --release -p moorc -- $(OPTIONS)
 
-.PHONY: rebuild bench bench-game-update bench-write-stress bench-combat-stress bench-intent-match clean
+.PHONY: rebuild bench bench-game-update bench-write-stress bench-string-history bench-combat-stress bench-intent-match clean
 
 SRC_FILES := $(wildcard src/*.moo src/*/*.moo)
 
@@ -48,6 +55,10 @@ bench-game-update: $(SRC_FILES)
 bench-write-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(APPEND_MODE)}"
+
+bench-string-history: $(SRC_FILES)
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	--test-wizard=2 --run-tests true --test-filter "#668:test_string_history_append" --test-timeout $(HISTORY_TIMEOUT) --test-args "{$(HISTORY_WRITERS), $(HISTORY_ENTRIES), $(HISTORY_ENTRY_BYTES), $(HISTORY_APPENDS), $(HISTORY_APPEND_DELAY), $(HISTORY_SETTLE_SECONDS)}"
 
 bench-combat-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
