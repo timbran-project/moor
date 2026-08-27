@@ -339,6 +339,105 @@ object BENCH_CONTROLLER [
     server_log("=== WRITE STRESS TEST COMPLETE ===");
   endmethod
 
+  method make_history_entry owner: ARCH_WIZARD
+    ":make_history_entry(INT entry_bytes) => STR";
+    {entry_bytes} = args;
+    chunk = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ[]";
+    entry = chunk;
+    while (length(entry) < entry_bytes)
+      entry = entry + entry;
+    endwhile
+    return entry[1..entry_bytes];
+  endmethod
+
+  method make_numbered_history_entry owner: ARCH_WIZARD
+    ":make_numbered_history_entry(STR entry, INT entry_bytes, INT writer_number, INT entry_number) => STR";
+    {entry, entry_bytes, writer_number, entry_number} = args;
+    suffix = ":" + tostr(writer_number) + ":" + tostr(entry_number);
+    if (length(suffix) >= entry_bytes)
+      return suffix[1..entry_bytes];
+    endif
+    return entry[1..entry_bytes - length(suffix)] + suffix;
+  endmethod
+
+  method test_string_history_append owner: ARCH_WIZARD
+    "Append strings to large list properties from independent tasks.";
+    "Optional args: writers, initial_entries, entry_bytes, appends_per_writer, append_delay, settle_seconds";
+    writer_count = length(args) > 0 ? toint(args[1]) | 4;
+    initial_entries = length(args) > 1 ? toint(args[2]) | 1024;
+    entry_bytes = length(args) > 2 ? toint(args[3]) | 2048;
+    appends_per_writer = length(args) > 3 ? toint(args[4]) | 20;
+    append_delay = length(args) > 4 ? tofloat(args[5]) | 0.0;
+    settle_seconds = length(args) > 5 ? tofloat(args[6]) | 5.0;
+    if (writer_count < 1 || initial_entries < 1 || entry_bytes < 1 || appends_per_writer < 1 || append_delay < 0.0 || settle_seconds < 0.0)
+      raise(E_INVARG, "History benchmark arguments must be positive. Delays can be zero.");
+    endif
+    server_log("=== STRING HISTORY APPEND BENCHMARK STARTING ===");
+    server_log("Writers: " + tostr(writer_count));
+    server_log("Initial entries per writer: " + tostr(initial_entries));
+    server_log("Entry bytes: " + tostr(entry_bytes));
+    server_log("Appends per writer: " + tostr(appends_per_writer));
+    server_log("Append delay: " + tostr(append_delay));
+    total_initial_bytes = writer_count * initial_entries * entry_bytes;
+    total_appends = writer_count * appends_per_writer;
+    server_log("Initial string bytes: " + tostr(total_initial_bytes));
+    server_log("Total measured appends: " + tostr(total_appends));
+
+    entry = this:make_history_entry(entry_bytes);
+    this.subscribers = {};
+    for writer_number in [1..writer_count]
+      seed_history = {this:make_numbered_history_entry(entry, entry_bytes, writer_number, entry_number) for entry_number in [1..initial_entries]};
+      writer = create(#667, #2);
+      writer.history_entry = this:make_numbered_history_entry(entry, entry_bytes, writer_number, 0);
+      writer.history_running = 1;
+      writer.string_history = seed_history;
+      this.subscribers = {@this.subscribers, writer};
+      commit();
+    endfor
+
+    "Exclude initial property persistence from the measured counters.";
+    suspend(settle_seconds);
+    counter_before = this:capture_perf_counters();
+    started_at = ftime(true);
+    for writer in (this.subscribers)
+      writer:start_string_history_appends(appends_per_writer, append_delay);
+    endfor
+
+    deadline = time() + 300;
+    running = writer_count;
+    while (running > 0 && time() < deadline)
+      suspend(0.01);
+      running = 0;
+      for writer in (this.subscribers)
+        if (writer.history_running)
+          running = running + 1;
+        endif
+      endfor
+    endwhile
+    if (running > 0)
+      raise(E_QUOTA, "History benchmark did not complete within 300 seconds.");
+    endif
+    expected_entries = initial_entries + appends_per_writer;
+    for writer in (this.subscribers)
+      if (length(writer.string_history) != expected_entries)
+        raise(E_QUOTA, "A history writer did not complete all appends.");
+      endif
+    endfor
+
+    elapsed = ftime(true) - started_at;
+    suspend(settle_seconds);
+    counter_after = this:capture_perf_counters();
+    this:log_perf_delta("string_history_append", counter_before, counter_after);
+    server_log("HISTORY_APPEND_RESULT writers=" + tostr(writer_count) + " initial_entries=" + tostr(initial_entries) + " entry_bytes=" + tostr(entry_bytes) + " appends=" + tostr(total_appends) + " producer_elapsed_seconds=" + tostr(elapsed));
+    for writer in (this.subscribers)
+      if (valid(writer))
+        recycle(writer);
+      endif
+    endfor
+    this.subscribers = {};
+    server_log("=== STRING HISTORY APPEND BENCHMARK COMPLETE ===");
+  endmethod
+
   method test_combat_stress owner: ARCH_WIZARD
     "Stress test that approximates bitmuse-style combat/update load.";
     "Optional args: duration, subscribers, rounds_per_tick, fanout, checks_per_round, state_writes, delay_ratio, update_hz";
