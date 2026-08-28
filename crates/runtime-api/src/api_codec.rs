@@ -1120,10 +1120,20 @@ pub fn decode_client_request(
                 .iter()
                 .filter_map(|v| v.ok().and_then(|v| convert::var_from_ref(v).ok()))
                 .collect();
+            let object = match call.object() {
+                Ok(Some(obj_ref)) => Some(convert::objectref_from_ref(obj_ref).rpc_err()?),
+                _ => None,
+            };
+            let authority_principal = match call.authority_principal() {
+                Ok(Some(obj_ref)) => Some(convert::obj_from_ref(obj_ref).rpc_err()?),
+                _ => None,
+            };
             Ok(ClientRequest::CallSystemVerb {
                 auth_token,
                 verb,
                 args,
+                object,
+                authority_principal,
             })
         }
         U::BatchWorldState(batch) => {
@@ -1303,6 +1313,29 @@ pub fn decode_batch_action(
             })
         }
     }
+}
+
+/// Decode owned FlatBuffer `Var`s, as arrive from a JSON request body, into
+/// `moor_var::Var`. Round-trips through the builder because the conversion
+/// routines are all ref-based.
+pub fn decode_owned_vars(args: Vec<moor_schema::var::Var>) -> Result<Vec<Var>, RpcMessageError> {
+    let holder = moor_rpc::CallSystemVerb {
+        auth_token: None,
+        verb: symbol_fb(&Symbol::mk("decode")),
+        args,
+        object: None,
+        authority_principal: None,
+    };
+    let mut builder = planus::Builder::new();
+    let bytes = builder.finish(&holder, None).to_vec();
+    let holder_ref = moor_rpc::CallSystemVerbRef::read_as_root(&bytes)
+        .map_err(|e| RpcMessageError::InvalidRequest(format!("Invalid args: {e}")))?;
+    holder_ref
+        .args()
+        .rpc_err()?
+        .iter()
+        .map(|v| v.rpc_err().and_then(|v| convert::var_from_ref(v).rpc_err()))
+        .collect()
 }
 
 pub fn decode_owned_batch_action(

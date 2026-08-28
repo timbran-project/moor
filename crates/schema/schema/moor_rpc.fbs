@@ -888,6 +888,12 @@ table CallSystemVerb {
     auth_token: AuthToken;
     verb: MoorCommon.Symbol (required);
     args: [MoorVar.Var] (required);
+    // Absent means #0, which is the only target the daemon accepted previously.
+    object: MoorCommon.ObjectRef;
+    // Authority for the initial verb dispatch and object-reference resolution.
+    // Absent means #0; setting it is wizard-only. It does not change the
+    // permissions the verb body runs with.
+    authority_principal: MoorCommon.Obj;
 }
 
 table HostClientToDaemonMessage {

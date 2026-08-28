@@ -27,5 +27,8 @@ pub use event_log::{
 };
 pub use objects::{list_objects_handler, query_objects_handler, update_property_handler};
 pub use props::{properties_handler, property_retrieval_handler};
-pub use verbs::{invoke_verb_handler, verb_program_handler, verb_retrieval_handler, verbs_handler};
+pub use verbs::{
+    call_system_verb_handler, invoke_verb_handler, verb_program_handler, verb_retrieval_handler,
+    verbs_handler,
+};
 pub use webhooks::web_hook_handler;

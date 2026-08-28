@@ -520,6 +520,8 @@ pub fn mk_call_system_verb_msg(
     auth_token: Option<&AuthToken>,
     verb: &Symbol,
     args: Vec<&Var>,
+    object: Option<&ObjectRef>,
+    authority_principal: Option<&Obj>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let args_fb: Vec<var::Var> = args.iter().filter_map(|v| var_fb(v).map(|b| *b)).collect();
 
@@ -533,6 +535,8 @@ pub fn mk_call_system_verb_msg(
                 auth_token: auth_token.map(auth_token_fb),
                 verb: symbol_fb(verb),
                 args: args_fb,
+                object: object.map(objectref_fb),
+                authority_principal: authority_principal.map(obj_fb),
             },
         )),
     })

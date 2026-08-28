@@ -195,6 +195,7 @@ pub fn mk_routes(
             "/v1/verbs/{object}/{name}/invoke",
             post(host::invoke_verb_handler),
         )
+        .route("/v1/system-verb", post(host::call_system_verb_handler))
         .route("/v1/properties/{object}", get(host::properties_handler))
         .route(
             "/v1/properties/{object}/{name}",

@@ -30,11 +30,11 @@ pub use auth::{
 };
 pub use auth::{connect_auth_handler, create_auth_handler, logout_handler, validate_auth_handler};
 pub use handlers::{
-    batch_handler, delete_history_handler, dismiss_presentation_handler, get_pubkey_handler,
-    history_handler, invoke_verb_handler, list_objects_handler, presentations_handler,
-    properties_handler, property_retrieval_handler, query_objects_handler, set_pubkey_handler,
-    update_property_handler, verb_program_handler, verb_retrieval_handler, verbs_handler,
-    web_hook_handler,
+    batch_handler, call_system_verb_handler, delete_history_handler, dismiss_presentation_handler,
+    get_pubkey_handler, history_handler, invoke_verb_handler, list_objects_handler,
+    presentations_handler, properties_handler, property_retrieval_handler, query_objects_handler,
+    set_pubkey_handler, update_property_handler, verb_program_handler, verb_retrieval_handler,
+    verbs_handler, web_hook_handler,
 };
 pub use web_host::{
     WebHost, eval_handler, features_handler, health_handler, invoke_welcome_message_handler,

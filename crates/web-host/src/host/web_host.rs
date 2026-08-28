@@ -1092,6 +1092,8 @@ pub async fn invoke_welcome_message_handler(
         auth_token: None,
         verb: Symbol::mk("do_login_command"),
         args: Vec::new(),
+        object: None,
+        authority_principal: None,
     };
 
     let reply_bytes = match rpc_call(client_id, &rpc_client, call_system_verb_msg).await {

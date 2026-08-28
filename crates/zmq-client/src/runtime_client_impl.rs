@@ -363,9 +363,18 @@ fn encode_client_request(
             auth_token,
             verb,
             args,
+            object,
+            authority_principal,
         } => {
             let args_refs: Vec<&Var> = args.iter().collect();
-            mk_call_system_verb_msg(auth_token.as_ref(), &verb, args_refs).ok_or_else(|| {
+            mk_call_system_verb_msg(
+                auth_token.as_ref(),
+                &verb,
+                args_refs,
+                object.as_ref(),
+                authority_principal.as_ref(),
+            )
+            .ok_or_else(|| {
                 RpcError::CouldNotDecode("Failed to encode call system verb args".to_string())
             })?
         }

@@ -698,6 +698,75 @@ paths:
         "504":
           description: Verb execution timed out (60 s)
 
+  /v1/system-verb:
+    post:
+      operationId: callSystemVerb
+      tags: [Verbs]
+      summary: Invoke a verb with no connection
+      description: |
+        Calls a verb without a login or connection record.  The task's
+        `player` is the auth token's player, so in-world code sees a real
+        identity, but `connected_players()` does not include it and no
+        narrative is published to the event log; output is captured and
+        returned with the result.
+
+        `object` defaults to `#0`.  `authority_principal` is the authority for
+        the initial verb dispatch and for resolving a non-id `object`
+        reference; it defaults to `#0` and is wizard-only.  It does not change
+        the permissions the verb body runs with, which follow the usual rule of
+        the called verb's owner.
+
+        Verbs that call `read()` fail rather than block, and output from a
+        forked task is not captured.
+      security:
+        - MoorAuthToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verb]
+              properties:
+                verb:
+                  type: string
+                  description: Verb name to call
+                args:
+                  type: array
+                  items: { type: object }
+                  description: Arguments as JSON-encoded FlatBuffer Vars
+                object:
+                  type: string
+                  description: Target object CURIE, e.g. "moor:36". Defaults to #0.
+                authority_principal:
+                  type: string
+                  description: |
+                    Dispatch authority as an id CURIE, e.g. "moor:2".
+                    Wizard-only. Defaults to #0.
+      responses:
+        "200":
+          description: Verb call result
+          content:
+            application/json:
+              schema:
+                type: object
+            application/x-flatbuffers:
+              schema: { type: string, format: binary }
+              # Logical: VerbCallResponse { VerbCallSuccess | VerbCallError }
+        "400":
+          description: Invalid body, object CURIE, or authority principal
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "406":
+          $ref: "#/components/responses/NotAcceptable"
+        "415":
+          description: Content-Type is not application/json
+        "500":
+          description: |
+            Internal error, or the daemon refused the request — including
+            `authority_principal` set by a non-wizard, which the RPC layer
+            reports as a permission denial rather than a distinct status.
+
   # ── Properties ────────────────────────────────────────────────────────
 
   /v1/properties/{object}:

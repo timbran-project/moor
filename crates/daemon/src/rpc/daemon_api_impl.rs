@@ -54,6 +54,22 @@ fn require_player_flags(
     Ok(player_flags)
 }
 
+/// Choosing the task's authority principal is a privilege escalation, so it is
+/// restricted the same way `set_task_perms()` is in-world: wizards only.
+fn require_wizard(scheduler_client: &SchedulerClient, player: &Obj) -> Result<(), RpcMessageError> {
+    let player_flags = scheduler_client.get_object_flags(player).map_err(|e| {
+        warn!(%player, error = ?e, "Unable to read authenticated principal flags");
+        RpcMessageError::PermissionDenied
+    })?;
+
+    if player_flags & (1 << ObjFlag::Wizard as u8) == 0 {
+        warn!(%player, player_flags, "Authenticated principal is not a wizard");
+        return Err(RpcMessageError::PermissionDenied);
+    }
+
+    Ok(())
+}
+
 impl RuntimeApi for RpcMessageHandler {
     fn handle_host_request(
         &self,
@@ -772,16 +788,27 @@ impl RuntimeApi for RpcMessageHandler {
                 auth_token,
                 verb,
                 args,
+                object,
+                authority_principal,
             } => {
                 let player = match auth_token {
                     Some(auth_token) => self.validate_auth_token(auth_token, None)?,
                     None => SYSTEM_OBJECT,
                 };
+                let authority = match authority_principal {
+                    None => SYSTEM_OBJECT,
+                    Some(authority) => {
+                        require_wizard(&scheduler_client, &player)?;
+                        authority
+                    }
+                };
+                let object = object.unwrap_or(ObjectRef::Id(SYSTEM_OBJECT));
                 self.submit_system_verb_task_typed(
                     scheduler_client,
                     client_id,
                     &player,
-                    &ObjectRef::Id(SYSTEM_OBJECT),
+                    &object,
+                    &authority,
                     verb,
                     args,
                 )
@@ -1070,12 +1097,14 @@ impl RpcMessageHandler {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn submit_system_verb_task_typed(
         &self,
         scheduler_client: SchedulerClient,
         client_id: Uuid,
         player: &Obj,
         object: &ObjectRef,
+        authority: &Obj,
         verb: Symbol,
         args: Vec<Var>,
     ) -> Result<ClientReply, RpcMessageError> {
@@ -1090,7 +1119,7 @@ impl RpcMessageHandler {
             verb,
             moor_var::List::from_iter(args),
             v_empty_str(),
-            &SYSTEM_OBJECT,
+            authority,
             session.clone(),
         ) {
             Ok(t) => t,

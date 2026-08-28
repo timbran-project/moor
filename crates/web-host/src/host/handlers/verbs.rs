@@ -18,9 +18,9 @@ use crate::host::{
     auth::{EphemeralAuth, StatelessAuth},
     flatbuffer_response,
     negotiate::{
-        BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE,
-        negotiate_response_format, reply_result_to_json, require_content_type,
-        verb_call_response_to_json,
+        BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, JSON_CONTENT_TYPE, ResponseFormat,
+        TEXT_PLAIN_CONTENT_TYPE, negotiate_response_format, reply_result_to_json,
+        require_content_type, verb_call_response_to_json,
     },
     web_host,
 };
@@ -34,6 +34,7 @@ use moor_common::model::ObjectRef;
 use moor_common::tasks::NarrativeEvent;
 use moor_runtime_api::{
     api::{ClientRequest, EntityType},
+    api_codec::decode_owned_vars,
     scheduler_error_to_flatbuffer_struct,
     task_client::{SessionEvent, TaskResult},
 };
@@ -383,6 +384,103 @@ pub async fn verb_program_handler(
     };
 
     // DetachGuard in EphemeralAuth handles cleanup automatically
+
+    match format {
+        ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
+        ResponseFormat::Json => {
+            reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SystemVerbRequest {
+    verb: String,
+    #[serde(default)]
+    args: Vec<moor_var_schema::Var>,
+    /// CURIE, e.g. "moor:36". Absent means #0.
+    #[serde(default)]
+    object: Option<String>,
+    /// Authority for the initial verb dispatch, as an id CURIE. Wizard-only;
+    /// absent means #0.
+    #[serde(default)]
+    authority_principal: Option<String>,
+}
+
+/// Invoke a verb without a connection or login, returning its result and any
+/// narrative output it produced.
+///
+/// The task's `player` is the auth token's player, so in-world code sees a real
+/// identity, but no connection record is created and `connected_players()` does
+/// not include it.
+pub async fn call_system_verb_handler(
+    StatelessAuth {
+        auth_token,
+        client_id,
+        rpc_client,
+    }: StatelessAuth,
+    header_map: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if let Err(status) = require_content_type(
+        header_map.get(header::CONTENT_TYPE),
+        &[JSON_CONTENT_TYPE],
+        false,
+    ) {
+        return status.into_response();
+    }
+    let format = match negotiate_response_format(
+        header_map.get(header::ACCEPT),
+        BOTH_FORMATS,
+        ResponseFormat::Json,
+    ) {
+        Ok(f) => f,
+        Err(status) => return status.into_response(),
+    };
+
+    let req: SystemVerbRequest = match serde_json::from_slice(&body) {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Failed to parse system verb request: {e}");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
+
+    let object = match req.object.as_deref().map(ObjectRef::parse_curie) {
+        None => None,
+        Some(Some(oref)) => Some(oref),
+        Some(None) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    // An Obj, not an ObjectRef: authority is not resolved by name.
+    let authority_principal = match req.authority_principal.as_deref() {
+        None => None,
+        Some(curie) => match ObjectRef::parse_curie(curie) {
+            Some(ObjectRef::Id(obj)) => Some(obj),
+            _ => return StatusCode::BAD_REQUEST.into_response(),
+        },
+    };
+
+    let args = match decode_owned_vars(req.args) {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Failed to decode system verb args: {e:?}");
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+    };
+
+    let call_msg = ClientRequest::CallSystemVerb {
+        auth_token: Some(auth_token),
+        verb: Symbol::mk(&req.verb),
+        args,
+        object,
+        authority_principal,
+    };
+
+    let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, call_msg).await {
+        Ok(bytes) => bytes,
+        Err(status) => return status.into_response(),
+    };
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),

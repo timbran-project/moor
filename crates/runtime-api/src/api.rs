@@ -573,10 +573,22 @@ pub enum ClientRequest {
         args: Vec<Var>,
         auth_token: Option<AuthToken>,
     },
+    /// Invoke a verb with no connection or login, capturing its narrative output.
+    ///
+    /// `player` is taken from `auth_token`, defaulting to `#0` when absent.
+    /// `object` defaults to `#0`.
+    ///
+    /// `authority_principal` is the task's authority for the initial verb
+    /// dispatch and for resolving a non-id `object` reference; it defaults to
+    /// `#0` and is wizard-only. It does not change the permissions the verb body
+    /// runs with, which follow the usual rule of the called verb's owner, and it
+    /// does not bypass the verb's executable bit.
     CallSystemVerb {
         auth_token: Option<AuthToken>,
         verb: Symbol,
         args: Vec<Var>,
+        object: Option<ObjectRef>,
+        authority_principal: Option<Obj>,
     },
     BatchWorldState {
         auth_token: AuthToken,

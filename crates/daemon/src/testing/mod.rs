@@ -26,5 +26,8 @@ mod rpc_integration_test;
 #[cfg(test)]
 mod scheduler_integration_test;
 
+#[cfg(test)]
+mod system_verb_test;
+
 pub use mock_event_log::MockEventLog;
 pub use mock_transport::MockTransport;
