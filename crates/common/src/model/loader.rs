@@ -22,8 +22,48 @@ use crate::{
 };
 use moor_var::{Obj, Symbol, Var, program::ProgramType};
 
+/// A verb and its payload as read by a sequential snapshot export.
+pub struct SnapshotExportVerb {
+    pub definition: VerbDef,
+    pub program: ProgramType,
+    pub metadata: Vec<(Symbol, Var)>,
+}
+
+/// A property tuple as read by a sequential snapshot export.
+///
+/// `value` and `permissions` are local to the exported object. Permissions are always present for
+/// a property defined by that object and are optional for inherited properties.
+pub struct SnapshotExportProperty {
+    pub definition: PropDef,
+    pub value: Option<Var>,
+    pub permissions: Option<PropPerms>,
+    pub metadata: Vec<(Symbol, Var)>,
+}
+
+/// All persistent data needed to export one object.
+pub struct SnapshotExportObject {
+    pub oid: Obj,
+    pub attributes: ObjAttrs,
+    pub metadata: Vec<(Symbol, Var)>,
+    pub verbs: Vec<SnapshotExportVerb>,
+    pub properties: Vec<SnapshotExportProperty>,
+}
+
+/// Object-at-a-time access to one stable database snapshot.
+pub trait SnapshotExport: Send {
+    fn object_count(&self) -> usize;
+
+    fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError>;
+}
+
 /// Interface for read-only access to database snapshots for exporting/dumping
 pub trait SnapshotInterface: Send {
+    /// Start an object-at-a-time export when the backing store supports an efficient scan.
+    /// Implementations can return `None` to use the point-read compatibility path.
+    fn start_export(&self) -> Result<Option<Box<dyn SnapshotExport + '_>>, WorldStateError> {
+        Ok(None)
+    }
+
     /// Get the list of all active objects in the database
     fn get_objects(&self) -> Result<ObjSet, WorldStateError>;
 

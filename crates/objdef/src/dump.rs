@@ -12,7 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{import_export_hierarchy, import_export_id};
-use moor_common::model::{HasUuid, Named, ObjFlag, PropFlag, ValSet, loader::SnapshotInterface};
+use moor_common::model::{
+    HasUuid, Named, ObjFlag, PropFlag, ValSet,
+    loader::{SnapshotExportObject, SnapshotInterface},
+};
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
 use std::{
@@ -55,6 +58,32 @@ pub enum ObjectDumpError {
 pub fn collect_object_definitions(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
+    if let Some(mut export) = loader.start_export()? {
+        let mut object_defs = Vec::with_capacity(export.object_count());
+        let started = Instant::now();
+
+        while let Some(object) = export.next_object()? {
+            let index = object_defs.len();
+            if index % 100 == 0 {
+                info!(
+                    completed = index,
+                    total = export.object_count(),
+                    object = %object.oid,
+                    elapsed = ?started.elapsed(),
+                    "Collecting object definitions"
+                );
+            }
+            object_defs.push(collect_export_object(object)?);
+        }
+
+        info!(
+            objects = object_defs.len(),
+            elapsed = ?started.elapsed(),
+            "Collected object definitions with sequential snapshot scans"
+        );
+        return Ok(object_defs);
+    }
+
     let mut object_defs = vec![];
 
     // Find all the ids
@@ -101,6 +130,74 @@ pub fn collect_object_definitions(
         num_propoverrides
     );
     Ok(object_defs)
+}
+
+fn collect_export_object(
+    object: SnapshotExportObject,
+) -> Result<ObjectDefinition, ObjectDumpError> {
+    let mut definition = ObjectDefinition {
+        oid: object.oid,
+        name: object.attributes.name().unwrap_or_default(),
+        parent: object.attributes.parent().unwrap_or(NOTHING),
+        owner: object.attributes.owner().unwrap_or(NOTHING),
+        location: object.attributes.location().unwrap_or(NOTHING),
+        flags: object.attributes.flags(),
+        metadata: object.metadata,
+        verbs: Vec::with_capacity(object.verbs.len()),
+        property_definitions: Vec::new(),
+        property_overrides: Vec::new(),
+    };
+
+    for verb in object.verbs {
+        definition.verbs.push(ObjVerbDef {
+            names: verb.definition.names().to_vec(),
+            argspec: verb.definition.args(),
+            owner: verb.definition.owner(),
+            flags: verb.definition.flags(),
+            program: verb.program,
+            metadata: verb.metadata,
+        });
+    }
+
+    for property in object.properties {
+        let name = property.definition.name();
+        if is_legacy_import_export_property(name) {
+            promote_legacy_import_export_metadata(&mut definition.metadata, name, &property.value);
+            continue;
+        }
+
+        if property.definition.definer() == object.oid {
+            let Some(perms) = property.permissions else {
+                return Err(moor_common::model::WorldStateError::DatabaseError(format!(
+                    "Canonical property permissions not found on definer {} for property {}",
+                    object.oid,
+                    property.definition.uuid()
+                ))
+                .into());
+            };
+            definition.property_definitions.push(ObjPropDef {
+                name,
+                perms,
+                value: property.value,
+                metadata: property.metadata,
+            });
+        } else {
+            definition.property_overrides.push(ObjPropOverride {
+                name,
+                perms_update: property.permissions,
+                value: property.value,
+                metadata: property.metadata,
+            });
+        }
+    }
+
+    definition
+        .property_definitions
+        .sort_by_key(|property| property.name.as_arc_str());
+    definition
+        .property_overrides
+        .sort_by_key(|property| property.name.as_arc_str());
+    Ok(definition)
 }
 
 pub fn collect_object(
