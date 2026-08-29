@@ -44,7 +44,7 @@ use moor_var::Obj;
 use std::{io, path::PathBuf};
 
 pub use dump::{
-    collect_index_names, collect_object, collect_object_definitions, dump_object,
+    ObjectDumpStats, collect_index_names, collect_object, collect_object_definitions, dump_object,
     dump_object_definitions, dump_snapshot_object_definitions, extract_index_names,
 };
 pub use load::{

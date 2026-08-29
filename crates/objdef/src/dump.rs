@@ -56,6 +56,18 @@ pub enum ObjectDumpError {
     Io(#[from] std::io::Error),
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ObjectDumpStats {
+    pub objects: usize,
+    pub regular_objects: usize,
+    pub anonymous_objects: usize,
+    pub verbs: usize,
+    pub properties: usize,
+    pub overrides: usize,
+    pub metadata_elapsed: Duration,
+    pub write_elapsed: Duration,
+}
+
 pub fn collect_object_definitions(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
@@ -616,13 +628,40 @@ fn write_streamed_object(
 pub fn dump_snapshot_object_definitions(
     loader: &dyn SnapshotInterface,
     directory_path: &Path,
-) -> Result<usize, ObjectDumpError> {
+) -> Result<ObjectDumpStats, ObjectDumpError> {
+    let metadata_started = Instant::now();
     let Some(identities) = collect_snapshot_identities(loader)? else {
         let definitions = collect_object_definitions(loader)?;
-        let count = definitions.len();
+        let metadata_elapsed = metadata_started.elapsed();
+        let write_started = Instant::now();
         dump_object_definitions(&definitions, directory_path)?;
-        return Ok(count);
+        return Ok(ObjectDumpStats {
+            objects: definitions.len(),
+            regular_objects: definitions
+                .iter()
+                .filter(|definition| !definition.oid.is_anonymous())
+                .count(),
+            anonymous_objects: definitions
+                .iter()
+                .filter(|definition| definition.oid.is_anonymous())
+                .count(),
+            verbs: definitions
+                .iter()
+                .map(|definition| definition.verbs.len())
+                .sum(),
+            properties: definitions
+                .iter()
+                .map(|definition| definition.property_definitions.len())
+                .sum(),
+            overrides: definitions
+                .iter()
+                .map(|definition| definition.property_overrides.len())
+                .sum(),
+            metadata_elapsed,
+            write_elapsed: write_started.elapsed(),
+        });
     };
+    let metadata_elapsed = metadata_started.elapsed();
 
     let (index_names, file_names) = extract_object_constants_from_identities(&identities);
     let hierarchies = identities
@@ -643,6 +682,9 @@ pub fn dump_snapshot_object_definitions(
     let mut written_anonymous_files = HashSet::new();
     let mut regular_count = 0;
     let mut anonymous_count = 0;
+    let mut verb_count = 0;
+    let mut property_count = 0;
+    let mut override_count = 0;
 
     while let Some(object) = export.next_object()? {
         let definition = collect_export_object(object)?;
@@ -659,6 +701,10 @@ pub fn dump_snapshot_object_definitions(
             directory_path,
             &mut written_anonymous_files,
         )?;
+
+        verb_count += definition.verbs.len();
+        property_count += definition.property_definitions.len();
+        override_count += definition.property_overrides.len();
 
         if definition.oid.is_anonymous() {
             anonymous_count += 1;
@@ -679,10 +725,22 @@ pub fn dump_snapshot_object_definitions(
     info!(
         regular_count,
         anonymous_count,
+        verb_count,
+        property_count,
+        override_count,
         elapsed = ?started.elapsed(),
         "Wrote object definitions from snapshot"
     );
-    Ok(regular_count + anonymous_count)
+    Ok(ObjectDumpStats {
+        objects: regular_count + anonymous_count,
+        regular_objects: regular_count,
+        anonymous_objects: anonymous_count,
+        verbs: verb_count,
+        properties: property_count,
+        overrides: override_count,
+        metadata_elapsed,
+        write_elapsed: started.elapsed(),
+    })
 }
 
 pub fn dump_object_definitions(
@@ -907,7 +965,9 @@ mod tests {
             super::collect_object_definitions_with_point_reads(snapshot.as_ref()).unwrap();
         dump_object_definitions(&point_read_definitions, collected_dir.path()).unwrap();
         assert_eq!(
-            dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap(),
+            dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path())
+                .unwrap()
+                .objects,
             object_defs.len()
         );
         assert_eq!(

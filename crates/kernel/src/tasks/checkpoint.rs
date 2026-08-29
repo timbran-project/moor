@@ -282,17 +282,16 @@ fn perform_export(
     checkpoint_path: &Path,
 ) -> Result<(), SchedulerError> {
     info!("Exporting snapshot to {checkpoint_path:?}");
-    let object_count =
-        dump_snapshot_object_definitions(loader_client, checkpoint_path).map_err(|e| {
-            error!(error = %e, "Failed to dump objects");
-            SchedulerError::CouldNotStartTask
-        })?;
+    let stats = dump_snapshot_object_definitions(loader_client, checkpoint_path).map_err(|e| {
+        error!(error = %e, "Failed to dump objects");
+        SchedulerError::CouldNotStartTask
+    })?;
     let final_path = checkpoint_path.with_extension("moo");
     fs::rename(checkpoint_path, &final_path).map_err(|e| {
         error!(?e, "Could not rename checkpoint to final path");
         SchedulerError::CouldNotStartTask
     })?;
-    info!(?final_path, object_count, "Checkpoint written.");
+    info!(?final_path, ?stats, "Checkpoint written.");
 
     Ok(())
 }
