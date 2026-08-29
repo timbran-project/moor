@@ -78,6 +78,12 @@ pub(crate) fn decode_fjall_value<Codomain>(
 where
     FjallCodec: EncodeFor<Codomain, Stored = ByteView>,
 {
+    let (timestamp, payload) = split_fjall_value(user_value)?;
+    let codomain = FjallCodec.decode(payload)?;
+    Ok((timestamp, codomain))
+}
+
+pub(crate) fn split_fjall_value(user_value: Slice) -> Result<(Timestamp, ByteView), Error> {
     let stored = ByteView::from(user_value);
     let Some(payload_len) = stored.len().checked_sub(TIMESTAMP_BYTES) else {
         return Err(Error::EncodingFailure);
@@ -88,8 +94,7 @@ where
             .map_err(|_| Error::EncodingFailure)?,
     ));
     let payload = stored.slice(..payload_len);
-    let codomain = FjallCodec.decode(payload)?;
-    Ok((timestamp, codomain))
+    Ok((timestamp, payload))
 }
 
 pub(crate) trait EncodeFjallValue<T>: EncodeFor<T, Stored = ByteView> {
@@ -403,10 +408,15 @@ impl EncodeFor<VerbDefs> for FjallCodec {
     fn decode(&self, stored: Self::Stored) -> Result<VerbDefs, Error> {
         let fb_ref = moor_schema::common::VerbDefsRef::read_as_root(&stored)
             .map_err(|_| Error::EncodingFailure)?;
-        let fb_verbdefs: moor_schema::common::VerbDefs =
-            fb_ref.try_into().map_err(|_| Error::EncodingFailure)?;
-        moor_schema::convert::verbdefs_from_flatbuffer(&fb_verbdefs)
-            .map_err(|_| Error::EncodingFailure)
+        fb_ref
+            .verbs()
+            .map_err(|_| Error::EncodingFailure)?
+            .iter()
+            .map(|verb| {
+                let verb = verb.map_err(|_| Error::EncodingFailure)?;
+                moor_schema::convert::verbdef_from_ref(verb).map_err(|_| Error::EncodingFailure)
+            })
+            .collect()
     }
 }
 
@@ -422,10 +432,15 @@ impl EncodeFor<PropDefs> for FjallCodec {
     fn decode(&self, stored: Self::Stored) -> Result<PropDefs, Error> {
         let fb_ref = moor_schema::common::PropDefsRef::read_as_root(&stored)
             .map_err(|_| Error::EncodingFailure)?;
-        let fb_propdefs: moor_schema::common::PropDefs =
-            fb_ref.try_into().map_err(|_| Error::EncodingFailure)?;
-        moor_schema::convert::propdefs_from_flatbuffer(&fb_propdefs)
-            .map_err(|_| Error::EncodingFailure)
+        fb_ref
+            .props()
+            .map_err(|_| Error::EncodingFailure)?
+            .iter()
+            .map(|prop| {
+                let prop = prop.map_err(|_| Error::EncodingFailure)?;
+                moor_schema::convert::propdef_from_ref(prop).map_err(|_| Error::EncodingFailure)
+            })
+            .collect()
     }
 }
 

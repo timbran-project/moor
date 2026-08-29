@@ -18,8 +18,7 @@ use moor_common::{
     matching::Preposition,
     model::{
         ArgSpec as ModelArgSpec, Defs, HasUuid, Named, PrepSpec as ModelPrepSpec,
-        PropDef as ModelPropDef, ValSet, VerbArgsSpec as ModelVerbArgsSpec,
-        VerbDef as ModelVerbDef,
+        PropDef as ModelPropDef, VerbArgsSpec as ModelVerbArgsSpec, VerbDef as ModelVerbDef,
     },
     util::BitEnum,
 };
@@ -88,7 +87,7 @@ fn verb_args_spec_from_flatbuffer(fb: &common::VerbArgsSpec) -> ModelVerbArgsSpe
     }
 }
 
-fn verb_args_spec_from_ref(
+pub fn verb_args_spec_from_ref(
     fb: common::VerbArgsSpecRef<'_>,
 ) -> Result<ModelVerbArgsSpec, DefConversionError> {
     let dobj = fb
@@ -247,6 +246,35 @@ pub fn propdef_from_flatbuffer(fb: &common::PropDef) -> Result<ModelPropDef, Def
     Ok(ModelPropDef::new(uuid, definer, location, name))
 }
 
+pub fn propdef_from_ref(fb: common::PropDefRef<'_>) -> Result<ModelPropDef, DefConversionError> {
+    let uuid = fb
+        .uuid()
+        .map_err(|e| DefConversionError::DecodingError(format!("uuid: {e}")))
+        .and_then(|uuid| {
+            convert_common::uuid_from_ref(uuid).map_err(DefConversionError::DecodingError)
+        })?;
+    let definer = fb
+        .definer()
+        .map_err(|e| DefConversionError::DecodingError(format!("definer: {e}")))
+        .and_then(|obj| {
+            convert_common::obj_from_ref(obj).map_err(DefConversionError::DecodingError)
+        })?;
+    let location = fb
+        .location()
+        .map_err(|e| DefConversionError::DecodingError(format!("location: {e}")))
+        .and_then(|obj| {
+            convert_common::obj_from_ref(obj).map_err(DefConversionError::DecodingError)
+        })?;
+    let name = fb
+        .name()
+        .map_err(|e| DefConversionError::DecodingError(format!("name: {e}")))
+        .and_then(|symbol| {
+            convert_common::symbol_from_ref(symbol).map_err(DefConversionError::DecodingError)
+        })?;
+
+    Ok(ModelPropDef::new(uuid, definer, location, name))
+}
+
 // ============================================================================
 // VerbDefs Collection Conversion
 // ============================================================================
@@ -254,15 +282,14 @@ pub fn propdef_from_flatbuffer(fb: &common::PropDef) -> Result<ModelPropDef, Def
 pub fn verbdefs_to_flatbuffer(
     defs: &Defs<ModelVerbDef>,
 ) -> Result<common::VerbDefs, DefConversionError> {
-    let verbs: Result<Vec<_>, _> = defs.iter().map(|v| verbdef_to_flatbuffer(&v)).collect();
+    let verbs: Result<Vec<_>, _> = defs.iter_ref().map(verbdef_to_flatbuffer).collect();
     Ok(common::VerbDefs { verbs: verbs? })
 }
 
 pub fn verbdefs_from_flatbuffer(
     fb: &common::VerbDefs,
 ) -> Result<Defs<ModelVerbDef>, DefConversionError> {
-    let verbs: Result<Vec<_>, _> = fb.verbs.iter().map(verbdef_from_flatbuffer).collect();
-    Ok(Defs::from_items(&verbs?))
+    fb.verbs.iter().map(verbdef_from_flatbuffer).collect()
 }
 
 // ============================================================================
@@ -272,13 +299,12 @@ pub fn verbdefs_from_flatbuffer(
 pub fn propdefs_to_flatbuffer(
     defs: &Defs<ModelPropDef>,
 ) -> Result<common::PropDefs, DefConversionError> {
-    let props: Result<Vec<_>, _> = defs.iter().map(|p| propdef_to_flatbuffer(&p)).collect();
+    let props: Result<Vec<_>, _> = defs.iter_ref().map(propdef_to_flatbuffer).collect();
     Ok(common::PropDefs { props: props? })
 }
 
 pub fn propdefs_from_flatbuffer(
     fb: &common::PropDefs,
 ) -> Result<Defs<ModelPropDef>, DefConversionError> {
-    let props: Result<Vec<_>, _> = fb.props.iter().map(propdef_from_flatbuffer).collect();
-    Ok(Defs::from_items(&props?))
+    fb.props.iter().map(propdef_from_flatbuffer).collect()
 }

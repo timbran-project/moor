@@ -82,11 +82,11 @@ impl<T: Clone + HasUuid + Named> ValSet<T> for Defs<T> {
     }
     // Provides the number of items in the buffer.
     fn len(&self) -> usize {
-        self.iter().count()
+        self.contents.len()
     }
 
     fn is_empty(&self) -> bool {
-        self.iter().next().is_none()
+        self.contents.is_empty()
     }
 }
 
@@ -108,6 +108,10 @@ impl<T: Clone + HasUuid + Named> FromIterator<T> for Defs<T> {
 }
 
 impl<T: Clone + HasUuid + Named> Defs<T> {
+    pub fn iter_ref(&self) -> impl Iterator<Item = &T> {
+        self.contents.iter()
+    }
+
     #[must_use]
     pub fn contains(&self, uuid: Uuid) -> bool {
         self.iter().any(|p| p.uuid() == uuid)
