@@ -702,8 +702,8 @@ pub(crate) fn cmd_export(database: &TxDB, args: &str) -> Result<(), Report> {
         .map_err(|e| eyre!("Failed to create database snapshot: {e}"))?;
 
     println!("Writing objects to {}...", in_progress_path.display());
-    let object_count = dump_snapshot_object_definitions(snapshot.as_ref(), &in_progress_path)
-        .map_err(|e| {
+    let stats =
+        dump_snapshot_object_definitions(snapshot.as_ref(), &in_progress_path).map_err(|e| {
             eyre!(
                 "Failed to write objdef export to {}: {e}",
                 in_progress_path.display()
@@ -720,7 +720,7 @@ pub(crate) fn cmd_export(database: &TxDB, args: &str) -> Result<(), Report> {
 
     print_success(format!(
         "Exported {} objects to {}",
-        object_count,
+        stats.objects,
         output_path.display()
     ));
     Ok(())

@@ -471,10 +471,9 @@ fn main() -> Result<(), eyre::Report> {
         };
 
         info!("Dumping objects to {dirdump_path:?}");
-        let object_count =
-            dump_snapshot_object_definitions(loader_interface.as_ref(), &dirdump_path)?;
+        let stats = dump_snapshot_object_definitions(loader_interface.as_ref(), &dirdump_path)?;
 
-        info!(?dirdump_path, object_count, "Objdefdump written.");
+        info!(?dirdump_path, ?stats, "Objdefdump written.");
     }
 
     if args.run_tests != Some(true) && args.test_files.is_none() {
