@@ -23,8 +23,8 @@ use crate::{
 };
 use moor_common::{
     model::{
-        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
-        VerbArgsSpec, VerbDefs, VerbFlag, WorldStateError,
+        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropPerms, ValSet, VerbArgsSpec,
+        VerbDefs, VerbFlag, WorldStateError,
         loader::{
             SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
             SnapshotExportSession, SnapshotExportVerb, SnapshotInterface,
@@ -51,8 +51,7 @@ pub struct FjallSnapshotLoader {
     pub entity_metadata_keyspace: fjall::Keyspace,
 }
 
-struct FjallSnapshotExportSession<'a> {
-    loader: &'a FjallSnapshotLoader,
+struct FjallSnapshotExportSession {
     metadata: Vec<SnapshotExportMetadata>,
     flags: ObjectRelationCursor<BitEnum<moor_common::model::ObjFlag>>,
     owners: ObjectRelationCursor<Obj>,
@@ -537,9 +536,9 @@ impl FjallSnapshotLoader {
     }
 }
 
-impl<'a> FjallSnapshotExportSession<'a> {
+impl FjallSnapshotExportSession {
     fn new(
-        loader: &'a FjallSnapshotLoader,
+        loader: &FjallSnapshotLoader,
         metadata_keys: &[Symbol],
     ) -> Result<Self, WorldStateError> {
         let parents = loader.read_object_relation(&loader.object_parent_keyspace)?;
@@ -547,7 +546,6 @@ impl<'a> FjallSnapshotExportSession<'a> {
         let metadata = loader.collect_export_metadata(metadata_keys, &parents)?;
 
         Ok(Self {
-            loader,
             metadata,
             flags: ObjectRelationCursor::new(&loader.snapshot, &loader.object_flags_keyspace),
             owners: ObjectRelationCursor::new(&loader.snapshot, &loader.object_owner_keyspace),
@@ -616,7 +614,7 @@ fn visible_property_definitions(
     definitions
 }
 
-impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
+impl SnapshotExportSession for FjallSnapshotExportSession {
     fn metadata(&self) -> &[SnapshotExportMetadata] {
         &self.metadata
     }
@@ -665,39 +663,10 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
         let mut properties = Vec::with_capacity(definitions.len());
         for definition in definitions {
             let uuid = definition.uuid();
-            let mut value = values.take(uuid);
-            let mut permission = permissions.take(uuid);
+            let value = values.take(uuid);
+            let permission = permissions.take(uuid);
             let mut entity_metadata = take_metadata(&mut metadata.properties, uuid);
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
-
-            if definition.definer() != oid {
-                if let Some(local_value) = &value {
-                    let definer = ObjAndUUIDHolder::new(&definition.definer(), uuid);
-                    let definer_value = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                        &self.loader.object_propvalues_keyspace,
-                        &definer,
-                    )?;
-                    if definer_value.as_ref() == Some(local_value) {
-                        value = None;
-                    }
-                }
-                if let Some(local_permission) = &permission {
-                    let definer = ObjAndUUIDHolder::new(&definition.definer(), uuid);
-                    let definer_permission = self
-                        .loader
-                        .get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(
-                            &self.loader.object_propflags_keyspace,
-                            &definer,
-                        )?;
-                    if definer_permission.as_ref().is_some_and(|canonical| {
-                        local_permission == canonical
-                            || canonical.flags().contains(PropFlag::Chown)
-                                && local_permission.owner() == owner
-                    }) {
-                        permission = None;
-                    }
-                }
-            }
 
             if definition.definer() != oid
                 && value.is_none()

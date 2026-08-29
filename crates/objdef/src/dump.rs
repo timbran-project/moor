@@ -826,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn streaming_dump_matches_point_reads_for_inherited_overrides() {
+    fn streaming_dump_preserves_explicit_inherited_overrides() {
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
 
@@ -887,17 +887,12 @@ mod tests {
         }
 
         let snapshot = db.create_snapshot().unwrap();
-        let point_read_definitions =
-            super::collect_object_definitions_with_point_reads(snapshot.as_ref()).unwrap();
-        let collected_dir = tempfile::tempdir().unwrap();
         let streamed_dir = tempfile::tempdir().unwrap();
-        dump_object_definitions(&point_read_definitions, collected_dir.path()).unwrap();
         dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap();
 
-        assert_eq!(
-            read_directory_tree(collected_dir.path()),
-            read_directory_tree(streamed_dir.path())
-        );
+        let child = std::fs::read_to_string(streamed_dir.path().join("object_1.moo")).unwrap();
+        assert!(child.contains("override changed"));
+        assert!(child.contains("override unchanged"));
     }
 
     #[test]
