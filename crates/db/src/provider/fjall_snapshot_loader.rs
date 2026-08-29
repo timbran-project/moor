@@ -69,6 +69,61 @@ impl SnapshotInterface for FjallSnapshotLoader {
         Ok(Some(Box::new(FjallSnapshotExport::new(self)?)))
     }
 
+    fn collect_export_metadata(
+        &self,
+        keys: &[Symbol],
+    ) -> Result<Option<Vec<SnapshotExportMetadata>>, WorldStateError> {
+        let mut objects = self.get_objects()?.iter().collect::<Vec<_>>();
+        objects.sort_unstable();
+        let parents = self.scan_object_relation(&self.object_parent_keyspace)?;
+        let propdefs = self.scan_object_relation(&self.object_propdefs_keyspace)?;
+        let keys = keys.iter().copied().collect::<HashSet<_>>();
+        let mut records = Vec::with_capacity(objects.len());
+
+        for oid in objects {
+            let mut values = self.scan_object_metadata_keys(oid, &keys)?;
+            let definitions = visible_property_definitions(oid, &parents, &propdefs);
+            for key in &keys {
+                if values.iter().any(|(stored_key, _)| stored_key == key) {
+                    continue;
+                }
+                let Some(definition) = definitions
+                    .iter()
+                    .find(|definition| definition.name() == *key)
+                else {
+                    continue;
+                };
+                let holder = ObjAndUUIDHolder::new(&oid, definition.uuid());
+                let Some(value) = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                    &self.object_propvalues_keyspace,
+                    &holder,
+                )?
+                else {
+                    continue;
+                };
+                if definition.definer() != oid {
+                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
+                    let definer_value = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                        &self.object_propvalues_keyspace,
+                        &definer,
+                    )?;
+                    if definer_value.as_ref() == Some(&value) {
+                        continue;
+                    }
+                }
+                values.push((*key, value));
+            }
+            values.sort_by_key(|(key, _)| key.as_string());
+            records.push(SnapshotExportMetadata {
+                oid,
+                parent: parents.get(&oid).copied().unwrap_or(NOTHING),
+                values,
+            });
+        }
+
+        Ok(Some(records))
+    }
+
     fn get_objects(&self) -> Result<ObjSet, WorldStateError> {
         // Scan all objects by iterating through the object_flags keyspace
         let mut objects = Vec::new();
@@ -295,85 +350,46 @@ impl<'a> FjallSnapshotExport<'a> {
     }
 
     fn visible_property_definitions(&self, object: Obj) -> Result<Vec<PropDef>, WorldStateError> {
-        let mut definitions = Vec::new();
-        let mut current = object;
+        Ok(visible_property_definitions(
+            object,
+            &self.parents,
+            &self.propdefs,
+        ))
+    }
+}
 
-        loop {
-            if let Some(propdefs) = self.propdefs.get(&current) {
-                definitions.extend(
-                    propdefs
-                        .iter()
-                        .filter(|definition| definition.definer() == current),
-                );
-            }
+fn visible_property_definitions(
+    object: Obj,
+    parents: &HashMap<Obj, Obj>,
+    propdefs: &HashMap<Obj, PropDefs>,
+) -> Vec<PropDef> {
+    let mut definitions = Vec::new();
+    let mut current = object;
 
-            let Some(parent) = self.parents.get(&current).copied() else {
-                break;
-            };
-            if parent == current || parent.is_nothing() {
-                break;
-            }
-            current = parent;
+    loop {
+        if let Some(current_propdefs) = propdefs.get(&current) {
+            definitions.extend(
+                current_propdefs
+                    .iter()
+                    .filter(|definition| definition.definer() == current),
+            );
         }
 
-        Ok(definitions)
+        let Some(parent) = parents.get(&current).copied() else {
+            break;
+        };
+        if parent == current || parent.is_nothing() {
+            break;
+        }
+        current = parent;
     }
+
+    definitions
 }
 
 impl SnapshotExport for FjallSnapshotExport<'_> {
     fn object_count(&self) -> usize {
         self.objects.len()
-    }
-
-    fn collect_object_metadata(
-        &self,
-        keys: &[Symbol],
-    ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError> {
-        let keys = keys.iter().copied().collect::<HashSet<_>>();
-        let mut records = Vec::with_capacity(self.objects.len());
-
-        for oid in &self.objects {
-            let mut values = self.loader.scan_object_metadata_keys(*oid, &keys)?;
-            let definitions = self.visible_property_definitions(*oid)?;
-            for key in &keys {
-                if values.iter().any(|(stored_key, _)| stored_key == key) {
-                    continue;
-                }
-                let Some(definition) = definitions
-                    .iter()
-                    .find(|definition| definition.name() == *key)
-                else {
-                    continue;
-                };
-                let holder = ObjAndUUIDHolder::new(oid, definition.uuid());
-                let Some(value) = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                    &self.loader.object_propvalues_keyspace,
-                    &holder,
-                )?
-                else {
-                    continue;
-                };
-                if definition.definer() != *oid {
-                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
-                    let definer_value = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                        &self.loader.object_propvalues_keyspace,
-                        &definer,
-                    )?;
-                    if definer_value.as_ref() == Some(&value) {
-                        continue;
-                    }
-                }
-                values.push((*key, value));
-            }
-            values.sort_by_key(|(key, _)| key.as_string());
-            records.push(SnapshotExportMetadata {
-                oid: *oid,
-                parent: self.parents.get(oid).copied().unwrap_or(NOTHING),
-                values,
-            });
-        }
-
-        Ok(records)
     }
 
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError> {

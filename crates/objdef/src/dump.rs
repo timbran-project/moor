@@ -541,11 +541,11 @@ fn string_or_symbol_to_string(value: &Var) -> Option<String> {
 fn collect_snapshot_identities(
     loader: &dyn SnapshotInterface,
 ) -> Result<Option<Vec<ObjectExportIdentity>>, ObjectDumpError> {
-    let Some(export) = loader.start_export()? else {
+    let Some(metadata) =
+        loader.collect_export_metadata(&[import_export_id(), import_export_hierarchy()])?
+    else {
         return Ok(None);
     };
-    let metadata =
-        export.collect_object_metadata(&[import_export_id(), import_export_hierarchy()])?;
     Ok(Some(
         metadata
             .into_iter()
