@@ -370,6 +370,8 @@ pub enum TaskSuspend {
     /// Commit and receive inter-task messages. None = immediate (fast path),
     /// Some(duration) = wait up to duration for messages if queue is empty.
     RecvMessages(Option<Duration>),
+    /// Commit and suspend until a database checkpoint completes.
+    Checkpoint,
 }
 
 /// The set of parameters for a VM-requested fork.

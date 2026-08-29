@@ -132,7 +132,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("function_info", Q(0), Q(1), vec![Typed(TYPE_STR)], true),
         mk_builtin("function_help", Q(1), Q(1), vec![Typed(TYPE_STR)], true),
         mk_builtin("eval", Q(1), Q(3), vec![Typed(TYPE_STR), Any, Any], true),
-        mk_builtin("dump_database", Q(0), Q(0), vec![], true),
+        mk_builtin("dump_database", Q(0), Q(1), vec![Typed(TYPE_INT)], true),
         mk_builtin("gc_collect", Q(0), Q(0), vec![], true),
         mk_builtin("memory_usage", Q(0), Q(0), vec![], true),
         mk_builtin("db_disk_size", Q(0), Q(0), vec![], false),
@@ -1514,7 +1514,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{BuiltinId, builtin_signature_for_ids, offset_for_builtin};
+    use super::{
+        ArgCount, ArgType, BUILTINS, BuiltinId, builtin_signature_for_ids, offset_for_builtin,
+    };
+    use moor_var::{Symbol, VarType::TYPE_INT};
 
     #[test]
     fn builtin_signature_is_order_independent() {
@@ -1536,5 +1539,20 @@ mod tests {
             offset_for_builtin("task_telemetry"),
             offset_for_builtin("task_recv") + 1
         );
+    }
+
+    #[test]
+    fn dump_database_descriptor_includes_optional_blocking_argument() {
+        let id = BUILTINS
+            .find_builtin(Symbol::mk("dump_database"))
+            .expect("dump_database should be registered");
+        let descriptor = BUILTINS.description_for(id).unwrap();
+
+        assert!(matches!(descriptor.min_args, ArgCount::Q(0)));
+        assert!(matches!(descriptor.max_args, ArgCount::Q(1)));
+        assert!(matches!(
+            descriptor.types.as_slice(),
+            [ArgType::Typed(TYPE_INT)]
+        ));
     }
 }

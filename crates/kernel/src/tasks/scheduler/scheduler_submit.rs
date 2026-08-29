@@ -197,14 +197,6 @@ impl Scheduler {
         self.stop(Some(msg))
     }
 
-    pub(crate) fn handle_checkpoint_request(&self, blocking: bool) -> Result<(), SchedulerError> {
-        if blocking {
-            self.checkpoint_blocking()
-        } else {
-            self.checkpoint()
-        }
-    }
-
     pub(crate) fn handle_check_status(&self) -> Result<(), SchedulerError> {
         if self.lifecycle.lock().state != SchedulerState::Running {
             return Err(SchedulerError::SchedulerNotResponding);

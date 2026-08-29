@@ -173,18 +173,11 @@ impl TaskSchedulerClient {
         self.scheduler.handle_boot_player(self.task_id, player);
     }
 
-    pub fn checkpoint(&self) {
-        let _ = self
-            .scheduler
-            .handle_checkpoint_from_task(self.task_id, false);
-    }
-
-    pub fn checkpoint_with_blocking(&self, blocking: bool) -> Result<(), SchedulerError> {
+    pub fn checkpoint(&self) -> Result<(), SchedulerError> {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskCheckpointLatency);
-        self.scheduler
-            .handle_checkpoint_from_task(self.task_id, blocking)
+        self.scheduler.handle_checkpoint_from_task(self.task_id)
     }
 
     pub fn notify(&self, player: Obj, event: Box<NarrativeEvent>) {

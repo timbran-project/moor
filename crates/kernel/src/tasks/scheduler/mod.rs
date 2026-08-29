@@ -24,7 +24,9 @@ use fast_telemetry::LabeledSampledTimer;
 
 use crate::{
     task_context::TaskGuard,
-    tasks::checkpoint::{CheckpointMode, start_checkpoint},
+    tasks::checkpoint::{
+        CheckpointCoordinator, CheckpointJob, CheckpointTicket, prepare_checkpoint,
+    },
 };
 use flume::{Receiver, RecvTimeoutError, Sender};
 use moor_common::util::{Deadline, Instant};
@@ -165,11 +167,8 @@ pub struct Scheduler {
     /// Builtin function registry.
     pub(crate) builtin_registry: BuiltinRegistry,
 
-    /// Server version.
-    pub(crate) version: semver::Version,
-
-    /// Tracks whether a checkpoint operation is currently in progress.
-    pub(crate) checkpoint_in_progress: Arc<AtomicBool>,
+    /// Owns checkpoint admission and completion across all request paths.
+    pub(crate) checkpoint_coordinator: CheckpointCoordinator,
 
     /// Current GC mark/callback thread, retained for shutdown and cycle-to-cycle joining.
     pub(crate) gc_thread: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
@@ -192,7 +191,7 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn new(
-        version: semver::Version,
+        _version: semver::Version,
         database: Box<dyn Database>,
         tasks_database: Box<dyn TasksDb>,
         config: Arc<Config>,
@@ -261,8 +260,7 @@ impl Scheduler {
             server_options,
             builtin_registry,
             system_control,
-            version,
-            checkpoint_in_progress: Arc::new(AtomicBool::new(false)),
+            checkpoint_coordinator: CheckpointCoordinator::new(),
             gc_thread: Arc::new(Mutex::new(None)),
             worker_request_send,
             worker_response_recv: Arc::new(Mutex::new(worker_request_recv)),
@@ -479,6 +477,7 @@ impl Scheduler {
                     WakeCondition::Never => ("Never", "Manual wake"),
                     WakeCondition::Retry(_) => ("Retry", "Transaction retry backoff"),
                     WakeCondition::TaskMessage(_) => ("TaskMessage", "Message received or timeout"),
+                    WakeCondition::Checkpoint(_) => ("Checkpoint", "Checkpoint completed"),
                 };
 
                 trace_task_resume!(
@@ -507,6 +506,7 @@ impl Scheduler {
                         List::from_iter(messages).into()
                     }
                     WakeCondition::Immediate(val) => val.clone().unwrap_or_else(|| v_int(0)),
+                    WakeCondition::Checkpoint(_) => v_bool_int(true),
                     _ => v_int(0),
                 };
                 if let Err(e) = lc.task_q.wake_suspended_task(

@@ -572,6 +572,7 @@ impl Scheduler {
         lc.flush_pending_sends(task_id);
 
         // And insert into the suspended list.
+        let mut checkpoint_job = None;
         let wake_condition = match wake_condition {
             TaskSuspend::Never => WakeCondition::Never,
             TaskSuspend::Timed(t) => WakeCondition::Time(Deadline::from_now(t).instant()),
@@ -616,6 +617,17 @@ impl Scheduler {
                 let messages = lc.task_q.drain_messages(task_id);
                 WakeCondition::Immediate(Some(List::from_iter(messages).into()))
             }
+            TaskSuspend::Checkpoint => match self.prepare_checkpoint_job() {
+                Ok(job) => {
+                    let generation = job.generation();
+                    checkpoint_job = Some(job);
+                    WakeCondition::Checkpoint(generation)
+                }
+                Err(error) => {
+                    error!(?error, task_id, "Could not start blocking checkpoint");
+                    WakeCondition::Immediate(Some(v_bool_int(false)))
+                }
+            },
         };
 
         if !matches!(wake_condition, WakeCondition::Immediate(_))
@@ -642,10 +654,14 @@ impl Scheduler {
             .suspended
             .add_task(wake_condition, task, tc.session, tc.result_sender);
 
+        drop(lc);
+        if let Some(job) = checkpoint_job {
+            let _ = self.launch_checkpoint_job(job, Some(task_id));
+        }
+
         // Wake the timer thread so it can recompute its sleep duration for the
         // newly-inserted deadline.
         if needs_timer_wake {
-            drop(lc);
             self.wake_timer_thread();
         }
     }
@@ -976,16 +992,8 @@ impl Scheduler {
             .collect()
     }
 
-    pub fn handle_checkpoint_from_task(
-        &self,
-        _task_id: TaskId,
-        blocking: bool,
-    ) -> Result<(), SchedulerError> {
-        if blocking {
-            self.checkpoint_blocking()
-        } else {
-            self.checkpoint()
-        }
+    pub fn handle_checkpoint_from_task(&self, _task_id: TaskId) -> Result<(), SchedulerError> {
+        self.checkpoint()
     }
 
     pub fn handle_task_send(
