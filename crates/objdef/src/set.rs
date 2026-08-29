@@ -148,14 +148,16 @@ impl ObjDefSet {
         let mut object_definitions: HashMap<Obj, (String, ObjectDefinition)> = HashMap::new();
         for source in sources {
             context.set_base_path(source.base_path_source());
-            let compiled_defs =
-                compile_object_definitions(&source.contents, compile_options, &mut context)
-                    .map_err(|e| {
-                        ObjdefLoaderError::ObjectDefParseError(source.label.clone(), Box::new(e))
-                    })?;
+            let compiled_defs = compile_normalized_object_definitions(
+                &source.contents,
+                compile_options,
+                &mut context,
+            )
+            .map_err(|e| {
+                ObjdefLoaderError::ObjectDefParseError(source.label.clone(), Box::new(e))
+            })?;
 
-            for mut compiled_def in compiled_defs {
-                normalize_legacy_naming_properties(&mut compiled_def);
+            for compiled_def in compiled_defs {
                 let oid = compiled_def.oid;
                 if let Some((first_source, _)) = object_definitions.get(&oid) {
                     return Err(ObjdefLoaderError::DuplicateObjectDefinition(
@@ -236,6 +238,18 @@ pub(crate) fn normalize_legacy_naming_properties(definition: &mut ObjectDefiniti
             definition.metadata.push((key, value));
         }
     }
+}
+
+pub(crate) fn compile_normalized_object_definitions(
+    source: &str,
+    compile_options: &CompileOptions,
+    context: &mut ObjFileContext,
+) -> Result<Vec<ObjectDefinition>, moor_compiler::ObjDefParseError> {
+    let mut definitions = compile_object_definitions(source, compile_options, context)?;
+    definitions
+        .iter_mut()
+        .for_each(normalize_legacy_naming_properties);
+    Ok(definitions)
 }
 
 pub(crate) fn apply_constants(

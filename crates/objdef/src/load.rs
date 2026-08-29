@@ -25,7 +25,7 @@
 
 use crate::{
     ObjDefSet, ObjDefSource, ObjdefLoaderError,
-    set::{apply_constants, normalize_legacy_naming_properties},
+    set::{apply_constants, compile_normalized_object_definitions},
 };
 use moor_common::{
     model::{
@@ -34,7 +34,7 @@ use moor_common::{
     },
     util::BitEnum,
 };
-use moor_compiler::{CompileOptions, ObjFileContext, ObjectDefinition, compile_object_definitions};
+use moor_compiler::{CompileOptions, ObjFileContext, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 use std::{
     collections::HashMap,
@@ -376,13 +376,14 @@ impl<'a> ObjectDefinitionLoader<'a> {
     ) -> Result<(), ObjdefLoaderError> {
         context.set_base_path(path);
         let path_str = path.to_string_lossy().into_owned();
-        let compiled_defs =
-            compile_object_definitions(object_file_contents, compile_options, context).map_err(
-                |e| ObjdefLoaderError::ObjectDefParseError(path_str.clone(), Box::new(e)),
-            )?;
+        let compiled_defs = compile_normalized_object_definitions(
+            object_file_contents,
+            compile_options,
+            context,
+        )
+        .map_err(|e| ObjdefLoaderError::ObjectDefParseError(path_str.clone(), Box::new(e)))?;
 
-        for mut compiled_def in compiled_defs {
-            normalize_legacy_naming_properties(&mut compiled_def);
+        for compiled_def in compiled_defs {
             let oid = compiled_def.oid;
 
             self.object_definitions
@@ -1007,10 +1008,12 @@ impl<'a> ObjectDefinitionLoader<'a> {
         }
 
         // Parse the object definition
-        let compiled_defs =
-            compile_object_definitions(object_definition, &compile_options, &mut context).map_err(
-                |e| ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e)),
-            )?;
+        let compiled_defs = compile_normalized_object_definitions(
+            object_definition,
+            &compile_options,
+            &mut context,
+        )
+        .map_err(|e| ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e)))?;
 
         // Ensure we got exactly one object
         if compiled_defs.len() != 1 {
@@ -1020,8 +1023,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             ));
         }
 
-        let mut compiled_def = compiled_defs.into_iter().next().unwrap();
-        normalize_legacy_naming_properties(&mut compiled_def);
+        let compiled_def = compiled_defs.into_iter().next().unwrap();
 
         // Determine the ObjectKind to use for creation
         let object_kind = match &options.object_kind {
@@ -1130,9 +1132,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
         // Parse the object definition
         let compile_opts = CompileOptions::default();
         let compiled_defs =
-            compile_object_definitions(object_definition, &compile_opts, &mut context).map_err(
-                |e| ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e)),
-            )?;
+            compile_normalized_object_definitions(object_definition, &compile_opts, &mut context)
+                .map_err(|e| {
+                ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e))
+            })?;
 
         // Ensure we got exactly one object
         if compiled_defs.len() != 1 {
@@ -1142,8 +1145,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             ));
         }
 
-        let mut compiled_def = compiled_defs.into_iter().next().unwrap();
-        normalize_legacy_naming_properties(&mut compiled_def);
+        let compiled_def = compiled_defs.into_iter().next().unwrap();
 
         // Determine the target object ID
         let target_oid = target_obj.unwrap_or(compiled_def.oid);
