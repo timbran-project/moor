@@ -21,8 +21,8 @@ mod test {
 
     use moor_common::{
         model::{
-            CommitResult, PropFlag, TaskPermissions, ValSet, VerbArgsSpec, VerbFlag,
-            WorldStateSource, loader::LoaderInterface,
+            CommitResult, PropFlag, TaskPermissions, VerbArgsSpec, VerbFlag, WorldStateSource,
+            loader::LoaderInterface,
         },
         util::BitEnum,
     };
@@ -364,12 +364,12 @@ mod test {
         // Verify the anonymous object was loaded correctly
         {
             let snapshot = db.create_snapshot().unwrap();
-            let objects = snapshot.get_objects().unwrap();
+            let export = snapshot.begin_export(&[]).unwrap();
 
             // Should have loaded 1 anonymous object
-            assert_eq!(objects.len(), 1, "Should have loaded 1 object");
+            assert_eq!(export.object_count(), 1, "Should have loaded 1 object");
 
-            let obj = objects.iter().next().unwrap();
+            let obj = export.metadata().first().unwrap().oid;
             assert!(obj.is_anonymous(), "Object should be anonymous");
         }
     }
