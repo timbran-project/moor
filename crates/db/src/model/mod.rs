@@ -235,6 +235,18 @@ impl EntityMetadataKey {
         self.key
     }
 
+    pub fn is_object(&self) -> bool {
+        self.tag == Self::OBJECT
+    }
+
+    pub fn is_property(&self) -> bool {
+        self.tag == Self::PROPERTY
+    }
+
+    pub fn is_verb(&self) -> bool {
+        self.tag == Self::VERB
+    }
+
     pub fn is_object_key_for(&self, obj: Obj) -> bool {
         self.tag == Self::OBJECT && self.obj == obj
     }
