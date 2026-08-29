@@ -110,8 +110,13 @@ fn collect_object_definitions_with_point_reads(
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
     let mut object_defs = vec![];
 
-    // Find all the ids
-    let object_ids = loader.get_objects()?;
+    let export = loader.begin_export(&[])?;
+    let object_ids = export
+        .metadata()
+        .iter()
+        .map(|metadata| metadata.oid)
+        .collect::<Vec<_>>();
+    drop(export);
 
     let mut num_verbdefs = 0;
     let mut num_propdefs = 0;
