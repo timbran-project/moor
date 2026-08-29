@@ -11,21 +11,19 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Loader and snapshot adapters on top of `DbWorldState`.
+//! Loader adapter on top of `DbWorldState`.
 //!
-//! This module implements the import/export-oriented interfaces
-//! (`LoaderInterface`, `SnapshotInterface`) using the same transactional
-//! machinery as normal world-state operations.
+//! This module implements `LoaderInterface` using the same transactional machinery as normal
+//! world-state operations.
 
 use uuid::Uuid;
 
 use crate::api::world_state::DbWorldState;
 use moor_common::{
     model::{
-        CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjSet, ObjectKind, PropDef, PropDefs,
-        PropFlag, PropPerms, ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbFlag,
-        WorldStateError,
-        loader::{LoaderInterface, SnapshotInterface},
+        CommitResult, HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDefs, PropFlag, PropPerms,
+        ValSet, VerbArgsSpec, VerbAttrs, VerbDef, VerbDefs, VerbFlag, WorldStateError,
+        loader::LoaderInterface,
     },
     util::BitEnum,
 };
@@ -338,108 +336,5 @@ impl LoaderInterface for DbWorldState {
     ) -> Result<Box<dyn moor_common::model::WorldState>, WorldStateError> {
         // Extract the transaction and re-wrap it - same transaction, different trait interface
         Ok(Box::new(DbWorldState { tx: self.tx }))
-    }
-}
-
-/// Implementation of SnapshotInterface for read operations during exporting
-impl SnapshotInterface for DbWorldState {
-    fn get_objects(&self) -> Result<ObjSet, WorldStateError> {
-        self.get_tx().get_objects()
-    }
-
-    fn get_players(&self) -> Result<ObjSet, WorldStateError> {
-        self.get_tx().get_players()
-    }
-
-    fn get_object(&self, objid: &Obj) -> Result<ObjAttrs, WorldStateError> {
-        Ok(ObjAttrs::new(
-            self.get_tx().get_object_owner(objid)?,
-            self.get_tx().get_object_parent(objid)?,
-            self.get_tx().get_object_location(objid)?,
-            self.get_tx().get_object_flags(objid)?,
-            &self.get_tx().get_object_name(objid)?,
-        ))
-    }
-
-    fn get_object_verbs(&self, objid: &Obj) -> Result<VerbDefs, WorldStateError> {
-        self.get_tx().get_verbs(objid)
-    }
-
-    fn get_verb_program(&self, objid: &Obj, uuid: Uuid) -> Result<ProgramType, WorldStateError> {
-        self.get_tx().get_verb_program(objid, uuid)
-    }
-
-    fn get_object_properties(&self, objid: &Obj) -> Result<PropDefs, WorldStateError> {
-        self.get_tx().get_properties(objid)
-    }
-
-    fn get_property_value(
-        &self,
-        obj: &Obj,
-        uuid: Uuid,
-    ) -> Result<(Option<Var>, PropPerms), WorldStateError> {
-        self.get_tx().retrieve_property(obj, uuid)
-    }
-
-    fn get_object_metadata(&self, objid: &Obj) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
-        self.get_tx().object_metadata(objid)
-    }
-
-    fn get_property_metadata(
-        &self,
-        objid: &Obj,
-        uuid: Uuid,
-    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
-        self.get_tx().property_metadata(objid, uuid)
-    }
-
-    fn get_verb_metadata(
-        &self,
-        objid: &Obj,
-        uuid: Uuid,
-    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
-        self.get_tx().verb_metadata(objid, uuid)
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn get_all_property_values(
-        &self,
-        this: &Obj,
-    ) -> Result<Vec<(PropDef, (Option<Var>, PropPerms))>, WorldStateError> {
-        // First get the entire inheritance hierarchy.
-        let hierarchy = self.get_tx().ancestors(this, true)?;
-
-        // Now get the property common for each of those objects, but only for the props which
-        // are defined by that object.
-        // At the same time, get the common.
-        let mut properties = vec![];
-        for obj in hierarchy.iter() {
-            let obj_propdefs = self.get_tx().get_properties(&obj)?;
-            for p in obj_propdefs.iter() {
-                if p.definer() != obj {
-                    continue;
-                }
-                let value = self.get_tx().retrieve_property(this, p.uuid())?;
-                properties.push((p.clone(), value));
-            }
-        }
-        Ok(properties)
-    }
-
-    fn get_anonymous_object_metadata(
-        &self,
-        _objid: &Obj,
-    ) -> Result<Option<Box<dyn std::any::Any + Send>>, WorldStateError> {
-        // DbWorldState doesn't support GC operations, only snapshots do
-        Err(WorldStateError::DatabaseError(
-            "GC operations not supported on transactions, use snapshots".to_string(),
-        ))
-    }
-
-    fn scan_anonymous_object_references(&self) -> Result<Vec<(Obj, Vec<Obj>)>, WorldStateError> {
-        // DbWorldState doesn't support GC operations, only snapshots do
-        Err(WorldStateError::DatabaseError(
-            "GC operations not supported on transactions, use snapshots".to_string(),
-        ))
     }
 }

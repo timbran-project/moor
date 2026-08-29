@@ -249,12 +249,6 @@ impl MoorDB {
                 .clone(),
             object_propflags_keyspace: self.relations.object_propflags.source().partition().clone(),
             entity_metadata_keyspace: self.relations.entity_metadata.source().partition().clone(),
-            anonymous_object_metadata_keyspace: self
-                .relations
-                .anonymous_object_metadata
-                .source()
-                .partition()
-                .clone(),
         }))
     }
 
