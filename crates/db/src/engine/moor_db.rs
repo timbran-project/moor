@@ -138,7 +138,7 @@ impl Caches {
 
 const SEQUENCE_COUNT: usize = 15;
 const TUPLE_VALUE_FORMAT_KEY: &[u8] = b"__tuple_value_format__";
-const TUPLE_VALUE_FORMAT: &[u8] = b"timestamp-suffix-v1";
+const TUPLE_VALUE_FORMAT: &[u8] = b"timestamp-suffix-object-keys-v2";
 
 pub(crate) struct SequenceState {
     values: [CachePadded<AtomicI64>; SEQUENCE_COUNT],
