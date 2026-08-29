@@ -42,10 +42,9 @@ impl Scheduler {
 
         // Build index_names from import_export_id metadata if requested
         let index_names = if use_constants {
-            let all_objects = collect_object_definitions(snapshot.as_ref()).map_err(|e| {
-                E_INVARG.with_msg(|| format!("Failed to collect object definitions: {e:?}"))
-            })?;
-            extract_index_names(&all_objects)
+            collect_index_names(snapshot.as_ref()).map_err(|e| {
+                E_INVARG.with_msg(|| format!("Failed to collect object constants: {e:?}"))
+            })?
         } else {
             HashMap::new()
         };

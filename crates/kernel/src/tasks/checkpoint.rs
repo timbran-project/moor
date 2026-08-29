@@ -20,7 +20,7 @@ use std::{
 
 use moor_common::tasks::SchedulerError;
 use moor_db::Database;
-use moor_objdef::{collect_object_definitions, dump_object_definitions};
+use moor_objdef::dump_snapshot_object_definitions;
 use parking_lot::{Condvar, Mutex};
 use tracing::{error, info};
 
@@ -281,22 +281,18 @@ fn perform_export(
     loader_client: &dyn moor_common::model::loader::SnapshotInterface,
     checkpoint_path: &Path,
 ) -> Result<(), SchedulerError> {
-    info!("Collecting objects for checkpoint...");
-    let objects = collect_object_definitions(loader_client).map_err(|e| {
-        error!(?e, "Failed to collect objects for checkpoint");
-        SchedulerError::CouldNotStartTask
-    })?;
-    info!("Dumping objects to {checkpoint_path:?}");
-    dump_object_definitions(&objects, checkpoint_path).map_err(|e| {
-        error!(error = %e, "Failed to dump objects");
-        SchedulerError::CouldNotStartTask
-    })?;
+    info!("Exporting snapshot to {checkpoint_path:?}");
+    let object_count =
+        dump_snapshot_object_definitions(loader_client, checkpoint_path).map_err(|e| {
+            error!(error = %e, "Failed to dump objects");
+            SchedulerError::CouldNotStartTask
+        })?;
     let final_path = checkpoint_path.with_extension("moo");
     fs::rename(checkpoint_path, &final_path).map_err(|e| {
         error!(?e, "Could not rename checkpoint to final path");
         SchedulerError::CouldNotStartTask
     })?;
-    info!(?final_path, "Checkpoint written.");
+    info!(?final_path, object_count, "Checkpoint written.");
 
     Ok(())
 }
