@@ -18,13 +18,13 @@ use uuid::Uuid;
 
 use crate::{
     EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
-    provider::fjall_provider::{FjallCodec, decode_fjall_value},
+    provider::fjall_provider::{FjallCodec, decode_fjall_value, split_fjall_value},
     tx::{EncodeFor, Error, Timestamp},
 };
 use moor_common::{
     model::{
-        HasUuid, Named, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms,
-        ValSet, VerbDefs, WorldStateError,
+        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
+        VerbArgsSpec, VerbDefs, VerbFlag, WorldStateError,
         loader::{
             SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
             SnapshotExportSession, SnapshotExportVerb, SnapshotInterface,
@@ -33,6 +33,7 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
+use planus::ReadAsRoot;
 
 /// A snapshot-based implementation of LoaderInterface for read-only database access
 pub struct FjallSnapshotLoader {
@@ -58,7 +59,7 @@ struct FjallSnapshotExportSession<'a> {
     parents: SortedObjectRelation<Obj>,
     locations: ObjectRelationCursor<Obj>,
     names: ObjectRelationCursor<StringHolder>,
-    verbdefs: ObjectRelationCursor<VerbDefs>,
+    verbdefs: ObjectRelationCursor<Vec<SnapshotVerbDefinition>>,
     propdefs: SortedObjectRelation<PropDefs>,
     programs: ObjectUuidRelationCursor<ProgramType>,
     values: ObjectUuidRelationCursor<Var>,
@@ -82,16 +83,22 @@ impl<T> SortedObjectRelation<T> {
 struct RelationCursor<K, V> {
     iter: fjall::Iter,
     pending: Option<(K, V)>,
+    decode_value: fn(Slice) -> Result<V, Error>,
 }
 
 impl<K, V> RelationCursor<K, V>
 where
-    FjallCodec: EncodeFor<K, Stored = ByteView> + EncodeFor<V, Stored = ByteView>,
+    FjallCodec: EncodeFor<K, Stored = ByteView>,
 {
-    fn new(snapshot: &fjall::Snapshot, keyspace: &fjall::Keyspace) -> Self {
+    fn with_decoder(
+        snapshot: &fjall::Snapshot,
+        keyspace: &fjall::Keyspace,
+        decode_value: fn(Slice) -> Result<V, Error>,
+    ) -> Self {
         Self {
             iter: snapshot.iter(keyspace),
             pending: None,
+            decode_value,
         }
     }
 
@@ -104,9 +111,20 @@ where
             .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
         let key = <FjallCodec as EncodeFor<K>>::decode(&FjallCodec, ByteView::from(key))
             .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-        let (_timestamp, value) =
-            decode_fjall_value(value).map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let value = (self.decode_value)(value)
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
         Ok(Some((key, value)))
+    }
+}
+
+impl<K, V> RelationCursor<K, V>
+where
+    FjallCodec: EncodeFor<K, Stored = ByteView> + EncodeFor<V, Stored = ByteView>,
+{
+    fn new(snapshot: &fjall::Snapshot, keyspace: &fjall::Keyspace) -> Self {
+        Self::with_decoder(snapshot, keyspace, |value| {
+            decode_fjall_value(value).map(|(_, value)| value)
+        })
     }
 }
 
@@ -114,7 +132,7 @@ type ObjectRelationCursor<T> = RelationCursor<Obj, T>;
 
 impl<T> RelationCursor<Obj, T>
 where
-    FjallCodec: EncodeFor<Obj, Stored = ByteView> + EncodeFor<T, Stored = ByteView>,
+    FjallCodec: EncodeFor<Obj, Stored = ByteView>,
 {
     fn next(&mut self) -> Result<Option<(Obj, T)>, WorldStateError> {
         if self.pending.is_some() {
@@ -144,7 +162,7 @@ type ObjectUuidRelationCursor<T> = RelationCursor<ObjAndUUIDHolder, T>;
 
 impl<T> RelationCursor<ObjAndUUIDHolder, T>
 where
-    FjallCodec: EncodeFor<ObjAndUUIDHolder, Stored = ByteView> + EncodeFor<T, Stored = ByteView>,
+    FjallCodec: EncodeFor<ObjAndUUIDHolder, Stored = ByteView>,
 {
     fn take_object(&mut self, target: Obj) -> Result<UuidValues<T>, WorldStateError> {
         let mut values = Vec::new();
@@ -168,6 +186,64 @@ where
     }
 }
 
+struct SnapshotVerbDefinition {
+    uuid: Uuid,
+    names: Vec<Symbol>,
+    argspec: VerbArgsSpec,
+    owner: Obj,
+    flags: BitEnum<VerbFlag>,
+}
+
+fn decode_snapshot_verbdefs(value: Slice) -> Result<Vec<SnapshotVerbDefinition>, Error> {
+    let (_timestamp, payload) = split_fjall_value(value)?;
+    let definitions = moor_schema::common::VerbDefsRef::read_as_root(&payload)
+        .map_err(|_| Error::EncodingFailure)?;
+    definitions
+        .verbs()
+        .map_err(|_| Error::EncodingFailure)?
+        .iter()
+        .map(|definition| {
+            let definition = definition.map_err(|_| Error::EncodingFailure)?;
+            let uuid = definition
+                .uuid()
+                .map_err(|_| Error::EncodingFailure)
+                .and_then(|uuid| {
+                    moor_schema::convert::uuid_from_ref(uuid).map_err(|_| Error::EncodingFailure)
+                })?;
+            let owner = definition
+                .owner()
+                .map_err(|_| Error::EncodingFailure)
+                .and_then(|owner| {
+                    moor_schema::convert::obj_from_ref(owner).map_err(|_| Error::EncodingFailure)
+                })?;
+            let names = definition
+                .names()
+                .map_err(|_| Error::EncodingFailure)?
+                .iter()
+                .map(|name| {
+                    let name = name.map_err(|_| Error::EncodingFailure)?;
+                    moor_schema::convert::symbol_from_ref(name).map_err(|_| Error::EncodingFailure)
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let flags = BitEnum::from_u16(definition.flags().map_err(|_| Error::EncodingFailure)?);
+            let argspec = definition
+                .args()
+                .map_err(|_| Error::EncodingFailure)
+                .and_then(|args| {
+                    moor_schema::convert::verb_args_spec_from_ref(args)
+                        .map_err(|_| Error::EncodingFailure)
+                })?;
+            Ok(SnapshotVerbDefinition {
+                uuid,
+                names,
+                argspec,
+                owner,
+                flags,
+            })
+        })
+        .collect()
+}
+
 struct UuidValues<T>(Vec<(Uuid, Option<T>)>);
 
 impl<T> UuidValues<T> {
@@ -182,6 +258,8 @@ struct ObjectMetadata {
     properties: Vec<(Uuid, Vec<(Symbol, Var)>)>,
     verbs: Vec<(Uuid, Vec<(Symbol, Var)>)>,
 }
+
+type SelectedObjectMetadata = Vec<(Obj, Vec<(Symbol, Var)>)>;
 
 struct ObjectMetadataCursor {
     iter: fjall::Iter,
@@ -432,8 +510,8 @@ impl FjallSnapshotLoader {
     fn read_selected_object_metadata(
         &self,
         keys: &[Symbol],
-    ) -> Result<Vec<(Obj, Vec<(Symbol, Var)>)>, WorldStateError> {
-        let mut selected = Vec::<(Obj, Vec<(Symbol, Var)>)>::new();
+    ) -> Result<SelectedObjectMetadata, WorldStateError> {
+        let mut selected = SelectedObjectMetadata::new();
         for entry in self.snapshot.iter(&self.entity_metadata_keyspace) {
             let (key, value) = entry
                 .into_inner()
@@ -479,7 +557,11 @@ impl<'a> FjallSnapshotExportSession<'a> {
                 &loader.object_location_keyspace,
             ),
             names: ObjectRelationCursor::new(&loader.snapshot, &loader.object_name_keyspace),
-            verbdefs: ObjectRelationCursor::new(&loader.snapshot, &loader.object_verbdefs_keyspace),
+            verbdefs: ObjectRelationCursor::with_decoder(
+                &loader.snapshot,
+                &loader.object_verbdefs_keyspace,
+                decode_snapshot_verbdefs,
+            ),
             propdefs,
             programs: ObjectUuidRelationCursor::new(
                 &loader.snapshot,
@@ -558,20 +640,20 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
 
         let mut programs = self.programs.take_object(oid)?;
         let mut metadata = self.entity_metadata.take_object(oid)?;
-        let verbdefs = self.verbdefs.take(oid)?.unwrap_or_else(VerbDefs::empty);
+        let verbdefs = self.verbdefs.take(oid)?.unwrap_or_default();
         let mut verbs = Vec::with_capacity(verbdefs.len());
-        for definition in verbdefs.iter() {
-            let uuid = definition.uuid();
+        for definition in verbdefs {
+            let uuid = definition.uuid;
             let program = programs
                 .take(uuid)
                 .ok_or_else(|| WorldStateError::VerbNotFound(oid, uuid.to_string()))?;
             let mut entity_metadata = take_metadata(&mut metadata.verbs, uuid);
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
             verbs.push(SnapshotExportVerb {
-                names: definition.names().to_vec(),
-                argspec: definition.args(),
-                owner: definition.owner(),
-                flags: definition.flags(),
+                names: definition.names,
+                argspec: definition.argspec,
+                owner: definition.owner,
+                flags: definition.flags,
                 program,
                 metadata: entity_metadata,
             });
