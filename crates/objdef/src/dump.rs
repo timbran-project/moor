@@ -19,10 +19,12 @@ use moor_common::model::{
     },
 };
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
-use moor_var::{NOTHING, Obj, Symbol, Var};
+#[cfg(test)]
+use moor_var::Symbol;
+use moor_var::{NOTHING, Obj, Var};
 use std::{
-    collections::{HashMap, hash_map::Entry},
-    fs::File,
+    collections::{HashMap, HashSet},
+    fs::{File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -72,7 +74,8 @@ pub struct ObjectDumpStats {
     pub write_elapsed: Duration,
 }
 
-pub fn collect_object_definitions(
+#[cfg(test)]
+fn collect_object_definitions(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
     let mut export = loader.begin_export(&[])?;
@@ -312,7 +315,8 @@ pub fn collect_object(
 
 /// Extract the object->constant name mapping from object definitions.
 /// This is used when dumping individual objects with constant substitution.
-pub fn extract_index_names(object_defs: &[ObjectDefinition]) -> HashMap<Obj, String> {
+#[cfg(test)]
+fn extract_index_names(object_defs: &[ObjectDefinition]) -> HashMap<Obj, String> {
     let (index_names, _file_names) = extract_object_constants(object_defs);
     index_names
 }
@@ -325,6 +329,7 @@ struct ObjectExportIdentity {
 }
 
 impl ObjectExportIdentity {
+    #[cfg(test)]
     fn from_definition(definition: &ObjectDefinition) -> Self {
         Self {
             oid: definition.oid,
@@ -359,6 +364,7 @@ impl ObjectExportIdentity {
 /// Skips objects where:
 /// - The import_export_id is not unique across all objects
 /// - The import_export_id equals the parent's import_export_id (inherited without override)
+#[cfg(test)]
 fn extract_object_constants(
     object_defs: &[ObjectDefinition],
 ) -> (HashMap<Obj, String>, HashMap<Obj, String>) {
@@ -442,6 +448,7 @@ fn extract_object_constants_from_identities(
 
 /// Extract hierarchy path from an object's import_export_hierarchy metadata.
 /// Returns a vector of path components, or empty vector if no hierarchy is set
+#[cfg(test)]
 fn extract_hierarchy_path(od: &ObjectDefinition) -> Vec<String> {
     let import_export_hierarchy_sym = import_export_hierarchy();
     let Some(value) = metadata_value(od, import_export_hierarchy_sym) else {
@@ -465,10 +472,12 @@ fn hierarchy_path_from_value(value: &Var) -> Vec<String> {
     Vec::new()
 }
 
+#[cfg(test)]
 fn metadata_string(od: &ObjectDefinition, key: Symbol) -> Option<String> {
     metadata_value(od, key).and_then(string_or_symbol_to_string)
 }
 
+#[cfg(test)]
 fn metadata_value(od: &ObjectDefinition, key: Symbol) -> Option<&Var> {
     od.metadata
         .iter()
@@ -525,7 +534,7 @@ struct ObjectDumpSink<'a> {
     file_names: &'a HashMap<Obj, String>,
     hierarchies: &'a HashMap<Obj, Vec<String>>,
     directories: HashMap<Vec<String>, PathBuf>,
-    anonymous_files: HashMap<Vec<String>, File>,
+    written_anonymous_hierarchies: HashSet<Vec<String>>,
 }
 
 impl<'a> ObjectDumpSink<'a> {
@@ -545,7 +554,7 @@ impl<'a> ObjectDumpSink<'a> {
             file_names,
             hierarchies,
             directories,
-            anonymous_files: HashMap::new(),
+            written_anonymous_hierarchies: HashSet::new(),
         })
     }
 
@@ -580,17 +589,17 @@ impl<'a> ObjectDumpSink<'a> {
             return crate::write::write_validated_dump_object(self.index_names, object, &mut file);
         }
 
-        let file = match self.anonymous_files.entry(hierarchy) {
-            Entry::Vacant(entry) => {
-                entry.insert(File::create(target_dir.join("_anonymous_objects.moo"))?)
-            }
-            Entry::Occupied(entry) => {
-                let file = entry.into_mut();
-                writeln!(file)?;
-                file
-            }
+        let anonymous_path = target_dir.join("_anonymous_objects.moo");
+        let first_in_hierarchy = self.written_anonymous_hierarchies.insert(hierarchy);
+        let mut file = if first_in_hierarchy {
+            File::create(anonymous_path)?
+        } else {
+            OpenOptions::new().append(true).open(anonymous_path)?
         };
-        crate::write::write_validated_dump_object(self.index_names, object, file)
+        if !first_in_hierarchy {
+            writeln!(file)?;
+        }
+        crate::write::write_validated_dump_object(self.index_names, object, &mut file)
     }
 }
 
@@ -667,7 +676,8 @@ pub fn dump_snapshot_object_definitions(
     })
 }
 
-pub fn dump_object_definitions(
+#[cfg(test)]
+pub(crate) fn dump_object_definitions(
     object_defs: &[ObjectDefinition],
     directory_path: &Path,
 ) -> Result<(), ObjectDumpError> {
@@ -710,10 +720,10 @@ pub fn dump_object(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions,
-        dump_snapshot_object_definitions,
+    use super::{
+        collect_object_definitions, dump_object_definitions, dump_snapshot_object_definitions,
     };
+    use crate::ObjectDefinitionLoader;
     use moor_common::{
         model::{CommitResult, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
