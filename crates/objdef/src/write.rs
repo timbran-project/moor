@@ -508,7 +508,7 @@ mod tests {
 
         let tempdir = tempfile::tempdir().unwrap();
         let checkpoint_path = tempdir.path().join("checkpoint.in-progress");
-        let error = crate::dump_object_definitions(&[object], &checkpoint_path).unwrap_err();
+        let error = crate::dump::dump_object_definitions(&[object], &checkpoint_path).unwrap_err();
         assert!(matches!(
             error,
             ObjectDumpError::EmptyVerbName { verb_index: 1, .. }
