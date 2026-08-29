@@ -158,11 +158,11 @@ fn collect_export_object(
 ) -> Result<ObjectDefinition, ObjectDumpError> {
     let mut definition = ObjectDefinition {
         oid: object.oid,
-        name: object.attributes.name().unwrap_or_default(),
-        parent: object.attributes.parent().unwrap_or(NOTHING),
-        owner: object.attributes.owner().unwrap_or(NOTHING),
-        location: object.attributes.location().unwrap_or(NOTHING),
-        flags: object.attributes.flags(),
+        name: object.name,
+        parent: object.parent,
+        owner: object.owner,
+        location: object.location,
+        flags: object.flags,
         metadata: object.metadata,
         verbs: Vec::with_capacity(object.verbs.len()),
         property_definitions: Vec::new(),
@@ -171,10 +171,10 @@ fn collect_export_object(
 
     for verb in object.verbs {
         definition.verbs.push(ObjVerbDef {
-            names: verb.definition.names().to_vec(),
-            argspec: verb.definition.args(),
-            owner: verb.definition.owner(),
-            flags: verb.definition.flags(),
+            names: verb.names,
+            argspec: verb.argspec,
+            owner: verb.owner,
+            flags: verb.flags,
             program: verb.program,
             metadata: verb.metadata,
         });

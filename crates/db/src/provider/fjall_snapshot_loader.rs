@@ -23,8 +23,8 @@ use crate::{
 };
 use moor_common::{
     model::{
-        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
-        VerbDefs, WorldStateError,
+        HasUuid, Named, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms,
+        ValSet, VerbDefs, WorldStateError,
         loader::{
             SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
             SnapshotExportSession, SnapshotExportVerb, SnapshotInterface,
@@ -542,7 +542,6 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
             .names
             .take(oid)?
             .ok_or(WorldStateError::ObjectNotFound(ObjectRef::Id(oid)))?;
-        let attributes = ObjAttrs::new(owner, parent, location, flags, &name.0);
 
         let mut programs = self.programs.take_object(oid)?;
         let mut metadata = self.entity_metadata.take_object(oid)?;
@@ -556,7 +555,10 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
             let mut entity_metadata = take_metadata(&mut metadata.verbs, uuid);
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
             verbs.push(SnapshotExportVerb {
-                definition: definition.clone(),
+                names: definition.names().to_vec(),
+                argspec: definition.args(),
+                owner: definition.owner(),
+                flags: definition.flags(),
                 program,
                 metadata: entity_metadata,
             });
@@ -626,7 +628,11 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
         metadata.object.sort_by_key(|(key, _)| key.as_string());
         Ok(Some(SnapshotExportObject {
             oid,
-            attributes,
+            name: name.0,
+            parent,
+            owner,
+            location,
+            flags,
             metadata: metadata.object,
             verbs,
             properties,
