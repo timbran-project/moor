@@ -906,6 +906,96 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_merge_handles_non_numeric_fjall_object_order() {
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+        let one = Obj::mk_id(1);
+        let two_fifty_six = Obj::mk_id(256);
+
+        {
+            let mut tx = db.new_world_state().unwrap();
+            let system = tx
+                .create_object(
+                    &system_permissions(),
+                    &Obj::mk_id(-1),
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+            assert_eq!(system, SYSTEM_OBJECT);
+            tx.create_object(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                BitEnum::new(),
+                ObjectKind::Objid(one),
+            )
+            .unwrap();
+            tx.create_object(
+                &system_permissions(),
+                &one,
+                &SYSTEM_OBJECT,
+                BitEnum::new(),
+                ObjectKind::Objid(two_fifty_six),
+            )
+            .unwrap();
+            for (object, name) in [(one, "one"), (two_fifty_six, "two_fifty_six")] {
+                tx.set_object_metadata(
+                    &system_permissions(),
+                    &object,
+                    Symbol::mk("import_export_id"),
+                    v_str(name),
+                )
+                .unwrap();
+            }
+            tx.set_object_metadata(
+                &system_permissions(),
+                &one,
+                Symbol::mk("marker"),
+                v_str("one"),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let snapshot = db.create_snapshot().unwrap();
+        let mut export = snapshot
+            .begin_export(&[Symbol::mk("import_export_id")])
+            .unwrap();
+        assert!(export.metadata().iter().any(|metadata| {
+            metadata.oid == one
+                && metadata
+                    .values
+                    .iter()
+                    .any(|(_, value)| value.as_string() == Some("one"))
+        }));
+        assert!(export.metadata().iter().any(|metadata| {
+            metadata.oid == two_fifty_six
+                && metadata
+                    .values
+                    .iter()
+                    .any(|(_, value)| value.as_string() == Some("two_fifty_six"))
+        }));
+
+        let mut saw_one = false;
+        let mut saw_two_fifty_six = false;
+        while let Some(object) = export.next_object().unwrap() {
+            if object.oid == one {
+                saw_one = object
+                    .metadata
+                    .iter()
+                    .any(|(key, value)| *key == Symbol::mk("marker") && value == &v_str("one"));
+            }
+            if object.oid == two_fifty_six {
+                saw_two_fifty_six = object.parent == one;
+            }
+        }
+        assert!(saw_one);
+        assert!(saw_two_fifty_six);
+    }
+
+    #[test]
     fn object_metadata_controls_export_naming() {
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
