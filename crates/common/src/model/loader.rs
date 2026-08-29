@@ -60,11 +60,6 @@ pub struct SnapshotExportMetadata {
 pub trait SnapshotExport: Send {
     fn object_count(&self) -> usize;
 
-    fn collect_object_metadata(
-        &self,
-        keys: &[Symbol],
-    ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError>;
-
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError>;
 }
 
@@ -73,6 +68,14 @@ pub trait SnapshotInterface: Send {
     /// Start an object-at-a-time export when the backing store supports an efficient scan.
     /// Implementations can return `None` to use the point-read compatibility path.
     fn start_export(&self) -> Result<Option<Box<dyn SnapshotExport + '_>>, WorldStateError> {
+        Ok(None)
+    }
+
+    /// Collect the small global metadata needed to name files in a streaming export.
+    fn collect_export_metadata(
+        &self,
+        _keys: &[Symbol],
+    ) -> Result<Option<Vec<SnapshotExportMetadata>>, WorldStateError> {
         Ok(None)
     }
 
