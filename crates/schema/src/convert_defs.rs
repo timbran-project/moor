@@ -24,7 +24,6 @@ use moor_common::{
 };
 use moor_var::Symbol;
 use thiserror::Error;
-use uuid::Uuid;
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum DefConversionError {
@@ -79,14 +78,6 @@ fn verb_args_spec_to_flatbuffer(args: &ModelVerbArgsSpec) -> common::VerbArgsSpe
     }
 }
 
-fn verb_args_spec_from_flatbuffer(fb: &common::VerbArgsSpec) -> ModelVerbArgsSpec {
-    ModelVerbArgsSpec {
-        dobj: fb.dobj.into(),
-        prep: prepspec_from_i16(fb.prep),
-        iobj: fb.iobj.into(),
-    }
-}
-
 pub fn verb_args_spec_from_ref(
     fb: common::VerbArgsSpecRef<'_>,
 ) -> Result<ModelVerbArgsSpec, DefConversionError> {
@@ -132,34 +123,6 @@ pub fn verbdef_to_flatbuffer(verb: &ModelVerbDef) -> Result<common::VerbDef, Def
         flags: verb.flags().to_u16(),
         args: Box::new(verb_args_spec_to_flatbuffer(&verb.args())),
     })
-}
-
-pub fn verbdef_from_flatbuffer(fb: &common::VerbDef) -> Result<ModelVerbDef, DefConversionError> {
-    let uuid_bytes: [u8; 16] = fb
-        .uuid
-        .data
-        .as_slice()
-        .try_into()
-        .map_err(|_| DefConversionError::DecodingError("Invalid UUID bytes".to_string()))?;
-    let uuid = Uuid::from_bytes(uuid_bytes);
-
-    let location = convert_common::obj_from_flatbuffer_struct(&fb.location)
-        .map_err(|e| DefConversionError::DecodingError(e.to_string()))?;
-    let owner = convert_common::obj_from_flatbuffer_struct(&fb.owner)
-        .map_err(|e| DefConversionError::DecodingError(e.to_string()))?;
-
-    let names: Vec<Symbol> = fb
-        .names
-        .iter()
-        .map(convert_common::symbol_from_flatbuffer_struct)
-        .collect();
-
-    let flags = BitEnum::from_u16(fb.flags);
-    let args = verb_args_spec_from_flatbuffer(&fb.args);
-
-    Ok(ModelVerbDef::new(
-        uuid, location, owner, &names, flags, args,
-    ))
 }
 
 pub fn verbdef_from_ref(fb: common::VerbDefRef<'_>) -> Result<ModelVerbDef, DefConversionError> {
@@ -228,24 +191,6 @@ pub fn propdef_to_flatbuffer(prop: &ModelPropDef) -> Result<common::PropDef, Def
     })
 }
 
-pub fn propdef_from_flatbuffer(fb: &common::PropDef) -> Result<ModelPropDef, DefConversionError> {
-    let uuid_bytes: [u8; 16] = fb
-        .uuid
-        .data
-        .as_slice()
-        .try_into()
-        .map_err(|_| DefConversionError::DecodingError("Invalid UUID bytes".to_string()))?;
-    let uuid = Uuid::from_bytes(uuid_bytes);
-
-    let definer = convert_common::obj_from_flatbuffer_struct(&fb.definer)
-        .map_err(|e| DefConversionError::DecodingError(e.to_string()))?;
-    let location = convert_common::obj_from_flatbuffer_struct(&fb.location)
-        .map_err(|e| DefConversionError::DecodingError(e.to_string()))?;
-    let name = convert_common::symbol_from_flatbuffer_struct(&fb.name);
-
-    Ok(ModelPropDef::new(uuid, definer, location, name))
-}
-
 pub fn propdef_from_ref(fb: common::PropDefRef<'_>) -> Result<ModelPropDef, DefConversionError> {
     let uuid = fb
         .uuid()
@@ -286,12 +231,6 @@ pub fn verbdefs_to_flatbuffer(
     Ok(common::VerbDefs { verbs: verbs? })
 }
 
-pub fn verbdefs_from_flatbuffer(
-    fb: &common::VerbDefs,
-) -> Result<Defs<ModelVerbDef>, DefConversionError> {
-    fb.verbs.iter().map(verbdef_from_flatbuffer).collect()
-}
-
 // ============================================================================
 // PropDefs Collection Conversion
 // ============================================================================
@@ -301,10 +240,4 @@ pub fn propdefs_to_flatbuffer(
 ) -> Result<common::PropDefs, DefConversionError> {
     let props: Result<Vec<_>, _> = defs.iter_ref().map(propdef_to_flatbuffer).collect();
     Ok(common::PropDefs { props: props? })
-}
-
-pub fn propdefs_from_flatbuffer(
-    fb: &common::PropDefs,
-) -> Result<Defs<ModelPropDef>, DefConversionError> {
-    fb.props.iter().map(propdef_from_flatbuffer).collect()
 }
