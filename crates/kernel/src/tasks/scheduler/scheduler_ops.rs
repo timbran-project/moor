@@ -302,28 +302,88 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn checkpoint(&self) -> Result<(), SchedulerError> {
-        start_checkpoint(
+    pub(crate) fn handle_checkpoint_task_completion(
+        &self,
+        task_id: TaskId,
+        generation: u64,
+        outcome: Result<(), SchedulerError>,
+    ) {
+        let mut lc = self.lifecycle.lock();
+        let waiting_for_generation = lc.task_q.suspended.tasks.get(&task_id).is_some_and(
+            |task| matches!(task.wake_condition, WakeCondition::Checkpoint(g) if g == generation),
+        );
+        if !waiting_for_generation {
+            debug!(task_id, generation, "Checkpoint waiter no longer suspended");
+            return;
+        }
+
+        let Some(mut suspended) = lc.task_q.suspended.remove_task(task_id) else {
+            return;
+        };
+        if lc.state != SchedulerState::Running {
+            lc.task_q.suspended.enqueue_dependents_for(task_id);
+            lc.task_q.send_task_result_direct(
+                task_id,
+                suspended.result_sender.take(),
+                Err(TaskAbortedCancelled),
+            );
+            return;
+        }
+
+        let succeeded = outcome.is_ok();
+        if let Err(error) = outcome {
+            error!(?error, task_id, generation, "Blocking checkpoint failed");
+        }
+        if let Err(error) = lc.task_q.wake_suspended_task(
+            suspended,
+            ResumeAction::Return(v_bool_int(succeeded)),
+            self,
             self.database.as_ref(),
-            self.config.as_ref(),
-            &self.version,
-            self.checkpoint_in_progress.clone(),
-            CheckpointMode::NonBlocking,
+            self.builtin_registry.clone(),
+            self.config.clone(),
+        ) {
+            error!(
+                ?error,
+                task_id, generation, "Could not resume checkpoint waiter"
+            );
+        }
+    }
+
+    pub(crate) fn prepare_checkpoint_job(&self) -> Result<CheckpointJob, SchedulerError> {
+        prepare_checkpoint(self.config.as_ref(), &self.checkpoint_coordinator)
+    }
+
+    pub(crate) fn launch_checkpoint_job(
+        &self,
+        job: CheckpointJob,
+        waiting_task: Option<TaskId>,
+    ) -> Result<CheckpointTicket, SchedulerError> {
+        let callback_scheduler = self.clone();
+        job.launch(
+            self.database.as_ref(),
+            Box::new(move |generation, outcome| {
+                let Some(task_id) = waiting_task else {
+                    if let Err(error) = outcome {
+                        error!(?error, generation, "Checkpoint export failed");
+                    }
+                    return;
+                };
+                callback_scheduler.handle_checkpoint_task_completion(task_id, generation, outcome);
+            }),
         )
     }
 
-    /// Request a checkpoint and wait for the textdump generation to complete.
-    ///
-    /// Unlike `checkpoint()`, this method blocks until the background textdump thread
-    /// finishes, providing confirmation that the checkpoint has been written to disk.
-    pub(crate) fn checkpoint_blocking(&self) -> Result<(), SchedulerError> {
-        start_checkpoint(
-            self.database.as_ref(),
-            self.config.as_ref(),
-            &self.version,
-            self.checkpoint_in_progress.clone(),
-            CheckpointMode::Blocking,
-        )
+    /// Admit and launch a checkpoint without waiting for its export to finish.
+    pub(crate) fn begin_checkpoint(&self) -> Result<CheckpointTicket, SchedulerError> {
+        if self.state() != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+        let job = self.prepare_checkpoint_job()?;
+        self.launch_checkpoint_job(job, None)
+    }
+
+    pub(crate) fn checkpoint(&self) -> Result<(), SchedulerError> {
+        self.begin_checkpoint().map(|_| ())
     }
 
     /// Stop the scheduler run loop.
@@ -338,7 +398,7 @@ impl Scheduler {
             lc.state = SchedulerState::Stopping;
 
             // Notify all live tasks of shutdown.
-            for (_, task) in lc.task_q.active.iter() {
+            for task in lc.task_q.active.values() {
                 let _ = task.session.notify_shutdown(msg.clone());
                 task.kill_switch.store(true, Ordering::SeqCst);
             }
@@ -347,6 +407,8 @@ impl Scheduler {
                 "Stopping scheduler tasks"
             );
         }
+
+        let active_checkpoint = self.checkpoint_coordinator.close();
 
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         loop {
@@ -381,6 +443,13 @@ impl Scheduler {
         }
 
         let gc_result = self.join_gc_thread();
+        let checkpoint_result = active_checkpoint.map_or(Ok(()), |ticket| {
+            info!(
+                generation = ticket.generation(),
+                "Waiting for active checkpoint before shutdown"
+            );
+            ticket.wait()
+        });
 
         // Now ask the rpc server and hosts to shutdown (no lock held).
         self.system_control
@@ -394,6 +463,6 @@ impl Scheduler {
         }
         self.wake_timer_thread();
 
-        gc_result
+        gc_result.and(checkpoint_result)
     }
 }

@@ -291,6 +291,9 @@ pub fn scheduler_error_from_ref(
             Ok(SchedulerError::InputRequestNotFound(request_id.as_u128()))
         }
         rpc::SchedulerErrorUnionRef::CouldNotStartTask(_) => Ok(SchedulerError::CouldNotStartTask),
+        rpc::SchedulerErrorUnionRef::CheckpointInProgress(_) => {
+            Ok(SchedulerError::CheckpointInProgress)
+        }
         rpc::SchedulerErrorUnionRef::CompilationError(compile_error) => {
             let error = compilation_error_from_ref(fb_read!(compile_error, error))?;
             Ok(SchedulerError::CompilationError(error))
@@ -463,6 +466,9 @@ pub fn scheduler_error_to_flatbuffer_struct(
         }
         SchedulerError::CouldNotStartTask => {
             rpc::SchedulerErrorUnion::CouldNotStartTask(Box::new(rpc::CouldNotStartTask {}))
+        }
+        SchedulerError::CheckpointInProgress => {
+            rpc::SchedulerErrorUnion::CheckpointInProgress(Box::new(rpc::CheckpointInProgress {}))
         }
         SchedulerError::CompilationError(compile_error) => {
             let compile_error_fb = compilation_error_to_flatbuffer_struct(compile_error)

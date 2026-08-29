@@ -258,6 +258,11 @@ pub(crate) fn wake_condition_to_flatbuffer(
                 "Retry wake condition should not be serialized".to_string(),
             ));
         }
+        KernelWakeCondition::Checkpoint(_) => {
+            return Err(TaskConversionError::EncodingError(
+                "Checkpoint wake condition should not be serialized".to_string(),
+            ));
+        }
     };
 
     Ok(WakeCondition { condition })

@@ -423,6 +423,8 @@ pub enum WakeCondition {
     Retry(Instant),
     /// Wake when a task message is delivered, or at deadline (whichever first)
     TaskMessage(Instant),
+    /// Wake when this process's checkpoint generation completes.
+    Checkpoint(u64),
 }
 
 #[repr(u8)]
@@ -436,6 +438,7 @@ pub enum WakeConditionType {
     GCComplete = 6,
     Retry = 7,
     TaskMessage = 8,
+    Checkpoint = 9,
 }
 
 impl WakeCondition {
@@ -450,6 +453,7 @@ impl WakeCondition {
             WakeCondition::GCComplete => WakeConditionType::GCComplete,
             WakeCondition::Retry(_) => WakeConditionType::Retry,
             WakeCondition::TaskMessage(_) => WakeConditionType::TaskMessage,
+            WakeCondition::Checkpoint(_) => WakeConditionType::Checkpoint,
         }
     }
 }
@@ -704,6 +708,9 @@ impl SuspensionQ {
                         self.enqueue_immediate_wake(task_id);
                     }
                 }
+                WakeCondition::Checkpoint(_) => {
+                    // Checkpoint jobs do not survive process restart.
+                }
             }
 
             self.tasks.insert(task_id, task);
@@ -817,6 +824,7 @@ impl SuspensionQ {
                 }
                 true // Persist - message queue state should survive restarts
             }
+            WakeCondition::Checkpoint(_) => false,
         };
 
         let sr = SuspendedTask {
@@ -896,6 +904,9 @@ impl SuspensionQ {
                 WakeCondition::TaskMessage(_) => {
                     self.message_waiting_tasks.retain(|&id| id != task_id);
                 }
+                WakeCondition::Checkpoint(_) => {
+                    // No auxiliary queue entry to remove.
+                }
             }
 
             // Try to delete from database - will be a no-op for tasks that were never persisted
@@ -916,10 +927,13 @@ impl SuspensionQ {
 
     /// Synchronize the suspended tasks with the tasks database. Called on shutdown.
     pub(crate) fn save_tasks(&self) {
-        for (_, st) in self.tasks.iter() {
+        for st in self.tasks.values() {
             // Skip retry tasks - they're transient and their transaction context
             // would be invalid after restart anyway
-            if matches!(st.wake_condition, WakeCondition::Retry(_)) {
+            if matches!(
+                st.wake_condition,
+                WakeCondition::Retry(_) | WakeCondition::Checkpoint(_)
+            ) {
                 continue;
             }
             if let Err(e) = self.tasks_database.save_task(st) {
@@ -974,7 +988,7 @@ impl SuspensionQ {
         let mut tasks = Vec::new();
 
         // Suspended tasks.
-        for (_, sr) in self.tasks.iter() {
+        for sr in self.tasks.values() {
             let start_time = match sr.wake_condition {
                 WakeCondition::Time(t) => {
                     let distance_from_now = Deadline::at(t).remaining().unwrap_or(Duration::ZERO);

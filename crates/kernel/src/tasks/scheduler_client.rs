@@ -30,7 +30,6 @@ use crate::{
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const GC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-const CHECKPOINT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Garbage collection statistics
 #[derive(Debug, Clone)]
@@ -270,9 +269,7 @@ impl SchedulerClient {
 
     /// Request a checkpoint and wait for the textdump generation to complete.
     ///
-    /// This method blocks until the background textdump thread finishes, providing
-    /// confirmation that the checkpoint has actually been written to disk.
-    /// Uses a longer timeout (10 minutes) to accommodate large database exports.
+    /// This method blocks until the final textdump file has been published.
     pub fn request_checkpoint_blocking(&self) -> Result<(), SchedulerError> {
         self.request_checkpoint_with_blocking(true)
     }
@@ -286,14 +283,9 @@ impl SchedulerClient {
             .timers
             .start(SchedulerOp::CheckpointLatency);
 
-        let timeout = if blocking {
-            CHECKPOINT_TIMEOUT
-        } else {
-            LONG_REQUEST_TIMEOUT
-        };
-        self.request_with_timeout(timeout, move |scheduler| {
-            scheduler.handle_checkpoint_request(blocking)
-        })
+        self.ensure_running()?;
+        let ticket = self.scheduler.begin_checkpoint()?;
+        if blocking { ticket.wait() } else { Ok(()) }
     }
 
     /// Check if the scheduler is alive and responding (lightweight operation)
@@ -610,11 +602,62 @@ impl SchedulerClient {
 mod tests {
     use super::*;
     use crate::{
-        config::Config,
-        tasks::{NoopTasksDb, scheduler::Scheduler},
+        config::{Config, FeaturesConfig},
+        tasks::{NoopTasksDb, TaskHandle, TaskNotification, scheduler::Scheduler},
     };
-    use moor_common::tasks::{NoopClientSession, NoopSystemControl, SessionError, SessionFactory};
-    use moor_db::{DatabaseConfig, TxDB};
+    use moor_common::{
+        model::{
+            ObjFlag, ObjectKind, TaskPermissions, WorldState, WorldStateError, WorldStateSource,
+            loader::{LoaderInterface, SnapshotInterface},
+        },
+        tasks::{NoopClientSession, NoopSystemControl, SessionError, SessionFactory},
+        util::BitEnum,
+    };
+    use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
+    use moor_var::{NOTHING, SYSTEM_OBJECT, v_int};
+    use std::sync::{Mutex as StdMutex, mpsc};
+
+    struct GatedSnapshotDatabase {
+        inner: TxDB,
+        started: mpsc::Sender<()>,
+        release: Arc<StdMutex<mpsc::Receiver<()>>>,
+    }
+
+    impl WorldStateSource for GatedSnapshotDatabase {
+        fn new_world_state(&self) -> Result<Box<dyn WorldState>, WorldStateError> {
+            self.inner.new_world_state()
+        }
+
+        fn checkpoint(&self) -> Result<(), WorldStateError> {
+            self.inner.checkpoint()
+        }
+    }
+
+    impl Database for GatedSnapshotDatabase {
+        fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError> {
+            self.inner.loader_client()
+        }
+
+        fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError> {
+            self.inner.create_snapshot()
+        }
+
+        fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError> {
+            let snapshot = self.inner.create_snapshot()?;
+            let started = self.started.clone();
+            let release = self.release.clone();
+            std::thread::spawn(move || {
+                started.send(()).unwrap();
+                release.lock().unwrap().recv().unwrap();
+                callback(Ok(snapshot)).unwrap();
+            });
+            Ok(())
+        }
+
+        fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError> {
+            self.inner.gc_interface()
+        }
+    }
 
     struct NoopSessionFactory;
 
@@ -624,6 +667,67 @@ mod tests {
             _player: &Obj,
         ) -> Result<Arc<dyn Session>, SessionError> {
             Ok(Arc::new(NoopClientSession::new()))
+        }
+    }
+
+    fn gated_scheduler() -> (
+        SchedulerClient,
+        crate::tasks::scheduler::SchedulerThreads,
+        mpsc::Receiver<()>,
+        mpsc::Sender<()>,
+        tempfile::TempDir,
+    ) {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let mut world_state = database.new_world_state().unwrap();
+        let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+        let system_object = world_state
+            .create_object(
+                &permissions,
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        assert_eq!(system_object, SYSTEM_OBJECT);
+        world_state.commit().unwrap();
+        let (started_send, started_recv) = mpsc::channel();
+        let (release_send, release_recv) = mpsc::channel();
+        let database = GatedSnapshotDatabase {
+            inner: database,
+            started: started_send,
+            release: Arc::new(StdMutex::new(release_recv)),
+        };
+        let output = tempfile::tempdir().unwrap();
+        let mut config = Config::default();
+        config.import_export.output_path = Some(output.path().to_path_buf());
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(NoopTasksDb {}),
+            Arc::new(config),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let client = scheduler.client().unwrap();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        (client, threads, started_recv, release_send, output)
+    }
+
+    fn wait_for_task(handle: &TaskHandle) -> Result<Var, SchedulerError> {
+        loop {
+            match handle
+                .receiver()
+                .recv_timeout(Duration::from_secs(2))
+                .expect("task result timed out")
+            {
+                (_, Ok(TaskNotification::Result(value))) => return Ok(value),
+                (_, Ok(TaskNotification::Suspended)) => {}
+                (_, Err(error)) => return Err(error),
+            }
         }
     }
 
@@ -656,5 +760,108 @@ mod tests {
         threads
             .join()
             .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn blocking_checkpoint_does_not_block_scheduler_requests() {
+        let (client, threads, started, release, _output) = gated_scheduler();
+        let blocking_client = client.clone();
+        let checkpoint = std::thread::spawn(move || blocking_client.request_checkpoint_blocking());
+
+        started.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(client.check_status(), Ok(()));
+        assert_eq!(
+            client.request_checkpoint(),
+            Err(SchedulerError::CheckpointInProgress)
+        );
+
+        release.send(()).unwrap();
+        assert_eq!(checkpoint.join().unwrap(), Ok(()));
+        client.submit_shutdown("checkpoint test complete").unwrap();
+        threads.join().unwrap();
+    }
+
+    #[test]
+    fn shutdown_waits_for_active_checkpoint() {
+        let (client, threads, started, release, _output) = gated_scheduler();
+        client.request_checkpoint().unwrap();
+        started.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let shutdown_client = client.clone();
+        let (shutdown_done_send, shutdown_done_recv) = mpsc::channel();
+        let shutdown = std::thread::spawn(move || {
+            let result = shutdown_client.submit_shutdown("checkpoint shutdown test");
+            shutdown_done_send.send(()).unwrap();
+            result
+        });
+        assert!(
+            shutdown_done_recv
+                .recv_timeout(Duration::from_millis(50))
+                .is_err()
+        );
+
+        release.send(()).unwrap();
+        assert_eq!(shutdown.join().unwrap(), Ok(()));
+        threads.join().unwrap();
+    }
+
+    #[test]
+    fn blocking_dump_suspends_its_moo_task() {
+        let (client, threads, started, release, _output) = gated_scheduler();
+        let checkpoint_task = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "return dump_database(1);".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        started.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let other_task = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "return 42;".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        assert_eq!(wait_for_task(&other_task), Ok(v_int(42)));
+
+        release.send(()).unwrap();
+        assert!(wait_for_task(&checkpoint_task).unwrap().is_true());
+        client
+            .submit_shutdown("blocking dump test complete")
+            .unwrap();
+        threads.join().unwrap();
+    }
+
+    #[test]
+    fn blocking_dump_returns_false_when_checkpoint_is_busy() {
+        let (client, threads, started, release, _output) = gated_scheduler();
+        client.request_checkpoint().unwrap();
+        started.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let duplicate = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "return dump_database(1);".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        assert!(!wait_for_task(&duplicate).unwrap().is_true());
+
+        release.send(()).unwrap();
+        client
+            .submit_shutdown("duplicate dump test complete")
+            .unwrap();
+        threads.join().unwrap();
     }
 }

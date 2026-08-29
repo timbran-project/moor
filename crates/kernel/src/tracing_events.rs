@@ -1638,6 +1638,7 @@ macro_rules! trace_task_suspend_with_delay {
                     timeout
                 ),
                 TaskSuspend::RecvMessages(timeout) => format!("RecvMessages({:?})", timeout),
+                TaskSuspend::Checkpoint => "Checkpoint".to_string(),
             };
             emit_trace_event(TraceEventType::TaskSuspend {
                 task_id: $task_id,

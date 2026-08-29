@@ -971,7 +971,13 @@ fn bf_dump_database(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         false
     };
 
-    match current_task_scheduler_client().checkpoint_with_blocking(blocking) {
+    if blocking {
+        return Ok(VmInstr(ExecutionResult::TaskSuspend(
+            crate::vm::TaskSuspend::Checkpoint,
+        )));
+    }
+
+    match current_task_scheduler_client().checkpoint() {
         Ok(()) => Ok(Ret(bf_args.v_bool(true))),
         Err(e) => {
             tracing::error!(?e, "dump_database() checkpoint failed");

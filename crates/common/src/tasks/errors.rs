@@ -48,6 +48,8 @@ pub enum SchedulerError {
     InputRequestNotFound(u128),
     #[error("Could not start task (internal error)")]
     CouldNotStartTask,
+    #[error("Checkpoint already in progress")]
+    CheckpointInProgress,
     #[error("Compilation error")]
     CompilationError(#[source] CompileError),
     #[error("Could not start command")]
