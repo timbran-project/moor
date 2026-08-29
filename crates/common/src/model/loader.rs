@@ -82,9 +82,6 @@ pub trait SnapshotInterface: Send {
     /// Get the list of all active objects in the database
     fn get_objects(&self) -> Result<ObjSet, WorldStateError>;
 
-    /// Get the list of all players.
-    fn get_players(&self) -> Result<ObjSet, WorldStateError>;
-
     /// Get the attributes of a given object
     fn get_object(&self, objid: &Obj) -> Result<ObjAttrs, WorldStateError>;
 
@@ -93,9 +90,6 @@ pub trait SnapshotInterface: Send {
 
     /// Get the binary for a given verb
     fn get_verb_program(&self, objid: &Obj, uuid: Uuid) -> Result<ProgramType, WorldStateError>;
-
-    /// Get the properties defined on a given object
-    fn get_object_properties(&self, objid: &Obj) -> Result<PropDefs, WorldStateError>;
 
     fn get_property_value(
         &self,
@@ -127,13 +121,6 @@ pub trait SnapshotInterface: Send {
         &self,
         objid: &Obj,
     ) -> Result<Vec<(PropDef, (Option<Var>, PropPerms))>, WorldStateError>;
-
-    /// Garbage collection support methods for read-only anonymous object scanning
-    fn get_anonymous_object_metadata(
-        &self,
-        objid: &Obj,
-    ) -> Result<Option<Box<dyn std::any::Any + Send>>, WorldStateError>;
-    fn scan_anonymous_object_references(&self) -> Result<Vec<(Obj, Vec<Obj>)>, WorldStateError>;
 }
 
 /// Interface exposed to be used by the textdump/objdef loader for loading data into the database.

@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
-    AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
+    EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
     provider::fjall_provider::{FjallCodec, decode_fjall_value},
     tx::{EncodeFor, Error, Timestamp},
 };
@@ -48,7 +48,6 @@ pub struct FjallSnapshotLoader {
     pub object_propvalues_keyspace: fjall::Keyspace,
     pub object_propflags_keyspace: fjall::Keyspace,
     pub entity_metadata_keyspace: fjall::Keyspace,
-    pub anonymous_object_metadata_keyspace: fjall::Keyspace,
 }
 
 struct FjallSnapshotExport<'a> {
@@ -141,30 +140,6 @@ impl SnapshotInterface for FjallSnapshotLoader {
         Ok(ObjSet::from_iter(objects))
     }
 
-    fn get_players(&self) -> Result<ObjSet, WorldStateError> {
-        // Scan object flags to find objects with the Player flag
-        let mut players = Vec::new();
-
-        for entry in self.snapshot.iter(&self.object_flags_keyspace) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let obj = FjallCodec.decode(ByteView::from(key)).map_err(|_| {
-                WorldStateError::DatabaseError("Failed to decode object ID".to_string())
-            })?;
-
-            let (_ts, flags) = self
-                .decode::<BitEnum<moor_common::model::ObjFlag>>(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-
-            if flags.contains(moor_common::model::ObjFlag::User) {
-                players.push(obj);
-            }
-        }
-
-        Ok(ObjSet::from_iter(players))
-    }
-
     fn get_object(&self, objid: &Obj) -> Result<ObjAttrs, WorldStateError> {
         Ok(ObjAttrs::new(
             self.get_object_owner(objid)?,
@@ -181,10 +156,6 @@ impl SnapshotInterface for FjallSnapshotLoader {
 
     fn get_verb_program(&self, objid: &Obj, uuid: Uuid) -> Result<ProgramType, WorldStateError> {
         self.get_verb_program_internal(objid, uuid)
-    }
-
-    fn get_object_properties(&self, objid: &Obj) -> Result<PropDefs, WorldStateError> {
-        self.get_properties(objid)
     }
 
     fn get_property_value(
@@ -261,71 +232,6 @@ impl SnapshotInterface for FjallSnapshotLoader {
             }
         }
         Ok(properties)
-    }
-
-    fn get_anonymous_object_metadata(
-        &self,
-        objid: &Obj,
-    ) -> Result<Option<Box<dyn std::any::Any + Send>>, WorldStateError> {
-        let metadata = self.get_from_snapshot::<Obj, AnonymousObjectMetadata>(
-            &self.anonymous_object_metadata_keyspace,
-            objid,
-        )?;
-        Ok(metadata.map(|m| Box::new(m) as Box<dyn std::any::Any + Send>))
-    }
-
-    fn scan_anonymous_object_references(&self) -> Result<Vec<(Obj, Vec<Obj>)>, WorldStateError> {
-        let mut references = Vec::new();
-
-        // Scan all property values for anonymous object references
-        for entry in self.snapshot.iter(&self.object_propvalues_keyspace) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-
-            // Decode the key to get the object and property UUID
-            let key_holder: ObjAndUUIDHolder =
-                FjallCodec.decode(ByteView::from(key)).map_err(|_| {
-                    WorldStateError::DatabaseError("Failed to decode property key".to_string())
-                })?;
-
-            // Decode the value to get the property value
-            let (_ts, prop_value) = self
-                .decode::<Var>(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-
-            // Extract anonymous object references from the property value
-            let anon_refs = self.extract_anonymous_refs(&prop_value);
-
-            if !anon_refs.is_empty() {
-                references.push((key_holder.obj(), anon_refs));
-            }
-        }
-
-        // Metadata values can contain anonymous object references too. The metadata key itself
-        // is not a root; otherwise metadata attached to an anonymous object would keep that object
-        // alive solely by existing.
-        for entry in self.snapshot.iter(&self.entity_metadata_keyspace) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-
-            let metadata_key: EntityMetadataKey =
-                FjallCodec.decode(ByteView::from(key)).map_err(|_| {
-                    WorldStateError::DatabaseError("Failed to decode metadata key".to_string())
-                })?;
-
-            let (_ts, metadata_value) = self
-                .decode::<Var>(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-
-            let anon_refs = self.extract_anonymous_refs(&metadata_value);
-            if !anon_refs.is_empty() {
-                references.push((metadata_key.obj(), anon_refs));
-            }
-        }
-
-        Ok(references)
     }
 }
 
@@ -809,66 +715,5 @@ impl FjallSnapshotLoader {
         }
 
         Ok(ObjSet::from_iter(ancestors))
-    }
-}
-
-impl FjallSnapshotLoader {
-    /// Helper method to extract anonymous object references from a Var
-    fn extract_anonymous_refs(&self, var: &Var) -> Vec<Obj> {
-        let mut refs = Vec::new();
-        Self::extract_anonymous_refs_recursive(var, &mut refs);
-        refs
-    }
-
-    /// Recursively extract anonymous object references from a Var
-    fn extract_anonymous_refs_recursive(var: &Var, refs: &mut Vec<Obj>) {
-        match var.variant() {
-            moor_var::Variant::Obj(obj) if obj.is_anonymous() => {
-                refs.push(obj);
-            }
-            moor_var::Variant::List(list) => {
-                for item in list.iter() {
-                    Self::extract_anonymous_refs_recursive(&item, refs);
-                }
-            }
-            moor_var::Variant::Map(map) => {
-                for (key, value) in map.iter() {
-                    Self::extract_anonymous_refs_recursive(&key, refs);
-                    Self::extract_anonymous_refs_recursive(&value, refs);
-                }
-            }
-            moor_var::Variant::Flyweight(flyweight) => {
-                // Check delegate
-                let delegate = flyweight.delegate();
-                if delegate.is_anonymous() {
-                    refs.push(*delegate);
-                }
-
-                // Check slots (Symbol -> Var pairs)
-                for (_symbol, slot_value) in flyweight.slots_storage().iter() {
-                    Self::extract_anonymous_refs_recursive(slot_value, refs);
-                }
-
-                // Check contents (List)
-                for item in flyweight.contents().iter() {
-                    Self::extract_anonymous_refs_recursive(&item, refs);
-                }
-            }
-            moor_var::Variant::Err(error) => {
-                // Check the error's optional value field
-                if let Some(error_value) = error.value() {
-                    Self::extract_anonymous_refs_recursive(error_value, refs);
-                }
-            }
-            moor_var::Variant::Lambda(lambda) => {
-                // Check captured environment (stack frames)
-                for frame in lambda.0.captured_env.iter() {
-                    for var in frame.iter() {
-                        Self::extract_anonymous_refs_recursive(var, refs);
-                    }
-                }
-            }
-            _ => {} // Other types (None, Bool, Int, Float, Str, Sym, Binary) don't contain object references
-        }
     }
 }
