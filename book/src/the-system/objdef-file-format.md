@@ -237,8 +237,9 @@ object #789 [
 
 **Type**: Must be a String or Symbol
 
-Legacy objdefs may still use an ordinary `import_export_id` property. mooR reads object metadata
-first and falls back to the legacy property form for older cores.
+The importer accepts an ordinary `import_export_id` or `import_export_hierarchy` property in older
+objdefs. It converts that property to object metadata before it applies the definition. Exporters
+read only object metadata.
 
 **Example**:
 

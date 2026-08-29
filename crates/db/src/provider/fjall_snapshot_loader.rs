@@ -13,7 +13,7 @@
 
 use byteview::ByteView;
 use fjall::{Readable, Slice};
-use std::{cmp::Ordering, collections::HashSet};
+use std::cmp::Ordering;
 use uuid::Uuid;
 
 use crate::{
@@ -394,46 +394,30 @@ impl FjallSnapshotLoader {
         &self,
         keys: &[Symbol],
         parents: &SortedObjectRelation<Obj>,
-        propdefs: &SortedObjectRelation<PropDefs>,
     ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError> {
         let mut objects = self.get_objects()?.iter().collect::<Vec<_>>();
         objects.sort_unstable();
-        let keys = keys.iter().copied().collect::<HashSet<_>>();
+        let mut selected_metadata = self.read_selected_object_metadata(keys)?;
+        let mut selected_index = 0;
         let mut records = Vec::with_capacity(objects.len());
 
         for oid in objects {
-            let mut values = self.scan_object_metadata_keys(oid, &keys)?;
-            let definitions = visible_property_definitions(oid, parents, propdefs);
-            for key in &keys {
-                if values.iter().any(|(stored_key, _)| stored_key == key) {
-                    continue;
-                }
-                let Some(definition) = definitions
-                    .iter()
-                    .find(|definition| definition.name() == *key)
-                else {
-                    continue;
-                };
-                let holder = ObjAndUUIDHolder::new(&oid, definition.uuid());
-                let Some(value) = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                    &self.object_propvalues_keyspace,
-                    &holder,
-                )?
-                else {
-                    continue;
-                };
-                if definition.definer() != oid {
-                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
-                    let definer_value = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                        &self.object_propvalues_keyspace,
-                        &definer,
-                    )?;
-                    if definer_value.as_ref() == Some(&value) {
-                        continue;
-                    }
-                }
-                values.push((*key, value));
+            while selected_metadata
+                .get(selected_index)
+                .is_some_and(|(object, _)| *object < oid)
+            {
+                selected_index += 1;
             }
+            let mut values = if selected_metadata
+                .get(selected_index)
+                .is_some_and(|(object, _)| *object == oid)
+            {
+                let index = selected_index;
+                selected_index += 1;
+                std::mem::take(&mut selected_metadata[index].1)
+            } else {
+                Vec::new()
+            };
             values.sort_by_key(|(key, _)| key.as_string());
             records.push(SnapshotExportMetadata {
                 oid,
@@ -444,6 +428,35 @@ impl FjallSnapshotLoader {
 
         Ok(records)
     }
+
+    fn read_selected_object_metadata(
+        &self,
+        keys: &[Symbol],
+    ) -> Result<Vec<(Obj, Vec<(Symbol, Var)>)>, WorldStateError> {
+        let mut selected = Vec::<(Obj, Vec<(Symbol, Var)>)>::new();
+        for entry in self.snapshot.iter(&self.entity_metadata_keyspace) {
+            let (key, value) = entry
+                .into_inner()
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            let metadata_key: EntityMetadataKey = FjallCodec
+                .decode(ByteView::from(key))
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            if !metadata_key.is_object() || !keys.contains(&metadata_key.key()) {
+                continue;
+            }
+            let (_timestamp, value) = self
+                .decode(value)
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            if let Some((object, values)) = selected.last_mut()
+                && *object == metadata_key.obj()
+            {
+                values.push((metadata_key.key(), value));
+            } else {
+                selected.push((metadata_key.obj(), vec![(metadata_key.key(), value)]));
+            }
+        }
+        Ok(selected)
+    }
 }
 
 impl<'a> FjallSnapshotExportSession<'a> {
@@ -453,7 +466,7 @@ impl<'a> FjallSnapshotExportSession<'a> {
     ) -> Result<Self, WorldStateError> {
         let parents = loader.read_object_relation(&loader.object_parent_keyspace)?;
         let propdefs = loader.read_object_relation(&loader.object_propdefs_keyspace)?;
-        let metadata = loader.collect_export_metadata(metadata_keys, &parents, &propdefs)?;
+        let metadata = loader.collect_export_metadata(metadata_keys, &parents)?;
 
         Ok(Self {
             loader,
@@ -663,35 +676,6 @@ impl FjallSnapshotLoader {
             entries.push((object, value));
         }
         Ok(SortedObjectRelation { entries })
-    }
-
-    fn scan_object_metadata_keys(
-        &self,
-        object: Obj,
-        keys: &HashSet<Symbol>,
-    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
-        let prefix = <FjallCodec as EncodeFor<Obj>>::encode(&FjallCodec, &object)
-            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-        let mut values = Vec::new();
-
-        for entry in self.snapshot.prefix(&self.entity_metadata_keyspace, prefix) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let metadata_key: EntityMetadataKey = FjallCodec
-                .decode(ByteView::from(key))
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            if !metadata_key.is_object() || !keys.contains(&metadata_key.key()) {
-                continue;
-            }
-
-            let (_timestamp, value) = self
-                .decode(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            values.push((metadata_key.key(), value));
-        }
-
-        Ok(values)
     }
 
     /// Helper method to decode a value from a snapshot using FjallCodec

@@ -23,7 +23,10 @@
 //! Use `ObjectDefinitionLoader` when code is ready to apply an objdef set or single definition to a
 //! `LoaderInterface`.
 
-use crate::{ObjDefSet, ObjDefSource, ObjdefLoaderError, set::apply_constants};
+use crate::{
+    ObjDefSet, ObjDefSource, ObjdefLoaderError,
+    set::{apply_constants, normalize_legacy_naming_properties},
+};
 use moor_common::{
     model::{
         HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
@@ -350,7 +353,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         info!("Defining and compiling {} verbs...", num_loaded_verbs);
         self.define_verbs(&options)?;
 
-        // Auto-create import_export_id metadata if we loaded using the heuristic
+        // Create import_export_id metadata from constants when the input has no explicit IDs.
         self.create_import_export_ids_if_needed()?;
 
         Ok(ObjDefLoaderResults {
@@ -378,7 +381,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 |e| ObjdefLoaderError::ObjectDefParseError(path_str.clone(), Box::new(e)),
             )?;
 
-        for compiled_def in compiled_defs {
+        for mut compiled_def in compiled_defs {
+            normalize_legacy_naming_properties(&mut compiled_def);
             let oid = compiled_def.oid;
 
             self.object_definitions
@@ -1016,7 +1020,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
             ));
         }
 
-        let compiled_def = compiled_defs.into_iter().next().unwrap();
+        let mut compiled_def = compiled_defs.into_iter().next().unwrap();
+        normalize_legacy_naming_properties(&mut compiled_def);
 
         // Determine the ObjectKind to use for creation
         let object_kind = match &options.object_kind {
@@ -1137,7 +1142,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
             ));
         }
 
-        let compiled_def = compiled_defs.into_iter().next().unwrap();
+        let mut compiled_def = compiled_defs.into_iter().next().unwrap();
+        normalize_legacy_naming_properties(&mut compiled_def);
 
         // Determine the target object ID
         let target_oid = target_obj.unwrap_or(compiled_def.oid);
@@ -1282,26 +1288,17 @@ impl<'a> ObjectDefinitionLoader<'a> {
         })
     }
 
-    /// Create import_export_id metadata for all loaded objects if they don't already exist.
-    /// This is called after loading using the #0 heuristic to establish stable IDs for future dumps.
+    /// Create import_export_id metadata from constants when the input declares no explicit IDs.
     fn create_import_export_ids_if_needed(&mut self) -> Result<(), ObjdefLoaderError> {
         use moor_var::v_string;
 
         let import_export_id_sym = crate::import_export_id();
 
-        // Check if ANY objects already have import_export_id metadata or legacy property.
+        // If any object has explicit naming metadata, do not infer IDs from constants.
         let any_have_id = self.object_definitions.values().any(|(_, def)| {
             def.metadata
                 .iter()
                 .any(|(key, _)| *key == import_export_id_sym)
-                || def
-                    .property_definitions
-                    .iter()
-                    .any(|pd| pd.name == import_export_id_sym)
-                || def
-                    .property_overrides
-                    .iter()
-                    .any(|po| po.name == import_export_id_sym)
         });
 
         // If any object has it, assume the import has explicit naming and do not infer IDs.

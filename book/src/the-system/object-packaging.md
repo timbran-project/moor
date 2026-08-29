@@ -279,14 +279,17 @@ thing.moo
 define THING = #789;
 ```
 
-If objects **don't** have `import_export_id` metadata, mooR falls back to legacy `import_export_id`
-properties. If neither metadata nor legacy properties exist, it can use the #0 heuristic for
-backward compatibility:
+If an object has no `import_export_id` metadata, mooR exports it with an object-number filename. The
+importer converts ordinary `import_export_id` and `import_export_hierarchy` properties from older
+objdefs to object metadata before it applies properties. These properties do not remain as database
+properties.
 
-1. **Examines system object (#0)**: Looks for properties that directly reference other objects
-2. **Generates constants**: Creates symbolic names from those property names (e.g., `thing`, `room`,
-   `player`)
-3. **Uses those names**: Exports objects using the discovered names
+If an imported objdef set has no explicit identity metadata, mooR can derive metadata from its
+constants:
+
+1. **Reads `constants.moo`**: Finds constants that refer to objects in the imported set.
+2. **Creates metadata**: Stores each constant name as the object's `import_export_id`.
+3. **Uses those names later**: Subsequent exports use the stored metadata.
 
 For example, if #0 has these properties:
 
@@ -304,8 +307,8 @@ Objects export as:
 
 **During Import:**
 
-When importing an objdef created with the #0 heuristic (no `import_export_id` metadata or legacy
-properties), mooR automatically creates object metadata in the database:
+When importing an objdef with constants but no explicit `import_export_id` metadata, mooR creates
+object metadata in the database:
 
 ```moo
 object_metadata(#789, 'import_export_id) == "thing"
@@ -330,8 +333,8 @@ control meaningful.
 **Automatic Maintenance**: The first import automatically creates `import_export_id` metadata, and
 subsequent exports just read it.
 
-**Backward Compatibility**: Imports from legacy textdumps or objdefs without `import_export_id`
-metadata work seamlessly using legacy property fallback and the #0 heuristic.
+**Older Objdefs**: The importer normalizes legacy naming properties and can derive missing metadata
+from `constants.moo`.
 
 #### The Special `sysobj.moo` File
 

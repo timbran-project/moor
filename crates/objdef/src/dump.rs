@@ -182,11 +182,6 @@ fn collect_export_object(
 
     for property in object.properties {
         let name = property.definition.name();
-        if is_legacy_import_export_property(name) {
-            promote_legacy_import_export_metadata(&mut definition.metadata, name, &property.value);
-            continue;
-        }
-
         if property.definition.definer() == object.oid {
             let Some(perms) = property.permissions else {
                 return Err(moor_common::model::WorldStateError::DatabaseError(format!(
@@ -261,19 +256,6 @@ pub fn collect_object(
 
     let propdefs = loader.get_all_property_values(o)?;
     for (p, (value, perms)) in propdefs.iter() {
-        if is_legacy_import_export_property(p.name()) {
-            if p.definer().eq(o) {
-                promote_legacy_import_export_metadata(&mut od.metadata, p.name(), value);
-                continue;
-            }
-            if let Ok((definer_value, _)) = loader.get_property_value(&p.definer(), p.uuid())
-                && value != &definer_value
-            {
-                promote_legacy_import_export_metadata(&mut od.metadata, p.name(), value);
-            }
-            continue;
-        }
-
         if p.definer().eq(o) {
             let pd = ObjPropDef {
                 name: p.name(),
@@ -328,26 +310,6 @@ pub fn collect_object(
     Ok((num_verbdefs, num_propdefs, num_propoverrides, od))
 }
 
-fn is_legacy_import_export_property(name: Symbol) -> bool {
-    name == import_export_id() || name == import_export_hierarchy()
-}
-
-fn promote_legacy_import_export_metadata(
-    metadata: &mut Vec<(Symbol, Var)>,
-    key: Symbol,
-    value: &Option<Var>,
-) {
-    if metadata
-        .iter()
-        .any(|(metadata_key, _)| *metadata_key == key)
-    {
-        return;
-    }
-    if let Some(value) = value {
-        metadata.push((key, value.clone()));
-    }
-}
-
 /// Extract the object->constant name mapping from object definitions.
 /// This is used when dumping individual objects with constant substitution.
 pub fn extract_index_names(object_defs: &[ObjectDefinition]) -> HashMap<Obj, String> {
@@ -367,7 +329,7 @@ impl ObjectExportIdentity {
         Self {
             oid: definition.oid,
             parent: definition.parent,
-            export_id: metadata_or_legacy_property_string(definition, import_export_id()),
+            export_id: metadata_string(definition, import_export_id()),
             hierarchy: extract_hierarchy_path(definition),
         }
     }
@@ -394,7 +356,6 @@ impl ObjectExportIdentity {
 }
 
 /// Extract constant names and file names from objects' import_export_id metadata.
-/// Legacy import_export_id properties are used as a fallback.
 /// Skips objects where:
 /// - The import_export_id is not unique across all objects
 /// - The import_export_id equals the parent's import_export_id (inherited without override)
@@ -480,11 +441,10 @@ fn extract_object_constants_from_identities(
 }
 
 /// Extract hierarchy path from an object's import_export_hierarchy metadata.
-/// Legacy import_export_hierarchy properties are used as a fallback.
 /// Returns a vector of path components, or empty vector if no hierarchy is set
 fn extract_hierarchy_path(od: &ObjectDefinition) -> Vec<String> {
     let import_export_hierarchy_sym = import_export_hierarchy();
-    let Some(value) = metadata_or_legacy_property_value(od, import_export_hierarchy_sym) else {
+    let Some(value) = metadata_value(od, import_export_hierarchy_sym) else {
         return Vec::new();
     };
 
@@ -505,29 +465,15 @@ fn hierarchy_path_from_value(value: &Var) -> Vec<String> {
     Vec::new()
 }
 
-fn metadata_or_legacy_property_string(od: &ObjectDefinition, key: Symbol) -> Option<String> {
-    metadata_or_legacy_property_value(od, key).and_then(string_or_symbol_to_string)
+fn metadata_string(od: &ObjectDefinition, key: Symbol) -> Option<String> {
+    metadata_value(od, key).and_then(string_or_symbol_to_string)
 }
 
-fn metadata_or_legacy_property_value(od: &ObjectDefinition, key: Symbol) -> Option<&Var> {
+fn metadata_value(od: &ObjectDefinition, key: Symbol) -> Option<&Var> {
     od.metadata
         .iter()
         .find(|(metadata_key, _)| *metadata_key == key)
         .map(|(_, value)| value)
-        .or_else(|| legacy_property_value(od, key))
-}
-
-fn legacy_property_value(od: &ObjectDefinition, key: Symbol) -> Option<&Var> {
-    od.property_definitions
-        .iter()
-        .find(|pd| pd.name == key)
-        .and_then(|pd| pd.value.as_ref())
-        .or_else(|| {
-            od.property_overrides
-                .iter()
-                .find(|po| po.name == key)
-                .and_then(|po| po.value.as_ref())
-        })
 }
 
 fn string_or_symbol_to_string(value: &Var) -> Option<String> {
@@ -955,7 +901,7 @@ mod tests {
     }
 
     #[test]
-    fn import_export_metadata_precedes_legacy_properties() {
+    fn object_metadata_controls_export_naming() {
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
 
@@ -1129,15 +1075,11 @@ mod tests {
                 .unwrap();
             assert_eq!(system_obj, SYSTEM_OBJECT);
 
-            // Add import_export_id so the object gets a file during dump
-            tx.define_property(
+            tx.set_object_metadata(
                 &system_permissions(),
                 &SYSTEM_OBJECT,
-                &SYSTEM_OBJECT,
                 Symbol::mk("import_export_id"),
-                &SYSTEM_OBJECT,
-                BitEnum::new_with(PropFlag::Read),
-                Some(v_str("sysobj")),
+                v_str("sysobj"),
             )
             .unwrap();
 
@@ -1392,175 +1334,57 @@ mod tests {
         }
     }
 
-    /// Test that legacy import_export_id properties still round-trip
     #[test]
-    fn test_import_export_id_inheritance_roundtrip() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let tmpdir_path = tmpdir.path();
+    fn legacy_naming_properties_are_normalized_on_import() {
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+        let mut loader = db.loader_client().unwrap();
+        let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
+        defloader
+            .load_single_object(
+                r#"
+                object #0
+                    name: "System"
+                    owner: #0
+                    parent: #-1
+                    location: #-1
+                    property import_export_id (owner: #0, flags: "r") = "sysobj";
+                    property import_export_hierarchy (owner: #0, flags: "r") = {"core"};
+                endobject
+                "#,
+                CompileOptions::default(),
+                Default::default(),
+            )
+            .unwrap();
+        loader.commit().unwrap();
 
-        let (db1, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
-        let db1 = Arc::new(db1);
-
-        // Create hierarchy: #0 -> #1 -> #2 -> #3
-        {
-            let mut tx = db1.new_world_state().unwrap();
-
-            let system_obj = tx
-                .create_object(
-                    &system_permissions(),
-                    &Obj::mk_id(-1),
-                    &SYSTEM_OBJECT,
-                    BitEnum::new(),
-                    ObjectKind::NextObjid,
-                )
-                .unwrap();
-            assert_eq!(system_obj, SYSTEM_OBJECT);
-
-            let obj1 = tx
-                .create_object(
-                    &system_permissions(),
-                    &SYSTEM_OBJECT,
-                    &SYSTEM_OBJECT,
-                    BitEnum::new(),
-                    ObjectKind::NextObjid,
-                )
-                .unwrap();
-
-            let obj2 = tx
-                .create_object(
-                    &system_permissions(),
-                    &obj1,
-                    &SYSTEM_OBJECT,
-                    BitEnum::new(),
-                    ObjectKind::NextObjid,
-                )
-                .unwrap();
-
-            let obj3 = tx
-                .create_object(
-                    &system_permissions(),
-                    &obj2,
-                    &SYSTEM_OBJECT,
-                    BitEnum::new(),
-                    ObjectKind::NextObjid,
-                )
-                .unwrap();
-
-            // Define import_export_id on root object, then update values on children
-            // (children inherit the property definition, we just set their values)
-            tx.define_property(
+        let tx = db.new_world_state().unwrap();
+        let export_id = tx
+            .get_object_metadata(
                 &system_permissions(),
                 &SYSTEM_OBJECT,
+                Symbol::mk("import_export_id"),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(export_id.as_string(), Some("sysobj"));
+        let hierarchy = tx
+            .get_object_metadata(
+                &system_permissions(),
                 &SYSTEM_OBJECT,
-                Symbol::mk("import_export_id"),
+                Symbol::mk("import_export_hierarchy"),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(hierarchy.as_list().unwrap().len(), 1);
+        assert!(
+            tx.get_property_info(
+                &system_permissions(),
                 &SYSTEM_OBJECT,
-                BitEnum::new_with(PropFlag::Read),
-                Some(v_str("sysobj")),
+                Symbol::mk("import_export_id")
             )
-            .unwrap();
-
-            // Set import_export_id values on child objects
-            tx.update_property(
-                &system_permissions(),
-                &obj1,
-                Symbol::mk("import_export_id"),
-                &v_str("obj1"),
-            )
-            .unwrap();
-
-            tx.update_property(
-                &system_permissions(),
-                &obj2,
-                Symbol::mk("import_export_id"),
-                &v_str("obj2"),
-            )
-            .unwrap();
-
-            tx.update_property(
-                &system_permissions(),
-                &obj3,
-                Symbol::mk("import_export_id"),
-                &v_str("obj3"),
-            )
-            .unwrap();
-
-            tx.commit().unwrap();
-        }
-
-        // Dump
-        {
-            let snapshot = db1.create_snapshot().unwrap();
-            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
-        }
-
-        // Load into new database
-        let (db2, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
-        let db2 = Arc::new(db2);
-
-        {
-            let mut loader = db2.loader_client().unwrap();
-            let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
-            let options = crate::ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: crate::ConflictMode::Clobber,
-                object_kind: None,
-                constants: None,
-                overrides: vec![],
-                validate_parent_changes: false,
-            };
-            defloader
-                .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)
-                .unwrap();
-            loader.commit().unwrap();
-        }
-
-        // Verify loaded correctly
-        {
-            let tx = db2.new_world_state().unwrap();
-
-            // Check that all objects exist
-            assert!(tx.valid(&SYSTEM_OBJECT).unwrap());
-            assert!(tx.valid(&Obj::mk_id(1)).unwrap());
-            assert!(tx.valid(&Obj::mk_id(2)).unwrap());
-            assert!(tx.valid(&Obj::mk_id(3)).unwrap());
-
-            // Check hierarchy
-            assert_eq!(
-                tx.parent_of(&system_permissions(), &Obj::mk_id(1)).unwrap(),
-                SYSTEM_OBJECT
-            );
-            assert_eq!(
-                tx.parent_of(&system_permissions(), &Obj::mk_id(2)).unwrap(),
-                Obj::mk_id(1)
-            );
-            assert_eq!(
-                tx.parent_of(&system_permissions(), &Obj::mk_id(3)).unwrap(),
-                Obj::mk_id(2)
-            );
-
-            // Check that legacy import_export_id properties were exported as metadata.
-            let import_export_id_sym = Symbol::mk("import_export_id");
-
-            let sysobj_id = tx
-                .get_object_metadata(&system_permissions(), &SYSTEM_OBJECT, import_export_id_sym)
-                .unwrap();
-            assert_eq!(sysobj_id.unwrap().as_string().unwrap(), "sysobj");
-
-            let obj1_id = tx
-                .get_object_metadata(&system_permissions(), &Obj::mk_id(1), import_export_id_sym)
-                .unwrap();
-            assert_eq!(obj1_id.unwrap().as_string().unwrap(), "obj1");
-
-            let obj2_id = tx
-                .get_object_metadata(&system_permissions(), &Obj::mk_id(2), import_export_id_sym)
-                .unwrap();
-            assert_eq!(obj2_id.unwrap().as_string().unwrap(), "obj2");
-
-            let obj3_id = tx
-                .get_object_metadata(&system_permissions(), &Obj::mk_id(3), import_export_id_sym)
-                .unwrap();
-            assert_eq!(obj3_id.unwrap().as_string().unwrap(), "obj3");
-        }
+            .is_err()
+        );
     }
 
     /// Test anonymous object objdef round-trip: create anonymous objects, dump them, reload, and verify
@@ -1591,14 +1415,11 @@ mod tests {
             assert_eq!(system_obj, SYSTEM_OBJECT);
 
             // Add import_export_id so the object gets a file during dump
-            tx.define_property(
+            tx.set_object_metadata(
                 &system_permissions(),
                 &SYSTEM_OBJECT,
-                &SYSTEM_OBJECT,
                 Symbol::mk("import_export_id"),
-                &SYSTEM_OBJECT,
-                BitEnum::new_with(PropFlag::Read),
-                Some(v_str("sysobj")),
+                v_str("sysobj"),
             )
             .unwrap();
 
