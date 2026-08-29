@@ -26,7 +26,7 @@ mod tests {
 
     use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
-    use moor_common::tasks::Event;
+    use moor_common::tasks::{Event, SchedulerError};
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
         mk_connection_establish_msg, mk_login_command_msg, ws_list_objects,
@@ -1214,11 +1214,14 @@ mod tests {
             "db_compact() help should mention the checkpoint restriction",
         );
 
-        // A checkpoint must still work afterwards, proving the guard flag was released.
+        // A checkpoint must still be accepted afterwards, proving the guard flag was released. The
+        // assertion is precisely that it is not refused as already-in-progress; whether the export
+        // itself then succeeds depends on this environment's configuration and is tested elsewhere.
+        let outcome = env.scheduler_client.request_checkpoint_blocking();
         assert!(
-            env.scheduler_client.request_checkpoint_blocking().is_ok()
-                || env.output_dir_path.is_none(),
-            "checkpoint should still be possible after db_compact() released the guard"
+            !matches!(outcome, Err(SchedulerError::CheckpointInProgress)),
+            "db_compact() must release the checkpoint guard, but a later checkpoint was refused \
+             as already-in-progress: {outcome:?}"
         );
     }
 

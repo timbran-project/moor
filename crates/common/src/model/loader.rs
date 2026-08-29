@@ -94,6 +94,31 @@ pub trait SnapshotInterface: Send {
 
     /// Release anything [`SnapshotInterface::begin_full_scan`] buffered.
     fn end_full_scan(&self) {}
+
+    /// Encoded size of the live property rows a full scan read, if it measured them.
+    ///
+    /// Only meaningful between [`SnapshotInterface::begin_full_scan`] and
+    /// [`SnapshotInterface::end_full_scan`], and only on an implementation that prefetches.
+    ///
+    /// Reported for observability, not for deciding maintenance: this is uncompressed logical
+    /// size, and a storage engine's physical size may be compressed, so a ratio between the two
+    /// largely measures compressibility. Use [`SnapshotInterface::full_scan_live_property_rows`]
+    /// for that.
+    fn full_scan_live_property_bytes(&self) -> Option<u64> {
+        None
+    }
+
+    /// Number of live property rows a full scan read, if it counted them.
+    ///
+    /// Only meaningful between [`SnapshotInterface::begin_full_scan`] and
+    /// [`SnapshotInterface::end_full_scan`], and only on an implementation that prefetches.
+    ///
+    /// This is the figure to compare against a storage engine's stored-row count in order to
+    /// estimate version amplification: rows against rows is a consistent unit, so the comparison
+    /// is unaffected by compression.
+    fn full_scan_live_property_rows(&self) -> Option<u64> {
+        None
+    }
 }
 
 /// Interface exposed to be used by the textdump/objdef loader for loading data into the database.

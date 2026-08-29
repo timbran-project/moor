@@ -68,6 +68,15 @@ pub struct ScanCounts {
     pub verbs: usize,
     pub properties: usize,
     pub property_overrides: usize,
+    /// Encoded size of the live property rows the scan read, when the snapshot measured it.
+    ///
+    /// Recorded in the manifest for observability. `None` when the snapshot does not prefetch.
+    pub live_property_bytes: Option<u64>,
+    /// Number of live property rows the scan read, when the snapshot counted them.
+    ///
+    /// Compared against the engine's stored row count to estimate how much superseded data it is
+    /// still holding. `None` when the snapshot does not prefetch.
+    pub live_property_rows: Option<u64>,
 }
 
 pub fn collect_object_definitions(
@@ -136,6 +145,9 @@ pub fn collect_object_definitions_with_counts(
         verbs: num_verbdefs,
         properties: num_propdefs,
         property_overrides: num_propoverrides,
+        // Must be read before `_scan_guard` drops and releases the prefetch buffers.
+        live_property_bytes: loader.full_scan_live_property_bytes(),
+        live_property_rows: loader.full_scan_live_property_rows(),
     };
     Ok((object_defs, counts))
 }

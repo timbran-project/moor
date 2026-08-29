@@ -42,7 +42,7 @@ pub use cache::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS};
 pub use cache::{
     ancestry_cache::AncestryCache, prop_cache::PropResolutionCache, verb_cache::VerbResolutionCache,
 };
-pub use config::{DatabaseConfig, TableConfig};
+pub use config::{AutoCompactionConfig, CompactionDecision, DatabaseConfig, TableConfig};
 pub use model::{
     AnonymousObjectMetadata, BytesHolder, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
     SystemTimeHolder, UUIDHolder,
@@ -168,11 +168,51 @@ pub trait Database: Send + Sync + WorldStateSource {
     /// Major-compact all storage, blocking until done, when supported by the engine.
     ///
     /// Reclaims superseded versions and tombstoned rows that background compaction has not got to.
-    /// Must not run while a snapshot is open (a checkpoint pins the GC seqno and nothing is
-    /// reclaimed), and is expensive. `None` means the engine has no such operation.
+    /// Expensive: it rewrites every table, and blocks the caller throughout. `None` means the
+    /// engine has no such operation.
+    ///
+    /// It is *not* required that no snapshot be open. fjall's GC floor comes from the oldest
+    /// retained snapshot minus one, so data superseded before that snapshot was taken is still
+    /// reclaimable, and the snapshot goes on reading its own versions correctly
+    /// (`fjall_gc_watermark_probe` asserts both). Callers still serialize this against checkpoints,
+    /// because doing both at once means two full passes over the database at the same time.
     fn major_compact(&self) -> Option<Vec<RelationCompactionResult>> {
         None
     }
+
+    /// Physical bytes the storage engine currently occupies, when it can report them.
+    ///
+    /// Reported for observability. Note this is post-compression and includes write-ahead
+    /// journals, so it is not comparable with a logical live-bytes figure.
+    fn disk_bytes(&self) -> Option<u64> {
+        None
+    }
+
+    /// Rows the engine has stored for property data, superseded versions included.
+    ///
+    /// Compared against the live row count from a checkpoint scan to estimate version
+    /// amplification; see [`DatabaseConfig::auto_compaction`].
+    fn stored_property_rows(&self) -> Option<u64> {
+        None
+    }
+
+    /// An owned handle for compacting this storage from another thread.
+    ///
+    /// A checkpoint runs its export on a spawned thread and wants to compact once the snapshot is
+    /// released, which outlives any borrow of the database. `None` when the engine cannot compact.
+    fn compaction_handle(&self) -> Option<Arc<dyn StorageCompactor>> {
+        None
+    }
+}
+
+/// The subset of [`Database`] a background maintenance step needs, as a sendable handle.
+pub trait StorageCompactor: Send + Sync {
+    /// Physical bytes currently occupied, for logging.
+    fn disk_bytes(&self) -> u64;
+    /// Stored property rows, superseded versions included. The amplification signal.
+    fn stored_property_rows(&self) -> u64;
+    /// Major-compact everything, blocking until done.
+    fn major_compact(&self) -> Vec<RelationCompactionResult>;
 }
 
 #[derive(Clone)]
@@ -261,5 +301,37 @@ impl Database for TxDB {
 
     fn major_compact(&self) -> Option<Vec<RelationCompactionResult>> {
         Some(self.storage.major_compact_all())
+    }
+
+    fn disk_bytes(&self) -> Option<u64> {
+        Some(self.storage.usage_bytes() as u64)
+    }
+
+    fn stored_property_rows(&self) -> Option<u64> {
+        Some(self.storage.stored_property_rows())
+    }
+
+    fn compaction_handle(&self) -> Option<Arc<dyn StorageCompactor>> {
+        Some(Arc::new(MoorDBCompactor {
+            storage: self.storage.clone(),
+        }))
+    }
+}
+
+struct MoorDBCompactor {
+    storage: Arc<MoorDB>,
+}
+
+impl StorageCompactor for MoorDBCompactor {
+    fn disk_bytes(&self) -> u64 {
+        self.storage.usage_bytes() as u64
+    }
+
+    fn stored_property_rows(&self) -> u64 {
+        self.storage.stored_property_rows()
+    }
+
+    fn major_compact(&self) -> Vec<RelationCompactionResult> {
+        self.storage.major_compact_all()
     }
 }

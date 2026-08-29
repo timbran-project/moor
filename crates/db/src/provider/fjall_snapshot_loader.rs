@@ -63,6 +63,22 @@ pub(crate) struct FullScanCache {
     propdefs: AHashMap<Obj, PropDefs>,
     /// Memoized `object_parent`, for the ancestor walk.
     parents: AHashMap<Obj, Option<Obj>>,
+    /// Encoded size of every live row read from the two property keyspaces.
+    ///
+    /// Free to collect here, because the scan already touches exactly the live rows and nothing
+    /// else. Reported for observability — it goes in the checkpoint manifest — but deliberately
+    /// *not* used to decide compaction: it is uncompressed logical size, whereas
+    /// `Keyspace::disk_space()` is lz4-compressed physical size plus journals, so the ratio of the
+    /// two measures compressibility at least as much as it measures dead space. See
+    /// `property_live_rows`.
+    property_live_bytes: u64,
+    /// Number of live rows read from the two property keyspaces.
+    ///
+    /// This is the dead-space signal. Compared against `Keyspace::approximate_len()`, which sums
+    /// per-table item counts and so counts every superseded version and tombstone, it gives a
+    /// version-amplification ratio in consistent units — rows over rows — and is therefore
+    /// unaffected by how well the values happen to compress.
+    property_live_rows: u64,
 }
 
 /// A snapshot-based implementation of LoaderInterface for read-only database access
@@ -298,6 +314,20 @@ impl SnapshotInterface for FjallSnapshotLoader {
     fn end_full_scan(&self) {
         *self.full_scan.write() = None;
     }
+
+    fn full_scan_live_property_bytes(&self) -> Option<u64> {
+        self.full_scan
+            .read()
+            .as_ref()
+            .map(|cache| cache.property_live_bytes)
+    }
+
+    fn full_scan_live_property_rows(&self) -> Option<u64> {
+        self.full_scan
+            .read()
+            .as_ref()
+            .map(|cache| cache.property_live_rows)
+    }
 }
 
 impl FjallSnapshotLoader {
@@ -313,6 +343,7 @@ impl FjallSnapshotLoader {
             let (key, value) = entry
                 .into_inner()
                 .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            cache.property_live_bytes += (key.len() + value.len()) as u64;
             let holder: ObjAndUUIDHolder =
                 FjallCodec.decode(ByteView::from(key)).map_err(|_| {
                     WorldStateError::DatabaseError(
@@ -336,6 +367,7 @@ impl FjallSnapshotLoader {
             let (key, value) = entry
                 .into_inner()
                 .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            cache.property_live_bytes += (key.len() + value.len()) as u64;
             let holder: ObjAndUUIDHolder =
                 FjallCodec.decode(ByteView::from(key)).map_err(|_| {
                     WorldStateError::DatabaseError(
@@ -381,11 +413,15 @@ impl FjallSnapshotLoader {
             cache.parents.insert(obj, Some(parent));
         }
 
+        cache.property_live_rows = (value_rows + perm_rows) as u64;
+
         tracing::info!(
             propvalue_rows = value_rows,
             propflag_rows = perm_rows,
             objects_with_propdefs = cache.propdefs.len(),
             objects_with_parents = cache.parents.len(),
+            property_live_bytes = cache.property_live_bytes,
+            property_live_rows = cache.property_live_rows,
             "Prefetched property keyspaces for full snapshot scan"
         );
 
@@ -830,6 +866,78 @@ mod tests {
         assert!(
             saw_cleared,
             "expected a cleared inherited property to appear with no value"
+        );
+    }
+
+    /// The live-property-bytes figure drives automatic compaction, so it must actually be measured
+    /// and must only be available while the scan is in progress. A silently-zero measurement would
+    /// disable auto-compaction without any error.
+    #[test]
+    fn full_scan_measures_live_property_bytes_only_while_scanning() {
+        let db = fixture();
+        let snapshot = db.create_snapshot().unwrap();
+
+        assert_eq!(
+            snapshot.full_scan_live_property_bytes(),
+            None,
+            "no measurement should be available outside a full scan"
+        );
+
+        snapshot.begin_full_scan().unwrap();
+        let measured = snapshot.full_scan_live_property_bytes();
+        snapshot.end_full_scan();
+
+        let measured = measured.expect("a prefetching snapshot must report live bytes");
+        assert!(
+            measured > 0,
+            "live property bytes should be non-zero for a database with properties"
+        );
+
+        assert_eq!(
+            snapshot.full_scan_live_property_bytes(),
+            None,
+            "the measurement should not outlive the scan buffers"
+        );
+    }
+
+    /// The measurement has to track the actual volume of property data, not just be non-zero:
+    /// it is one half of the amplification ratio that decides whether to rewrite the database.
+    #[test]
+    fn live_property_bytes_grows_with_stored_property_data() {
+        let baseline = {
+            let db = fixture();
+            let snapshot = db.create_snapshot().unwrap();
+            snapshot.begin_full_scan().unwrap();
+            let bytes = snapshot.full_scan_live_property_bytes().unwrap();
+            snapshot.end_full_scan();
+            bytes
+        };
+
+        // Same fixture, plus one large property value.
+        let db = fixture();
+        let mut tx = db.new_world_state().unwrap();
+        let big = v_str(&"x".repeat(256 * 1024));
+        tx.define_property(
+            &perms(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            Symbol::mk("bulky"),
+            &SYSTEM_OBJECT,
+            BitEnum::new_with(PropFlag::Read),
+            Some(big),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+
+        let snapshot = db.create_snapshot().unwrap();
+        snapshot.begin_full_scan().unwrap();
+        let grown = snapshot.full_scan_live_property_bytes().unwrap();
+        snapshot.end_full_scan();
+
+        assert!(
+            grown >= baseline + 256 * 1024,
+            "adding a 256 KiB property value should be reflected in the live-bytes measurement \
+             (baseline={baseline}, grown={grown})"
         );
     }
 }

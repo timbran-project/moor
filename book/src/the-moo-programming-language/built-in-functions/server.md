@@ -923,7 +923,8 @@ manifest over the directory's modification time when reasoning about how current
 
 Only one checkpoint runs at a time. A request made while one is already in progress returns `0`
 without exporting anything — this applies to `dump_database(1)` too, which returns immediately
-rather than blocking. Check the return value before assuming an export was made.
+rather than blocking. Check the return value before assuming an export was made. A `db_compact()`,
+or an automatic post-checkpoint compaction, also counts as "in progress" for this purpose.
 
 ### `db_compact`
 
@@ -941,10 +942,40 @@ Recycling a large object does not shrink the database on its own: the storage en
 tombstones, and the superseded data stays on disk until compaction rewrites the affected tables.
 Background compaction gets there eventually, but on its own schedule. This builtin forces it.
 
+Most of the time you should not need it — the server compacts automatically after a checkpoint when
+the database looks bloated (see below). `db_compact()` is the escape hatch for when you need the
+space, or the bytes of a deleted secret, gone *now*.
+
 Two caveats. It **blocks and rewrites tables**, so it is slow on a large database and is not
 something to call from an ordinary verb. And it raises `E_INVARG` if a checkpoint is in progress:
-an open checkpoint snapshot pins the sequence number below which nothing may be collected, so
-compacting then would do the I/O and reclaim nothing.
+both operations make a full pass over the database, and running them at once is far slower than
+running them in sequence.
+
+#### Automatic compaction
+
+A checkpoint has just read every live property row, which makes it the one moment when the server
+knows what the data *should* weigh. So after a checkpoint completes, the server compares the number
+of live property rows against the number the storage engine is actually holding, and compacts if the
+ratio is bad enough. Configured under `[database.auto_compaction]`:
+
+| key | default | meaning |
+|---|---|---|
+| `after_checkpoint` | `true` | Whether to consider compacting after a checkpoint at all. |
+| `min_amplification` | `2.0` | Compact when stored rows exceed live rows by this factor. `2.0` means "half the stored rows are superseded". |
+| `min_stored_rows` | `50000` | Never compact a database smaller than this; ratios on a nearly-empty database are noise. |
+
+The decision is always logged, so "why is my database still huge" has an answer in the log rather
+than being a silent non-event.
+
+The ratio is measured in **rows**, not bytes, and deliberately so: the storage engine compresses
+deeper levels, so a bytes-based comparison against a logical live size largely measures how
+compressible the values happen to be. On a test fixture at identical redundancy a byte ratio read
+0.04 for repetitive values and 7.03 for random ones, while the row ratio correctly read about 7 for
+both.
+
+Because compaction holds the same in-progress flag as a checkpoint, a scheduled checkpoint that
+falls during a compaction is skipped, and a `dump_database()` issued then returns `0`. That is
+visible to MOO code, which is the point — see `dump_database` above.
 
 ```moo
 // Reclaim space and report the total

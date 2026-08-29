@@ -328,10 +328,16 @@ impl Scheduler {
 
     /// Major-compact the database's storage, blocking until it finishes.
     ///
-    /// Reuses the checkpoint flag as the guard: fjall will not reclaim anything below a pinned GC
-    /// seqno, and an open checkpoint snapshot pins it, so compacting during a checkpoint would do
-    /// a great deal of I/O for no benefit. Holding the flag also stops a checkpoint from starting
-    /// mid-compaction.
+    /// Reuses the checkpoint flag as the guard, but *not* because compaction during a checkpoint
+    /// would be futile. It would not be: fjall sets its GC floor from the oldest retained snapshot
+    /// minus one, so data superseded before the snapshot was taken is still reclaimable while that
+    /// snapshot is open, and the snapshot keeps reading its own versions correctly throughout.
+    /// Both are asserted in `moor-db`'s `fjall_gc_watermark_probe` tests.
+    ///
+    /// The real reasons for the guard are cost and predictability: `major_compact()` rewrites every
+    /// table and blocks, and a checkpoint is already reading the whole database, so overlapping the
+    /// two doubles up the I/O on a server that is by then already slow. Holding the flag also stops
+    /// a checkpoint from starting mid-compaction.
     pub(crate) fn compact_storage(
         &self,
     ) -> Result<Vec<moor_db::RelationCompactionResult>, SchedulerError> {
