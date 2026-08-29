@@ -22,7 +22,7 @@ use moor_common::tasks::{SchedulerError, SessionFactory};
 use moor_compiler::to_literal;
 use moor_db::{Database, TxDB};
 use moor_kernel::{SchedulerClient, config::FeaturesConfig, tasks::TaskNotification};
-use moor_objdef::{collect_object_definitions, dump_object_definitions};
+use moor_objdef::dump_snapshot_object_definitions;
 use moor_var::{Obj, Symbol};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
@@ -701,21 +701,14 @@ pub(crate) fn cmd_export(database: &TxDB, args: &str) -> Result<(), Report> {
         .create_snapshot()
         .map_err(|e| eyre!("Failed to create database snapshot: {e}"))?;
 
-    println!("Collecting objects from database snapshot...");
-    let objects = collect_object_definitions(snapshot.as_ref())
-        .map_err(|e| eyre!("Failed to collect object definitions: {e}"))?;
-
-    println!(
-        "Writing {} objects to {}...",
-        objects.len(),
-        in_progress_path.display()
-    );
-    dump_object_definitions(&objects, &in_progress_path).map_err(|e| {
-        eyre!(
-            "Failed to write objdef export to {}: {e}",
-            in_progress_path.display()
-        )
-    })?;
+    println!("Writing objects to {}...", in_progress_path.display());
+    let object_count = dump_snapshot_object_definitions(snapshot.as_ref(), &in_progress_path)
+        .map_err(|e| {
+            eyre!(
+                "Failed to write objdef export to {}: {e}",
+                in_progress_path.display()
+            )
+        })?;
 
     std::fs::rename(&in_progress_path, &output_path).map_err(|e| {
         eyre!(
@@ -727,7 +720,7 @@ pub(crate) fn cmd_export(database: &TxDB, args: &str) -> Result<(), Report> {
 
     print_success(format!(
         "Exported {} objects to {}",
-        objects.len(),
+        object_count,
         output_path.display()
     ));
     Ok(())

@@ -34,7 +34,7 @@ use moor_kernel::{
     tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
 };
 use moor_moot::MootOptions;
-use moor_objdef::{ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions};
+use moor_objdef::{ObjectDefinitionLoader, dump_snapshot_object_definitions};
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, Var, v_float, v_int};
 use std::{
@@ -470,12 +470,11 @@ fn main() -> Result<(), eyre::Report> {
             return Ok(());
         };
 
-        info!("Collecting objects for dump...");
-        let objects = collect_object_definitions(loader_interface.as_ref())?;
         info!("Dumping objects to {dirdump_path:?}");
-        dump_object_definitions(&objects, &dirdump_path)?;
+        let object_count =
+            dump_snapshot_object_definitions(loader_interface.as_ref(), &dirdump_path)?;
 
-        info!(?dirdump_path, "Objdefdump written.");
+        info!(?dirdump_path, object_count, "Objdefdump written.");
     }
 
     if args.run_tests != Some(true) && args.test_files.is_none() {
