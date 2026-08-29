@@ -85,6 +85,12 @@ pub fn collect_object_definitions(
         return Ok(object_defs);
     }
 
+    collect_object_definitions_with_point_reads(loader)
+}
+
+fn collect_object_definitions_with_point_reads(
+    loader: &dyn SnapshotInterface,
+) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
     let mut object_defs = vec![];
 
     // Find all the ids
@@ -897,11 +903,88 @@ mod tests {
 
         let collected_dir = tempfile::tempdir().unwrap();
         let streamed_dir = tempfile::tempdir().unwrap();
-        dump_object_definitions(&object_defs, collected_dir.path()).unwrap();
+        let point_read_definitions =
+            super::collect_object_definitions_with_point_reads(snapshot.as_ref()).unwrap();
+        dump_object_definitions(&point_read_definitions, collected_dir.path()).unwrap();
         assert_eq!(
             dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap(),
             object_defs.len()
         );
+        assert_eq!(
+            read_directory_tree(collected_dir.path()),
+            read_directory_tree(streamed_dir.path())
+        );
+    }
+
+    #[test]
+    fn streaming_dump_matches_point_reads_for_inherited_overrides() {
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+
+        {
+            let mut tx = db.new_world_state().unwrap();
+            tx.create_object(
+                &system_permissions(),
+                &Obj::mk_id(-1),
+                &SYSTEM_OBJECT,
+                BitEnum::new(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+            let child = tx
+                .create_object(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+            for name in ["changed", "unchanged"] {
+                tx.define_property(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    &SYSTEM_OBJECT,
+                    Symbol::mk(name),
+                    &SYSTEM_OBJECT,
+                    BitEnum::new_with(PropFlag::Read) | PropFlag::Write,
+                    Some(v_int(1)),
+                )
+                .unwrap();
+            }
+            tx.update_property(
+                &system_permissions(),
+                &child,
+                Symbol::mk("changed"),
+                &v_int(2),
+            )
+            .unwrap();
+            tx.update_property(
+                &system_permissions(),
+                &child,
+                Symbol::mk("unchanged"),
+                &v_int(1),
+            )
+            .unwrap();
+            tx.set_property_metadata(
+                &system_permissions(),
+                &child,
+                Symbol::mk("changed"),
+                Symbol::mk("source"),
+                v_str("child"),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let snapshot = db.create_snapshot().unwrap();
+        let point_read_definitions =
+            super::collect_object_definitions_with_point_reads(snapshot.as_ref()).unwrap();
+        let collected_dir = tempfile::tempdir().unwrap();
+        let streamed_dir = tempfile::tempdir().unwrap();
+        dump_object_definitions(&point_read_definitions, collected_dir.path()).unwrap();
+        dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap();
+
         assert_eq!(
             read_directory_tree(collected_dir.path()),
             read_directory_tree(streamed_dir.path())

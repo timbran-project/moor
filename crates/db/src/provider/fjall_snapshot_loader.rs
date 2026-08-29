@@ -23,8 +23,8 @@ use crate::{
 };
 use moor_common::{
     model::{
-        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropPerms, ValSet, VerbDefs,
-        WorldStateError,
+        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
+        VerbDefs, WorldStateError,
         loader::{
             SnapshotExport, SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
             SnapshotExportVerb, SnapshotInterface,
@@ -346,12 +346,24 @@ impl SnapshotExport for FjallSnapshotExport<'_> {
                     continue;
                 };
                 let holder = ObjAndUUIDHolder::new(oid, definition.uuid());
-                if let Some(value) = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                let Some(value) = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
                     &self.loader.object_propvalues_keyspace,
                     &holder,
-                )? {
-                    values.push((*key, value));
+                )?
+                else {
+                    continue;
+                };
+                if definition.definer() != *oid {
+                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
+                    let definer_value = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                        &self.loader.object_propvalues_keyspace,
+                        &definer,
+                    )?;
+                    if definer_value.as_ref() == Some(&value) {
+                        continue;
+                    }
                 }
+                values.push((*key, value));
             }
             values.sort_by_key(|(key, _)| key.as_string());
             records.push(SnapshotExportMetadata {
@@ -401,20 +413,49 @@ impl SnapshotExport for FjallSnapshotExport<'_> {
             });
         }
 
-        let mut values = self
+        let mut values: HashMap<Uuid, Var> = self
             .loader
             .scan_object_uuid_relation(&self.loader.object_propvalues_keyspace, oid)?;
-        let mut permissions = self
+        let mut permissions: HashMap<Uuid, PropPerms> = self
             .loader
             .scan_object_uuid_relation(&self.loader.object_propflags_keyspace, oid)?;
         let definitions = self.visible_property_definitions(oid)?;
         let mut properties = Vec::with_capacity(definitions.len());
         for definition in definitions {
             let uuid = definition.uuid();
-            let value = values.remove(&uuid);
-            let permission = permissions.remove(&uuid);
+            let mut value = values.remove(&uuid);
+            let mut permission = permissions.remove(&uuid);
             let mut entity_metadata = property_metadata.remove(&uuid).unwrap_or_default();
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
+
+            if definition.definer() != oid {
+                if let Some(local_value) = &value {
+                    let definer = ObjAndUUIDHolder::new(&definition.definer(), uuid);
+                    let definer_value = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                        &self.loader.object_propvalues_keyspace,
+                        &definer,
+                    )?;
+                    if definer_value.as_ref() == Some(local_value) {
+                        value = None;
+                    }
+                }
+                if let Some(local_permission) = &permission {
+                    let definer = ObjAndUUIDHolder::new(&definition.definer(), uuid);
+                    let definer_permission = self
+                        .loader
+                        .get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(
+                            &self.loader.object_propflags_keyspace,
+                            &definer,
+                        )?;
+                    if definer_permission.as_ref().is_some_and(|canonical| {
+                        local_permission == canonical
+                            || canonical.flags().contains(PropFlag::Chown)
+                                && local_permission.owner() == owner
+                    }) {
+                        permission = None;
+                    }
+                }
+            }
 
             if definition.definer() != oid
                 && value.is_none()
