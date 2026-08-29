@@ -20,6 +20,7 @@ mod testrun;
 use crate::{feature_args::FeatureArgs, testrun::run_test};
 use clap::Parser;
 use clap_derive::Parser;
+use eyre::{bail, eyre};
 use moor_common::{
     build,
     model::{CompileError, Named, ObjectRef, PropFlag, TaskPermissions, ValSet, WorldStateSource},
@@ -465,13 +466,40 @@ fn main() -> Result<(), eyre::Report> {
 
     // Dump phase.
     if let Some(dirdump_path) = args.out_objdef_dir {
-        let Ok(loader_interface) = database.create_snapshot() else {
-            error!("Unable to open database at {}", db_path.display());
-            return Ok(());
+        let Some(output_name) = dirdump_path.file_name() else {
+            bail!("Objdef output path must name a directory");
+        };
+        if dirdump_path.exists() {
+            bail!(
+                "Objdef output path already exists: {}",
+                dirdump_path.display()
+            );
+        }
+        let mut in_progress_name = output_name.to_os_string();
+        in_progress_name.push(".in-progress");
+        let in_progress_path = dirdump_path.with_file_name(in_progress_name);
+        if in_progress_path.exists() {
+            bail!(
+                "Incomplete objdef output path already exists: {}",
+                in_progress_path.display()
+            );
         };
 
-        info!("Dumping objects to {dirdump_path:?}");
-        let stats = dump_snapshot_object_definitions(loader_interface.as_ref(), &dirdump_path)?;
+        let loader_interface = database.create_snapshot().map_err(|e| {
+            eyre!(
+                "Unable to create database snapshot for {}: {e}",
+                db_path.display()
+            )
+        })?;
+        info!(path = ?in_progress_path, "Dumping objects");
+        let stats = dump_snapshot_object_definitions(loader_interface.as_ref(), &in_progress_path)?;
+        fs::rename(&in_progress_path, &dirdump_path).map_err(|e| {
+            eyre!(
+                "Failed to finalize objdef export from {} to {}: {e}",
+                in_progress_path.display(),
+                dirdump_path.display()
+            )
+        })?;
 
         info!(?dirdump_path, ?stats, "Objdefdump written.");
     }
