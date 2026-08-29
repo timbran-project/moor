@@ -154,7 +154,8 @@ impl ObjDefSet {
                         ObjdefLoaderError::ObjectDefParseError(source.label.clone(), Box::new(e))
                     })?;
 
-            for compiled_def in compiled_defs {
+            for mut compiled_def in compiled_defs {
+                normalize_legacy_naming_properties(&mut compiled_def);
                 let oid = compiled_def.oid;
                 if let Some((first_source, _)) = object_definitions.get(&oid) {
                     return Err(ObjdefLoaderError::DuplicateObjectDefinition(
@@ -195,6 +196,45 @@ impl ObjDefSet {
         HashMap<Symbol, Var>,
     ) {
         (self.graph.object_definitions, self.constants)
+    }
+}
+
+pub(crate) fn normalize_legacy_naming_properties(definition: &mut ObjectDefinition) {
+    for key in [crate::import_export_id(), crate::import_export_hierarchy()] {
+        let has_metadata = definition
+            .metadata
+            .iter()
+            .any(|(metadata_key, _)| *metadata_key == key);
+        let mut legacy_value = None;
+
+        definition.property_definitions = std::mem::take(&mut definition.property_definitions)
+            .into_iter()
+            .filter_map(|property| {
+                if property.name != key {
+                    return Some(property);
+                }
+                if legacy_value.is_none() {
+                    legacy_value = property.value;
+                }
+                None
+            })
+            .collect();
+        definition.property_overrides = std::mem::take(&mut definition.property_overrides)
+            .into_iter()
+            .filter_map(|property| {
+                if property.name != key {
+                    return Some(property);
+                }
+                if property.value.is_some() {
+                    legacy_value = property.value;
+                }
+                None
+            })
+            .collect();
+
+        if !has_metadata && let Some(value) = legacy_value {
+            definition.metadata.push((key, value));
+        }
     }
 }
 
@@ -330,6 +370,44 @@ mod tests {
         let identity = graph.identity(&Obj::mk_id(1)).unwrap();
         assert_eq!(identity.constant, Some(Symbol::mk("ROOT")));
         assert_eq!(identity.import_export_id.as_deref(), Some("root"));
+    }
+
+    #[test]
+    fn normalizes_legacy_naming_properties_before_staging() {
+        let object = ObjDefSource::new(
+            "root.moo",
+            r#"
+            object #1
+                name: "Root"
+                owner: #1
+                parent: #-1
+                location: #-1
+                property import_export_id (owner: #1, flags: "r") = "root";
+                property import_export_hierarchy (owner: #1, flags: "r") = {"core"};
+            endobject
+            "#,
+        );
+
+        let set =
+            ObjDefSet::parse_sources(&CompileOptions::default(), None, None, [object]).unwrap();
+        let (_, definition) = set
+            .graph()
+            .object_definitions()
+            .get(&Obj::mk_id(1))
+            .unwrap();
+        assert!(definition.property_definitions.is_empty());
+        assert!(definition.property_overrides.is_empty());
+        assert!(definition.metadata.iter().any(|(key, value)| {
+            *key == Symbol::mk("import_export_id") && value.as_string() == Some("root")
+        }));
+        assert_eq!(
+            set.graph()
+                .identity(&Obj::mk_id(1))
+                .unwrap()
+                .import_export_id
+                .as_deref(),
+            Some("root")
+        );
     }
 
     #[test]
