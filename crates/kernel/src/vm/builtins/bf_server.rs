@@ -46,6 +46,7 @@ use moor_common::{
         CapabilityGrant, CapabilityGrants, DispatchFlagsSource, HasUuid, Named, ObjFlag,
         VerbDispatch, VerbLookup, WorldStateError,
     },
+    tasks::SchedulerError,
     util::{
         MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
     },
@@ -973,6 +974,11 @@ fn bf_dump_database(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     match current_task_scheduler_client().checkpoint_with_blocking(blocking) {
         Ok(()) => Ok(Ret(bf_args.v_bool(true))),
+        Err(SchedulerError::CheckpointInProgress) => {
+            // Not an error, but no export was made — say so rather than claiming success.
+            tracing::warn!("dump_database() skipped: a checkpoint is already in progress");
+            Ok(Ret(bf_args.v_bool(false)))
+        }
         Err(e) => {
             tracing::error!(?e, "dump_database() checkpoint failed");
             Ok(Ret(bf_args.v_bool(false)))
@@ -1068,6 +1074,60 @@ fn db_disk_size(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .map_err(world_state_bf_err)?;
 
     Ok(Ret(v_int(disk_size as i64)))
+}
+
+/// Usage: `list db_compact()`
+/// Major-compacts the database's storage, reclaiming space held by superseded and deleted rows.
+/// Blocks until complete — this rewrites tables and can take a long time on a large database.
+/// Raises `E_INVARG` if a checkpoint is in progress: fjall will not collect anything below the
+/// sequence number a live snapshot pins, so compaction during a checkpoint reclaims nothing.
+/// Returns a list of maps, one per relation: `relation`, `bytes_before`, `bytes_after`,
+/// `bytes_reclaimed`, and `error` (a string, or 0 when that relation compacted cleanly).
+/// Wizard-only.
+fn bf_db_compact(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if !bf_args.args.is_empty() {
+        return Err(ErrValue(
+            E_ARGS.msg("db_compact() does not take any arguments"),
+        ));
+    }
+
+    bf_args.require_wizard_or_builtin_call()?;
+
+    let results = match current_task_scheduler_client().compact_storage() {
+        Ok(results) => results,
+        Err(SchedulerError::CheckpointInProgress) => {
+            return Err(ErrValue(E_INVARG.msg(
+                "db_compact() cannot run while a checkpoint is in progress; retry once it completes",
+            )));
+        }
+        Err(e) => {
+            tracing::error!(?e, "db_compact() failed");
+            return Err(ErrValue(
+                E_INVARG.msg("db_compact() failed; see the server log"),
+            ));
+        }
+    };
+
+    let rows: Vec<Var> = results
+        .iter()
+        .map(|r| {
+            v_map(&[
+                (v_str("relation"), v_str(r.relation)),
+                (v_str("bytes_before"), v_int(r.bytes_before as i64)),
+                (v_str("bytes_after"), v_int(r.bytes_after as i64)),
+                (v_str("bytes_reclaimed"), v_int(r.bytes_reclaimed() as i64)),
+                (
+                    v_str("error"),
+                    match &r.error {
+                        Some(message) => v_str(message),
+                        None => v_int(0),
+                    },
+                ),
+            ])
+        })
+        .collect();
+
+    Ok(Ret(v_list(&rows)))
 }
 
 /// Usage: `none load_server_options()`
@@ -1513,6 +1573,7 @@ pub(crate) fn register_bf_server(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("player_event_log_stats")] = bf_player_event_log_stats;
     builtins[offset_for_builtin("purge_player_event_log")] = bf_purge_player_event_log;
     builtins[offset_for_builtin("program_cache_stats")] = bf_program_cache_stats;
+    builtins[offset_for_builtin("db_compact")] = bf_db_compact;
 }
 
 #[cfg(test)]

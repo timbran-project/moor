@@ -79,7 +79,8 @@ union SchedulerErrorUnion {
     PropertyRetrievalFailed,
     VerbRetrievalFailed,
     ObjectResolutionFailed,
-    GarbageCollectionFailed
+    GarbageCollectionFailed,
+    CheckpointInProgress
 }
 
 table SchedulerNotResponding {
@@ -141,6 +142,9 @@ table ObjectResolutionFailed {
 
 table GarbageCollectionFailed {
     message: string (required);
+}
+
+table CheckpointInProgress {
 }
 
 table SchedulerError {

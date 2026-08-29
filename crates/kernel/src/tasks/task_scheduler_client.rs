@@ -179,6 +179,14 @@ impl TaskSchedulerClient {
             .handle_checkpoint_from_task(self.task_id, false);
     }
 
+    /// Major-compact database storage, blocking until it finishes. Refused while a checkpoint runs.
+    pub fn compact_storage(
+        &self,
+    ) -> Result<Vec<moor_db::RelationCompactionResult>, SchedulerError> {
+        self.scheduler
+            .handle_compact_storage_from_task(self.task_id)
+    }
+
     pub fn checkpoint_with_blocking(&self, blocking: bool) -> Result<(), SchedulerError> {
         let _timer = sched_counters()
             .timers

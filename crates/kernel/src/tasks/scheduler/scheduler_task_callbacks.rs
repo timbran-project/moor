@@ -1055,6 +1055,14 @@ impl Scheduler {
         messages
     }
 
+    pub fn handle_compact_storage_from_task(
+        &self,
+        _task_id: TaskId,
+    ) -> Result<Vec<moor_db::RelationCompactionResult>, SchedulerError> {
+        info!("Compacting database storage via db_compact() builtin");
+        self.compact_storage()
+    }
+
     pub fn handle_force_gc(&self) {
         info!("Forcing garbage collection via gc_collect() builtin");
         if !self.config.features.anonymous_objects {

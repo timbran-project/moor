@@ -349,6 +349,9 @@ pub fn scheduler_error_from_ref(
             let message = fb_read!(gc_failed, message).to_string();
             Ok(SchedulerError::GarbageCollectionFailed(message))
         }
+        rpc::SchedulerErrorUnionRef::CheckpointInProgress(_) => {
+            Ok(SchedulerError::CheckpointInProgress)
+        }
     }
 }
 
@@ -588,6 +591,9 @@ pub fn scheduler_error_to_flatbuffer_struct(
                     message: msg.clone(),
                 },
             ))
+        }
+        SchedulerError::CheckpointInProgress => {
+            rpc::SchedulerErrorUnion::CheckpointInProgress(Box::new(rpc::CheckpointInProgress {}))
         }
     };
 

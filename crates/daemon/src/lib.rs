@@ -35,7 +35,12 @@ use ed25519_dalek::{
     pkcs8::{EncodePrivateKey, EncodePublicKey},
 };
 use eyre::Report;
-use moor_common::{build, model::ObjectRef, tasks::SessionFactory, threading::spawn_efficient};
+use moor_common::{
+    build,
+    model::ObjectRef,
+    tasks::{SchedulerError, SessionFactory},
+    threading::spawn_efficient,
+};
 use moor_compiler::emit_compile_error;
 use moor_db::{Database, TxDB};
 use moor_kernel::{
@@ -906,8 +911,18 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                     info!("Checkpointing thread exiting.");
                     break;
                 }
-                if let Err(e) = checkpoint_scheduler_client.request_checkpoint() {
-                    error!("Failed to submit checkpoint request: {}", e);
+                match checkpoint_scheduler_client.request_checkpoint() {
+                    Ok(()) => {}
+                    // Expected when a checkpoint outruns the interval; not a failure.
+                    Err(SchedulerError::CheckpointInProgress) => {
+                        warn!(
+                            "Skipping scheduled checkpoint: the previous one is still running. \
+                             Consider a longer checkpoint interval."
+                        );
+                    }
+                    Err(e) => {
+                        error!("Failed to submit checkpoint request: {}", e);
+                    }
                 }
                 std::thread::sleep(checkpoint_interval);
             }
@@ -976,6 +991,12 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                     match sigusr1_scheduler_client.request_checkpoint_blocking() {
                         Ok(()) => {
                             info!("Emergency checkpoint completed successfully.");
+                        }
+                        Err(SchedulerError::CheckpointInProgress) => {
+                            warn!(
+                                "Emergency checkpoint not performed: another checkpoint is already \
+                                 running. Proceeding with shutdown anyway."
+                            );
                         }
                         Err(e) => {
                             error!(

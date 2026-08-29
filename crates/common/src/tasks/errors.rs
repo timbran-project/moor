@@ -72,6 +72,10 @@ pub enum SchedulerError {
     ObjectResolutionFailed(WorldStateError),
     #[error("Garbage collection failed: {0}")]
     GarbageCollectionFailed(String),
+    /// A checkpoint was requested while one was already running, and was therefore not performed.
+    /// Distinct from an error: nothing went wrong, but no export was made.
+    #[error("A checkpoint is already in progress; request was not performed")]
+    CheckpointInProgress,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

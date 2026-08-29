@@ -185,6 +185,7 @@ open an issue on the [mooR GitHub issue tracker](https://github.com/timbran-proj
 | [`shutdown`](server.md#shutdown)                             | &check;  |                                                                          |
 | [`dump_database`](server.md#dump_database)                   | &check;  |                                                                          |
 | [`db_disk_size`](server.md#db_disk_size)                     | &check;  |                                                                          |
+| [`db_compact`](server.md#db_compact)                         | &check;  | mooR extension. Wizard only. Blocks; refused during a checkpoint.        |
 | [`connected_players`](server.md#connected_players)           | &check;  |                                                                          |
 | [`connected_seconds`](server.md#connected_seconds)           | &check;  |                                                                          |
 | [`idle_seconds`](server.md#idle_seconds)                     | &check;  |                                                                          |

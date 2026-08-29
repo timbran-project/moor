@@ -494,6 +494,63 @@ macro_rules! define_relations {
                     $( self.$field.stop_provider().unwrap(); )*
                 }
 
+                /// Major-compact every relation keyspace in turn, blocking until each finishes.
+                ///
+                /// Returns per-relation disk usage before and after, and the first error
+                /// encountered (compaction of later relations is still attempted).
+                ///
+                /// Each keyspace's memtable is rotated first, and this is load-bearing. It does two
+                /// things: it flushes buffered writes so they are visible as tables at all, and —
+                /// the reason it matters — it is the only path from which fjall calls
+                /// `SnapshotTracker::pullup()`, which advances the GC watermark that
+                /// `major_compact()` uses to decide what may be discarded. Without it, compaction
+                /// runs, reports no error, and leaves much of the dead space in place.
+                ///
+                /// Measured directly against fjall on 4 MiB of live data written six times over,
+                /// with 21 KB the fully-reclaimed floor:
+                ///
+                /// | memtable | rotate first | tables after compaction |
+                /// |---|---|---|
+                /// | 256 KiB | no  | 6.6 MB — partial |
+                /// | 256 KiB | yes | **21 KB** |
+                /// | default (512 MiB) | no  | **0 — nothing ever flushed** |
+                /// | default (512 MiB) | yes | **21 KB** |
+                ///
+                /// Without rotation the reclaim is partial on a small memtable and, on the 512 MiB
+                /// memtable moor actually configures, does not happen at all: the writes are still
+                /// buffered, so there is nothing in a table for `major_compact()` to rewrite and it
+                /// returns success having done nothing.
+                /// `auto_compaction::compaction_reclaims_under_the_default_large_memtable` fails if
+                /// this rotation is removed.
+                fn major_compact_all(&self) -> Vec<crate::RelationCompactionResult> {
+                    let mut results = Vec::new();
+                    $(
+                        {
+                            let partition = self.$field.source().partition();
+                            // Rotate first, then measure: rotation advances the GC watermark (see
+                            // the note above) and also flushes the memtable to a table, so
+                            // `disk_space()` before it would report 0 for data that has only just
+                            // been written and attribute the flush itself to compaction.
+                            let rotate_error = partition
+                                .rotate_memtable_and_wait()
+                                .err()
+                                .map(|e| e.to_string());
+                            let bytes_before = partition.disk_space();
+                            let error = rotate_error.or_else(|| {
+                                partition.major_compact().err().map(|e| e.to_string())
+                            });
+                            let bytes_after = partition.disk_space();
+                            results.push(crate::RelationCompactionResult {
+                                relation: stringify!($field),
+                                bytes_before,
+                                bytes_after,
+                                error,
+                            });
+                        }
+                    )*
+                    results
+                }
+
                 /// Begin the checking phase for all relations.
                 ///
                 /// Creates RelationCheckers for all relations, which can then be used

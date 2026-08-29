@@ -26,7 +26,7 @@ mod tests {
 
     use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
-    use moor_common::tasks::Event;
+    use moor_common::tasks::{Event, SchedulerError};
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
         mk_connection_establish_msg, mk_login_command_msg, ws_list_objects,
@@ -634,6 +634,50 @@ mod tests {
             checkpoint_path.display()
         );
 
+        // Step 7b: The manifest must record the snapshot and completion instants and the scan
+        // counts, so the age of an export is unambiguous regardless of directory mtime.
+        let manifest_path = checkpoint_path.join("manifest.json");
+        assert!(
+            manifest_path.is_file(),
+            "Checkpoint should contain a manifest.json: {}",
+            checkpoint_path.display()
+        );
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap())
+                .expect("manifest.json should be valid JSON");
+
+        let snapshot_epoch = manifest["snapshot_epoch"].as_u64().expect("snapshot_epoch");
+        let completed_epoch = manifest["completed_epoch"]
+            .as_u64()
+            .expect("completed_epoch");
+        assert!(snapshot_epoch > 0, "snapshot_epoch should be set");
+        assert!(
+            completed_epoch >= snapshot_epoch,
+            "completion ({completed_epoch}) should not precede the snapshot ({snapshot_epoch})"
+        );
+
+        // The directory name encodes the snapshot instant; the manifest must agree with it.
+        let dir_name = checkpoint_path.file_name().unwrap().to_str().unwrap();
+        let name_epoch: u64 = dir_name
+            .trim_start_matches("checkpoint-")
+            .trim_end_matches(".moo")
+            .parse()
+            .expect("checkpoint directory name should encode an epoch");
+        assert_eq!(
+            name_epoch, snapshot_epoch,
+            "directory name should carry the snapshot instant recorded in the manifest"
+        );
+
+        // JHCore has substantial content, so the scan counts must be non-trivial.
+        assert!(
+            manifest["objects"].as_u64().expect("objects") > 0,
+            "manifest should record the objects scanned: {manifest}"
+        );
+        assert!(
+            manifest["verbs"].as_u64().expect("verbs") > 0,
+            "manifest should record the verbs scanned: {manifest}"
+        );
+
         // Step 8: Verify there are no errors in the transport events (which are unencrypted)
         let events = env.transport.get_narrative_events();
         for (_player, narrative_event) in events {
@@ -1117,6 +1161,68 @@ mod tests {
         );
 
         (client_id, client_token, auth_token, player_obj)
+    }
+
+    /// `db_compact()` must actually reach the storage engine and report per-relation results, and
+    /// must be refused to non-wizards.
+    #[test]
+    fn test_db_compact_builtin() {
+        let env = setup_test_environment_with_real_scheduler();
+        wait_for_scheduler_ready(&env.scheduler_client);
+        let (client_id, client_token, auth_token, player_obj) = login_as_wizard(&env);
+
+        // Compaction returns a list of per-relation maps; check one relation we know exists by
+        // name, so a silently empty result cannot pass.
+        send_command_and_wait_for_output(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player_obj,
+            ";{r for r in (db_compact()) if (r[\"relation\"] == \"object_propvalues\")}[1][\"error\"]",
+            "=> 0",
+            "db_compact() should compact object_propvalues without error",
+        );
+
+        // Every relation should report a byte count, and none should carry an error.
+        send_command_and_wait_for_output(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player_obj,
+            ";length({r for r in (db_compact()) if (r[\"error\"] != 0)})",
+            "=> 0",
+            "no relation should fail to compact",
+        );
+
+        // The scheduler must survive a blocking, synchronous compaction.
+        assert!(
+            env.scheduler_client.check_status().is_ok(),
+            "Scheduler should remain responsive after db_compact()"
+        );
+
+        // The builtin should be introspectable like any other, with its doc comment harvested.
+        send_command_and_wait_for_output(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player_obj,
+            ";function_help(\"db_compact\")",
+            "checkpoint",
+            "db_compact() help should mention the checkpoint restriction",
+        );
+
+        // A checkpoint must still be accepted afterwards, proving the guard flag was released. The
+        // assertion is precisely that it is not refused as already-in-progress; whether the export
+        // itself then succeeds depends on this environment's configuration and is tested elsewhere.
+        let outcome = env.scheduler_client.request_checkpoint_blocking();
+        assert!(
+            !matches!(outcome, Err(SchedulerError::CheckpointInProgress)),
+            "db_compact() must release the checkpoint guard, but a later checkpoint was refused \
+             as already-in-progress: {outcome:?}"
+        );
     }
 
     #[test]

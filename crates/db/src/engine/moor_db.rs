@@ -255,6 +255,7 @@ impl MoorDB {
                 .source()
                 .partition()
                 .clone(),
+            full_scan: Default::default(),
         }))
     }
 
@@ -449,6 +450,28 @@ impl MoorDB {
         self.keyspace.disk_space().unwrap_or_default() as usize
     }
 
+    /// Rows stored in the two property keyspaces, counting every superseded version and tombstone.
+    ///
+    /// `approximate_len()` sums per-table item counts without deduplicating by key, which makes it
+    /// useless as a count of distinct properties but exactly right here: compared against the live
+    /// row count from a checkpoint scan, the ratio is version amplification. Cheap — it reads table
+    /// metadata, not data.
+    pub fn stored_property_rows(&self) -> u64 {
+        let propvalues = self
+            .relations
+            .object_propvalues
+            .source()
+            .partition()
+            .approximate_len() as u64;
+        let propflags = self
+            .relations
+            .object_propflags
+            .source()
+            .partition()
+            .approximate_len() as u64;
+        propvalues + propflags
+    }
+
     /// Return a point-in-time view of Fjall's background maintenance state.
     pub fn storage_maintenance_stats(&self) -> StorageMaintenanceStats {
         StorageMaintenanceStats {
@@ -461,6 +484,31 @@ impl MoorDB {
             journal_bytes: self.keyspace.journal_disk_space().unwrap_or_default(),
             disk_bytes: self.keyspace.disk_space().unwrap_or_default(),
         }
+    }
+
+    /// Major-compact every relation keyspace, blocking until done.
+    ///
+    /// Fjall reclaims superseded versions and tombstoned rows only on compaction, and only up to
+    /// `get_seqno_safe_to_gc()`. That floor is the oldest *retained* snapshot minus one, so an open
+    /// snapshot does not block reclamation of data superseded before it was taken — the
+    /// `fjall_gc_watermark_probe` integration tests measure a 25 MB → 106 KB reclaim with a
+    /// snapshot held open and reading. Serializing against checkpoints is about not running two
+    /// full passes over the database at once, not about futility.
+    ///
+    /// This is expensive and synchronous: it rewrites tables. Not for a hot path.
+    pub fn major_compact_all(&self) -> Vec<crate::RelationCompactionResult> {
+        let started = std::time::Instant::now();
+        let before = self.usage_bytes();
+        let results = self.relations.major_compact_all();
+        let after = self.usage_bytes();
+        info!(
+            elapsed = ?started.elapsed(),
+            bytes_before = before,
+            bytes_after = after,
+            failures = results.iter().filter(|r| r.error.is_some()).count(),
+            "Major compaction of all relation keyspaces complete"
+        );
+        results
     }
 
     /// Mark all relations as fully loaded from their backing providers.

@@ -79,6 +79,46 @@ pub trait SnapshotInterface: Send {
         objid: &Obj,
     ) -> Result<Option<Box<dyn std::any::Any + Send>>, WorldStateError>;
     fn scan_anonymous_object_references(&self) -> Result<Vec<(Obj, Vec<Obj>)>, WorldStateError>;
+
+    /// Hint that the caller is about to walk *every* object in the snapshot.
+    ///
+    /// An implementation may use this to replace per-object random point lookups with a small
+    /// number of sequential scans, buffering the results for the duration of the walk. Callers
+    /// must pair this with [`SnapshotInterface::end_full_scan`] so the buffers can be released.
+    ///
+    /// Purely an optimization: the default implementation does nothing, and every accessor must
+    /// return identical results whether or not a full scan is in progress.
+    fn begin_full_scan(&self) -> Result<(), WorldStateError> {
+        Ok(())
+    }
+
+    /// Release anything [`SnapshotInterface::begin_full_scan`] buffered.
+    fn end_full_scan(&self) {}
+
+    /// Encoded size of the live property rows a full scan read, if it measured them.
+    ///
+    /// Only meaningful between [`SnapshotInterface::begin_full_scan`] and
+    /// [`SnapshotInterface::end_full_scan`], and only on an implementation that prefetches.
+    ///
+    /// Reported for observability, not for deciding maintenance: this is uncompressed logical
+    /// size, and a storage engine's physical size may be compressed, so a ratio between the two
+    /// largely measures compressibility. Use [`SnapshotInterface::full_scan_live_property_rows`]
+    /// for that.
+    fn full_scan_live_property_bytes(&self) -> Option<u64> {
+        None
+    }
+
+    /// Number of live property rows a full scan read, if it counted them.
+    ///
+    /// Only meaningful between [`SnapshotInterface::begin_full_scan`] and
+    /// [`SnapshotInterface::end_full_scan`], and only on an implementation that prefetches.
+    ///
+    /// This is the figure to compare against a storage engine's stored-row count in order to
+    /// estimate version amplification: rows against rows is a consistent unit, so the comparison
+    /// is unaffected by compression.
+    fn full_scan_live_property_rows(&self) -> Option<u64> {
+        None
+    }
 }
 
 /// Interface exposed to be used by the textdump/objdef loader for loading data into the database.
