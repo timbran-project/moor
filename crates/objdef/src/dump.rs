@@ -21,8 +21,8 @@ use moor_common::model::{
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
 use std::{
-    collections::{HashMap, HashSet},
-    fs::OpenOptions,
+    collections::{HashMap, hash_map::Entry},
+    fs::File,
     io::Write,
     path::{Path, PathBuf},
     time::{Duration, Instant},
@@ -557,15 +557,6 @@ pub fn collect_index_names(
     Ok(extract_object_constants_from_identities(&identities).0)
 }
 
-fn target_directory(base: &Path, hierarchy: &[String]) -> Result<PathBuf, std::io::Error> {
-    let mut target = base.to_path_buf();
-    for component in hierarchy {
-        target.push(component);
-    }
-    std::fs::create_dir_all(&target)?;
-    Ok(target)
-}
-
 fn regular_object_file_name(
     object: &ObjectDefinition,
     file_names: &HashMap<Obj, String>,
@@ -582,34 +573,79 @@ fn regular_object_file_name(
     format!("{}_{}.moo", prefix, object.oid.as_u64())
 }
 
-fn write_streamed_object(
-    object: &ObjectDefinition,
-    index_names: &HashMap<Obj, String>,
-    file_names: &HashMap<Obj, String>,
-    hierarchy: &[String],
-    directory_path: &Path,
-    written_anonymous_files: &mut HashSet<Vec<String>>,
-) -> Result<(), ObjectDumpError> {
-    let target_dir = target_directory(directory_path, hierarchy)?;
-    if !object.oid.is_anonymous() {
-        let path = target_dir.join(regular_object_file_name(object, file_names));
-        let mut file = std::fs::File::create(path)?;
-        crate::write::write_dump_object(index_names, object, &mut file)?;
-        return Ok(());
+struct ObjectDumpSink<'a> {
+    directory_path: &'a Path,
+    index_names: &'a HashMap<Obj, String>,
+    file_names: &'a HashMap<Obj, String>,
+    hierarchies: &'a HashMap<Obj, Vec<String>>,
+    directories: HashMap<Vec<String>, PathBuf>,
+    anonymous_files: HashMap<Vec<String>, File>,
+}
+
+impl<'a> ObjectDumpSink<'a> {
+    fn new(
+        directory_path: &'a Path,
+        index_names: &'a HashMap<Obj, String>,
+        file_names: &'a HashMap<Obj, String>,
+        hierarchies: &'a HashMap<Obj, Vec<String>>,
+    ) -> Result<Self, ObjectDumpError> {
+        std::fs::create_dir_all(directory_path)?;
+        crate::write::generate_constants_file(index_names, hierarchies, directory_path)?;
+        let mut directories = HashMap::new();
+        directories.insert(Vec::new(), directory_path.to_path_buf());
+        Ok(Self {
+            directory_path,
+            index_names,
+            file_names,
+            hierarchies,
+            directories,
+            anonymous_files: HashMap::new(),
+        })
     }
 
-    let first = written_anonymous_files.insert(hierarchy.to_vec());
-    let path = target_dir.join("_anonymous_objects.moo");
-    let mut file = if first {
-        std::fs::File::create(path)?
-    } else {
-        OpenOptions::new().append(true).open(path)?
-    };
-    if !first {
-        writeln!(file)?;
+    fn target_directory(&mut self, hierarchy: &[String]) -> Result<PathBuf, ObjectDumpError> {
+        if let Some(path) = self.directories.get(hierarchy) {
+            return Ok(path.clone());
+        }
+        let mut path = self.directory_path.to_path_buf();
+        for component in hierarchy {
+            path.push(component);
+        }
+        std::fs::create_dir_all(&path)?;
+        self.directories.insert(hierarchy.to_vec(), path.clone());
+        Ok(path)
     }
-    crate::write::write_dump_object(index_names, object, &mut file)?;
-    Ok(())
+
+    fn write_object(&mut self, object: &ObjectDefinition) -> Result<(), ObjectDumpError> {
+        crate::write::validate_verb_names(object)?;
+        self.write_validated_object(object)
+    }
+
+    fn write_validated_object(&mut self, object: &ObjectDefinition) -> Result<(), ObjectDumpError> {
+        let hierarchy = self
+            .hierarchies
+            .get(&object.oid)
+            .cloned()
+            .unwrap_or_default();
+        let target_dir = self.target_directory(&hierarchy)?;
+        if !object.oid.is_anonymous() {
+            let path = target_dir.join(regular_object_file_name(object, self.file_names));
+            let mut file = File::create(path)?;
+            return crate::write::write_validated_dump_object(self.index_names, object, &mut file);
+        }
+
+        let file = match self.anonymous_files.entry(hierarchy) {
+            Entry::Vacant(entry) => {
+                entry.insert(File::create(target_dir.join("_anonymous_objects.moo"))?)
+            }
+            Entry::Occupied(entry) => {
+                let file = entry.into_mut();
+                writeln!(file)?;
+                file
+            }
+        };
+        crate::write::write_validated_dump_object(self.index_names, object, file)
+    }
 }
 
 /// Export one stable snapshot without retaining all property and verb payloads in memory.
@@ -631,11 +667,9 @@ pub fn dump_snapshot_object_definitions(
         .map(|identity| (identity.oid, identity.hierarchy.clone()))
         .collect::<HashMap<_, _>>();
 
-    std::fs::create_dir_all(directory_path)?;
-    crate::write::generate_constants_file(&index_names, &hierarchies, directory_path)?;
+    let mut sink = ObjectDumpSink::new(directory_path, &index_names, &file_names, &hierarchies)?;
 
     let started = Instant::now();
-    let mut written_anonymous_files = HashSet::new();
     let mut regular_count = 0;
     let mut anonymous_count = 0;
     let mut verb_count = 0;
@@ -644,19 +678,7 @@ pub fn dump_snapshot_object_definitions(
 
     while let Some(object) = export.next_object()? {
         let definition = collect_export_object(object)?;
-        crate::write::validate_verb_names(&definition)?;
-        let hierarchy = hierarchies
-            .get(&definition.oid)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        write_streamed_object(
-            &definition,
-            &index_names,
-            &file_names,
-            hierarchy,
-            directory_path,
-            &mut written_anonymous_files,
-        )?;
+        sink.write_object(&definition)?;
 
         verb_count += definition.verbs.len();
         property_count += definition.property_definitions.len();
@@ -716,89 +738,14 @@ pub fn dump_object_definitions(
         .map(|od| (od.oid, extract_hierarchy_path(od)))
         .collect();
 
-    // Separate anonymous objects from regular objects
-    let (anonymous_objects, regular_objects): (Vec<_>, Vec<_>) =
-        object_defs.iter().partition(|o| o.oid.is_anonymous());
-
-    // Store counts for logging before consuming the vectors
-    let regular_count = regular_objects.len();
-    let anonymous_count = anonymous_objects.len();
-
-    // Create the directory.
-    std::fs::create_dir_all(directory_path)?;
-
-    // Constants index, for friendlier names (only for regular objects)
-    crate::write::generate_constants_file(&index_names, &hierarchies, directory_path)?;
-
-    // Dump regular objects - one file per object in their respective subdirectories
-    for o in regular_objects {
-        // Get hierarchy path for this object
-        let hierarchy = hierarchies.get(&o.oid).cloned().unwrap_or_default();
-
-        // Build the target directory path
-        let target_dir = if hierarchy.is_empty() {
-            directory_path.to_path_buf()
-        } else {
-            let mut path = directory_path.to_path_buf();
-            for component in &hierarchy {
-                path.push(component);
-            }
-            std::fs::create_dir_all(&path)?;
-            path
-        };
-
-        // Pick a file name.
-        let file_name = match file_names.get(&o.oid) {
-            Some(name) => format!("{name}.moo"),
-            None => {
-                let prefix = if o.flags.contains(ObjFlag::User) {
-                    "player"
-                } else {
-                    "object"
-                };
-                format!("{}_{}.moo", prefix, o.oid.as_u64())
-            }
-        };
-        let file_path = target_dir.join(file_name);
-        let mut file = std::fs::File::create(file_path)?;
-
-        crate::write::write_dump_object(&index_names, o, &mut file)?;
-    }
-
-    // Dump anonymous objects - group by hierarchy
-    if !anonymous_objects.is_empty() {
-        // Group anonymous objects by their hierarchy
-        let mut anon_by_hierarchy: HashMap<Vec<String>, Vec<&ObjectDefinition>> = HashMap::new();
-        for o in &anonymous_objects {
-            let hierarchy = hierarchies.get(&o.oid).cloned().unwrap_or_default();
-            anon_by_hierarchy.entry(hierarchy).or_default().push(o);
-        }
-
-        // Write each hierarchy group to its own _anonymous_objects.moo file
-        for (hierarchy, objects) in anon_by_hierarchy {
-            let target_dir = if hierarchy.is_empty() {
-                directory_path.to_path_buf()
-            } else {
-                let mut path = directory_path.to_path_buf();
-                for component in &hierarchy {
-                    path.push(component);
-                }
-                std::fs::create_dir_all(&path)?;
-                path
-            };
-
-            let anon_file_path = target_dir.join("_anonymous_objects.moo");
-            let mut anon_file = std::fs::File::create(anon_file_path)?;
-
-            let mut first = true;
-            for o in objects {
-                if !first {
-                    writeln!(anon_file)?;
-                }
-                crate::write::write_dump_object(&index_names, o, &mut anon_file)?;
-                first = false;
-            }
-        }
+    let regular_count = object_defs
+        .iter()
+        .filter(|object| !object.oid.is_anonymous())
+        .count();
+    let anonymous_count = object_defs.len() - regular_count;
+    let mut sink = ObjectDumpSink::new(directory_path, &index_names, &file_names, &hierarchies)?;
+    for object in object_defs {
+        sink.write_validated_object(object)?;
     }
 
     info!(

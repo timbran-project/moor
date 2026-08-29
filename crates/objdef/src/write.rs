@@ -161,7 +161,14 @@ pub(crate) fn write_dump_object<W: Write>(
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
     validate_verb_names(o)?;
+    write_validated_dump_object(index_names, o, writer)
+}
 
+pub(crate) fn write_validated_dump_object<W: Write>(
+    index_names: &HashMap<Obj, String>,
+    o: &ObjectDefinition,
+    writer: &mut W,
+) -> Result<(), ObjectDumpError> {
     let object_decl = format!("object {}", canon_name(&o.oid, index_names));
     write!(writer, "{object_decl}")?;
     write_object_metadata_suffix(index_names, &o.metadata, writer)?;
