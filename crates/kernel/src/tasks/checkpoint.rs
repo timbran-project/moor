@@ -300,6 +300,12 @@ fn perform_export(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use moor_common::{
+        model::{ObjectKind, TaskPermissions, WorldStateSource},
+        util::BitEnum,
+    };
+    use moor_db::{DatabaseConfig, TxDB};
+    use moor_var::{Obj, SYSTEM_OBJECT};
 
     #[test]
     fn duplicate_admission_reports_checkpoint_in_progress() {
@@ -335,5 +341,31 @@ mod tests {
             coordinator.admit(),
             Err(SchedulerError::SchedulerNotResponding)
         ));
+    }
+
+    #[test]
+    fn failed_export_keeps_only_the_in_progress_directory() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+        let mut world_state = database.new_world_state().unwrap();
+        world_state
+            .create_object(
+                &permissions,
+                &Obj::mk_id(-1),
+                &SYSTEM_OBJECT,
+                BitEnum::new(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        world_state.commit().unwrap();
+
+        let snapshot = database.create_snapshot().unwrap();
+        let output = tempfile::tempdir().unwrap();
+        let in_progress = output.path().join("checkpoint-1.in-progress");
+        std::fs::create_dir_all(in_progress.join("object_0.moo")).unwrap();
+
+        assert!(perform_export(snapshot.as_ref(), &in_progress).is_err());
+        assert!(in_progress.is_dir());
+        assert!(!output.path().join("checkpoint-1.moo").exists());
     }
 }
