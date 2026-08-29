@@ -326,6 +326,34 @@ impl Scheduler {
         )
     }
 
+    /// Major-compact the database's storage, blocking until it finishes.
+    ///
+    /// Reuses the checkpoint flag as the guard: fjall will not reclaim anything below a pinned GC
+    /// seqno, and an open checkpoint snapshot pins it, so compacting during a checkpoint would do
+    /// a great deal of I/O for no benefit. Holding the flag also stops a checkpoint from starting
+    /// mid-compaction.
+    pub(crate) fn compact_storage(
+        &self,
+    ) -> Result<Vec<moor_db::RelationCompactionResult>, SchedulerError> {
+        if self
+            .checkpoint_in_progress
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            warn!("Cannot compact storage while a checkpoint is in progress");
+            return Err(SchedulerError::CheckpointInProgress);
+        }
+
+        let result = self.database.major_compact();
+
+        self.checkpoint_in_progress.store(false, Ordering::SeqCst);
+
+        result.ok_or_else(|| {
+            error!("Storage engine does not support major compaction");
+            SchedulerError::CouldNotStartTask
+        })
+    }
+
     /// Stop the scheduler run loop.
     pub(crate) fn stop(&self, msg: Option<String>) -> Result<(), SchedulerError> {
         // Stop accepting work, notify sessions, and ask active tasks to cancel. Keep their

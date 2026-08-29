@@ -255,6 +255,7 @@ impl MoorDB {
                 .source()
                 .partition()
                 .clone(),
+            full_scan: Default::default(),
         }))
     }
 
@@ -461,6 +462,29 @@ impl MoorDB {
             journal_bytes: self.keyspace.journal_disk_space().unwrap_or_default(),
             disk_bytes: self.keyspace.disk_space().unwrap_or_default(),
         }
+    }
+
+    /// Major-compact every relation keyspace, blocking until done.
+    ///
+    /// Fjall reclaims superseded versions and tombstoned rows only on compaction, and only up to
+    /// `get_seqno_safe_to_gc()` — a live snapshot pins that seqno, so a checkpoint in flight will
+    /// make this reclaim nothing. Callers must therefore ensure no checkpoint is running; the
+    /// scheduler's `checkpoint_in_progress` flag is what enforces that.
+    ///
+    /// This is expensive and synchronous: it rewrites tables. Not for a hot path.
+    pub fn major_compact_all(&self) -> Vec<crate::RelationCompactionResult> {
+        let started = std::time::Instant::now();
+        let before = self.usage_bytes();
+        let results = self.relations.major_compact_all();
+        let after = self.usage_bytes();
+        info!(
+            elapsed = ?started.elapsed(),
+            bytes_before = before,
+            bytes_after = after,
+            failures = results.iter().filter(|r| r.error.is_some()).count(),
+            "Major compaction of all relation keyspaces complete"
+        );
+        results
     }
 
     /// Mark all relations as fully loaded from their backing providers.

@@ -494,6 +494,29 @@ macro_rules! define_relations {
                     $( self.$field.stop_provider().unwrap(); )*
                 }
 
+                /// Major-compact every relation keyspace in turn, blocking until each finishes.
+                ///
+                /// Returns per-relation disk usage before and after, and the first error
+                /// encountered (compaction of later relations is still attempted).
+                fn major_compact_all(&self) -> Vec<crate::RelationCompactionResult> {
+                    let mut results = Vec::new();
+                    $(
+                        {
+                            let partition = self.$field.source().partition();
+                            let bytes_before = partition.disk_space();
+                            let error = partition.major_compact().err().map(|e| e.to_string());
+                            let bytes_after = partition.disk_space();
+                            results.push(crate::RelationCompactionResult {
+                                relation: stringify!($field),
+                                bytes_before,
+                                bytes_after,
+                                error,
+                            });
+                        }
+                    )*
+                    results
+                }
+
                 /// Begin the checking phase for all relations.
                 ///
                 /// Creates RelationCheckers for all relations, which can then be used

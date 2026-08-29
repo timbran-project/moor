@@ -79,6 +79,21 @@ pub trait SnapshotInterface: Send {
         objid: &Obj,
     ) -> Result<Option<Box<dyn std::any::Any + Send>>, WorldStateError>;
     fn scan_anonymous_object_references(&self) -> Result<Vec<(Obj, Vec<Obj>)>, WorldStateError>;
+
+    /// Hint that the caller is about to walk *every* object in the snapshot.
+    ///
+    /// An implementation may use this to replace per-object random point lookups with a small
+    /// number of sequential scans, buffering the results for the duration of the walk. Callers
+    /// must pair this with [`SnapshotInterface::end_full_scan`] so the buffers can be released.
+    ///
+    /// Purely an optimization: the default implementation does nothing, and every accessor must
+    /// return identical results whether or not a full scan is in progress.
+    fn begin_full_scan(&self) -> Result<(), WorldStateError> {
+        Ok(())
+    }
+
+    /// Release anything [`SnapshotInterface::begin_full_scan`] buffered.
+    fn end_full_scan(&self) {}
 }
 
 /// Interface exposed to be used by the textdump/objdef loader for loading data into the database.

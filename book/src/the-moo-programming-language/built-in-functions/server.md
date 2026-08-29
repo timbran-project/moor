@@ -904,10 +904,57 @@ input = read(player, [
 
 ### `dump_database`
 
-**Description:** Creates a dump of the database, typically for backup purposes. **Arguments:**
+**Description:** Requests a checkpoint: an objdef export of the database, written to the server's
+configured checkpoint output directory. Wizard-only.
 
-- `filename`: Optional output filename for the dump
-- `options`: Optional flags controlling the dump format
+**Syntax:** `bool dump_database([int blocking])`
+
+**Arguments:**
+
+- `blocking`: (Optional) If true, wait for the export to be written before returning. Defaults to
+  false, which returns as soon as the checkpoint has been started.
+
+**Returns:** `1` if a checkpoint was started (or, with `blocking`, completed); `0` otherwise.
+
+A checkpoint is written as a directory named `checkpoint-<snapshot-epoch>.moo`, containing a
+`manifest.json` recording the snapshot instant, the completion instant, and the object, verb,
+property and override counts. The two instants can be far apart on a large database, so prefer the
+manifest over the directory's modification time when reasoning about how current an export is.
+
+Only one checkpoint runs at a time. A request made while one is already in progress returns `0`
+without exporting anything — this applies to `dump_database(1)` too, which returns immediately
+rather than blocking. Check the return value before assuming an export was made.
+
+### `db_compact`
+
+**Description:** Major-compacts the database's storage, reclaiming space still held by superseded
+and deleted rows. Blocks until complete. Wizard-only.
+
+**Syntax:** `list db_compact()`
+
+**Arguments:** None
+
+**Returns:** A list of maps, one per relation, each with `relation`, `bytes_before`, `bytes_after`,
+`bytes_reclaimed`, and `error` (a message string, or `0` if that relation compacted cleanly).
+
+Recycling a large object does not shrink the database on its own: the storage engine only appends
+tombstones, and the superseded data stays on disk until compaction rewrites the affected tables.
+Background compaction gets there eventually, but on its own schedule. This builtin forces it.
+
+Two caveats. It **blocks and rewrites tables**, so it is slow on a large database and is not
+something to call from an ordinary verb. And it raises `E_INVARG` if a checkpoint is in progress:
+an open checkpoint snapshot pins the sequence number below which nothing may be collected, so
+compacting then would do the I/O and reclaim nothing.
+
+```moo
+// Reclaim space and report the total
+results = db_compact();
+total = 0;
+for r in (results)
+    total = total + r["bytes_reclaimed"];
+endfor
+player:tell("Reclaimed ", total, " bytes.");
+```
 
 ### `gc_collect`
 

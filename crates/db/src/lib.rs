@@ -59,6 +59,24 @@ pub type SnapshotCallback = Box<
         + Send,
 >;
 
+/// Outcome of major-compacting one relation's keyspace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RelationCompactionResult {
+    /// The relation name, as declared in `define_relations!`.
+    pub relation: &'static str,
+    pub bytes_before: u64,
+    pub bytes_after: u64,
+    /// Set if this relation's compaction failed; the others were still attempted.
+    pub error: Option<String>,
+}
+
+impl RelationCompactionResult {
+    /// Bytes reclaimed, saturating — compaction can briefly grow a keyspace.
+    pub fn bytes_reclaimed(&self) -> u64 {
+        self.bytes_before.saturating_sub(self.bytes_after)
+    }
+}
+
 /// Point-in-time storage-engine maintenance counters.
 ///
 /// These values are observational and may change immediately after being read.
@@ -146,6 +164,15 @@ pub trait Database: Send + Sync + WorldStateSource {
     fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {
         None
     }
+
+    /// Major-compact all storage, blocking until done, when supported by the engine.
+    ///
+    /// Reclaims superseded versions and tombstoned rows that background compaction has not got to.
+    /// Must not run while a snapshot is open (a checkpoint pins the GC seqno and nothing is
+    /// reclaimed), and is expensive. `None` means the engine has no such operation.
+    fn major_compact(&self) -> Option<Vec<RelationCompactionResult>> {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -230,5 +257,9 @@ impl Database for TxDB {
 
     fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {
         Some(self.storage.storage_maintenance_stats())
+    }
+
+    fn major_compact(&self) -> Option<Vec<RelationCompactionResult>> {
+        Some(self.storage.major_compact_all())
     }
 }

@@ -52,9 +52,39 @@ pub enum ObjectDumpError {
     Io(#[from] std::io::Error),
 }
 
+/// Releases the snapshot's full-scan buffers however `collect_object_definitions` returns.
+struct FullScanGuard<'a>(&'a dyn SnapshotInterface);
+
+impl Drop for FullScanGuard<'_> {
+    fn drop(&mut self) {
+        self.0.end_full_scan();
+    }
+}
+
+/// What a scan saw, for logging and for the checkpoint manifest.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScanCounts {
+    pub objects: usize,
+    pub verbs: usize,
+    pub properties: usize,
+    pub property_overrides: usize,
+}
+
 pub fn collect_object_definitions(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
+    collect_object_definitions_with_counts(loader).map(|(defs, _counts)| defs)
+}
+
+/// As [`collect_object_definitions`], also returning what the scan saw so a caller can record it.
+pub fn collect_object_definitions_with_counts(
+    loader: &dyn SnapshotInterface,
+) -> Result<(Vec<ObjectDefinition>, ScanCounts), ObjectDumpError> {
+    // This walks every object, so let the snapshot swap per-object random point lookups for a
+    // few sequential passes. Released on every exit path by `FullScanGuard`.
+    loader.begin_full_scan()?;
+    let _scan_guard = FullScanGuard(loader);
+
     let mut object_defs = vec![];
 
     // Find all the ids
@@ -94,13 +124,20 @@ pub fn collect_object_definitions(
     }
 
     info!(
-        "Scanned {} objects, {} verbs, {} properties, {} overrides",
+        "Scanned {} objects, {} verbs, {} properties, {} overrides in {:?}",
         object_defs.len(),
         num_verbdefs,
         num_propdefs,
-        num_propoverrides
+        num_propoverrides,
+        started.elapsed()
     );
-    Ok(object_defs)
+    let counts = ScanCounts {
+        objects: object_defs.len(),
+        verbs: num_verbdefs,
+        properties: num_propdefs,
+        property_overrides: num_propoverrides,
+    };
+    Ok((object_defs, counts))
 }
 
 pub fn collect_object(
@@ -710,6 +747,78 @@ mod tests {
 
         // Round trip worked, so we'll just leave it at that for now. A more anal retentive test
         // would go look at known objects and props etc and compare.
+    }
+
+    /// Measures the property-scan cost with and without the full-scan prefetch, on a real core.
+    ///
+    /// Not an assertion of a particular speedup — that depends on the machine and on how much of
+    /// the database is still in fjall's block cache — so this is `#[ignore]`d and run by hand:
+    ///
+    /// ```shell
+    /// cargo test -p moor-objdef --release scan_cost_with_and_without_prefetch -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "measurement, not a pass/fail test; run manually with --nocapture"]
+    fn scan_cost_with_and_without_prefetch() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let jhcore = manifest_dir.join("../../cores/JHCore-DEV-2.db");
+
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+        let mut loader_client = db.clone().loader_client().unwrap();
+        textdump_load(
+            loader_client.as_mut(),
+            jhcore,
+            Version::new(0, 1, 0),
+            CompileOptions::default(),
+            TextdumpImportOptions::default(),
+        )
+        .unwrap();
+        assert!(matches!(
+            loader_client.commit(),
+            Ok(CommitResult::Success { .. })
+        ));
+
+        let snapshot = db.create_snapshot().unwrap();
+        let objects: Vec<Obj> = {
+            use moor_common::model::ValSet;
+            snapshot.get_objects().unwrap().iter().collect()
+        };
+
+        // Baseline: per-object random point lookups, as before this change.
+        let started = std::time::Instant::now();
+        let mut baseline_rows = 0usize;
+        for obj in &objects {
+            baseline_rows += snapshot.get_all_property_values(obj).unwrap().len();
+        }
+        let baseline = started.elapsed();
+
+        // With the prefetch: two sequential passes, then map lookups.
+        let started = std::time::Instant::now();
+        snapshot.begin_full_scan().unwrap();
+        let prefetch = started.elapsed();
+        let mut prefetched_rows = 0usize;
+        for obj in &objects {
+            prefetched_rows += snapshot.get_all_property_values(obj).unwrap().len();
+        }
+        let with_prefetch = started.elapsed();
+        snapshot.end_full_scan();
+
+        // Whatever the timings, the two paths must agree on the work done.
+        assert_eq!(
+            baseline_rows, prefetched_rows,
+            "prefetch must emit exactly the same rows as point lookups"
+        );
+
+        println!(
+            "objects={} rows={}\n  point lookups: {:?}\n  prefetch:      {:?} (of which {:?} building buffers)\n  speedup:       {:.1}x",
+            objects.len(),
+            baseline_rows,
+            baseline,
+            with_prefetch,
+            prefetch,
+            baseline.as_secs_f64() / with_prefetch.as_secs_f64(),
+        );
     }
 
     /// Test lambda objdef serialization by creating lambdas and doing a round-trip
