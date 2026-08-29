@@ -24,7 +24,10 @@ use moor_var::{Obj, Symbol, Var, program::ProgramType};
 
 /// A verb and its payload as read by a sequential snapshot export.
 pub struct SnapshotExportVerb {
-    pub definition: VerbDef,
+    pub names: Vec<Symbol>,
+    pub argspec: VerbArgsSpec,
+    pub owner: Obj,
+    pub flags: BitEnum<VerbFlag>,
     pub program: ProgramType,
     pub metadata: Vec<(Symbol, Var)>,
 }
@@ -43,7 +46,11 @@ pub struct SnapshotExportProperty {
 /// All persistent data needed to export one object.
 pub struct SnapshotExportObject {
     pub oid: Obj,
-    pub attributes: ObjAttrs,
+    pub name: String,
+    pub parent: Obj,
+    pub owner: Obj,
+    pub location: Obj,
+    pub flags: BitEnum<ObjFlag>,
     pub metadata: Vec<(Symbol, Var)>,
     pub verbs: Vec<SnapshotExportVerb>,
     pub properties: Vec<SnapshotExportProperty>,
