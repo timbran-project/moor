@@ -382,23 +382,6 @@ impl SnapshotInterface for FjallSnapshotLoader {
         )?))
     }
 
-    fn get_objects(&self) -> Result<ObjSet, WorldStateError> {
-        // Scan all objects by iterating through the object_flags keyspace
-        let mut objects = Vec::new();
-
-        for entry in self.snapshot.iter(&self.object_flags_keyspace) {
-            let (key, _value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let obj = FjallCodec.decode(ByteView::from(key)).map_err(|_| {
-                WorldStateError::DatabaseError("Failed to decode object ID".to_string())
-            })?;
-            objects.push(obj);
-        }
-
-        Ok(ObjSet::from_iter(objects))
-    }
-
     fn get_object(&self, objid: &Obj) -> Result<ObjAttrs, WorldStateError> {
         Ok(ObjAttrs::new(
             self.get_object_owner(objid)?,

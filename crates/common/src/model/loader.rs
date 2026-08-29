@@ -15,8 +15,8 @@ use uuid::Uuid;
 
 use crate::{
     model::{
-        CommitResult, ObjAttrs, ObjFlag, ObjSet, ObjectKind, PropDef, PropDefs, PropFlag,
-        PropPerms, VerbArgsSpec, VerbDef, VerbDefs, VerbFlag, WorldStateError,
+        CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropDefs, PropFlag, PropPerms,
+        VerbArgsSpec, VerbDef, VerbDefs, VerbFlag, WorldStateError,
     },
     util::BitEnum,
 };
@@ -79,9 +79,6 @@ pub trait SnapshotInterface: Send {
         &self,
         metadata_keys: &[Symbol],
     ) -> Result<Box<dyn SnapshotExportSession + '_>, WorldStateError>;
-
-    /// Get the list of all active objects in the database
-    fn get_objects(&self) -> Result<ObjSet, WorldStateError>;
 
     /// Get the attributes of a given object
     fn get_object(&self, objid: &Obj) -> Result<ObjAttrs, WorldStateError>;
