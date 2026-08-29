@@ -13,7 +13,7 @@
 
 use byteview::ByteView;
 use fjall::{Readable, Slice};
-use std::collections::{HashMap, HashSet};
+use std::{cmp::Ordering, collections::HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -53,15 +53,224 @@ pub struct FjallSnapshotLoader {
 struct FjallSnapshotExportSession<'a> {
     loader: &'a FjallSnapshotLoader,
     metadata: Vec<SnapshotExportMetadata>,
-    objects: Vec<Obj>,
-    next_object: usize,
-    flags: HashMap<Obj, BitEnum<moor_common::model::ObjFlag>>,
-    owners: HashMap<Obj, Obj>,
-    parents: HashMap<Obj, Obj>,
-    locations: HashMap<Obj, Obj>,
-    names: HashMap<Obj, StringHolder>,
-    verbdefs: HashMap<Obj, VerbDefs>,
-    propdefs: HashMap<Obj, PropDefs>,
+    flags: ObjectRelationCursor<BitEnum<moor_common::model::ObjFlag>>,
+    owners: ObjectRelationCursor<Obj>,
+    parents: SortedObjectRelation<Obj>,
+    locations: ObjectRelationCursor<Obj>,
+    names: ObjectRelationCursor<StringHolder>,
+    verbdefs: ObjectRelationCursor<VerbDefs>,
+    propdefs: SortedObjectRelation<PropDefs>,
+    programs: ObjectUuidRelationCursor<ProgramType>,
+    values: ObjectUuidRelationCursor<Var>,
+    permissions: ObjectUuidRelationCursor<PropPerms>,
+    entity_metadata: ObjectMetadataCursor,
+}
+
+struct SortedObjectRelation<T> {
+    entries: Vec<(Obj, T)>,
+}
+
+impl<T> SortedObjectRelation<T> {
+    fn get(&self, object: Obj) -> Option<&T> {
+        self.entries
+            .binary_search_by_key(&object, |(object, _)| *object)
+            .ok()
+            .map(|index| &self.entries[index].1)
+    }
+}
+
+struct RelationCursor<K, V> {
+    iter: fjall::Iter,
+    pending: Option<(K, V)>,
+}
+
+impl<K, V> RelationCursor<K, V>
+where
+    FjallCodec: EncodeFor<K, Stored = ByteView> + EncodeFor<V, Stored = ByteView>,
+{
+    fn new(snapshot: &fjall::Snapshot, keyspace: &fjall::Keyspace) -> Self {
+        Self {
+            iter: snapshot.iter(keyspace),
+            pending: None,
+        }
+    }
+
+    fn next_entry(&mut self) -> Result<Option<(K, V)>, WorldStateError> {
+        let Some(entry) = self.iter.next() else {
+            return Ok(None);
+        };
+        let (key, value) = entry
+            .into_inner()
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let key = <FjallCodec as EncodeFor<K>>::decode(&FjallCodec, ByteView::from(key))
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let (_timestamp, value) =
+            decode_fjall_value(value).map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        Ok(Some((key, value)))
+    }
+}
+
+type ObjectRelationCursor<T> = RelationCursor<Obj, T>;
+
+impl<T> RelationCursor<Obj, T>
+where
+    FjallCodec: EncodeFor<Obj, Stored = ByteView> + EncodeFor<T, Stored = ByteView>,
+{
+    fn next(&mut self) -> Result<Option<(Obj, T)>, WorldStateError> {
+        if self.pending.is_some() {
+            return Ok(self.pending.take());
+        }
+        self.next_entry()
+    }
+
+    fn take(&mut self, target: Obj) -> Result<Option<T>, WorldStateError> {
+        loop {
+            if self.pending.is_none() {
+                self.pending = self.next_entry()?;
+            }
+            let Some((object, _)) = self.pending.as_ref() else {
+                return Ok(None);
+            };
+            match object.cmp(&target) {
+                Ordering::Less => self.pending = None,
+                Ordering::Equal => return Ok(self.pending.take().map(|(_, value)| value)),
+                Ordering::Greater => return Ok(None),
+            }
+        }
+    }
+}
+
+type ObjectUuidRelationCursor<T> = RelationCursor<ObjAndUUIDHolder, T>;
+
+impl<T> RelationCursor<ObjAndUUIDHolder, T>
+where
+    FjallCodec: EncodeFor<ObjAndUUIDHolder, Stored = ByteView> + EncodeFor<T, Stored = ByteView>,
+{
+    fn take_object(&mut self, target: Obj) -> Result<UuidValues<T>, WorldStateError> {
+        let mut values = Vec::new();
+        loop {
+            if self.pending.is_none() {
+                self.pending = self.next_entry()?;
+            }
+            let Some((holder, _)) = self.pending.as_ref() else {
+                break;
+            };
+            match holder.obj().cmp(&target) {
+                Ordering::Less => self.pending = None,
+                Ordering::Equal => {
+                    let (holder, value) = self.pending.take().expect("pending relation entry");
+                    values.push((holder.uuid(), Some(value)));
+                }
+                Ordering::Greater => break,
+            }
+        }
+        Ok(UuidValues(values))
+    }
+}
+
+struct UuidValues<T>(Vec<(Uuid, Option<T>)>);
+
+impl<T> UuidValues<T> {
+    fn take(&mut self, uuid: Uuid) -> Option<T> {
+        let index = self.0.binary_search_by_key(&uuid, |(uuid, _)| *uuid).ok()?;
+        self.0[index].1.take()
+    }
+}
+
+struct ObjectMetadata {
+    object: Vec<(Symbol, Var)>,
+    properties: Vec<(Uuid, Vec<(Symbol, Var)>)>,
+    verbs: Vec<(Uuid, Vec<(Symbol, Var)>)>,
+}
+
+struct ObjectMetadataCursor {
+    iter: fjall::Iter,
+    pending: Option<(EntityMetadataKey, Var)>,
+}
+
+impl ObjectMetadataCursor {
+    fn new(snapshot: &fjall::Snapshot, keyspace: &fjall::Keyspace) -> Self {
+        Self {
+            iter: snapshot.iter(keyspace),
+            pending: None,
+        }
+    }
+
+    fn next_entry(&mut self) -> Result<Option<(EntityMetadataKey, Var)>, WorldStateError> {
+        let Some(entry) = self.iter.next() else {
+            return Ok(None);
+        };
+        let (key, value) = entry
+            .into_inner()
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let key = FjallCodec
+            .decode(ByteView::from(key))
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let (_timestamp, value) =
+            decode_fjall_value(value).map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        Ok(Some((key, value)))
+    }
+
+    fn take_object(&mut self, target: Obj) -> Result<ObjectMetadata, WorldStateError> {
+        let mut object = Vec::new();
+        let mut properties = Vec::<(Uuid, Vec<(Symbol, Var)>)>::new();
+        let mut verbs = Vec::<(Uuid, Vec<(Symbol, Var)>)>::new();
+        loop {
+            if self.pending.is_none() {
+                self.pending = self.next_entry()?;
+            }
+            let Some((key, _)) = self.pending.as_ref() else {
+                break;
+            };
+            match key.obj().cmp(&target) {
+                Ordering::Less => self.pending = None,
+                Ordering::Greater => break,
+                Ordering::Equal => {
+                    let (key, value) = self.pending.take().expect("pending metadata entry");
+                    let entry = (key.key(), value);
+                    if key.is_object() {
+                        object.push(entry);
+                    } else if key.is_property() {
+                        push_metadata_entry(
+                            &mut properties,
+                            key.uuid().expect("property UUID"),
+                            entry,
+                        );
+                    } else if key.is_verb() {
+                        push_metadata_entry(&mut verbs, key.uuid().expect("verb UUID"), entry);
+                    }
+                }
+            }
+        }
+        properties.sort_by_key(|(uuid, _)| *uuid);
+        verbs.sort_by_key(|(uuid, _)| *uuid);
+        Ok(ObjectMetadata {
+            object,
+            properties,
+            verbs,
+        })
+    }
+}
+
+fn push_metadata_entry(
+    entries: &mut Vec<(Uuid, Vec<(Symbol, Var)>)>,
+    uuid: Uuid,
+    entry: (Symbol, Var),
+) {
+    if let Some((last_uuid, values)) = entries.last_mut()
+        && *last_uuid == uuid
+    {
+        values.push(entry);
+        return;
+    }
+    entries.push((uuid, vec![entry]));
+}
+
+fn take_metadata(entries: &mut [(Uuid, Vec<(Symbol, Var)>)], uuid: Uuid) -> Vec<(Symbol, Var)> {
+    let Ok(index) = entries.binary_search_by_key(&uuid, |(uuid, _)| *uuid) else {
+        return Vec::new();
+    };
+    std::mem::take(&mut entries[index].1)
 }
 
 impl SnapshotInterface for FjallSnapshotLoader {
@@ -184,17 +393,17 @@ impl FjallSnapshotLoader {
     fn collect_export_metadata(
         &self,
         keys: &[Symbol],
+        parents: &SortedObjectRelation<Obj>,
+        propdefs: &SortedObjectRelation<PropDefs>,
     ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError> {
         let mut objects = self.get_objects()?.iter().collect::<Vec<_>>();
         objects.sort_unstable();
-        let parents = self.scan_object_relation(&self.object_parent_keyspace)?;
-        let propdefs = self.scan_object_relation(&self.object_propdefs_keyspace)?;
         let keys = keys.iter().copied().collect::<HashSet<_>>();
         let mut records = Vec::with_capacity(objects.len());
 
         for oid in objects {
             let mut values = self.scan_object_metadata_keys(oid, &keys)?;
-            let definitions = visible_property_definitions(oid, &parents, &propdefs);
+            let definitions = visible_property_definitions(oid, parents, propdefs);
             for key in &keys {
                 if values.iter().any(|(stored_key, _)| stored_key == key) {
                     continue;
@@ -228,7 +437,7 @@ impl FjallSnapshotLoader {
             values.sort_by_key(|(key, _)| key.as_string());
             records.push(SnapshotExportMetadata {
                 oid,
-                parent: parents.get(&oid).copied().unwrap_or(NOTHING),
+                parent: parents.get(oid).copied().unwrap_or(NOTHING),
                 values,
             });
         }
@@ -242,44 +451,57 @@ impl<'a> FjallSnapshotExportSession<'a> {
         loader: &'a FjallSnapshotLoader,
         metadata_keys: &[Symbol],
     ) -> Result<Self, WorldStateError> {
-        let flags = loader.scan_object_relation(&loader.object_flags_keyspace)?;
-        let mut objects = flags.keys().copied().collect::<Vec<_>>();
-        objects.sort_unstable();
+        let parents = loader.read_object_relation(&loader.object_parent_keyspace)?;
+        let propdefs = loader.read_object_relation(&loader.object_propdefs_keyspace)?;
+        let metadata = loader.collect_export_metadata(metadata_keys, &parents, &propdefs)?;
 
         Ok(Self {
             loader,
-            metadata: loader.collect_export_metadata(metadata_keys)?,
-            objects,
-            next_object: 0,
-            flags,
-            owners: loader.scan_object_relation(&loader.object_owner_keyspace)?,
-            parents: loader.scan_object_relation(&loader.object_parent_keyspace)?,
-            locations: loader.scan_object_relation(&loader.object_location_keyspace)?,
-            names: loader.scan_object_relation(&loader.object_name_keyspace)?,
-            verbdefs: loader.scan_object_relation(&loader.object_verbdefs_keyspace)?,
-            propdefs: loader.scan_object_relation(&loader.object_propdefs_keyspace)?,
+            metadata,
+            flags: ObjectRelationCursor::new(&loader.snapshot, &loader.object_flags_keyspace),
+            owners: ObjectRelationCursor::new(&loader.snapshot, &loader.object_owner_keyspace),
+            parents,
+            locations: ObjectRelationCursor::new(
+                &loader.snapshot,
+                &loader.object_location_keyspace,
+            ),
+            names: ObjectRelationCursor::new(&loader.snapshot, &loader.object_name_keyspace),
+            verbdefs: ObjectRelationCursor::new(&loader.snapshot, &loader.object_verbdefs_keyspace),
+            propdefs,
+            programs: ObjectUuidRelationCursor::new(
+                &loader.snapshot,
+                &loader.object_verbs_keyspace,
+            ),
+            values: ObjectUuidRelationCursor::new(
+                &loader.snapshot,
+                &loader.object_propvalues_keyspace,
+            ),
+            permissions: ObjectUuidRelationCursor::new(
+                &loader.snapshot,
+                &loader.object_propflags_keyspace,
+            ),
+            entity_metadata: ObjectMetadataCursor::new(
+                &loader.snapshot,
+                &loader.entity_metadata_keyspace,
+            ),
         })
     }
 
-    fn visible_property_definitions(&self, object: Obj) -> Result<Vec<PropDef>, WorldStateError> {
-        Ok(visible_property_definitions(
-            object,
-            &self.parents,
-            &self.propdefs,
-        ))
+    fn visible_property_definitions(&self, object: Obj) -> Vec<PropDef> {
+        visible_property_definitions(object, &self.parents, &self.propdefs)
     }
 }
 
 fn visible_property_definitions(
     object: Obj,
-    parents: &HashMap<Obj, Obj>,
-    propdefs: &HashMap<Obj, PropDefs>,
+    parents: &SortedObjectRelation<Obj>,
+    propdefs: &SortedObjectRelation<PropDefs>,
 ) -> Vec<PropDef> {
     let mut definitions = Vec::new();
     let mut current = object;
 
     loop {
-        if let Some(current_propdefs) = propdefs.get(&current) {
+        if let Some(current_propdefs) = propdefs.get(current) {
             definitions.extend(
                 current_propdefs
                     .iter()
@@ -287,7 +509,7 @@ fn visible_property_definitions(
             );
         }
 
-        let Some(parent) = parents.get(&current).copied() else {
+        let Some(parent) = parents.get(current).copied() else {
             break;
         };
         if parent == current || parent.is_nothing() {
@@ -305,38 +527,33 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
     }
 
     fn object_count(&self) -> usize {
-        self.objects.len()
+        self.metadata.len()
     }
 
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError> {
-        let Some(oid) = self.objects.get(self.next_object).copied() else {
+        let Some((oid, flags)) = self.flags.next()? else {
             return Ok(None);
         };
-        self.next_object += 1;
 
-        let flags = self.flags.remove(&oid).unwrap_or_default();
-        let owner = self.owners.remove(&oid).unwrap_or(NOTHING);
-        let parent = self.parents.get(&oid).copied().unwrap_or(NOTHING);
-        let location = self.locations.remove(&oid).unwrap_or(NOTHING);
+        let owner = self.owners.take(oid)?.unwrap_or(NOTHING);
+        let parent = self.parents.get(oid).copied().unwrap_or(NOTHING);
+        let location = self.locations.take(oid)?.unwrap_or(NOTHING);
         let name = self
             .names
-            .remove(&oid)
+            .take(oid)?
             .ok_or(WorldStateError::ObjectNotFound(ObjectRef::Id(oid)))?;
         let attributes = ObjAttrs::new(owner, parent, location, flags, &name.0);
 
-        let mut programs = self
-            .loader
-            .scan_object_uuid_relation(&self.loader.object_verbs_keyspace, oid)?;
-        let (mut metadata, mut property_metadata, mut verb_metadata) =
-            self.loader.scan_object_metadata(oid)?;
-        let verbdefs = self.verbdefs.remove(&oid).unwrap_or_else(VerbDefs::empty);
+        let mut programs = self.programs.take_object(oid)?;
+        let mut metadata = self.entity_metadata.take_object(oid)?;
+        let verbdefs = self.verbdefs.take(oid)?.unwrap_or_else(VerbDefs::empty);
         let mut verbs = Vec::with_capacity(verbdefs.len());
         for definition in verbdefs.iter() {
             let uuid = definition.uuid();
             let program = programs
-                .remove(&uuid)
+                .take(uuid)
                 .ok_or_else(|| WorldStateError::VerbNotFound(oid, uuid.to_string()))?;
-            let mut entity_metadata = verb_metadata.remove(&uuid).unwrap_or_default();
+            let mut entity_metadata = take_metadata(&mut metadata.verbs, uuid);
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
             verbs.push(SnapshotExportVerb {
                 definition: definition.clone(),
@@ -345,19 +562,15 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
             });
         }
 
-        let mut values: HashMap<Uuid, Var> = self
-            .loader
-            .scan_object_uuid_relation(&self.loader.object_propvalues_keyspace, oid)?;
-        let mut permissions: HashMap<Uuid, PropPerms> = self
-            .loader
-            .scan_object_uuid_relation(&self.loader.object_propflags_keyspace, oid)?;
-        let definitions = self.visible_property_definitions(oid)?;
+        let mut values = self.values.take_object(oid)?;
+        let mut permissions = self.permissions.take_object(oid)?;
+        let definitions = self.visible_property_definitions(oid);
         let mut properties = Vec::with_capacity(definitions.len());
         for definition in definitions {
             let uuid = definition.uuid();
-            let mut value = values.remove(&uuid);
-            let mut permission = permissions.remove(&uuid);
-            let mut entity_metadata = property_metadata.remove(&uuid).unwrap_or_default();
+            let mut value = values.take(uuid);
+            let mut permission = permissions.take(uuid);
+            let mut entity_metadata = take_metadata(&mut metadata.properties, uuid);
             entity_metadata.sort_by_key(|(key, _)| key.as_string());
 
             if definition.definer() != oid {
@@ -410,11 +623,11 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
             });
         }
 
-        metadata.sort_by_key(|(key, _)| key.as_string());
+        metadata.object.sort_by_key(|(key, _)| key.as_string());
         Ok(Some(SnapshotExportObject {
             oid,
             attributes,
-            metadata,
+            metadata: metadata.object,
             verbs,
             properties,
         }))
@@ -422,14 +635,14 @@ impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
 }
 
 impl FjallSnapshotLoader {
-    fn scan_object_relation<Codomain>(
+    fn read_object_relation<Codomain>(
         &self,
         keyspace: &fjall::Keyspace,
-    ) -> Result<HashMap<Obj, Codomain>, WorldStateError>
+    ) -> Result<SortedObjectRelation<Codomain>, WorldStateError>
     where
         FjallCodec: EncodeFor<Codomain, Stored = ByteView>,
     {
-        let mut values = HashMap::new();
+        let mut entries = Vec::new();
         for entry in self.snapshot.iter(keyspace) {
             let (key, value) = entry
                 .into_inner()
@@ -441,85 +654,9 @@ impl FjallSnapshotLoader {
             let (_timestamp, value) = self
                 .decode::<Codomain>(value)
                 .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            values.insert(object, value);
+            entries.push((object, value));
         }
-        Ok(values)
-    }
-
-    fn scan_object_uuid_relation<Codomain>(
-        &self,
-        keyspace: &fjall::Keyspace,
-        object: Obj,
-    ) -> Result<HashMap<Uuid, Codomain>, WorldStateError>
-    where
-        FjallCodec: EncodeFor<Codomain, Stored = ByteView>,
-    {
-        let prefix = <FjallCodec as EncodeFor<Obj>>::encode(&FjallCodec, &object)
-            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-        let mut values = HashMap::new();
-        for entry in self.snapshot.prefix(keyspace, prefix) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let holder = <FjallCodec as EncodeFor<ObjAndUUIDHolder>>::decode(
-                &FjallCodec,
-                ByteView::from(key),
-            )
-            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let (_timestamp, value) = self
-                .decode::<Codomain>(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            values.insert(holder.uuid(), value);
-        }
-        Ok(values)
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn scan_object_metadata(
-        &self,
-        object: Obj,
-    ) -> Result<
-        (
-            Vec<(Symbol, Var)>,
-            HashMap<Uuid, Vec<(Symbol, Var)>>,
-            HashMap<Uuid, Vec<(Symbol, Var)>>,
-        ),
-        WorldStateError,
-    > {
-        let prefix = <FjallCodec as EncodeFor<Obj>>::encode(&FjallCodec, &object)
-            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-        let mut object_values = Vec::new();
-        let mut property_values: HashMap<Uuid, Vec<(Symbol, Var)>> = HashMap::new();
-        let mut verb_values: HashMap<Uuid, Vec<(Symbol, Var)>> = HashMap::new();
-
-        for entry in self.snapshot.prefix(&self.entity_metadata_keyspace, prefix) {
-            let (key, value) = entry
-                .into_inner()
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let metadata_key: EntityMetadataKey = FjallCodec
-                .decode(ByteView::from(key))
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let (_timestamp, value) = self
-                .decode(value)
-                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
-            let entry = (metadata_key.key(), value);
-
-            if metadata_key.is_object() {
-                object_values.push(entry);
-            } else if metadata_key.is_property() {
-                property_values
-                    .entry(metadata_key.uuid().expect("property metadata UUID"))
-                    .or_default()
-                    .push(entry);
-            } else if metadata_key.is_verb() {
-                verb_values
-                    .entry(metadata_key.uuid().expect("verb metadata UUID"))
-                    .or_default()
-                    .push(entry);
-            }
-        }
-
-        Ok((object_values, property_values, verb_values))
+        Ok(SortedObjectRelation { entries })
     }
 
     fn scan_object_metadata_keys(
