@@ -940,7 +940,13 @@ and deleted rows. Blocks until complete. Wizard-only.
 
 Recycling a large object does not shrink the database on its own: the storage engine only appends
 tombstones, and the superseded data stays on disk until compaction rewrites the affected tables.
-Background compaction gets there eventually, but on its own schedule. This builtin forces it.
+
+Background compaction usually handles this, and on a busy database it does so well enough that you
+will never need this builtin. What it does not handle is a database that has gone *quiet*.
+Compaction chooses work by comparing each level's size against a target size — dead space is not
+part of that decision — so once a database has settled below its level targets, nothing revisits the
+superseded data however much of it there is. Delete a large object, stop writing, and the bytes stay
+put indefinitely. This builtin forces the rewrite.
 
 Most of the time you should not need it — the server compacts automatically after a checkpoint when
 the database looks bloated (see below). `db_compact()` is the escape hatch for when you need the
@@ -956,7 +962,13 @@ running them in sequence.
 A checkpoint has just read every live property row, which makes it the one moment when the server
 knows what the data *should* weigh. So after a checkpoint completes, the server compares the number
 of live property rows against the number the storage engine is actually holding, and compacts if the
-ratio is bad enough. Configured under `[database.auto_compaction]`:
+ratio is bad enough.
+
+The threshold matters, because forcing a blocking rewrite on a database the engine is already
+keeping tidy would be worse than doing nothing. Measured on a churning keyspace, background
+compaction holds the row ratio at about 1.08; on a settled one that had superseded a few large
+values, it sat at 26.4 and stayed there. The default of `2.0` sits well clear of the first and well
+below the second. Configured under `[database.auto_compaction]`:
 
 | key | default | meaning |
 |---|---|---|

@@ -41,10 +41,23 @@ pub struct DatabaseConfig {
 
 /// Policy for automatic major compaction.
 ///
-/// Nothing in fjall reclaims superseded versions on demand: background compaction gets to them on
-/// its own schedule, so deleting a large object can leave its bytes — and anything sensitive in
-/// them — resident indefinitely. A checkpoint is the natural moment to reclaim, because it has just
-/// read every live row and so knows what the data *should* weigh.
+/// fjall does run a background `Leveled` compaction, and under continuous write churn it is
+/// entirely sufficient — it holds amplification near the ~1.1x it advertises, and moor should not
+/// interfere. The gap it does not cover is a keyspace that has *settled*.
+///
+/// Leveled compaction picks work by comparing a level's size against its target size; dead space is
+/// not an input to that decision (lsm-tree carries a `TODO(weak-tombstone-rewrite)` about exactly
+/// this). Dedup is therefore a byproduct of merges triggered for size reasons. With the default
+/// 64 MiB table target, L1's target is 256 MiB — so a tree sitting below its level targets scores
+/// under 1.0, `choose` returns `DoNothing`, and superseded data is never revisited however much of
+/// it there is. Supersede a few large values and stop writing, and the bytes stay put.
+///
+/// That is the reported case: a 575 MiB table, untouched, holding data a recycle had replaced and a
+/// secret that was meant to be gone. `crates/db/tests/background_compaction_limits.rs` measures both
+/// halves — 26.4x amplification left in place when settled, 1.08x when churning.
+///
+/// A checkpoint is the moment to check, because it has just read every live row and so knows what
+/// the data should weigh.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutoCompactionConfig {
