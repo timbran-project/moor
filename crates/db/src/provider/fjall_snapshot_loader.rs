@@ -13,7 +13,7 @@
 
 use byteview::ByteView;
 use fjall::{Readable, Slice};
-use std::{collections::HashMap, vec::IntoIter};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -26,8 +26,8 @@ use moor_common::{
         HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropPerms, ValSet, VerbDefs,
         WorldStateError,
         loader::{
-            SnapshotExport, SnapshotExportObject, SnapshotExportProperty, SnapshotExportVerb,
-            SnapshotInterface,
+            SnapshotExport, SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
+            SnapshotExportVerb, SnapshotInterface,
         },
     },
     util::BitEnum,
@@ -53,8 +53,8 @@ pub struct FjallSnapshotLoader {
 
 struct FjallSnapshotExport<'a> {
     loader: &'a FjallSnapshotLoader,
-    objects: IntoIter<Obj>,
-    object_count: usize,
+    objects: Vec<Obj>,
+    next_object: usize,
     flags: HashMap<Obj, BitEnum<moor_common::model::ObjFlag>>,
     owners: HashMap<Obj, Obj>,
     parents: HashMap<Obj, Obj>,
@@ -279,12 +279,11 @@ impl<'a> FjallSnapshotExport<'a> {
         let flags = loader.scan_object_relation(&loader.object_flags_keyspace)?;
         let mut objects = flags.keys().copied().collect::<Vec<_>>();
         objects.sort_unstable();
-        let object_count = objects.len();
 
         Ok(Self {
             loader,
-            objects: objects.into_iter(),
-            object_count,
+            objects,
+            next_object: 0,
             flags,
             owners: loader.scan_object_relation(&loader.object_owner_keyspace)?,
             parents: loader.scan_object_relation(&loader.object_parent_keyspace)?,
@@ -323,13 +322,53 @@ impl<'a> FjallSnapshotExport<'a> {
 
 impl SnapshotExport for FjallSnapshotExport<'_> {
     fn object_count(&self) -> usize {
-        self.object_count
+        self.objects.len()
+    }
+
+    fn collect_object_metadata(
+        &self,
+        keys: &[Symbol],
+    ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError> {
+        let keys = keys.iter().copied().collect::<HashSet<_>>();
+        let mut records = Vec::with_capacity(self.objects.len());
+
+        for oid in &self.objects {
+            let mut values = self.loader.scan_object_metadata_keys(*oid, &keys)?;
+            let definitions = self.visible_property_definitions(*oid)?;
+            for key in &keys {
+                if values.iter().any(|(stored_key, _)| stored_key == key) {
+                    continue;
+                }
+                let Some(definition) = definitions
+                    .iter()
+                    .find(|definition| definition.name() == *key)
+                else {
+                    continue;
+                };
+                let holder = ObjAndUUIDHolder::new(oid, definition.uuid());
+                if let Some(value) = self.loader.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                    &self.loader.object_propvalues_keyspace,
+                    &holder,
+                )? {
+                    values.push((*key, value));
+                }
+            }
+            values.sort_by_key(|(key, _)| key.as_string());
+            records.push(SnapshotExportMetadata {
+                oid: *oid,
+                parent: self.parents.get(oid).copied().unwrap_or(NOTHING),
+                values,
+            });
+        }
+
+        Ok(records)
     }
 
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError> {
-        let Some(oid) = self.objects.next() else {
+        let Some(oid) = self.objects.get(self.next_object).copied() else {
             return Ok(None);
         };
+        self.next_object += 1;
 
         let flags = self.flags.remove(&oid).unwrap_or_default();
         let owner = self.owners.remove(&oid).unwrap_or(NOTHING);
@@ -508,6 +547,35 @@ impl FjallSnapshotLoader {
         }
 
         Ok((object_values, property_values, verb_values))
+    }
+
+    fn scan_object_metadata_keys(
+        &self,
+        object: Obj,
+        keys: &HashSet<Symbol>,
+    ) -> Result<Vec<(Symbol, Var)>, WorldStateError> {
+        let prefix = <FjallCodec as EncodeFor<Obj>>::encode(&FjallCodec, &object)
+            .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+        let mut values = Vec::new();
+
+        for entry in self.snapshot.prefix(&self.entity_metadata_keyspace, prefix) {
+            let (key, value) = entry
+                .into_inner()
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            let metadata_key: EntityMetadataKey = FjallCodec
+                .decode(ByteView::from(key))
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            if !metadata_key.is_object() || !keys.contains(&metadata_key.key()) {
+                continue;
+            }
+
+            let (_timestamp, value) = self
+                .decode(value)
+                .map_err(|e| WorldStateError::DatabaseError(e.to_string()))?;
+            values.push((metadata_key.key(), value));
+        }
+
+        Ok(values)
     }
 
     /// Helper method to decode a value from a snapshot using FjallCodec

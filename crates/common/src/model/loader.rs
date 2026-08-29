@@ -49,9 +49,21 @@ pub struct SnapshotExportObject {
     pub properties: Vec<SnapshotExportProperty>,
 }
 
+/// Naming metadata retained across the two passes of a streaming export.
+pub struct SnapshotExportMetadata {
+    pub oid: Obj,
+    pub parent: Obj,
+    pub values: Vec<(Symbol, Var)>,
+}
+
 /// Object-at-a-time access to one stable database snapshot.
 pub trait SnapshotExport: Send {
     fn object_count(&self) -> usize;
+
+    fn collect_object_metadata(
+        &self,
+        keys: &[Symbol],
+    ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError>;
 
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError>;
 }

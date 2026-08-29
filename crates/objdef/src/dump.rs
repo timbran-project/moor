@@ -14,14 +14,15 @@
 use crate::{import_export_hierarchy, import_export_id};
 use moor_common::model::{
     HasUuid, Named, ObjFlag, PropFlag, ValSet,
-    loader::{SnapshotExportObject, SnapshotInterface},
+    loader::{SnapshotExportMetadata, SnapshotExportObject, SnapshotInterface},
 };
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    fs::OpenOptions,
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 use thiserror::Error;
@@ -334,6 +335,44 @@ pub fn extract_index_names(object_defs: &[ObjectDefinition]) -> HashMap<Obj, Str
     index_names
 }
 
+struct ObjectExportIdentity {
+    oid: Obj,
+    parent: Obj,
+    export_id: Option<String>,
+    hierarchy: Vec<String>,
+}
+
+impl ObjectExportIdentity {
+    fn from_definition(definition: &ObjectDefinition) -> Self {
+        Self {
+            oid: definition.oid,
+            parent: definition.parent,
+            export_id: metadata_or_legacy_property_string(definition, import_export_id()),
+            hierarchy: extract_hierarchy_path(definition),
+        }
+    }
+
+    fn from_metadata(metadata: SnapshotExportMetadata) -> Self {
+        let export_id = metadata
+            .values
+            .iter()
+            .find(|(key, _)| *key == import_export_id())
+            .and_then(|(_, value)| string_or_symbol_to_string(value));
+        let hierarchy = metadata
+            .values
+            .iter()
+            .find(|(key, _)| *key == import_export_hierarchy())
+            .map(|(_, value)| hierarchy_path_from_value(value))
+            .unwrap_or_default();
+        Self {
+            oid: metadata.oid,
+            parent: metadata.parent,
+            export_id,
+            hierarchy,
+        }
+    }
+}
+
 /// Extract constant names and file names from objects' import_export_id metadata.
 /// Legacy import_export_id properties are used as a fallback.
 /// Skips objects where:
@@ -342,15 +381,24 @@ pub fn extract_index_names(object_defs: &[ObjectDefinition]) -> HashMap<Obj, Str
 fn extract_object_constants(
     object_defs: &[ObjectDefinition],
 ) -> (HashMap<Obj, String>, HashMap<Obj, String>) {
+    let identities = object_defs
+        .iter()
+        .map(ObjectExportIdentity::from_definition)
+        .collect::<Vec<_>>();
+    extract_object_constants_from_identities(&identities)
+}
+
+fn extract_object_constants_from_identities(
+    identities: &[ObjectExportIdentity],
+) -> (HashMap<Obj, String>, HashMap<Obj, String>) {
     let mut index_names = HashMap::new();
     let mut file_names = HashMap::new();
-    let import_export_id_sym = import_export_id();
 
     // First pass: collect all import_export_id values.
     let mut id_values: HashMap<Obj, String> = HashMap::new();
-    for od in object_defs {
-        if let Some(id_str) = metadata_or_legacy_property_string(od, import_export_id_sym) {
-            id_values.insert(od.oid, id_str);
+    for identity in identities {
+        if let Some(id) = &identity.export_id {
+            id_values.insert(identity.oid, id.clone());
         }
     }
 
@@ -372,8 +420,8 @@ fn extract_object_constants(
     }
 
     // Second pass: only include unique, non-inherited values
-    for od in object_defs {
-        let Some(id_str) = id_values.get(&od.oid) else {
+    for identity in identities {
+        let Some(id_str) = id_values.get(&identity.oid) else {
             continue;
         };
 
@@ -388,24 +436,24 @@ fn extract_object_constants(
         }
 
         // Skip if same as parent's import_export_id (inherited without meaningful override)
-        if od.parent != NOTHING
+        if identity.parent != NOTHING
             && id_values
-                .get(&od.parent)
+                .get(&identity.parent)
                 .is_some_and(|parent_id| parent_id == id_str)
         {
             tracing::debug!(
                 "Skipping {} - import_export_id '{}' inherited from parent {}",
-                od.oid,
+                identity.oid,
                 id_str,
-                od.parent
+                identity.parent
             );
             continue;
         }
 
         let constant_name = id_str.to_ascii_uppercase();
         let file_name = id_str.to_lowercase();
-        index_names.insert(od.oid, constant_name);
-        file_names.insert(od.oid, file_name);
+        index_names.insert(identity.oid, constant_name);
+        file_names.insert(identity.oid, file_name);
     }
 
     (index_names, file_names)
@@ -420,6 +468,10 @@ fn extract_hierarchy_path(od: &ObjectDefinition) -> Vec<String> {
         return Vec::new();
     };
 
+    hierarchy_path_from_value(value)
+}
+
+fn hierarchy_path_from_value(value: &Var) -> Vec<String> {
     if let Some(list) = value.as_list() {
         return list
             .iter()
@@ -466,6 +518,165 @@ fn string_or_symbol_to_string(value: &Var) -> Option<String> {
         .as_symbol()
         .ok()
         .map(|sym| sym.as_arc_str().to_string())
+}
+
+fn collect_snapshot_identities(
+    loader: &dyn SnapshotInterface,
+) -> Result<Option<Vec<ObjectExportIdentity>>, ObjectDumpError> {
+    let Some(export) = loader.start_export()? else {
+        return Ok(None);
+    };
+    let metadata =
+        export.collect_object_metadata(&[import_export_id(), import_export_hierarchy()])?;
+    Ok(Some(
+        metadata
+            .into_iter()
+            .map(ObjectExportIdentity::from_metadata)
+            .collect(),
+    ))
+}
+
+/// Collect constant substitutions without retaining every object definition.
+pub fn collect_index_names(
+    loader: &dyn SnapshotInterface,
+) -> Result<HashMap<Obj, String>, ObjectDumpError> {
+    if let Some(identities) = collect_snapshot_identities(loader)? {
+        return Ok(extract_object_constants_from_identities(&identities).0);
+    }
+
+    let definitions = collect_object_definitions(loader)?;
+    Ok(extract_index_names(&definitions))
+}
+
+fn target_directory(base: &Path, hierarchy: &[String]) -> Result<PathBuf, std::io::Error> {
+    let mut target = base.to_path_buf();
+    for component in hierarchy {
+        target.push(component);
+    }
+    std::fs::create_dir_all(&target)?;
+    Ok(target)
+}
+
+fn regular_object_file_name(
+    object: &ObjectDefinition,
+    file_names: &HashMap<Obj, String>,
+) -> String {
+    if let Some(name) = file_names.get(&object.oid) {
+        return format!("{name}.moo");
+    }
+
+    let prefix = if object.flags.contains(ObjFlag::User) {
+        "player"
+    } else {
+        "object"
+    };
+    format!("{}_{}.moo", prefix, object.oid.as_u64())
+}
+
+fn write_streamed_object(
+    object: &ObjectDefinition,
+    index_names: &HashMap<Obj, String>,
+    file_names: &HashMap<Obj, String>,
+    hierarchy: &[String],
+    directory_path: &Path,
+    written_anonymous_files: &mut HashSet<Vec<String>>,
+) -> Result<(), ObjectDumpError> {
+    let target_dir = target_directory(directory_path, hierarchy)?;
+    if !object.oid.is_anonymous() {
+        let path = target_dir.join(regular_object_file_name(object, file_names));
+        let mut file = std::fs::File::create(path)?;
+        crate::write::write_dump_object(index_names, object, &mut file)?;
+        return Ok(());
+    }
+
+    let first = written_anonymous_files.insert(hierarchy.to_vec());
+    let path = target_dir.join("_anonymous_objects.moo");
+    let mut file = if first {
+        std::fs::File::create(path)?
+    } else {
+        OpenOptions::new().append(true).open(path)?
+    };
+    if !first {
+        writeln!(file)?;
+    }
+    crate::write::write_dump_object(index_names, object, &mut file)?;
+    Ok(())
+}
+
+/// Export one stable snapshot without retaining all property and verb payloads in memory.
+///
+/// The preliminary pass retains only object naming and hierarchy data. The write pass releases each
+/// complete object definition after its output file has been written.
+pub fn dump_snapshot_object_definitions(
+    loader: &dyn SnapshotInterface,
+    directory_path: &Path,
+) -> Result<usize, ObjectDumpError> {
+    let Some(identities) = collect_snapshot_identities(loader)? else {
+        let definitions = collect_object_definitions(loader)?;
+        let count = definitions.len();
+        dump_object_definitions(&definitions, directory_path)?;
+        return Ok(count);
+    };
+
+    let (index_names, file_names) = extract_object_constants_from_identities(&identities);
+    let hierarchies = identities
+        .iter()
+        .map(|identity| (identity.oid, identity.hierarchy.clone()))
+        .collect::<HashMap<_, _>>();
+
+    std::fs::create_dir_all(directory_path)?;
+    crate::write::generate_constants_file(&index_names, &hierarchies, directory_path)?;
+
+    let Some(mut export) = loader.start_export()? else {
+        return Err(moor_common::model::WorldStateError::DatabaseError(
+            "Snapshot stopped supporting sequential export during a dump".to_string(),
+        )
+        .into());
+    };
+    let started = Instant::now();
+    let mut written_anonymous_files = HashSet::new();
+    let mut regular_count = 0;
+    let mut anonymous_count = 0;
+
+    while let Some(object) = export.next_object()? {
+        let definition = collect_export_object(object)?;
+        crate::write::validate_verb_names(&definition)?;
+        let hierarchy = hierarchies
+            .get(&definition.oid)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        write_streamed_object(
+            &definition,
+            &index_names,
+            &file_names,
+            hierarchy,
+            directory_path,
+            &mut written_anonymous_files,
+        )?;
+
+        if definition.oid.is_anonymous() {
+            anonymous_count += 1;
+        } else {
+            regular_count += 1;
+        }
+        let completed = regular_count + anonymous_count;
+        if completed % 100 == 0 {
+            info!(
+                completed,
+                total = export.object_count(),
+                elapsed = ?started.elapsed(),
+                "Writing object definitions"
+            );
+        }
+    }
+
+    info!(
+        regular_count,
+        anonymous_count,
+        elapsed = ?started.elapsed(),
+        "Wrote object definitions from snapshot"
+    );
+    Ok(regular_count + anonymous_count)
 }
 
 pub fn dump_object_definitions(
@@ -586,7 +797,10 @@ pub fn dump_object(
 
 #[cfg(test)]
 mod tests {
-    use crate::{ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions};
+    use crate::{
+        ObjectDefinitionLoader, collect_object_definitions, dump_object_definitions,
+        dump_snapshot_object_definitions,
+    };
     use moor_common::{
         model::{CommitResult, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
@@ -604,7 +818,31 @@ mod tests {
         v_int, v_list, v_obj, v_str,
     };
     use semver::Version;
-    use std::{path::PathBuf, sync::Arc};
+    use std::{
+        collections::BTreeMap,
+        path::{Path, PathBuf},
+        sync::Arc,
+    };
+
+    fn read_directory_tree(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+        fn read(root: &Path, directory: &Path, files: &mut BTreeMap<PathBuf, Vec<u8>>) {
+            for entry in std::fs::read_dir(directory).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    read(root, &path, files);
+                } else {
+                    files.insert(
+                        path.strip_prefix(root).unwrap().to_path_buf(),
+                        std::fs::read(path).unwrap(),
+                    );
+                }
+            }
+        }
+
+        let mut files = BTreeMap::new();
+        read(root, root, &mut files);
+        files
+    }
 
     fn system_permissions() -> TaskPermissions {
         TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new())
@@ -656,6 +894,18 @@ mod tests {
         assert!(text.contains(r#"property version (owner: #42, flags: "rc") [ revision -> 7 ]"#));
         assert!(text.contains(r#"verb look (this none none) owner: #42 flags: "rxd" ["#));
         assert!(text.contains("modified_by -> #42"));
+
+        let collected_dir = tempfile::tempdir().unwrap();
+        let streamed_dir = tempfile::tempdir().unwrap();
+        dump_object_definitions(&object_defs, collected_dir.path()).unwrap();
+        assert_eq!(
+            dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap(),
+            object_defs.len()
+        );
+        assert_eq!(
+            read_directory_tree(collected_dir.path()),
+            read_directory_tree(streamed_dir.path())
+        );
     }
 
     #[test]
@@ -783,8 +1033,7 @@ mod tests {
 
             // Make a tmpdir & dump objdefs into it
             let snapshot = db.clone().create_snapshot().unwrap();
-            let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
-            dump_object_definitions(&object_defs, tmpdir_path).unwrap();
+            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
         }
 
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
@@ -913,8 +1162,7 @@ mod tests {
         // Dump to objdef format
         {
             let snapshot = db1.create_snapshot().unwrap();
-            let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
-            dump_object_definitions(&object_defs, tmpdir_path).unwrap();
+            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
         }
 
         // Read the generated objdef file to verify lambda syntax
@@ -1094,8 +1342,7 @@ mod tests {
         // Dump to objdef
         {
             let snapshot = db.create_snapshot().unwrap();
-            let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
-            dump_object_definitions(&object_defs, tmpdir_path).unwrap();
+            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
         }
     }
 
@@ -1197,8 +1444,7 @@ mod tests {
         // Dump
         {
             let snapshot = db1.create_snapshot().unwrap();
-            let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
-            dump_object_definitions(&object_defs, tmpdir_path).unwrap();
+            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
         }
 
         // Load into new database
@@ -1380,8 +1626,7 @@ mod tests {
         // Dump to objdef format
         {
             let snapshot = db1.create_snapshot().unwrap();
-            let object_defs = collect_object_definitions(snapshot.as_ref()).unwrap();
-            dump_object_definitions(&object_defs, tmpdir_path).unwrap();
+            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
         }
 
         // Verify _anonymous_objects.moo file was created
