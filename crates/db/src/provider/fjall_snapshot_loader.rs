@@ -26,8 +26,8 @@ use moor_common::{
         HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropFlag, PropPerms, ValSet,
         VerbDefs, WorldStateError,
         loader::{
-            SnapshotExport, SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
-            SnapshotExportVerb, SnapshotInterface,
+            SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
+            SnapshotExportSession, SnapshotExportVerb, SnapshotInterface,
         },
     },
     util::BitEnum,
@@ -50,8 +50,9 @@ pub struct FjallSnapshotLoader {
     pub entity_metadata_keyspace: fjall::Keyspace,
 }
 
-struct FjallSnapshotExport<'a> {
+struct FjallSnapshotExportSession<'a> {
     loader: &'a FjallSnapshotLoader,
+    metadata: Vec<SnapshotExportMetadata>,
     objects: Vec<Obj>,
     next_object: usize,
     flags: HashMap<Obj, BitEnum<moor_common::model::ObjFlag>>,
@@ -64,63 +65,14 @@ struct FjallSnapshotExport<'a> {
 }
 
 impl SnapshotInterface for FjallSnapshotLoader {
-    fn start_export(&self) -> Result<Option<Box<dyn SnapshotExport + '_>>, WorldStateError> {
-        Ok(Some(Box::new(FjallSnapshotExport::new(self)?)))
-    }
-
-    fn collect_export_metadata(
+    fn begin_export(
         &self,
-        keys: &[Symbol],
-    ) -> Result<Option<Vec<SnapshotExportMetadata>>, WorldStateError> {
-        let mut objects = self.get_objects()?.iter().collect::<Vec<_>>();
-        objects.sort_unstable();
-        let parents = self.scan_object_relation(&self.object_parent_keyspace)?;
-        let propdefs = self.scan_object_relation(&self.object_propdefs_keyspace)?;
-        let keys = keys.iter().copied().collect::<HashSet<_>>();
-        let mut records = Vec::with_capacity(objects.len());
-
-        for oid in objects {
-            let mut values = self.scan_object_metadata_keys(oid, &keys)?;
-            let definitions = visible_property_definitions(oid, &parents, &propdefs);
-            for key in &keys {
-                if values.iter().any(|(stored_key, _)| stored_key == key) {
-                    continue;
-                }
-                let Some(definition) = definitions
-                    .iter()
-                    .find(|definition| definition.name() == *key)
-                else {
-                    continue;
-                };
-                let holder = ObjAndUUIDHolder::new(&oid, definition.uuid());
-                let Some(value) = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                    &self.object_propvalues_keyspace,
-                    &holder,
-                )?
-                else {
-                    continue;
-                };
-                if definition.definer() != oid {
-                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
-                    let definer_value = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
-                        &self.object_propvalues_keyspace,
-                        &definer,
-                    )?;
-                    if definer_value.as_ref() == Some(&value) {
-                        continue;
-                    }
-                }
-                values.push((*key, value));
-            }
-            values.sort_by_key(|(key, _)| key.as_string());
-            records.push(SnapshotExportMetadata {
-                oid,
-                parent: parents.get(&oid).copied().unwrap_or(NOTHING),
-                values,
-            });
-        }
-
-        Ok(Some(records))
+        metadata_keys: &[Symbol],
+    ) -> Result<Box<dyn SnapshotExportSession + '_>, WorldStateError> {
+        Ok(Box::new(FjallSnapshotExportSession::new(
+            self,
+            metadata_keys,
+        )?))
     }
 
     fn get_objects(&self) -> Result<ObjSet, WorldStateError> {
@@ -200,8 +152,6 @@ impl SnapshotInterface for FjallSnapshotLoader {
         // are defined by that object.
         let mut properties = vec![];
         for obj in hierarchy.iter() {
-            // Continue through entire hierarchy, including negative ID objects (system objects)
-            // This matches the working implementation behavior
             let obj_propdefs = self.get_properties(&obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!(
                     "Failed to get properties for {obj} (in hierarchy of {this}): {e}"
@@ -211,14 +161,9 @@ impl SnapshotInterface for FjallSnapshotLoader {
                 if p.definer() != obj {
                     continue;
                 }
-                // Only include properties that actually exist on this object
-                // (have permissions defined, which indicates the property was properly set up)
                 match self.retrieve_property(this, p.uuid()) {
                     Ok(value) => properties.push((p.clone(), value)),
-                    Err(WorldStateError::PropertyNotFound(_, _)) => {
-                        // Property definition exists but property not set on this object - skip it
-                        continue;
-                    }
+                    Err(WorldStateError::PropertyNotFound(_, _)) => continue,
                     Err(e) => {
                         return Err(WorldStateError::DatabaseError(format!(
                             "Failed to retrieve property {} on {} (defined by {}): {}",
@@ -235,14 +180,75 @@ impl SnapshotInterface for FjallSnapshotLoader {
     }
 }
 
-impl<'a> FjallSnapshotExport<'a> {
-    fn new(loader: &'a FjallSnapshotLoader) -> Result<Self, WorldStateError> {
+impl FjallSnapshotLoader {
+    fn collect_export_metadata(
+        &self,
+        keys: &[Symbol],
+    ) -> Result<Vec<SnapshotExportMetadata>, WorldStateError> {
+        let mut objects = self.get_objects()?.iter().collect::<Vec<_>>();
+        objects.sort_unstable();
+        let parents = self.scan_object_relation(&self.object_parent_keyspace)?;
+        let propdefs = self.scan_object_relation(&self.object_propdefs_keyspace)?;
+        let keys = keys.iter().copied().collect::<HashSet<_>>();
+        let mut records = Vec::with_capacity(objects.len());
+
+        for oid in objects {
+            let mut values = self.scan_object_metadata_keys(oid, &keys)?;
+            let definitions = visible_property_definitions(oid, &parents, &propdefs);
+            for key in &keys {
+                if values.iter().any(|(stored_key, _)| stored_key == key) {
+                    continue;
+                }
+                let Some(definition) = definitions
+                    .iter()
+                    .find(|definition| definition.name() == *key)
+                else {
+                    continue;
+                };
+                let holder = ObjAndUUIDHolder::new(&oid, definition.uuid());
+                let Some(value) = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                    &self.object_propvalues_keyspace,
+                    &holder,
+                )?
+                else {
+                    continue;
+                };
+                if definition.definer() != oid {
+                    let definer = ObjAndUUIDHolder::new(&definition.definer(), definition.uuid());
+                    let definer_value = self.get_from_snapshot::<ObjAndUUIDHolder, Var>(
+                        &self.object_propvalues_keyspace,
+                        &definer,
+                    )?;
+                    if definer_value.as_ref() == Some(&value) {
+                        continue;
+                    }
+                }
+                values.push((*key, value));
+            }
+            values.sort_by_key(|(key, _)| key.as_string());
+            records.push(SnapshotExportMetadata {
+                oid,
+                parent: parents.get(&oid).copied().unwrap_or(NOTHING),
+                values,
+            });
+        }
+
+        Ok(records)
+    }
+}
+
+impl<'a> FjallSnapshotExportSession<'a> {
+    fn new(
+        loader: &'a FjallSnapshotLoader,
+        metadata_keys: &[Symbol],
+    ) -> Result<Self, WorldStateError> {
         let flags = loader.scan_object_relation(&loader.object_flags_keyspace)?;
         let mut objects = flags.keys().copied().collect::<Vec<_>>();
         objects.sort_unstable();
 
         Ok(Self {
             loader,
+            metadata: loader.collect_export_metadata(metadata_keys)?,
             objects,
             next_object: 0,
             flags,
@@ -293,7 +299,11 @@ fn visible_property_definitions(
     definitions
 }
 
-impl SnapshotExport for FjallSnapshotExport<'_> {
+impl SnapshotExportSession for FjallSnapshotExportSession<'_> {
+    fn metadata(&self) -> &[SnapshotExportMetadata] {
+        &self.metadata
+    }
+
     fn object_count(&self) -> usize {
         self.objects.len()
     }

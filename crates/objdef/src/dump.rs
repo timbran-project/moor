@@ -14,7 +14,9 @@
 use crate::{import_export_hierarchy, import_export_id};
 use moor_common::model::{
     HasUuid, Named, ObjFlag, PropFlag, ValSet,
-    loader::{SnapshotExportMetadata, SnapshotExportObject, SnapshotInterface},
+    loader::{
+        SnapshotExportMetadata, SnapshotExportObject, SnapshotExportSession, SnapshotInterface,
+    },
 };
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
@@ -26,7 +28,9 @@ use std::{
     time::{Duration, Instant},
 };
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::info;
+#[cfg(test)]
+use tracing::warn;
 
 #[derive(Error, Debug)]
 pub enum ObjectDumpError {
@@ -71,35 +75,33 @@ pub struct ObjectDumpStats {
 pub fn collect_object_definitions(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
-    if let Some(mut export) = loader.start_export()? {
-        let mut object_defs = Vec::with_capacity(export.object_count());
-        let started = Instant::now();
+    let mut export = loader.begin_export(&[])?;
+    let mut object_defs = Vec::with_capacity(export.object_count());
+    let started = Instant::now();
 
-        while let Some(object) = export.next_object()? {
-            let index = object_defs.len();
-            if index % 100 == 0 {
-                info!(
-                    completed = index,
-                    total = export.object_count(),
-                    object = %object.oid,
-                    elapsed = ?started.elapsed(),
-                    "Collecting object definitions"
-                );
-            }
-            object_defs.push(collect_export_object(object)?);
+    while let Some(object) = export.next_object()? {
+        let index = object_defs.len();
+        if index % 100 == 0 {
+            info!(
+                completed = index,
+                total = export.object_count(),
+                object = %object.oid,
+                elapsed = ?started.elapsed(),
+                "Collecting object definitions"
+            );
         }
-
-        info!(
-            objects = object_defs.len(),
-            elapsed = ?started.elapsed(),
-            "Collected object definitions with sequential snapshot scans"
-        );
-        return Ok(object_defs);
+        object_defs.push(collect_export_object(object)?);
     }
 
-    collect_object_definitions_with_point_reads(loader)
+    info!(
+        objects = object_defs.len(),
+        elapsed = ?started.elapsed(),
+        "Collected object definitions with sequential snapshot scans"
+    );
+    Ok(object_defs)
 }
 
+#[cfg(test)]
 fn collect_object_definitions_with_point_reads(
     loader: &dyn SnapshotInterface,
 ) -> Result<Vec<ObjectDefinition>, ObjectDumpError> {
@@ -370,7 +372,7 @@ impl ObjectExportIdentity {
         }
     }
 
-    fn from_metadata(metadata: SnapshotExportMetadata) -> Self {
+    fn from_metadata(metadata: &SnapshotExportMetadata) -> Self {
         let export_id = metadata
             .values
             .iter()
@@ -538,32 +540,21 @@ fn string_or_symbol_to_string(value: &Var) -> Option<String> {
         .map(|sym| sym.as_arc_str().to_string())
 }
 
-fn collect_snapshot_identities(
-    loader: &dyn SnapshotInterface,
-) -> Result<Option<Vec<ObjectExportIdentity>>, ObjectDumpError> {
-    let Some(metadata) =
-        loader.collect_export_metadata(&[import_export_id(), import_export_hierarchy()])?
-    else {
-        return Ok(None);
-    };
-    Ok(Some(
-        metadata
-            .into_iter()
-            .map(ObjectExportIdentity::from_metadata)
-            .collect(),
-    ))
+fn collect_snapshot_identities(export: &dyn SnapshotExportSession) -> Vec<ObjectExportIdentity> {
+    export
+        .metadata()
+        .iter()
+        .map(ObjectExportIdentity::from_metadata)
+        .collect()
 }
 
 /// Collect constant substitutions without retaining every object definition.
 pub fn collect_index_names(
     loader: &dyn SnapshotInterface,
 ) -> Result<HashMap<Obj, String>, ObjectDumpError> {
-    if let Some(identities) = collect_snapshot_identities(loader)? {
-        return Ok(extract_object_constants_from_identities(&identities).0);
-    }
-
-    let definitions = collect_object_definitions(loader)?;
-    Ok(extract_index_names(&definitions))
+    let export = loader.begin_export(&[import_export_id(), import_export_hierarchy()])?;
+    let identities = collect_snapshot_identities(export.as_ref());
+    Ok(extract_object_constants_from_identities(&identities).0)
 }
 
 fn target_directory(base: &Path, hierarchy: &[String]) -> Result<PathBuf, std::io::Error> {
@@ -630,37 +621,8 @@ pub fn dump_snapshot_object_definitions(
     directory_path: &Path,
 ) -> Result<ObjectDumpStats, ObjectDumpError> {
     let metadata_started = Instant::now();
-    let Some(identities) = collect_snapshot_identities(loader)? else {
-        let definitions = collect_object_definitions(loader)?;
-        let metadata_elapsed = metadata_started.elapsed();
-        let write_started = Instant::now();
-        dump_object_definitions(&definitions, directory_path)?;
-        return Ok(ObjectDumpStats {
-            objects: definitions.len(),
-            regular_objects: definitions
-                .iter()
-                .filter(|definition| !definition.oid.is_anonymous())
-                .count(),
-            anonymous_objects: definitions
-                .iter()
-                .filter(|definition| definition.oid.is_anonymous())
-                .count(),
-            verbs: definitions
-                .iter()
-                .map(|definition| definition.verbs.len())
-                .sum(),
-            properties: definitions
-                .iter()
-                .map(|definition| definition.property_definitions.len())
-                .sum(),
-            overrides: definitions
-                .iter()
-                .map(|definition| definition.property_overrides.len())
-                .sum(),
-            metadata_elapsed,
-            write_elapsed: write_started.elapsed(),
-        });
-    };
+    let mut export = loader.begin_export(&[import_export_id(), import_export_hierarchy()])?;
+    let identities = collect_snapshot_identities(export.as_ref());
     let metadata_elapsed = metadata_started.elapsed();
 
     let (index_names, file_names) = extract_object_constants_from_identities(&identities);
@@ -672,12 +634,6 @@ pub fn dump_snapshot_object_definitions(
     std::fs::create_dir_all(directory_path)?;
     crate::write::generate_constants_file(&index_names, &hierarchies, directory_path)?;
 
-    let Some(mut export) = loader.start_export()? else {
-        return Err(moor_common::model::WorldStateError::DatabaseError(
-            "Snapshot stopped supporting sequential export during a dump".to_string(),
-        )
-        .into());
-    };
     let started = Instant::now();
     let mut written_anonymous_files = HashSet::new();
     let mut regular_count = 0;

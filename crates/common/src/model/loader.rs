@@ -56,8 +56,10 @@ pub struct SnapshotExportMetadata {
     pub values: Vec<(Symbol, Var)>,
 }
 
-/// Object-at-a-time access to one stable database snapshot.
-pub trait SnapshotExport: Send {
+/// One stable database export, including its naming metadata and object stream.
+pub trait SnapshotExportSession: Send {
+    fn metadata(&self) -> &[SnapshotExportMetadata];
+
     fn object_count(&self) -> usize;
 
     fn next_object(&mut self) -> Result<Option<SnapshotExportObject>, WorldStateError>;
@@ -65,19 +67,11 @@ pub trait SnapshotExport: Send {
 
 /// Interface for read-only access to database snapshots for exporting/dumping
 pub trait SnapshotInterface: Send {
-    /// Start an object-at-a-time export when the backing store supports an efficient scan.
-    /// Implementations can return `None` to use the point-read compatibility path.
-    fn start_export(&self) -> Result<Option<Box<dyn SnapshotExport + '_>>, WorldStateError> {
-        Ok(None)
-    }
-
-    /// Collect the small global metadata needed to name files in a streaming export.
-    fn collect_export_metadata(
+    /// Start an object-at-a-time export and collect the requested object metadata for file naming.
+    fn begin_export(
         &self,
-        _keys: &[Symbol],
-    ) -> Result<Option<Vec<SnapshotExportMetadata>>, WorldStateError> {
-        Ok(None)
-    }
+        metadata_keys: &[Symbol],
+    ) -> Result<Box<dyn SnapshotExportSession + '_>, WorldStateError>;
 
     /// Get the list of all active objects in the database
     fn get_objects(&self) -> Result<ObjSet, WorldStateError>;
