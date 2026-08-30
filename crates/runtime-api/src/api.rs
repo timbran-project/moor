@@ -19,7 +19,7 @@
 //! and FlatBuffer messages; the in-process adapter calls the runtime API
 //! directly without serialization.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
@@ -421,6 +421,18 @@ pub enum HostReply {
 // Client requests and replies
 // ---------------------------------------------------------------------------
 
+/// How a verb invocation's output is to be delivered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InvocationMode {
+    /// Deliver output to the invoking connection's event stream. The reply comes as soon as the
+    /// task is submitted, and the caller watches its own event stream for the outcome.
+    Connected { client_token: ClientToken },
+    /// Run with no connection behind the call, collect the narrative output the root task commits,
+    /// and reply once it finishes. `timeout` bounds the wait; `None` asks for the daemon's
+    /// configured maximum.
+    CaptureOutput { timeout: Option<Duration> },
+}
+
 /// Requests a client (via a host) sends to the daemon.
 #[derive(Debug, Clone)]
 pub enum ClientRequest {
@@ -502,11 +514,11 @@ pub enum ClientRequest {
         expression: String,
     },
     InvokeVerb {
-        client_token: ClientToken,
         auth_token: AuthToken,
         object: ObjectRef,
         verb: Symbol,
         args: Vec<Var>,
+        mode: InvocationMode,
     },
     Retrieve {
         auth_token: AuthToken,
@@ -573,11 +585,7 @@ pub enum ClientRequest {
         args: Vec<Var>,
         auth_token: Option<AuthToken>,
     },
-    CallSystemVerb {
-        auth_token: Option<AuthToken>,
-        verb: Symbol,
-        args: Vec<Var>,
-    },
+    InvokeWelcomeMessage,
     BatchWorldState {
         auth_token: AuthToken,
         actions: Vec<BatchActionEntry>,

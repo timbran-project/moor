@@ -20,7 +20,12 @@ use crate::{
 use moor_common::model::ObjectRef;
 use moor_schema::{rpc, var};
 use moor_var::{Obj, Symbol, Var};
+use std::time::Duration;
 use uuid::Uuid;
+
+/// Default capture deadline for a verb invocation, matching the schema's default for
+/// `CaptureOutputInvocation.timeout_ms`. A daemon configured with a lower maximum will refuse it.
+pub const DEFAULT_CAPTURE_TIMEOUT_MS: u64 = 60_000;
 
 /// Build a LoginCommand message
 #[inline]
@@ -432,7 +437,7 @@ pub fn mk_delete_event_log_history_msg(auth_token: &AuthToken) -> rpc::HostClien
     }
 }
 
-/// Build an InvokeVerb message
+/// Build an InvokeVerb message whose output goes to the invoking connection's event stream.
 #[inline]
 pub fn mk_invoke_verb_msg(
     client_token: &ClientToken,
@@ -440,6 +445,52 @@ pub fn mk_invoke_verb_msg(
     object: &ObjectRef,
     verb_name: &Symbol,
     args: Vec<&Var>,
+) -> Option<rpc::HostClientToDaemonMessage> {
+    mk_invoke_verb_msg_with_mode(
+        auth_token,
+        object,
+        verb_name,
+        args,
+        rpc::InvocationMode::ConnectedInvocation(Box::new(rpc::ConnectedInvocation {
+            client_token: client_token_fb(client_token),
+        })),
+    )
+}
+
+/// Build an InvokeVerb message whose output is captured and returned with the result.
+///
+/// `timeout` is how long the caller will wait; `None` asks for the daemon's configured maximum.
+/// The caller's own receive timeout must be longer than this, or it will give up before the reply
+/// arrives.
+#[inline]
+pub fn mk_invoke_verb_capture_msg(
+    auth_token: &AuthToken,
+    object: &ObjectRef,
+    verb_name: &Symbol,
+    args: Vec<&Var>,
+    timeout: Option<Duration>,
+) -> Option<rpc::HostClientToDaemonMessage> {
+    let timeout_ms = match timeout {
+        Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
+        None => DEFAULT_CAPTURE_TIMEOUT_MS,
+    };
+    mk_invoke_verb_msg_with_mode(
+        auth_token,
+        object,
+        verb_name,
+        args,
+        rpc::InvocationMode::CaptureOutputInvocation(Box::new(rpc::CaptureOutputInvocation {
+            timeout_ms,
+        })),
+    )
+}
+
+fn mk_invoke_verb_msg_with_mode(
+    auth_token: &AuthToken,
+    object: &ObjectRef,
+    verb_name: &Symbol,
+    args: Vec<&Var>,
+    mode: rpc::InvocationMode,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let args_fb: Vec<var::Var> = args.iter().filter_map(|v| var_fb(v).map(|b| *b)).collect();
 
@@ -449,11 +500,11 @@ pub fn mk_invoke_verb_msg(
 
     Some(rpc::HostClientToDaemonMessage {
         message: rpc::HostClientToDaemonMessageUnion::InvokeVerb(Box::new(rpc::InvokeVerb {
-            client_token: client_token_fb(client_token),
             auth_token: auth_token_fb(auth_token),
             object: objectref_fb(object),
             verb: symbol_fb(verb_name),
             args: args_fb,
+            mode,
         })),
     })
 }
@@ -514,28 +565,14 @@ pub fn mk_invoke_system_handler_msg(
     })
 }
 
-/// Build a CallSystemVerb message
+/// Build an InvokeWelcomeMessage message
 #[inline]
-pub fn mk_call_system_verb_msg(
-    auth_token: Option<&AuthToken>,
-    verb: &Symbol,
-    args: Vec<&Var>,
-) -> Option<rpc::HostClientToDaemonMessage> {
-    let args_fb: Vec<var::Var> = args.iter().filter_map(|v| var_fb(v).map(|b| *b)).collect();
-
-    if args_fb.len() != args.len() {
-        return None;
-    }
-
-    Some(rpc::HostClientToDaemonMessage {
-        message: rpc::HostClientToDaemonMessageUnion::CallSystemVerb(Box::new(
-            rpc::CallSystemVerb {
-                auth_token: auth_token.map(auth_token_fb),
-                verb: symbol_fb(verb),
-                args: args_fb,
-            },
+pub fn mk_invoke_welcome_message_msg() -> rpc::HostClientToDaemonMessage {
+    rpc::HostClientToDaemonMessage {
+        message: rpc::HostClientToDaemonMessageUnion::InvokeWelcomeMessage(Box::new(
+            rpc::InvokeWelcomeMessage {},
         )),
-    })
+    }
 }
 
 /// A single action entry for a batch world state request.

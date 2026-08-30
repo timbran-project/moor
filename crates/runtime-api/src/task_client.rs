@@ -26,7 +26,7 @@ use crate::{
     AuthToken, ClientToken, RpcError,
     api::{
         ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, ConnectType,
-        HostServices, RuntimeClient,
+        HostServices, InvocationMode, RuntimeClient,
     },
 };
 use moor_common::model::ObjectRef;
@@ -285,11 +285,13 @@ impl TaskClient {
             .client_call(
                 self.client_id,
                 ClientRequest::InvokeVerb {
-                    client_token: self.client_token.clone(),
                     auth_token: self.auth_token.clone(),
                     object: object.clone(),
                     verb: *verb_name,
                     args,
+                    mode: InvocationMode::Connected {
+                        client_token: self.client_token.clone(),
+                    },
                 },
             )
             .await

@@ -31,4 +31,4 @@ class HostClientToDaemonMessageUnion(object):
     ListObjects = 25
     UpdateProperty = 26
     InvokeSystemHandler = 27
-    CallSystemVerb = 28
+    InvokeWelcomeMessage = 28

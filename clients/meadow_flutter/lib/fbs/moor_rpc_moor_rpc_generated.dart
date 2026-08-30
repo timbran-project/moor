@@ -977,7 +977,7 @@ class HostClientToDaemonMessageUnionTypeId {
       HostClientToDaemonMessageUnionTypeId._(26);
   static const HostClientToDaemonMessageUnionTypeId InvokeSystemHandler =
       HostClientToDaemonMessageUnionTypeId._(27);
-  static const HostClientToDaemonMessageUnionTypeId CallSystemVerb =
+  static const HostClientToDaemonMessageUnionTypeId InvokeWelcomeMessage =
       HostClientToDaemonMessageUnionTypeId._(28);
   static const HostClientToDaemonMessageUnionTypeId BatchWorldState =
       HostClientToDaemonMessageUnionTypeId._(29);
@@ -1010,7 +1010,7 @@ class HostClientToDaemonMessageUnionTypeId {
     25: ListObjects,
     26: UpdateProperty,
     27: InvokeSystemHandler,
-    28: CallSystemVerb,
+    28: InvokeWelcomeMessage,
     29: BatchWorldState,
   };
 
@@ -1035,6 +1035,58 @@ class _HostClientToDaemonMessageUnionTypeIdReader
       HostClientToDaemonMessageUnionTypeId.fromValue(
         const fb.Uint8Reader().read(bc, offset),
       );
+}
+
+class InvocationModeTypeId {
+  final int value;
+  const InvocationModeTypeId._(this.value);
+
+  factory InvocationModeTypeId.fromValue(int value) {
+    final result = values[value];
+    if (result == null) {
+      throw StateError(
+        'Invalid value $value for bit flag enum InvocationModeTypeId',
+      );
+    }
+    return result;
+  }
+
+  static InvocationModeTypeId? _createOrNull(int? value) =>
+      value == null ? null : InvocationModeTypeId.fromValue(value);
+
+  static const int minValue = 0;
+  static const int maxValue = 2;
+  static bool containsValue(int value) => values.containsKey(value);
+
+  static const InvocationModeTypeId NONE = InvocationModeTypeId._(0);
+  static const InvocationModeTypeId ConnectedInvocation =
+      InvocationModeTypeId._(1);
+  static const InvocationModeTypeId CaptureOutputInvocation =
+      InvocationModeTypeId._(2);
+  static const Map<int, InvocationModeTypeId> values = {
+    0: NONE,
+    1: ConnectedInvocation,
+    2: CaptureOutputInvocation,
+  };
+
+  static const fb.Reader<InvocationModeTypeId> reader =
+      _InvocationModeTypeIdReader();
+
+  @override
+  String toString() {
+    return 'InvocationModeTypeId{value: $value}';
+  }
+}
+
+class _InvocationModeTypeIdReader extends fb.Reader<InvocationModeTypeId> {
+  const _InvocationModeTypeIdReader();
+
+  @override
+  int get size => 1;
+
+  @override
+  InvocationModeTypeId read(fb.BufferContext bc, int offset) =>
+      InvocationModeTypeId.fromValue(const fb.Uint8Reader().read(bc, offset));
 }
 
 class DaemonToClientReplyUnionTypeId {
@@ -11234,6 +11286,154 @@ class VerbsObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
+class ConnectedInvocation {
+  ConnectedInvocation._(this._bc, this._bcOffset);
+  factory ConnectedInvocation(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<ConnectedInvocation> reader =
+      _ConnectedInvocationReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  ClientToken? get clientToken =>
+      ClientToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
+
+  @override
+  String toString() {
+    return 'ConnectedInvocation{clientToken: ${clientToken}}';
+  }
+}
+
+class _ConnectedInvocationReader extends fb.TableReader<ConnectedInvocation> {
+  const _ConnectedInvocationReader();
+
+  @override
+  ConnectedInvocation createObject(fb.BufferContext bc, int offset) =>
+      ConnectedInvocation._(bc, offset);
+}
+
+class ConnectedInvocationBuilder {
+  ConnectedInvocationBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(1);
+  }
+
+  int addClientTokenOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class ConnectedInvocationObjectBuilder extends fb.ObjectBuilder {
+  final ClientTokenObjectBuilder? _clientToken;
+
+  ConnectedInvocationObjectBuilder({
+    ClientTokenObjectBuilder? clientToken,
+  }) : _clientToken = clientToken;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? clientTokenOffset = _clientToken?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(1);
+    fbBuilder.addOffset(0, clientTokenOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class CaptureOutputInvocation {
+  CaptureOutputInvocation._(this._bc, this._bcOffset);
+  factory CaptureOutputInvocation(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<CaptureOutputInvocation> reader =
+      _CaptureOutputInvocationReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  int get timeoutMs =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 60000);
+
+  @override
+  String toString() {
+    return 'CaptureOutputInvocation{timeoutMs: ${timeoutMs}}';
+  }
+}
+
+class _CaptureOutputInvocationReader
+    extends fb.TableReader<CaptureOutputInvocation> {
+  const _CaptureOutputInvocationReader();
+
+  @override
+  CaptureOutputInvocation createObject(fb.BufferContext bc, int offset) =>
+      CaptureOutputInvocation._(bc, offset);
+}
+
+class CaptureOutputInvocationBuilder {
+  CaptureOutputInvocationBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(1);
+  }
+
+  int addTimeoutMs(int? timeoutMs) {
+    fbBuilder.addUint64(0, timeoutMs);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class CaptureOutputInvocationObjectBuilder extends fb.ObjectBuilder {
+  final int? _timeoutMs;
+
+  CaptureOutputInvocationObjectBuilder({
+    int? timeoutMs,
+  }) : _timeoutMs = timeoutMs;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.startTable(1);
+    fbBuilder.addUint64(0, _timeoutMs);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
 class InvokeVerb {
   InvokeVerb._(this._bc, this._bcOffset);
   factory InvokeVerb(List<int> bytes) {
@@ -11246,21 +11446,36 @@ class InvokeVerb {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  ClientToken? get clientToken =>
-      ClientToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   AuthToken? get authToken =>
-      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   moor_common.ObjectRef? get object =>
-      moor_common.ObjectRef.reader.vTableGetNullable(_bc, _bcOffset, 8);
+      moor_common.ObjectRef.reader.vTableGetNullable(_bc, _bcOffset, 6);
   moor_common.Symbol? get verb =>
-      moor_common.Symbol.reader.vTableGetNullable(_bc, _bcOffset, 10);
+      moor_common.Symbol.reader.vTableGetNullable(_bc, _bcOffset, 8);
   List<moor_var.Var>? get args => const fb.ListReader<moor_var.Var>(
     moor_var.Var.reader,
-  ).vTableGetNullable(_bc, _bcOffset, 12);
+  ).vTableGetNullable(_bc, _bcOffset, 10);
+  InvocationModeTypeId? get modeType => InvocationModeTypeId._createOrNull(
+    const fb.Uint8Reader().vTableGetNullable(_bc, _bcOffset, 12),
+  );
+  dynamic get mode {
+    switch (modeType?.value) {
+      case 1:
+        return ConnectedInvocation.reader.vTableGetNullable(_bc, _bcOffset, 14);
+      case 2:
+        return CaptureOutputInvocation.reader.vTableGetNullable(
+          _bc,
+          _bcOffset,
+          14,
+        );
+      default:
+        return null;
+    }
+  }
 
   @override
   String toString() {
-    return 'InvokeVerb{clientToken: ${clientToken}, authToken: ${authToken}, object: ${object}, verb: ${verb}, args: ${args}}';
+    return 'InvokeVerb{authToken: ${authToken}, object: ${object}, verb: ${verb}, args: ${args}, modeType: ${modeType}, mode: ${mode}}';
   }
 }
 
@@ -11278,31 +11493,36 @@ class InvokeVerbBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(5);
+    fbBuilder.startTable(6);
   }
 
-  int addClientTokenOffset(int? offset) {
+  int addAuthTokenOffset(int? offset) {
     fbBuilder.addOffset(0, offset);
     return fbBuilder.offset;
   }
 
-  int addAuthTokenOffset(int? offset) {
+  int addObjectOffset(int? offset) {
     fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
 
-  int addObjectOffset(int? offset) {
+  int addVerbOffset(int? offset) {
     fbBuilder.addOffset(2, offset);
     return fbBuilder.offset;
   }
 
-  int addVerbOffset(int? offset) {
+  int addArgsOffset(int? offset) {
     fbBuilder.addOffset(3, offset);
     return fbBuilder.offset;
   }
 
-  int addArgsOffset(int? offset) {
-    fbBuilder.addOffset(4, offset);
+  int addModeType(InvocationModeTypeId? modeType) {
+    fbBuilder.addUint8(4, modeType?.value);
+    return fbBuilder.offset;
+  }
+
+  int addModeOffset(int? offset) {
+    fbBuilder.addOffset(5, offset);
     return fbBuilder.offset;
   }
 
@@ -11312,28 +11532,30 @@ class InvokeVerbBuilder {
 }
 
 class InvokeVerbObjectBuilder extends fb.ObjectBuilder {
-  final ClientTokenObjectBuilder? _clientToken;
   final AuthTokenObjectBuilder? _authToken;
   final moor_common.ObjectRefObjectBuilder? _object;
   final moor_common.SymbolObjectBuilder? _verb;
   final List<moor_var.VarObjectBuilder>? _args;
+  final InvocationModeTypeId? _modeType;
+  final dynamic _mode;
 
   InvokeVerbObjectBuilder({
-    ClientTokenObjectBuilder? clientToken,
     AuthTokenObjectBuilder? authToken,
     moor_common.ObjectRefObjectBuilder? object,
     moor_common.SymbolObjectBuilder? verb,
     List<moor_var.VarObjectBuilder>? args,
-  }) : _clientToken = clientToken,
-       _authToken = authToken,
+    InvocationModeTypeId? modeType,
+    dynamic mode,
+  }) : _authToken = authToken,
        _object = object,
        _verb = verb,
-       _args = args;
+       _args = args,
+       _modeType = modeType,
+       _mode = mode;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    final int? clientTokenOffset = _clientToken?.getOrCreateOffset(fbBuilder);
     final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
     final int? objectOffset = _object?.getOrCreateOffset(fbBuilder);
     final int? verbOffset = _verb?.getOrCreateOffset(fbBuilder);
@@ -11342,12 +11564,14 @@ class InvokeVerbObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeList(
             _args!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
           );
-    fbBuilder.startTable(5);
-    fbBuilder.addOffset(0, clientTokenOffset);
-    fbBuilder.addOffset(1, authTokenOffset);
-    fbBuilder.addOffset(2, objectOffset);
-    fbBuilder.addOffset(3, verbOffset);
-    fbBuilder.addOffset(4, argsOffset);
+    final int? modeOffset = _mode?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(6);
+    fbBuilder.addOffset(0, authTokenOffset);
+    fbBuilder.addOffset(1, objectOffset);
+    fbBuilder.addOffset(2, verbOffset);
+    fbBuilder.addOffset(3, argsOffset);
+    fbBuilder.addUint8(4, _modeType?.value);
+    fbBuilder.addOffset(5, modeOffset);
     return fbBuilder.endTable();
   }
 
@@ -13205,96 +13429,40 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
-class CallSystemVerb {
-  CallSystemVerb._(this._bc, this._bcOffset);
-  factory CallSystemVerb(List<int> bytes) {
+class InvokeWelcomeMessage {
+  InvokeWelcomeMessage._(this._bc, this._bcOffset);
+  factory InvokeWelcomeMessage(List<int> bytes) {
     final rootRef = fb.BufferContext.fromBytes(bytes);
     return reader.read(rootRef, 0);
   }
 
-  static const fb.Reader<CallSystemVerb> reader = _CallSystemVerbReader();
+  static const fb.Reader<InvokeWelcomeMessage> reader =
+      _InvokeWelcomeMessageReader();
 
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  AuthToken? get authToken =>
-      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
-  moor_common.Symbol? get verb =>
-      moor_common.Symbol.reader.vTableGetNullable(_bc, _bcOffset, 6);
-  List<moor_var.Var>? get args => const fb.ListReader<moor_var.Var>(
-    moor_var.Var.reader,
-  ).vTableGetNullable(_bc, _bcOffset, 8);
-
   @override
   String toString() {
-    return 'CallSystemVerb{authToken: ${authToken}, verb: ${verb}, args: ${args}}';
+    return 'InvokeWelcomeMessage{}';
   }
 }
 
-class _CallSystemVerbReader extends fb.TableReader<CallSystemVerb> {
-  const _CallSystemVerbReader();
+class _InvokeWelcomeMessageReader extends fb.TableReader<InvokeWelcomeMessage> {
+  const _InvokeWelcomeMessageReader();
 
   @override
-  CallSystemVerb createObject(fb.BufferContext bc, int offset) =>
-      CallSystemVerb._(bc, offset);
+  InvokeWelcomeMessage createObject(fb.BufferContext bc, int offset) =>
+      InvokeWelcomeMessage._(bc, offset);
 }
 
-class CallSystemVerbBuilder {
-  CallSystemVerbBuilder(this.fbBuilder);
-
-  final fb.Builder fbBuilder;
-
-  void begin() {
-    fbBuilder.startTable(3);
-  }
-
-  int addAuthTokenOffset(int? offset) {
-    fbBuilder.addOffset(0, offset);
-    return fbBuilder.offset;
-  }
-
-  int addVerbOffset(int? offset) {
-    fbBuilder.addOffset(1, offset);
-    return fbBuilder.offset;
-  }
-
-  int addArgsOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
-    return fbBuilder.offset;
-  }
-
-  int finish() {
-    return fbBuilder.endTable();
-  }
-}
-
-class CallSystemVerbObjectBuilder extends fb.ObjectBuilder {
-  final AuthTokenObjectBuilder? _authToken;
-  final moor_common.SymbolObjectBuilder? _verb;
-  final List<moor_var.VarObjectBuilder>? _args;
-
-  CallSystemVerbObjectBuilder({
-    AuthTokenObjectBuilder? authToken,
-    moor_common.SymbolObjectBuilder? verb,
-    List<moor_var.VarObjectBuilder>? args,
-  }) : _authToken = authToken,
-       _verb = verb,
-       _args = args;
+class InvokeWelcomeMessageObjectBuilder extends fb.ObjectBuilder {
+  InvokeWelcomeMessageObjectBuilder();
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
-    final int? verbOffset = _verb?.getOrCreateOffset(fbBuilder);
-    final int? argsOffset = _args == null
-        ? null
-        : fbBuilder.writeList(
-            _args!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
-          );
-    fbBuilder.startTable(3);
-    fbBuilder.addOffset(0, authTokenOffset);
-    fbBuilder.addOffset(1, verbOffset);
-    fbBuilder.addOffset(2, argsOffset);
+    fbBuilder.startTable(0);
     return fbBuilder.endTable();
   }
 
@@ -13389,7 +13557,7 @@ class HostClientToDaemonMessage {
       case 27:
         return InvokeSystemHandler.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 28:
-        return CallSystemVerb.reader.vTableGetNullable(_bc, _bcOffset, 6);
+        return InvokeWelcomeMessage.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 29:
         return BatchWorldState.reader.vTableGetNullable(_bc, _bcOffset, 6);
       default:

@@ -25,19 +25,8 @@ class InvokeVerb(object):
         self._tab = flatbuffers.table.Table(buf, pos)
 
     # InvokeVerb
-    def ClientToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
-        if o != 0:
-            x = self._tab.Indirect(o + self._tab.Pos)
-            from MoorRpc.ClientToken import ClientToken
-            obj = ClientToken()
-            obj.Init(self._tab.Bytes, x)
-            return obj
-        return None
-
-    # InvokeVerb
     def AuthToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorRpc.AuthToken import AuthToken
@@ -48,7 +37,7 @@ class InvokeVerb(object):
 
     # InvokeVerb
     def Object(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorCommon.ObjectRef import ObjectRef
@@ -59,7 +48,7 @@ class InvokeVerb(object):
 
     # InvokeVerb
     def Verb(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorCommon.Symbol import Symbol
@@ -70,7 +59,7 @@ class InvokeVerb(object):
 
     # InvokeVerb
     def Args(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -83,37 +72,57 @@ class InvokeVerb(object):
 
     # InvokeVerb
     def ArgsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # InvokeVerb
     def ArgsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         return o == 0
 
-def InvokeVerbStart(builder): builder.StartObject(5)
+    # InvokeVerb
+    def ModeType(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # InvokeVerb
+    def Mode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
+        if o != 0:
+            from flatbuffers.table import Table
+            obj = Table(bytearray(), 0)
+            self._tab.Union(obj, o)
+            return obj
+        return None
+
+def InvokeVerbStart(builder): builder.StartObject(6)
 def Start(builder):
     return InvokeVerbStart(builder)
-def InvokeVerbAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
-def AddClientToken(builder, clientToken):
-    return InvokeVerbAddClientToken(builder, clientToken)
-def InvokeVerbAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
+def InvokeVerbAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
 def AddAuthToken(builder, authToken):
     return InvokeVerbAddAuthToken(builder, authToken)
-def InvokeVerbAddObject(builder, object): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(object), 0)
+def InvokeVerbAddObject(builder, object): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(object), 0)
 def AddObject(builder, object):
     return InvokeVerbAddObject(builder, object)
-def InvokeVerbAddVerb(builder, verb): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(verb), 0)
+def InvokeVerbAddVerb(builder, verb): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(verb), 0)
 def AddVerb(builder, verb):
     return InvokeVerbAddVerb(builder, verb)
-def InvokeVerbAddArgs(builder, args): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(args), 0)
+def InvokeVerbAddArgs(builder, args): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(args), 0)
 def AddArgs(builder, args):
     return InvokeVerbAddArgs(builder, args)
 def InvokeVerbStartArgsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartArgsVector(builder, numElems):
     return InvokeVerbStartArgsVector(builder, numElems)
+def InvokeVerbAddModeType(builder, modeType): builder.PrependUint8Slot(4, modeType, 0)
+def AddModeType(builder, modeType):
+    return InvokeVerbAddModeType(builder, modeType)
+def InvokeVerbAddMode(builder, mode): builder.PrependUOffsetTRelativeSlot(5, flatbuffers.number_types.UOffsetTFlags.py_type(mode), 0)
+def AddMode(builder, mode):
+    return InvokeVerbAddMode(builder, mode)
 def InvokeVerbEnd(builder): return builder.EndObject()
 def End(builder):
     return InvokeVerbEnd(builder)

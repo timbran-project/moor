@@ -145,6 +145,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Report progress while collecting objects for a full objdef export and identify individual objects
   that take longer than five seconds.
 
+`rpc`:
+
+- `InvokeVerb` now carries an `InvocationMode` union instead of a client token.
+  `ConnectedInvocation` is the previous behaviour: the reply is the submitted task id, and output
+  reaches the invoking connection's event stream. `CaptureOutputInvocation` runs the call with no
+  connection behind it and replies with a single `VerbCallResponse` holding the result and the
+  narrative output the call committed, once the root task finishes. Both modes require an
+  `AuthToken`, and that principal is both the player the verb runs as and the authority it runs
+  with.
+- A captured call waits at most `timeout_ms`, bounded by the new `runtime.max_capture_deadline`
+  daemon setting (default 60 seconds). A request asking for longer is refused rather than clamped,
+  and a deadline that passes cancels the task and answers with a `TaskAbortedLimit` time error.
+- `CallSystemVerb` is replaced by `InvokeWelcomeMessage`, which takes no arguments and always
+  invokes `#0:do_login_command` as `#0` with its output captured. There is no longer any way to call
+  an arbitrary verb with system authority and no credentials.
+
 ### Fixed
 
 `kernel`:

@@ -703,7 +703,7 @@ union HostClientToDaemonMessageUnion {
     ListObjects,
     UpdateProperty,
     InvokeSystemHandler,
-    CallSystemVerb,
+    InvokeWelcomeMessage,
     BatchWorldState,
     ReplayClientEvents
 }
@@ -766,12 +766,31 @@ table Verbs {
     inherited: bool;
 }
 
-table InvokeVerb {
+// Deliver the call's output to the invoking connection's event stream, and reply as soon as the
+// task is submitted.
+table ConnectedInvocation {
     client_token: ClientToken (required);
+}
+
+// Run the call with no connection behind it, collecting the narrative output it commits and
+// returning it with the result once the root task finishes. `timeout_ms` is how long the caller is
+// willing to wait; it must be greater than zero and no greater than the daemon's configured
+// maximum.
+table CaptureOutputInvocation {
+    timeout_ms: uint64 = 60000;
+}
+
+union InvocationMode {
+    ConnectedInvocation,
+    CaptureOutputInvocation
+}
+
+table InvokeVerb {
     auth_token: AuthToken (required);
     object: MoorCommon.ObjectRef (required);
     verb: MoorCommon.Symbol (required);
     args: [MoorVar.Var] (required);
+    mode: InvocationMode (required);
 }
 
 table Properties {
@@ -892,10 +911,10 @@ table InvokeSystemHandler {
     auth_token: AuthToken;
 }
 
-table CallSystemVerb {
-    auth_token: AuthToken;
-    verb: MoorCommon.Symbol (required);
-    args: [MoorVar.Var] (required);
+// Ask for the world's welcome message: `#0:do_login_command` with no arguments, as the system
+// object, with its output captured. There is nothing to parameterise, because this is the one call
+// a client may make before it has any credentials.
+table InvokeWelcomeMessage {
 }
 
 table HostClientToDaemonMessage {
