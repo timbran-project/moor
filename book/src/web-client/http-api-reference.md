@@ -539,8 +539,11 @@ Requires: `X-Moor-Auth-Token`
 Calls a verb on the given object with FlatBuffer-encoded arguments. Returns a `VerbCallResponse`
 containing either a success result (with the narrative events the call committed) or an error. The
 verb runs as the authenticated player, with that player's authority, and with no connection behind
-it: output from forked tasks is not included, and a verb that asks for input fails. Times out after
-60 s, after which the task is cancelled and the response carries a `TaskAbortedLimit` time error.
+it: output from forked tasks is not included, and a verb that asks for input fails. The deadline is
+the daemon's configured maximum for a captured call (`runtime.max_capture_deadline`, 60 s by
+default). A call that overruns it is cancelled and answered with a `200` whose `VerbCallError`
+carries a `TaskAbortedLimit` time error, so a timeout is reported in the response body rather than
+as an HTTP status.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -565,7 +568,6 @@ Requires: `X-Moor-Auth-Token`
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
 - **500**: Internal server error
 - **503**: Daemon is unreachable
-- **504**: Verb execution timed out (60 s)
 
 ---
 

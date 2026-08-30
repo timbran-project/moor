@@ -773,11 +773,14 @@ table ConnectedInvocation {
 }
 
 // Run the call with no connection behind it, collecting the narrative output it commits and
-// returning it with the result once the root task finishes. `timeout_ms` is how long the caller is
-// willing to wait; it must be greater than zero and no greater than the daemon's configured
-// maximum.
+// returning it with the result once the root task finishes.
+//
+// `timeout_ms` is how long the caller is willing to wait. Zero, which is the default, asks for the
+// daemon's own configured maximum, so a client that has no opinion does not have to guess a number
+// the daemon might refuse. Any other value must be no greater than that maximum; a larger one is
+// refused rather than quietly shortened, so a caller is never told it has longer than it does.
 table CaptureOutputInvocation {
-    timeout_ms: uint64 = 60000;
+    timeout_ms: uint64 = 0;
 }
 
 union InvocationMode {

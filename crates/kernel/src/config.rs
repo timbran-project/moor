@@ -14,7 +14,7 @@
 //! Config is created by the host daemon, and passed through the scheduler, whereupon it is
 //! available to all components. Used to hold things typically configured by CLI flags, etc.
 
-use moor_common::threading::TaskPoolPinningMode;
+use moor_common::{config::MAX_CAPTURE_DEADLINE, threading::TaskPoolPinningMode};
 use moor_db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc, time::Duration};
@@ -66,6 +66,34 @@ impl RuntimeConfig {
     pub fn max_capture_deadline(&self) -> Duration {
         self.max_capture_deadline
             .unwrap_or(DEFAULT_MAX_CAPTURE_DEADLINE)
+    }
+
+    /// Check settings that only make sense within a range, whatever source they came from.
+    ///
+    /// Each source merges into the config independently, so a value can only be judged once they
+    /// have all been applied. Callers should run this after the last merge.
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(deadline) = self.max_capture_deadline {
+            if deadline.is_zero() {
+                return Err("runtime.max_capture_deadline must be greater than zero".to_string());
+            }
+            if deadline > MAX_CAPTURE_DEADLINE {
+                return Err(format!(
+                    "runtime.max_capture_deadline of {}s exceeds the protocol maximum of {}s",
+                    deadline.as_secs(),
+                    MAX_CAPTURE_DEADLINE.as_secs()
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Config {
+    /// Check settings that only make sense within a range, whatever source they came from.
+    pub fn validate(&self) -> Result<(), String> {
+        self.runtime.validate()
     }
 }
 

@@ -876,16 +876,26 @@ fn decode_client_reply_ref(
                                 RpcError::CouldNotDecode(format!("Invalid result: {e}"))
                             })
                         })?;
+                    // Captured output is the point of the call, so a bad event is an error
+                    // rather than a gap the caller cannot see.
                     let output = s
                         .output()
                         .map_err(|e| RpcError::CouldNotDecode(format!("Missing verb output: {e}")))?
                         .iter()
-                        .filter_map(|event| {
+                        .map(|event| {
                             event
-                                .ok()
-                                .and_then(|event| convert::narrative_event_from_ref(event).ok())
+                                .map_err(|e| {
+                                    RpcError::CouldNotDecode(format!("Missing verb output: {e}"))
+                                })
+                                .and_then(|event| {
+                                    convert::narrative_event_from_ref(event).map_err(|e| {
+                                        RpcError::CouldNotDecode(format!(
+                                            "Invalid verb output: {e}"
+                                        ))
+                                    })
+                                })
                         })
-                        .collect();
+                        .collect::<Result<Vec<_>, _>>()?;
                     api::VerbCallResponse::Success { result, output }
                 }
                 moor_rpc::VerbCallResponseUnionRef::VerbCallError(e) => {

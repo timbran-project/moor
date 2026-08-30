@@ -344,11 +344,6 @@ impl RuntimeArgs {
             config.service_perf_cores = Some(args);
         }
         if let Some(args) = self.max_capture_deadline_seconds {
-            if args == 0 {
-                return Err(eyre::eyre!(
-                    "--max-capture-deadline-seconds must be greater than zero"
-                ));
-            }
             config.max_capture_deadline = Some(std::time::Duration::from_secs(u64::from(args)));
         }
         if let Some(args) = self.perf_timing_enabled {
@@ -411,6 +406,10 @@ impl Args {
         let config =
             moor_common::config::apply_yaml_config_file(Config::default(), config_path.as_deref())?;
         let config = self.merge_config(config)?;
+        // Every source has now been applied, so a value can finally be judged. Checking here rather
+        // than in each merge means a setting is validated the same way whether it came from the
+        // file or the command line.
+        config.validate().map_err(|e| eyre::eyre!(e))?;
         let config = Arc::new(config);
         Ok(config)
     }
@@ -684,9 +683,45 @@ runtime:
     }
 
     #[test]
-    fn max_capture_deadline_rejects_zero() {
+    fn max_capture_deadline_rejects_zero_from_the_command_line() {
         let args = Args::try_parse_from(["moor-daemon", "--max-capture-deadline-seconds", "0"])
             .expect("parse args");
+
+        assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn max_capture_deadline_rejects_zero_from_the_config_file() {
+        let (_dir, config_path) = write_config(
+            r#"
+runtime:
+  max_capture_deadline: 0s
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn max_capture_deadline_rejects_more_than_the_protocol_maximum() {
+        let (_dir, config_path) = write_config(
+            r#"
+runtime:
+  max_capture_deadline: 10m
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
 
         assert!(args.load_config().is_err());
     }

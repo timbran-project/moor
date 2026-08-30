@@ -14,7 +14,20 @@
 use eyre::{WrapErr, bail, eyre};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_yaml::{Mapping, Value};
-use std::path::Path;
+use std::{path::Path, time::Duration};
+
+/// The longest capture deadline any daemon will accept for a verb call whose output is collected
+/// and returned in the reply.
+///
+/// This is a protocol constant rather than a preference: a client has to size its own receive
+/// timeout against the deadline the daemon will use, and it cannot read the daemon's configuration
+/// to find out what that is. Bounding every daemon by the same ceiling means a client that waits
+/// this long is safe against any daemon, and keeps the deadline small enough to be expressed in
+/// milliseconds and added to an `Instant` without care.
+pub const MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(300);
+
+/// [`MAX_CAPTURE_DEADLINE`] in milliseconds, which is how the wire carries it.
+pub const MAX_CAPTURE_DEADLINE_MS: u64 = 300_000;
 
 pub fn apply_yaml_config_file<T>(base: T, path: Option<&Path>) -> Result<T, eyre::Report>
 where

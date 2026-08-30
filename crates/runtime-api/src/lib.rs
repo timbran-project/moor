@@ -69,7 +69,7 @@ pub use client_messages::{
     ws_update_property,
 };
 pub use client_messages::{
-    DEFAULT_CAPTURE_TIMEOUT_MS, mk_attach_msg, mk_client_pong_msg, mk_command_msg,
+    SERVER_DEFAULT_CAPTURE_TIMEOUT_MS, mk_attach_msg, mk_client_pong_msg, mk_command_msg,
     mk_connection_establish_msg, mk_delete_event_log_history_msg, mk_detach_msg,
     mk_dismiss_presentation_msg, mk_eval_msg, mk_get_event_log_pubkey_msg,
     mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
