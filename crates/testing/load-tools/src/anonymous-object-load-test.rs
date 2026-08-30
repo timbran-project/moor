@@ -542,6 +542,7 @@ async fn main() -> Result<(), eyre::Error> {
         scheduler_tick_duration: None,
         task_pool_pinning: None,
         service_perf_cores: None,
+        max_capture_deadline: None,
         perf_timing_enabled: None,
         perf_timing_hot_path_shift: None,
     };

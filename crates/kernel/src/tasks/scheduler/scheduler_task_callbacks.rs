@@ -830,6 +830,13 @@ impl Scheduler {
         lc.task_q.kill_task(victim_task_id, sender_authority)
     }
 
+    /// Cancel a task the server started on its own behalf, with no permission check.
+    /// Returns false if the task was already gone.
+    pub fn handle_abort_task(&self, victim_task_id: TaskId) -> bool {
+        let mut lc = self.lifecycle.lock();
+        lc.task_q.abort_task(victim_task_id)
+    }
+
     pub fn handle_resume_task(
         &self,
         task_id: TaskId,

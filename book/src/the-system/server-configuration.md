@@ -334,6 +334,31 @@ Guidance:
 - Decrease `service_perf_cores` if the machine has only a few performance cores and you want to
   maximize task execution throughput.
 
+## Captured Verb Call Configuration
+
+Some clients ask the daemon to run a verb and hand back its return value together with the narrative
+output the call produced, instead of streaming that output to a connection. The web host's verb
+endpoint and the welcome-message endpoint both work this way. Those calls occupy an RPC worker while
+they wait, so the daemon puts an upper bound on how long a caller may ask it to wait.
+
+| Setting              | Command Line                            | Default | Description                                                    |
+| -------------------- | --------------------------------------- | ------- | -------------------------------------------------------------- |
+| Max capture deadline | `--max-capture-deadline-seconds <SECS>` | `60`    | Longest deadline a client may request for a captured verb call |
+
+A client may request a shorter deadline, but not a longer one: a request above the maximum is
+refused rather than quietly shortened, so the client's own receive timeout still matches what it
+asked for. A deadline of zero is not valid. When the deadline passes, the task is cancelled and the
+caller gets a time-limit task error.
+
+```yaml
+runtime:
+  max_capture_deadline: "30s"
+```
+
+```bash
+moor-daemon --max-capture-deadline-seconds 30 ...
+```
+
 ## Example Configuration
 
 Here's an example configuration file:

@@ -16,7 +16,9 @@
 //! decode FlatBuffer refs into these enums, dispatch here, and encode replies
 //! back, keeping FlatBuffer knowledge at the wire boundary.
 
+use flume::RecvTimeoutError;
 use moor_common::model::{ObjFlag, ObjectRef};
+use moor_common::tasks::{AbortLimitReason, SchedulerError, TaskId};
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
@@ -27,6 +29,7 @@ use moor_runtime_api::{AuthToken, ClientToken, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var, Variant, v_empty_str, v_str, v_string};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -777,13 +780,16 @@ impl RuntimeApi for RpcMessageHandler {
                     Some(auth_token) => self.validate_auth_token(auth_token, None)?,
                     None => SYSTEM_OBJECT,
                 };
-                self.submit_system_verb_task_typed(
+                let deadline = self.capture_deadline(None)?;
+                self.submit_captured_verb_task_typed(
                     scheduler_client,
                     client_id,
                     &player,
                     &ObjectRef::Id(SYSTEM_OBJECT),
                     verb,
                     args,
+                    &SYSTEM_OBJECT,
+                    deadline,
                 )
             }
 
@@ -812,6 +818,33 @@ impl RuntimeApi for RpcMessageHandler {
 struct TypedLoginCommand {
     args: Vec<String>,
     attach: bool,
+}
+
+/// Decide the deadline for a captured verb call.
+///
+/// `requested` of `None` means "use the configured maximum". Zero is not a deadline, and a request
+/// for longer than the daemon allows is refused rather than silently clamped, so a caller can size
+/// its own receive timeout to match what it asked for.
+fn resolve_capture_deadline(
+    requested: Option<Duration>,
+    max: Duration,
+) -> Result<Duration, RpcMessageError> {
+    let Some(requested) = requested else {
+        return Ok(max);
+    };
+    if requested.is_zero() {
+        return Err(RpcMessageError::InvalidRequest(
+            "capture deadline must be greater than zero".to_string(),
+        ));
+    }
+    if requested > max {
+        return Err(RpcMessageError::InvalidRequest(format!(
+            "capture deadline {}ms exceeds the maximum of {}ms",
+            requested.as_millis(),
+            max.as_millis()
+        )));
+    }
+    Ok(requested)
 }
 
 impl RpcMessageHandler {
@@ -1070,7 +1103,20 @@ impl RpcMessageHandler {
         }
     }
 
-    fn submit_system_verb_task_typed(
+    /// Resolve how long a captured verb call may wait for its result, against this daemon's
+    /// configured maximum.
+    fn capture_deadline(&self, requested: Option<Duration>) -> Result<Duration, RpcMessageError> {
+        resolve_capture_deadline(requested, self.config.runtime.max_capture_deadline())
+    }
+
+    /// Run a verb and wait for its result, collecting the narrative output it committed instead
+    /// of delivering that output to a connection.
+    ///
+    /// The task keeps running while this waits, including across suspension, so the deadline is
+    /// wall-clock time for the whole call. On expiry the task is cancelled and the caller is told
+    /// it ran out of time.
+    #[allow(clippy::too_many_arguments)]
+    fn submit_captured_verb_task_typed(
         &self,
         scheduler_client: SchedulerClient,
         client_id: Uuid,
@@ -1078,6 +1124,8 @@ impl RpcMessageHandler {
         object: &ObjectRef,
         verb: Symbol,
         args: Vec<Var>,
+        authority: &Obj,
+        deadline: Duration,
     ) -> Result<ClientReply, RpcMessageError> {
         use crate::rpc::output_capture_session::OutputCaptureSession;
         use moor_kernel::tasks::TaskNotification;
@@ -1094,39 +1142,66 @@ impl RpcMessageHandler {
             verb,
             moor_var::List::from_iter(args),
             v_empty_str(),
-            &SYSTEM_OBJECT,
+            authority,
             session.clone(),
         ) {
             Ok(t) => t,
             Err(e) => {
-                error!(error = ?e, "Error submitting system verb task");
+                error!(error = ?e, "Error submitting captured verb task");
                 return Err(RpcMessageError::InternalError(e.to_string()));
             }
         };
 
+        let task_id = task_handle.task_id();
+        let expires_at = Instant::now() + deadline;
         let receiver = task_handle.into_receiver();
         loop {
-            match receiver.recv() {
+            let remaining = expires_at.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Ok(self.abandon_captured_task(&scheduler_client, task_id, deadline));
+            }
+            match receiver.recv_timeout(remaining) {
                 Ok((_, Ok(TaskNotification::Result(v)))) => {
-                    let captured_events = session.take_captured_events();
-                    let output: Vec<moor_common::tasks::NarrativeEvent> = captured_events
+                    let output = session
+                        .take_captured_events()
                         .into_iter()
                         .map(|(_, event)| *event)
                         .collect();
-                    break Ok(ClientReply::VerbCallResponse {
+                    return Ok(ClientReply::VerbCallResponse {
                         response: VerbCallResponse::Success { result: v, output },
                     });
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => {
-                    break Ok(ClientReply::VerbCallResponse {
+                    return Ok(ClientReply::VerbCallResponse {
                         response: VerbCallResponse::Error { error: e },
                     });
                 }
+                Err(RecvTimeoutError::Timeout) => {
+                    return Ok(self.abandon_captured_task(&scheduler_client, task_id, deadline));
+                }
                 Err(e) => {
-                    break Err(RpcMessageError::InternalError(e.to_string()));
+                    return Err(RpcMessageError::InternalError(e.to_string()));
                 }
             }
+        }
+    }
+
+    /// Cancel a captured task whose deadline has passed, and describe it to the caller as having
+    /// run out of time.
+    fn abandon_captured_task(
+        &self,
+        scheduler_client: &SchedulerClient,
+        task_id: TaskId,
+        deadline: Duration,
+    ) -> ClientReply {
+        if let Err(e) = scheduler_client.abort_task(task_id) {
+            error!(task_id, error = ?e, "Could not cancel captured task after its deadline");
+        }
+        ClientReply::VerbCallResponse {
+            response: VerbCallResponse::Error {
+                error: SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(deadline)),
+            },
         }
     }
 
@@ -1507,5 +1582,50 @@ fn convert_kernel_ws_result_to_typed(
         R::PropertyUpdated => WorldStateResult::PropertyUpdated,
         R::ObjectFlags(flags) => WorldStateResult::ObjectFlags(flags),
         R::QueriedObjects(objects) => WorldStateResult::QueriedObjects(objects),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_capture_deadline;
+    use moor_runtime_api::RpcMessageError;
+    use std::time::Duration;
+
+    #[test]
+    fn no_requested_deadline_uses_the_configured_maximum() {
+        let max = Duration::from_secs(60);
+
+        assert_eq!(resolve_capture_deadline(None, max), Ok(max));
+    }
+
+    #[test]
+    fn a_shorter_deadline_is_honoured() {
+        assert_eq!(
+            resolve_capture_deadline(Some(Duration::from_secs(5)), Duration::from_secs(60)),
+            Ok(Duration::from_secs(5))
+        );
+    }
+
+    #[test]
+    fn the_maximum_itself_is_allowed() {
+        let max = Duration::from_secs(60);
+
+        assert_eq!(resolve_capture_deadline(Some(max), max), Ok(max));
+    }
+
+    #[test]
+    fn a_zero_deadline_is_refused() {
+        assert!(matches!(
+            resolve_capture_deadline(Some(Duration::ZERO), Duration::from_secs(60)),
+            Err(RpcMessageError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn a_deadline_over_the_maximum_is_refused_not_clamped() {
+        assert!(matches!(
+            resolve_capture_deadline(Some(Duration::from_secs(61)), Duration::from_secs(60)),
+            Err(RpcMessageError::InvalidRequest(_))
+        ));
     }
 }
