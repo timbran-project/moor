@@ -537,7 +537,10 @@ Requires: `X-Moor-Auth-Token`
 **Invoke a verb and return the result**
 
 Calls a verb on the given object with FlatBuffer-encoded arguments. Returns a `VerbCallResponse`
-containing either a success result (with output narrative events) or an error. Times out after 60 s.
+containing either a success result (with the narrative events the call committed) or an error. The
+verb runs as the authenticated player, with that player's authority, and with no connection behind
+it: output from forked tasks is not included, and a verb that asks for input fails. Times out after
+60 s, after which the task is cancelled and the response carries a `TaskAbortedLimit` time error.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -939,8 +942,9 @@ Returns the set of features the server supports. Response is cached.
 
 **Get the server welcome message**
 
-Invokes `:do_login_command` on the system object to produce the welcome/MOTD text shown before
-login.
+Invokes `#0:do_login_command` with no arguments to produce the welcome/MOTD text shown before login.
+This is the one call that needs no credentials; it always runs that one verb as `#0`, and its output
+is captured and returned.
 
 **Responses**
 

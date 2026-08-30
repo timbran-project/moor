@@ -16,11 +16,12 @@
 //! and the FlatBuffer shapes — keeping the boundary clean.
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use crate::api::{
     self, BatchAction, BatchActionEntry, BroadcastEvent, ClientEvent, ClientEventMessage,
     ClientReply, ClientRequest, ConnectType, EntityType, HostBroadcastEvent, HostReply,
-    HostRequest, ListenerInfo,
+    HostRequest, InvocationMode, ListenerInfo,
 };
 use crate::{
     AuthToken, HostType, RpcErr, RpcError, RpcMessageError, auth_token_fb, auth_token_from_ref,
@@ -902,10 +903,6 @@ pub fn decode_client_request(
             })
         }
         U::InvokeVerb(invoke) => {
-            let client_token = invoke
-                .client_token()
-                .rpc_err()
-                .and_then(|r| client_token_from_ref(r).rpc_err())?;
             let auth_token = invoke
                 .auth_token()
                 .rpc_err()
@@ -917,12 +914,26 @@ pub fn decode_client_request(
                 .iter()
                 .filter_map(|v| v.ok().and_then(|v| convert::var_from_ref(v).ok()))
                 .collect();
+            let mode = match invoke.mode().rpc_err()? {
+                moor_rpc::InvocationModeRef::ConnectedInvocation(connected) => {
+                    let client_token = connected
+                        .client_token()
+                        .rpc_err()
+                        .and_then(|r| client_token_from_ref(r).rpc_err())?;
+                    InvocationMode::Connected { client_token }
+                }
+                moor_rpc::InvocationModeRef::CaptureOutputInvocation(capture) => {
+                    InvocationMode::CaptureOutput {
+                        timeout: Some(Duration::from_millis(capture.timeout_ms().rpc_err()?)),
+                    }
+                }
+            };
             Ok(ClientRequest::InvokeVerb {
-                client_token,
                 auth_token,
                 object,
                 verb,
                 args,
+                mode,
             })
         }
         U::Retrieve(retr) => {
@@ -1109,23 +1120,7 @@ pub fn decode_client_request(
                 auth_token,
             })
         }
-        U::CallSystemVerb(call) => {
-            let auth_token = match call.auth_token() {
-                Ok(Some(auth_ref)) => Some(auth_token_from_ref(auth_ref).rpc_err()?),
-                _ => None,
-            };
-            let verb = extract_symbol_rpc(&call, "verb", |c| c.verb())?;
-            let args_vec = call.args().rpc_err()?;
-            let args: Vec<Var> = args_vec
-                .iter()
-                .filter_map(|v| v.ok().and_then(|v| convert::var_from_ref(v).ok()))
-                .collect();
-            Ok(ClientRequest::CallSystemVerb {
-                auth_token,
-                verb,
-                args,
-            })
-        }
+        U::InvokeWelcomeMessage(_) => Ok(ClientRequest::InvokeWelcomeMessage),
         U::BatchWorldState(batch) => {
             let auth_token = batch
                 .auth_token()
@@ -1999,12 +1994,124 @@ fn symbol_from_ref(sym_ref: moor_rpc::SymbolRef<'_>) -> Result<Symbol, RpcMessag
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use moor_common::model::ObjectRef;
     use moor_schema::rpc;
+    use moor_var::{Obj, Symbol, v_int};
     use planus::ReadAsRoot;
 
-    use crate::api::{ClientEvent, ClientEventMessage};
+    use crate::{
+        AuthToken, ClientToken,
+        api::{ClientEvent, ClientEventMessage, ClientRequest, InvocationMode},
+        client_messages::{
+            mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
+        },
+    };
 
-    use super::{decode_client_event_message_ref, encode_client_event_bytes};
+    use super::{
+        decode_client_event_message_ref, decode_client_request, encode_client_event_bytes,
+    };
+
+    /// Round-trip a client message through the wire format the way the daemon sees it.
+    fn round_trip(message: rpc::HostClientToDaemonMessage) -> ClientRequest {
+        let mut builder = planus::Builder::new();
+        let bytes = builder.finish(&message, None).to_vec();
+        let message = rpc::HostClientToDaemonMessageRef::read_as_root(&bytes).unwrap();
+        decode_client_request(message).unwrap()
+    }
+
+    #[test]
+    fn connected_invocation_round_trip() {
+        let args = vec![v_int(3)];
+        let message = mk_invoke_verb_msg(
+            &ClientToken("client".to_string()),
+            &AuthToken("auth".to_string()),
+            &ObjectRef::Id(Obj::mk_id(7)),
+            &Symbol::mk("look"),
+            args.iter().collect(),
+        )
+        .unwrap();
+
+        let ClientRequest::InvokeVerb {
+            auth_token,
+            object,
+            verb,
+            args: decoded_args,
+            mode,
+        } = round_trip(message)
+        else {
+            panic!("expected InvokeVerb");
+        };
+
+        assert_eq!(auth_token, AuthToken("auth".to_string()));
+        assert_eq!(object, ObjectRef::Id(Obj::mk_id(7)));
+        assert_eq!(verb, Symbol::mk("look"));
+        assert_eq!(decoded_args, args);
+        assert_eq!(
+            mode,
+            InvocationMode::Connected {
+                client_token: ClientToken("client".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn capture_output_invocation_round_trip() {
+        let message = mk_invoke_verb_capture_msg(
+            &AuthToken("auth".to_string()),
+            &ObjectRef::Id(Obj::mk_id(7)),
+            &Symbol::mk("look"),
+            vec![],
+            Some(Duration::from_secs(5)),
+        )
+        .unwrap();
+
+        let ClientRequest::InvokeVerb { mode, .. } = round_trip(message) else {
+            panic!("expected InvokeVerb");
+        };
+
+        assert_eq!(
+            mode,
+            InvocationMode::CaptureOutput {
+                timeout: Some(Duration::from_secs(5))
+            }
+        );
+    }
+
+    /// Omitting the timeout asks for the schema's default deadline, not for no deadline.
+    #[test]
+    fn capture_output_invocation_without_a_timeout_uses_the_default() {
+        let message = mk_invoke_verb_capture_msg(
+            &AuthToken("auth".to_string()),
+            &ObjectRef::Id(Obj::mk_id(7)),
+            &Symbol::mk("look"),
+            vec![],
+            None,
+        )
+        .unwrap();
+
+        let ClientRequest::InvokeVerb { mode, .. } = round_trip(message) else {
+            panic!("expected InvokeVerb");
+        };
+
+        assert_eq!(
+            mode,
+            InvocationMode::CaptureOutput {
+                timeout: Some(Duration::from_millis(
+                    crate::client_messages::DEFAULT_CAPTURE_TIMEOUT_MS
+                ))
+            }
+        );
+    }
+
+    #[test]
+    fn invoke_welcome_message_round_trip() {
+        assert!(matches!(
+            round_trip(mk_invoke_welcome_message_msg()),
+            ClientRequest::InvokeWelcomeMessage
+        ));
+    }
 
     #[test]
     fn client_event_sequence_round_trip() {

@@ -18,7 +18,7 @@ mod tests {
     use std::{
         net::SocketAddr,
         sync::Arc,
-        time::{SystemTime, UNIX_EPOCH},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
     use uuid::Uuid;
 
@@ -26,16 +26,18 @@ mod tests {
         event_log::{EventLogOps, logged_narrative_event_to_flatbuffer},
         testing::{MockTransport, test_env},
     };
+    use moor_common::model::ObjectRef;
     use moor_runtime_api::{
-        RpcMessageError,
+        AuthToken, ClientToken, RpcMessageError,
         api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
         mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg, mk_detach_host_msg,
-        mk_detach_msg, mk_host_pong_msg, mk_login_command_msg, mk_properties_msg,
-        mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
-        mk_requested_input_msg, mk_verbs_msg, obj_fb,
+        mk_detach_msg, mk_eval_msg, mk_host_pong_msg, mk_invoke_verb_capture_msg,
+        mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg,
+        mk_properties_msg, mk_register_host_msg, mk_request_performance_counters_msg,
+        mk_request_sys_prop_msg, mk_requested_input_msg, mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
-    use moor_var::{Obj, SYSTEM_OBJECT};
+    use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
     use planus::ReadAsRoot;
 
     fn systemtime_to_nanos(time: SystemTime) -> u64 {
@@ -861,6 +863,461 @@ mod tests {
         assert!(
             presentations.is_empty(),
             "Should have no presentations after dismissal"
+        );
+    }
+
+    /// The player a successful login reply authenticated as.
+    fn successful_login_player(
+        client_replies: &[(
+            Uuid,
+            Vec<u8>,
+            Result<moor_rpc::DaemonToClientReply, RpcMessageError>,
+        )],
+    ) -> Obj {
+        client_replies
+            .iter()
+            .find_map(|(_, _, reply)| {
+                let Ok(reply) = reply else {
+                    return None;
+                };
+                let moor_rpc::DaemonToClientReplyUnion::LoginResult(login_result) = &reply.reply
+                else {
+                    return None;
+                };
+                if !login_result.success {
+                    return None;
+                }
+                login_result
+                    .player
+                    .as_ref()
+                    .and_then(|p| obj_from_flatbuffer_struct(p).ok())
+            })
+            .expect("Expected a successful LoginResult with a player")
+    }
+
+    /// Set up a connection logged in as the wizard, returning its tokens and player.
+    fn logged_in_wizard(env: &TestEnvironment, client_id: Uuid) -> (ClientToken, AuthToken, Obj) {
+        let (client_token, _connection_obj) =
+            establish_connection(env, client_id, "127.0.0.1:8080", 8080);
+        let auth_token = login_wizard(env, client_id, &client_token);
+        let player = successful_login_player(&env.transport.get_client_replies());
+        (client_token, auth_token, player)
+    }
+
+    /// Compile `code` as `player:verb`, creating the verb first.
+    fn program_verb(
+        env: &TestEnvironment,
+        client_id: Uuid,
+        client_token: &ClientToken,
+        auth_token: &AuthToken,
+        player: Obj,
+        verb: &str,
+        code: &str,
+    ) {
+        let add_verb = mk_eval_msg(
+            client_token,
+            auth_token,
+            format!(
+                "add_verb(#{}, {{#{}, \"rxd\", \"{verb}\"}}, {{\"this\", \"none\", \"this\"}});",
+                player.id().0,
+                player.id().0
+            ),
+        );
+        let result = env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            add_verb,
+        );
+        assert!(result.is_ok(), "add_verb should succeed: {result:?}");
+
+        let program = mk_program_msg(
+            client_token,
+            auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk(verb),
+            code.lines().map(str::to_string).collect(),
+        );
+        let result = env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            program,
+        );
+        let Ok(reply) = &result else {
+            panic!("Programming {verb} should succeed: {result:?}");
+        };
+        let moor_rpc::DaemonToClientReplyUnion::VerbProgramResponseReply(response) = &reply.reply
+        else {
+            panic!("Expected VerbProgramResponseReply, got {:?}", reply.reply);
+        };
+        assert!(
+            matches!(
+                response.response.response,
+                moor_rpc::VerbProgramResponseUnion::VerbProgramSuccess(_)
+            ),
+            "Programming {verb} should compile: {:?}",
+            response.response.response
+        );
+    }
+
+    /// The result value and captured narrative text of a successful captured call.
+    fn captured_success(reply: &moor_rpc::DaemonToClientReply) -> (moor_var::Var, Vec<String>) {
+        let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
+            panic!("Expected VerbCallResponse, got {:?}", reply.reply);
+        };
+        let moor_rpc::VerbCallResponseUnion::VerbCallSuccess(success) = &response.response else {
+            panic!("Expected success, got {:?}", response.response);
+        };
+
+        let mut builder = planus::Builder::new();
+        let result_bytes = builder.finish(success.result.as_ref(), None).to_vec();
+        let result = moor_schema::convert::var_from_flatbuffer_ref(
+            moor_schema::var::VarRef::read_as_root(&result_bytes).unwrap(),
+        )
+        .expect("Failed to decode result var");
+
+        let output = success
+            .output
+            .iter()
+            .map(|event| {
+                let mut builder = planus::Builder::new();
+                let bytes = builder.finish(event, None).to_vec();
+                let event = moor_schema::convert::narrative_event_from_ref(
+                    moor_schema::common::NarrativeEventRef::read_as_root(&bytes).unwrap(),
+                )
+                .expect("Failed to decode narrative event");
+                match event.event() {
+                    moor_common::tasks::Event::Notify { value, .. } => {
+                        value.as_string().expect("Expected a string notify").into()
+                    }
+                    other => panic!("Unexpected narrative event: {other:?}"),
+                }
+            })
+            .collect();
+
+        (result, output)
+    }
+
+    /// The scheduler error of a failed captured call.
+    fn captured_error(reply: &moor_rpc::DaemonToClientReply) -> moor_rpc::SchedulerError {
+        let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
+            panic!("Expected VerbCallResponse, got {:?}", reply.reply);
+        };
+        let moor_rpc::VerbCallResponseUnion::VerbCallError(error) = &response.response else {
+            panic!("Expected error, got {:?}", response.response);
+        };
+        *error.error.clone()
+    }
+
+    /// A captured invocation runs as the authenticated player, and comes back with both the verb's
+    /// return value and the narrative output the task committed.
+    #[test]
+    fn test_captured_invoke_verb_returns_result_and_output() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "capture_test",
+            "notify(player, \"first\");\nnotify(player, \"second\");\nreturn {player, 42};",
+        );
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("capture_test"),
+            vec![],
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Captured invocation should succeed");
+
+        let (result, output) = captured_success(&reply);
+        assert_eq!(
+            result,
+            moor_var::v_list(&[moor_var::v_obj(player), moor_var::v_int(42)]),
+            "The call should run as the authenticated player and return its value"
+        );
+        assert_eq!(output, vec!["first".to_string(), "second".to_string()]);
+    }
+
+    /// A forked task is an independent task, so its output does not appear in the parent's
+    /// captured result.
+    #[test]
+    fn test_captured_invoke_verb_excludes_forked_output() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "fork_test",
+            "fork (0)\nnotify(player, \"from fork\");\nendfork\nnotify(player, \"from root\");\nreturn 1;",
+        );
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("fork_test"),
+            vec![],
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Captured invocation should succeed");
+
+        let (_result, output) = captured_success(&reply);
+        assert_eq!(output, vec!["from root".to_string()]);
+    }
+
+    /// There is nobody to ask, so an input request fails the task rather than hanging.
+    #[test]
+    fn test_captured_invoke_verb_fails_on_input_request() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "input_test",
+            "return read();",
+        );
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("input_test"),
+            vec![],
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Captured invocation should reply");
+
+        // The task fails; which failure it is depends on how the input error surfaces, so only
+        // check that the caller is told about it rather than left waiting.
+        let _ = captured_error(&reply);
+    }
+
+    /// When the deadline passes, the task is cancelled and the caller is told it hit a time limit.
+    #[test]
+    fn test_captured_invoke_verb_cancels_on_deadline() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "slow_test",
+            "suspend(60);\nreturn 1;",
+        );
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("slow_test"),
+            vec![],
+            Some(Duration::from_millis(500)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Captured invocation should reply once the deadline passes");
+
+        let error = captured_error(&reply);
+        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
+            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
+        };
+        assert_eq!(
+            limit.limit.reason,
+            moor_rpc::AbortLimitReason::Time,
+            "Expected a time limit, got {:?}",
+            limit.limit.reason
+        );
+    }
+
+    /// A deadline longer than the daemon allows is refused outright, so a caller never sizes its
+    /// own receive timeout against a deadline the daemon will not honour.
+    #[test]
+    fn test_captured_invoke_verb_refuses_a_deadline_over_the_maximum() {
+        let env = test_env::setup_test_environment(Arc::new(MockTransport::new()), |config| {
+            let mut runtime = config.runtime.clone();
+            runtime.max_capture_deadline = Some(Duration::from_secs(1));
+            config.runtime = runtime;
+        });
+        let client_id = Uuid::new_v4();
+        let (_client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("anything"),
+            vec![],
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let result = env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            invoke,
+        );
+
+        assert!(
+            matches!(result, Err(RpcMessageError::InvalidRequest(_))),
+            "An over-long deadline should be refused: {result:?}"
+        );
+    }
+
+    /// Capture mode requires a valid auth token; there is no unauthenticated arbitrary invocation.
+    #[test]
+    fn test_captured_invoke_verb_rejects_a_bogus_auth_token() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (_client_token, _connection_obj) =
+            establish_connection(&env, client_id, "127.0.0.1:8080", 8080);
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &AuthToken("not-a-token".to_string()),
+            &ObjectRef::Id(SYSTEM_OBJECT),
+            &Symbol::mk("anything"),
+            vec![],
+            Some(Duration::from_secs(5)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let result = env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            invoke,
+        );
+
+        assert!(
+            matches!(result, Err(RpcMessageError::PermissionDenied)),
+            "A bogus auth token should be rejected: {result:?}"
+        );
+    }
+
+    /// Connected mode is unchanged: the task is submitted and the caller watches its event stream.
+    #[test]
+    fn test_connected_invoke_verb_submits_a_task() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "connected_test",
+            "notify(player, \"streamed\");\nreturn 1;",
+        );
+
+        let invoke = mk_invoke_verb_msg(
+            &client_token,
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("connected_test"),
+            vec![],
+        )
+        .expect("Failed to build connected invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Connected invocation should succeed");
+
+        assert!(
+            matches!(
+                reply.reply,
+                moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
+            ),
+            "Connected mode should reply with TaskSubmitted, got {:?}",
+            reply.reply
+        );
+    }
+
+    /// The welcome message needs no credentials and comes back with the login text captured.
+    #[test]
+    fn test_invoke_welcome_message() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (_client_token, _connection_obj) =
+            establish_connection(&env, client_id, "127.0.0.1:8080", 8080);
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                mk_invoke_welcome_message_msg(),
+            )
+            .expect("Welcome message should succeed");
+
+        let (_result, output) = captured_success(&reply);
+        assert!(
+            !output.is_empty(),
+            "The welcome message should have narrative output"
         );
     }
 

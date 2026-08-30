@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_runtime_api::{RpcError, uuid_fb};
+use moor_runtime_api::{DEFAULT_CAPTURE_TIMEOUT_MS, RpcError, uuid_fb};
 use moor_schema::rpc as moor_rpc;
 use planus::Builder;
 use std::collections::VecDeque;
@@ -23,6 +23,11 @@ use uuid::Uuid;
 
 const DEFAULT_SOCK_CONNECT_TIMEOUT_MS: i32 = 5000;
 const DEFAULT_SOCK_RECEIVE_TIMEOUT_MS: i32 = 5000;
+
+/// How much longer than a request's own deadline a socket waits for the reply. The daemon only
+/// answers a captured invocation once the task finishes or its deadline expires, so the socket has
+/// to outlive that deadline or the caller gives up on a reply that is about to arrive.
+const RECEIVE_TIMEOUT_MARGIN_MS: i32 = 5000;
 
 /// Configuration for the RPC client
 #[derive(Debug, Clone)]
@@ -75,6 +80,9 @@ impl Clone for RpcClient {
 struct SocketGuard<'a> {
     client: &'a RpcClient,
     socket: Option<RequestSender>,
+    /// Whether the socket belongs to the pool. A socket built for one long deadline is discarded
+    /// afterwards rather than handed to an unrelated caller that expects the shorter default.
+    pooled: bool,
 }
 
 impl<'a> SocketGuard<'a> {
@@ -84,6 +92,19 @@ impl<'a> SocketGuard<'a> {
         Ok(Self {
             client,
             socket: Some(socket),
+            pooled: true,
+        })
+    }
+
+    /// Create a socket guard over a socket built for a single call with its own receive timeout.
+    async fn dedicated(client: &'a RpcClient, receive_timeout_ms: i32) -> Result<Self, RpcError> {
+        let socket = client
+            .create_socket_with_timeout(receive_timeout_ms)
+            .await?;
+        Ok(Self {
+            client,
+            socket: Some(socket),
+            pooled: false,
         })
     }
 
@@ -106,13 +127,18 @@ impl<'a> Drop for SocketGuard<'a> {
     fn drop(&mut self) {
         // If the socket is still present when the guard is dropped,
         // return it to the pool. This handles cancellation scenarios.
-        if let Some(socket) = self.socket.take() {
-            // Use tokio::spawn to return the socket asynchronously
-            let client = self.client.clone();
-            tokio::spawn(async move {
-                client.return_socket(socket).await;
-            });
+        let Some(socket) = self.socket.take() else {
+            return;
+        };
+        if !self.pooled {
+            drop(socket);
+            return;
         }
+        // Use tokio::spawn to return the socket asynchronously
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            client.return_socket(socket).await;
+        });
     }
 }
 
@@ -149,7 +175,12 @@ impl RpcClient {
         rpc_msg: moor_rpc::HostClientToDaemonMessage,
     ) -> Result<Vec<u8>, RpcError> {
         // Use a guard pattern to ensure socket cleanup regardless of cancellation
-        let mut socket_guard = SocketGuard::new(self).await?;
+        let mut socket_guard = match required_receive_timeout_ms(&rpc_msg) {
+            Some(timeout_ms) if timeout_ms > self.config.receive_timeout_ms => {
+                SocketGuard::dedicated(self, timeout_ms).await?
+            }
+            _ => SocketGuard::new(self).await?,
+        };
         let socket = socket_guard.take_socket()?;
 
         // Perform the RPC call - socket cleanup is guaranteed by the guard
@@ -222,8 +253,17 @@ impl RpcClient {
 
     /// Create a new socket with proper configuration
     async fn create_socket(&self) -> Result<RequestSender, RpcError> {
+        self.create_socket_with_timeout(self.config.receive_timeout_ms)
+            .await
+    }
+
+    /// Create a new socket that waits `receive_timeout_ms` for its reply.
+    async fn create_socket_with_timeout(
+        &self,
+        receive_timeout_ms: i32,
+    ) -> Result<RequestSender, RpcError> {
         let mut socket_builder = tmq::request(&self.zmq_context)
-            .set_rcvtimeo(self.config.receive_timeout_ms)
+            .set_rcvtimeo(receive_timeout_ms)
             .set_sndtimeo(self.config.connect_timeout_ms)
             // Fail immediately if no connection instead of queuing messages indefinitely
             .set_immediate(true)
@@ -367,5 +407,84 @@ impl RpcClient {
         let mut pool = self.connection_pool.lock().await;
         pool.clear();
         debug!("Cleared RPC connection pool");
+    }
+}
+
+/// The receive timeout a message needs, when it needs more than the configured default.
+///
+/// Only a captured verb invocation does: the daemon holds the reply until the task finishes or its
+/// deadline expires.
+fn required_receive_timeout_ms(rpc_msg: &moor_rpc::HostClientToDaemonMessage) -> Option<i32> {
+    let deadline_ms = match &rpc_msg.message {
+        moor_rpc::HostClientToDaemonMessageUnion::InvokeVerb(invoke) => match &invoke.mode {
+            moor_rpc::InvocationMode::CaptureOutputInvocation(capture) => capture.timeout_ms,
+            moor_rpc::InvocationMode::ConnectedInvocation(_) => return None,
+        },
+        moor_rpc::HostClientToDaemonMessageUnion::InvokeWelcomeMessage(_) => {
+            DEFAULT_CAPTURE_TIMEOUT_MS
+        }
+        _ => return None,
+    };
+    let deadline_ms = i32::try_from(deadline_ms).unwrap_or(i32::MAX);
+    Some(deadline_ms.saturating_add(RECEIVE_TIMEOUT_MARGIN_MS))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_runtime_api::{
+        AuthToken, ClientToken, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+        mk_invoke_welcome_message_msg, mk_list_objects_msg,
+    };
+    use moor_var::Symbol;
+    use std::time::Duration;
+
+    fn auth_token() -> AuthToken {
+        AuthToken("auth".to_string())
+    }
+
+    #[test]
+    fn a_connected_invocation_uses_the_default_receive_timeout() {
+        let msg = mk_invoke_verb_msg(
+            &ClientToken("client".to_string()),
+            &auth_token(),
+            &moor_common::model::ObjectRef::Id(moor_var::Obj::mk_id(1)),
+            &Symbol::mk("look"),
+            vec![],
+        )
+        .expect("message");
+        assert_eq!(required_receive_timeout_ms(&msg), None);
+    }
+
+    #[test]
+    fn a_captured_invocation_waits_longer_than_its_own_deadline() {
+        let msg = mk_invoke_verb_capture_msg(
+            &auth_token(),
+            &moor_common::model::ObjectRef::Id(moor_var::Obj::mk_id(1)),
+            &Symbol::mk("look"),
+            vec![],
+            Some(Duration::from_secs(120)),
+        )
+        .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(
+            timeout_ms > 120_000,
+            "receive timeout {timeout_ms}ms must exceed the 120000ms deadline"
+        );
+    }
+
+    #[test]
+    fn the_welcome_message_waits_for_the_default_capture_deadline() {
+        let msg = mk_invoke_welcome_message_msg();
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(timeout_ms > DEFAULT_CAPTURE_TIMEOUT_MS as i32);
+    }
+
+    #[test]
+    fn an_ordinary_request_needs_no_special_timeout() {
+        assert_eq!(
+            required_receive_timeout_ms(&mk_list_objects_msg(&auth_token())),
+            None
+        );
     }
 }

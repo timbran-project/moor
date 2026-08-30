@@ -22,8 +22,8 @@ use moor_common::tasks::{AbortLimitReason, SchedulerError, TaskId};
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
-    ObjectInfo, ServerFeatures, VerbCallResponse, VerbProgramResponse, WorldStateResult,
-    WorldStateResultEntry,
+    InvocationMode, ObjectInfo, ServerFeatures, VerbCallResponse, VerbProgramResponse,
+    WorldStateResult, WorldStateResultEntry,
 };
 use moor_runtime_api::{AuthToken, ClientToken, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
@@ -488,48 +488,73 @@ impl RuntimeApi for RpcMessageHandler {
             }
 
             ClientRequest::InvokeVerb {
-                client_token,
                 auth_token,
                 object,
                 verb,
                 args,
-            } => {
-                let (connection, player) =
-                    self.verify_tokens(client_token, auth_token, client_id)?;
-                debug!(
-                    client_id = %client_id,
-                    connection = ?connection,
-                    player = %player,
-                    object = %object,
-                    verb = %verb,
-                    args = ?args,
-                    "Submitting invoke-verb request"
-                );
-                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
-                let task_handle = match scheduler_client.submit_verb_task(
-                    &player,
-                    &object,
-                    verb,
-                    moor_var::List::from_iter(args),
-                    v_empty_str(),
-                    &SYSTEM_OBJECT,
-                    session,
-                ) {
-                    Ok(t) => t,
-                    Err(e) => {
-                        error!(error = ?e, "Error submitting verb task");
+                mode,
+            } => match mode {
+                InvocationMode::Connected { client_token } => {
+                    let (connection, player) =
+                        self.verify_tokens(client_token, auth_token, client_id)?;
+                    debug!(
+                        client_id = %client_id,
+                        connection = ?connection,
+                        player = %player,
+                        object = %object,
+                        verb = %verb,
+                        args = ?args,
+                        "Submitting connected invoke-verb request"
+                    );
+                    let session = Arc::new(self.new_rpc_session(client_id, connection, player));
+                    let task_handle = match scheduler_client.submit_verb_task(
+                        &player,
+                        &object,
+                        verb,
+                        moor_var::List::from_iter(args),
+                        v_empty_str(),
+                        &player,
+                        session,
+                    ) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!(error = ?e, "Error submitting verb task");
+                            return Err(RpcMessageError::InternalError(e.to_string()));
+                        }
+                    };
+                    let task_id = task_handle.task_id();
+                    if let Err(e) = self.task_monitor.add_task(task_id, client_id, task_handle) {
+                        error!(error = ?e, "Error adding task to monitor");
                         return Err(RpcMessageError::InternalError(e.to_string()));
                     }
-                };
-                let task_id = task_handle.task_id();
-                if let Err(e) = self.task_monitor.add_task(task_id, client_id, task_handle) {
-                    error!(error = ?e, "Error adding task to monitor");
-                    return Err(RpcMessageError::InternalError(e.to_string()));
+                    Ok(ClientReply::TaskSubmitted {
+                        task_id: task_id as u64,
+                    })
                 }
-                Ok(ClientReply::TaskSubmitted {
-                    task_id: task_id as u64,
-                })
-            }
+                InvocationMode::CaptureOutput { timeout } => {
+                    let player = self.validate_auth_token(auth_token, None)?;
+                    let deadline = self.capture_deadline(timeout)?;
+                    debug!(
+                        client_id = %client_id,
+                        player = %player,
+                        object = %object,
+                        verb = %verb,
+                        args = ?args,
+                        deadline = ?deadline,
+                        "Submitting captured invoke-verb request"
+                    );
+                    self.submit_captured_verb_task_typed(
+                        scheduler_client,
+                        client_id,
+                        &player,
+                        &object,
+                        verb,
+                        args,
+                        &player,
+                        deadline,
+                    )
+                }
+            },
 
             ClientRequest::Retrieve {
                 auth_token,
@@ -771,23 +796,24 @@ impl RuntimeApi for RpcMessageHandler {
                 )
             }
 
-            ClientRequest::CallSystemVerb {
-                auth_token,
-                verb,
-                args,
-            } => {
-                let player = match auth_token {
-                    Some(auth_token) => self.validate_auth_token(auth_token, None)?,
-                    None => SYSTEM_OBJECT,
-                };
+            ClientRequest::InvokeWelcomeMessage => {
+                // The welcome message is what an unauthenticated client is shown before it has any
+                // credentials to authenticate with, so this is the one invocation that carries no
+                // auth token. It is not a general call: the target, the arguments and the authority
+                // are all fixed here, and none of them come from the request.
                 let deadline = self.capture_deadline(None)?;
+                debug!(
+                    client_id = %client_id,
+                    deadline = ?deadline,
+                    "Invoking welcome message"
+                );
                 self.submit_captured_verb_task_typed(
                     scheduler_client,
                     client_id,
-                    &player,
+                    &SYSTEM_OBJECT,
                     &ObjectRef::Id(SYSTEM_OBJECT),
-                    verb,
-                    args,
+                    Symbol::mk("do_login_command"),
+                    vec![],
                     &SYSTEM_OBJECT,
                     deadline,
                 )

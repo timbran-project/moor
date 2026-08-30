@@ -283,7 +283,6 @@ cannot be forged, and each token type has a specific footer to prevent type conf
 
 Token types:
 
-- **HostToken**: Authenticates hosts to the daemon
 - **ClientToken**: Tracks client connections
 - **AuthToken**: Authenticates users (players)
 - **WorkerToken**: Authenticates workers to the daemon
@@ -309,7 +308,7 @@ union MessageTypeUnion {
 }
 
 table HostToDaemonMsg {
-   host_token: HostToken (required);
+   host_id: MoorCommon.Uuid (required);
    message: HostToDaemonMessage (required);
 }
 ```
@@ -634,7 +633,8 @@ table EvalResult {
 
 ### InvokeVerb
 
-Directly invokes a verb on an object.
+Directly invokes a verb on an object. The `auth_token` principal is both the player the verb runs as
+and the authority it runs with.
 
 **Message Type**: `HostClientToDaemonMessage::InvokeVerb`
 
@@ -642,17 +642,57 @@ Directly invokes a verb on an object.
 
 ```flatbuffers
 table InvokeVerb {
-    client_token: ClientToken;
-    auth_token: AuthToken;
-    object: ObjectRef;                           // Object to call verb on
-    verb: Symbol;                                // Verb name
-    args: [VarBytes];                            // Arguments
+    auth_token: AuthToken (required);
+    object: ObjectRef (required);                 // Object to call verb on
+    verb: Symbol (required);                      // Verb name
+    args: [Var] (required);                       // Arguments
+    mode: InvocationMode (required);              // How output is delivered
+}
+
+union InvocationMode { ConnectedInvocation, CaptureOutputInvocation }
+
+table ConnectedInvocation {
+    client_token: ClientToken (required);         // The connection output goes to
+}
+
+table CaptureOutputInvocation {
+    timeout_ms: uint64 = 60000;                   // How long the caller will wait
 }
 ```
 
-**Response**: `DaemonToClientReply::TaskSubmitted`
+**Response**: `DaemonToClientReply::TaskSubmitted` for `ConnectedInvocation`,
+`DaemonToClientReply::VerbCallResponse` for `CaptureOutputInvocation`.
 
 **Usage**: Programmatic verb invocation, bypassing command parsing.
+
+`ConnectedInvocation` runs the verb against an existing connection: the reply comes as soon as the
+task is submitted, and the caller watches its own event stream for narrative output and for the
+outcome.
+
+`CaptureOutputInvocation` runs the verb with no connection behind it. The daemon collects the
+narrative output the root task commits and replies once the call finishes, with either the returned
+value or the task error. Output from forked tasks is not included, and a verb that asks for input
+fails. `timeout_ms` bounds the wait and may not exceed the daemon's configured maximum capture
+deadline (`runtime.max_capture_deadline`, 60 s by default); a request that asks for longer is
+refused rather than clamped. On expiry the task is cancelled and the reply is a `TaskAbortedLimit`
+time error. A caller's own receive timeout must be longer than the deadline it asks for, or it will
+give up on a reply that is about to arrive.
+
+---
+
+### InvokeWelcomeMessage
+
+Runs `#0:do_login_command` with no arguments as `#0` and returns its captured output. This is the
+one invocation that carries no `auth_token`, because a client needs the welcome message before it
+has any credentials to authenticate with. Nothing about the call is caller-controlled: the object,
+the verb, the arguments and the authority are all fixed, and the deadline is the daemon's configured
+maximum capture deadline.
+
+**Message Type**: `HostClientToDaemonMessage::InvokeWelcomeMessage`
+
+**Fields**: none.
+
+**Response**: `DaemonToClientReply::VerbCallResponse`
 
 ---
 

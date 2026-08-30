@@ -14,7 +14,6 @@
 //! Verb listing, retrieval, invocation, and programming endpoints.
 
 use crate::host::{
-    WebHost,
     auth::{EphemeralAuth, StatelessAuth},
     flatbuffer_response,
     negotiate::{
@@ -26,25 +25,17 @@ use crate::host::{
 };
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use moor_common::model::ObjectRef;
-use moor_common::tasks::NarrativeEvent;
-use moor_runtime_api::{
-    api::{ClientRequest, EntityType},
-    scheduler_error_to_flatbuffer_struct,
-    task_client::{SessionEvent, TaskResult},
-};
-use moor_schema::{
-    common as moor_common_fb,
-    convert::{narrative_event_to_flatbuffer_struct, var_from_flatbuffer_ref, var_to_flatbuffer},
-    rpc as moor_rpc, var as moor_var_schema,
-};
+use moor_runtime_api::api::{ClientRequest, EntityType, InvocationMode};
+use moor_schema::{convert::var_from_flatbuffer_ref, rpc as moor_rpc, var as moor_var_schema};
 use moor_var::Symbol;
 use planus::ReadAsRoot;
 use serde::Deserialize;
+use std::time::Duration;
 use tracing::{debug, error};
 
 #[derive(Deserialize)]
@@ -140,8 +131,15 @@ pub async fn verbs_handler(
     }
 }
 
+/// How long the web host waits for a captured verb invocation to finish.
+const INVOKE_VERB_TIMEOUT: Duration = Duration::from_secs(60);
+
 pub async fn invoke_verb_handler(
-    State(host): State<WebHost>,
+    StatelessAuth {
+        auth_token,
+        client_id,
+        rpc_client,
+    }: StatelessAuth,
     header_map: HeaderMap,
     Path((object_path, verb_name)): Path<(String, String)>,
     body: Bytes,
@@ -159,11 +157,6 @@ pub async fn invoke_verb_handler(
         ResponseFormat::FlatBuffers,
     ) {
         Ok(f) => f,
-        Err(status) => return status.into_response(),
-    };
-
-    let auth_token = match crate::host::auth::extract_auth_token_header(&header_map) {
-        Ok(t) => t,
         Err(status) => return status.into_response(),
     };
 
@@ -207,113 +200,28 @@ pub async fn invoke_verb_handler(
         }
     };
 
-    // Create a per-request TaskClient (session cache optimization can come later)
-    let task_client = match host.task_client(auth_token).await {
-        Ok(tc) => tc,
-        Err(e) => {
-            error!("Failed to create TaskClient: {}", e);
-            return StatusCode::SERVICE_UNAVAILABLE.into_response();
-        }
+    // The daemon runs the verb with no connection behind it, collects the narrative output the
+    // root task commits, and answers once the call finishes.
+    let invoke_msg = ClientRequest::InvokeVerb {
+        auth_token,
+        object: object_ref,
+        verb: verb_symbol,
+        args: moo_args,
+        mode: InvocationMode::CaptureOutput {
+            timeout: Some(INVOKE_VERB_TIMEOUT),
+        },
     };
 
-    // Subscribe to session events to collect narrative output
-    let mut session_rx = task_client.session_events();
+    let reply_bytes = match web_host::rpc_call(client_id, &rpc_client, invoke_msg).await {
+        Ok(bytes) => bytes,
+        Err(status) => return status.into_response(),
+    };
 
-    let args_refs: Vec<&moor_var::Var> = moo_args.iter().collect();
-    let task_result = task_client
-        .invoke_verb(&object_ref, &verb_symbol, args_refs)
-        .await;
-
-    // Drain any narrative events that arrived during execution
-    let mut collected_events: Vec<NarrativeEvent> = Vec::new();
-    while let Ok(event) = session_rx.try_recv() {
-        if let SessionEvent::Narrative(_, narrative_event) = event {
-            collected_events.push(narrative_event);
-        }
-    }
-
-    task_client.shutdown().await;
-
-    let response = match task_result {
-        Ok(TaskResult::Success(result_var)) => {
-            let result_fb = match var_to_flatbuffer(&result_var) {
-                Ok(fb) => fb,
-                Err(e) => {
-                    error!("Failed to encode result: {}", e);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
-
-            let output_fb: Vec<moor_common_fb::NarrativeEvent> = collected_events
-                .iter()
-                .filter_map(|event| match narrative_event_to_flatbuffer_struct(event) {
-                    Ok(fb_event) => Some(fb_event),
-                    Err(e) => {
-                        error!("Failed to convert narrative event: {e}");
-                        None
-                    }
-                })
-                .collect();
-
-            debug!(
-                "VerbCallResponse with {} events for {}:{}",
-                output_fb.len(),
-                object_path,
-                verb_name
-            );
-
-            moor_rpc::VerbCallResponse {
-                response: moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(
-                    moor_rpc::VerbCallSuccess {
-                        result: Box::new(result_fb),
-                        output: output_fb,
-                    },
-                )),
-            }
-        }
-        Ok(TaskResult::Error(scheduler_error)) => {
-            let scheduler_error_fb = match scheduler_error_to_flatbuffer_struct(&scheduler_error) {
-                Ok(fb) => fb,
-                Err(e) => {
-                    error!("Failed to encode scheduler error: {}", e);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
-            moor_rpc::VerbCallResponse {
-                response: moor_rpc::VerbCallResponseUnion::VerbCallError(Box::new(
-                    moor_rpc::VerbCallError {
-                        error: Box::new(scheduler_error_fb),
-                    },
-                )),
-            }
-        }
-        Ok(TaskResult::Suspended(_)) => {
-            // Task went to background — return empty success
-            let result_fb = match var_to_flatbuffer(&moor_var::v_none()) {
-                Ok(fb) => fb,
-                Err(e) => {
-                    error!("Failed to encode result: {}", e);
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
-            moor_rpc::VerbCallResponse {
-                response: moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(
-                    moor_rpc::VerbCallSuccess {
-                        result: Box::new(result_fb),
-                        output: vec![],
-                    },
-                )),
-            }
-        }
-        Err(e) => {
-            error!(
-                object = %object_path,
-                verb = %verb_name,
-                error = %e,
-                "Invoke verb request failed"
-            );
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    // This endpoint answers with a bare VerbCallResponse rather than the ReplyResult envelope the
+    // other endpoints use, so unwrap the one the daemon sent.
+    let response = match extract_verb_call_response(&reply_bytes) {
+        Ok(response) => response,
+        Err(status) => return status.into_response(),
     };
 
     match format {
@@ -326,6 +234,32 @@ pub async fn invoke_verb_handler(
             verb_call_response_to_json(&response).unwrap_or_else(|status| status.into_response())
         }
     }
+}
+
+/// Pull the `VerbCallResponse` out of an encoded `ReplyResult` from the daemon.
+fn extract_verb_call_response(
+    reply_bytes: &[u8],
+) -> Result<moor_rpc::VerbCallResponse, StatusCode> {
+    let reply = moor_rpc::ReplyResult::try_from(
+        moor_rpc::ReplyResultRef::read_as_root(reply_bytes).map_err(|e| {
+            error!("Failed to read reply: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?,
+    )
+    .map_err(|e| {
+        error!("Failed to convert reply: {e}");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let moor_rpc::ReplyResultUnion::ClientSuccess(success) = reply.result else {
+        error!("Daemon refused the verb invocation");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+    let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = success.reply.reply else {
+        error!("Unexpected daemon reply to a verb invocation");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+    Ok(*response)
 }
 
 pub async fn verb_program_handler(
@@ -389,5 +323,78 @@ pub async fn verb_program_handler(
         ResponseFormat::Json => {
             reply_result_to_json(&reply_bytes).unwrap_or_else(|status| status.into_response())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_schema::convert::var_to_flatbuffer;
+    use moor_var::v_int;
+
+    fn encode(reply: moor_rpc::ReplyResult) -> Vec<u8> {
+        let mut builder = planus::Builder::new();
+        builder.finish(&reply, None).to_vec()
+    }
+
+    fn client_success(reply: moor_rpc::DaemonToClientReplyUnion) -> moor_rpc::ReplyResult {
+        moor_rpc::ReplyResult {
+            result: moor_rpc::ReplyResultUnion::ClientSuccess(Box::new(moor_rpc::ClientSuccess {
+                reply: Box::new(moor_rpc::DaemonToClientReply { reply }),
+            })),
+        }
+    }
+
+    #[test]
+    fn a_verb_call_response_is_unwrapped_from_the_reply_envelope() {
+        let response = moor_rpc::VerbCallResponse {
+            response: moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(
+                moor_rpc::VerbCallSuccess {
+                    result: Box::new(var_to_flatbuffer(&v_int(7)).unwrap()),
+                    output: vec![],
+                },
+            )),
+        };
+        let bytes = encode(client_success(
+            moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(Box::new(response)),
+        ));
+
+        let extracted = extract_verb_call_response(&bytes).expect("Should unwrap the response");
+        assert!(matches!(
+            extracted.response,
+            moor_rpc::VerbCallResponseUnion::VerbCallSuccess(_)
+        ));
+    }
+
+    #[test]
+    fn a_reply_that_is_not_a_verb_call_response_is_an_error() {
+        let bytes = encode(client_success(
+            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(Box::new(moor_rpc::TaskSubmitted {
+                task_id: 1,
+            })),
+        ));
+
+        assert_eq!(
+            extract_verb_call_response(&bytes),
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        );
+    }
+
+    #[test]
+    fn a_refused_request_is_an_error() {
+        let bytes = encode(moor_rpc::ReplyResult {
+            result: moor_rpc::ReplyResultUnion::Failure(Box::new(moor_rpc::Failure {
+                error: Box::new(moor_rpc::RpcMessageError {
+                    error_code: moor_rpc::RpcMessageErrorCode::PermissionDenied,
+                    message: None,
+                    scheduler_error: None,
+                }),
+            })),
+        });
+
+        assert_eq!(
+            extract_verb_call_response(&bytes),
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        );
     }
 }

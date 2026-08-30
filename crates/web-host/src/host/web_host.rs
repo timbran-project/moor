@@ -41,7 +41,6 @@ use moor_runtime_api::{
         RuntimeClient,
     },
     api_codec::{encode_client_success_bytes, encode_host_success_bytes},
-    task_client::{TaskClient, TaskClientConfig, TaskClientError},
 };
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, Symbol};
@@ -375,27 +374,6 @@ impl WebHost {
 
     pub fn new_stateless_client(&self) -> (Uuid, Arc<dyn RuntimeClient>) {
         (Uuid::new_v4(), self.create_daemon_client())
-    }
-
-    pub fn task_client_config(&self, auth_token: moor_runtime_api::AuthToken) -> TaskClientConfig {
-        TaskClientConfig {
-            auth_token,
-            handler_object: self.handler_object,
-            peer_addr: "web-host".to_string(),
-            local_port: self.local_port,
-            ..Default::default()
-        }
-    }
-
-    pub async fn task_client(
-        &self,
-        auth_token: moor_runtime_api::AuthToken,
-    ) -> Result<TaskClient, TaskClientError> {
-        TaskClient::connect_with_services(
-            self.task_client_config(auth_token),
-            self.host_services.clone(),
-        )
-        .await
     }
 
     /// Contact the RPC server to validate an auth token, and return the object ID of the player
@@ -1088,16 +1066,11 @@ pub async fn invoke_welcome_message_handler(
     let rpc_client = host.create_daemon_client();
     let client_id = Uuid::new_v4();
 
-    let call_system_verb_msg = ClientRequest::CallSystemVerb {
-        auth_token: None,
-        verb: Symbol::mk("do_login_command"),
-        args: Vec::new(),
-    };
-
-    let reply_bytes = match rpc_call(client_id, &rpc_client, call_system_verb_msg).await {
-        Ok(bytes) => bytes,
-        Err(status) => return status.into_response(),
-    };
+    let reply_bytes =
+        match rpc_call(client_id, &rpc_client, ClientRequest::InvokeWelcomeMessage).await {
+            Ok(bytes) => bytes,
+            Err(status) => return status.into_response(),
+        };
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
