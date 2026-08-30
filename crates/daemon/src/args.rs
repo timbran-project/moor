@@ -310,6 +310,13 @@ pub struct RuntimeArgs {
     )]
     pub service_perf_cores: Option<usize>,
 
+    #[arg(
+        long,
+        value_name = "max-capture-deadline-seconds",
+        help = "Longest deadline, in seconds, a client may request when waiting for a verb call's captured output (default: 60)"
+    )]
+    pub max_capture_deadline_seconds: Option<u16>,
+
     #[arg(long, help = "Enable or disable perf timing (default: enabled)")]
     pub perf_timing_enabled: Option<bool>,
 
@@ -335,6 +342,14 @@ impl RuntimeArgs {
         }
         if let Some(args) = self.service_perf_cores {
             config.service_perf_cores = Some(args);
+        }
+        if let Some(args) = self.max_capture_deadline_seconds {
+            if args == 0 {
+                return Err(eyre::eyre!(
+                    "--max-capture-deadline-seconds must be greater than zero"
+                ));
+            }
+            config.max_capture_deadline = Some(std::time::Duration::from_secs(u64::from(args)));
         }
         if let Some(args) = self.perf_timing_enabled {
             config.perf_timing_enabled = Some(args);
@@ -617,6 +632,63 @@ import_export:
 
         assert!(config.features.custom_errors);
         assert_eq!(config.import_export.import_format, ImportFormat::Textdump);
+    }
+
+    #[test]
+    fn max_capture_deadline_defaults_to_sixty_seconds() {
+        let args = Args::try_parse_from(["moor-daemon"]).expect("parse args");
+
+        let config = args.load_config().expect("load config");
+
+        assert_eq!(
+            config.runtime.max_capture_deadline(),
+            std::time::Duration::from_secs(60)
+        );
+    }
+
+    #[test]
+    fn max_capture_deadline_reads_from_config_file_and_cli() {
+        let (_dir, config_path) = write_config(
+            r#"
+runtime:
+  max_capture_deadline: 5s
+"#,
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+        ])
+        .expect("parse args");
+
+        let config = args.load_config().expect("load config");
+        assert_eq!(
+            config.runtime.max_capture_deadline(),
+            std::time::Duration::from_secs(5)
+        );
+
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().expect("utf-8 path"),
+            "--max-capture-deadline-seconds",
+            "12",
+        ])
+        .expect("parse args");
+
+        let config = args.load_config().expect("load config");
+        assert_eq!(
+            config.runtime.max_capture_deadline(),
+            std::time::Duration::from_secs(12)
+        );
+    }
+
+    #[test]
+    fn max_capture_deadline_rejects_zero() {
+        let args = Args::try_parse_from(["moor-daemon", "--max-capture-deadline-seconds", "0"])
+            .expect("parse args");
+
+        assert!(args.load_config().is_err());
     }
 
     #[test]

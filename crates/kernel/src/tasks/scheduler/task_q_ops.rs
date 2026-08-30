@@ -521,6 +521,26 @@ impl TaskQ {
         });
     }
 
+    /// Take a task out of the queues and stop it running. Returns false if the task was not
+    /// found. This does no permission check, so anything reachable from the world must check
+    /// authority first.
+    fn cancel_task(&mut self, victim_task_id: TaskId, is_suspended: bool) -> bool {
+        if is_suspended {
+            return self
+                .suspended
+                .remove_task_terminal(victim_task_id)
+                .is_some();
+        }
+
+        let Some(victim_task) = self.active.remove(&victim_task_id) else {
+            return false;
+        };
+        self.live_tasks.remove(victim_task_id);
+        self.suspended.enqueue_dependents_for(victim_task_id);
+        victim_task.kill_switch.store(true, Ordering::SeqCst);
+        true
+    }
+
     pub(super) fn kill_task(
         &mut self,
         victim_task_id: TaskId,
@@ -534,30 +554,26 @@ impl TaskQ {
             Err(error) => return v_err(error),
         };
 
-        if is_suspended {
-            if self
-                .suspended
-                .remove_task_terminal(victim_task_id)
-                .is_none()
-            {
-                error!(
-                    task = victim_task_id,
-                    "Task not found in suspended list for kill request"
-                );
-            }
-            return v_bool_int(false);
-        }
-
-        let victim_task = match self.active.remove(&victim_task_id) {
-            Some(victim_task) => victim_task,
-            None => {
+        if !self.cancel_task(victim_task_id, is_suspended) {
+            if !is_suspended {
                 return v_err(E_INVARG);
             }
-        };
-        self.live_tasks.remove(victim_task_id);
-        self.suspended.enqueue_dependents_for(victim_task_id);
-        victim_task.kill_switch.store(true, Ordering::SeqCst);
+            error!(
+                task = victim_task_id,
+                "Task not found in suspended list for kill request"
+            );
+        }
         v_bool_int(false)
+    }
+
+    /// Cancel a task the server itself started, with no permission check. Used when whatever
+    /// was waiting for the task's result has given up on it.
+    pub(super) fn abort_task(&mut self, victim_task_id: TaskId) -> bool {
+        let perfc = sched_counters();
+        let _t = perfc.timers.start(SchedulerOp::KillTask);
+
+        let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
+        self.cancel_task(victim_task_id, is_suspended)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -771,6 +787,37 @@ mod tests {
             task_q.authority_may_kill_task(99, authority(1, BitEnum::new())),
             Err(E_INVARG)
         );
+    }
+
+    #[test]
+    fn abort_task_kills_an_active_task_without_permission_check() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+        let kill_switch = task_q.active[&10].kill_switch.clone();
+
+        assert!(task_q.abort_task(10));
+
+        assert!(kill_switch.load(Ordering::SeqCst));
+        assert!(!task_q.live_tasks.contains(10));
+        assert!(!task_q.active.contains_key(&10));
+    }
+
+    #[test]
+    fn abort_task_removes_a_suspended_task() {
+        let mut task_q = task_q();
+        add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
+
+        assert!(task_q.abort_task(10));
+
+        assert!(!task_q.live_tasks.contains(10));
+        assert!(!task_q.suspended.tasks.contains_key(&10));
+    }
+
+    #[test]
+    fn abort_task_reports_an_unknown_task() {
+        let mut task_q = task_q();
+
+        assert!(!task_q.abort_task(10));
     }
 
     #[test]

@@ -24,7 +24,7 @@ use crate::tasks::world_state_action::{
 };
 use crate::{
     config::FeaturesConfig,
-    tasks::{SchedulerOp, TaskHandle, sched_counters},
+    tasks::{SchedulerOp, TaskHandle, TaskId, sched_counters},
 };
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -130,6 +130,17 @@ impl SchedulerClient {
                 authority_principal,
                 session,
             )
+        })
+    }
+
+    /// Cancel a task that the daemon itself submitted, because whatever was waiting for its
+    /// result has stopped waiting. Returns false if the task had already finished.
+    ///
+    /// This is not the MOO-visible `kill_task()`: there is no requesting task to check
+    /// permissions against, so it must not be reachable from in-world code.
+    pub fn abort_task(&self, victim_task_id: TaskId) -> Result<bool, SchedulerError> {
+        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            Ok(scheduler.handle_abort_task(victim_task_id))
         })
     }
 

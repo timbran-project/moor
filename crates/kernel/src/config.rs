@@ -51,6 +51,22 @@ pub struct RuntimeConfig {
     pub task_pool_pinning: Option<TaskPoolPinningMode>,
     /// Reserve detected performance cores for service/control-plane threads.
     pub service_perf_cores: Option<usize>,
+    /// Longest deadline a client may ask for when it waits for a verb call's captured output.
+    /// A request asking for more than this is rejected. If None, defaults to 60s.
+    #[serde(deserialize_with = "parse_duration")]
+    pub max_capture_deadline: Option<Duration>,
+}
+
+/// Deadline used for captured verb calls when the configuration does not set one.
+pub const DEFAULT_MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(60);
+
+impl RuntimeConfig {
+    /// Longest deadline a captured verb call may wait for a result.
+    #[must_use]
+    pub fn max_capture_deadline(&self) -> Duration {
+        self.max_capture_deadline
+            .unwrap_or(DEFAULT_MAX_CAPTURE_DEADLINE)
+    }
 }
 
 /// Format for importing databases.
