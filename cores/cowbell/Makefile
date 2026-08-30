@@ -48,7 +48,7 @@ endif
 # Target to generate a new objdef dump from the compilation of the local
 # directory. This is the default validation/compilation target.
 gen.objdir: $(wildcard src/*.moo)
-	rm -rf gen.objdir
+	rm -rf gen.objdir gen.objdir.in-progress
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 
 # Builds a new objdef dump and then copies over the local working sources.
@@ -59,6 +59,7 @@ rebuild: gen.objdir
 	cp -r gen.objdir/* ./src/
 
 test:  $(wildcard src/*.moo)
+	rm -rf gen.objdir gen.objdir.in-progress
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
 
@@ -75,16 +76,18 @@ runtime-headless-src: $(HEADLESS_SRC_STAMP)
 
 runtime-headless: runtime-headless-src
 	set -e; for filter in $(HEADLESS_FILTER_IDS); do \
+		rm -rf gen.objdir gen.objdir.in-progress; \
 		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true \
 		--test-filter "#$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
 	done
 	set -e; for filter in $(HEADLESS_PLAYER_FILTER_IDS); do \
+		rm -rf gen.objdir gen.objdir.in-progress; \
 		$(MOORC) --src-objdef-dir $(HEADLESS_SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --test-programmer=6 --test-player=4 --test-task-player=$(HEADLESS_TASK_PLAYER) --run-tests true \
 		--test-filter "#$$filter" --test-timeout $(HEADLESS_TIMEOUT); \
 	done
 
 clean:
-	rm -rf gen.objdir
+	rm -rf gen.objdir gen.objdir.in-progress
 	rm -rf $(HEADLESS_SRC_DIRECTORY)
