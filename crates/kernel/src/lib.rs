@@ -13,7 +13,7 @@
 
 pub use crate::{
     tasks::{
-        ServerOptions,
+        AbortTaskOutcome, ServerOptions,
         scheduler_client::SchedulerClient,
         task::Task,
         task_q::{SuspendedTask, WakeCondition},

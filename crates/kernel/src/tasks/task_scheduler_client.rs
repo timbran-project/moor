@@ -26,7 +26,7 @@ use moor_common::{
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
-use moor_var::{Error, Obj, Symbol, Var};
+use moor_var::{ByteSized, Error, Obj, Symbol, Var};
 
 use crate::tasks::scheduler::Scheduler;
 
@@ -181,7 +181,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn notify(&self, player: Obj, event: Box<NarrativeEvent>) {
-        self.scheduler.handle_notify(self.task_id, player, event);
+        let size_bytes = event.size_bytes();
+        self.scheduler
+            .handle_notify(self.task_id, player, event, size_bytes);
     }
 
     pub fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) {

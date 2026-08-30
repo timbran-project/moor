@@ -2000,7 +2000,7 @@ fn symbol_from_ref(sym_ref: moor_rpc::SymbolRef<'_>) -> Result<Symbol, RpcMessag
 mod tests {
     use std::time::Duration;
 
-    use moor_common::model::ObjectRef;
+    use moor_common::{config::MAX_CAPTURE_DEADLINE, model::ObjectRef};
     use moor_schema::rpc;
     use moor_var::{Obj, Symbol, v_int};
     use planus::ReadAsRoot;
@@ -2101,6 +2101,21 @@ mod tests {
         };
 
         assert_eq!(mode, InvocationMode::CaptureOutput { timeout: None });
+    }
+
+    #[test]
+    fn capture_output_invocation_rejects_invalid_explicit_timeouts() {
+        let build = |timeout| {
+            mk_invoke_verb_capture_msg(
+                &AuthToken("auth".to_string()),
+                &ObjectRef::Id(Obj::mk_id(7)),
+                &Symbol::mk("look"),
+                vec![],
+                Some(timeout),
+            )
+        };
+        assert!(build(Duration::ZERO).is_none());
+        assert!(build(MAX_CAPTURE_DEADLINE + Duration::from_millis(1)).is_none());
     }
 
     #[test]

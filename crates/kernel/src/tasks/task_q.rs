@@ -115,6 +115,8 @@ pub struct TaskQ {
 pub(crate) enum RunningTaskPhase {
     /// The VM may still be executing.
     Running,
+    /// The VM has yielded and its session is committing before completion.
+    Completing,
     /// The VM has yielded and its session is committing before suspension.
     Suspending,
     /// The VM has yielded and its input request is being registered.
@@ -140,6 +142,12 @@ pub(crate) struct RunningTask {
     pub(crate) kill_switch: Arc<AtomicBool>,
     /// The connection-session for this task.
     pub(crate) session: Arc<dyn Session>,
+    /// An error requested by a scheduler-side operation. The worker observes the kill switch,
+    /// rolls back, and reports this error instead of a generic cancellation.
+    pub(crate) abort_error: Option<SchedulerError>,
+    /// A terminal result reserved while session finalization happens outside the lifecycle lock.
+    /// Cancellation observes this slot instead of removing the task mid-finalization.
+    pub(crate) terminal_result: Option<Result<TaskNotification, SchedulerError>>,
     /// A mailbox to deliver the result of the task to a waiting party with a subscription, if any.
     pub(crate) result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
 }

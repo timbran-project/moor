@@ -992,6 +992,9 @@ impl Task {
                             "Time".to_string(),
                             format!("{:.3}s", duration.as_secs_f64()),
                         ),
+                        AbortLimitReason::OutputBytes(bytes) => {
+                            ("OutputBytes".to_string(), bytes.to_string())
+                        }
                     };
 
                     trace_abort_limit_reached!(

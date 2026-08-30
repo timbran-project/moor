@@ -16,9 +16,7 @@ use std::sync::{Arc, Mutex};
 use flume::Sender;
 use uuid::Uuid;
 
-use moor_common::tasks::{
-    ConnectionDetails, Event, NarrativeEvent, Presentation, Session, SessionError,
-};
+use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
 use moor_var::{ByteSized, List, Obj, Symbol, Var};
 
 use crate::{
@@ -157,39 +155,9 @@ impl OutputCaptureSession {
     }
 }
 
-/// An estimate of an event's payload size, used to bound how much a captured invocation may
-/// accumulate. Exact encoded size is not needed: the limit exists to stop unbounded growth.
+/// The event payload size used to bound how much a captured invocation may accumulate.
 fn event_size_bytes(event: &NarrativeEvent) -> usize {
-    let payload = match &event.event {
-        Event::Notify {
-            value, metadata, ..
-        } => {
-            value.size_bytes()
-                + metadata
-                    .iter()
-                    .flatten()
-                    .map(|(_, v)| v.size_bytes())
-                    .sum::<usize>()
-        }
-        Event::Present(presentation) => presentation_size_bytes(presentation),
-        Event::Unpresent(id) => id.len(),
-        Event::Traceback(exception) => exception.stack.iter().map(|v| v.size_bytes()).sum(),
-        Event::Data { payload, .. } => payload.size_bytes(),
-        Event::SetConnectionOption { value, .. } => value.size_bytes(),
-    };
-    size_of::<NarrativeEvent>() + event.author.size_bytes() + payload
-}
-
-fn presentation_size_bytes(presentation: &Presentation) -> usize {
-    presentation.id.len()
-        + presentation.content_type.len()
-        + presentation.content.len()
-        + presentation.target.len()
-        + presentation
-            .attributes
-            .iter()
-            .map(|(k, v)| k.len() + v.len())
-            .sum::<usize>()
+    event.size_bytes()
 }
 
 impl Session for OutputCaptureSession {
@@ -259,17 +227,30 @@ impl Session for OutputCaptureSession {
     }
 
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
+        let size = self
+            .capture
+            .as_ref()
+            .and_then(|_| (player == self.player).then(|| event_size_bytes(&event)));
+        self.send_event_with_size(player, event, size)
+    }
+
+    fn send_event_with_size(
+        &self,
+        player: Obj,
+        event: Box<NarrativeEvent>,
+        size_bytes: Option<usize>,
+    ) -> Result<(), SessionError> {
         // Only the caller's own output is bounded; anything addressed elsewhere is published on
         // commit and is no more this session's to hold than a connected session's would be.
         if let Some(capture) = self.capture.as_ref()
             && player == self.player
         {
-            let size = event_size_bytes(&event);
+            let size = size_bytes.unwrap_or_else(|| event_size_bytes(&event));
             let mut pending = self.pending.lock().unwrap();
             if capture.would_exceed(pending.events + 1, pending.bytes + size) {
                 // Refusing here aborts the task, which is the only way to stop a verb that would
                 // otherwise accumulate without limit in a response nobody can receive.
-                return Err(SessionError::DeliveryError);
+                return Err(SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES));
             }
             pending.events += 1;
             pending.bytes += size;
@@ -354,8 +335,8 @@ impl OutputCaptureSession {
 mod tests {
     use super::*;
     use crate::testing::MockEventLog;
-    use moor_common::tasks::NarrativeEvent;
-    use moor_var::{v_obj, v_str};
+    use moor_common::tasks::{Event, Exception, NarrativeEvent};
+    use moor_var::{E_INVARG, v_obj, v_str};
 
     const CALLER: i32 = 2;
     const OTHER: i32 = 3;
@@ -571,7 +552,10 @@ mod tests {
             .session
             .send_event(caller, event("one too many"))
             .expect_err("over the limit");
-        assert!(matches!(err, SessionError::DeliveryError));
+        assert!(matches!(
+            err,
+            SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES)
+        ));
     }
 
     #[test]
@@ -585,12 +569,32 @@ mod tests {
             match h.session.send_event(caller, event(&big)) {
                 Ok(()) => sent += 1,
                 Err(err) => {
-                    assert!(matches!(err, SessionError::DeliveryError));
+                    assert!(matches!(
+                        err,
+                        SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES)
+                    ));
                     break;
                 }
             }
             assert!(sent < MAX_CAPTURED_EVENTS, "byte limit should bite first");
         }
+    }
+
+    #[test]
+    fn traceback_size_includes_rich_error_and_backtrace_values() {
+        let payload = "x".repeat(MAX_CAPTURED_BYTES);
+        let traceback = NarrativeEvent {
+            event_id: Uuid::now_v7(),
+            timestamp: std::time::SystemTime::now(),
+            author: v_obj(Obj::mk_id(1)),
+            event: Event::Traceback(Exception {
+                error: E_INVARG.with_msg(|| payload.clone()),
+                stack: vec![],
+                backtrace: vec![v_str(&payload)],
+            }),
+        };
+
+        assert!(event_size_bytes(&traceback) > MAX_CAPTURED_BYTES * 2);
     }
 
     /// The limit spans the whole invocation, not one transaction of it.
