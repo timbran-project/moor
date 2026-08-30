@@ -27,6 +27,10 @@ harness = false
 name = "tx_relation_benches"
 harness = false
 
+[[bench]]
+name = "objdef_export_benches"
+harness = false
+
 [dev-dependencies]
 edn-format.workspace = true
 eyre.workspace = true

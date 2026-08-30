@@ -730,7 +730,7 @@ mod tests {
     };
     use crate::ObjectDefinitionLoader;
     use moor_common::{
-        model::{CommitResult, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
+        model::{CommitResult, ObjectKind, PropAttrs, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
     };
     use moor_compiler::{CompileOptions, compile};
@@ -844,6 +844,7 @@ mod tests {
     fn streaming_dump_preserves_explicit_inherited_overrides() {
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
+        let child;
 
         {
             let mut tx = db.new_world_state().unwrap();
@@ -855,7 +856,7 @@ mod tests {
                 ObjectKind::NextObjid,
             )
             .unwrap();
-            let child = tx
+            child = tx
                 .create_object(
                     &system_permissions(),
                     &SYSTEM_OBJECT,
@@ -864,7 +865,7 @@ mod tests {
                     ObjectKind::NextObjid,
                 )
                 .unwrap();
-            for name in ["changed", "unchanged"] {
+            for name in ["changed", "unchanged", "permissions", "metadata", "cleared"] {
                 tx.define_property(
                     &system_permissions(),
                     &SYSTEM_OBJECT,
@@ -890,24 +891,187 @@ mod tests {
                 &v_int(1),
             )
             .unwrap();
+            tx.set_property_info(
+                &system_permissions(),
+                &child,
+                Symbol::mk("permissions"),
+                PropAttrs {
+                    flags: Some(BitEnum::new_with(PropFlag::Read)),
+                    ..PropAttrs::default()
+                },
+            )
+            .unwrap();
             tx.set_property_metadata(
                 &system_permissions(),
                 &child,
-                Symbol::mk("changed"),
+                Symbol::mk("metadata"),
                 Symbol::mk("source"),
                 v_str("child"),
             )
             .unwrap();
+            tx.update_property(
+                &system_permissions(),
+                &child,
+                Symbol::mk("cleared"),
+                &v_int(2),
+            )
+            .unwrap();
+            tx.clear_property(&system_permissions(), &child, Symbol::mk("cleared"))
+                .unwrap();
             tx.commit().unwrap();
         }
 
         let snapshot = db.create_snapshot().unwrap();
+        let definitions = collect_object_definitions(snapshot.as_ref()).unwrap();
+        let child_definition = definitions
+            .iter()
+            .find(|definition| definition.oid == child)
+            .unwrap();
+        let mut override_names = child_definition
+            .property_overrides
+            .iter()
+            .map(|property| property.name.as_string())
+            .collect::<Vec<_>>();
+        override_names.sort_unstable();
+        assert_eq!(
+            override_names,
+            ["changed", "cleared", "metadata", "permissions", "unchanged"]
+        );
+
+        let cleared = child_definition
+            .property_overrides
+            .iter()
+            .find(|property| property.name == Symbol::mk("cleared"))
+            .unwrap();
+        assert!(cleared.value.is_none());
+        assert!(cleared.perms_update.is_some());
+
+        let metadata = child_definition
+            .property_overrides
+            .iter()
+            .find(|property| property.name == Symbol::mk("metadata"))
+            .unwrap();
+        assert!(metadata.value.is_none());
+        assert!(metadata.perms_update.is_none());
+        assert_eq!(metadata.metadata, [(Symbol::mk("source"), v_str("child"))]);
+
         let streamed_dir = tempfile::tempdir().unwrap();
         dump_snapshot_object_definitions(snapshot.as_ref(), streamed_dir.path()).unwrap();
 
         let child = std::fs::read_to_string(streamed_dir.path().join("object_1.moo")).unwrap();
         assert!(child.contains("override changed"));
         assert!(child.contains("override unchanged"));
+        assert!(child.contains("override permissions"));
+        assert!(child.contains("override metadata"));
+        assert!(child.contains("override cleared"));
+    }
+
+    #[test]
+    fn streaming_dump_ignores_stale_property_rows() {
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let db = Arc::new(db);
+        let (old_parent, new_parent, child);
+
+        {
+            let mut tx = db.new_world_state().unwrap();
+            let system = tx
+                .create_object(
+                    &system_permissions(),
+                    &Obj::mk_id(-1),
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+            assert_eq!(system, SYSTEM_OBJECT);
+            old_parent = tx
+                .create_object(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+            new_parent = tx
+                .create_object(
+                    &system_permissions(),
+                    &SYSTEM_OBJECT,
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+            child = tx
+                .create_object(
+                    &system_permissions(),
+                    &old_parent,
+                    &SYSTEM_OBJECT,
+                    BitEnum::new(),
+                    ObjectKind::NextObjid,
+                )
+                .unwrap();
+
+            tx.define_property(
+                &system_permissions(),
+                &old_parent,
+                &old_parent,
+                Symbol::mk("old_parent_property"),
+                &SYSTEM_OBJECT,
+                BitEnum::new_with(PropFlag::Read) | PropFlag::Write,
+                Some(v_int(1)),
+            )
+            .unwrap();
+            tx.update_property(
+                &system_permissions(),
+                &child,
+                Symbol::mk("old_parent_property"),
+                &v_int(2),
+            )
+            .unwrap();
+
+            tx.define_property(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                Symbol::mk("deleted_property"),
+                &SYSTEM_OBJECT,
+                BitEnum::new_with(PropFlag::Read) | PropFlag::Write,
+                Some(v_int(3)),
+            )
+            .unwrap();
+            tx.update_property(
+                &system_permissions(),
+                &child,
+                Symbol::mk("deleted_property"),
+                &v_int(4),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        {
+            let mut tx = db.new_world_state().unwrap();
+            tx.change_parent(&system_permissions(), &child, &new_parent)
+                .unwrap();
+            tx.delete_property(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                Symbol::mk("deleted_property"),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let snapshot = db.create_snapshot().unwrap();
+        let definitions = collect_object_definitions(snapshot.as_ref()).unwrap();
+        let child_definition = definitions
+            .iter()
+            .find(|definition| definition.oid == child)
+            .unwrap();
+        assert_eq!(child_definition.parent, new_parent);
+        assert!(child_definition.property_definitions.is_empty());
+        assert!(child_definition.property_overrides.is_empty());
     }
 
     #[test]
