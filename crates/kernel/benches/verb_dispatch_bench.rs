@@ -170,6 +170,9 @@ fn execute_to_completion(
             VMHostResponse::AbortLimit(AbortLimitReason::Time(_)) => {
                 panic!("Unexpected time abort")
             }
+            VMHostResponse::AbortLimit(AbortLimitReason::OutputBytes(_)) => {
+                panic!("Unexpected captured output abort")
+            }
             VMHostResponse::DispatchFork(_) => panic!("Unexpected fork"),
             VMHostResponse::Suspend(_) => panic!("Unexpected suspend"),
             VMHostResponse::SuspendNeedInput(_) => panic!("Unexpected suspend need input"),

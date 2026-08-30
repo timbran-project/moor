@@ -79,11 +79,23 @@ pub struct TaskHandle(
 
 // Results from a task which are either a value or a notification that the underlying task handle
 // was replaced at the whim of the scheduler.
+#[derive(Debug)]
 pub enum TaskNotification {
     /// Task is completed, and here are its results.
     Result(Var),
     /// Task has transitioned into a suspended/background state.
     Suspended,
+}
+
+/// Atomic result of asking the scheduler to cancel a task.
+#[derive(Debug)]
+pub enum AbortTaskOutcome {
+    /// Cancellation won while the task was still active or suspended.
+    Cancelled,
+    /// Completion, including session finalization, won before cancellation.
+    Completed(Result<TaskNotification, SchedulerError>),
+    /// The scheduler no longer has enough state to determine the terminal outcome.
+    NotFound,
 }
 
 impl Debug for TaskHandle {

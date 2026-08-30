@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::tasks::Exception;
-use moor_var::{Obj, Symbol, Var};
+use moor_var::{ByteSized, Obj, Symbol, Var};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -89,6 +89,68 @@ pub struct Presentation {
     /// A bag of attributes that the client can use to interpret the presentation. E.g. "title",
     /// "width", "height", etc.
     pub attributes: Vec<(String, String)>,
+}
+
+impl ByteSized for NarrativeEvent {
+    fn size_bytes(&self) -> usize {
+        size_of::<Self>()
+            + self.author.size_bytes()
+            + match &self.event {
+                Event::Notify {
+                    value,
+                    content_type,
+                    metadata,
+                    ..
+                } => {
+                    value.size_bytes()
+                        + content_type.as_ref().map_or(0, |s| s.as_string().len())
+                        + metadata
+                            .iter()
+                            .flatten()
+                            .map(|(key, value)| key.as_string().len() + value.size_bytes())
+                            .sum::<usize>()
+                }
+                Event::Present(presentation) => presentation.size_bytes(),
+                Event::Unpresent(id) => id.len(),
+                Event::Traceback(exception) => {
+                    exception.error.msg().map_or(0, str::len)
+                        + exception.error.value().map_or(0, ByteSized::size_bytes)
+                        + exception
+                            .stack
+                            .iter()
+                            .map(ByteSized::size_bytes)
+                            .sum::<usize>()
+                        + exception
+                            .backtrace
+                            .iter()
+                            .map(ByteSized::size_bytes)
+                            .sum::<usize>()
+                }
+                Event::Data {
+                    namespace,
+                    kind,
+                    payload,
+                } => namespace.as_string().len() + kind.as_string().len() + payload.size_bytes(),
+                Event::SetConnectionOption { option, value, .. } => {
+                    option.as_string().len() + value.size_bytes()
+                }
+            }
+    }
+}
+
+impl ByteSized for Presentation {
+    fn size_bytes(&self) -> usize {
+        size_of::<Self>()
+            + self.id.len()
+            + self.content_type.len()
+            + self.content.len()
+            + self.target.len()
+            + self
+                .attributes
+                .iter()
+                .map(|(key, value)| key.len() + value.len())
+                .sum::<usize>()
+    }
 }
 
 impl NarrativeEvent {

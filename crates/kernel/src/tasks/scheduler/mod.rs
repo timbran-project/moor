@@ -46,8 +46,8 @@ use moor_db::{Database, DatabaseRelation};
 use crate::{
     config::Config,
     tasks::{
-        DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS, DEFAULT_FG_SECONDS,
-        DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
+        AbortTaskOutcome, DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS,
+        DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
         DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
         TaskNotification, TaskStart,
         gc_thread::spawn_gc_mark_phase,
@@ -928,6 +928,8 @@ mod tests {
                 task_start,
                 dispatched_at: Instant::now(),
                 run_baseline: Arc::new(OnceLock::new()),
+                abort_error: None,
+                terminal_result: None,
                 kill_switch,
                 session,
                 result_sender: None,

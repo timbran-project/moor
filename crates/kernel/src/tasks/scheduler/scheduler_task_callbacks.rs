@@ -13,7 +13,9 @@
 
 use std::backtrace::Backtrace;
 
-use moor_common::tasks::{EventLogPurgeResult, EventLogStats, Exception, ListenerInfo};
+use moor_common::tasks::{
+    EventLogPurgeResult, EventLogStats, Exception, ListenerInfo, SessionError,
+};
 use rand::RngExt;
 
 use crate::tasks::{
@@ -46,6 +48,8 @@ impl Scheduler {
                 warn!(task_id, "Task not found for success");
                 return;
             };
+            task.terminal_result = Some(Ok(TaskNotification::Result(value)));
+            task.phase = RunningTaskPhase::Completing;
             task.session.clone()
         };
 
@@ -59,13 +63,16 @@ impl Scheduler {
             );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
-            return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+            if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+                task.terminal_result = Some(Err(TaskAbortedError));
+            }
+            return lc.task_q.send_reserved_task_result(task_id);
         }
 
         let mut lc = self.lifecycle.lock();
         lc.flush_pending_sends(task_id);
         lc.task_q.remove_message_queue(task_id);
-        lc.task_q.send_task_result(task_id, Ok(value))
+        lc.task_q.send_reserved_task_result(task_id)
     }
 
     pub fn handle_task_conflict_retry(
@@ -168,6 +175,28 @@ impl Scheduler {
     }
 
     pub fn handle_task_abort_cancelled(&self, task_id: TaskId) {
+        let requested_abort = {
+            let mut lc = self.lifecycle.lock();
+            lc.task_q.active.get_mut(&task_id).and_then(|task| {
+                task.abort_error
+                    .take()
+                    .map(|error| (error, task.session.clone()))
+            })
+        };
+        if let Some((error, session)) = requested_abort {
+            if let Err(session_error) = session.rollback() {
+                warn!(
+                    task_id,
+                    ?session_error,
+                    "Could not roll back cancelled task session"
+                );
+            }
+            let mut lc = self.lifecycle.lock();
+            lc.discard_pending_sends(task_id);
+            lc.task_q.remove_message_queue(task_id);
+            return lc.task_q.send_task_result(task_id, Err(error));
+        }
+
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
 
@@ -330,6 +359,10 @@ impl Scheduler {
                 warn!(?task_id, time = ?t, "Task aborted, time exceeded");
                 format!("Abort: Task exceeded time limit of {t:?}")
             }
+            AbortLimitReason::OutputBytes(bytes) => {
+                warn!(?task_id, bytes, "Task aborted, captured output exceeded");
+                format!("Abort: Task exceeded captured output limit of {bytes} bytes")
+            }
         };
 
         if let Err(e) = session.send_system_msg(player, &abort_reason_text) {
@@ -362,6 +395,7 @@ impl Scheduler {
         let resource_str = match limit_reason {
             AbortLimitReason::Ticks(_) => "ticks",
             AbortLimitReason::Time(_) => "seconds",
+            AbortLimitReason::OutputBytes(_) => "output bytes",
         };
 
         let handler_args = List::from_iter(vec![
@@ -832,9 +866,26 @@ impl Scheduler {
 
     /// Cancel a task the server started on its own behalf, with no permission check.
     /// Returns false if the task was already gone.
-    pub fn handle_abort_task(&self, victim_task_id: TaskId) -> bool {
+    pub fn handle_abort_task(&self, victim_task_id: TaskId) -> AbortTaskOutcome {
         let mut lc = self.lifecycle.lock();
         lc.task_q.abort_task(victim_task_id)
+    }
+
+    pub fn finalize_completed_task(
+        &self,
+        task_id: TaskId,
+        result: Result<TaskNotification, SchedulerError>,
+    ) {
+        let mut lc = self.lifecycle.lock();
+        let Some(mut task) = lc.task_q.active.remove(&task_id) else {
+            return;
+        };
+        lc.task_q.suspended.enqueue_dependents_for(task_id);
+        lc.task_q.remove_message_queue(task_id);
+        lc.task_q.live_tasks.remove(task_id);
+        if let Some(sender) = task.result_sender.take() {
+            let _ = sender.send((task_id, result));
+        }
     }
 
     pub fn handle_resume_task(
@@ -863,17 +914,34 @@ impl Scheduler {
         lc.task_q.disconnect_task(task_id, &player);
     }
 
-    pub fn handle_notify(&self, task_id: TaskId, player: Obj, event: Box<NarrativeEvent>) {
+    pub fn handle_notify(
+        &self,
+        task_id: TaskId,
+        player: Obj,
+        event: Box<NarrativeEvent>,
+        size_bytes: usize,
+    ) {
         let mut lc = self.lifecycle.lock();
         // Task is asking to notify a player of an event.
         let Some(task) = lc.task_q.active.get_mut(&task_id) else {
             warn!(task_id, "Task not found for notify request");
             return;
         };
-        let Ok(()) = task.session.send_event(player, event) else {
-            warn!("Could not notify player; aborting task");
-            return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+        let Err(error) = task
+            .session
+            .send_event_with_size(player, event, Some(size_bytes))
+        else {
+            return;
         };
+        warn!(?error, "Could not notify player; cancelling task");
+        let scheduler_error = match error {
+            SessionError::OutputLimitExceeded(limit) => {
+                TaskAbortedLimit(AbortLimitReason::OutputBytes(limit))
+            }
+            _ => TaskAbortedError,
+        };
+        task.abort_error = Some(scheduler_error);
+        task.kill_switch.store(true, Ordering::SeqCst);
     }
 
     pub fn handle_log_event(&self, task_id: TaskId, player: Obj, event: Box<NarrativeEvent>) {

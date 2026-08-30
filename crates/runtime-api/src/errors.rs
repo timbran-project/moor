@@ -317,6 +317,10 @@ pub fn scheduler_error_from_ref(
                     let time_nanos = fb_read!(limit_ref, time_nanos);
                     AbortLimitReason::Time(Duration::from_nanos(time_nanos))
                 }
+                rpc::AbortLimitReason::OutputBytes => {
+                    let output_bytes = fb_read!(limit_ref, output_bytes) as usize;
+                    AbortLimitReason::OutputBytes(output_bytes)
+                }
             };
             Ok(SchedulerError::TaskAbortedLimit(abort_reason))
         }
@@ -492,17 +496,24 @@ pub fn scheduler_error_to_flatbuffer_struct(
             }))
         }
         SchedulerError::TaskAbortedLimit(abort_reason) => {
-            let (reason_enum, ticks, time_nanos) = match abort_reason {
-                AbortLimitReason::Ticks(t) => (rpc::AbortLimitReason::Ticks, *t as u64, 0u64),
+            let (reason_enum, ticks, time_nanos, output_bytes) = match abort_reason {
+                AbortLimitReason::Ticks(t) => (rpc::AbortLimitReason::Ticks, *t as u64, 0u64, 0u64),
                 AbortLimitReason::Time(d) => {
-                    (rpc::AbortLimitReason::Time, 0u64, d.as_nanos() as u64)
+                    (rpc::AbortLimitReason::Time, 0u64, d.as_nanos() as u64, 0u64)
                 }
+                AbortLimitReason::OutputBytes(bytes) => (
+                    rpc::AbortLimitReason::OutputBytes,
+                    0u64,
+                    0u64,
+                    *bytes as u64,
+                ),
             };
             rpc::SchedulerErrorUnion::TaskAbortedLimit(Box::new(rpc::TaskAbortedLimit {
                 limit: Box::new(rpc::AbortLimit {
                     reason: reason_enum,
                     ticks,
                     time_nanos,
+                    output_bytes,
                 }),
             }))
         }

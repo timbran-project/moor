@@ -265,6 +265,8 @@ impl TaskQ {
             task_start: task.state.task_start().clone(),
             dispatched_at: Instant::now(),
             run_baseline: run_baseline.clone(),
+            abort_error: None,
+            terminal_result: None,
         };
 
         self.insert_active(task_id, task_control);
@@ -387,6 +389,29 @@ impl TaskQ {
         self.send_task_result_direct(task_id, result_sender, result);
     }
 
+    pub(super) fn send_reserved_task_result(&mut self, task_id: TaskId) {
+        let Some(task) = self.active.get_mut(&task_id) else {
+            warn!(
+                task_id,
+                "Task not found for reserved notification, ignoring"
+            );
+            return;
+        };
+        let Some(result) = task.terminal_result.take() else {
+            warn!(task_id, "Task has no reserved terminal result, ignoring");
+            return;
+        };
+        let result = match result {
+            Ok(TaskNotification::Result(value)) => Ok(value),
+            Ok(TaskNotification::Suspended) => {
+                warn!(task_id, "Suspension cannot be a terminal task result");
+                return;
+            }
+            Err(error) => Err(error),
+        };
+        self.send_task_result(task_id, result);
+    }
+
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
     pub(super) fn send_task_result_direct(
         &self,
@@ -447,6 +472,8 @@ impl TaskQ {
             task_start: task.state.task_start().clone(),
             dispatched_at: Instant::now(),
             run_baseline: run_baseline.clone(),
+            abort_error: None,
+            terminal_result: None,
         };
 
         self.insert_active(task_id, task_control);
@@ -570,12 +597,26 @@ impl TaskQ {
 
     /// Cancel a task the server itself started, with no permission check. Used when whatever
     /// was waiting for the task's result has given up on it.
-    pub(super) fn abort_task(&mut self, victim_task_id: TaskId) -> bool {
+    pub(super) fn abort_task(&mut self, victim_task_id: TaskId) -> AbortTaskOutcome {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
+        if let Some(task) = self.active.get_mut(&victim_task_id)
+            && task.phase == RunningTaskPhase::Completing
+        {
+            return task
+                .terminal_result
+                .take()
+                .map(AbortTaskOutcome::Completed)
+                .unwrap_or(AbortTaskOutcome::NotFound);
+        }
+
         let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
-        self.cancel_task(victim_task_id, is_suspended)
+        if self.cancel_task(victim_task_id, is_suspended) {
+            AbortTaskOutcome::Cancelled
+        } else {
+            AbortTaskOutcome::NotFound
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -747,6 +788,8 @@ mod tests {
                 result_sender: None,
                 dispatched_at: Instant::now(),
                 run_baseline: Arc::new(OnceLock::new()),
+                abort_error: None,
+                terminal_result: None,
             },
         );
     }
@@ -797,7 +840,7 @@ mod tests {
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
         let kill_switch = task_q.active[&10].kill_switch.clone();
 
-        assert!(task_q.abort_task(10));
+        assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
 
         assert!(kill_switch.load(Ordering::SeqCst));
         assert!(!task_q.live_tasks.contains(10));
@@ -809,7 +852,7 @@ mod tests {
         let mut task_q = task_q();
         add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
 
-        assert!(task_q.abort_task(10));
+        assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
 
         assert!(!task_q.live_tasks.contains(10));
         assert!(!task_q.suspended.tasks.contains_key(&10));
@@ -819,7 +862,25 @@ mod tests {
     fn abort_task_reports_an_unknown_task() {
         let mut task_q = task_q();
 
-        assert!(!task_q.abort_task(10));
+        assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::NotFound));
+    }
+
+    #[test]
+    fn abort_task_observes_completion_reserved_during_session_commit() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+        let task = task_q.active.get_mut(&10).unwrap();
+        task.phase = RunningTaskPhase::Completing;
+        task.terminal_result = Some(Ok(TaskNotification::Result(v_int(42))));
+
+        let AbortTaskOutcome::Completed(Ok(TaskNotification::Result(result))) =
+            task_q.abort_task(10)
+        else {
+            panic!("expected the reserved completion result");
+        };
+        assert_eq!(result, v_int(42));
+        assert!(task_q.active.contains_key(&10));
+        assert!(!task_q.active[&10].kill_switch.load(Ordering::SeqCst));
     }
 
     #[test]

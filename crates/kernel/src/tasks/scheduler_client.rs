@@ -24,7 +24,7 @@ use crate::tasks::world_state_action::{
 };
 use crate::{
     config::FeaturesConfig,
-    tasks::{SchedulerOp, TaskHandle, TaskId, sched_counters},
+    tasks::{AbortTaskOutcome, SchedulerOp, TaskHandle, TaskId, TaskNotification, sched_counters},
 };
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -113,6 +113,31 @@ impl SchedulerClient {
         authority_principal: &Obj,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
+        self.submit_verb_task_with_timeout(
+            DEFAULT_REQUEST_TIMEOUT,
+            player,
+            vloc,
+            verb,
+            args,
+            argstr,
+            authority_principal,
+            session,
+        )
+    }
+
+    /// Submit a verb task, waiting at most `timeout` for the scheduler to accept it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_verb_task_with_timeout(
+        &self,
+        timeout: Duration,
+        player: &Obj,
+        vloc: &ObjectRef,
+        verb: Symbol,
+        args: List,
+        argstr: Var,
+        authority_principal: &Obj,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::SubmitVerbTaskLatency);
@@ -120,7 +145,7 @@ impl SchedulerClient {
         let player = *player;
         let vloc = vloc.clone();
         let authority_principal = *authority_principal;
-        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+        self.request_with_timeout(timeout, move |scheduler| {
             scheduler.submit_verb_task_inner(
                 player,
                 vloc,
@@ -138,10 +163,30 @@ impl SchedulerClient {
     ///
     /// This is not the MOO-visible `kill_task()`: there is no requesting task to check
     /// permissions against, so it must not be reachable from in-world code.
-    pub fn abort_task(&self, victim_task_id: TaskId) -> Result<bool, SchedulerError> {
-        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+    pub fn abort_task(&self, victim_task_id: TaskId) -> Result<AbortTaskOutcome, SchedulerError> {
+        self.abort_task_with_timeout(victim_task_id, DEFAULT_REQUEST_TIMEOUT)
+    }
+
+    /// Cancel a server-submitted task atomically with task completion, waiting at most `timeout`
+    /// for the scheduler's outcome.
+    pub fn abort_task_with_timeout(
+        &self,
+        victim_task_id: TaskId,
+        timeout: Duration,
+    ) -> Result<AbortTaskOutcome, SchedulerError> {
+        let outcome = self.request_with_timeout(timeout, move |scheduler| {
             Ok(scheduler.handle_abort_task(victim_task_id))
-        })
+        })?;
+        if let AbortTaskOutcome::Completed(ref result) = outcome {
+            let cloned = match result {
+                Ok(TaskNotification::Result(value)) => Ok(TaskNotification::Result(value.clone())),
+                Ok(TaskNotification::Suspended) => Ok(TaskNotification::Suspended),
+                Err(error) => Err(error.clone()),
+            };
+            self.scheduler
+                .finalize_completed_task(victim_task_id, cloned);
+        }
+        Ok(outcome)
     }
 
     /// Receive input that the suspended task requested from the authenticated connection.

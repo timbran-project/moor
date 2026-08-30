@@ -17,7 +17,7 @@ use crate::{
     AuthToken, ClientToken,
     helpers::{auth_token_fb, client_token_fb, obj_fb, objectref_fb, symbol_fb, uuid_fb, var_fb},
 };
-use moor_common::model::ObjectRef;
+use moor_common::{config::MAX_CAPTURE_DEADLINE, model::ObjectRef};
 use moor_schema::{rpc, var};
 use moor_var::{Obj, Symbol, Var};
 use std::time::Duration;
@@ -474,6 +474,7 @@ pub fn mk_invoke_verb_capture_msg(
     timeout: Option<Duration>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let timeout_ms = match timeout {
+        Some(timeout) if timeout.is_zero() || timeout > MAX_CAPTURE_DEADLINE => return None,
         Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
         None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
     };
