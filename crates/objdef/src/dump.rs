@@ -136,7 +136,7 @@ fn collect_object_definitions_with_point_reads(
         }
 
         let object_started = Instant::now();
-        let (verbdefs, propdefs, overrides, od) = collect_object(loader, &o)?;
+        let (verbdefs, propdefs, overrides, od) = collect_object(loader, o)?;
         let object_elapsed = object_started.elapsed();
         if object_elapsed >= Duration::from_secs(5) {
             warn!(
