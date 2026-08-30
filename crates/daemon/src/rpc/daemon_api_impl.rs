@@ -1082,7 +1082,11 @@ impl RpcMessageHandler {
         use crate::rpc::output_capture_session::OutputCaptureSession;
         use moor_kernel::tasks::TaskNotification;
 
-        let session = Arc::new(OutputCaptureSession::new(client_id, *player));
+        let session = Arc::new(OutputCaptureSession::new(
+            client_id,
+            *player,
+            self.event_log.clone(),
+        ));
 
         let task_handle = match scheduler_client.submit_verb_task(
             player,
@@ -1278,7 +1282,11 @@ impl RpcMessageHandler {
             .map(|entry| convert_batch_action_to_kernel(*player, entry.action))
             .collect();
 
-        let session = Arc::new(OutputCaptureSession::new(client_id, *player));
+        let session = Arc::new(OutputCaptureSession::new(
+            client_id,
+            *player,
+            self.event_log.clone(),
+        ));
 
         let (task_handle, result_sink) = scheduler_client
             .submit_batch_world_state_task(player, player, kernel_actions, rollback, session)

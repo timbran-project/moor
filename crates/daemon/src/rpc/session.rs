@@ -14,7 +14,6 @@
 use std::sync::Arc;
 
 use flume::Sender;
-use std::sync::Mutex;
 use uuid::Uuid;
 
 use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
@@ -22,29 +21,18 @@ use moor_runtime_api::api::ClientEvent;
 use moor_var::{Obj, Symbol, Var};
 
 use crate::{
-    connections::ConnectionStateSource,
-    event_log::{EventLogOps, logged_narrative_event_to_flatbuffer},
+    connections::ConnectionStateSource, event_log::EventLogOps,
+    rpc::session_event_buffer::SessionEventBuffer,
 };
 
 /// A "session" that runs over the RPC system.
 pub struct RpcSession {
     client_id: Uuid,
     connection: Obj,
-    identity: Mutex<SessionIdentity>,
-    /// Shared event log for persistent storage across all sessions
-    event_log: Arc<dyn EventLogOps>,
+    /// Buffered events and the shared event-log commit rules.
+    events: SessionEventBuffer,
     connection_state: Arc<dyn ConnectionStateSource>,
-    /// Transaction-local buffer for events pending commit (both logged and broadcast)
-    transaction_buffer: Mutex<Vec<(Obj, Box<NarrativeEvent>)>>,
-    /// Transaction-local buffer for log-only events (logged but not broadcast)
-    log_only_buffer: Mutex<Vec<(Obj, Box<NarrativeEvent>)>>,
     send: Sender<SessionActions>,
-}
-
-#[derive(Clone, Copy)]
-struct SessionIdentity {
-    active_player: Obj,
-    history_player: Obj,
 }
 
 pub enum SessionActions {
@@ -78,14 +66,8 @@ impl RpcSession {
         Self {
             client_id,
             connection,
-            identity: Mutex::new(SessionIdentity {
-                active_player,
-                history_player,
-            }),
-            event_log,
+            events: SessionEventBuffer::new(event_log, active_player, history_player),
             connection_state,
-            transaction_buffer: Mutex::new(Vec::new()),
-            log_only_buffer: Mutex::new(Vec::new()),
             send: sender,
         }
     }
@@ -93,44 +75,13 @@ impl RpcSession {
 
 impl Session for RpcSession {
     fn switch_player_identity(&self, new_player: Obj, preserve_history: bool) {
-        let mut identity = self.identity.lock().unwrap();
-        identity.active_player = new_player;
-        if !preserve_history {
-            identity.history_player = new_player;
-        }
+        self.events
+            .switch_player_identity(new_player, preserve_history);
     }
 
     fn commit(&self) -> Result<(), SessionError> {
-        let events: Vec<_> = {
-            let mut transaction_buffer = self.transaction_buffer.lock().unwrap();
-            transaction_buffer.drain(..).collect()
-        };
-        let log_only_events: Vec<_> = {
-            let mut log_only_buffer = self.log_only_buffer.lock().unwrap();
-            log_only_buffer.drain(..).collect()
-        };
-
-        let identity = *self.identity.lock().unwrap();
-
-        // Log events from both buffers to the event log. Only events addressed to the active
-        // player follow the session's selected history owner; events for other players do not.
-        for (player, event) in events.iter().chain(log_only_events.iter()) {
-            let history_player = if *player == identity.active_player {
-                identity.history_player
-            } else {
-                *player
-            };
-            let Some(pubkey) = self.event_log.get_pubkey(history_player) else {
-                continue;
-            };
-
-            // Convert to FlatBuffer LoggedNarrativeEvent (always encrypted)
-            if let Ok((logged_event, presentation_action)) =
-                logged_narrative_event_to_flatbuffer(history_player, event.clone(), pubkey)
-            {
-                self.event_log.append(logged_event, presentation_action);
-            }
-        }
+        // Writes both buffers to the event log and hands back the deliverable events.
+        let events = self.events.commit();
 
         // Only publish regular events to connected clients (not log_only_events)
         self.send
@@ -140,19 +91,18 @@ impl Session for RpcSession {
     }
 
     fn rollback(&self) -> Result<(), SessionError> {
-        self.transaction_buffer.lock().unwrap().clear();
-        self.log_only_buffer.lock().unwrap().clear();
+        self.events.rollback();
         Ok(())
     }
 
     fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
-        let identity = *self.identity.lock().unwrap();
+        let identity = self.events.identity();
         Ok(Arc::new(Self::new(
             self.client_id,
             self.connection,
             identity.active_player,
             identity.history_player,
-            self.event_log.clone(),
+            self.events.event_log(),
             self.connection_state.clone(),
             self.send.clone(),
         )))
@@ -176,15 +126,12 @@ impl Session for RpcSession {
     }
 
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        self.transaction_buffer
-            .lock()
-            .unwrap()
-            .push((player, event));
+        self.events.push_event(player, event);
         Ok(())
     }
 
     fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        self.log_only_buffer.lock().unwrap().push((player, event));
+        self.events.push_log_only_event(player, event);
         Ok(())
     }
 
@@ -268,5 +215,148 @@ impl Session for RpcSession {
             ))
             .map_err(|_e| SessionError::DeliveryError)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{connections::ConnectionRegistryFactory, testing::MockEventLog};
+    use moor_var::{v_obj, v_str};
+
+    /// An age/X25519 recipient key; the event log encrypts every event it stores.
+    const TEST_PUBKEY: &str = "age1zvkyg2lqzraa2lnjvqej32nkuu0ues2s82hzrye869xeexvn73equnujwj";
+
+    fn event(msg: &str) -> Box<NarrativeEvent> {
+        Box::new(NarrativeEvent::notify(
+            v_obj(Obj::mk_id(1)),
+            v_str(msg),
+            None,
+            false,
+            false,
+            None,
+        ))
+    }
+
+    struct Harness {
+        session: Arc<RpcSession>,
+        log: Arc<MockEventLog>,
+        actions: flume::Receiver<SessionActions>,
+        player: Obj,
+    }
+
+    fn harness() -> Harness {
+        let log = Arc::new(MockEventLog::new());
+        let player = Obj::mk_id(2);
+        log.set_pubkey(player, TEST_PUBKEY.to_string());
+        let (tx, actions) = flume::unbounded();
+        let connections = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let session = Arc::new(RpcSession::new(
+            Uuid::new_v4(),
+            player,
+            player,
+            player,
+            log.clone(),
+            connections,
+            tx,
+        ));
+        Harness {
+            session,
+            log,
+            actions,
+            player,
+        }
+    }
+
+    fn published(actions: &flume::Receiver<SessionActions>) -> Vec<(Obj, Box<NarrativeEvent>)> {
+        match actions.try_recv() {
+            Ok(SessionActions::PublishNarrativeEvents(events)) => events,
+            Ok(_) => panic!("expected narrative events"),
+            Err(e) => panic!("no session action published: {e}"),
+        }
+    }
+
+    #[test]
+    fn commit_logs_both_buffers_and_publishes_only_send_events() {
+        let h = harness();
+
+        h.session.send_event(h.player, event("broadcast")).unwrap();
+        h.session.log_event(h.player, event("log-only")).unwrap();
+        h.session.commit().unwrap();
+
+        // Both events reach the event log; only the send_event is published.
+        assert_eq!(h.log.narrative_event_count(), 2);
+        assert_eq!(published(&h.actions).len(), 1);
+    }
+
+    #[test]
+    fn rollback_discards_buffered_events() {
+        let h = harness();
+
+        h.session.send_event(h.player, event("doomed")).unwrap();
+        h.session.log_event(h.player, event("doomed too")).unwrap();
+        h.session.rollback().unwrap();
+        h.session.commit().unwrap();
+
+        assert_eq!(h.log.narrative_event_count(), 0);
+        assert!(published(&h.actions).is_empty());
+    }
+
+    #[test]
+    fn events_without_a_pubkey_are_not_logged_but_are_still_published() {
+        let h = harness();
+        let other = Obj::mk_id(7);
+
+        h.session.send_event(other, event("no pubkey")).unwrap();
+        h.session.commit().unwrap();
+
+        assert_eq!(h.log.narrative_event_count(), 0);
+        assert_eq!(published(&h.actions).len(), 1);
+    }
+
+    #[test]
+    fn switching_player_without_preserving_history_moves_the_log_owner() {
+        let h = harness();
+        let new_player = Obj::mk_id(9);
+        h.log.set_pubkey(new_player, TEST_PUBKEY.to_string());
+
+        h.session.switch_player_identity(new_player, false);
+        h.session
+            .send_event(new_player, event("after switch"))
+            .unwrap();
+        h.session.commit().unwrap();
+
+        assert_eq!(h.log.event_count_for_player(new_player), 1);
+        assert_eq!(h.log.event_count_for_player(h.player), 0);
+    }
+
+    #[test]
+    fn switching_player_preserving_history_keeps_the_old_log_owner() {
+        let h = harness();
+        let new_player = Obj::mk_id(9);
+        h.log.set_pubkey(new_player, TEST_PUBKEY.to_string());
+
+        h.session.switch_player_identity(new_player, true);
+        h.session
+            .send_event(new_player, event("after switch"))
+            .unwrap();
+        h.session.commit().unwrap();
+
+        assert_eq!(h.log.event_count_for_player(h.player), 1);
+        assert_eq!(h.log.event_count_for_player(new_player), 0);
+    }
+
+    #[test]
+    fn fork_inherits_identity_and_logs_independently() {
+        let h = harness();
+
+        let forked = h.session.clone().fork().unwrap();
+        forked.send_event(h.player, event("from fork")).unwrap();
+        forked.commit().unwrap();
+
+        assert_eq!(h.log.event_count_for_player(h.player), 1);
+        // The parent's own buffer is untouched by the fork's commit.
+        h.session.commit().unwrap();
+        assert_eq!(h.log.event_count_for_player(h.player), 1);
     }
 }

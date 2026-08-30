@@ -36,6 +36,7 @@ mod message_handler_tasks;
 mod output_capture_session;
 mod server;
 mod session;
+mod session_event_buffer;
 pub mod transport;
 
 pub use message_handler::MessageHandler;
