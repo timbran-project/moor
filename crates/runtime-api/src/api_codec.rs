@@ -923,8 +923,11 @@ pub fn decode_client_request(
                     InvocationMode::Connected { client_token }
                 }
                 moor_rpc::InvocationModeRef::CaptureOutputInvocation(capture) => {
+                    // Zero is how a caller says it has no opinion, so it decodes to None and the
+                    // daemon supplies its own configured maximum.
+                    let timeout_ms = capture.timeout_ms().rpc_err()?;
                     InvocationMode::CaptureOutput {
-                        timeout: Some(Duration::from_millis(capture.timeout_ms().rpc_err()?)),
+                        timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
                     }
                 }
             };
@@ -1704,49 +1707,9 @@ pub fn encode_client_reply(
                 )),
             }
         }
-        ClientReply::VerbCallResponse { response } => {
-            let response_fb = match response {
-                api::VerbCallResponse::Success { result, output } => {
-                    let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
-                        RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
-                    })?;
-                    let output_fb: Vec<moor_rpc::NarrativeEvent> = output
-                        .into_iter()
-                        .map(|event| {
-                            convert::narrative_event_to_flatbuffer_struct(&event).map_err(|e| {
-                                RpcMessageError::InternalError(format!(
-                                    "Failed to encode narrative event: {e}"
-                                ))
-                            })
-                        })
-                        .collect::<Result<_, _>>()?;
-                    moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(
-                        moor_rpc::VerbCallSuccess {
-                            result: Box::new(result_fb),
-                            output: output_fb,
-                        },
-                    ))
-                }
-                api::VerbCallResponse::Error { error } => {
-                    let scheduler_error_fb =
-                        scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
-                            RpcMessageError::InternalError(format!(
-                                "Failed to encode scheduler error: {e}"
-                            ))
-                        })?;
-                    moor_rpc::VerbCallResponseUnion::VerbCallError(Box::new(
-                        moor_rpc::VerbCallError {
-                            error: Box::new(scheduler_error_fb),
-                        },
-                    ))
-                }
-            };
-            moor_rpc::DaemonToClientReply {
-                reply: U::VerbCallResponse(Box::new(moor_rpc::VerbCallResponse {
-                    response: response_fb,
-                })),
-            }
-        }
+        ClientReply::VerbCallResponse { response } => moor_rpc::DaemonToClientReply {
+            reply: U::VerbCallResponse(Box::new(encode_verb_call_response(response)?)),
+        },
         ClientReply::BatchWorldStateReply { results } => {
             let result_entries = encode_ws_results(results)?;
             moor_rpc::DaemonToClientReply {
@@ -1757,6 +1720,47 @@ pub fn encode_client_reply(
         }
     };
     Ok(reply)
+}
+
+/// Encode a verb call's outcome on its own, without the reply envelope around it.
+///
+/// The HTTP verb endpoint answers with a bare `VerbCallResponse`, so it needs this without going
+/// through [`encode_client_reply`] and unwrapping the result again.
+pub fn encode_verb_call_response(
+    response: api::VerbCallResponse,
+) -> Result<moor_rpc::VerbCallResponse, RpcMessageError> {
+    let response_fb = match response {
+        api::VerbCallResponse::Success { result, output } => {
+            let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
+                RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
+            })?;
+            let output_fb: Vec<moor_rpc::NarrativeEvent> = output
+                .into_iter()
+                .map(|event| {
+                    convert::narrative_event_to_flatbuffer_struct(&event).map_err(|e| {
+                        RpcMessageError::InternalError(format!(
+                            "Failed to encode narrative event: {e}"
+                        ))
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+            moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(moor_rpc::VerbCallSuccess {
+                result: Box::new(result_fb),
+                output: output_fb,
+            }))
+        }
+        api::VerbCallResponse::Error { error } => {
+            let scheduler_error_fb = scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
+                RpcMessageError::InternalError(format!("Failed to encode scheduler error: {e}"))
+            })?;
+            moor_rpc::VerbCallResponseUnion::VerbCallError(Box::new(moor_rpc::VerbCallError {
+                error: Box::new(scheduler_error_fb),
+            }))
+        }
+    };
+    Ok(moor_rpc::VerbCallResponse {
+        response: response_fb,
+    })
 }
 
 pub fn encode_client_success_bytes(reply: ClientReply) -> Result<Vec<u8>, RpcMessageError> {
@@ -2079,9 +2083,10 @@ mod tests {
         );
     }
 
-    /// Omitting the timeout asks for the schema's default deadline, not for no deadline.
+    /// Omitting the timeout defers to the daemon rather than naming a number the client guessed,
+    /// and it survives the round trip as an absent timeout rather than as a concrete one.
     #[test]
-    fn capture_output_invocation_without_a_timeout_uses_the_default() {
+    fn capture_output_invocation_without_a_timeout_defers_to_the_daemon() {
         let message = mk_invoke_verb_capture_msg(
             &AuthToken("auth".to_string()),
             &ObjectRef::Id(Obj::mk_id(7)),
@@ -2095,14 +2100,7 @@ mod tests {
             panic!("expected InvokeVerb");
         };
 
-        assert_eq!(
-            mode,
-            InvocationMode::CaptureOutput {
-                timeout: Some(Duration::from_millis(
-                    crate::client_messages::DEFAULT_CAPTURE_TIMEOUT_MS
-                ))
-            }
-        );
+        assert_eq!(mode, InvocationMode::CaptureOutput { timeout: None });
     }
 
     #[test]

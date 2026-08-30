@@ -11373,8 +11373,7 @@ class CaptureOutputInvocation {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  int get timeoutMs =>
-      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 60000);
+  int get timeoutMs => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 0);
 
   @override
   String toString() {

@@ -114,6 +114,17 @@ pub trait Session: Send + Sync {
     /// Note: `disconnect` on one must also disconnect on all the other forks of the same lineage.
     fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError>;
 
+    /// "Fork" this session to re-run the *same* task after its transaction was rolled back for a
+    /// commit conflict. Unlike `fork`, the result stands in for the original task rather than
+    /// starting a new one, so a session which accumulates output on behalf of a caller must carry
+    /// that accumulator across, not start a fresh one.
+    ///
+    /// Defaults to `fork`, which is correct for any session whose forks are indistinguishable from
+    /// the original.
+    fn fork_retry(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
+        self.fork()
+    }
+
     /// Request that the client send input to the server.
     /// The task is committed and suspended until the client sends input to `submit_requested_input`
     /// with the given `input_request_id` argument, at which time the task is resumed in a new

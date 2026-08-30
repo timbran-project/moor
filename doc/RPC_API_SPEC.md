@@ -656,7 +656,7 @@ table ConnectedInvocation {
 }
 
 table CaptureOutputInvocation {
-    timeout_ms: uint64 = 60000;                   // How long the caller will wait
+    timeout_ms: uint64 = 0;                       // 0 = the daemon's configured maximum
 }
 ```
 
@@ -672,11 +672,19 @@ outcome.
 `CaptureOutputInvocation` runs the verb with no connection behind it. The daemon collects the
 narrative output the root task commits and replies once the call finishes, with either the returned
 value or the task error. Output from forked tasks is not included, and a verb that asks for input
-fails. `timeout_ms` bounds the wait and may not exceed the daemon's configured maximum capture
-deadline (`runtime.max_capture_deadline`, 60 s by default); a request that asks for longer is
-refused rather than clamped. On expiry the task is cancelled and the reply is a `TaskAbortedLimit`
-time error. A caller's own receive timeout must be longer than the deadline it asks for, or it will
-give up on a reply that is about to arrive.
+fails.
+
+`timeout_ms` bounds the wait. Zero, the default, asks for the daemon's configured maximum capture
+deadline (`runtime.max_capture_deadline`, 60 s by default), which is what a caller with no opinion
+should send: it avoids naming a number a daemon configured lower would refuse. Any other value must
+be no greater than that maximum; a request asking for longer is refused rather than clamped. That
+maximum is itself capped at `MAX_CAPTURE_DEADLINE` (300 s), so a caller that cannot read the
+daemon's configuration still knows the longest wait any daemon can ask of it.
+
+On expiry the task is cancelled and the reply is a `TaskAbortedLimit` time error. The deadline
+covers submitting and cancelling the task as well as running it, so the reply arrives within it. A
+caller's own receive timeout must still be longer than the deadline, or it will give up on a reply
+that is about to arrive.
 
 ---
 

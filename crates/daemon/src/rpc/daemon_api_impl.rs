@@ -16,10 +16,10 @@
 //! decode FlatBuffer refs into these enums, dispatch here, and encode replies
 //! back, keeping FlatBuffer knowledge at the wire boundary.
 
-use flume::RecvTimeoutError;
+use flume::{Receiver, RecvTimeoutError};
 use moor_common::model::{ObjFlag, ObjectRef};
-use moor_common::tasks::{AbortLimitReason, SchedulerError, TaskId};
-use moor_kernel::SchedulerClient;
+use moor_common::tasks::{AbortLimitReason, NarrativeEvent, SchedulerError, TaskId};
+use moor_kernel::{SchedulerClient, tasks::TaskNotification};
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
     InvocationMode, ObjectInfo, ServerFeatures, VerbCallResponse, VerbProgramResponse,
@@ -1141,6 +1141,11 @@ impl RpcMessageHandler {
     /// The task keeps running while this waits, including across suspension, so the deadline is
     /// wall-clock time for the whole call. On expiry the task is cancelled and the caller is told
     /// it ran out of time.
+    ///
+    /// The deadline covers submission and cancellation as well as the run itself. Both of those
+    /// are synchronous scheduler requests which can take seconds of their own under load, and a
+    /// caller that gave up at the deadline would otherwise see its transport time out rather than
+    /// the time-limit reply this returns.
     #[allow(clippy::too_many_arguments)]
     fn submit_captured_verb_task_typed(
         &self,
@@ -1156,11 +1161,17 @@ impl RpcMessageHandler {
         use crate::rpc::output_capture_session::OutputCaptureSession;
         use moor_kernel::tasks::TaskNotification;
 
+        let expires_at = Instant::now() + deadline;
+
         let session = Arc::new(OutputCaptureSession::new(
             client_id,
             *player,
             self.event_log.clone(),
+            self.mailbox_sender.clone(),
         ));
+        // Held separately: a conflict retry replaces the session the task runs under, but every
+        // session in that lineage accumulates into this one buffer.
+        let output = session.accumulator();
 
         let task_handle = match scheduler_client.submit_verb_task(
             player,
@@ -1178,23 +1189,36 @@ impl RpcMessageHandler {
             }
         };
 
+        let take_output = || {
+            output
+                .as_ref()
+                .map(|o| o.take())
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(_, event)| *event)
+                .collect::<Vec<_>>()
+        };
+
         let task_id = task_handle.task_id();
-        let expires_at = Instant::now() + deadline;
         let receiver = task_handle.into_receiver();
         loop {
             let remaining = expires_at.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                return Ok(self.abandon_captured_task(&scheduler_client, task_id, deadline));
+                return Ok(self.abandon_captured_task(
+                    &scheduler_client,
+                    task_id,
+                    &receiver,
+                    deadline,
+                    take_output,
+                ));
             }
             match receiver.recv_timeout(remaining) {
                 Ok((_, Ok(TaskNotification::Result(v)))) => {
-                    let output = session
-                        .take_captured_events()
-                        .into_iter()
-                        .map(|(_, event)| *event)
-                        .collect();
                     return Ok(ClientReply::VerbCallResponse {
-                        response: VerbCallResponse::Success { result: v, output },
+                        response: VerbCallResponse::Success {
+                            result: v,
+                            output: take_output(),
+                        },
                     });
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
@@ -1204,7 +1228,13 @@ impl RpcMessageHandler {
                     });
                 }
                 Err(RecvTimeoutError::Timeout) => {
-                    return Ok(self.abandon_captured_task(&scheduler_client, task_id, deadline));
+                    return Ok(self.abandon_captured_task(
+                        &scheduler_client,
+                        task_id,
+                        &receiver,
+                        deadline,
+                        take_output,
+                    ));
                 }
                 Err(e) => {
                     return Err(RpcMessageError::InternalError(e.to_string()));
@@ -1213,17 +1243,63 @@ impl RpcMessageHandler {
         }
     }
 
-    /// Cancel a captured task whose deadline has passed, and describe it to the caller as having
-    /// run out of time.
+    /// Cancel a captured task whose deadline has passed.
+    ///
+    /// A task that finished in the moment before the deadline expired has nothing left to cancel,
+    /// and its result is already waiting on the channel; report that rather than a time limit the
+    /// task did not actually hit.
+    ///
+    /// Note that cancellation does not undo anything already committed. A task that suspended and
+    /// resumed has committed each transaction it completed before the deadline, and those effects
+    /// stand; only the transaction in flight is rolled back.
     fn abandon_captured_task(
         &self,
         scheduler_client: &SchedulerClient,
         task_id: TaskId,
+        receiver: &Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
         deadline: Duration,
+        take_output: impl FnOnce() -> Vec<NarrativeEvent>,
     ) -> ClientReply {
-        if let Err(e) = scheduler_client.abort_task(task_id) {
-            error!(task_id, error = ?e, "Could not cancel captured task after its deadline");
+        let cancelled = match scheduler_client.abort_task(task_id) {
+            Ok(cancelled) => cancelled,
+            Err(e) => {
+                error!(task_id, error = ?e, "Could not cancel captured task after its deadline");
+                true
+            }
+        };
+
+        // Whether or not there was a task left to cancel, a result may already be on the channel:
+        // it either finished just under the wire, or cancellation delivered the abort. Draining is
+        // what tells the two apart.
+        while let Ok((_, notification)) = receiver.try_recv() {
+            match notification {
+                Ok(TaskNotification::Result(result)) => {
+                    return ClientReply::VerbCallResponse {
+                        response: VerbCallResponse::Success {
+                            result,
+                            output: take_output(),
+                        },
+                    };
+                }
+                Ok(TaskNotification::Suspended) => continue,
+                Err(error) => {
+                    return ClientReply::VerbCallResponse {
+                        response: VerbCallResponse::Error { error },
+                    };
+                }
+            }
         }
+
+        if !cancelled {
+            // Nothing to cancel and nothing on the channel: the task is gone without a result we
+            // can attribute. Reporting the deadline is the truthful answer to the caller, who did
+            // wait the whole time.
+            debug!(
+                task_id,
+                "Captured task was already gone when its deadline expired"
+            );
+        }
+
         ClientReply::VerbCallResponse {
             response: VerbCallResponse::Error {
                 error: SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(deadline)),
@@ -1387,6 +1463,7 @@ impl RpcMessageHandler {
             client_id,
             *player,
             self.event_log.clone(),
+            self.mailbox_sender.clone(),
         ));
 
         let (task_handle, result_sink) = scheduler_client

@@ -428,8 +428,10 @@ impl TaskQ {
         task.reclaim_program_cache();
         task.vm_host.reset_time();
 
-        // Fork the session for the new attempt
-        let new_session = session.fork().unwrap();
+        // Fork the session for the new attempt. This is the same task running again, not a new
+        // one, so use `fork_retry`: a session accumulating output for a caller has to keep that
+        // accumulator across the retry.
+        let new_session = session.fork_retry().unwrap();
 
         // Brand new kill switch for the retried task
         let kill_switch = Arc::new(AtomicBool::new(false));

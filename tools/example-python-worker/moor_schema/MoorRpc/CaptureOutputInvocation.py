@@ -29,12 +29,12 @@ class CaptureOutputInvocation(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
-        return 60000
+        return 0
 
 def CaptureOutputInvocationStart(builder): builder.StartObject(1)
 def Start(builder):
     return CaptureOutputInvocationStart(builder)
-def CaptureOutputInvocationAddTimeoutMs(builder, timeoutMs): builder.PrependUint64Slot(0, timeoutMs, 60000)
+def CaptureOutputInvocationAddTimeoutMs(builder, timeoutMs): builder.PrependUint64Slot(0, timeoutMs, 0)
 def AddTimeoutMs(builder, timeoutMs):
     return CaptureOutputInvocationAddTimeoutMs(builder, timeoutMs)
 def CaptureOutputInvocationEnd(builder): return builder.EndObject()

@@ -11,7 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_runtime_api::{DEFAULT_CAPTURE_TIMEOUT_MS, RpcError, uuid_fb};
+use moor_common::config::MAX_CAPTURE_DEADLINE_MS;
+use moor_runtime_api::{RpcError, uuid_fb};
 use moor_schema::rpc as moor_rpc;
 use planus::Builder;
 use std::collections::VecDeque;
@@ -26,8 +27,10 @@ const DEFAULT_SOCK_RECEIVE_TIMEOUT_MS: i32 = 5000;
 
 /// How much longer than a request's own deadline a socket waits for the reply. The daemon only
 /// answers a captured invocation once the task finishes or its deadline expires, so the socket has
-/// to outlive that deadline or the caller gives up on a reply that is about to arrive.
-const RECEIVE_TIMEOUT_MARGIN_MS: i32 = 5000;
+/// to outlive that deadline or the caller gives up on a reply that is about to arrive. The daemon
+/// may also spend a scheduler request timeout cancelling a task that overran, which lands inside
+/// the same wait, so the margin is generous enough to cover that too.
+const RECEIVE_TIMEOUT_MARGIN_MS: i32 = 15000;
 
 /// Configuration for the RPC client
 #[derive(Debug, Clone)]
@@ -195,7 +198,7 @@ impl RpcClient {
                 if let Some(socket) = socket {
                     socket_guard.return_socket(socket).await;
                 }
-                Err(error)
+                Err(*error)
             }
         }
     }
@@ -222,7 +225,7 @@ impl RpcClient {
                 if let Some(socket) = socket {
                     socket_guard.return_socket(socket).await;
                 }
-                Err(error)
+                Err(*error)
             }
         }
     }
@@ -291,7 +294,7 @@ impl RpcClient {
         socket: RequestSender,
         client_id: Uuid,
         rpc_msg: moor_rpc::HostClientToDaemonMessage,
-    ) -> Result<(Vec<u8>, RequestSender), (RpcError, Option<RequestSender>)> {
+    ) -> Result<(Vec<u8>, RequestSender), (Box<RpcError>, Option<RequestSender>)> {
         // Serialize the message to FlatBuffer bytes
         let mut builder = Builder::new();
         let rpc_msg_payload = builder.finish(&rpc_msg, None).to_vec();
@@ -318,7 +321,7 @@ impl RpcClient {
                 );
                 // Note: socket is consumed by send(), so we can't return it here
                 // The socket is lost on send failure - this is a limitation of the tmq API
-                return Err((RpcError::CouldNotSend(e.to_string()), None));
+                return Err((Box::new(RpcError::CouldNotSend(e.to_string())), None));
             }
         };
 
@@ -331,7 +334,7 @@ impl RpcClient {
                 );
                 // Note: rpc_reply_sock is consumed by recv() even on failure
                 // The socket is lost on recv failure - this is a limitation of the tmq API
-                return Err((RpcError::CouldNotReceive(e.to_string()), None));
+                return Err((Box::new(RpcError::CouldNotReceive(e.to_string())), None));
             }
         };
 
@@ -346,7 +349,7 @@ impl RpcClient {
         socket: RequestSender,
         host_id: Uuid,
         rpc_message: moor_rpc::HostToDaemonMessage,
-    ) -> Result<(Vec<u8>, RequestSender), (RpcError, Option<RequestSender>)> {
+    ) -> Result<(Vec<u8>, RequestSender), (Box<RpcError>, Option<RequestSender>)> {
         // Serialize the message to FlatBuffer bytes
         let mut builder = Builder::new();
         let rpc_msg_payload = builder.finish(&rpc_message, None).to_vec();
@@ -373,7 +376,7 @@ impl RpcClient {
                 );
                 // Note: socket is consumed by send(), so we can't return it here
                 // The socket is lost on send failure - this is a limitation of the tmq API
-                return Err((RpcError::CouldNotSend(e.to_string()), None));
+                return Err((Box::new(RpcError::CouldNotSend(e.to_string())), None));
             }
         };
 
@@ -386,7 +389,7 @@ impl RpcClient {
                 );
                 // Note: rpc_reply_sock is consumed by recv() even on failure
                 // The socket is lost on recv failure - this is a limitation of the tmq API
-                return Err((RpcError::CouldNotReceive(e.to_string()), None));
+                return Err((Box::new(RpcError::CouldNotReceive(e.to_string())), None));
             }
         };
 
@@ -413,15 +416,23 @@ impl RpcClient {
 /// The receive timeout a message needs, when it needs more than the configured default.
 ///
 /// Only a captured verb invocation does: the daemon holds the reply until the task finishes or its
-/// deadline expires.
+/// deadline expires. A request that asks the daemon to pick the deadline, and the welcome message
+/// which always uses the daemon's configured maximum, are sized against the protocol ceiling
+/// instead, because the client cannot see what the daemon is configured to.
 fn required_receive_timeout_ms(rpc_msg: &moor_rpc::HostClientToDaemonMessage) -> Option<i32> {
     let deadline_ms = match &rpc_msg.message {
         moor_rpc::HostClientToDaemonMessageUnion::InvokeVerb(invoke) => match &invoke.mode {
-            moor_rpc::InvocationMode::CaptureOutputInvocation(capture) => capture.timeout_ms,
+            moor_rpc::InvocationMode::CaptureOutputInvocation(capture) => {
+                if capture.timeout_ms == 0 {
+                    MAX_CAPTURE_DEADLINE_MS
+                } else {
+                    capture.timeout_ms
+                }
+            }
             moor_rpc::InvocationMode::ConnectedInvocation(_) => return None,
         },
         moor_rpc::HostClientToDaemonMessageUnion::InvokeWelcomeMessage(_) => {
-            DEFAULT_CAPTURE_TIMEOUT_MS
+            MAX_CAPTURE_DEADLINE_MS
         }
         _ => return None,
     };
@@ -474,10 +485,27 @@ mod tests {
     }
 
     #[test]
-    fn the_welcome_message_waits_for_the_default_capture_deadline() {
+    fn the_welcome_message_waits_for_the_longest_deadline_a_daemon_may_use() {
         let msg = mk_invoke_welcome_message_msg();
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
-        assert!(timeout_ms > DEFAULT_CAPTURE_TIMEOUT_MS as i32);
+        assert!(timeout_ms > MAX_CAPTURE_DEADLINE_MS as i32);
+    }
+
+    #[test]
+    fn a_capture_that_defers_to_the_daemon_waits_for_the_protocol_maximum() {
+        let msg = mk_invoke_verb_capture_msg(
+            &auth_token(),
+            &moor_common::model::ObjectRef::Id(moor_var::Obj::mk_id(1)),
+            &Symbol::mk("look"),
+            vec![],
+            None,
+        )
+        .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(
+            timeout_ms > MAX_CAPTURE_DEADLINE_MS as i32,
+            "receive timeout {timeout_ms}ms must exceed the protocol maximum"
+        );
     }
 
     #[test]

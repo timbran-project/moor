@@ -155,8 +155,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `AuthToken`, and that principal is both the player the verb runs as and the authority it runs
   with.
 - A captured call waits at most `timeout_ms`, bounded by the new `runtime.max_capture_deadline`
-  daemon setting (default 60 seconds). A request asking for longer is refused rather than clamped,
-  and a deadline that passes cancels the task and answers with a `TaskAbortedLimit` time error.
+  daemon setting (default 60 seconds, and never more than 300). A `timeout_ms` of zero asks for that
+  configured maximum, so a caller need not guess. A request asking for longer is refused rather than
+  clamped, and a deadline that passes cancels the task and answers with a `TaskAbortedLimit` time
+  error.
+- Captured output is bounded. A call that produces more than 10,000 events or 8 MiB of them fails
+  rather than accumulating a response nobody can receive. Output the call addresses to another
+  player is delivered to that player as usual rather than captured, and a forked task's output is
+  published rather than returned.
 - `CallSystemVerb` is replaced by `InvokeWelcomeMessage`, which takes no arguments and always
   invokes `#0:do_login_command` as `#0` with its output captured. There is no longer any way to call
   an arbitrary verb with system authority and no credentials.

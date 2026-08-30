@@ -23,9 +23,10 @@ use moor_var::{Obj, Symbol, Var};
 use std::time::Duration;
 use uuid::Uuid;
 
-/// Default capture deadline for a verb invocation, matching the schema's default for
-/// `CaptureOutputInvocation.timeout_ms`. A daemon configured with a lower maximum will refuse it.
-pub const DEFAULT_CAPTURE_TIMEOUT_MS: u64 = 60_000;
+/// The `CaptureOutputInvocation.timeout_ms` value that asks the daemon to use its own configured
+/// maximum. A client with no opinion about how long it will wait sends this rather than guessing a
+/// number the daemon might refuse.
+pub const SERVER_DEFAULT_CAPTURE_TIMEOUT_MS: u64 = 0;
 
 /// Build a LoginCommand message
 #[inline]
@@ -459,9 +460,11 @@ pub fn mk_invoke_verb_msg(
 
 /// Build an InvokeVerb message whose output is captured and returned with the result.
 ///
-/// `timeout` is how long the caller will wait; `None` asks for the daemon's configured maximum.
-/// The caller's own receive timeout must be longer than this, or it will give up before the reply
-/// arrives.
+/// `timeout` is how long the caller will wait; `None` asks for the daemon's configured maximum and
+/// travels as `timeout_ms = 0`, so the daemon and not the client decides the number. The caller's
+/// own receive timeout must be longer than whatever the daemon will use, or it will give up before
+/// the reply arrives; `moor_common::config::MAX_CAPTURE_DEADLINE` is the ceiling a client can rely
+/// on whatever the daemon is configured to.
 #[inline]
 pub fn mk_invoke_verb_capture_msg(
     auth_token: &AuthToken,
@@ -472,7 +475,7 @@ pub fn mk_invoke_verb_capture_msg(
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let timeout_ms = match timeout {
         Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
-        None => DEFAULT_CAPTURE_TIMEOUT_MS,
+        None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
     };
     mk_invoke_verb_msg_with_mode(
         auth_token,
