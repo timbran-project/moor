@@ -425,6 +425,8 @@ pub enum WakeCondition {
     TaskMessage(Instant),
     /// Wake when this process's checkpoint generation completes.
     Checkpoint(u64),
+    /// Wake when this process's storage-compaction generation completes.
+    StorageCompaction(u64),
 }
 
 #[repr(u8)]
@@ -439,6 +441,7 @@ pub enum WakeConditionType {
     Retry = 7,
     TaskMessage = 8,
     Checkpoint = 9,
+    StorageCompaction = 10,
 }
 
 impl WakeCondition {
@@ -454,6 +457,7 @@ impl WakeCondition {
             WakeCondition::Retry(_) => WakeConditionType::Retry,
             WakeCondition::TaskMessage(_) => WakeConditionType::TaskMessage,
             WakeCondition::Checkpoint(_) => WakeConditionType::Checkpoint,
+            WakeCondition::StorageCompaction(_) => WakeConditionType::StorageCompaction,
         }
     }
 }
@@ -711,6 +715,9 @@ impl SuspensionQ {
                 WakeCondition::Checkpoint(_) => {
                     // Checkpoint jobs do not survive process restart.
                 }
+                WakeCondition::StorageCompaction(_) => {
+                    // Storage compaction jobs do not survive process restart.
+                }
             }
 
             self.tasks.insert(task_id, task);
@@ -825,6 +832,7 @@ impl SuspensionQ {
                 true // Persist - message queue state should survive restarts
             }
             WakeCondition::Checkpoint(_) => false,
+            WakeCondition::StorageCompaction(_) => false,
         };
 
         let sr = SuspendedTask {
@@ -907,6 +915,9 @@ impl SuspensionQ {
                 WakeCondition::Checkpoint(_) => {
                     // No auxiliary queue entry to remove.
                 }
+                WakeCondition::StorageCompaction(_) => {
+                    // No auxiliary queue entry to remove.
+                }
             }
 
             // Try to delete from database - will be a no-op for tasks that were never persisted
@@ -932,7 +943,9 @@ impl SuspensionQ {
             // would be invalid after restart anyway
             if matches!(
                 st.wake_condition,
-                WakeCondition::Retry(_) | WakeCondition::Checkpoint(_)
+                WakeCondition::Retry(_)
+                    | WakeCondition::Checkpoint(_)
+                    | WakeCondition::StorageCompaction(_)
             ) {
                 continue;
             }

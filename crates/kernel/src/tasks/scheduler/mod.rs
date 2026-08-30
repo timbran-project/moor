@@ -24,9 +24,7 @@ use fast_telemetry::LabeledSampledTimer;
 
 use crate::{
     task_context::TaskGuard,
-    tasks::checkpoint::{
-        CheckpointCoordinator, CheckpointJob, CheckpointTicket, prepare_checkpoint,
-    },
+    tasks::checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
 };
 use flume::{Receiver, RecvTimeoutError, Sender};
 use moor_common::util::{Deadline, Instant};
@@ -43,7 +41,7 @@ use uuid::Uuid;
 
 use moor_common::model::{CommitResult, ConflictInfo, TaskPermissions, WorldState};
 use moor_compiler::to_literal;
-use moor_db::Database;
+use moor_db::{Database, DatabaseRelation};
 
 use crate::{
     config::Config,
@@ -53,7 +51,12 @@ use crate::{
         DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
         TaskNotification, TaskStart,
         gc_thread::spawn_gc_mark_phase,
+        maintenance::MaintenanceCoordinator,
         sched_counters,
+        storage_compaction::{
+            StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
+            prepare_storage_compaction,
+        },
         task::Task,
         task_q::{
             LiveTaskRegistry, RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ,
@@ -167,8 +170,8 @@ pub struct Scheduler {
     /// Builtin function registry.
     pub(crate) builtin_registry: BuiltinRegistry,
 
-    /// Owns checkpoint admission and completion across all request paths.
-    pub(crate) checkpoint_coordinator: CheckpointCoordinator,
+    /// Owns mutually exclusive database maintenance across all request paths.
+    pub(crate) maintenance_coordinator: MaintenanceCoordinator,
 
     /// Current GC mark/callback thread, retained for shutdown and cycle-to-cycle joining.
     pub(crate) gc_thread: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
@@ -260,7 +263,7 @@ impl Scheduler {
             server_options,
             builtin_registry,
             system_control,
-            checkpoint_coordinator: CheckpointCoordinator::new(),
+            maintenance_coordinator: MaintenanceCoordinator::new(),
             gc_thread: Arc::new(Mutex::new(None)),
             worker_request_send,
             worker_response_recv: Arc::new(Mutex::new(worker_request_recv)),
@@ -478,6 +481,9 @@ impl Scheduler {
                     WakeCondition::Retry(_) => ("Retry", "Transaction retry backoff"),
                     WakeCondition::TaskMessage(_) => ("TaskMessage", "Message received or timeout"),
                     WakeCondition::Checkpoint(_) => ("Checkpoint", "Checkpoint completed"),
+                    WakeCondition::StorageCompaction(_) => {
+                        ("StorageCompaction", "Storage compaction completed")
+                    }
                 };
 
                 trace_task_resume!(
@@ -507,6 +513,7 @@ impl Scheduler {
                     }
                     WakeCondition::Immediate(val) => val.clone().unwrap_or_else(|| v_int(0)),
                     WakeCondition::Checkpoint(_) => v_bool_int(true),
+                    WakeCondition::StorageCompaction(_) => v_int(0),
                     _ => v_int(0),
                 };
                 if let Err(e) = lc.task_q.wake_suspended_task(

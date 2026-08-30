@@ -50,6 +50,8 @@ pub enum SchedulerError {
     CouldNotStartTask,
     #[error("Checkpoint already in progress")]
     CheckpointInProgress,
+    #[error("Storage maintenance already in progress")]
+    StorageMaintenanceInProgress,
     #[error("Compilation error")]
     CompilationError(#[source] CompileError),
     #[error("Could not start command")]

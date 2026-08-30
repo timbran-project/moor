@@ -32,6 +32,8 @@ mod tx;
 
 use crate::engine::MoorDB;
 
+pub use engine::DatabaseRelation;
+
 pub use api::world_state::DbWorldState;
 pub use api::{
     gc::{GCError, GCInterface},
@@ -79,6 +81,45 @@ impl StorageMaintenanceStats {
     #[must_use]
     pub fn is_active(self) -> bool {
         self.outstanding_flushes != 0 || self.active_compactions != 0
+    }
+}
+
+/// Outcome of major-compacting one database relation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RelationCompactionResult {
+    pub relation: DatabaseRelation,
+    pub bytes_before: u64,
+    pub bytes_after: u64,
+    pub error: Option<String>,
+}
+
+impl RelationCompactionResult {
+    fn completed(relation: DatabaseRelation, bytes_before: u64, bytes_after: u64) -> Self {
+        Self {
+            relation,
+            bytes_before,
+            bytes_after,
+            error: None,
+        }
+    }
+
+    fn failed(
+        relation: DatabaseRelation,
+        bytes_before: u64,
+        bytes_after: u64,
+        error: String,
+    ) -> Self {
+        Self {
+            relation,
+            bytes_before,
+            bytes_after,
+            error: Some(error),
+        }
+    }
+
+    #[must_use]
+    pub fn bytes_reclaimed(&self) -> u64 {
+        self.bytes_before.saturating_sub(self.bytes_after)
     }
 }
 
@@ -141,6 +182,16 @@ pub trait Database: Send + Sync + WorldStateSource {
     fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError>;
     fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError>;
     fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError>;
+
+    /// Major-compact selected relation keyspaces and return one result for each relation.
+    fn compact_relations(
+        &self,
+        _relations: &[DatabaseRelation],
+    ) -> Result<Vec<RelationCompactionResult>, WorldStateError> {
+        Err(WorldStateError::DatabaseError(
+            "Storage engine does not support relation compaction".to_string(),
+        ))
+    }
 
     /// Return storage maintenance counters when supported by the engine.
     fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {
@@ -226,6 +277,15 @@ impl Database for TxDB {
         let tx = self.storage.start_transaction();
         let tx = api::world_state::DbWorldState { tx };
         Ok(Box::new(tx))
+    }
+
+    fn compact_relations(
+        &self,
+        relations: &[DatabaseRelation],
+    ) -> Result<Vec<RelationCompactionResult>, WorldStateError> {
+        self.storage
+            .compact_relations(relations)
+            .map_err(WorldStateError::DatabaseError)
     }
 
     fn storage_maintenance_stats(&self) -> Option<StorageMaintenanceStats> {

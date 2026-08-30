@@ -164,6 +164,7 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("reset_max_object", Q(0), Q(0), vec![], false),
         mk_builtin("program_cache_stats", Q(0), Q(0), vec![], true),
         mk_builtin("task_perms", Q(0), Q(0), vec![], true),
+        mk_builtin("db_compact", Q(0), Q(1), vec![Typed(TYPE_LIST)], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "server/system");
@@ -1554,5 +1555,24 @@ mod tests {
             descriptor.types.as_slice(),
             [ArgType::Typed(TYPE_INT)]
         ));
+    }
+
+    #[test]
+    fn db_compact_descriptor_accepts_an_optional_relation_list() {
+        let id = BUILTINS
+            .find_builtin(Symbol::mk("db_compact"))
+            .expect("db_compact should be registered");
+        let descriptor = BUILTINS.description_for(id).unwrap();
+
+        assert!(matches!(descriptor.min_args, ArgCount::Q(0)));
+        assert!(matches!(descriptor.max_args, ArgCount::Q(1)));
+        assert!(matches!(
+            descriptor.types.as_slice(),
+            [ArgType::Typed(moor_var::VarType::TYPE_LIST)]
+        ));
+        assert_eq!(
+            offset_for_builtin("db_compact"),
+            offset_for_builtin("task_perms") + 1
+        );
     }
 }

@@ -30948,6 +30948,11 @@ mod root {
 
             /// The variant of type `CheckpointInProgress` in the union `SchedulerErrorUnion`
             CheckpointInProgress(::planus::alloc::boxed::Box<self::CheckpointInProgress>),
+
+            /// The variant of type `StorageMaintenanceInProgress` in the union `SchedulerErrorUnion`
+            StorageMaintenanceInProgress(
+                ::planus::alloc::boxed::Box<self::StorageMaintenanceInProgress>,
+            ),
         }
 
         impl SchedulerErrorUnion {
@@ -31092,6 +31097,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(17, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_storage_maintenance_in_progress(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(18, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<SchedulerErrorUnion> for SchedulerErrorUnion {
@@ -31144,6 +31157,9 @@ mod root {
                     }
                     Self::CheckpointInProgress(value) => {
                         Self::create_checkpoint_in_progress(builder, value)
+                    }
+                    Self::StorageMaintenanceInProgress(value) => {
+                        Self::create_storage_maintenance_in_progress(builder, value)
                     }
                 }
             }
@@ -31367,6 +31383,18 @@ mod root {
             ) -> SchedulerErrorUnionBuilder<::planus::Initialized<17, T>>
             where
                 T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
+            {
+                SchedulerErrorUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`StorageMaintenanceInProgress` variant](SchedulerErrorUnion#variant.StorageMaintenanceInProgress).
+            #[inline]
+            pub fn storage_maintenance_in_progress<T>(
+                self,
+                value: T,
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
+            where
+                T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
             {
                 SchedulerErrorUnionBuilder(::planus::Initialized(value))
             }
@@ -31845,6 +31873,33 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
+            for SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
+                ::planus::UnionOffset::new(18, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
+            for SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [SchedulerErrorUnion].
         #[derive(Copy, Clone, Debug)]
@@ -31866,6 +31921,7 @@ mod root {
             ObjectResolutionFailed(self::ObjectResolutionFailedRef<'a>),
             GarbageCollectionFailed(self::GarbageCollectionFailedRef<'a>),
             CheckpointInProgress(self::CheckpointInProgressRef<'a>),
+            StorageMaintenanceInProgress(self::StorageMaintenanceInProgressRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<SchedulerErrorUnionRef<'a>> for SchedulerErrorUnion {
@@ -31974,6 +32030,12 @@ mod root {
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
+
+                    SchedulerErrorUnionRef::StorageMaintenanceInProgress(value) => {
+                        Self::StorageMaintenanceInProgress(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
                 })
             }
         }
@@ -32036,6 +32098,9 @@ mod root {
                     17 => ::core::result::Result::Ok(Self::CheckpointInProgress(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    18 => ::core::result::Result::Ok(Self::StorageMaintenanceInProgress(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -32052,7 +32117,7 @@ mod root {
         /// The table `SchedulerNotResponding` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SchedulerNotResponding` in the file `moor_rpc.fbs:86`
+        /// * Table `SchedulerNotResponding` in the file `moor_rpc.fbs:87`
         #[derive(
             Clone,
             Debug,
@@ -32288,7 +32353,7 @@ mod root {
         /// The table `TaskNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskNotFound` in the file `moor_rpc.fbs:89`
+        /// * Table `TaskNotFound` in the file `moor_rpc.fbs:90`
         #[derive(
             Clone,
             Debug,
@@ -32553,7 +32618,7 @@ mod root {
         /// The table `InputRequestNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputRequestNotFound` in the file `moor_rpc.fbs:93`
+        /// * Table `InputRequestNotFound` in the file `moor_rpc.fbs:94`
         #[derive(
             Clone,
             Debug,
@@ -32828,7 +32893,7 @@ mod root {
         /// The table `CouldNotStartTask` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CouldNotStartTask` in the file `moor_rpc.fbs:97`
+        /// * Table `CouldNotStartTask` in the file `moor_rpc.fbs:98`
         #[derive(
             Clone,
             Debug,
@@ -33056,7 +33121,7 @@ mod root {
         /// The table `CompilationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CompilationError` in the file `moor_rpc.fbs:100`
+        /// * Table `CompilationError` in the file `moor_rpc.fbs:101`
         #[derive(
             Clone,
             Debug,
@@ -33319,7 +33384,7 @@ mod root {
         /// The table `CommandExecutionError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CommandExecutionError` in the file `moor_rpc.fbs:104`
+        /// * Table `CommandExecutionError` in the file `moor_rpc.fbs:105`
         #[derive(
             Clone,
             Debug,
@@ -33586,7 +33651,7 @@ mod root {
         /// The table `TaskAbortedLimit` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedLimit` in the file `moor_rpc.fbs:108`
+        /// * Table `TaskAbortedLimit` in the file `moor_rpc.fbs:109`
         #[derive(
             Clone,
             Debug,
@@ -33858,7 +33923,7 @@ mod root {
         /// The table `TaskAbortedError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedError` in the file `moor_rpc.fbs:112`
+        /// * Table `TaskAbortedError` in the file `moor_rpc.fbs:113`
         #[derive(
             Clone,
             Debug,
@@ -34084,7 +34149,7 @@ mod root {
         /// The table `TaskAbortedException` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedException` in the file `moor_rpc.fbs:115`
+        /// * Table `TaskAbortedException` in the file `moor_rpc.fbs:116`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskAbortedException {
             /// The field `exception` in the table `TaskAbortedException`
@@ -34349,7 +34414,7 @@ mod root {
         /// The table `TaskAbortedVerbNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedVerbNotFound` in the file `moor_rpc.fbs:119`
+        /// * Table `TaskAbortedVerbNotFound` in the file `moor_rpc.fbs:120`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskAbortedVerbNotFound {
             /// The field `where` in the table `TaskAbortedVerbNotFound`
@@ -34649,7 +34714,7 @@ mod root {
         /// The table `TaskAbortedCancelled` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedCancelled` in the file `moor_rpc.fbs:124`
+        /// * Table `TaskAbortedCancelled` in the file `moor_rpc.fbs:125`
         #[derive(
             Clone,
             Debug,
@@ -34879,7 +34944,7 @@ mod root {
         /// The table `VerbProgramFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramFailed` in the file `moor_rpc.fbs:127`
+        /// * Table `VerbProgramFailed` in the file `moor_rpc.fbs:128`
         #[derive(
             Clone,
             Debug,
@@ -35142,7 +35207,7 @@ mod root {
         /// The table `PropertyRetrievalFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyRetrievalFailed` in the file `moor_rpc.fbs:131`
+        /// * Table `PropertyRetrievalFailed` in the file `moor_rpc.fbs:132`
         #[derive(
             Clone,
             Debug,
@@ -35420,7 +35485,7 @@ mod root {
         /// The table `VerbRetrievalFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbRetrievalFailed` in the file `moor_rpc.fbs:135`
+        /// * Table `VerbRetrievalFailed` in the file `moor_rpc.fbs:136`
         #[derive(
             Clone,
             Debug,
@@ -35688,7 +35753,7 @@ mod root {
         /// The table `ObjectResolutionFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectResolutionFailed` in the file `moor_rpc.fbs:139`
+        /// * Table `ObjectResolutionFailed` in the file `moor_rpc.fbs:140`
         #[derive(
             Clone,
             Debug,
@@ -35961,7 +36026,7 @@ mod root {
         /// The table `GarbageCollectionFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GarbageCollectionFailed` in the file `moor_rpc.fbs:143`
+        /// * Table `GarbageCollectionFailed` in the file `moor_rpc.fbs:144`
         #[derive(
             Clone,
             Debug,
@@ -36243,7 +36308,7 @@ mod root {
         /// The table `CheckpointInProgress` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CheckpointInProgress` in the file `moor_rpc.fbs:147`
+        /// * Table `CheckpointInProgress` in the file `moor_rpc.fbs:148`
         #[derive(
             Clone,
             Debug,
@@ -36470,10 +36535,258 @@ mod root {
             }
         }
 
+        /// The table `StorageMaintenanceInProgress` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `StorageMaintenanceInProgress` in the file `moor_rpc.fbs:151`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct StorageMaintenanceInProgress {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for StorageMaintenanceInProgress {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl StorageMaintenanceInProgress {
+            /// Creates a [StorageMaintenanceInProgressBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StorageMaintenanceInProgressBuilder<()> {
+                StorageMaintenanceInProgressBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StorageMaintenanceInProgress>>
+            for StorageMaintenanceInProgress
+        {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StorageMaintenanceInProgress> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StorageMaintenanceInProgress>>
+            for StorageMaintenanceInProgress
+        {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StorageMaintenanceInProgress>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StorageMaintenanceInProgress> for StorageMaintenanceInProgress {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StorageMaintenanceInProgress> {
+                StorageMaintenanceInProgress::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [StorageMaintenanceInProgress] type.
+        ///
+        /// Can be created using the [StorageMaintenanceInProgress::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StorageMaintenanceInProgressBuilder<State>(State);
+
+        impl StorageMaintenanceInProgressBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StorageMaintenanceInProgress].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StorageMaintenanceInProgress>
+            where
+                Self: ::planus::WriteAsOffset<StorageMaintenanceInProgress>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StorageMaintenanceInProgress>>
+            for StorageMaintenanceInProgressBuilder<()>
+        {
+            type Prepared = ::planus::Offset<StorageMaintenanceInProgress>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StorageMaintenanceInProgress> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StorageMaintenanceInProgress>>
+            for StorageMaintenanceInProgressBuilder<()>
+        {
+            type Prepared = ::planus::Offset<StorageMaintenanceInProgress>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StorageMaintenanceInProgress>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StorageMaintenanceInProgress>
+            for StorageMaintenanceInProgressBuilder<()>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StorageMaintenanceInProgress> {
+                StorageMaintenanceInProgress::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [StorageMaintenanceInProgress].
+        #[derive(Copy, Clone)]
+        pub struct StorageMaintenanceInProgressRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> StorageMaintenanceInProgressRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for StorageMaintenanceInProgressRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StorageMaintenanceInProgressRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StorageMaintenanceInProgressRef<'a>>
+            for StorageMaintenanceInProgress
+        {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: StorageMaintenanceInProgressRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StorageMaintenanceInProgressRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StorageMaintenanceInProgressRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StorageMaintenanceInProgressRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StorageMaintenanceInProgress>>
+            for StorageMaintenanceInProgress
+        {
+            type Value = ::planus::Offset<StorageMaintenanceInProgress>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StorageMaintenanceInProgress>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StorageMaintenanceInProgressRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StorageMaintenanceInProgressRef]",
+                        "read_as_root",
+                        0,
+                    )
+                })
+            }
+        }
+
         /// The table `SchedulerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SchedulerError` in the file `moor_rpc.fbs:150`
+        /// * Table `SchedulerError` in the file `moor_rpc.fbs:154`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SchedulerError {
             /// The field `error` in the table `SchedulerError`
@@ -36710,7 +37023,7 @@ mod root {
         /// The union `CommandErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `CommandErrorUnion` in the file `moor_rpc.fbs:155`
+        /// * Union `CommandErrorUnion` in the file `moor_rpc.fbs:159`
         #[derive(
             Clone,
             Debug,
@@ -37117,7 +37430,7 @@ mod root {
         /// The table `CouldNotParseCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CouldNotParseCommand` in the file `moor_rpc.fbs:163`
+        /// * Table `CouldNotParseCommand` in the file `moor_rpc.fbs:167`
         #[derive(
             Clone,
             Debug,
@@ -37347,7 +37660,7 @@ mod root {
         /// The table `NoObjectMatch` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoObjectMatch` in the file `moor_rpc.fbs:166`
+        /// * Table `NoObjectMatch` in the file `moor_rpc.fbs:170`
         #[derive(
             Clone,
             Debug,
@@ -37558,7 +37871,7 @@ mod root {
         /// The table `NoCommandMatch` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoCommandMatch` in the file `moor_rpc.fbs:169`
+        /// * Table `NoCommandMatch` in the file `moor_rpc.fbs:173`
         #[derive(
             Clone,
             Debug,
@@ -37769,7 +38082,7 @@ mod root {
         /// The table `DatabaseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DatabaseError` in the file `moor_rpc.fbs:172`
+        /// * Table `DatabaseError` in the file `moor_rpc.fbs:176`
         #[derive(
             Clone,
             Debug,
@@ -38019,7 +38332,7 @@ mod root {
         /// The table `PermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PermissionDenied` in the file `moor_rpc.fbs:176`
+        /// * Table `PermissionDenied` in the file `moor_rpc.fbs:180`
         #[derive(
             Clone,
             Debug,
@@ -38245,7 +38558,7 @@ mod root {
         /// The table `CommandError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CommandError` in the file `moor_rpc.fbs:179`
+        /// * Table `CommandError` in the file `moor_rpc.fbs:183`
         #[derive(
             Clone,
             Debug,
@@ -38492,7 +38805,7 @@ mod root {
         /// The union `VerbProgramErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbProgramErrorUnion` in the file `moor_rpc.fbs:184`
+        /// * Union `VerbProgramErrorUnion` in the file `moor_rpc.fbs:188`
         #[derive(
             Clone,
             Debug,
@@ -38842,7 +39155,7 @@ mod root {
         /// The table `NoVerbToProgram` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoVerbToProgram` in the file `moor_rpc.fbs:191`
+        /// * Table `NoVerbToProgram` in the file `moor_rpc.fbs:195`
         #[derive(
             Clone,
             Debug,
@@ -39068,7 +39381,7 @@ mod root {
         /// The table `VerbPermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbPermissionDenied` in the file `moor_rpc.fbs:194`
+        /// * Table `VerbPermissionDenied` in the file `moor_rpc.fbs:198`
         #[derive(
             Clone,
             Debug,
@@ -39298,7 +39611,7 @@ mod root {
         /// The table `VerbCompilationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCompilationError` in the file `moor_rpc.fbs:197`
+        /// * Table `VerbCompilationError` in the file `moor_rpc.fbs:201`
         #[derive(
             Clone,
             Debug,
@@ -39563,7 +39876,7 @@ mod root {
         /// The table `VerbDatabaseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDatabaseError` in the file `moor_rpc.fbs:201`
+        /// * Table `VerbDatabaseError` in the file `moor_rpc.fbs:205`
         #[derive(
             Clone,
             Debug,
@@ -39791,7 +40104,7 @@ mod root {
         /// The table `VerbProgramError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramError` in the file `moor_rpc.fbs:204`
+        /// * Table `VerbProgramError` in the file `moor_rpc.fbs:208`
         #[derive(
             Clone,
             Debug,
@@ -40054,7 +40367,7 @@ mod root {
         /// The union `WorkerErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerErrorUnion` in the file `moor_rpc.fbs:209`
+        /// * Union `WorkerErrorUnion` in the file `moor_rpc.fbs:213`
         #[derive(
             Clone,
             Debug,
@@ -40593,7 +40906,7 @@ mod root {
         /// The table `WorkerPermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPermissionDenied` in the file `moor_rpc.fbs:219`
+        /// * Table `WorkerPermissionDenied` in the file `moor_rpc.fbs:223`
         #[derive(
             Clone,
             Debug,
@@ -40871,7 +41184,7 @@ mod root {
         /// The table `WorkerInvalidRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidRequest` in the file `moor_rpc.fbs:223`
+        /// * Table `WorkerInvalidRequest` in the file `moor_rpc.fbs:227`
         #[derive(
             Clone,
             Debug,
@@ -41143,7 +41456,7 @@ mod root {
         /// The table `WorkerInternalError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInternalError` in the file `moor_rpc.fbs:227`
+        /// * Table `WorkerInternalError` in the file `moor_rpc.fbs:231`
         #[derive(
             Clone,
             Debug,
@@ -41415,7 +41728,7 @@ mod root {
         /// The table `WorkerRequestTimedOut` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequestTimedOut` in the file `moor_rpc.fbs:231`
+        /// * Table `WorkerRequestTimedOut` in the file `moor_rpc.fbs:235`
         #[derive(
             Clone,
             Debug,
@@ -41690,7 +42003,7 @@ mod root {
         /// The table `WorkerRequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequestError` in the file `moor_rpc.fbs:235`
+        /// * Table `WorkerRequestError` in the file `moor_rpc.fbs:239`
         #[derive(
             Clone,
             Debug,
@@ -41960,7 +42273,7 @@ mod root {
         /// The table `WorkerDetached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerDetached` in the file `moor_rpc.fbs:239`
+        /// * Table `WorkerDetached` in the file `moor_rpc.fbs:243`
         #[derive(
             Clone,
             Debug,
@@ -42214,7 +42527,7 @@ mod root {
         /// The table `NoWorkerAvailable` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoWorkerAvailable` in the file `moor_rpc.fbs:243`
+        /// * Table `NoWorkerAvailable` in the file `moor_rpc.fbs:247`
         #[derive(
             Clone,
             Debug,
@@ -42487,7 +42800,7 @@ mod root {
         /// The table `WorkerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerError` in the file `moor_rpc.fbs:247`
+        /// * Table `WorkerError` in the file `moor_rpc.fbs:251`
         #[derive(
             Clone,
             Debug,
@@ -42733,7 +43046,7 @@ mod root {
         /// The table `CompileContext` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CompileContext` in the file `moor_rpc.fbs:252`
+        /// * Table `CompileContext` in the file `moor_rpc.fbs:256`
         #[derive(
             Clone,
             Debug,
@@ -43035,7 +43348,7 @@ mod root {
         /// The table `StringLexError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `StringLexError` in the file `moor_rpc.fbs:257`
+        /// * Table `StringLexError` in the file `moor_rpc.fbs:261`
         #[derive(
             Clone,
             Debug,
@@ -43325,7 +43638,7 @@ mod root {
         /// The table `ParseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ParseError` in the file `moor_rpc.fbs:262`
+        /// * Table `ParseError` in the file `moor_rpc.fbs:266`
         #[derive(
             Clone,
             Debug,
@@ -44076,7 +44389,7 @@ mod root {
         /// The table `UnknownBuiltinFunction` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownBuiltinFunction` in the file `moor_rpc.fbs:276`
+        /// * Table `UnknownBuiltinFunction` in the file `moor_rpc.fbs:280`
         #[derive(
             Clone,
             Debug,
@@ -44390,7 +44703,7 @@ mod root {
         /// The table `UnknownTypeConstant` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownTypeConstant` in the file `moor_rpc.fbs:281`
+        /// * Table `UnknownTypeConstant` in the file `moor_rpc.fbs:285`
         #[derive(
             Clone,
             Debug,
@@ -44698,7 +45011,7 @@ mod root {
         /// The table `UnknownLoopLabel` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownLoopLabel` in the file `moor_rpc.fbs:286`
+        /// * Table `UnknownLoopLabel` in the file `moor_rpc.fbs:290`
         #[derive(
             Clone,
             Debug,
@@ -45004,7 +45317,7 @@ mod root {
         /// The table `DuplicateVariable` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVariable` in the file `moor_rpc.fbs:291`
+        /// * Table `DuplicateVariable` in the file `moor_rpc.fbs:295`
         #[derive(
             Clone,
             Debug,
@@ -45312,7 +45625,7 @@ mod root {
         /// The table `AssignToConst` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AssignToConst` in the file `moor_rpc.fbs:296`
+        /// * Table `AssignToConst` in the file `moor_rpc.fbs:300`
         #[derive(
             Clone,
             Debug,
@@ -45604,7 +45917,7 @@ mod root {
         /// The table `DisabledFeature` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisabledFeature` in the file `moor_rpc.fbs:301`
+        /// * Table `DisabledFeature` in the file `moor_rpc.fbs:305`
         #[derive(
             Clone,
             Debug,
@@ -45910,7 +46223,7 @@ mod root {
         /// The table `BadSlotName` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BadSlotName` in the file `moor_rpc.fbs:306`
+        /// * Table `BadSlotName` in the file `moor_rpc.fbs:310`
         #[derive(
             Clone,
             Debug,
@@ -46200,7 +46513,7 @@ mod root {
         /// The table `InvalidAssignment` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidAssignment` in the file `moor_rpc.fbs:311`
+        /// * Table `InvalidAssignment` in the file `moor_rpc.fbs:315`
         #[derive(
             Clone,
             Debug,
@@ -46472,7 +46785,7 @@ mod root {
         /// The enum `HostType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `HostType` in the file `moor_rpc.fbs:319`
+        /// * Enum `HostType` in the file `moor_rpc.fbs:323`
         #[derive(
             Copy,
             Clone,
@@ -46641,7 +46954,7 @@ mod root {
         /// The enum `ConnectType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `ConnectType` in the file `moor_rpc.fbs:324`
+        /// * Enum `ConnectType` in the file `moor_rpc.fbs:328`
         #[derive(
             Copy,
             Clone,
@@ -46823,7 +47136,7 @@ mod root {
         /// The enum `EntityType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `EntityType` in the file `moor_rpc.fbs:331`
+        /// * Enum `EntityType` in the file `moor_rpc.fbs:335`
         #[derive(
             Copy,
             Clone,
@@ -46992,7 +47305,7 @@ mod root {
         /// The union `VerbProgramResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbProgramResponseUnion` in the file `moor_rpc.fbs:340`
+        /// * Union `VerbProgramResponseUnion` in the file `moor_rpc.fbs:344`
         #[derive(
             Clone,
             Debug,
@@ -47220,7 +47533,7 @@ mod root {
         /// The table `VerbProgramSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramSuccess` in the file `moor_rpc.fbs:345`
+        /// * Table `VerbProgramSuccess` in the file `moor_rpc.fbs:349`
         #[derive(
             Clone,
             Debug,
@@ -47516,7 +47829,7 @@ mod root {
         /// The table `VerbProgramFailure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramFailure` in the file `moor_rpc.fbs:350`
+        /// * Table `VerbProgramFailure` in the file `moor_rpc.fbs:354`
         #[derive(
             Clone,
             Debug,
@@ -47779,7 +48092,7 @@ mod root {
         /// The table `VerbProgramResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponse` in the file `moor_rpc.fbs:354`
+        /// * Table `VerbProgramResponse` in the file `moor_rpc.fbs:358`
         #[derive(
             Clone,
             Debug,
@@ -48045,7 +48358,7 @@ mod root {
         /// The table `ConnectionAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionAttribute` in the file `moor_rpc.fbs:362`
+        /// * Table `ConnectionAttribute` in the file `moor_rpc.fbs:366`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionAttribute {
             /// The field `key` in the table `ConnectionAttribute`
@@ -48335,7 +48648,7 @@ mod root {
         /// The union `HostToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostToDaemonMessageUnion` in the file `moor_rpc.fbs:371`
+        /// * Union `HostToDaemonMessageUnion` in the file `moor_rpc.fbs:375`
         #[derive(
             Clone,
             Debug,
@@ -48751,7 +49064,7 @@ mod root {
         /// The table `RegisterHost` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RegisterHost` in the file `moor_rpc.fbs:379`
+        /// * Table `RegisterHost` in the file `moor_rpc.fbs:383`
         #[derive(
             Clone,
             Debug,
@@ -49147,7 +49460,7 @@ mod root {
         /// The table `DetachHost` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachHost` in the file `moor_rpc.fbs:386`
+        /// * Table `DetachHost` in the file `moor_rpc.fbs:390`
         #[derive(
             Clone,
             Debug,
@@ -49402,7 +49715,7 @@ mod root {
         /// The table `RequestPerformanceCounters` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestPerformanceCounters` in the file `moor_rpc.fbs:390`
+        /// * Table `RequestPerformanceCounters` in the file `moor_rpc.fbs:394`
         #[derive(
             Clone,
             Debug,
@@ -49646,7 +49959,7 @@ mod root {
         /// The table `GetServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:393`
+        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:397`
         #[derive(
             Clone,
             Debug,
@@ -49874,7 +50187,7 @@ mod root {
         /// The table `HostPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostPong` in the file `moor_rpc.fbs:396`
+        /// * Table `HostPong` in the file `moor_rpc.fbs:400`
         #[derive(
             Clone,
             Debug,
@@ -50261,7 +50574,7 @@ mod root {
         /// The table `Listener` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Listener` in the file `moor_rpc.fbs:403`
+        /// * Table `Listener` in the file `moor_rpc.fbs:407`
         #[derive(
             Clone,
             Debug,
@@ -50536,7 +50849,7 @@ mod root {
         /// The table `HostToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:408`
+        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:412`
         #[derive(
             Clone,
             Debug,
@@ -50802,7 +51115,7 @@ mod root {
         /// The union `DaemonToHostReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:416`
+        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:420`
         #[derive(
             Clone,
             Debug,
@@ -51150,7 +51463,7 @@ mod root {
         /// The table `DaemonToHostAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:423`
+        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:427`
         #[derive(
             Clone,
             Debug,
@@ -51376,7 +51689,7 @@ mod root {
         /// The table `DaemonToHostReject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:426`
+        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:430`
         #[derive(
             Clone,
             Debug,
@@ -51646,7 +51959,7 @@ mod root {
         /// The table `Counter` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Counter` in the file `moor_rpc.fbs:430`
+        /// * Table `Counter` in the file `moor_rpc.fbs:434`
         #[derive(
             Clone,
             Debug,
@@ -51994,7 +52307,7 @@ mod root {
         /// The table `CounterCategory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CounterCategory` in the file `moor_rpc.fbs:436`
+        /// * Table `CounterCategory` in the file `moor_rpc.fbs:440`
         #[derive(
             Clone,
             Debug,
@@ -52305,7 +52618,7 @@ mod root {
         /// The table `DaemonToHostPerfCounters` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostPerfCounters` in the file `moor_rpc.fbs:441`
+        /// * Table `DaemonToHostPerfCounters` in the file `moor_rpc.fbs:445`
         #[derive(
             Clone,
             Debug,
@@ -52646,7 +52959,7 @@ mod root {
         /// The table `ServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:446`
+        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:450`
         #[derive(
             Clone,
             Debug,
@@ -53706,7 +54019,7 @@ mod root {
         /// The table `DaemonToHostReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:463`
+        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:467`
         #[derive(
             Clone,
             Debug,
@@ -53970,7 +54283,7 @@ mod root {
         /// The union `HostBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:471`
+        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:475`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostBroadcastEventUnion {
             /// The variant of type `HostBroadcastListen` in the union `HostBroadcastEventUnion`
@@ -54252,7 +54565,7 @@ mod root {
         /// The table `HostBroadcastListen` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:477`
+        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:481`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastListen {
             /// The field `handler_object` in the table `HostBroadcastListen`
@@ -54677,7 +54990,7 @@ mod root {
         /// The table `HostBroadcastUnlisten` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:484`
+        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:488`
         #[derive(
             Clone,
             Debug,
@@ -55021,7 +55334,7 @@ mod root {
         /// The table `HostBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:489`
+        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:493`
         #[derive(
             Clone,
             Debug,
@@ -55311,7 +55624,7 @@ mod root {
         /// The table `HostBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:493`
+        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:497`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastEvent {
             /// The field `event` in the table `HostBroadcastEvent`
@@ -55565,7 +55878,7 @@ mod root {
         /// The table `WsRequestProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:504`
+        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:508`
         #[derive(
             Clone,
             Debug,
@@ -55863,7 +56176,7 @@ mod root {
         /// The table `WsRequestProperties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:509`
+        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:513`
         #[derive(
             Clone,
             Debug,
@@ -56179,7 +56492,7 @@ mod root {
         /// The table `WsRequestSystemProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:514`
+        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:518`
         #[derive(
             Clone,
             Debug,
@@ -56490,7 +56803,7 @@ mod root {
         /// The table `WsRequestVerbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:519`
+        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:523`
         #[derive(
             Clone,
             Debug,
@@ -56788,7 +57101,7 @@ mod root {
         /// The table `WsRequestVerbCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:524`
+        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:528`
         #[derive(
             Clone,
             Debug,
@@ -57086,7 +57399,7 @@ mod root {
         /// The table `WsResolveObject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:529`
+        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:533`
         #[derive(
             Clone,
             Debug,
@@ -57348,7 +57661,7 @@ mod root {
         /// The table `WsListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsListObjects` in the file `moor_rpc.fbs:533`
+        /// * Table `WsListObjects` in the file `moor_rpc.fbs:537`
         #[derive(
             Clone,
             Debug,
@@ -57559,7 +57872,7 @@ mod root {
         /// The table `WsRequestAllObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:536`
+        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:540`
         #[derive(
             Clone,
             Debug,
@@ -57789,7 +58102,7 @@ mod root {
         /// The table `WsUpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:539`
+        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:543`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsUpdateProperty {
             /// The field `object` in the table `WsUpdateProperty`
@@ -58109,7 +58422,7 @@ mod root {
         /// The table `WsProgramVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:545`
+        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:549`
         #[derive(
             Clone,
             Debug,
@@ -58425,7 +58738,7 @@ mod root {
         /// The table `WsGetObjectFlags` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:551`
+        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:555`
         #[derive(
             Clone,
             Debug,
@@ -58688,7 +59001,7 @@ mod root {
         /// The table `WsQueryObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:555`
+        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:559`
         #[derive(
             Clone,
             Debug,
@@ -59183,7 +59496,7 @@ mod root {
         /// The union `WorldStateActionUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:563`
+        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:567`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateActionUnion {
             /// The variant of type `WsRequestProperty` in the union `WorldStateActionUnion`
@@ -60019,7 +60332,7 @@ mod root {
         /// The table `WorldStateActionEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:578`
+        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:582`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateActionEntry {
             /// The field `id` in the table `WorldStateActionEntry`
@@ -60311,7 +60624,7 @@ mod root {
         /// The table `BatchWorldState` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:583`
+        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:587`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldState {
             /// The field `auth_token` in the table `BatchWorldState`
@@ -60663,7 +60976,7 @@ mod root {
         /// The table `WsPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:591`
+        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:595`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsPropertyResult {
             /// The field `prop_info` in the table `WsPropertyResult`
@@ -60951,7 +61264,7 @@ mod root {
         /// The table `WsPropertiesResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:596`
+        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:600`
         #[derive(
             Clone,
             Debug,
@@ -61233,7 +61546,7 @@ mod root {
         /// The table `WsSystemPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:600`
+        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:604`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsSystemPropertyResult {
             /// The field `value` in the table `WsSystemPropertyResult`
@@ -61493,7 +61806,7 @@ mod root {
         /// The table `WsVerbsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:604`
+        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:608`
         #[derive(
             Clone,
             Debug,
@@ -61758,7 +62071,7 @@ mod root {
         /// The table `WsVerbCodeResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:608`
+        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:612`
         #[derive(
             Clone,
             Debug,
@@ -62057,7 +62370,7 @@ mod root {
         /// The table `WsResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:613`
+        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:617`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsResolveResult {
             /// The field `result` in the table `WsResolveResult`
@@ -62309,7 +62622,7 @@ mod root {
         /// The table `WsObjectsListResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:617`
+        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:621`
         #[derive(
             Clone,
             Debug,
@@ -62587,7 +62900,7 @@ mod root {
         /// The table `WsAllObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:621`
+        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:625`
         #[derive(
             Clone,
             Debug,
@@ -62866,7 +63179,7 @@ mod root {
         /// The table `WsPropertyUpdatedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:625`
+        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:629`
         #[derive(
             Clone,
             Debug,
@@ -63106,7 +63419,7 @@ mod root {
         /// The table `WsVerbProgrammedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:628`
+        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:632`
         #[derive(
             Clone,
             Debug,
@@ -63412,7 +63725,7 @@ mod root {
         /// The table `WsObjectFlagsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:633`
+        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:637`
         #[derive(
             Clone,
             Debug,
@@ -63697,7 +64010,7 @@ mod root {
         /// The table `WsQueryObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:637`
+        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:641`
         #[derive(
             Clone,
             Debug,
@@ -63978,7 +64291,7 @@ mod root {
         /// The table `WsActionError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsActionError` in the file `moor_rpc.fbs:641`
+        /// * Table `WsActionError` in the file `moor_rpc.fbs:645`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsActionError {
             /// The field `error` in the table `WsActionError`
@@ -64224,7 +64537,7 @@ mod root {
         /// The union `WorldStateResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:645`
+        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:649`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateResultUnion {
             /// The variant of type `WsPropertyResult` in the union `WorldStateResultUnion`
@@ -65127,7 +65440,7 @@ mod root {
         /// The table `WorldStateResultEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:661`
+        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:665`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateResultEntry {
             /// The field `id` in the table `WorldStateResultEntry`
@@ -65419,7 +65732,7 @@ mod root {
         /// The table `BatchWorldStateReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:666`
+        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:670`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldStateReply {
             /// The field `results` in the table `BatchWorldStateReply`
@@ -65692,7 +66005,7 @@ mod root {
         /// The union `HostClientToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:674`
+        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:678`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostClientToDaemonMessageUnion {
             /// The variant of type `ConnectionEstablish` in the union `HostClientToDaemonMessageUnion`
@@ -67668,7 +67981,7 @@ mod root {
         /// The table `ConnectionEstablish` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:707`
+        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:711`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionEstablish {
             /// The field `peer_addr` in the table `ConnectionEstablish`
@@ -68199,7 +68512,7 @@ mod root {
         /// The table `Reattach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Reattach` in the file `moor_rpc.fbs:715`
+        /// * Table `Reattach` in the file `moor_rpc.fbs:719`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Reattach {
             /// The field `client_token` in the table `Reattach`
@@ -68786,7 +69099,7 @@ mod root {
         /// The table `RequestSysProp` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:725`
+        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:729`
         #[derive(
             Clone,
             Debug,
@@ -69126,7 +69439,7 @@ mod root {
         /// The table `LoginCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginCommand` in the file `moor_rpc.fbs:731`
+        /// * Table `LoginCommand` in the file `moor_rpc.fbs:735`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct LoginCommand {
             /// The field `client_token` in the table `LoginCommand`
@@ -69551,7 +69864,7 @@ mod root {
         /// The table `Attach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Attach` in the file `moor_rpc.fbs:742`
+        /// * Table `Attach` in the file `moor_rpc.fbs:746`
         #[derive(
             Clone,
             Debug,
@@ -70084,7 +70397,7 @@ mod root {
         /// The table `Command` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Command` in the file `moor_rpc.fbs:752`
+        /// * Table `Command` in the file `moor_rpc.fbs:756`
         #[derive(
             Clone,
             Debug,
@@ -70430,7 +70743,7 @@ mod root {
         /// The table `Verbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Verbs` in the file `moor_rpc.fbs:759`
+        /// * Table `Verbs` in the file `moor_rpc.fbs:763`
         #[derive(
             Clone,
             Debug,
@@ -70749,7 +71062,7 @@ mod root {
         /// The table `InvokeVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:765`
+        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:769`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeVerb {
             /// The field `client_token` in the table `InvokeVerb`
@@ -71129,7 +71442,7 @@ mod root {
         /// The table `Properties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Properties` in the file `moor_rpc.fbs:773`
+        /// * Table `Properties` in the file `moor_rpc.fbs:777`
         #[derive(
             Clone,
             Debug,
@@ -71459,7 +71772,7 @@ mod root {
         /// The table `Retrieve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Retrieve` in the file `moor_rpc.fbs:779`
+        /// * Table `Retrieve` in the file `moor_rpc.fbs:783`
         #[derive(
             Clone,
             Debug,
@@ -71825,7 +72138,7 @@ mod root {
         /// The table `Program` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Program` in the file `moor_rpc.fbs:786`
+        /// * Table `Program` in the file `moor_rpc.fbs:790`
         #[derive(
             Clone,
             Debug,
@@ -72207,7 +72520,7 @@ mod root {
         /// The table `RequestedInput` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestedInput` in the file `moor_rpc.fbs:794`
+        /// * Table `RequestedInput` in the file `moor_rpc.fbs:798`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestedInput {
             /// The field `client_token` in the table `RequestedInput`
@@ -72550,7 +72863,7 @@ mod root {
         /// The table `OutOfBand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `OutOfBand` in the file `moor_rpc.fbs:801`
+        /// * Table `OutOfBand` in the file `moor_rpc.fbs:805`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct OutOfBand {
             /// The field `client_token` in the table `OutOfBand`
@@ -72926,7 +73239,7 @@ mod root {
         /// The table `Eval` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Eval` in the file `moor_rpc.fbs:809`
+        /// * Table `Eval` in the file `moor_rpc.fbs:813`
         #[derive(
             Clone,
             Debug,
@@ -73249,7 +73562,7 @@ mod root {
         /// The table `Resolve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Resolve` in the file `moor_rpc.fbs:815`
+        /// * Table `Resolve` in the file `moor_rpc.fbs:819`
         #[derive(
             Clone,
             Debug,
@@ -73526,7 +73839,7 @@ mod root {
         /// The table `ClientPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientPong` in the file `moor_rpc.fbs:820`
+        /// * Table `ClientPong` in the file `moor_rpc.fbs:824`
         #[derive(
             Clone,
             Debug,
@@ -73943,7 +74256,7 @@ mod root {
         /// The table `ReplayClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:828`
+        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:832`
         #[derive(
             Clone,
             Debug,
@@ -74322,7 +74635,7 @@ mod root {
         /// The table `RequestHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestHistory` in the file `moor_rpc.fbs:834`
+        /// * Table `RequestHistory` in the file `moor_rpc.fbs:838`
         #[derive(
             Clone,
             Debug,
@@ -74605,7 +74918,7 @@ mod root {
         /// The table `RequestCurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:839`
+        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:843`
         #[derive(
             Clone,
             Debug,
@@ -74893,7 +75206,7 @@ mod root {
         /// The table `DismissPresentation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:843`
+        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:847`
         #[derive(
             Clone,
             Debug,
@@ -75203,7 +75516,7 @@ mod root {
         /// The table `SetClientAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:848`
+        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:852`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetClientAttribute {
             /// The field `client_token` in the table `SetClientAttribute`
@@ -75595,7 +75908,7 @@ mod root {
         /// The table `Detach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Detach` in the file `moor_rpc.fbs:855`
+        /// * Table `Detach` in the file `moor_rpc.fbs:859`
         #[derive(
             Clone,
             Debug,
@@ -75895,7 +76208,7 @@ mod root {
         /// The table `GetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:860`
+        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:864`
         #[derive(
             Clone,
             Debug,
@@ -76170,7 +76483,7 @@ mod root {
         /// The table `SetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:864`
+        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:868`
         #[derive(
             Clone,
             Debug,
@@ -76480,7 +76793,7 @@ mod root {
         /// The table `DeleteEventLogHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:869`
+        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:873`
         #[derive(
             Clone,
             Debug,
@@ -76757,7 +77070,7 @@ mod root {
         /// The table `ListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjects` in the file `moor_rpc.fbs:873`
+        /// * Table `ListObjects` in the file `moor_rpc.fbs:877`
         #[derive(
             Clone,
             Debug,
@@ -77012,7 +77325,7 @@ mod root {
         /// The table `UpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:877`
+        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:881`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct UpdateProperty {
             /// The field `auth_token` in the table `UpdateProperty`
@@ -77355,7 +77668,7 @@ mod root {
         /// The table `InvokeSystemHandler` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:884`
+        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:888`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeSystemHandler {
             /// The field `host_id` in the table `InvokeSystemHandler`
@@ -77756,7 +78069,7 @@ mod root {
         /// The table `CallSystemVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CallSystemVerb` in the file `moor_rpc.fbs:891`
+        /// * Table `CallSystemVerb` in the file `moor_rpc.fbs:895`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct CallSystemVerb {
             /// The field `auth_token` in the table `CallSystemVerb`
@@ -78101,7 +78414,7 @@ mod root {
         /// The table `HostClientToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:897`
+        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:901`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMessage {
             /// The field `message` in the table `HostClientToDaemonMessage`
@@ -78367,7 +78680,7 @@ mod root {
         /// The union `DaemonToClientReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:905`
+        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:909`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToClientReplyUnion {
             /// The variant of type `NewConnection` in the union `DaemonToClientReplyUnion`
@@ -80155,7 +80468,7 @@ mod root {
         /// The table `NewConnection` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NewConnection` in the file `moor_rpc.fbs:935`
+        /// * Table `NewConnection` in the file `moor_rpc.fbs:939`
         #[derive(
             Clone,
             Debug,
@@ -80437,7 +80750,7 @@ mod root {
         /// The table `LoginResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginResult` in the file `moor_rpc.fbs:940`
+        /// * Table `LoginResult` in the file `moor_rpc.fbs:944`
         #[derive(
             Clone,
             Debug,
@@ -80928,7 +81241,7 @@ mod root {
         /// The table `AttachResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachResult` in the file `moor_rpc.fbs:948`
+        /// * Table `AttachResult` in the file `moor_rpc.fbs:952`
         #[derive(
             Clone,
             Debug,
@@ -81370,7 +81683,7 @@ mod root {
         /// The table `SysPropValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SysPropValue` in the file `moor_rpc.fbs:955`
+        /// * Table `SysPropValue` in the file `moor_rpc.fbs:959`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SysPropValue {
             /// The field `value` in the table `SysPropValue`
@@ -81635,7 +81948,7 @@ mod root {
         /// The table `TaskSubmitted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:959`
+        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:963`
         #[derive(
             Clone,
             Debug,
@@ -81900,7 +82213,7 @@ mod root {
         /// The table `InputThanks` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputThanks` in the file `moor_rpc.fbs:963`
+        /// * Table `InputThanks` in the file `moor_rpc.fbs:967`
         #[derive(
             Clone,
             Debug,
@@ -82111,7 +82424,7 @@ mod root {
         /// The table `EvalResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EvalResult` in the file `moor_rpc.fbs:966`
+        /// * Table `EvalResult` in the file `moor_rpc.fbs:970`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EvalResult {
             /// The field `result` in the table `EvalResult`
@@ -82347,7 +82660,7 @@ mod root {
         /// The table `ThanksPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ThanksPong` in the file `moor_rpc.fbs:970`
+        /// * Table `ThanksPong` in the file `moor_rpc.fbs:974`
         #[derive(
             Clone,
             Debug,
@@ -82612,7 +82925,7 @@ mod root {
         /// The table `ClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvents` in the file `moor_rpc.fbs:974`
+        /// * Table `ClientEvents` in the file `moor_rpc.fbs:978`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvents {
             /// The field `events` in the table `ClientEvents`
@@ -82915,7 +83228,7 @@ mod root {
         /// The table `VerbsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbsReply` in the file `moor_rpc.fbs:979`
+        /// * Table `VerbsReply` in the file `moor_rpc.fbs:983`
         #[derive(
             Clone,
             Debug,
@@ -83179,7 +83492,7 @@ mod root {
         /// The table `PropertiesReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:983`
+        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:987`
         #[derive(
             Clone,
             Debug,
@@ -83459,7 +83772,7 @@ mod root {
         /// The table `VerbProgramResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:987`
+        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:991`
         #[derive(
             Clone,
             Debug,
@@ -83734,7 +84047,7 @@ mod root {
         /// The table `PropertyValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyValue` in the file `moor_rpc.fbs:991`
+        /// * Table `PropertyValue` in the file `moor_rpc.fbs:995`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct PropertyValue {
             /// The field `prop_info` in the table `PropertyValue`
@@ -84006,7 +84319,7 @@ mod root {
         /// The table `VerbValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbValue` in the file `moor_rpc.fbs:996`
+        /// * Table `VerbValue` in the file `moor_rpc.fbs:1000`
         #[derive(
             Clone,
             Debug,
@@ -84288,7 +84601,7 @@ mod root {
         /// The table `ResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1001`
+        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1005`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ResolveResult {
             /// The field `result` in the table `ResolveResult`
@@ -84525,7 +84838,7 @@ mod root {
         /// The table `HistoryResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1005`
+        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1009`
         #[derive(
             Clone,
             Debug,
@@ -84800,7 +85113,7 @@ mod root {
         /// The table `PresentationSnapshot` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1009`
+        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1013`
         #[derive(
             Clone,
             Debug,
@@ -85107,7 +85420,7 @@ mod root {
         /// The table `CurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1014`
+        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1018`
         #[derive(
             Clone,
             Debug,
@@ -85391,7 +85704,7 @@ mod root {
         /// The table `PresentationDismissed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1018`
+        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1022`
         #[derive(
             Clone,
             Debug,
@@ -85625,7 +85938,7 @@ mod root {
         /// The table `ClientAttributeSet` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1021`
+        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1025`
         #[derive(
             Clone,
             Debug,
@@ -85853,7 +86166,7 @@ mod root {
         /// The table `Disconnected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Disconnected` in the file `moor_rpc.fbs:1024`
+        /// * Table `Disconnected` in the file `moor_rpc.fbs:1028`
         #[derive(
             Clone,
             Debug,
@@ -86064,7 +86377,7 @@ mod root {
         /// The table `EventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1027`
+        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1031`
         #[derive(
             Clone,
             Debug,
@@ -86355,7 +86668,7 @@ mod root {
         /// The table `EventLogHistoryDeleted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1031`
+        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1035`
         #[derive(
             Clone,
             Debug,
@@ -86647,7 +86960,7 @@ mod root {
         /// The table `ObjectInfo` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1035`
+        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1039`
         #[derive(
             Clone,
             Debug,
@@ -87304,7 +87617,7 @@ mod root {
         /// The table `ListObjectsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1047`
+        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1051`
         #[derive(
             Clone,
             Debug,
@@ -87580,7 +87893,7 @@ mod root {
         /// The table `PropertyUpdated` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1051`
+        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1055`
         #[derive(
             Clone,
             Debug,
@@ -87806,7 +88119,7 @@ mod root {
         /// The union `SystemHandlerResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1054`
+        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1058`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum SystemHandlerResponseUnion {
             /// The variant of type `SystemHandlerSuccess` in the union `SystemHandlerResponseUnion`
@@ -88026,7 +88339,7 @@ mod root {
         /// The table `SystemHandlerSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1059`
+        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1063`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerSuccess {
             /// The field `result` in the table `SystemHandlerSuccess`
@@ -88281,7 +88594,7 @@ mod root {
         /// The table `SystemHandlerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1063`
+        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1067`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerError {
             /// The field `error` in the table `SystemHandlerError`
@@ -88534,7 +88847,7 @@ mod root {
         /// The table `SystemHandlerResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1067`
+        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1071`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerResponseReply {
             /// The field `response` in the table `SystemHandlerResponseReply`
@@ -88803,7 +89116,7 @@ mod root {
         /// The union `VerbCallResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbCallResponseUnion` in the file `moor_rpc.fbs:1071`
+        /// * Union `VerbCallResponseUnion` in the file `moor_rpc.fbs:1075`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum VerbCallResponseUnion {
             /// The variant of type `VerbCallSuccess` in the union `VerbCallResponseUnion`
@@ -89015,7 +89328,7 @@ mod root {
         /// The table `VerbCallSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallSuccess` in the file `moor_rpc.fbs:1076`
+        /// * Table `VerbCallSuccess` in the file `moor_rpc.fbs:1080`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VerbCallSuccess {
             /// The field `result` in the table `VerbCallSuccess`
@@ -89317,7 +89630,7 @@ mod root {
         /// The table `VerbCallError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallError` in the file `moor_rpc.fbs:1081`
+        /// * Table `VerbCallError` in the file `moor_rpc.fbs:1085`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VerbCallError {
             /// The field `error` in the table `VerbCallError`
@@ -89554,7 +89867,7 @@ mod root {
         /// The table `VerbCallResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallResponse` in the file `moor_rpc.fbs:1085`
+        /// * Table `VerbCallResponse` in the file `moor_rpc.fbs:1089`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VerbCallResponse {
             /// The field `response` in the table `VerbCallResponse`
@@ -89808,7 +90121,7 @@ mod root {
         /// The table `DaemonToClientReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1089`
+        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1093`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToClientReply {
             /// The field `reply` in the table `DaemonToClientReply`
@@ -90064,7 +90377,7 @@ mod root {
         /// The union `ClientEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1097`
+        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1101`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ClientEventUnion {
             /// The variant of type `NarrativeEventMessage` in the union `ClientEventUnion`
@@ -90780,7 +91093,7 @@ mod root {
         /// The table `NarrativeEventMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1110`
+        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1114`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEventMessage {
             /// The field `player` in the table `NarrativeEventMessage`
@@ -91075,7 +91388,7 @@ mod root {
         /// The table `MetadataPair` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1115`
+        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1119`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetadataPair {
             /// The field `key` in the table `MetadataPair`
@@ -91347,7 +91660,7 @@ mod root {
         /// The table `RequestInputEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1120`
+        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1124`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestInputEvent {
             /// The field `request_id` in the table `RequestInputEvent`
@@ -91671,7 +91984,7 @@ mod root {
         /// The table `SystemMessageEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1125`
+        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1129`
         #[derive(
             Clone,
             Debug,
@@ -91967,7 +92280,7 @@ mod root {
         /// The table `DisconnectEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1130`
+        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1134`
         #[derive(
             Clone,
             Debug,
@@ -92193,7 +92506,7 @@ mod root {
         /// The table `TaskErrorEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1133`
+        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1137`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskErrorEvent {
             /// The field `task_id` in the table `TaskErrorEvent`
@@ -92476,7 +92789,7 @@ mod root {
         /// The table `TaskSuccessEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1138`
+        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1142`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskSuccessEvent {
             /// The field `task_id` in the table `TaskSuccessEvent`
@@ -92777,7 +93090,7 @@ mod root {
         /// The table `TaskSuspendedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1143`
+        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1147`
         #[derive(
             Clone,
             Debug,
@@ -93062,7 +93375,7 @@ mod root {
         /// The table `PlayerSwitchedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1147`
+        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1151`
         #[derive(
             Clone,
             Debug,
@@ -93472,7 +93785,7 @@ mod root {
         /// The table `SetConnectionOptionEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1154`
+        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1158`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetConnectionOptionEvent {
             /// The field `connection_obj` in the table `SetConnectionOptionEvent`
@@ -93811,7 +94124,7 @@ mod root {
         /// The table `CredentialsUpdatedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1162`
+        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1166`
         #[derive(
             Clone,
             Debug,
@@ -94132,7 +94445,7 @@ mod root {
         /// The table `ClientEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1167`
+        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1171`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvent {
             /// The field `event` in the table `ClientEvent`
@@ -94415,7 +94728,7 @@ mod root {
         /// The union `ClientsBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1176`
+        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1180`
         #[derive(
             Clone,
             Debug,
@@ -94581,7 +94894,7 @@ mod root {
         /// The table `ClientsBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1180`
+        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1184`
         #[derive(
             Clone,
             Debug,
@@ -94878,7 +95191,7 @@ mod root {
         /// The table `ClientsBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1184`
+        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1188`
         #[derive(
             Clone,
             Debug,
@@ -95146,7 +95459,7 @@ mod root {
         /// The union `DaemonToWorkerMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1192`
+        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1196`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToWorkerMessageUnion {
             /// The variant of type `PingWorkers` in the union `DaemonToWorkerMessageUnion`
@@ -95424,7 +95737,7 @@ mod root {
         /// The table `PingWorkers` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1198`
+        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1202`
         #[derive(
             Clone,
             Debug,
@@ -95635,7 +95948,7 @@ mod root {
         /// The table `WorkerRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1201`
+        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1205`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerRequest {
             /// The field `worker_id` in the table `WorkerRequest`
@@ -96032,7 +96345,7 @@ mod root {
         /// The table `PleaseDie` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1209`
+        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1213`
         #[derive(
             Clone,
             Debug,
@@ -96287,7 +96600,7 @@ mod root {
         /// The table `DaemonToWorkerMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1213`
+        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1217`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToWorkerMessage {
             /// The field `message` in the table `DaemonToWorkerMessage`
@@ -96545,7 +96858,7 @@ mod root {
         /// The union `WorkerToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1217`
+        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1221`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorkerToDaemonMessageUnion {
             /// The variant of type `AttachWorker` in the union `WorkerToDaemonMessageUnion`
@@ -96947,7 +97260,7 @@ mod root {
         /// The table `AttachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1225`
+        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1229`
         #[derive(
             Clone,
             Debug,
@@ -97239,7 +97552,7 @@ mod root {
         /// The table `WorkerPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1230`
+        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1234`
         #[derive(
             Clone,
             Debug,
@@ -97530,7 +97843,7 @@ mod root {
         /// The table `DetachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1235`
+        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1239`
         #[derive(
             Clone,
             Debug,
@@ -97786,7 +98099,7 @@ mod root {
         /// The table `RequestResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestResult` in the file `moor_rpc.fbs:1239`
+        /// * Table `RequestResult` in the file `moor_rpc.fbs:1243`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestResult {
             /// The field `worker_id` in the table `RequestResult`
@@ -98091,7 +98404,7 @@ mod root {
         /// The table `RequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestError` in the file `moor_rpc.fbs:1245`
+        /// * Table `RequestError` in the file `moor_rpc.fbs:1249`
         #[derive(
             Clone,
             Debug,
@@ -98405,7 +98718,7 @@ mod root {
         /// The table `WorkerToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1251`
+        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1255`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerToDaemonMessage {
             /// The field `message` in the table `WorkerToDaemonMessage`
@@ -98663,7 +98976,7 @@ mod root {
         /// The union `DaemonToWorkerReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1255`
+        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1259`
         #[derive(
             Clone,
             Debug,
@@ -99205,7 +99518,7 @@ mod root {
         /// The table `WorkerAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1265`
+        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1269`
         #[derive(
             Clone,
             Debug,
@@ -99416,7 +99729,7 @@ mod root {
         /// The table `WorkerRejected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1268`
+        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1272`
         #[derive(
             Clone,
             Debug,
@@ -99685,7 +99998,7 @@ mod root {
         /// The table `WorkerAttached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1272`
+        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1276`
         #[derive(
             Clone,
             Debug,
@@ -99941,7 +100254,7 @@ mod root {
         /// The table `WorkerAuthFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1276`
+        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1280`
         #[derive(
             Clone,
             Debug,
@@ -100211,7 +100524,7 @@ mod root {
         /// The table `WorkerInvalidPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1280`
+        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1284`
         #[derive(
             Clone,
             Debug,
@@ -100483,7 +100796,7 @@ mod root {
         /// The table `WorkerUnknownRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1284`
+        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1288`
         #[derive(
             Clone,
             Debug,
@@ -100758,7 +101071,7 @@ mod root {
         /// The table `WorkerNotRegistered` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1288`
+        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1292`
         #[derive(
             Clone,
             Debug,
@@ -101033,7 +101346,7 @@ mod root {
         /// The table `DaemonToWorkerReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1292`
+        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1296`
         #[derive(
             Clone,
             Debug,
@@ -101299,7 +101612,7 @@ mod root {
         /// The enum `RpcMessageErrorCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1300`
+        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1304`
         #[derive(
             Copy,
             Clone,
@@ -101513,7 +101826,7 @@ mod root {
         /// The table `RpcMessageError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1313`
+        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1317`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RpcMessageError {
             /// The field `error_code` in the table `RpcMessageError`
@@ -101911,7 +102224,7 @@ mod root {
         /// The union `MessageTypeUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1319`
+        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1323`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum MessageTypeUnion {
             /// The variant of type `HostToDaemonMsg` in the union `MessageTypeUnion`
@@ -102125,7 +102438,7 @@ mod root {
         /// The table `HostToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1324`
+        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1328`
         #[derive(
             Clone,
             Debug,
@@ -102423,7 +102736,7 @@ mod root {
         /// The table `HostClientToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1329`
+        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1333`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMsg {
             /// The field `client_data` in the table `HostClientToDaemonMsg`
@@ -102716,7 +103029,7 @@ mod root {
         /// The table `MessageType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MessageType` in the file `moor_rpc.fbs:1334`
+        /// * Table `MessageType` in the file `moor_rpc.fbs:1338`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MessageType {
             /// The field `message` in the table `MessageType`
@@ -102952,7 +103265,7 @@ mod root {
         /// The union `ReplyResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1338`
+        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1342`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ReplyResultUnion {
             /// The variant of type `HostSuccess` in the union `ReplyResultUnion`
@@ -103225,7 +103538,7 @@ mod root {
         /// The table `HostSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1344`
+        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1348`
         #[derive(
             Clone,
             Debug,
@@ -103471,7 +103784,7 @@ mod root {
         /// The table `ClientSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1348`
+        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1352`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientSuccess {
             /// The field `reply` in the table `ClientSuccess`
@@ -103708,7 +104021,7 @@ mod root {
         /// The table `Failure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Failure` in the file `moor_rpc.fbs:1352`
+        /// * Table `Failure` in the file `moor_rpc.fbs:1356`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Failure {
             /// The field `error` in the table `Failure`
@@ -103949,7 +104262,7 @@ mod root {
         /// The table `ReplyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1356`
+        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1360`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ReplyResult {
             /// The field `result` in the table `ReplyResult`
@@ -104185,7 +104498,7 @@ mod root {
         /// The union `HistoryRecallUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1364`
+        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1368`
         #[derive(
             Clone,
             Debug,
@@ -104537,7 +104850,7 @@ mod root {
         /// The table `HistoryRecallSinceEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1371`
+        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1375`
         #[derive(
             Clone,
             Debug,
@@ -104872,7 +105185,7 @@ mod root {
         /// The table `HistoryRecallUntilEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1376`
+        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1380`
         #[derive(
             Clone,
             Debug,
@@ -105207,7 +105520,7 @@ mod root {
         /// The table `HistoryRecallSinceSeconds` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1381`
+        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1385`
         #[derive(
             Clone,
             Debug,
@@ -105552,7 +105865,7 @@ mod root {
         /// The table `HistoryRecallNone` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1386`
+        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1390`
         #[derive(
             Clone,
             Debug,
@@ -105780,7 +106093,7 @@ mod root {
         /// The table `HistoryRecall` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1389`
+        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1393`
         #[derive(
             Clone,
             Debug,
@@ -106027,7 +106340,7 @@ mod root {
         /// The table `HistoricalNarrativeEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1393`
+        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1397`
         #[derive(
             Clone,
             Debug,
@@ -106479,7 +106792,7 @@ mod root {
         /// The table `HistoryResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1401`
+        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1405`
         #[derive(
             Clone,
             Debug,

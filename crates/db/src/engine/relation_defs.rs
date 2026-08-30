@@ -128,6 +128,33 @@ macro_rules! define_relations {
             /// Type alias for Relations to reduce verbosity in macro.
             type R<Domain, Codomain> = Relation<Domain, Codomain, FjallProvider<Domain, Codomain>>;
 
+            /// Stable identifier for a persisted database relation.
+            #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+            pub enum DatabaseRelation {
+                $( [<$field:camel>], )*
+            }
+
+            impl DatabaseRelation {
+                pub const ALL: &'static [Self] = &[
+                    $( Self::[<$field:camel>], )*
+                ];
+
+                #[must_use]
+                pub const fn as_str(self) -> &'static str {
+                    match self {
+                        $( Self::[<$field:camel>] => stringify!($field), )*
+                    }
+                }
+
+                #[must_use]
+                pub fn named(name: &str) -> Option<Self> {
+                    match name {
+                        $( stringify!($field) => Some(Self::[<$field:camel>]), )*
+                        _ => None,
+                    }
+                }
+            }
+
             /// Wrapper struct containing all database relations.
             ///
             /// This struct groups all relations together and provides convenience
@@ -460,6 +487,25 @@ macro_rules! define_relations {
                         commit_bloom: None,
                         bloom_since_version: 0,
                     })
+                }
+
+                fn compact_relations(
+                    &self,
+                    relations: &[DatabaseRelation],
+                ) -> Vec<crate::RelationCompactionResult> {
+                    relations
+                        .iter()
+                        .copied()
+                        .map(|relation| match relation {
+                            $(
+                                DatabaseRelation::[<$field:camel>] =>
+                                    crate::provider::fjall_maintenance::major_compact(
+                                        relation,
+                                        self.$field.provider().partition(),
+                                    ),
+                            )*
+                        })
+                        .collect()
                 }
 
                 /// Consume published working sets into a Fjall commit batch.

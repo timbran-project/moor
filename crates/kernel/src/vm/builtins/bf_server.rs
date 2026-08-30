@@ -54,7 +54,9 @@ use moor_compiler::{
     ArgCount, ArgType, BUILTINS, Builtin, compile, compile_error_to_map, format_compile_error,
     offset_for_builtin,
 };
-use moor_db::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters};
+use moor_db::{
+    ANCESTRY_CACHE_STATS, DatabaseRelation, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters,
+};
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_INVIND, E_QUOTA, E_TYPE, Error, Obj, Symbol, Var,
     VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
@@ -1076,6 +1078,53 @@ fn db_disk_size(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_int(disk_size as i64)))
 }
 
+/// Usage: `list db_compact([list relations])`
+/// Major-compacts selected database relations on a maintenance thread. Wizard-only.
+fn bf_db_compact(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    bf_args.require_wizard_or_builtin_call()?;
+
+    let argument = (!bf_args.args.is_empty()).then(|| &bf_args.args[0]);
+    let relations = parse_db_compact_relations(argument).map_err(ErrValue)?;
+
+    Ok(VmInstr(ExecutionResult::TaskSuspend(
+        crate::vm::TaskSuspend::StorageCompaction(
+            relations
+                .into_iter()
+                .map(|relation| Symbol::mk(relation.as_str()))
+                .collect(),
+        ),
+    )))
+}
+
+fn parse_db_compact_relations(argument: Option<&Var>) -> Result<Vec<DatabaseRelation>, Error> {
+    if let Some(argument) = argument {
+        let Some(names) = argument.as_list() else {
+            return Err(E_TYPE.msg("db_compact() requires a list of relation names"));
+        };
+        if names.is_empty() {
+            return Err(E_INVARG.msg("db_compact() requires at least one relation name"));
+        }
+
+        let mut relations = Vec::with_capacity(names.len());
+        for value in names.iter() {
+            let name = value.as_symbol()?;
+            let Some(relation) = DatabaseRelation::named(name.as_str()) else {
+                return Err(E_INVARG
+                    .with_msg(|| format!("db_compact() does not recognize relation {name}")));
+            };
+            if relations.contains(&relation) {
+                return Err(E_INVARG.with_msg(|| {
+                    format!("db_compact() relation {name} was selected more than once")
+                }));
+            }
+            relations.push(relation);
+        }
+        return Ok(relations);
+    }
+
+    Ok(DatabaseRelation::ALL.to_vec())
+}
+
 /// Usage: `none load_server_options()`
 /// Reloads server options from $server_options properties. Wizard-only.
 fn load_server_options(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -1506,6 +1555,7 @@ pub(crate) fn register_bf_server(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("gc_collect")] = bf_gc_collect;
     builtins[offset_for_builtin("memory_usage")] = bf_memory_usage;
     builtins[offset_for_builtin("db_disk_size")] = db_disk_size;
+    builtins[offset_for_builtin("db_compact")] = bf_db_compact;
     builtins[offset_for_builtin("load_server_options")] = load_server_options;
     builtins[offset_for_builtin("bf_counters")] = bf_bf_counters;
     builtins[offset_for_builtin("db_counters")] = bf_db_counters;
@@ -1629,6 +1679,39 @@ mod tests {
                 &v_list(&[v_list(&[v_str("object_list"), v_obj(obj)])]),
                 |_, _, _| panic!("zero-argument grants should not resolve verbs")
             )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn db_compact_defaults_to_all_relations() {
+        assert_eq!(
+            parse_db_compact_relations(None).unwrap(),
+            DatabaseRelation::ALL
+        );
+    }
+
+    #[test]
+    fn db_compact_preserves_selected_relation_order() {
+        let argument = v_list(&[v_str("object_propvalues"), v_str("object_propflags")]);
+
+        assert_eq!(
+            parse_db_compact_relations(Some(&argument)).unwrap(),
+            vec![
+                DatabaseRelation::ObjectPropvalues,
+                DatabaseRelation::ObjectPropflags,
+            ]
+        );
+    }
+
+    #[test]
+    fn db_compact_rejects_unknown_and_duplicate_relations() {
+        assert!(parse_db_compact_relations(Some(&v_list(&[v_str("not_a_relation")]))).is_err());
+        assert!(
+            parse_db_compact_relations(Some(&v_list(&[
+                v_str("object_name"),
+                v_str("object_name"),
+            ])))
             .is_err()
         );
     }

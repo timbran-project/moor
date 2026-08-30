@@ -22,12 +22,15 @@ use std::{
 use moor_common::tasks::SchedulerError;
 use moor_db::Database;
 use moor_objdef::dump_snapshot_object_definitions;
-use parking_lot::{Condvar, Mutex};
+use parking_lot::Mutex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
-use crate::config::Config;
+use crate::{
+    config::Config,
+    tasks::maintenance::{MaintenanceCoordinator, MaintenanceKind, MaintenanceTicket},
+};
 
 type CompletionCallback = Box<dyn FnOnce(u64, Result<(), SchedulerError>) + Send + 'static>;
 
@@ -44,128 +47,14 @@ struct CheckpointManifest {
     override_count: u64,
 }
 
-struct CheckpointCompletion {
-    outcome: Mutex<Option<Result<(), SchedulerError>>>,
-    completed: Condvar,
-}
-
-/// A generation-specific handle for observing checkpoint completion.
-#[derive(Clone)]
-pub(crate) struct CheckpointTicket {
-    generation: u64,
-    completion: Arc<CheckpointCompletion>,
-}
-
-impl CheckpointTicket {
-    #[inline]
-    pub(crate) fn generation(&self) -> u64 {
-        self.generation
-    }
-
-    /// Wait until the checkpoint has either published its final file or failed.
-    pub(crate) fn wait(&self) -> Result<(), SchedulerError> {
-        let mut outcome = self.completion.outcome.lock();
-        loop {
-            if let Some(outcome) = outcome.as_ref() {
-                return outcome.clone();
-            }
-            self.completion.completed.wait(&mut outcome);
-        }
-    }
-}
-
-struct ActiveCheckpoint {
-    ticket: CheckpointTicket,
-}
-
-struct CoordinatorState {
-    accepting: bool,
-    next_generation: u64,
-    active: Option<ActiveCheckpoint>,
-}
-
-struct CheckpointCoordinatorInner {
-    state: Mutex<CoordinatorState>,
-}
-
-/// Owns checkpoint admission and generation-scoped completion state.
-#[derive(Clone)]
-pub(crate) struct CheckpointCoordinator {
-    inner: Arc<CheckpointCoordinatorInner>,
-}
-
-impl CheckpointCoordinator {
-    pub(crate) fn new() -> Self {
-        Self {
-            inner: Arc::new(CheckpointCoordinatorInner {
-                state: Mutex::new(CoordinatorState {
-                    accepting: true,
-                    next_generation: 0,
-                    active: None,
-                }),
-            }),
-        }
-    }
-
-    fn admit(&self) -> Result<CheckpointTicket, SchedulerError> {
-        let mut state = self.inner.state.lock();
-        if !state.accepting {
-            return Err(SchedulerError::SchedulerNotResponding);
-        }
-        if state.active.is_some() {
-            return Err(SchedulerError::CheckpointInProgress);
-        }
-
-        state.next_generation = state
-            .next_generation
-            .checked_add(1)
-            .expect("Checkpoint generation space exhausted");
-        let ticket = CheckpointTicket {
-            generation: state.next_generation,
-            completion: Arc::new(CheckpointCompletion {
-                outcome: Mutex::new(None),
-                completed: Condvar::new(),
-            }),
-        };
-        state.active = Some(ActiveCheckpoint {
-            ticket: ticket.clone(),
-        });
-        Ok(ticket)
-    }
-
-    fn complete(&self, ticket: &CheckpointTicket, outcome: Result<(), SchedulerError>) {
-        let mut ticket_outcome = ticket.completion.outcome.lock();
-        if ticket_outcome.is_some() {
-            return;
-        }
-        *ticket_outcome = Some(outcome);
-
-        let mut state = self.inner.state.lock();
-        if state
-            .active
-            .as_ref()
-            .is_some_and(|active| active.ticket.generation == ticket.generation)
-        {
-            state.active = None;
-        }
-        drop(state);
-        ticket.completion.completed.notify_all();
-    }
-
-    /// Prevent new checkpoints and return the active ticket, if one exists.
-    pub(crate) fn close(&self) -> Option<CheckpointTicket> {
-        let mut state = self.inner.state.lock();
-        state.accepting = false;
-        state.active.as_ref().map(|active| active.ticket.clone())
-    }
-}
+pub(crate) type CheckpointTicket = MaintenanceTicket;
 
 /// An admitted checkpoint which has not yet been handed to the database.
 ///
 /// Separating admission from launch lets a blocking MOO task enter the suspended
 /// queue before an unusually fast snapshot callback can complete.
 pub(crate) struct CheckpointJob {
-    coordinator: CheckpointCoordinator,
+    coordinator: MaintenanceCoordinator,
     ticket: CheckpointTicket,
     snapshot_epoch: u64,
     checkpoint_path: PathBuf,
@@ -257,7 +146,7 @@ impl Drop for CheckpointJob {
 }
 
 fn finish_checkpoint(
-    coordinator: &CheckpointCoordinator,
+    coordinator: &MaintenanceCoordinator,
     ticket: &CheckpointTicket,
     outcome: Result<(), SchedulerError>,
     callback: &Mutex<Option<CompletionCallback>>,
@@ -271,9 +160,9 @@ fn finish_checkpoint(
 /// Reserve a checkpoint generation and its output path.
 pub(crate) fn prepare_checkpoint(
     config: &Config,
-    coordinator: &CheckpointCoordinator,
+    coordinator: &MaintenanceCoordinator,
 ) -> Result<CheckpointJob, SchedulerError> {
-    let ticket = coordinator.admit()?;
+    let ticket = coordinator.admit(MaintenanceKind::Checkpoint)?;
 
     let Some(output_dir) = config.import_export.output_path.clone() else {
         error!("Cannot checkpoint as output directory not configured");
@@ -429,42 +318,6 @@ mod tests {
             .unwrap();
         world_state.commit().unwrap();
         database
-    }
-
-    #[test]
-    fn duplicate_admission_reports_checkpoint_in_progress() {
-        let coordinator = CheckpointCoordinator::new();
-        let ticket = coordinator.admit().unwrap();
-
-        assert!(matches!(
-            coordinator.admit(),
-            Err(SchedulerError::CheckpointInProgress)
-        ));
-
-        coordinator.complete(&ticket, Ok(()));
-        assert!(coordinator.admit().is_ok());
-    }
-
-    #[test]
-    fn ticket_preserves_its_generation_outcome() {
-        let coordinator = CheckpointCoordinator::new();
-        let ticket = coordinator.admit().unwrap();
-        coordinator.complete(&ticket, Err(SchedulerError::CouldNotStartTask));
-
-        assert_eq!(ticket.wait(), Err(SchedulerError::CouldNotStartTask));
-    }
-
-    #[test]
-    fn closing_coordinator_rejects_new_work_and_exposes_active_ticket() {
-        let coordinator = CheckpointCoordinator::new();
-        let ticket = coordinator.admit().unwrap();
-        let active = coordinator.close().unwrap();
-
-        assert_eq!(active.generation(), ticket.generation());
-        assert!(matches!(
-            coordinator.admit(),
-            Err(SchedulerError::SchedulerNotResponding)
-        ));
     }
 
     #[test]

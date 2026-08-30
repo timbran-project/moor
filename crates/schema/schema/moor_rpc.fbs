@@ -80,7 +80,8 @@ union SchedulerErrorUnion {
     VerbRetrievalFailed,
     ObjectResolutionFailed,
     GarbageCollectionFailed,
-    CheckpointInProgress
+    CheckpointInProgress,
+    StorageMaintenanceInProgress
 }
 
 table SchedulerNotResponding {
@@ -145,6 +146,9 @@ table GarbageCollectionFailed {
 }
 
 table CheckpointInProgress {
+}
+
+table StorageMaintenanceInProgress {
 }
 
 table SchedulerError {

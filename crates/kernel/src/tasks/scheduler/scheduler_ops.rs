@@ -348,8 +348,69 @@ impl Scheduler {
         }
     }
 
+    pub(crate) fn handle_storage_compaction_task_completion(
+        &self,
+        task_id: TaskId,
+        generation: u64,
+        relations: &[DatabaseRelation],
+        outcome: Result<Vec<moor_db::RelationCompactionResult>, SchedulerError>,
+    ) {
+        let mut lc = self.lifecycle.lock();
+        let waiting_for_generation = lc.task_q.suspended.tasks.get(&task_id).is_some_and(|task| {
+            matches!(task.wake_condition, WakeCondition::StorageCompaction(g) if g == generation)
+        });
+        if !waiting_for_generation {
+            debug!(
+                task_id,
+                generation, "Storage compaction waiter no longer suspended"
+            );
+            return;
+        }
+
+        let Some(mut suspended) = lc.task_q.suspended.remove_task(task_id) else {
+            return;
+        };
+        if lc.state != SchedulerState::Running {
+            lc.task_q.suspended.enqueue_dependents_for(task_id);
+            lc.task_q.send_task_result_direct(
+                task_id,
+                suspended.result_sender.take(),
+                Err(TaskAbortedCancelled),
+            );
+            return;
+        }
+
+        let return_value = match outcome {
+            Ok(results) => compaction_results_to_var(&results),
+            Err(error) => {
+                error!(?error, task_id, generation, "Storage compaction failed");
+                compaction_failure_to_var(relations, &error)
+            }
+        };
+        if let Err(error) = lc.task_q.wake_suspended_task(
+            suspended,
+            ResumeAction::Return(return_value),
+            self,
+            self.database.as_ref(),
+            self.builtin_registry.clone(),
+            self.config.clone(),
+        ) {
+            error!(
+                ?error,
+                task_id, generation, "Could not resume storage compaction waiter"
+            );
+        }
+    }
+
     pub(crate) fn prepare_checkpoint_job(&self) -> Result<CheckpointJob, SchedulerError> {
-        prepare_checkpoint(self.config.as_ref(), &self.checkpoint_coordinator)
+        prepare_checkpoint(self.config.as_ref(), &self.maintenance_coordinator)
+    }
+
+    pub(crate) fn prepare_storage_compaction_job(
+        &self,
+        relations: Vec<DatabaseRelation>,
+    ) -> Result<StorageCompactionJob, SchedulerError> {
+        prepare_storage_compaction(&self.maintenance_coordinator, relations)
     }
 
     pub(crate) fn launch_checkpoint_job(
@@ -370,6 +431,27 @@ impl Scheduler {
                 callback_scheduler.handle_checkpoint_task_completion(task_id, generation, outcome);
             }),
         )
+    }
+
+    pub(crate) fn launch_storage_compaction_job(
+        &self,
+        job: StorageCompactionJob,
+        waiting_task: TaskId,
+    ) -> Result<(), SchedulerError> {
+        let callback_scheduler = self.clone();
+        let relations = job.relations().to_vec();
+        job.launch(
+            self.database.clone(),
+            Box::new(move |generation, outcome| {
+                callback_scheduler.handle_storage_compaction_task_completion(
+                    waiting_task,
+                    generation,
+                    &relations,
+                    outcome,
+                );
+            }),
+        )
+        .map(|_| ())
     }
 
     /// Admit and launch a checkpoint without waiting for its export to finish.
@@ -407,7 +489,7 @@ impl Scheduler {
             );
         }
 
-        let active_checkpoint = self.checkpoint_coordinator.close();
+        let active_maintenance = self.maintenance_coordinator.close();
 
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         loop {
@@ -442,10 +524,11 @@ impl Scheduler {
         }
 
         let gc_result = self.join_gc_thread();
-        let checkpoint_result = active_checkpoint.map_or(Ok(()), |ticket| {
+        let maintenance_result = active_maintenance.map_or(Ok(()), |ticket| {
             info!(
                 generation = ticket.generation(),
-                "Waiting for active checkpoint before shutdown"
+                kind = ?ticket.kind(),
+                "Waiting for active database maintenance before shutdown"
             );
             ticket.wait()
         });
@@ -462,6 +545,6 @@ impl Scheduler {
         }
         self.wake_timer_thread();
 
-        gc_result.and(checkpoint_result)
+        gc_result.and(maintenance_result)
     }
 }

@@ -613,7 +613,10 @@ mod tests {
         tasks::{NoopClientSession, NoopSystemControl, SessionError, SessionFactory},
         util::BitEnum,
     };
-    use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
+    use moor_db::{
+        Database, DatabaseConfig, DatabaseRelation, GCInterface, RelationCompactionResult,
+        SnapshotCallback, TxDB,
+    };
     use moor_var::{NOTHING, SYSTEM_OBJECT, v_int};
     use std::sync::{Mutex as StdMutex, mpsc};
 
@@ -656,6 +659,49 @@ mod tests {
 
         fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError> {
             self.inner.gc_interface()
+        }
+    }
+
+    struct GatedCompactionDatabase {
+        inner: TxDB,
+        started: mpsc::Sender<()>,
+        release: Arc<StdMutex<mpsc::Receiver<()>>>,
+    }
+
+    impl WorldStateSource for GatedCompactionDatabase {
+        fn new_world_state(&self) -> Result<Box<dyn WorldState>, WorldStateError> {
+            self.inner.new_world_state()
+        }
+
+        fn checkpoint(&self) -> Result<(), WorldStateError> {
+            self.inner.checkpoint()
+        }
+    }
+
+    impl Database for GatedCompactionDatabase {
+        fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError> {
+            self.inner.loader_client()
+        }
+
+        fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError> {
+            self.inner.create_snapshot()
+        }
+
+        fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError> {
+            self.inner.create_snapshot_async(callback)
+        }
+
+        fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError> {
+            self.inner.gc_interface()
+        }
+
+        fn compact_relations(
+            &self,
+            relations: &[DatabaseRelation],
+        ) -> Result<Vec<RelationCompactionResult>, WorldStateError> {
+            self.started.send(()).unwrap();
+            self.release.lock().unwrap().recv().unwrap();
+            self.inner.compact_relations(relations)
         }
     }
 
@@ -715,6 +761,50 @@ mod tests {
             .start(Arc::new(NoopSessionFactory))
             .expect("scheduler should start");
         (client, threads, started_recv, release_send, output)
+    }
+
+    fn gated_compaction_scheduler() -> (
+        SchedulerClient,
+        crate::tasks::scheduler::SchedulerThreads,
+        mpsc::Receiver<()>,
+        mpsc::Sender<()>,
+    ) {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let mut world_state = database.new_world_state().unwrap();
+        let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+        let system_object = world_state
+            .create_object(
+                &permissions,
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        assert_eq!(system_object, SYSTEM_OBJECT);
+        world_state.commit().unwrap();
+
+        let (started_send, started_recv) = mpsc::channel();
+        let (release_send, release_recv) = mpsc::channel();
+        let database = GatedCompactionDatabase {
+            inner: database,
+            started: started_send,
+            release: Arc::new(StdMutex::new(release_recv)),
+        };
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let client = scheduler.client().unwrap();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        (client, threads, started_recv, release_send)
     }
 
     fn wait_for_task(handle: &TaskHandle) -> Result<Var, SchedulerError> {
@@ -861,6 +951,49 @@ mod tests {
         release.send(()).unwrap();
         client
             .submit_shutdown("duplicate dump test complete")
+            .unwrap();
+        threads.join().unwrap();
+    }
+
+    #[test]
+    fn blocking_compaction_keeps_task_workers_and_scheduler_available() {
+        let (client, threads, started, release) = gated_compaction_scheduler();
+        let compaction_task = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "return db_compact({\"object_propvalues\"});".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        started.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let other_task = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "return 42;".to_string(),
+                None,
+                Arc::new(NoopClientSession::new()),
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        assert_eq!(wait_for_task(&other_task), Ok(v_int(42)));
+        assert_eq!(
+            client.request_checkpoint(),
+            Err(SchedulerError::StorageMaintenanceInProgress)
+        );
+
+        release.send(()).unwrap();
+        let results = wait_for_task(&compaction_task).unwrap();
+        let results = results.as_list().unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].as_map().is_some());
+
+        client
+            .submit_shutdown("blocking compaction test complete")
             .unwrap();
         threads.join().unwrap();
     }

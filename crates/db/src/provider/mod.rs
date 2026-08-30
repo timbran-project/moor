@@ -14,6 +14,7 @@
 use crate::{Error, Timestamp};
 
 pub mod batch_writer;
+pub(crate) mod fjall_maintenance;
 pub mod fjall_migration;
 pub mod fjall_provider;
 pub mod fjall_snapshot_loader;

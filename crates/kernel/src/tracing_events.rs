@@ -1639,6 +1639,9 @@ macro_rules! trace_task_suspend_with_delay {
                 ),
                 TaskSuspend::RecvMessages(timeout) => format!("RecvMessages({:?})", timeout),
                 TaskSuspend::Checkpoint => "Checkpoint".to_string(),
+                TaskSuspend::StorageCompaction(relations) => {
+                    format!("StorageCompaction({} relations)", relations.len())
+                }
             };
             emit_trace_event(TraceEventType::TaskSuspend {
                 task_id: $task_id,

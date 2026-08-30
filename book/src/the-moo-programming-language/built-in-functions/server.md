@@ -843,6 +843,25 @@ otherwise false. **Arguments:**
 
 **Description:** Returns the size of the database on disk. **Arguments:** None
 
+### `db_compact`
+
+**Syntax:** `list db_compact([list relations])`
+
+**Description:** Major-compacts selected database relations. The task suspends while a dedicated
+maintenance thread performs the work.
+
+**Arguments:**
+
+- `relations`: Optional list of relation names. If omitted, all relations are compacted.
+
+**Returns:** One map for each selected relation. Each map contains `relation`, `bytes_before`,
+`bytes_after`, `bytes_reclaimed`, and `error`. `error` is `none` when that relation succeeded.
+
+**Permission Requirements:** Wizard-only
+
+Checkpoint export and storage compaction cannot run at the same time. If another maintenance
+operation is active, each returned map describes that admission error.
+
 ### `load_server_options`
 
 **Description:** Reloads options from `$server_options` and applicable properties on `#0`.

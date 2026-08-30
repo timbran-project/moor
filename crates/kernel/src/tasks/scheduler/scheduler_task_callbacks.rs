@@ -573,6 +573,7 @@ impl Scheduler {
 
         // And insert into the suspended list.
         let mut checkpoint_job = None;
+        let mut storage_compaction_job = None;
         let wake_condition = match wake_condition {
             TaskSuspend::Never => WakeCondition::Never,
             TaskSuspend::Timed(t) => WakeCondition::Time(Deadline::from_now(t).instant()),
@@ -628,6 +629,36 @@ impl Scheduler {
                     WakeCondition::Immediate(Some(v_bool_int(false)))
                 }
             },
+            TaskSuspend::StorageCompaction(relation_names) => {
+                let relations = relation_names
+                    .iter()
+                    .filter_map(|name| DatabaseRelation::named(name.as_str()))
+                    .collect::<Vec<_>>();
+                if relations.len() != relation_names.len() {
+                    error!(
+                        task_id,
+                        "Storage compaction contained an invalid relation name"
+                    );
+                    WakeCondition::Immediate(Some(compaction_failure_to_var(
+                        &relations,
+                        &SchedulerError::CouldNotStartTask,
+                    )))
+                } else {
+                    match self.prepare_storage_compaction_job(relations.clone()) {
+                        Ok(job) => {
+                            let generation = job.generation();
+                            storage_compaction_job = Some(job);
+                            WakeCondition::StorageCompaction(generation)
+                        }
+                        Err(error) => {
+                            error!(?error, task_id, "Could not start storage compaction");
+                            WakeCondition::Immediate(Some(compaction_failure_to_var(
+                                &relations, &error,
+                            )))
+                        }
+                    }
+                }
+            }
         };
 
         if !matches!(wake_condition, WakeCondition::Immediate(_))
@@ -657,6 +688,9 @@ impl Scheduler {
         drop(lc);
         if let Some(job) = checkpoint_job {
             let _ = self.launch_checkpoint_job(job, Some(task_id));
+        }
+        if let Some(job) = storage_compaction_job {
+            let _ = self.launch_storage_compaction_job(job, task_id);
         }
 
         // Wake the timer thread so it can recompute its sleep duration for the

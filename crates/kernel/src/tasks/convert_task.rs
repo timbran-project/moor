@@ -263,6 +263,11 @@ pub(crate) fn wake_condition_to_flatbuffer(
                 "Checkpoint wake condition should not be serialized".to_string(),
             ));
         }
+        KernelWakeCondition::StorageCompaction(_) => {
+            return Err(TaskConversionError::EncodingError(
+                "Storage compaction wake condition should not be serialized".to_string(),
+            ));
+        }
     };
 
     Ok(WakeCondition { condition })

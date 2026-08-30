@@ -372,6 +372,8 @@ pub enum TaskSuspend {
     RecvMessages(Option<Duration>),
     /// Commit and suspend until a database checkpoint completes.
     Checkpoint,
+    /// Commit and suspend until selected database relations finish compacting.
+    StorageCompaction(Vec<Symbol>),
 }
 
 /// The set of parameters for a VM-requested fork.

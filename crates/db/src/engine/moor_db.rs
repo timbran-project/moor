@@ -18,7 +18,7 @@
 
 use crate::{
     AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, ObjAndUUIDHolder,
-    StorageMaintenanceStats, StringHolder,
+    RelationCompactionResult, StorageMaintenanceStats, StringHolder,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -457,6 +457,15 @@ impl MoorDB {
         }
     }
 
+    /// Flush and major-compact only the selected relation keyspaces.
+    pub fn compact_relations(
+        &self,
+        relations: &[DatabaseRelation],
+    ) -> Result<Vec<RelationCompactionResult>, String> {
+        self.wait_for_persistence()?;
+        Ok(self.relations.compact_relations(relations))
+    }
+
     /// Mark all relations as fully loaded from their backing providers.
     /// Call this after bulk import operations to enable optimized reads.
     pub fn mark_all_fully_loaded(&self) {
@@ -501,8 +510,11 @@ mod tests {
     use super::*;
     use crate::engine::relation_defs::RebaseCheck;
     use fjall::PersistMode;
-    use moor_common::{model::CommitResult, util::BitEnum};
-    use moor_var::Obj;
+    use moor_common::{
+        model::{CommitResult, ObjAttrs, ObjectKind, PropFlag},
+        util::BitEnum,
+    };
+    use moor_var::{NOTHING, Obj, Symbol, v_int};
 
     #[test]
     fn sequence_increment_returns_each_reserved_value_once() {
@@ -587,6 +599,59 @@ mod tests {
             panic!("database without a tuple value format marker was accepted");
         };
         assert!(matches!(error, DatabaseOpenError::TupleValueFormat { .. }));
+    }
+
+    #[test]
+    fn relation_compaction_only_rotates_selected_relation() {
+        let db = MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "test"),
+            )
+            .unwrap();
+        tx.define_property(
+            &object,
+            &object,
+            Symbol::mk("value"),
+            &object,
+            PropFlag::all_flags(),
+            Some(v_int(1)),
+        )
+        .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.wait_for_persistence().unwrap();
+
+        let selected = db.relations.object_propvalues.provider().partition();
+        let unrelated = db.relations.object_name.provider().partition();
+        let selected_tables_before = selected.table_count();
+        let unrelated_tables_before = unrelated.table_count();
+
+        let results = db
+            .compact_relations(&[DatabaseRelation::ObjectPropvalues])
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].relation, DatabaseRelation::ObjectPropvalues);
+        assert_eq!(results[0].error, None);
+        assert!(selected.table_count() > selected_tables_before);
+        assert_eq!(unrelated.table_count(), unrelated_tables_before);
+    }
+
+    #[test]
+    fn relation_compaction_returns_one_ordered_result_per_selection() {
+        let db = MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let selected = [
+            DatabaseRelation::ObjectPropvalues,
+            DatabaseRelation::ObjectPropflags,
+        ];
+
+        let results = db.compact_relations(&selected).unwrap();
+
+        assert_eq!(results.len(), selected.len());
+        assert_eq!(results[0].relation, selected[0]);
+        assert_eq!(results[1].relation, selected[1]);
     }
 
     #[test]
