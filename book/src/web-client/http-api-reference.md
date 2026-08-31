@@ -758,7 +758,8 @@ Requires: `X-Moor-Auth-Token`
 **Execute multiple world state operations atomically**
 
 Submits a list of world state actions to be executed in a single transaction. Supports both
-FlatBuffers (`BatchWorldState` table) and JSON payloads.
+FlatBuffers (`BatchWorldState` table) and JSON payloads. If any action is invalid, the server
+rejects the full request without executing a partial batch.
 
 Requires: `X-Moor-Auth-Token`
 
