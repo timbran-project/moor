@@ -188,6 +188,36 @@ mod tests {
     }
 
     #[test]
+    fn test_fromliteral_lambda_preserves_parameter_bindings() {
+        let program = r#"
+            f = fromliteral("{left, right, @rest} => {left, right, rest}");
+            return f(9, 4, 1, 2);
+        "#;
+        assert_eq!(
+            run_moo(program),
+            Ok(v_list(&[v_int(9), v_int(4), v_list(&[v_int(1), v_int(2)])]))
+        );
+    }
+
+    #[test]
+    fn test_fromliteral_lambda_preserves_optional_default() {
+        let program = r#"
+            f = fromliteral("{value, ?increment = 7} => value + increment");
+            return {f(3), f(3, 4)};
+        "#;
+        assert_eq!(run_moo(program), Ok(v_list(&[v_int(10), v_int(7)])));
+    }
+
+    #[test]
+    fn test_fromliteral_lambda_binds_capture_by_name() {
+        let program = r#"
+            f = fromliteral("{value} => value + base with captured [{base: 40}]");
+            return f(2);
+        "#;
+        assert_eq!(run_moo(program), Ok(v_int(42)));
+    }
+
+    #[test]
     fn test_value_diff_reports_list_changes() {
         let program = r#"
             diff = value_diff({1, 2, 3}, {1, 2, 4});

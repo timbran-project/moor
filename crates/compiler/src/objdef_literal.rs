@@ -15,7 +15,7 @@ use std::{cell::OnceCell, path::PathBuf};
 
 use crate::{
     CompileOptions, ObjDefParseError, ObjFileContext, ObjPropDef, ObjPropOverride, ObjVerbDef,
-    ObjectDefinition, compile, objdef::offset_compile_error,
+    ObjectDefinition, Program, compile, objdef::offset_compile_error,
 };
 use base64::Engine;
 use moor_common::{
@@ -27,10 +27,13 @@ use moor_common::{
     util::unquote_str,
 };
 use moor_var::{
-    AnonymousObjid, ErrorCode, List, NOTHING, Obj, Symbol, UuObjid, Var, program::ProgramType,
-    v_binary, v_bool, v_err, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_obj, v_str,
-    v_sym,
+    AnonymousObjid, ErrorCode, List, NOTHING, Obj, Symbol, UuObjid, Var,
+    program::{ProgramType, names::Name, opcode::Op},
+    v_binary, v_bool, v_err, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_none, v_obj,
+    v_str, v_sym,
 };
+
+type LambdaCaptureFrames = Vec<Vec<(Symbol, Var)>>;
 
 #[derive(Clone, Copy)]
 enum Stopper {
@@ -526,30 +529,21 @@ impl<'a> LiteralParser<'a> {
     }
 
     /// `lambda-params = '{' [ param { ',' param } ] '}'`
-    fn parse_lambda_params(
-        &mut self,
-    ) -> Result<moor_var::program::opcode::ScatterArgs, ObjDefParseError> {
-        use moor_var::program::{labels::Label, opcode::ScatterArgs};
-
+    fn parse_lambda_params(&mut self) -> Result<(), ObjDefParseError> {
         self.expect_char('{', "expected '{' to start lambda params")?;
         self.skip_trivia();
-        let mut labels = Vec::new();
         if self.eat_char('}') {
-            return Ok(ScatterArgs {
-                labels,
-                done: Label(0),
-            });
+            return Ok(());
         }
 
         loop {
-            let label = if self.eat_char('?') {
+            if self.eat_char('?') {
                 self.parse_optional_lambda_param()?
             } else if self.eat_char('@') {
                 self.parse_rest_lambda_param()?
             } else {
                 self.parse_required_lambda_param()?
-            };
-            labels.push(label);
+            }
             self.skip_trivia();
             if self.eat_char(',') {
                 self.skip_trivia();
@@ -559,50 +553,31 @@ impl<'a> LiteralParser<'a> {
             break;
         }
 
-        Ok(ScatterArgs {
-            labels,
-            done: Label(0),
-        })
+        Ok(())
     }
 
-    fn parse_optional_lambda_param(
-        &mut self,
-    ) -> Result<moor_var::program::opcode::ScatterLabel, ObjDefParseError> {
-        let _name = self.parse_ident()?;
-        let dummy = moor_var::program::names::Name(0, 0, 0);
+    fn parse_optional_lambda_param(&mut self) -> Result<(), ObjDefParseError> {
+        self.parse_ident()?;
         self.skip_trivia();
-        let default = if self.eat_char('=') {
+        if self.eat_char('=') {
             self.skip_trivia();
-            let _ = self.consume_expression_slice(&[Stopper::Char(','), Stopper::Char('}')])?;
-            Some(moor_var::program::labels::Label(0))
-        } else {
-            None
-        };
-        Ok(moor_var::program::opcode::ScatterLabel::Optional(
-            dummy, default,
-        ))
+            self.consume_expression_slice(&[Stopper::Char(','), Stopper::Char('}')])?;
+        }
+        Ok(())
     }
 
-    fn parse_rest_lambda_param(
-        &mut self,
-    ) -> Result<moor_var::program::opcode::ScatterLabel, ObjDefParseError> {
-        let _name = self.parse_ident()?;
-        Ok(moor_var::program::opcode::ScatterLabel::Rest(
-            moor_var::program::names::Name(0, 0, 0),
-        ))
+    fn parse_rest_lambda_param(&mut self) -> Result<(), ObjDefParseError> {
+        self.parse_ident()?;
+        Ok(())
     }
 
-    fn parse_required_lambda_param(
-        &mut self,
-    ) -> Result<moor_var::program::opcode::ScatterLabel, ObjDefParseError> {
-        let _name = self.parse_ident()?;
-        Ok(moor_var::program::opcode::ScatterLabel::Required(
-            moor_var::program::names::Name(0, 0, 0),
-        ))
+    fn parse_required_lambda_param(&mut self) -> Result<(), ObjDefParseError> {
+        self.parse_ident()?;
+        Ok(())
     }
 
     /// `lambda-captured-env = '[' '{' name ':' literal { ',' name ':' literal } '}' { ',' ... } ']'`
-    fn parse_lambda_captured_env(&mut self) -> Result<Vec<Vec<Var>>, ObjDefParseError> {
+    fn parse_lambda_captured_env(&mut self) -> Result<LambdaCaptureFrames, ObjDefParseError> {
         let mut frames = Vec::new();
         self.skip_trivia();
         self.expect_char('[', "expected '[' after captured")?;
@@ -616,11 +591,11 @@ impl<'a> LiteralParser<'a> {
             let mut frame = Vec::new();
             if !self.eat_char('}') {
                 loop {
-                    let _name = self.parse_ident()?;
+                    let name = Symbol::mk(self.parse_ident()?);
                     self.skip_trivia();
                     self.expect_char(':', "expected ':' in captured variable entry")?;
                     self.skip_trivia();
-                    frame.push(self.parse_literal()?);
+                    frame.push((name, self.parse_literal()?));
                     self.skip_trivia();
                     if self.eat_char(',') {
                         self.skip_trivia();
@@ -642,6 +617,93 @@ impl<'a> LiteralParser<'a> {
         Ok(frames)
     }
 
+    fn compile_lambda_value(
+        &self,
+        lambda_source: &str,
+    ) -> Result<
+        (
+            moor_var::program::opcode::ScatterArgs,
+            Program,
+            Option<Name>,
+        ),
+        ObjDefParseError,
+    > {
+        let source = format!("return {lambda_source};");
+        let program = compile(&source, crate::CompileOptions::default())
+            .map_err(|e| ObjDefParseError::VerbCompileError(e, lambda_source.to_string()))?;
+
+        let Some((scatter_offset, program_offset, self_var)) =
+            program.main_vector().iter().find_map(|op| match op {
+                Op::MakeLambda {
+                    scatter_offset,
+                    program_offset,
+                    self_var,
+                    ..
+                } => Some((*scatter_offset, *program_offset, *self_var)),
+                _ => None,
+            })
+        else {
+            return Err(self.parse_error("compiled lambda did not contain a lambda value"));
+        };
+
+        Ok((
+            program.scatter_table(scatter_offset).clone(),
+            program.lambda_program(program_offset).clone(),
+            self_var,
+        ))
+    }
+
+    fn bind_lambda_captures(
+        &self,
+        frames: LambdaCaptureFrames,
+        body: &Program,
+    ) -> Result<Vec<Vec<Var>>, ObjDefParseError> {
+        let mut captured_env: Vec<Vec<Var>> = Vec::new();
+        let names = body.var_names();
+
+        for (source_depth, frame) in frames.into_iter().enumerate() {
+            for (symbol, value) in frame {
+                let mut candidates = names
+                    .names()
+                    .into_iter()
+                    .filter(|name| names.ident_for_name(name) == Some(symbol))
+                    .collect::<Vec<_>>();
+                candidates.sort_unstable();
+
+                let name = candidates
+                    .iter()
+                    .find(|name| name.1 as usize == source_depth)
+                    .copied()
+                    .or_else(|| (candidates.len() == 1).then_some(candidates[0]))
+                    .ok_or_else(|| {
+                        self.parse_error(&format!(
+                            "captured variable '{}' does not identify one lambda variable",
+                            symbol.as_arc_str()
+                        ))
+                    })?;
+
+                let scope_depth = name.1 as usize;
+                let var_offset = name.0 as usize;
+                if captured_env.len() <= scope_depth {
+                    captured_env.resize_with(scope_depth + 1, Vec::new);
+                }
+                let frame = &mut captured_env[scope_depth];
+                if frame.len() <= var_offset {
+                    frame.resize(var_offset + 1, v_none());
+                }
+                if !frame[var_offset].is_none() {
+                    return Err(self.parse_error(&format!(
+                        "captured variable '{}' is specified more than once",
+                        symbol.as_arc_str()
+                    )));
+                }
+                frame[var_offset] = value;
+            }
+        }
+
+        Ok(captured_env)
+    }
+
     fn parse_lambda_self_ref(
         &mut self,
     ) -> Result<Option<moor_var::program::names::Name>, ObjDefParseError> {
@@ -653,7 +715,8 @@ impl<'a> LiteralParser<'a> {
 
     /// `lambda-literal = lambda-params '=>' expr ['with captured ...]`
     fn parse_literal_lambda(&mut self) -> Result<Var, ObjDefParseError> {
-        let params = self.parse_lambda_params()?;
+        let lambda_start = self.pos;
+        self.parse_lambda_params()?;
         self.skip_trivia();
         if !self.remaining().starts_with("=>") {
             return Err(self.parse_error("expected '=>' after lambda params"));
@@ -661,30 +724,27 @@ impl<'a> LiteralParser<'a> {
         self.pos += 2;
         self.skip_trivia();
 
-        let body_source = self.consume_expression_slice(&[
+        self.consume_expression_slice(&[
             Stopper::Keyword("with"),
             Stopper::Char(','),
             Stopper::Char(']'),
             Stopper::Char('}'),
             Stopper::Char(';'),
         ])?;
-        let body_program = compile(
-            &format!("return {};", body_source.trim()),
-            crate::CompileOptions::default(),
-        )
-        .map_err(|e| ObjDefParseError::VerbCompileError(e, body_source.trim().to_string()))?;
+        let lambda_source = self.source[lambda_start..self.pos].trim();
+        let (params, body_program, compiled_self_var) = self.compile_lambda_value(lambda_source)?;
 
-        let mut captured_env = Vec::new();
-        let mut self_var = None;
+        let mut capture_frames = Vec::new();
+        let mut self_var = compiled_self_var;
 
         self.skip_trivia();
         if !self.eat_keyword("with") {
-            return Ok(Var::mk_lambda(params, body_program, captured_env, self_var));
+            return Ok(Var::mk_lambda(params, body_program, vec![], self_var));
         }
 
         self.skip_trivia();
         if self.eat_keyword("captured") {
-            captured_env = self.parse_lambda_captured_env()?;
+            capture_frames = self.parse_lambda_captured_env()?;
             self.skip_trivia();
         }
         if self.eat_keyword("self") {
@@ -692,6 +752,7 @@ impl<'a> LiteralParser<'a> {
             self_var = self.parse_lambda_self_ref()?;
         }
 
+        let captured_env = self.bind_lambda_captures(capture_frames, &body_program)?;
         Ok(Var::mk_lambda(params, body_program, captured_env, self_var))
     }
 
