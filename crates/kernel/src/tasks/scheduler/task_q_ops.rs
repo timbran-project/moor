@@ -185,14 +185,14 @@ impl TaskQ {
         let _t = perfc.timers.start(SchedulerOp::StartTask);
         let (sender, receiver) = flume::unbounded();
 
-        let kill_switch = Arc::new(AtomicBool::new(false));
+        let control = Arc::new(TaskControl::new());
         let task = Task::new(
             task_id,
             *player,
             *authority_principal,
             task_start.clone(),
             server_options,
-            kill_switch.clone(),
+            control.clone(),
         );
         self.register_task(task_id);
 
@@ -252,14 +252,13 @@ impl TaskQ {
         let task_id = task.task_id;
         let player = task.player();
 
-        // Brand new kill switch for the resumed task.
-        let kill_switch = Arc::new(AtomicBool::new(false));
-        task.kill_switch = kill_switch.clone();
+        let control = Arc::new(TaskControl::new());
+        task.control = control.clone();
         let run_baseline = Arc::new(OnceLock::new());
         let task_control = RunningTask {
             phase: RunningTaskPhase::Running,
             player,
-            kill_switch,
+            control,
             session: session.clone(),
             result_sender,
             task_start: task.state.task_start().clone(),
@@ -458,15 +457,14 @@ impl TaskQ {
         // accumulator across the retry.
         let new_session = session.fork_retry().unwrap();
 
-        // Brand new kill switch for the retried task
-        let kill_switch = Arc::new(AtomicBool::new(false));
-        task.kill_switch = kill_switch.clone();
+        let control = Arc::new(TaskControl::new());
+        task.control = control.clone();
         let run_baseline = Arc::new(OnceLock::new());
 
         let task_control = RunningTask {
             phase: RunningTaskPhase::Running,
             player: task.player(),
-            kill_switch,
+            control,
             session: new_session.clone(),
             result_sender,
             task_start: task.state.task_start().clone(),
@@ -561,12 +559,16 @@ impl TaskQ {
                 .is_some();
         }
 
-        let Some(victim_task) = self.active.remove(&victim_task_id) else {
+        let Some(task) = self.active.get(&victim_task_id) else {
             return false;
         };
+        if task.control.request_cancel() != CancelResult::Cancelled {
+            return true;
+        }
+
+        self.active.remove(&victim_task_id);
         self.live_tasks.remove(victim_task_id);
         self.suspended.enqueue_dependents_for(victim_task_id);
-        victim_task.kill_switch.store(true, Ordering::SeqCst);
         true
     }
 
@@ -601,17 +603,28 @@ impl TaskQ {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
-        if let Some(task) = self.active.get(&victim_task_id)
-            && task.phase == RunningTaskPhase::Completing
-        {
-            return AbortTaskOutcome::Completing;
+        let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
+        if is_suspended {
+            return if self.cancel_task(victim_task_id, true) {
+                AbortTaskOutcome::Cancelled
+            } else {
+                AbortTaskOutcome::NotFound
+            };
         }
 
-        let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
-        if self.cancel_task(victim_task_id, is_suspended) {
-            AbortTaskOutcome::Cancelled
-        } else {
-            AbortTaskOutcome::NotFound
+        let Some(task) = self.active.get(&victim_task_id) else {
+            return AbortTaskOutcome::NotFound;
+        };
+
+        match task.control.request_cancel() {
+            CancelResult::Completing => AbortTaskOutcome::Completing,
+            CancelResult::AfterBoundary => AbortTaskOutcome::Cancelled,
+            CancelResult::Cancelled => {
+                self.active.remove(&victim_task_id);
+                self.live_tasks.remove(victim_task_id);
+                self.suspended.enqueue_dependents_for(victim_task_id);
+                AbortTaskOutcome::Cancelled
+            }
         }
     }
 
@@ -680,7 +693,7 @@ impl TaskQ {
                 ?player,
                 task_id, "Aborting task from disconnected player..."
             );
-            tc.kill_switch.store(true, Ordering::SeqCst);
+            tc.control.request_cancel();
         }
         self.suspended.prune_foreground_tasks(player);
     }
@@ -733,7 +746,7 @@ mod tests {
                 initial_env: None,
             },
             &test_server_options(),
-            Arc::new(AtomicBool::new(false)),
+            Arc::new(TaskControl::new()),
         )
     }
 
@@ -779,7 +792,7 @@ mod tests {
                     program: Default::default(),
                     initial_env: None,
                 },
-                kill_switch: Arc::new(AtomicBool::new(false)),
+                control: Arc::new(TaskControl::new()),
                 session: session(),
                 result_sender: None,
                 dispatched_at: Instant::now(),
@@ -834,11 +847,11 @@ mod tests {
     fn abort_task_kills_an_active_task_without_permission_check() {
         let mut task_q = task_q();
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
-        let kill_switch = task_q.active[&10].kill_switch.clone();
+        let control = task_q.active[&10].control.clone();
 
         assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
 
-        assert!(kill_switch.load(Ordering::SeqCst));
+        assert!(control.is_cancelled());
         assert!(!task_q.live_tasks.contains(10));
         assert!(!task_q.active.contains_key(&10));
     }
@@ -868,13 +881,42 @@ mod tests {
         let task = task_q.active.get_mut(&10).unwrap();
         task.phase = RunningTaskPhase::Completing;
         task.terminal_result = Some(Ok(TaskNotification::Result(v_int(42))));
+        assert!(task.control.begin_terminal_commit());
+        assert!(task.control.finish_terminal_commit(true));
 
         assert!(matches!(
             task_q.abort_task(10),
             AbortTaskOutcome::Completing
         ));
         assert!(task_q.active.contains_key(&10));
-        assert!(!task_q.active[&10].kill_switch.load(Ordering::SeqCst));
+        assert!(!task_q.active[&10].control.is_cancelled());
+    }
+
+    #[test]
+    fn abort_task_leaves_boundary_commit_attached_for_cleanup() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+        let control = task_q.active[&10].control.clone();
+        assert!(control.begin_boundary_commit());
+
+        assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
+        assert!(task_q.active.contains_key(&10));
+        assert!(!control.finish_boundary_commit());
+    }
+
+    #[test]
+    fn abort_task_waits_for_terminal_database_commit() {
+        let mut task_q = task_q();
+        add_active_task(&mut task_q, 10, Obj::mk_id(2));
+        let control = task_q.active[&10].control.clone();
+        assert!(control.begin_terminal_commit());
+
+        assert!(matches!(
+            task_q.abort_task(10),
+            AbortTaskOutcome::Completing
+        ));
+        assert!(task_q.active.contains_key(&10));
+        assert!(control.finish_terminal_commit(true));
     }
 
     #[test]

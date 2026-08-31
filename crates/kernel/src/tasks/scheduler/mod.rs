@@ -30,10 +30,7 @@ use flume::{Receiver, RecvTimeoutError, Sender};
 use moor_common::util::{Deadline, Instant};
 use parking_lot::{Condvar, Mutex};
 use std::{
-    sync::{
-        Arc, LazyLock, OnceLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, LazyLock, OnceLock},
     time::{Duration, SystemTime},
 };
 use tracing::{debug, error, info, trace, warn};
@@ -58,6 +55,7 @@ use crate::{
             prepare_storage_compaction,
         },
         task::Task,
+        task_control::{CancelResult, TaskControl},
         task_q::{
             LiveTaskRegistry, RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ,
             WakeCondition,
@@ -858,7 +856,7 @@ mod tests {
                     initial_env: None,
                 },
                 &server_options,
-                Arc::new(AtomicBool::new(false)),
+                Arc::new(TaskControl::new()),
             ),
             session: Arc::new(NoopClientSession::new()),
             result_sender: None,
@@ -908,14 +906,14 @@ mod tests {
             program: Default::default(),
             initial_env: None,
         };
-        let kill_switch = Arc::new(AtomicBool::new(false));
+        let control = Arc::new(TaskControl::new());
         let task = Task::new(
             task_id,
             SYSTEM_OBJECT,
             SYSTEM_OBJECT,
             task_start.clone(),
             scheduler.server_options.load().as_ref(),
-            kill_switch.clone(),
+            control.clone(),
         );
 
         let mut lifecycle = scheduler.lifecycle.lock();
@@ -930,7 +928,7 @@ mod tests {
                 run_baseline: Arc::new(OnceLock::new()),
                 abort_error: None,
                 terminal_result: None,
-                kill_switch,
+                control,
                 session,
                 result_sender: None,
             },
@@ -1141,6 +1139,7 @@ mod tests {
             source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
+        assert!(task.control.begin_boundary_commit());
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
@@ -1191,6 +1190,7 @@ mod tests {
             source_connections: None,
         });
         let task = insert_active_task(&scheduler, task_id, session);
+        assert!(task.control.begin_boundary_commit());
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {

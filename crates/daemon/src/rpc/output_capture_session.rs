@@ -237,39 +237,22 @@ impl Session for OutputCaptureSession {
     }
 
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        let Some(size) = self.retained_event_size(player, &event) else {
+        if self.capture.is_none() || player != self.player {
             self.events.push_event(player, event);
             return Ok(());
-        };
-        self.send_event_with_size(player, event, size)
-    }
-
-    fn retained_event_size(&self, player: Obj, event: &NarrativeEvent) -> Option<usize> {
-        (self.capture.is_some() && player == self.player).then(|| event_size_bytes(event))
-    }
-
-    fn send_event_with_size(
-        &self,
-        player: Obj,
-        event: Box<NarrativeEvent>,
-        size_bytes: usize,
-    ) -> Result<(), SessionError> {
-        // Only the caller's own output is bounded; anything addressed elsewhere is published on
-        // commit and is no more this session's to hold than a connected session's would be.
-        if let Some(capture) = self.capture.as_ref()
-            && player == self.player
-        {
-            let size = size_bytes;
-            let mut pending = self.pending.lock().unwrap();
-            if let Some(limit) = capture.exceeded_limit(pending.events + 1, pending.bytes + size) {
-                return Err(match limit {
-                    CaptureLimit::Events(events) => SessionError::OutputEventLimitExceeded(events),
-                    CaptureLimit::Bytes(bytes) => SessionError::OutputByteLimitExceeded(bytes),
-                });
-            }
-            pending.events += 1;
-            pending.bytes += size;
         }
+
+        let size = event_size_bytes(&event);
+        let capture = self.capture.as_ref().expect("capture checked above");
+        let mut pending = self.pending.lock().unwrap();
+        if let Some(limit) = capture.exceeded_limit(pending.events + 1, pending.bytes + size) {
+            return Err(match limit {
+                CaptureLimit::Events(events) => SessionError::OutputEventLimitExceeded(events),
+                CaptureLimit::Bytes(bytes) => SessionError::OutputByteLimitExceeded(bytes),
+            });
+        }
+        pending.events += 1;
+        pending.bytes += size;
         self.events.push_event(player, event);
         Ok(())
     }

@@ -289,6 +289,21 @@ pub fn current_session() -> Arc<dyn Session> {
     })
 }
 
+/// Call `f` with the current session without cloning its `Arc`.
+/// Panics if no context is active.
+pub fn with_current_session<F, R>(f: F) -> R
+where
+    F: FnOnce(&dyn Session) -> R,
+{
+    CURRENT_CONTEXT.with(|ctx| {
+        let ctx_ref = ctx.borrow();
+        let task_ctx = ctx_ref
+            .as_ref()
+            .expect("No active task context on this thread");
+        f(task_ctx.session.as_ref())
+    })
+}
+
 /// Commit the current thread's active transaction.
 /// Panics if no context is active.
 pub fn commit_current_transaction() -> Result<CommitResult, WorldStateError> {

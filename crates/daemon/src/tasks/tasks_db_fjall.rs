@@ -173,14 +173,11 @@ mod tests {
     };
     use moor_kernel::tasks::{DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES};
     use moor_kernel::{
-        SuspendedTask, Task, WakeCondition,
+        SuspendedTask, Task, TaskControl, WakeCondition,
         tasks::{ServerOptions, TaskStart, TasksDb},
     };
     use moor_var::{SYSTEM_OBJECT, v_int};
-    use std::{
-        sync::{Arc, atomic::AtomicBool},
-        time::Duration,
-    };
+    use std::{sync::Arc, time::Duration};
     use uuid::Uuid;
 
     // Verify creation of an empty DB, including creation of tables.
@@ -219,11 +216,6 @@ mod tests {
             rollback_on_task_limit: false,
         };
 
-        /*
-         perms: Objid,
-        server_options: &ServerOptions,
-        kill_switch: Arc<AtomicBool>,
-         */
         let task = Task::new(
             task_id,
             SYSTEM_OBJECT,
@@ -234,7 +226,7 @@ mod tests {
                 initial_env: None,
             },
             &so,
-            Arc::new(AtomicBool::new(false)),
+            Arc::new(TaskControl::new()),
         );
 
         // Mock task...
@@ -295,7 +287,7 @@ mod tests {
                     initial_env: None,
                 },
                 &so,
-                Arc::new(AtomicBool::new(false)),
+                Arc::new(TaskControl::new()),
             );
 
             // Mock task...
@@ -360,7 +352,7 @@ mod tests {
                     initial_env: None,
                 },
                 &so,
-                Arc::new(AtomicBool::new(false)),
+                Arc::new(TaskControl::new()),
             );
 
             // Mock task...
@@ -465,7 +457,7 @@ mod tests {
                     initial_env: None,
                 },
                 &so,
-                Arc::new(AtomicBool::new(false)),
+                Arc::new(TaskControl::new()),
             );
 
             let suspended = SuspendedTask {
@@ -566,7 +558,7 @@ mod tests {
                     initial_env: None,
                 },
                 &so,
-                Arc::new(AtomicBool::new(false)),
+                Arc::new(TaskControl::new()),
             );
 
             let suspended = SuspendedTask {
@@ -631,7 +623,7 @@ mod tests {
                 initial_env: None,
             },
             &so,
-            Arc::new(AtomicBool::new(false)),
+            Arc::new(TaskControl::new()),
         );
 
         let wake_time = Deadline::from_now(Duration::from_secs(30)).instant();

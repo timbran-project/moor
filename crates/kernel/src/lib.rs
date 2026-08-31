@@ -16,6 +16,7 @@ pub use crate::{
         AbortTaskOutcome, ServerOptions,
         scheduler_client::SchedulerClient,
         task::Task,
+        task_control::TaskControl,
         task_q::{SuspendedTask, WakeCondition},
     },
     tracing_events::{TraceEventType, emit_trace_event, init_tracing, shutdown_tracing},
