@@ -79,7 +79,7 @@ class SchedulerErrorUnionTypeId {
       value == null ? null : SchedulerErrorUnionTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 16;
+  static const int maxValue = 18;
   static bool containsValue(int value) => values.containsKey(value);
 
   static const SchedulerErrorUnionTypeId NONE = SchedulerErrorUnionTypeId._(0);
@@ -115,6 +115,10 @@ class SchedulerErrorUnionTypeId {
       SchedulerErrorUnionTypeId._(15);
   static const SchedulerErrorUnionTypeId GarbageCollectionFailed =
       SchedulerErrorUnionTypeId._(16);
+  static const SchedulerErrorUnionTypeId CheckpointInProgress =
+      SchedulerErrorUnionTypeId._(17);
+  static const SchedulerErrorUnionTypeId StorageMaintenanceInProgress =
+      SchedulerErrorUnionTypeId._(18);
   static const Map<int, SchedulerErrorUnionTypeId> values = {
     0: NONE,
     1: SchedulerNotResponding,
@@ -133,6 +137,8 @@ class SchedulerErrorUnionTypeId {
     14: VerbRetrievalFailed,
     15: ObjectResolutionFailed,
     16: GarbageCollectionFailed,
+    17: CheckpointInProgress,
+    18: StorageMaintenanceInProgress,
   };
 
   static const fb.Reader<SchedulerErrorUnionTypeId> reader =
@@ -925,7 +931,7 @@ class HostClientToDaemonMessageUnionTypeId {
       : HostClientToDaemonMessageUnionTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 29;
+  static const int maxValue = 30;
   static bool containsValue(int value) => values.containsKey(value);
 
   static const HostClientToDaemonMessageUnionTypeId NONE =
@@ -988,6 +994,8 @@ class HostClientToDaemonMessageUnionTypeId {
       HostClientToDaemonMessageUnionTypeId._(28);
   static const HostClientToDaemonMessageUnionTypeId BatchWorldState =
       HostClientToDaemonMessageUnionTypeId._(29);
+  static const HostClientToDaemonMessageUnionTypeId ReplayClientEvents =
+      HostClientToDaemonMessageUnionTypeId._(30);
   static const Map<int, HostClientToDaemonMessageUnionTypeId> values = {
     0: NONE,
     1: ConnectionEstablish,
@@ -1019,6 +1027,7 @@ class HostClientToDaemonMessageUnionTypeId {
     27: InvokeSystemHandler,
     28: InvokeWelcomeMessage,
     29: BatchWorldState,
+    30: ReplayClientEvents,
   };
 
   static const fb.Reader<HostClientToDaemonMessageUnionTypeId> reader =
@@ -1114,7 +1123,7 @@ class DaemonToClientReplyUnionTypeId {
       value == null ? null : DaemonToClientReplyUnionTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 26;
+  static const int maxValue = 27;
   static bool containsValue(int value) => values.containsKey(value);
 
   static const DaemonToClientReplyUnionTypeId NONE =
@@ -1171,6 +1180,8 @@ class DaemonToClientReplyUnionTypeId {
       DaemonToClientReplyUnionTypeId._(25);
   static const DaemonToClientReplyUnionTypeId BatchWorldStateReply =
       DaemonToClientReplyUnionTypeId._(26);
+  static const DaemonToClientReplyUnionTypeId ClientEvents =
+      DaemonToClientReplyUnionTypeId._(27);
   static const Map<int, DaemonToClientReplyUnionTypeId> values = {
     0: NONE,
     1: NewConnection,
@@ -1199,6 +1210,7 @@ class DaemonToClientReplyUnionTypeId {
     24: SystemHandlerResponseReply,
     25: VerbCallResponse,
     26: BatchWorldStateReply,
+    27: ClientEvents,
   };
 
   static const fb.Reader<DaemonToClientReplyUnionTypeId> reader =
@@ -1949,9 +1961,7 @@ class ClientTokenBuilder {
 class ClientTokenObjectBuilder extends fb.ObjectBuilder {
   final String? _token;
 
-  ClientTokenObjectBuilder({
-    String? token,
-  }) : _token = token;
+  ClientTokenObjectBuilder({String? token}) : _token = token;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2024,9 +2034,7 @@ class AuthTokenBuilder {
 class AuthTokenObjectBuilder extends fb.ObjectBuilder {
   final String? _token;
 
-  AuthTokenObjectBuilder({
-    String? token,
-  }) : _token = token;
+  AuthTokenObjectBuilder({String? token}) : _token = token;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2296,8 +2304,10 @@ class AbortLimit {
   );
   int get ticks => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 6, 0);
   int get timeNanos => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 8, 0);
-  int get outputBytes => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 10, 0);
-  int get outputEvents => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
+  int get outputBytes =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 10, 0);
+  int get outputEvents =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
 
   @override
   String toString() {
@@ -2489,9 +2499,7 @@ class TaskNotFoundBuilder {
 class TaskNotFoundObjectBuilder extends fb.ObjectBuilder {
   final int? _taskId;
 
-  TaskNotFoundObjectBuilder({
-    int? taskId,
-  }) : _taskId = taskId;
+  TaskNotFoundObjectBuilder({int? taskId}) : _taskId = taskId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2562,9 +2570,8 @@ class InputRequestNotFoundBuilder {
 class InputRequestNotFoundObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _requestId;
 
-  InputRequestNotFoundObjectBuilder({
-    moor_common.UuidObjectBuilder? requestId,
-  }) : _requestId = requestId;
+  InputRequestNotFoundObjectBuilder({moor_common.UuidObjectBuilder? requestId})
+    : _requestId = requestId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2680,9 +2687,8 @@ class CompilationErrorBuilder {
 class CompilationErrorObjectBuilder extends fb.ObjectBuilder {
   final moor_common.CompileErrorObjectBuilder? _error;
 
-  CompilationErrorObjectBuilder({
-    moor_common.CompileErrorObjectBuilder? error,
-  }) : _error = error;
+  CompilationErrorObjectBuilder({moor_common.CompileErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2755,9 +2761,8 @@ class CommandExecutionErrorBuilder {
 class CommandExecutionErrorObjectBuilder extends fb.ObjectBuilder {
   final CommandErrorObjectBuilder? _error;
 
-  CommandExecutionErrorObjectBuilder({
-    CommandErrorObjectBuilder? error,
-  }) : _error = error;
+  CommandExecutionErrorObjectBuilder({CommandErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2828,9 +2833,8 @@ class TaskAbortedLimitBuilder {
 class TaskAbortedLimitObjectBuilder extends fb.ObjectBuilder {
   final AbortLimitObjectBuilder? _limit;
 
-  TaskAbortedLimitObjectBuilder({
-    AbortLimitObjectBuilder? limit,
-  }) : _limit = limit;
+  TaskAbortedLimitObjectBuilder({AbortLimitObjectBuilder? limit})
+    : _limit = limit;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3153,9 +3157,8 @@ class VerbProgramFailedBuilder {
 class VerbProgramFailedObjectBuilder extends fb.ObjectBuilder {
   final VerbProgramErrorObjectBuilder? _error;
 
-  VerbProgramFailedObjectBuilder({
-    VerbProgramErrorObjectBuilder? error,
-  }) : _error = error;
+  VerbProgramFailedObjectBuilder({VerbProgramErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3452,9 +3455,7 @@ class GarbageCollectionFailedBuilder {
 class GarbageCollectionFailedObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  GarbageCollectionFailedObjectBuilder({
-    String? message,
-  }) : _message = message;
+  GarbageCollectionFailedObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3464,6 +3465,99 @@ class GarbageCollectionFailedObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeString(_message!);
     fbBuilder.startTable(1);
     fbBuilder.addOffset(0, messageOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class CheckpointInProgress {
+  CheckpointInProgress._(this._bc, this._bcOffset);
+  factory CheckpointInProgress(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<CheckpointInProgress> reader =
+      _CheckpointInProgressReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  @override
+  String toString() {
+    return 'CheckpointInProgress{}';
+  }
+}
+
+class _CheckpointInProgressReader extends fb.TableReader<CheckpointInProgress> {
+  const _CheckpointInProgressReader();
+
+  @override
+  CheckpointInProgress createObject(fb.BufferContext bc, int offset) =>
+      CheckpointInProgress._(bc, offset);
+}
+
+class CheckpointInProgressObjectBuilder extends fb.ObjectBuilder {
+  CheckpointInProgressObjectBuilder();
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.startTable(0);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class StorageMaintenanceInProgress {
+  StorageMaintenanceInProgress._(this._bc, this._bcOffset);
+  factory StorageMaintenanceInProgress(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<StorageMaintenanceInProgress> reader =
+      _StorageMaintenanceInProgressReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  @override
+  String toString() {
+    return 'StorageMaintenanceInProgress{}';
+  }
+}
+
+class _StorageMaintenanceInProgressReader
+    extends fb.TableReader<StorageMaintenanceInProgress> {
+  const _StorageMaintenanceInProgressReader();
+
+  @override
+  StorageMaintenanceInProgress createObject(fb.BufferContext bc, int offset) =>
+      StorageMaintenanceInProgress._(bc, offset);
+}
+
+class StorageMaintenanceInProgressObjectBuilder extends fb.ObjectBuilder {
+  StorageMaintenanceInProgressObjectBuilder();
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.startTable(0);
     return fbBuilder.endTable();
   }
 
@@ -3546,6 +3640,14 @@ class SchedulerError {
         );
       case 16:
         return GarbageCollectionFailed.reader.vTableGetNullable(
+          _bc,
+          _bcOffset,
+          6,
+        );
+      case 17:
+        return CheckpointInProgress.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 18:
+        return StorageMaintenanceInProgress.reader.vTableGetNullable(
           _bc,
           _bcOffset,
           6,
@@ -3809,9 +3911,8 @@ class DatabaseErrorBuilder {
 class DatabaseErrorObjectBuilder extends fb.ObjectBuilder {
   final moor_common.WorldStateErrorObjectBuilder? _error;
 
-  DatabaseErrorObjectBuilder({
-    moor_common.WorldStateErrorObjectBuilder? error,
-  }) : _error = error;
+  DatabaseErrorObjectBuilder({moor_common.WorldStateErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3951,11 +4052,9 @@ class CommandErrorObjectBuilder extends fb.ObjectBuilder {
   final CommandErrorUnionTypeId? _errorType;
   final dynamic _error;
 
-  CommandErrorObjectBuilder({
-    CommandErrorUnionTypeId? errorType,
-    dynamic error,
-  }) : _errorType = errorType,
-       _error = error;
+  CommandErrorObjectBuilder({CommandErrorUnionTypeId? errorType, dynamic error})
+    : _errorType = errorType,
+      _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4337,9 +4436,7 @@ class WorkerPermissionDeniedBuilder {
 class WorkerPermissionDeniedObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerPermissionDeniedObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerPermissionDeniedObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4413,9 +4510,7 @@ class WorkerInvalidRequestBuilder {
 class WorkerInvalidRequestObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerInvalidRequestObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerInvalidRequestObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4489,9 +4584,7 @@ class WorkerInternalErrorBuilder {
 class WorkerInternalErrorObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerInternalErrorObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerInternalErrorObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4566,9 +4659,7 @@ class WorkerRequestTimedOutBuilder {
 class WorkerRequestTimedOutObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerRequestTimedOutObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerRequestTimedOutObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4642,9 +4733,7 @@ class WorkerRequestErrorBuilder {
 class WorkerRequestErrorObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerRequestErrorObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerRequestErrorObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4717,9 +4806,7 @@ class WorkerDetachedBuilder {
 class WorkerDetachedObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorkerDetachedObjectBuilder({
-    String? message,
-  }) : _message = message;
+  WorkerDetachedObjectBuilder({String? message}) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4792,9 +4879,8 @@ class NoWorkerAvailableBuilder {
 class NoWorkerAvailableObjectBuilder extends fb.ObjectBuilder {
   final moor_common.SymbolObjectBuilder? _workerType;
 
-  NoWorkerAvailableObjectBuilder({
-    moor_common.SymbolObjectBuilder? workerType,
-  }) : _workerType = workerType;
+  NoWorkerAvailableObjectBuilder({moor_common.SymbolObjectBuilder? workerType})
+    : _workerType = workerType;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4900,11 +4986,9 @@ class WorkerErrorObjectBuilder extends fb.ObjectBuilder {
   final WorkerErrorUnionTypeId? _errorType;
   final dynamic _error;
 
-  WorkerErrorObjectBuilder({
-    WorkerErrorUnionTypeId? errorType,
-    dynamic error,
-  }) : _errorType = errorType,
-       _error = error;
+  WorkerErrorObjectBuilder({WorkerErrorUnionTypeId? errorType, dynamic error})
+    : _errorType = errorType,
+      _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4982,11 +5066,7 @@ class CompileContextObjectBuilder extends fb.ObjectBuilder {
   final int? _line;
   final int? _col;
 
-  CompileContextObjectBuilder({
-    int? line,
-    int? col,
-  }) : _line = line,
-       _col = col;
+  CompileContextObjectBuilder({int? line, int? col}) : _line = line, _col = col;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5869,11 +5949,9 @@ class BadSlotNameObjectBuilder extends fb.ObjectBuilder {
   final CompileContextObjectBuilder? _context;
   final String? _slot;
 
-  BadSlotNameObjectBuilder({
-    CompileContextObjectBuilder? context,
-    String? slot,
-  }) : _context = context,
-       _slot = slot;
+  BadSlotNameObjectBuilder({CompileContextObjectBuilder? context, String? slot})
+    : _context = context,
+      _slot = slot;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5948,9 +6026,8 @@ class InvalidAssignmentBuilder {
 class InvalidAssignmentObjectBuilder extends fb.ObjectBuilder {
   final CompileContextObjectBuilder? _context;
 
-  InvalidAssignmentObjectBuilder({
-    CompileContextObjectBuilder? context,
-  }) : _context = context;
+  InvalidAssignmentObjectBuilder({CompileContextObjectBuilder? context})
+    : _context = context;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6110,9 +6187,8 @@ class VerbProgramFailureBuilder {
 class VerbProgramFailureObjectBuilder extends fb.ObjectBuilder {
   final VerbProgramErrorObjectBuilder? _error;
 
-  VerbProgramFailureObjectBuilder({
-    VerbProgramErrorObjectBuilder? error,
-  }) : _error = error;
+  VerbProgramFailureObjectBuilder({VerbProgramErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6476,9 +6552,8 @@ class DetachHostBuilder {
 class DetachHostObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _hostId;
 
-  DetachHostObjectBuilder({
-    moor_common.UuidObjectBuilder? hostId,
-  }) : _hostId = hostId;
+  DetachHostObjectBuilder({moor_common.UuidObjectBuilder? hostId})
+    : _hostId = hostId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6993,9 +7068,7 @@ class DaemonToHostRejectBuilder {
 class DaemonToHostRejectObjectBuilder extends fb.ObjectBuilder {
   final String? _reason;
 
-  DaemonToHostRejectObjectBuilder({
-    String? reason,
-  }) : _reason = reason;
+  DaemonToHostRejectObjectBuilder({String? reason}) : _reason = reason;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -7785,11 +7858,9 @@ class HostBroadcastUnlistenObjectBuilder extends fb.ObjectBuilder {
   final HostType? _hostType;
   final int? _port;
 
-  HostBroadcastUnlistenObjectBuilder({
-    HostType? hostType,
-    int? port,
-  }) : _hostType = hostType,
-       _port = port;
+  HostBroadcastUnlistenObjectBuilder({HostType? hostType, int? port})
+    : _hostType = hostType,
+      _port = port;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -7861,9 +7932,7 @@ class HostBroadcastPingPongBuilder {
 class HostBroadcastPingPongObjectBuilder extends fb.ObjectBuilder {
   final int? _timestamp;
 
-  HostBroadcastPingPongObjectBuilder({
-    int? timestamp,
-  }) : _timestamp = timestamp;
+  HostBroadcastPingPongObjectBuilder({int? timestamp}) : _timestamp = timestamp;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -8464,9 +8533,8 @@ class WsResolveObjectBuilder {
 class WsResolveObjectObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjectRefObjectBuilder? _objref;
 
-  WsResolveObjectObjectBuilder({
-    moor_common.ObjectRefObjectBuilder? objref,
-  }) : _objref = objref;
+  WsResolveObjectObjectBuilder({moor_common.ObjectRefObjectBuilder? objref})
+    : _objref = objref;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -8825,9 +8893,8 @@ class WsGetObjectFlagsBuilder {
 class WsGetObjectFlagsObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjObjectBuilder? _obj;
 
-  WsGetObjectFlagsObjectBuilder({
-    moor_common.ObjObjectBuilder? obj,
-  }) : _obj = obj;
+  WsGetObjectFlagsObjectBuilder({moor_common.ObjObjectBuilder? obj})
+    : _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -9416,9 +9483,8 @@ class WsSystemPropertyResultBuilder {
 class WsSystemPropertyResultObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _value;
 
-  WsSystemPropertyResultObjectBuilder({
-    moor_var.VarObjectBuilder? value,
-  }) : _value = value;
+  WsSystemPropertyResultObjectBuilder({moor_var.VarObjectBuilder? value})
+    : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -9491,9 +9557,8 @@ class WsVerbsResultBuilder {
 class WsVerbsResultObjectBuilder extends fb.ObjectBuilder {
   final List<moor_common.VerbInfoObjectBuilder>? _verbs;
 
-  WsVerbsResultObjectBuilder({
-    List<moor_common.VerbInfoObjectBuilder>? verbs,
-  }) : _verbs = verbs;
+  WsVerbsResultObjectBuilder({List<moor_common.VerbInfoObjectBuilder>? verbs})
+    : _verbs = verbs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -9656,9 +9721,8 @@ class WsResolveResultBuilder {
 class WsResolveResultObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _result;
 
-  WsResolveResultObjectBuilder({
-    moor_var.VarObjectBuilder? result,
-  }) : _result = result;
+  WsResolveResultObjectBuilder({moor_var.VarObjectBuilder? result})
+    : _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -9731,9 +9795,8 @@ class WsObjectsListResultBuilder {
 class WsObjectsListResultObjectBuilder extends fb.ObjectBuilder {
   final List<ObjectInfoObjectBuilder>? _objects;
 
-  WsObjectsListResultObjectBuilder({
-    List<ObjectInfoObjectBuilder>? objects,
-  }) : _objects = objects;
+  WsObjectsListResultObjectBuilder({List<ObjectInfoObjectBuilder>? objects})
+    : _objects = objects;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -9810,9 +9873,8 @@ class WsAllObjectsResultBuilder {
 class WsAllObjectsResultObjectBuilder extends fb.ObjectBuilder {
   final List<moor_common.ObjObjectBuilder>? _objects;
 
-  WsAllObjectsResultObjectBuilder({
-    List<moor_common.ObjObjectBuilder>? objects,
-  }) : _objects = objects;
+  WsAllObjectsResultObjectBuilder({List<moor_common.ObjObjectBuilder>? objects})
+    : _objects = objects;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -10021,9 +10083,7 @@ class WsObjectFlagsResultBuilder {
 class WsObjectFlagsResultObjectBuilder extends fb.ObjectBuilder {
   final int? _flags;
 
-  WsObjectFlagsResultObjectBuilder({
-    int? flags,
-  }) : _flags = flags;
+  WsObjectFlagsResultObjectBuilder({int? flags}) : _flags = flags;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -10172,9 +10232,8 @@ class WsActionErrorBuilder {
 class WsActionErrorObjectBuilder extends fb.ObjectBuilder {
   final RpcMessageErrorObjectBuilder? _error;
 
-  WsActionErrorObjectBuilder({
-    RpcMessageErrorObjectBuilder? error,
-  }) : _error = error;
+  WsActionErrorObjectBuilder({RpcMessageErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -10830,14 +10889,12 @@ class LoginCommand {
   ).vTableGetNullable(_bc, _bcOffset, 8);
   bool get doAttach =>
       const fb.BoolReader().vTableGet(_bc, _bcOffset, 10, false);
-  String? get eventLogPubkey =>
-      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 12);
   moor_var.VarMap? get registrationData =>
       moor_var.VarMap.reader.vTableGetNullable(_bc, _bcOffset, 14);
 
   @override
   String toString() {
-    return 'LoginCommand{clientToken: ${clientToken}, handlerObject: ${handlerObject}, connectArgs: ${connectArgs}, doAttach: ${doAttach}, eventLogPubkey: ${eventLogPubkey}, registrationData: ${registrationData}}';
+    return 'LoginCommand{clientToken: ${clientToken}, handlerObject: ${handlerObject}, connectArgs: ${connectArgs}, doAttach: ${doAttach}, registrationData: ${registrationData}}';
   }
 }
 
@@ -10878,11 +10935,6 @@ class LoginCommandBuilder {
     return fbBuilder.offset;
   }
 
-  int addEventLogPubkeyOffset(int? offset) {
-    fbBuilder.addOffset(4, offset);
-    return fbBuilder.offset;
-  }
-
   int addRegistrationDataOffset(int? offset) {
     fbBuilder.addOffset(5, offset);
     return fbBuilder.offset;
@@ -10898,7 +10950,6 @@ class LoginCommandObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjObjectBuilder? _handlerObject;
   final List<String>? _connectArgs;
   final bool? _doAttach;
-  final String? _eventLogPubkey;
   final moor_var.VarMapObjectBuilder? _registrationData;
 
   LoginCommandObjectBuilder({
@@ -10906,13 +10957,11 @@ class LoginCommandObjectBuilder extends fb.ObjectBuilder {
     moor_common.ObjObjectBuilder? handlerObject,
     List<String>? connectArgs,
     bool? doAttach,
-    String? eventLogPubkey,
     moor_var.VarMapObjectBuilder? registrationData,
   }) : _clientToken = clientToken,
        _handlerObject = handlerObject,
        _connectArgs = connectArgs,
        _doAttach = doAttach,
-       _eventLogPubkey = eventLogPubkey,
        _registrationData = registrationData;
 
   /// Finish building, and store into the [fbBuilder].
@@ -10927,9 +10976,6 @@ class LoginCommandObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeList(
             _connectArgs!.map(fbBuilder.writeString).toList(),
           );
-    final int? eventLogPubkeyOffset = _eventLogPubkey == null
-        ? null
-        : fbBuilder.writeString(_eventLogPubkey!);
     final int? registrationDataOffset = _registrationData?.getOrCreateOffset(
       fbBuilder,
     );
@@ -10938,7 +10984,6 @@ class LoginCommandObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addOffset(1, handlerObjectOffset);
     fbBuilder.addOffset(2, connectArgsOffset);
     fbBuilder.addBool(3, _doAttach);
-    fbBuilder.addOffset(4, eventLogPubkeyOffset);
     fbBuilder.addOffset(5, registrationDataOffset);
     return fbBuilder.endTable();
   }
@@ -11365,9 +11410,8 @@ class ConnectedInvocationBuilder {
 class ConnectedInvocationObjectBuilder extends fb.ObjectBuilder {
   final ClientTokenObjectBuilder? _clientToken;
 
-  ConnectedInvocationObjectBuilder({
-    ClientTokenObjectBuilder? clientToken,
-  }) : _clientToken = clientToken;
+  ConnectedInvocationObjectBuilder({ClientTokenObjectBuilder? clientToken})
+    : _clientToken = clientToken;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -11439,9 +11483,8 @@ class CaptureOutputInvocationBuilder {
 class CaptureOutputInvocationObjectBuilder extends fb.ObjectBuilder {
   final int? _timeoutMs;
 
-  CaptureOutputInvocationObjectBuilder({
-    int? timeoutMs,
-  }) : _timeoutMs = timeoutMs;
+  CaptureOutputInvocationObjectBuilder({int? timeoutMs})
+    : _timeoutMs = timeoutMs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -12476,6 +12519,101 @@ class ClientPongObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
+class ReplayClientEvents {
+  ReplayClientEvents._(this._bc, this._bcOffset);
+  factory ReplayClientEvents(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<ReplayClientEvents> reader =
+      _ReplayClientEventsReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  ClientToken? get clientToken =>
+      ClientToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
+  int get afterSequence =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 6, 0);
+  int get limit => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 8, 0);
+
+  @override
+  String toString() {
+    return 'ReplayClientEvents{clientToken: ${clientToken}, afterSequence: ${afterSequence}, limit: ${limit}}';
+  }
+}
+
+class _ReplayClientEventsReader extends fb.TableReader<ReplayClientEvents> {
+  const _ReplayClientEventsReader();
+
+  @override
+  ReplayClientEvents createObject(fb.BufferContext bc, int offset) =>
+      ReplayClientEvents._(bc, offset);
+}
+
+class ReplayClientEventsBuilder {
+  ReplayClientEventsBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(3);
+  }
+
+  int addClientTokenOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int addAfterSequence(int? afterSequence) {
+    fbBuilder.addUint64(1, afterSequence);
+    return fbBuilder.offset;
+  }
+
+  int addLimit(int? limit) {
+    fbBuilder.addUint32(2, limit);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class ReplayClientEventsObjectBuilder extends fb.ObjectBuilder {
+  final ClientTokenObjectBuilder? _clientToken;
+  final int? _afterSequence;
+  final int? _limit;
+
+  ReplayClientEventsObjectBuilder({
+    ClientTokenObjectBuilder? clientToken,
+    int? afterSequence,
+    int? limit,
+  }) : _clientToken = clientToken,
+       _afterSequence = afterSequence,
+       _limit = limit;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? clientTokenOffset = _clientToken?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(3);
+    fbBuilder.addOffset(0, clientTokenOffset);
+    fbBuilder.addUint64(1, _afterSequence);
+    fbBuilder.addUint32(2, _limit);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
 class RequestHistory {
   RequestHistory._(this._bc, this._bcOffset);
   factory RequestHistory(List<int> bytes) {
@@ -12616,9 +12754,8 @@ class RequestCurrentPresentationsBuilder {
 class RequestCurrentPresentationsObjectBuilder extends fb.ObjectBuilder {
   final AuthTokenObjectBuilder? _authToken;
 
-  RequestCurrentPresentationsObjectBuilder({
-    AuthTokenObjectBuilder? authToken,
-  }) : _authToken = authToken;
+  RequestCurrentPresentationsObjectBuilder({AuthTokenObjectBuilder? authToken})
+    : _authToken = authToken;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -12971,9 +13108,8 @@ class GetEventLogPublicKeyBuilder {
 class GetEventLogPublicKeyObjectBuilder extends fb.ObjectBuilder {
   final AuthTokenObjectBuilder? _authToken;
 
-  GetEventLogPublicKeyObjectBuilder({
-    AuthTokenObjectBuilder? authToken,
-  }) : _authToken = authToken;
+  GetEventLogPublicKeyObjectBuilder({AuthTokenObjectBuilder? authToken})
+    : _authToken = authToken;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -13134,9 +13270,8 @@ class DeleteEventLogHistoryBuilder {
 class DeleteEventLogHistoryObjectBuilder extends fb.ObjectBuilder {
   final AuthTokenObjectBuilder? _authToken;
 
-  DeleteEventLogHistoryObjectBuilder({
-    AuthTokenObjectBuilder? authToken,
-  }) : _authToken = authToken;
+  DeleteEventLogHistoryObjectBuilder({AuthTokenObjectBuilder? authToken})
+    : _authToken = authToken;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -13207,9 +13342,8 @@ class ListObjectsBuilder {
 class ListObjectsObjectBuilder extends fb.ObjectBuilder {
   final AuthTokenObjectBuilder? _authToken;
 
-  ListObjectsObjectBuilder({
-    AuthTokenObjectBuilder? authToken,
-  }) : _authToken = authToken;
+  ListObjectsObjectBuilder({AuthTokenObjectBuilder? authToken})
+    : _authToken = authToken;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -13586,6 +13720,8 @@ class HostClientToDaemonMessage {
         return InvokeWelcomeMessage.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 29:
         return BatchWorldState.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 30:
+        return ReplayClientEvents.reader.vTableGetNullable(_bc, _bcOffset, 6);
       default:
         return null;
     }
@@ -14021,9 +14157,8 @@ class SysPropValueBuilder {
 class SysPropValueObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _value;
 
-  SysPropValueObjectBuilder({
-    moor_var.VarObjectBuilder? value,
-  }) : _value = value;
+  SysPropValueObjectBuilder({moor_var.VarObjectBuilder? value})
+    : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14093,9 +14228,7 @@ class TaskSubmittedBuilder {
 class TaskSubmittedObjectBuilder extends fb.ObjectBuilder {
   final int? _taskId;
 
-  TaskSubmittedObjectBuilder({
-    int? taskId,
-  }) : _taskId = taskId;
+  TaskSubmittedObjectBuilder({int? taskId}) : _taskId = taskId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14210,9 +14343,8 @@ class EvalResultBuilder {
 class EvalResultObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _result;
 
-  EvalResultObjectBuilder({
-    moor_var.VarObjectBuilder? result,
-  }) : _result = result;
+  EvalResultObjectBuilder({moor_var.VarObjectBuilder? result})
+    : _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14282,15 +14414,102 @@ class ThanksPongBuilder {
 class ThanksPongObjectBuilder extends fb.ObjectBuilder {
   final int? _timestamp;
 
-  ThanksPongObjectBuilder({
-    int? timestamp,
-  }) : _timestamp = timestamp;
+  ThanksPongObjectBuilder({int? timestamp}) : _timestamp = timestamp;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     fbBuilder.startTable(1);
     fbBuilder.addUint64(0, _timestamp);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class ClientEvents {
+  ClientEvents._(this._bc, this._bcOffset);
+  factory ClientEvents(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<ClientEvents> reader = _ClientEventsReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  List<ClientEvent>? get events => const fb.ListReader<ClientEvent>(
+    ClientEvent.reader,
+  ).vTableGetNullable(_bc, _bcOffset, 4);
+  int get latestSequence =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 6, 0);
+
+  @override
+  String toString() {
+    return 'ClientEvents{events: ${events}, latestSequence: ${latestSequence}}';
+  }
+}
+
+class _ClientEventsReader extends fb.TableReader<ClientEvents> {
+  const _ClientEventsReader();
+
+  @override
+  ClientEvents createObject(fb.BufferContext bc, int offset) =>
+      ClientEvents._(bc, offset);
+}
+
+class ClientEventsBuilder {
+  ClientEventsBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(2);
+  }
+
+  int addEventsOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int addLatestSequence(int? latestSequence) {
+    fbBuilder.addUint64(1, latestSequence);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class ClientEventsObjectBuilder extends fb.ObjectBuilder {
+  final List<ClientEventObjectBuilder>? _events;
+  final int? _latestSequence;
+
+  ClientEventsObjectBuilder({
+    List<ClientEventObjectBuilder>? events,
+    int? latestSequence,
+  }) : _events = events,
+       _latestSequence = latestSequence;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? eventsOffset = _events == null
+        ? null
+        : fbBuilder.writeList(
+            _events!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
+          );
+    fbBuilder.startTable(2);
+    fbBuilder.addOffset(0, eventsOffset);
+    fbBuilder.addUint64(1, _latestSequence);
     return fbBuilder.endTable();
   }
 
@@ -14356,9 +14575,8 @@ class VerbsReplyBuilder {
 class VerbsReplyObjectBuilder extends fb.ObjectBuilder {
   final List<moor_common.VerbInfoObjectBuilder>? _verbs;
 
-  VerbsReplyObjectBuilder({
-    List<moor_common.VerbInfoObjectBuilder>? verbs,
-  }) : _verbs = verbs;
+  VerbsReplyObjectBuilder({List<moor_common.VerbInfoObjectBuilder>? verbs})
+    : _verbs = verbs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14760,9 +14978,8 @@ class ResolveResultBuilder {
 class ResolveResultObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _result;
 
-  ResolveResultObjectBuilder({
-    moor_var.VarObjectBuilder? result,
-  }) : _result = result;
+  ResolveResultObjectBuilder({moor_var.VarObjectBuilder? result})
+    : _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14834,9 +15051,8 @@ class HistoryResponseReplyBuilder {
 class HistoryResponseReplyObjectBuilder extends fb.ObjectBuilder {
   final HistoryResponseObjectBuilder? _response;
 
-  HistoryResponseReplyObjectBuilder({
-    HistoryResponseObjectBuilder? response,
-  }) : _response = response;
+  HistoryResponseReplyObjectBuilder({HistoryResponseObjectBuilder? response})
+    : _response = response;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -14916,11 +15132,9 @@ class PresentationSnapshotObjectBuilder extends fb.ObjectBuilder {
   final String? _id;
   final List<int>? _encryptedBlob;
 
-  PresentationSnapshotObjectBuilder({
-    String? id,
-    List<int>? encryptedBlob,
-  }) : _id = id,
-       _encryptedBlob = encryptedBlob;
+  PresentationSnapshotObjectBuilder({String? id, List<int>? encryptedBlob})
+    : _id = id,
+      _encryptedBlob = encryptedBlob;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15213,9 +15427,7 @@ class EventLogPublicKeyBuilder {
 class EventLogPublicKeyObjectBuilder extends fb.ObjectBuilder {
   final String? _publicKey;
 
-  EventLogPublicKeyObjectBuilder({
-    String? publicKey,
-  }) : _publicKey = publicKey;
+  EventLogPublicKeyObjectBuilder({String? publicKey}) : _publicKey = publicKey;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15289,9 +15501,7 @@ class EventLogHistoryDeletedBuilder {
 class EventLogHistoryDeletedObjectBuilder extends fb.ObjectBuilder {
   final bool? _success;
 
-  EventLogHistoryDeletedObjectBuilder({
-    bool? success,
-  }) : _success = success;
+  EventLogHistoryDeletedObjectBuilder({bool? success}) : _success = success;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15526,9 +15736,8 @@ class ListObjectsReplyBuilder {
 class ListObjectsReplyObjectBuilder extends fb.ObjectBuilder {
   final List<ObjectInfoObjectBuilder>? _objects;
 
-  ListObjectsReplyObjectBuilder({
-    List<ObjectInfoObjectBuilder>? objects,
-  }) : _objects = objects;
+  ListObjectsReplyObjectBuilder({List<ObjectInfoObjectBuilder>? objects})
+    : _objects = objects;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15649,9 +15858,8 @@ class SystemHandlerSuccessBuilder {
 class SystemHandlerSuccessObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _result;
 
-  SystemHandlerSuccessObjectBuilder({
-    moor_var.VarObjectBuilder? result,
-  }) : _result = result;
+  SystemHandlerSuccessObjectBuilder({moor_var.VarObjectBuilder? result})
+    : _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15723,9 +15931,8 @@ class SystemHandlerErrorBuilder {
 class SystemHandlerErrorObjectBuilder extends fb.ObjectBuilder {
   final SchedulerErrorObjectBuilder? _error;
 
-  SystemHandlerErrorObjectBuilder({
-    SchedulerErrorObjectBuilder? error,
-  }) : _error = error;
+  SystemHandlerErrorObjectBuilder({SchedulerErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -15855,14 +16062,10 @@ class VerbCallSuccess {
 
   moor_var.Var? get result =>
       moor_var.Var.reader.vTableGetNullable(_bc, _bcOffset, 4);
-  List<moor_common.NarrativeEvent>? get output =>
-      const fb.ListReader<moor_common.NarrativeEvent>(
-        moor_common.NarrativeEvent.reader,
-      ).vTableGetNullable(_bc, _bcOffset, 6);
 
   @override
   String toString() {
-    return 'VerbCallSuccess{result: ${result}, output: ${output}}';
+    return 'VerbCallSuccess{result: ${result}}';
   }
 }
 
@@ -15880,16 +16083,11 @@ class VerbCallSuccessBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(1);
   }
 
   int addResultOffset(int? offset) {
     fbBuilder.addOffset(0, offset);
-    return fbBuilder.offset;
-  }
-
-  int addOutputOffset(int? offset) {
-    fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
 
@@ -15900,26 +16098,16 @@ class VerbCallSuccessBuilder {
 
 class VerbCallSuccessObjectBuilder extends fb.ObjectBuilder {
   final moor_var.VarObjectBuilder? _result;
-  final List<moor_common.NarrativeEventObjectBuilder>? _output;
 
-  VerbCallSuccessObjectBuilder({
-    moor_var.VarObjectBuilder? result,
-    List<moor_common.NarrativeEventObjectBuilder>? output,
-  }) : _result = result,
-       _output = output;
+  VerbCallSuccessObjectBuilder({moor_var.VarObjectBuilder? result})
+    : _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     final int? resultOffset = _result?.getOrCreateOffset(fbBuilder);
-    final int? outputOffset = _output == null
-        ? null
-        : fbBuilder.writeList(
-            _output!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
-          );
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(1);
     fbBuilder.addOffset(0, resultOffset);
-    fbBuilder.addOffset(1, outputOffset);
     return fbBuilder.endTable();
   }
 
@@ -15983,9 +16171,8 @@ class VerbCallErrorBuilder {
 class VerbCallErrorObjectBuilder extends fb.ObjectBuilder {
   final SchedulerErrorObjectBuilder? _error;
 
-  VerbCallErrorObjectBuilder({
-    SchedulerErrorObjectBuilder? error,
-  }) : _error = error;
+  VerbCallErrorObjectBuilder({SchedulerErrorObjectBuilder? error})
+    : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -16032,9 +16219,14 @@ class VerbCallResponse {
     }
   }
 
+  List<moor_common.NarrativeEvent>? get output =>
+      const fb.ListReader<moor_common.NarrativeEvent>(
+        moor_common.NarrativeEvent.reader,
+      ).vTableGetNullable(_bc, _bcOffset, 8);
+
   @override
   String toString() {
-    return 'VerbCallResponse{responseType: ${responseType}, response: ${response}}';
+    return 'VerbCallResponse{responseType: ${responseType}, response: ${response}, output: ${output}}';
   }
 }
 
@@ -16052,7 +16244,7 @@ class VerbCallResponseBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(3);
   }
 
   int addResponseType(VerbCallResponseUnionTypeId? responseType) {
@@ -16065,6 +16257,11 @@ class VerbCallResponseBuilder {
     return fbBuilder.offset;
   }
 
+  int addOutputOffset(int? offset) {
+    fbBuilder.addOffset(2, offset);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -16073,20 +16270,29 @@ class VerbCallResponseBuilder {
 class VerbCallResponseObjectBuilder extends fb.ObjectBuilder {
   final VerbCallResponseUnionTypeId? _responseType;
   final dynamic _response;
+  final List<moor_common.NarrativeEventObjectBuilder>? _output;
 
   VerbCallResponseObjectBuilder({
     VerbCallResponseUnionTypeId? responseType,
     dynamic response,
+    List<moor_common.NarrativeEventObjectBuilder>? output,
   }) : _responseType = responseType,
-       _response = response;
+       _response = response,
+       _output = output;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     final int? responseOffset = _response?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(2);
+    final int? outputOffset = _output == null
+        ? null
+        : fbBuilder.writeList(
+            _output!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
+          );
+    fbBuilder.startTable(3);
     fbBuilder.addUint8(0, _responseType?.value);
     fbBuilder.addOffset(1, responseOffset);
+    fbBuilder.addOffset(2, outputOffset);
     return fbBuilder.endTable();
   }
 
@@ -16186,6 +16392,8 @@ class DaemonToClientReply {
         return VerbCallResponse.reader.vTableGetNullable(_bc, _bcOffset, 6);
       case 26:
         return BatchWorldStateReply.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 27:
+        return ClientEvents.reader.vTableGetNullable(_bc, _bcOffset, 6);
       default:
         return null;
     }
@@ -16711,11 +16919,9 @@ class TaskErrorEventObjectBuilder extends fb.ObjectBuilder {
   final int? _taskId;
   final SchedulerErrorObjectBuilder? _error;
 
-  TaskErrorEventObjectBuilder({
-    int? taskId,
-    SchedulerErrorObjectBuilder? error,
-  }) : _taskId = taskId,
-       _error = error;
+  TaskErrorEventObjectBuilder({int? taskId, SchedulerErrorObjectBuilder? error})
+    : _taskId = taskId,
+      _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -16870,9 +17076,7 @@ class TaskSuspendedEventBuilder {
 class TaskSuspendedEventObjectBuilder extends fb.ObjectBuilder {
   final int? _taskId;
 
-  TaskSuspendedEventObjectBuilder({
-    int? taskId,
-  }) : _taskId = taskId;
+  TaskSuspendedEventObjectBuilder({int? taskId}) : _taskId = taskId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -16908,10 +17112,13 @@ class PlayerSwitchedEvent {
       moor_common.Obj.reader.vTableGetNullable(_bc, _bcOffset, 4);
   AuthToken? get newAuthToken =>
       AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 6);
+  bool get silent => const fb.BoolReader().vTableGet(_bc, _bcOffset, 8, false);
+  bool get preserveHistory =>
+      const fb.BoolReader().vTableGet(_bc, _bcOffset, 10, false);
 
   @override
   String toString() {
-    return 'PlayerSwitchedEvent{newPlayer: ${newPlayer}, newAuthToken: ${newAuthToken}}';
+    return 'PlayerSwitchedEvent{newPlayer: ${newPlayer}, newAuthToken: ${newAuthToken}, silent: ${silent}, preserveHistory: ${preserveHistory}}';
   }
 }
 
@@ -16929,7 +17136,7 @@ class PlayerSwitchedEventBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(4);
   }
 
   int addNewPlayerOffset(int? offset) {
@@ -16942,6 +17149,16 @@ class PlayerSwitchedEventBuilder {
     return fbBuilder.offset;
   }
 
+  int addSilent(bool? silent) {
+    fbBuilder.addBool(2, silent);
+    return fbBuilder.offset;
+  }
+
+  int addPreserveHistory(bool? preserveHistory) {
+    fbBuilder.addBool(3, preserveHistory);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -16950,21 +17167,29 @@ class PlayerSwitchedEventBuilder {
 class PlayerSwitchedEventObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjObjectBuilder? _newPlayer;
   final AuthTokenObjectBuilder? _newAuthToken;
+  final bool? _silent;
+  final bool? _preserveHistory;
 
   PlayerSwitchedEventObjectBuilder({
     moor_common.ObjObjectBuilder? newPlayer,
     AuthTokenObjectBuilder? newAuthToken,
+    bool? silent,
+    bool? preserveHistory,
   }) : _newPlayer = newPlayer,
-       _newAuthToken = newAuthToken;
+       _newAuthToken = newAuthToken,
+       _silent = silent,
+       _preserveHistory = preserveHistory;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     final int? newPlayerOffset = _newPlayer?.getOrCreateOffset(fbBuilder);
     final int? newAuthTokenOffset = _newAuthToken?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(4);
     fbBuilder.addOffset(0, newPlayerOffset);
     fbBuilder.addOffset(1, newAuthTokenOffset);
+    fbBuilder.addBool(2, _silent);
+    fbBuilder.addBool(3, _preserveHistory);
     return fbBuilder.endTable();
   }
 
@@ -17219,9 +17444,11 @@ class ClientEvent {
     }
   }
 
+  int get sequence => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 8, 0);
+
   @override
   String toString() {
-    return 'ClientEvent{eventType: ${eventType}, event: ${event}}';
+    return 'ClientEvent{eventType: ${eventType}, event: ${event}, sequence: ${sequence}}';
   }
 }
 
@@ -17239,7 +17466,7 @@ class ClientEventBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(3);
   }
 
   int addEventType(ClientEventUnionTypeId? eventType) {
@@ -17252,6 +17479,11 @@ class ClientEventBuilder {
     return fbBuilder.offset;
   }
 
+  int addSequence(int? sequence) {
+    fbBuilder.addUint64(2, sequence);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -17260,20 +17492,24 @@ class ClientEventBuilder {
 class ClientEventObjectBuilder extends fb.ObjectBuilder {
   final ClientEventUnionTypeId? _eventType;
   final dynamic _event;
+  final int? _sequence;
 
   ClientEventObjectBuilder({
     ClientEventUnionTypeId? eventType,
     dynamic event,
+    int? sequence,
   }) : _eventType = eventType,
-       _event = event;
+       _event = event,
+       _sequence = sequence;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     final int? eventOffset = _event?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(3);
     fbBuilder.addUint8(0, _eventType?.value);
     fbBuilder.addOffset(1, eventOffset);
+    fbBuilder.addUint64(2, _sequence);
     return fbBuilder.endTable();
   }
 
@@ -17338,9 +17574,8 @@ class ClientsBroadcastPingPongBuilder {
 class ClientsBroadcastPingPongObjectBuilder extends fb.ObjectBuilder {
   final int? _timestamp;
 
-  ClientsBroadcastPingPongObjectBuilder({
-    int? timestamp,
-  }) : _timestamp = timestamp;
+  ClientsBroadcastPingPongObjectBuilder({int? timestamp})
+    : _timestamp = timestamp;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -17677,9 +17912,8 @@ class PleaseDieBuilder {
 class PleaseDieObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _workerId;
 
-  PleaseDieObjectBuilder({
-    moor_common.UuidObjectBuilder? workerId,
-  }) : _workerId = workerId;
+  PleaseDieObjectBuilder({moor_common.UuidObjectBuilder? workerId})
+    : _workerId = workerId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18018,9 +18252,8 @@ class DetachWorkerBuilder {
 class DetachWorkerObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _workerId;
 
-  DetachWorkerObjectBuilder({
-    moor_common.UuidObjectBuilder? workerId,
-  }) : _workerId = workerId;
+  DetachWorkerObjectBuilder({moor_common.UuidObjectBuilder? workerId})
+    : _workerId = workerId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18432,9 +18665,7 @@ class WorkerRejectedBuilder {
 class WorkerRejectedObjectBuilder extends fb.ObjectBuilder {
   final String? _reason;
 
-  WorkerRejectedObjectBuilder({
-    String? reason,
-  }) : _reason = reason;
+  WorkerRejectedObjectBuilder({String? reason}) : _reason = reason;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18507,9 +18738,8 @@ class WorkerAttachedBuilder {
 class WorkerAttachedObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _workerId;
 
-  WorkerAttachedObjectBuilder({
-    moor_common.UuidObjectBuilder? workerId,
-  }) : _workerId = workerId;
+  WorkerAttachedObjectBuilder({moor_common.UuidObjectBuilder? workerId})
+    : _workerId = workerId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18580,9 +18810,7 @@ class WorkerAuthFailedBuilder {
 class WorkerAuthFailedObjectBuilder extends fb.ObjectBuilder {
   final String? _reason;
 
-  WorkerAuthFailedObjectBuilder({
-    String? reason,
-  }) : _reason = reason;
+  WorkerAuthFailedObjectBuilder({String? reason}) : _reason = reason;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18656,9 +18884,7 @@ class WorkerInvalidPayloadBuilder {
 class WorkerInvalidPayloadObjectBuilder extends fb.ObjectBuilder {
   final String? _reason;
 
-  WorkerInvalidPayloadObjectBuilder({
-    String? reason,
-  }) : _reason = reason;
+  WorkerInvalidPayloadObjectBuilder({String? reason}) : _reason = reason;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18732,9 +18958,8 @@ class WorkerUnknownRequestBuilder {
 class WorkerUnknownRequestObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _requestId;
 
-  WorkerUnknownRequestObjectBuilder({
-    moor_common.UuidObjectBuilder? requestId,
-  }) : _requestId = requestId;
+  WorkerUnknownRequestObjectBuilder({moor_common.UuidObjectBuilder? requestId})
+    : _requestId = requestId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -18806,9 +19031,8 @@ class WorkerNotRegisteredBuilder {
 class WorkerNotRegisteredObjectBuilder extends fb.ObjectBuilder {
   final moor_common.UuidObjectBuilder? _workerId;
 
-  WorkerNotRegisteredObjectBuilder({
-    moor_common.UuidObjectBuilder? workerId,
-  }) : _workerId = workerId;
+  WorkerNotRegisteredObjectBuilder({moor_common.UuidObjectBuilder? workerId})
+    : _workerId = workerId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -19357,9 +19581,8 @@ class HostSuccessBuilder {
 class HostSuccessObjectBuilder extends fb.ObjectBuilder {
   final DaemonToHostReplyObjectBuilder? _reply;
 
-  HostSuccessObjectBuilder({
-    DaemonToHostReplyObjectBuilder? reply,
-  }) : _reply = reply;
+  HostSuccessObjectBuilder({DaemonToHostReplyObjectBuilder? reply})
+    : _reply = reply;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -19430,9 +19653,8 @@ class ClientSuccessBuilder {
 class ClientSuccessObjectBuilder extends fb.ObjectBuilder {
   final DaemonToClientReplyObjectBuilder? _reply;
 
-  ClientSuccessObjectBuilder({
-    DaemonToClientReplyObjectBuilder? reply,
-  }) : _reply = reply;
+  ClientSuccessObjectBuilder({DaemonToClientReplyObjectBuilder? reply})
+    : _reply = reply;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -19503,9 +19725,7 @@ class FailureBuilder {
 class FailureObjectBuilder extends fb.ObjectBuilder {
   final RpcMessageErrorObjectBuilder? _error;
 
-  FailureObjectBuilder({
-    RpcMessageErrorObjectBuilder? error,
-  }) : _error = error;
+  FailureObjectBuilder({RpcMessageErrorObjectBuilder? error}) : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -19596,11 +19816,9 @@ class ReplyResultObjectBuilder extends fb.ObjectBuilder {
   final ReplyResultUnionTypeId? _resultType;
   final dynamic _result;
 
-  ReplyResultObjectBuilder({
-    ReplyResultUnionTypeId? resultType,
-    dynamic result,
-  }) : _resultType = resultType,
-       _result = result;
+  ReplyResultObjectBuilder({ReplyResultUnionTypeId? resultType, dynamic result})
+    : _resultType = resultType,
+      _result = result;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -19850,11 +20068,9 @@ class HistoryRecallSinceSecondsObjectBuilder extends fb.ObjectBuilder {
   final int? _secondsAgo;
   final int? _limit;
 
-  HistoryRecallSinceSecondsObjectBuilder({
-    int? secondsAgo,
-    int? limit,
-  }) : _secondsAgo = secondsAgo,
-       _limit = limit;
+  HistoryRecallSinceSecondsObjectBuilder({int? secondsAgo, int? limit})
+    : _secondsAgo = secondsAgo,
+      _limit = limit;
 
   /// Finish building, and store into the [fbBuilder].
   @override

@@ -90228,8 +90228,6 @@ mod root {
         pub struct VerbCallSuccess {
             /// The field `result` in the table `VerbCallSuccess`
             pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-            /// The field `output` in the table `VerbCallSuccess`
-            pub output: ::planus::alloc::vec::Vec<super::moor_common::NarrativeEvent>,
         }
 
         impl VerbCallSuccess {
@@ -90243,24 +90241,16 @@ mod root {
             pub fn create(
                 builder: &mut ::planus::Builder,
                 field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                field_output: impl ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
             ) -> ::planus::Offset<Self> {
                 let prepared_result = field_result.prepare(builder);
-                let prepared_output = field_output.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
                     ::core::default::Default::default();
                 table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(0);
-                table_writer.write_entry::<::planus::Offset<
-                    [::planus::Offset<super::moor_common::NarrativeEvent>],
-                >>(1);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
                         object_writer.write::<_, _, 4>(&prepared_result);
-                        object_writer.write::<_, _, 4>(&prepared_output);
                     });
                 }
                 builder.current_offset()
@@ -90297,7 +90287,7 @@ mod root {
                 &self,
                 builder: &mut ::planus::Builder,
             ) -> ::planus::Offset<VerbCallSuccess> {
-                VerbCallSuccess::create(builder, &self.result, &self.output)
+                VerbCallSuccess::create(builder, &self.result)
             }
         }
 
@@ -90321,21 +90311,6 @@ mod root {
         }
 
         impl<T0> VerbCallSuccessBuilder<(T0,)> {
-            /// Setter for the [`output` field](VerbCallSuccess#structfield.output).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn output<T1>(self, value: T1) -> VerbCallSuccessBuilder<(T0, T1)>
-            where
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-            {
-                let (v0,) = self.0;
-                VerbCallSuccessBuilder((v0, value))
-            }
-        }
-
-        impl<T0, T1> VerbCallSuccessBuilder<(T0, T1)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VerbCallSuccess].
             #[inline]
             pub fn finish(
@@ -90349,13 +90324,8 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-            > ::planus::WriteAs<::planus::Offset<VerbCallSuccess>>
-            for VerbCallSuccessBuilder<(T0, T1)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAs<::planus::Offset<VerbCallSuccess>> for VerbCallSuccessBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<VerbCallSuccess>;
 
@@ -90368,13 +90338,9 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>>
-            for VerbCallSuccessBuilder<(T0, T1)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>>
+            for VerbCallSuccessBuilder<(T0,)>
         {
             type Prepared = ::planus::Offset<VerbCallSuccess>;
 
@@ -90387,20 +90353,16 @@ mod root {
             }
         }
 
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-                T1: ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-            > ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccessBuilder<(T0, T1)>
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccessBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
             ) -> ::planus::Offset<VerbCallSuccess> {
-                let (v0, v1) = &self.0;
-                VerbCallSuccess::create(builder, v0, v1)
+                let (v0,) = &self.0;
+                VerbCallSuccess::create(builder, v0)
             }
         }
 
@@ -90414,23 +90376,12 @@ mod root {
             pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
                 self.0.access_required(0, "VerbCallSuccess", "result")
             }
-
-            /// Getter for the [`output` field](VerbCallSuccess#structfield.output).
-            #[inline]
-            pub fn output(
-                &self,
-            ) -> ::planus::Result<
-                ::planus::Vector<'a, ::planus::Result<super::moor_common::NarrativeEventRef<'a>>>,
-            > {
-                self.0.access_required(1, "VerbCallSuccess", "output")
-            }
         }
 
         impl<'a> ::core::fmt::Debug for VerbCallSuccessRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 let mut f = f.debug_struct("VerbCallSuccessRef");
                 f.field("result", &self.result());
-                f.field("output", &self.output());
                 f.finish()
             }
         }
@@ -90444,7 +90395,6 @@ mod root {
                     result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.result()?,
                     )?),
-                    output: value.output()?.to_vec_result()?,
                 })
             }
         }
@@ -90525,7 +90475,7 @@ mod root {
         /// The table `VerbCallError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallError` in the file `moor_rpc.fbs:1111`
+        /// * Table `VerbCallError` in the file `moor_rpc.fbs:1110`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VerbCallError {
             /// The field `error` in the table `VerbCallError`
@@ -90762,11 +90712,13 @@ mod root {
         /// The table `VerbCallResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallResponse` in the file `moor_rpc.fbs:1115`
+        /// * Table `VerbCallResponse` in the file `moor_rpc.fbs:1114`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VerbCallResponse {
             /// The field `response` in the table `VerbCallResponse`
             pub response: self::VerbCallResponseUnion,
+            /// The field `output` in the table `VerbCallResponse`
+            pub output: ::planus::alloc::vec::Vec<super::moor_common::NarrativeEvent>,
         }
 
         impl VerbCallResponse {
@@ -90780,17 +90732,25 @@ mod root {
             pub fn create(
                 builder: &mut ::planus::Builder,
                 field_response: impl ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                field_output: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                >,
             ) -> ::planus::Offset<Self> {
                 let prepared_response = field_response.prepare(builder);
+                let prepared_output = field_output.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                let mut table_writer: ::planus::table_writer::TableWriter<10> =
                     ::core::default::Default::default();
                 table_writer.write_entry::<::planus::Offset<self::VerbCallResponseUnion>>(1);
+                table_writer.write_entry::<::planus::Offset<
+                    [::planus::Offset<super::moor_common::NarrativeEvent>],
+                >>(2);
                 table_writer.write_entry::<u8>(0);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
                         object_writer.write::<_, _, 4>(&prepared_response.offset());
+                        object_writer.write::<_, _, 4>(&prepared_output);
                         object_writer.write::<_, _, 1>(&prepared_response.tag());
                     });
                 }
@@ -90828,7 +90788,7 @@ mod root {
                 &self,
                 builder: &mut ::planus::Builder,
             ) -> ::planus::Offset<VerbCallResponse> {
-                VerbCallResponse::create(builder, &self.response)
+                VerbCallResponse::create(builder, &self.response, &self.output)
             }
         }
 
@@ -90852,6 +90812,21 @@ mod root {
         }
 
         impl<T0> VerbCallResponseBuilder<(T0,)> {
+            /// Setter for the [`output` field](VerbCallResponse#structfield.output).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn output<T1>(self, value: T1) -> VerbCallResponseBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                >,
+            {
+                let (v0,) = self.0;
+                VerbCallResponseBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> VerbCallResponseBuilder<(T0, T1)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VerbCallResponse].
             #[inline]
             pub fn finish(
@@ -90865,9 +90840,13 @@ mod root {
             }
         }
 
-        impl<T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>>
-            ::planus::WriteAs<::planus::Offset<VerbCallResponse>>
-            for VerbCallResponseBuilder<(T0,)>
+        impl<
+                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T1: ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                >,
+            > ::planus::WriteAs<::planus::Offset<VerbCallResponse>>
+            for VerbCallResponseBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbCallResponse>;
 
@@ -90880,9 +90859,13 @@ mod root {
             }
         }
 
-        impl<T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>>
-            ::planus::WriteAsOptional<::planus::Offset<VerbCallResponse>>
-            for VerbCallResponseBuilder<(T0,)>
+        impl<
+                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T1: ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                >,
+            > ::planus::WriteAsOptional<::planus::Offset<VerbCallResponse>>
+            for VerbCallResponseBuilder<(T0, T1)>
         {
             type Prepared = ::planus::Offset<VerbCallResponse>;
 
@@ -90895,16 +90878,20 @@ mod root {
             }
         }
 
-        impl<T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>>
-            ::planus::WriteAsOffset<VerbCallResponse> for VerbCallResponseBuilder<(T0,)>
+        impl<
+                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T1: ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
+                >,
+            > ::planus::WriteAsOffset<VerbCallResponse> for VerbCallResponseBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
             ) -> ::planus::Offset<VerbCallResponse> {
-                let (v0,) = &self.0;
-                VerbCallResponse::create(builder, v0)
+                let (v0, v1) = &self.0;
+                VerbCallResponse::create(builder, v0, v1)
             }
         }
 
@@ -90919,12 +90906,23 @@ mod root {
                 self.0
                     .access_union_required(0, "VerbCallResponse", "response")
             }
+
+            /// Getter for the [`output` field](VerbCallResponse#structfield.output).
+            #[inline]
+            pub fn output(
+                &self,
+            ) -> ::planus::Result<
+                ::planus::Vector<'a, ::planus::Result<super::moor_common::NarrativeEventRef<'a>>>,
+            > {
+                self.0.access_required(2, "VerbCallResponse", "output")
+            }
         }
 
         impl<'a> ::core::fmt::Debug for VerbCallResponseRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 let mut f = f.debug_struct("VerbCallResponseRef");
                 f.field("response", &self.response());
+                f.field("output", &self.output());
                 f.finish()
             }
         }
@@ -90936,6 +90934,7 @@ mod root {
             fn try_from(value: VerbCallResponseRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     response: ::core::convert::TryInto::try_into(value.response()?)?,
+                    output: value.output()?.to_vec_result()?,
                 })
             }
         }

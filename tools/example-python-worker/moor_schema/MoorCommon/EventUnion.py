@@ -8,3 +8,4 @@ class EventUnion(object):
     PresentEvent = 2
     UnpresentEvent = 3
     TracebackEvent = 4
+    DataEvent = 5

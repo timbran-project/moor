@@ -41,7 +41,14 @@ class ClientEvent(object):
             return obj
         return None
 
-def ClientEventStart(builder): builder.StartObject(2)
+    # ClientEvent
+    def Sequence(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+def ClientEventStart(builder): builder.StartObject(3)
 def Start(builder):
     return ClientEventStart(builder)
 def ClientEventAddEventType(builder, eventType): builder.PrependUint8Slot(0, eventType, 0)
@@ -50,6 +57,9 @@ def AddEventType(builder, eventType):
 def ClientEventAddEvent(builder, event): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(event), 0)
 def AddEvent(builder, event):
     return ClientEventAddEvent(builder, event)
+def ClientEventAddSequence(builder, sequence): builder.PrependUint64Slot(2, sequence, 0)
+def AddSequence(builder, sequence):
+    return ClientEventAddSequence(builder, sequence)
 def ClientEventEnd(builder): return builder.EndObject()
 def End(builder):
     return ClientEventEnd(builder)

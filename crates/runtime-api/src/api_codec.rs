@@ -1729,27 +1729,25 @@ pub fn encode_client_reply(
 pub fn encode_verb_call_response(
     response: api::VerbCallResponse,
 ) -> Result<moor_rpc::VerbCallResponse, RpcMessageError> {
-    let response_fb = match response {
-        api::VerbCallResponse::Success { result, output } => {
+    let output_fb: Vec<moor_rpc::NarrativeEvent> = response
+        .output
+        .into_iter()
+        .map(|event| {
+            convert::narrative_event_to_flatbuffer_struct(&event).map_err(|e| {
+                RpcMessageError::InternalError(format!("Failed to encode narrative event: {e}"))
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let response_fb = match response.outcome {
+        api::VerbCallOutcome::Success { result } => {
             let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
                 RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
             })?;
-            let output_fb: Vec<moor_rpc::NarrativeEvent> = output
-                .into_iter()
-                .map(|event| {
-                    convert::narrative_event_to_flatbuffer_struct(&event).map_err(|e| {
-                        RpcMessageError::InternalError(format!(
-                            "Failed to encode narrative event: {e}"
-                        ))
-                    })
-                })
-                .collect::<Result<_, _>>()?;
             moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(moor_rpc::VerbCallSuccess {
                 result: Box::new(result_fb),
-                output: output_fb,
             }))
         }
-        api::VerbCallResponse::Error { error } => {
+        api::VerbCallOutcome::Error { error } => {
             let scheduler_error_fb = scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
                 RpcMessageError::InternalError(format!("Failed to encode scheduler error: {e}"))
             })?;
@@ -1760,6 +1758,7 @@ pub fn encode_verb_call_response(
     };
     Ok(moor_rpc::VerbCallResponse {
         response: response_fb,
+        output: output_fb,
     })
 }
 

@@ -863,10 +863,26 @@ fn decode_client_reply_ref(
             ClientReply::SystemHandlerResponseReply { response }
         }
         U::VerbCallResponse(vcr) => {
+            // Captured output is the point of the call, so a bad event is an error rather than a
+            // gap the caller cannot see.
+            let output = vcr
+                .output()
+                .map_err(|e| RpcError::CouldNotDecode(format!("Missing verb output: {e}")))?
+                .iter()
+                .map(|event| {
+                    event
+                        .map_err(|e| RpcError::CouldNotDecode(format!("Missing verb output: {e}")))
+                        .and_then(|event| {
+                            convert::narrative_event_from_ref(event).map_err(|e| {
+                                RpcError::CouldNotDecode(format!("Invalid verb output: {e}"))
+                            })
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             let response = vcr.response().map_err(|e| {
                 RpcError::CouldNotDecode(format!("Missing verb call response: {e}"))
             })?;
-            let response = match response {
+            let outcome = match response {
                 moor_rpc::VerbCallResponseUnionRef::VerbCallSuccess(s) => {
                     let result = s
                         .result()
@@ -876,27 +892,7 @@ fn decode_client_reply_ref(
                                 RpcError::CouldNotDecode(format!("Invalid result: {e}"))
                             })
                         })?;
-                    // Captured output is the point of the call, so a bad event is an error
-                    // rather than a gap the caller cannot see.
-                    let output = s
-                        .output()
-                        .map_err(|e| RpcError::CouldNotDecode(format!("Missing verb output: {e}")))?
-                        .iter()
-                        .map(|event| {
-                            event
-                                .map_err(|e| {
-                                    RpcError::CouldNotDecode(format!("Missing verb output: {e}"))
-                                })
-                                .and_then(|event| {
-                                    convert::narrative_event_from_ref(event).map_err(|e| {
-                                        RpcError::CouldNotDecode(format!(
-                                            "Invalid verb output: {e}"
-                                        ))
-                                    })
-                                })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    api::VerbCallResponse::Success { result, output }
+                    api::VerbCallOutcome::Success { result }
                 }
                 moor_rpc::VerbCallResponseUnionRef::VerbCallError(e) => {
                     let error = e
@@ -909,9 +905,10 @@ fn decode_client_reply_ref(
                                 RpcError::CouldNotDecode(format!("Invalid scheduler error: {e}"))
                             })
                         })?;
-                    api::VerbCallResponse::Error { error }
+                    api::VerbCallOutcome::Error { error }
                 }
             };
+            let response = api::VerbCallResponse { outcome, output };
             ClientReply::VerbCallResponse { response }
         }
         U::BatchWorldStateReply(bws) => {
@@ -1461,5 +1458,54 @@ fn encode_batch_action(action: api::BatchAction) -> moor_rpc::WorldStateActionUn
             flags_all,
             flags_any,
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use moor_common::tasks::{Event, NarrativeEvent, SchedulerError};
+    use moor_runtime_api::{
+        api::{ClientReply, VerbCallOutcome, VerbCallResponse},
+        api_codec::encode_client_success_bytes,
+    };
+    use moor_var::{Obj, v_obj, v_str};
+
+    use super::decode_client_reply_bytes;
+
+    #[test]
+    fn failed_verb_call_round_trip_preserves_output() {
+        let output = NarrativeEvent::notify(
+            v_obj(Obj::mk_id(7)),
+            v_str("before failure"),
+            None,
+            false,
+            false,
+            None,
+        );
+        let bytes = encode_client_success_bytes(ClientReply::VerbCallResponse {
+            response: VerbCallResponse {
+                outcome: VerbCallOutcome::Error {
+                    error: SchedulerError::TaskAbortedCancelled,
+                },
+                output: vec![output],
+            },
+        })
+        .expect("Failed to encode verb call response");
+
+        let ClientReply::VerbCallResponse { response } =
+            decode_client_reply_bytes(&bytes).expect("Failed to decode verb call response")
+        else {
+            panic!("Expected a verb call response");
+        };
+        assert!(matches!(
+            response.outcome,
+            VerbCallOutcome::Error {
+                error: SchedulerError::TaskAbortedCancelled
+            }
+        ));
+        assert!(matches!(
+            response.output.as_slice(),
+            [event] if matches!(event.event(), Event::Notify { value, .. } if value.as_string() == Some("before failure"))
+        ));
     }
 }

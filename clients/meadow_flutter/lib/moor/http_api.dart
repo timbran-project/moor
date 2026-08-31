@@ -28,6 +28,31 @@ import 'package:meadow_flutter/moor/types/moor_obj.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
+class VerbInvocationSuccess {
+  final moor_rpc.VerbCallSuccess response;
+  final List<moor_common.NarrativeEvent> output;
+
+  const VerbInvocationSuccess({
+    required this.response,
+    required this.output,
+  });
+
+  moor_var.Var? get result => response.result;
+}
+
+class VerbInvocationException implements Exception {
+  final moor_rpc.VerbCallError response;
+  final List<moor_common.NarrativeEvent> output;
+
+  const VerbInvocationException({
+    required this.response,
+    required this.output,
+  });
+
+  @override
+  String toString() => 'Verb invocation failed: $response';
+}
+
 class MoorHttpApi {
   final Uri baseUri;
 
@@ -86,7 +111,7 @@ class MoorHttpApi {
     var contentType = 'text/plain';
     var outLines = const <String>[];
 
-    final output = success.output;
+    final output = verbCall.output;
     if (output != null) {
       for (final evt in output) {
         final e = evt.event;
@@ -459,7 +484,7 @@ class MoorHttpApi {
     ).toBytes();
   }
 
-  Future<moor_rpc.VerbCallSuccess> invokeVerb({
+  Future<VerbInvocationSuccess> invokeVerb({
     required String authToken,
     required String objectCurie,
     required String verbName,
@@ -495,16 +520,21 @@ class MoorHttpApi {
     if (response == null) {
       throw Exception('invoke verb: missing VerbCallResponse');
     }
+    final output = verbCall.output ?? const <moor_common.NarrativeEvent>[];
     if (verbCall.responseType?.value !=
         moor_rpc.VerbCallResponseUnionTypeId.VerbCallSuccess.value) {
-      throw Exception('invoke verb: failed ($response)');
+      final error = response as moor_rpc.VerbCallError?;
+      if (error == null) {
+        throw Exception('invoke verb: invalid error response ($response)');
+      }
+      throw VerbInvocationException(response: error, output: output);
     }
 
     final success = response as moor_rpc.VerbCallSuccess?;
     if (success == null) {
       throw Exception('invoke verb: missing VerbCallSuccess');
     }
-    return success;
+    return VerbInvocationSuccess(response: success, output: output);
   }
 
   Future<moor_rpc.VerbProgramResponse> compileVerb({

@@ -226,16 +226,18 @@ pub enum VerbProgramResponse {
     Failure { error: SchedulerError },
 }
 
-/// Outcome of invoking a verb for its return value (eval, system verb, etc.).
+/// Whether invoking a verb returned a value or failed.
 #[derive(Debug, Clone)]
-pub enum VerbCallResponse {
-    Success {
-        result: Var,
-        output: Vec<moor_common::tasks::NarrativeEvent>,
-    },
-    Error {
-        error: SchedulerError,
-    },
+pub enum VerbCallOutcome {
+    Success { result: Var },
+    Error { error: SchedulerError },
+}
+
+/// The outcome and committed narrative output of invoking a verb.
+#[derive(Debug, Clone)]
+pub struct VerbCallResponse {
+    pub outcome: VerbCallOutcome,
+    pub output: Vec<moor_common::tasks::NarrativeEvent>,
 }
 
 /// Outcome of invoking a system handler.

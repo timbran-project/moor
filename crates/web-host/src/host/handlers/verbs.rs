@@ -316,7 +316,7 @@ pub async fn verb_program_handler(
 mod tests {
     use super::*;
     use moor_common::tasks::{NarrativeEvent, SchedulerError};
-    use moor_runtime_api::api::VerbCallResponse;
+    use moor_runtime_api::api::{VerbCallOutcome, VerbCallResponse};
     use moor_var::{Obj, v_int, v_obj, v_str};
 
     #[test]
@@ -330,8 +330,8 @@ mod tests {
             None,
         );
         let reply = ClientReply::VerbCallResponse {
-            response: VerbCallResponse::Success {
-                result: v_int(7),
+            response: VerbCallResponse {
+                outcome: VerbCallOutcome::Success { result: v_int(7) },
                 output: vec![event],
             },
         };
@@ -340,14 +340,28 @@ mod tests {
         let moor_rpc::VerbCallResponseUnion::VerbCallSuccess(success) = encoded.response else {
             panic!("Expected a success response");
         };
-        assert_eq!(success.output.len(), 1);
+        assert_eq!(encoded.output.len(), 1);
+        assert!(matches!(
+            success.result.variant,
+            moor_var_schema::VarUnion::VarInt(_)
+        ));
     }
 
     #[test]
     fn a_task_error_is_encoded_as_a_verb_call_error() {
         let reply = ClientReply::VerbCallResponse {
-            response: VerbCallResponse::Error {
-                error: SchedulerError::TaskAbortedCancelled,
+            response: VerbCallResponse {
+                outcome: VerbCallOutcome::Error {
+                    error: SchedulerError::TaskAbortedCancelled,
+                },
+                output: vec![NarrativeEvent::notify(
+                    v_obj(Obj::mk_id(1)),
+                    v_str("before failure"),
+                    None,
+                    false,
+                    false,
+                    None,
+                )],
             },
         };
 
@@ -356,6 +370,7 @@ mod tests {
             encoded.response,
             moor_rpc::VerbCallResponseUnion::VerbCallError(_)
         ));
+        assert_eq!(encoded.output.len(), 1);
     }
 
     #[test]

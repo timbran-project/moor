@@ -31,8 +31,8 @@ class CurrentPresentations(object):
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
             x = self._tab.Indirect(x)
-            from MoorCommon.Presentation import Presentation
-            obj = Presentation()
+            from MoorRpc.PresentationSnapshot import PresentationSnapshot
+            obj = PresentationSnapshot()
             obj.Init(self._tab.Bytes, x)
             return obj
         return None

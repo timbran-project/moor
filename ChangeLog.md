@@ -150,10 +150,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `InvokeVerb` now carries an `InvocationMode` union instead of a client token.
   `ConnectedInvocation` is the previous behaviour: the reply is the submitted task id, and output
   reaches the invoking connection's event stream. `CaptureOutputInvocation` runs the call with no
-  connection behind it and replies with a single `VerbCallResponse` holding the result and the
-  narrative output the call committed, once the root task finishes. Both modes require an
-  `AuthToken`, and that principal is both the player the verb runs as and the authority it runs
-  with.
+  connection behind it and replies with a single `VerbCallResponse` holding the outcome and the
+  narrative output the call committed, once the root task finishes. Output is preserved for both
+  successful and failed calls. Both modes require an `AuthToken`, and that principal is both the
+  player the verb runs as and the authority it runs with.
 - A captured call waits at most `timeout_ms`, bounded by the new `runtime.max_capture_deadline`
   daemon setting (default 60 seconds, and never more than 300). A `timeout_ms` of zero asks for that
   configured maximum, so a caller need not guess. A request asking for longer is refused rather than

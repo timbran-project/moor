@@ -13,3 +13,4 @@ class ClientEventUnion(object):
     TaskSuspendedEvent = 7
     PlayerSwitchedEvent = 8
     SetConnectionOptionEvent = 9
+    CredentialsUpdatedEvent = 10

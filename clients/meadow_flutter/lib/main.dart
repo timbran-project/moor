@@ -2469,11 +2469,9 @@ class _SessionScreenState extends State<SessionScreen> {
     final result = success.result != null
         ? MoorVar.fromFlatBuffer(success.result!)
         : moorNoneVar;
-    final eventTypes =
-        success.output
-            ?.map((evt) => evt.event?.eventType?.value ?? -1)
-            .toList() ??
-        const <int>[];
+    final eventTypes = success.output
+        .map((evt) => evt.event?.eventType?.value ?? -1)
+        .toList();
     return InspectVerbResponse(
       result: result,
       outputLines: _extractInvokeOutputLines(success.output),

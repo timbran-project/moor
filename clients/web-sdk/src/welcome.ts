@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { VerbCallSuccess } from "@moor/schema/generated/moor-rpc/verb-call-success";
+import { VerbCallResponse } from "@moor/schema/generated/moor-rpc/verb-call-response";
 
 import { parseNarrativeEvent } from "./narrative.js";
 
@@ -24,14 +24,14 @@ export interface WelcomeMessagePayload {
 }
 
 export function extractWelcomeMessage(
-    verbCallSuccess: VerbCallSuccess,
+    verbCallResponse: VerbCallResponse,
     decodeVarToJs: (value: unknown) => unknown,
 ): WelcomeMessagePayload {
     let welcomeMessage = "";
     let contentType: WelcomeContentType = "text/plain";
 
-    for (let i = 0; i < verbCallSuccess.outputLength(); i++) {
-        const narrativeEvent = verbCallSuccess.output(i, new NarrativeEvent());
+    for (let i = 0; i < verbCallResponse.outputLength(); i++) {
+        const narrativeEvent = verbCallResponse.output(i, new NarrativeEvent());
         if (!narrativeEvent) {
             continue;
         }

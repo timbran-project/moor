@@ -301,13 +301,10 @@ class StoredNameObjectBuilder extends fb.ObjectBuilder {
   final int? _scopeDepth;
   final int? _scopeId;
 
-  StoredNameObjectBuilder({
-    int? offset,
-    int? scopeDepth,
-    int? scopeId,
-  }) : _offset = offset,
-       _scopeDepth = scopeDepth,
-       _scopeId = scopeId;
+  StoredNameObjectBuilder({int? offset, int? scopeDepth, int? scopeId})
+    : _offset = offset,
+      _scopeDepth = scopeDepth,
+      _scopeId = scopeId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -472,9 +469,8 @@ class StoredNamedVarBuilder {
 class StoredNamedVarObjectBuilder extends fb.ObjectBuilder {
   final moor_common.SymbolObjectBuilder? _symbol;
 
-  StoredNamedVarObjectBuilder({
-    moor_common.SymbolObjectBuilder? symbol,
-  }) : _symbol = symbol;
+  StoredNamedVarObjectBuilder({moor_common.SymbolObjectBuilder? symbol})
+    : _symbol = symbol;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -545,9 +541,8 @@ class StoredRegisterVarBuilder {
 class StoredRegisterVarObjectBuilder extends fb.ObjectBuilder {
   final int? _registerNum;
 
-  StoredRegisterVarObjectBuilder({
-    int? registerNum,
-  }) : _registerNum = registerNum;
+  StoredRegisterVarObjectBuilder({int? registerNum})
+    : _registerNum = registerNum;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1025,9 +1020,8 @@ class StoredScatterRequiredBuilder {
 class StoredScatterRequiredObjectBuilder extends fb.ObjectBuilder {
   final StoredNameObjectBuilder? _name;
 
-  StoredScatterRequiredObjectBuilder({
-    StoredNameObjectBuilder? name,
-  }) : _name = name;
+  StoredScatterRequiredObjectBuilder({StoredNameObjectBuilder? name})
+    : _name = name;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1195,9 +1189,8 @@ class StoredScatterRestBuilder {
 class StoredScatterRestObjectBuilder extends fb.ObjectBuilder {
   final StoredNameObjectBuilder? _name;
 
-  StoredScatterRestObjectBuilder({
-    StoredNameObjectBuilder? name,
-  }) : _name = name;
+  StoredScatterRestObjectBuilder({StoredNameObjectBuilder? name})
+    : _name = name;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1883,11 +1876,9 @@ class StoredErrorOperandObjectBuilder extends fb.ObjectBuilder {
   final int? _discriminant;
   final String? _symbol;
 
-  StoredErrorOperandObjectBuilder({
-    int? discriminant,
-    String? symbol,
-  }) : _discriminant = discriminant,
-       _symbol = symbol;
+  StoredErrorOperandObjectBuilder({int? discriminant, String? symbol})
+    : _discriminant = discriminant,
+      _symbol = symbol;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1969,11 +1960,9 @@ class ForkVectorObjectBuilder extends fb.ObjectBuilder {
   final int? _offset;
   final List<int>? _opcodes;
 
-  ForkVectorObjectBuilder({
-    int? offset,
-    List<int>? opcodes,
-  }) : _offset = offset,
-       _opcodes = opcodes;
+  ForkVectorObjectBuilder({int? offset, List<int>? opcodes})
+    : _offset = offset,
+      _opcodes = opcodes;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2060,10 +2049,20 @@ class StoredMooRprogram {
       const fb.ListReader<ForkLineSpans>(
         ForkLineSpans.reader,
       ).vTableGetNullable(_bc, _bcOffset, 34);
+  int get mainMaxStack =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 36, 0);
+  List<int>? get forkMaxStacks => const fb.ListReader<int>(
+    fb.Uint64Reader(),
+  ).vTableGetNullable(_bc, _bcOffset, 38);
+  int get mainMaxScopeDepth =>
+      const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 40, 0);
+  List<int>? get forkMaxScopeDepths => const fb.ListReader<int>(
+    fb.Uint64Reader(),
+  ).vTableGetNullable(_bc, _bcOffset, 42);
 
   @override
   String toString() {
-    return 'StoredMooRprogram{version: ${version}, builtinSignature: ${builtinSignature}, mainVector: ${mainVector}, forkVectors: ${forkVectors}, literals: ${literals}, jumpLabels: ${jumpLabels}, varNames: ${varNames}, scatterTables: ${scatterTables}, forSequenceOperands: ${forSequenceOperands}, forRangeOperands: ${forRangeOperands}, rangeComprehensions: ${rangeComprehensions}, listComprehensions: ${listComprehensions}, errorOperandsFull: ${errorOperandsFull}, lambdaPrograms: ${lambdaPrograms}, lineNumberSpans: ${lineNumberSpans}, forkLineNumberSpans: ${forkLineNumberSpans}}';
+    return 'StoredMooRprogram{version: ${version}, builtinSignature: ${builtinSignature}, mainVector: ${mainVector}, forkVectors: ${forkVectors}, literals: ${literals}, jumpLabels: ${jumpLabels}, varNames: ${varNames}, scatterTables: ${scatterTables}, forSequenceOperands: ${forSequenceOperands}, forRangeOperands: ${forRangeOperands}, rangeComprehensions: ${rangeComprehensions}, listComprehensions: ${listComprehensions}, errorOperandsFull: ${errorOperandsFull}, lambdaPrograms: ${lambdaPrograms}, lineNumberSpans: ${lineNumberSpans}, forkLineNumberSpans: ${forkLineNumberSpans}, mainMaxStack: ${mainMaxStack}, forkMaxStacks: ${forkMaxStacks}, mainMaxScopeDepth: ${mainMaxScopeDepth}, forkMaxScopeDepths: ${forkMaxScopeDepths}}';
   }
 }
 
@@ -2081,7 +2080,7 @@ class StoredMooRprogramBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(16);
+    fbBuilder.startTable(20);
   }
 
   int addVersion(int? version) {
@@ -2164,6 +2163,26 @@ class StoredMooRprogramBuilder {
     return fbBuilder.offset;
   }
 
+  int addMainMaxStack(int? mainMaxStack) {
+    fbBuilder.addUint64(16, mainMaxStack);
+    return fbBuilder.offset;
+  }
+
+  int addForkMaxStacksOffset(int? offset) {
+    fbBuilder.addOffset(17, offset);
+    return fbBuilder.offset;
+  }
+
+  int addMainMaxScopeDepth(int? mainMaxScopeDepth) {
+    fbBuilder.addUint64(18, mainMaxScopeDepth);
+    return fbBuilder.offset;
+  }
+
+  int addForkMaxScopeDepthsOffset(int? offset) {
+    fbBuilder.addOffset(19, offset);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -2186,6 +2205,10 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
   final List<StoredMooRprogramObjectBuilder>? _lambdaPrograms;
   final List<LineSpanObjectBuilder>? _lineNumberSpans;
   final List<ForkLineSpansObjectBuilder>? _forkLineNumberSpans;
+  final int? _mainMaxStack;
+  final List<int>? _forkMaxStacks;
+  final int? _mainMaxScopeDepth;
+  final List<int>? _forkMaxScopeDepths;
 
   StoredMooRprogramObjectBuilder({
     int? version,
@@ -2204,6 +2227,10 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
     List<StoredMooRprogramObjectBuilder>? lambdaPrograms,
     List<LineSpanObjectBuilder>? lineNumberSpans,
     List<ForkLineSpansObjectBuilder>? forkLineNumberSpans,
+    int? mainMaxStack,
+    List<int>? forkMaxStacks,
+    int? mainMaxScopeDepth,
+    List<int>? forkMaxScopeDepths,
   }) : _version = version,
        _builtinSignature = builtinSignature,
        _mainVector = mainVector,
@@ -2219,7 +2246,11 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
        _errorOperandsFull = errorOperandsFull,
        _lambdaPrograms = lambdaPrograms,
        _lineNumberSpans = lineNumberSpans,
-       _forkLineNumberSpans = forkLineNumberSpans;
+       _forkLineNumberSpans = forkLineNumberSpans,
+       _mainMaxStack = mainMaxStack,
+       _forkMaxStacks = forkMaxStacks,
+       _mainMaxScopeDepth = mainMaxScopeDepth,
+       _forkMaxScopeDepths = forkMaxScopeDepths;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2304,7 +2335,13 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
                 .map((b) => b.getOrCreateOffset(fbBuilder))
                 .toList(),
           );
-    fbBuilder.startTable(16);
+    final int? forkMaxStacksOffset = _forkMaxStacks == null
+        ? null
+        : fbBuilder.writeListUint64(_forkMaxStacks!);
+    final int? forkMaxScopeDepthsOffset = _forkMaxScopeDepths == null
+        ? null
+        : fbBuilder.writeListUint64(_forkMaxScopeDepths!);
+    fbBuilder.startTable(20);
     fbBuilder.addUint16(0, _version);
     fbBuilder.addUint64(1, _builtinSignature);
     fbBuilder.addOffset(2, mainVectorOffset);
@@ -2321,6 +2358,10 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addOffset(13, lambdaProgramsOffset);
     fbBuilder.addOffset(14, lineNumberSpansOffset);
     fbBuilder.addOffset(15, forkLineNumberSpansOffset);
+    fbBuilder.addUint64(16, _mainMaxStack);
+    fbBuilder.addOffset(17, forkMaxStacksOffset);
+    fbBuilder.addUint64(18, _mainMaxScopeDepth);
+    fbBuilder.addOffset(19, forkMaxScopeDepthsOffset);
     return fbBuilder.endTable();
   }
 
@@ -2482,11 +2523,9 @@ class LineSpanObjectBuilder extends fb.ObjectBuilder {
   final int? _offset;
   final int? _lineNumber;
 
-  LineSpanObjectBuilder({
-    int? offset,
-    int? lineNumber,
-  }) : _offset = offset,
-       _lineNumber = lineNumber;
+  LineSpanObjectBuilder({int? offset, int? lineNumber})
+    : _offset = offset,
+      _lineNumber = lineNumber;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2558,9 +2597,8 @@ class ForkLineSpansBuilder {
 class ForkLineSpansObjectBuilder extends fb.ObjectBuilder {
   final List<LineSpanObjectBuilder>? _spans;
 
-  ForkLineSpansObjectBuilder({
-    List<LineSpanObjectBuilder>? spans,
-  }) : _spans = spans;
+  ForkLineSpansObjectBuilder({List<LineSpanObjectBuilder>? spans})
+    : _spans = spans;
 
   /// Finish building, and store into the [fbBuilder].
   @override

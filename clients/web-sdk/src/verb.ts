@@ -39,34 +39,58 @@ export function parseVerbCallUnionFromBytes(
     bytes: Uint8Array,
     context: string,
 ): VerbCallSuccess | VerbCallError {
-    const verbCallResponse = VerbCallResponse.getRootAsVerbCallResponse(
-        new flatbuffers.ByteBuffer(bytes),
-    );
+    const verbCallResponse = parseVerbCallResponseFromBytes(bytes);
     return parseVerbCallUnionFromResponse(verbCallResponse, context);
+}
+
+export function parseVerbCallResponseFromBytes(bytes: Uint8Array): VerbCallResponse {
+    return VerbCallResponse.getRootAsVerbCallResponse(new flatbuffers.ByteBuffer(bytes));
 }
 
 export function parseVerbCallUnionFromReply(
     replyUnion: unknown,
     context: string,
 ): VerbCallSuccess | VerbCallError {
+    return parseVerbCallUnionFromResponse(parseVerbCallResponseFromReply(replyUnion, context), context);
+}
+
+export function parseVerbCallResponseFromReply(replyUnion: unknown, context: string): VerbCallResponse {
     if (!(replyUnion instanceof VerbCallResponse)) {
         throw new Error(`${context}: unexpected reply type ${replyTypeName(replyUnion)}`);
     }
-    return parseVerbCallUnionFromResponse(replyUnion, context);
+    return replyUnion;
+}
+
+export interface ParsedVerbCallSuccess {
+    response: VerbCallResponse;
+    success: VerbCallSuccess;
+}
+
+export class VerbCallFailure extends Error {
+    constructor(
+        message: string,
+        readonly response: VerbCallResponse,
+        readonly failure: VerbCallError,
+    ) {
+        super(message);
+        this.name = "VerbCallFailure";
+    }
 }
 
 export function parseVerbCallSuccessFromBytes(
     bytes: Uint8Array,
     context: string,
-): VerbCallSuccess {
-    return ensureVerbCallSuccess(parseVerbCallUnionFromBytes(bytes, context), context);
+): ParsedVerbCallSuccess {
+    const response = parseVerbCallResponseFromBytes(bytes);
+    return ensureVerbCallSuccess(response, parseVerbCallUnionFromResponse(response, context), context);
 }
 
 export function parseVerbCallSuccessFromReply(
     replyUnion: unknown,
     context: string,
-): VerbCallSuccess {
-    return ensureVerbCallSuccess(parseVerbCallUnionFromReply(replyUnion, context), context);
+): ParsedVerbCallSuccess {
+    const response = parseVerbCallResponseFromReply(replyUnion, context);
+    return ensureVerbCallSuccess(response, parseVerbCallUnionFromResponse(response, context), context);
 }
 
 function parseVerbCallUnionFromResponse(
@@ -89,18 +113,23 @@ function parseVerbCallUnionFromResponse(
 }
 
 function ensureVerbCallSuccess(
+    response: VerbCallResponse,
     responseUnion: VerbCallSuccess | VerbCallError,
     context: string,
-): VerbCallSuccess {
+): ParsedVerbCallSuccess {
     if (responseUnion instanceof VerbCallError) {
         const schedulerError = responseUnion.error();
         if (schedulerError) {
             const errorType = schedulerError.errorType();
-            throw new Error(`${context}: ${SchedulerErrorUnion[errorType] ?? "unknown error"}`);
+            throw new VerbCallFailure(
+                `${context}: ${SchedulerErrorUnion[errorType] ?? "unknown error"}`,
+                response,
+                responseUnion,
+            );
         }
-        throw new Error(`${context}: unknown error`);
+        throw new VerbCallFailure(`${context}: unknown error`, response, responseUnion);
     }
-    return responseUnion;
+    return { response, success: responseUnion };
 }
 
 export function parseVerbProgramUnionFromReply(

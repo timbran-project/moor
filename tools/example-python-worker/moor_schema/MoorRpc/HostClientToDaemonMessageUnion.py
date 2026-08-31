@@ -32,3 +32,5 @@ class HostClientToDaemonMessageUnion(object):
     UpdateProperty = 26
     InvokeSystemHandler = 27
     InvokeWelcomeMessage = 28
+    BatchWorldState = 29
+    ReplayClientEvents = 30

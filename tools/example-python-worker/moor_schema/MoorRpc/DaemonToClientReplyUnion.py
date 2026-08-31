@@ -28,4 +28,6 @@ class DaemonToClientReplyUnion(object):
     ListObjectsReply = 22
     PropertyUpdated = 23
     SystemHandlerResponseReply = 24
-    SystemVerbResponseReply = 25
+    VerbCallResponse = 25
+    BatchWorldStateReply = 26
+    ClientEvents = 27
