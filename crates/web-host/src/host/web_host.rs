@@ -17,7 +17,7 @@
 
 use crate::host::{
     auth, flatbuffer_response,
-    handlers::invocation_response,
+    handlers::{CapturedInvocationQuery, run_captured_invocation},
     negotiate::{
         BOTH_FORMATS, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE, invocation_response_to_json,
         negotiate_response_format, reply_result_to_json, require_content_type,
@@ -27,7 +27,7 @@ use crate::host::{
 use axum::{
     Json,
     body::Bytes,
-    extract::{ConnectInfo, Path, State, WebSocketUpgrade},
+    extract::{ConnectInfo, Path, Query, State, WebSocketUpgrade},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -1005,6 +1005,7 @@ pub async fn eval_handler(
         client_id,
         rpc_client,
     }: auth::StatelessAuth,
+    Query(query): Query<CapturedInvocationQuery>,
     header_map: HeaderMap,
     expression: Bytes,
 ) -> Response {
@@ -1025,21 +1026,18 @@ pub async fn eval_handler(
     };
 
     let expression = String::from_utf8_lossy(&expression).to_string();
+    let timeout = match query.timeout() {
+        Ok(timeout) => timeout,
+        Err(status) => return status.into_response(),
+    };
 
     let eval_msg = ClientRequest::Eval {
         auth_token,
         expression,
-        mode: InvocationMode::CaptureOutput { timeout: None },
+        mode: InvocationMode::CaptureOutput { timeout },
     };
 
-    let reply = match rpc_client.client_call(client_id, eval_msg).await {
-        Ok(reply) => reply,
-        Err(error) => {
-            error!(?error, "Eval RPC failed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let response = match invocation_response(reply) {
+    let response = match run_captured_invocation(client_id, &rpc_client, eval_msg, "eval").await {
         Ok(response) => response,
         Err(status) => return status.into_response(),
     };

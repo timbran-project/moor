@@ -13,7 +13,7 @@
 
 //! Verb listing, retrieval, invocation, and programming endpoints.
 
-use super::invocation_response;
+use super::{CapturedInvocationQuery, run_captured_invocation};
 
 use crate::host::{
     auth::StatelessAuth,
@@ -148,6 +148,7 @@ pub async fn invoke_verb_handler(
     }: StatelessAuth,
     header_map: HeaderMap,
     Path((object_path, verb_name)): Path<(String, String)>,
+    Query(query): Query<CapturedInvocationQuery>,
     body: Bytes,
 ) -> Response {
     let format = match negotiate_response_format(
@@ -192,31 +193,28 @@ pub async fn invoke_verb_handler(
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
+    let timeout = match query.timeout() {
+        Ok(timeout) => timeout,
+        Err(status) => return status.into_response(),
+    };
 
     // The daemon runs the verb with no connection behind it, collects the narrative output the
-    // root task commits, and answers once the call finishes. Leaving the deadline to the daemon
-    // means a daemon configured below the protocol maximum is not asked for more than it allows.
+    // root task commits, and answers once the call finishes.
     let invoke_msg = ClientRequest::InvokeVerb {
         auth_token,
         object: object_ref,
         verb: verb_symbol,
         args: moo_args,
-        mode: InvocationMode::CaptureOutput { timeout: None },
+        mode: InvocationMode::CaptureOutput { timeout },
     };
 
     // This endpoint answers with a bare InvocationResponse rather than the ReplyResult envelope the
     // other endpoints use, so take the typed reply and encode only the final HTTP form.
-    let reply = match rpc_client.client_call(client_id, invoke_msg).await {
-        Ok(reply) => reply,
-        Err(e) => {
-            error!("RPC failure: {e:?}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let response = match invocation_response(reply) {
-        Ok(response) => response,
-        Err(status) => return status.into_response(),
-    };
+    let response =
+        match run_captured_invocation(client_id, &rpc_client, invoke_msg, "invoke verb").await {
+            Ok(response) => response,
+            Err(status) => return status.into_response(),
+        };
 
     match format {
         ResponseFormat::FlatBuffers => {
@@ -320,6 +318,7 @@ pub async fn verb_program_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::host::handlers::invocation_response;
     use moor_common::tasks::{NarrativeEvent, SchedulerError};
     use moor_runtime_api::api::{ClientReply, InvocationOutcome, InvocationResponse};
     use moor_schema::rpc as moor_rpc;

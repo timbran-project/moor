@@ -443,10 +443,16 @@ the MOO task succeeded. The `InvocationResponse.outcome` field identifies `Invoc
 committed root-task output for both outcomes. It can contain output committed before a later task
 error.
 
-HTTP status 400 only means that the request body is not valid UTF-8. A MOO parse error is a
-completed task response with HTTP status 200.
+HTTP status 400 means that the HTTP request is invalid. This includes an invalid timeout or a body
+that is not valid UTF-8. A MOO parse error is a completed task response with HTTP status 200.
 
 Requires: `X-Moor-Auth-Token`
+
+**Parameters**
+
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
+| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
 
 **Request body** (required)
 
@@ -463,7 +469,7 @@ Requires: `X-Moor-Auth-Token`
   error. The HTTP status remains 200 for a completed `InvocationError` response.
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
-- **400**: The request body is not valid UTF-8
+- **400**: Invalid timeout, or the request body is not valid UTF-8
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
 - **415**: Unsupported Content-Type
@@ -480,10 +486,16 @@ Server-side MOO expression evaluation
 
 **Evaluate a MOO expression**
 
-Evaluates a MOO expression as the authenticated player. The request waits for completion without
-creating a daemon connection and returns committed narrative output with the result.
+The daemon evaluates a MOO expression as the authenticated player. The request creates no daemon
+connection. The response contains the result or error and committed root-task output.
 
 Requires: `X-Moor-Auth-Token`
+
+**Parameters**
+
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
+| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
 
 **Request body** (required)
 
@@ -496,9 +508,10 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Evaluation result
+- **200**: Evaluation result or task error with committed narrative output
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
+- **400**: Invalid timeout
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
 - **500**: Internal server error
@@ -602,25 +615,22 @@ Requires: `X-Moor-Auth-Token`
 
 **Invoke a verb and return the result**
 
-Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments. Returns an
-`InvocationResponse` containing the narrative events the call committed and either a success result
-or an error. Output is present for both outcomes, so a failed call includes notifications committed
-before the failure and its traceback. The verb runs as the authenticated player, with that player's
-authority, and with no connection behind it: output from forked tasks is not included, and a verb
-that asks for input fails. The deadline is the daemon's configured maximum for a captured call
-(`runtime.max_capture_deadline`, 60 s by default). A call that overruns it is cancelled and answered
-with a `200` whose `InvocationError` carries a `TaskAbortedLimit` time error. If the terminal
-transaction commit wins the deadline race, the daemon instead finishes that commit and returns its
-result; session finalization can extend the response slightly beyond the deadline.
+Calls a verb on the specified object with FlatBuffer- or JSON-encoded arguments. The verb runs as
+the authenticated player and with that authority. The request creates no daemon connection.
+
+The `InvocationResponse` contains the result or error and committed root-task output. A failed call
+includes notifications committed before the error and its traceback. Output from forked tasks is not
+included. An input request fails the task.
 
 Requires: `X-Moor-Auth-Token`
 
 **Parameters**
 
-| Name     | In   | Type   | Required | Description                                                     |
-| -------- | ---- | ------ | -------- | --------------------------------------------------------------- |
-| `object` | path | string | Yes      | Object reference in CURIE form (e.g. `moor:1` or `moor:system`) |
-| `name`   | path | string | Yes      | Verb name                                                       |
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
+| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `object`     | path  | string           | Yes      | Object reference in CURIE form (e.g. `moor:1` or `moor:system`)                                                                                                                                                              |
+| `name`       | path  | string           | Yes      | Verb name                                                                                                                                                                                                                    |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
 
 **Request body** (required)
 
@@ -654,7 +664,7 @@ Requires: `X-Moor-Auth-Token`
 - **200**: Verb call result
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
-- **400**: Invalid object CURIE or bad request body
+- **400**: Invalid timeout, object CURIE, or request body
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
 - **500**: Internal server error

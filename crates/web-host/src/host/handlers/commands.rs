@@ -13,7 +13,7 @@
 
 //! Command invocation over HTTP.
 
-use super::invocation_response;
+use super::{CapturedInvocationQuery, run_captured_invocation};
 use crate::host::{
     WebHost,
     auth::StatelessAuth,
@@ -25,12 +25,11 @@ use crate::host::{
 };
 use axum::{
     body::Bytes,
-    extract::State,
+    extract::{Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use moor_runtime_api::api::{ClientRequest, InvocationMode};
-use tracing::error;
 
 pub async fn command_handler(
     State(host): State<WebHost>,
@@ -39,6 +38,7 @@ pub async fn command_handler(
         client_id,
         rpc_client,
     }: StatelessAuth,
+    Query(query): Query<CapturedInvocationQuery>,
     header_map: HeaderMap,
     body: Bytes,
 ) -> Response {
@@ -63,20 +63,17 @@ pub async fn command_handler(
         Ok(command) => command.trim_end_matches(&['\r', '\n'][..]).to_string(),
         Err(_) => return StatusCode::BAD_REQUEST.into_response(),
     };
+    let timeout = match query.timeout() {
+        Ok(timeout) => timeout,
+        Err(status) => return status.into_response(),
+    };
     let request = ClientRequest::Command {
         auth_token,
         handler_object: host.handler_object,
         command,
-        mode: InvocationMode::CaptureOutput { timeout: None },
+        mode: InvocationMode::CaptureOutput { timeout },
     };
-    let reply = match rpc_client.client_call(client_id, request).await {
-        Ok(reply) => reply,
-        Err(error) => {
-            error!(?error, "Command RPC failed");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-    };
-    let response = match invocation_response(reply) {
+    let response = match run_captured_invocation(client_id, &rpc_client, request, "command").await {
         Ok(response) => response,
         Err(status) => return status.into_response(),
     };

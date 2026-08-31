@@ -169,6 +169,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HTTP eval uses captured execution. Verb programming now uses only the auth token and creates no
   daemon connection. Webhook system handlers also run without connection state. They retain their
   response type and use the same deadline and cancellation logic.
+- The HTTP command, eval, and verb-invocation endpoints accept an optional `timeout_ms` query
+  parameter. An absent value or zero uses the daemon maximum. Invalid deadlines return HTTP 400.
 
 ### Fixed
 
