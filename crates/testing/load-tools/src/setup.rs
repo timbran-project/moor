@@ -264,7 +264,6 @@ pub async fn compile(
     client_id: Uuid,
     oid: Obj,
     auth_token: AuthToken,
-    client_token: ClientToken,
     verb_name: Symbol,
     verb_contents: Vec<String>,
 ) {
@@ -292,13 +291,7 @@ pub async fn compile(
     }
 
     // Program the verb
-    let program_msg = mk_program_msg(
-        &client_token,
-        &auth_token,
-        &ObjectRef::Id(oid),
-        &verb_name,
-        verb_contents,
-    );
+    let program_msg = mk_program_msg(&auth_token, &ObjectRef::Id(oid), &verb_name, verb_contents);
 
     let reply_bytes = rpc_client
         .make_client_rpc_call(client_id, program_msg)
@@ -376,7 +369,6 @@ pub async fn initialization_session(
             client_id,
             connection_oid,
             auth_token.clone(),
-            client_token.clone(),
             *verb_name,
             verb_code.split('\n').map(|s| s.to_string()).collect(),
         )

@@ -1012,10 +1012,6 @@ pub fn decode_client_request(
             })
         }
         U::Program(prog) => {
-            let client_token = prog
-                .client_token()
-                .rpc_err()
-                .and_then(|r| client_token_from_ref(r).rpc_err())?;
             let auth_token = prog
                 .auth_token()
                 .rpc_err()
@@ -1028,7 +1024,6 @@ pub fn decode_client_request(
                 .filter_map(|s| s.ok().map(|s| s.to_string()))
                 .collect();
             Ok(ClientRequest::Program {
-                client_token,
                 auth_token,
                 object,
                 verb,

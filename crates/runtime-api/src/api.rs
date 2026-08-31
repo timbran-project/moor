@@ -556,7 +556,6 @@ pub enum ClientRequest {
         value: Option<Var>,
     },
     Program {
-        client_token: ClientToken,
         auth_token: AuthToken,
         object: ObjectRef,
         verb: Symbol,

@@ -16,7 +16,7 @@
 use super::invocation_response;
 
 use crate::host::{
-    auth::{EphemeralAuth, StatelessAuth},
+    auth::StatelessAuth,
     flatbuffer_response,
     negotiate::{
         BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, JSON_CONTENT_TYPE, ResponseFormat,
@@ -259,13 +259,11 @@ fn decode_json_args(body: &[u8]) -> Result<Vec<moor_var::Var>, String> {
 }
 
 pub async fn verb_program_handler(
-    EphemeralAuth {
+    StatelessAuth {
         auth_token,
         client_id,
-        client_token,
         rpc_client,
-        ..
-    }: EphemeralAuth,
+    }: StatelessAuth,
     header_map: HeaderMap,
     Path((object, name)): Path<(String, String)>,
     expression: Bytes,
@@ -300,7 +298,6 @@ pub async fn verb_program_handler(
         .collect::<Vec<String>>();
 
     let program_msg = ClientRequest::Program {
-        client_token,
         auth_token,
         object: object_ref,
         verb: name,
@@ -311,8 +308,6 @@ pub async fn verb_program_handler(
         Ok(bytes) => bytes,
         Err(status) => return status.into_response(),
     };
-
-    // DetachGuard in EphemeralAuth handles cleanup automatically
 
     match format {
         ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),

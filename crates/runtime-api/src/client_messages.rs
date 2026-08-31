@@ -177,7 +177,6 @@ pub fn mk_requested_input_msg(
 /// Build a Program message
 #[inline]
 pub fn mk_program_msg(
-    client_token: &ClientToken,
     auth_token: &AuthToken,
     object: &ObjectRef,
     verb: &Symbol,
@@ -185,7 +184,6 @@ pub fn mk_program_msg(
 ) -> rpc::HostClientToDaemonMessage {
     rpc::HostClientToDaemonMessage {
         message: rpc::HostClientToDaemonMessageUnion::Program(Box::new(rpc::Program {
-            client_token: client_token_fb(client_token),
             auth_token: auth_token_fb(auth_token),
             object: objectref_fb(object),
             verb: symbol_fb(verb),
