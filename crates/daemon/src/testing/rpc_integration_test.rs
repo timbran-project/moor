@@ -30,11 +30,12 @@ mod tests {
     use moor_runtime_api::{
         AuthToken, ClientToken, RpcMessageError,
         api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
-        mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg, mk_detach_host_msg,
-        mk_detach_msg, mk_eval_msg, mk_host_pong_msg, mk_invoke_verb_capture_msg,
-        mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg,
-        mk_properties_msg, mk_register_host_msg, mk_request_performance_counters_msg,
-        mk_request_sys_prop_msg, mk_requested_input_msg, mk_verbs_msg, obj_fb,
+        mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
+        mk_detach_host_msg, mk_detach_msg, mk_eval_msg, mk_host_pong_msg,
+        mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
+        mk_login_command_msg, mk_program_msg, mk_properties_msg, mk_register_host_msg,
+        mk_request_performance_counters_msg, mk_request_sys_prop_msg, mk_requested_input_msg,
+        mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
@@ -961,8 +962,36 @@ mod tests {
         );
     }
 
+    fn program_command_verb(
+        env: &TestEnvironment,
+        client_id: Uuid,
+        client_token: &ClientToken,
+        auth_token: &AuthToken,
+        player: Obj,
+        verb: &str,
+        code: &str,
+    ) {
+        program_verb(env, client_id, client_token, auth_token, player, verb, code);
+        let set_args = mk_eval_msg(
+            client_token,
+            auth_token,
+            format!(
+                "set_verb_args(#{}, \"{verb}\", {{\"none\", \"none\", \"none\"}});",
+                player.id().0
+            ),
+        );
+        env.transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                set_args,
+            )
+            .expect("Command verb arguments should update");
+    }
+
     fn captured_output(
-        response: &moor_rpc::VerbCallResponse,
+        response: &moor_rpc::InvocationResponse,
     ) -> Vec<moor_common::tasks::NarrativeEvent> {
         response
             .output
@@ -982,11 +1011,11 @@ mod tests {
     fn captured_success(
         reply: &moor_rpc::DaemonToClientReply,
     ) -> (moor_var::Var, Vec<moor_common::tasks::NarrativeEvent>) {
-        let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
-            panic!("Expected VerbCallResponse, got {:?}", reply.reply);
+        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = &reply.reply else {
+            panic!("Expected InvocationResponse, got {:?}", reply.reply);
         };
-        let moor_rpc::VerbCallResponseUnion::VerbCallSuccess(success) = &response.response else {
-            panic!("Expected success, got {:?}", response.response);
+        let moor_rpc::InvocationOutcome::InvocationSuccess(success) = &response.outcome else {
+            panic!("Expected success, got {:?}", response.outcome);
         };
 
         let mut builder = planus::Builder::new();
@@ -1006,11 +1035,11 @@ mod tests {
         moor_rpc::SchedulerError,
         Vec<moor_common::tasks::NarrativeEvent>,
     ) {
-        let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
-            panic!("Expected VerbCallResponse, got {:?}", reply.reply);
+        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = &reply.reply else {
+            panic!("Expected InvocationResponse, got {:?}", reply.reply);
         };
-        let moor_rpc::VerbCallResponseUnion::VerbCallError(error) = &response.response else {
-            panic!("Expected error, got {:?}", response.response);
+        let moor_rpc::InvocationOutcome::InvocationError(error) = &response.outcome else {
+            panic!("Expected error, got {:?}", response.outcome);
         };
         (*error.error.clone(), captured_output(response))
     }
@@ -1074,6 +1103,85 @@ mod tests {
             "The call should run as the authenticated player and return its value"
         );
         assert_eq!(captured_notify_text(&output), vec!["first", "second"]);
+    }
+
+    /// Captured commands use the command parser and return the root task's result and output.
+    #[test]
+    fn test_captured_command_returns_result_and_output() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_command_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "capture-command",
+            "notify(player, \"command output\");\nreturn 42;",
+        );
+
+        let command = mk_command_capture_msg(
+            &auth_token,
+            &SYSTEM_OBJECT,
+            "capture-command".to_string(),
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured command message");
+        let capture_client_id = Uuid::new_v4();
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                capture_client_id,
+                command,
+            )
+            .expect("Captured command should succeed");
+
+        let (result, output) = captured_success(&reply);
+        assert_eq!(result, moor_var::v_int(42));
+        assert_eq!(captured_notify_text(&output), vec!["command output"]);
+    }
+
+    #[test]
+    fn test_captured_command_cancels_on_deadline() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+        program_command_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "slow-command",
+            "suspend(60);\nreturn 1;",
+        );
+
+        let command = mk_command_capture_msg(
+            &auth_token,
+            &SYSTEM_OBJECT,
+            "slow-command".to_string(),
+            Some(Duration::from_millis(500)),
+        )
+        .expect("Failed to build captured command message");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                command,
+            )
+            .expect("Captured command should reply once the deadline passes");
+
+        let (error, _output) = captured_error(&reply);
+        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
+            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
+        };
+        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
     }
 
     /// A forked task is an independent task, so its output does not appear in the parent's

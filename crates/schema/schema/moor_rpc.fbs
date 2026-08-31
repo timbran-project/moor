@@ -757,13 +757,6 @@ table Attach {
     acceptable_content_types: [MoorCommon.Symbol];
 }
 
-table Command {
-    client_token: ClientToken (required);
-    auth_token: AuthToken (required);
-    handler_object: MoorCommon.Obj (required);
-    command: string (required);
-}
-
 table Verbs {
     auth_token: AuthToken (required);
     object: MoorCommon.ObjectRef (required);
@@ -790,6 +783,13 @@ table CaptureOutputInvocation {
 union InvocationMode {
     ConnectedInvocation,
     CaptureOutputInvocation
+}
+
+table Command {
+    auth_token: AuthToken (required);
+    handler_object: MoorCommon.Obj (required);
+    command: string (required);
+    mode: InvocationMode (required);
 }
 
 table InvokeVerb {
@@ -957,7 +957,7 @@ union DaemonToClientReplyUnion {
     ListObjectsReply,
     PropertyUpdated,
     SystemHandlerResponseReply,
-    VerbCallResponse,
+    InvocationResponse,
     BatchWorldStateReply,
     ClientEvents
 }
@@ -1098,21 +1098,21 @@ table SystemHandlerResponseReply {
     response: SystemHandlerResponseUnion (required);
 }
 
-union VerbCallResponseUnion {
-    VerbCallSuccess,
-    VerbCallError
+union InvocationOutcome {
+    InvocationSuccess,
+    InvocationError
 }
 
-table VerbCallSuccess {
+table InvocationSuccess {
     result: MoorVar.Var (required);
 }
 
-table VerbCallError {
+table InvocationError {
     error: SchedulerError (required);
 }
 
-table VerbCallResponse {
-    response: VerbCallResponseUnion (required);
+table InvocationResponse {
+    outcome: InvocationOutcome (required);
     output: [MoorCommon.NarrativeEvent] (required);
 }
 

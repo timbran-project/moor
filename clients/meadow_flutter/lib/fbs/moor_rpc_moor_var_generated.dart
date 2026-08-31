@@ -176,7 +176,9 @@ class VarBoolBuilder {
 class VarBoolObjectBuilder extends fb.ObjectBuilder {
   final bool? _value;
 
-  VarBoolObjectBuilder({bool? value}) : _value = value;
+  VarBoolObjectBuilder({
+    bool? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -244,7 +246,9 @@ class VarIntBuilder {
 class VarIntObjectBuilder extends fb.ObjectBuilder {
   final int? _value;
 
-  VarIntObjectBuilder({int? value}) : _value = value;
+  VarIntObjectBuilder({
+    int? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -314,7 +318,9 @@ class VarFloatBuilder {
 class VarFloatObjectBuilder extends fb.ObjectBuilder {
   final double? _value;
 
-  VarFloatObjectBuilder({double? value}) : _value = value;
+  VarFloatObjectBuilder({
+    double? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -383,7 +389,9 @@ class VarStrBuilder {
 class VarStrObjectBuilder extends fb.ObjectBuilder {
   final String? _value;
 
-  VarStrObjectBuilder({String? value}) : _value = value;
+  VarStrObjectBuilder({
+    String? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -455,7 +463,9 @@ class VarObjBuilder {
 class VarObjObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjObjectBuilder? _obj;
 
-  VarObjObjectBuilder({moor_common.ObjObjectBuilder? obj}) : _obj = obj;
+  VarObjObjectBuilder({
+    moor_common.ObjObjectBuilder? obj,
+  }) : _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -525,7 +535,9 @@ class VarErrBuilder {
 class VarErrObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ErrorObjectBuilder? _error;
 
-  VarErrObjectBuilder({moor_common.ErrorObjectBuilder? error}) : _error = error;
+  VarErrObjectBuilder({
+    moor_common.ErrorObjectBuilder? error,
+  }) : _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -595,8 +607,9 @@ class VarSymBuilder {
 class VarSymObjectBuilder extends fb.ObjectBuilder {
   final moor_common.SymbolObjectBuilder? _symbol;
 
-  VarSymObjectBuilder({moor_common.SymbolObjectBuilder? symbol})
-    : _symbol = symbol;
+  VarSymObjectBuilder({
+    moor_common.SymbolObjectBuilder? symbol,
+  }) : _symbol = symbol;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -667,7 +680,9 @@ class VarBinaryBuilder {
 class VarBinaryObjectBuilder extends fb.ObjectBuilder {
   final List<int>? _data;
 
-  VarBinaryObjectBuilder({List<int>? data}) : _data = data;
+  VarBinaryObjectBuilder({
+    List<int>? data,
+  }) : _data = data;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -740,8 +755,9 @@ class VarListBuilder {
 class VarListObjectBuilder extends fb.ObjectBuilder {
   final List<VarObjectBuilder>? _elements;
 
-  VarListObjectBuilder({List<VarObjectBuilder>? elements})
-    : _elements = elements;
+  VarListObjectBuilder({
+    List<VarObjectBuilder>? elements,
+  }) : _elements = elements;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -822,9 +838,11 @@ class VarMapPairObjectBuilder extends fb.ObjectBuilder {
   final VarObjectBuilder? _key;
   final VarObjectBuilder? _value;
 
-  VarMapPairObjectBuilder({VarObjectBuilder? key, VarObjectBuilder? value})
-    : _key = key,
-      _value = value;
+  VarMapPairObjectBuilder({
+    VarObjectBuilder? key,
+    VarObjectBuilder? value,
+  }) : _key = key,
+       _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -897,7 +915,9 @@ class VarMapBuilder {
 class VarMapObjectBuilder extends fb.ObjectBuilder {
   final List<VarMapPairObjectBuilder>? _pairs;
 
-  VarMapObjectBuilder({List<VarMapPairObjectBuilder>? pairs}) : _pairs = pairs;
+  VarMapObjectBuilder({
+    List<VarMapPairObjectBuilder>? pairs,
+  }) : _pairs = pairs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1273,7 +1293,9 @@ class VarAnonymousBuilder {
 class VarAnonymousObjectBuilder extends fb.ObjectBuilder {
   final moor_common.ObjObjectBuilder? _obj;
 
-  VarAnonymousObjectBuilder({moor_common.ObjObjectBuilder? obj}) : _obj = obj;
+  VarAnonymousObjectBuilder({
+    moor_common.ObjObjectBuilder? obj,
+  }) : _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1384,9 +1406,11 @@ class VarObjectBuilder extends fb.ObjectBuilder {
   final VarUnionTypeId? _variantType;
   final dynamic _variant;
 
-  VarObjectBuilder({VarUnionTypeId? variantType, dynamic variant})
-    : _variantType = variantType,
-      _variant = variant;
+  VarObjectBuilder({
+    VarUnionTypeId? variantType,
+    dynamic variant,
+  }) : _variantType = variantType,
+       _variant = variant;
 
   /// Finish building, and store into the [fbBuilder].
   @override

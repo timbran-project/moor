@@ -70583,356 +70583,10 @@ mod root {
             }
         }
 
-        /// The table `Command` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `Command` in the file `moor_rpc.fbs:760`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
-        pub struct Command {
-            /// The field `client_token` in the table `Command`
-            pub client_token: ::planus::alloc::boxed::Box<self::ClientToken>,
-            /// The field `auth_token` in the table `Command`
-            pub auth_token: ::planus::alloc::boxed::Box<self::AuthToken>,
-            /// The field `handler_object` in the table `Command`
-            pub handler_object: ::planus::alloc::boxed::Box<super::moor_common::Obj>,
-            /// The field `command` in the table `Command`
-            pub command: ::planus::alloc::string::String,
-        }
-
-        impl Command {
-            /// Creates a [CommandBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> CommandBuilder<()> {
-                CommandBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_client_token: impl ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                field_auth_token: impl ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                field_handler_object: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                field_command: impl ::planus::WriteAs<::planus::Offset<str>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_client_token = field_client_token.prepare(builder);
-                let prepared_auth_token = field_auth_token.prepare(builder);
-                let prepared_handler_object = field_handler_object.prepare(builder);
-                let prepared_command = field_command.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<12> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::ClientToken>>(0);
-                table_writer.write_entry::<::planus::Offset<self::AuthToken>>(1);
-                table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(2);
-                table_writer.write_entry::<::planus::Offset<str>>(3);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_client_token);
-                        object_writer.write::<_, _, 4>(&prepared_auth_token);
-                        object_writer.write::<_, _, 4>(&prepared_handler_object);
-                        object_writer.write::<_, _, 4>(&prepared_command);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<Command>> for Command {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<Command>> for Command {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<Command>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<Command> for Command {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
-                Command::create(
-                    builder,
-                    &self.client_token,
-                    &self.auth_token,
-                    &self.handler_object,
-                    &self.command,
-                )
-            }
-        }
-
-        /// Builder for serializing an instance of the [Command] type.
-        ///
-        /// Can be created using the [Command::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct CommandBuilder<State>(State);
-
-        impl CommandBuilder<()> {
-            /// Setter for the [`client_token` field](Command#structfield.client_token).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn client_token<T0>(self, value: T0) -> CommandBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-            {
-                CommandBuilder((value,))
-            }
-        }
-
-        impl<T0> CommandBuilder<(T0,)> {
-            /// Setter for the [`auth_token` field](Command#structfield.auth_token).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn auth_token<T1>(self, value: T1) -> CommandBuilder<(T0, T1)>
-            where
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-            {
-                let (v0,) = self.0;
-                CommandBuilder((v0, value))
-            }
-        }
-
-        impl<T0, T1> CommandBuilder<(T0, T1)> {
-            /// Setter for the [`handler_object` field](Command#structfield.handler_object).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn handler_object<T2>(self, value: T2) -> CommandBuilder<(T0, T1, T2)>
-            where
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-            {
-                let (v0, v1) = self.0;
-                CommandBuilder((v0, v1, value))
-            }
-        }
-
-        impl<T0, T1, T2> CommandBuilder<(T0, T1, T2)> {
-            /// Setter for the [`command` field](Command#structfield.command).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn command<T3>(self, value: T3) -> CommandBuilder<(T0, T1, T2, T3)>
-            where
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            {
-                let (v0, v1, v2) = self.0;
-                CommandBuilder((v0, v1, v2, value))
-            }
-        }
-
-        impl<T0, T1, T2, T3> CommandBuilder<(T0, T1, T2, T3)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [Command].
-            #[inline]
-            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command>
-            where
-                Self: ::planus::WriteAsOffset<Command>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAs<::planus::Offset<Command>> for CommandBuilder<(T0, T1, T2, T3)>
-        {
-            type Prepared = ::planus::Offset<Command>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOptional<::planus::Offset<Command>>
-            for CommandBuilder<(T0, T1, T2, T3)>
-        {
-            type Prepared = ::planus::Offset<Command>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<Command>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
-                T3: ::planus::WriteAs<::planus::Offset<str>>,
-            > ::planus::WriteAsOffset<Command> for CommandBuilder<(T0, T1, T2, T3)>
-        {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
-                let (v0, v1, v2, v3) = &self.0;
-                Command::create(builder, v0, v1, v2, v3)
-            }
-        }
-
-        /// Reference to a deserialized [Command].
-        #[derive(Copy, Clone)]
-        pub struct CommandRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> CommandRef<'a> {
-            /// Getter for the [`client_token` field](Command#structfield.client_token).
-            #[inline]
-            pub fn client_token(&self) -> ::planus::Result<self::ClientTokenRef<'a>> {
-                self.0.access_required(0, "Command", "client_token")
-            }
-
-            /// Getter for the [`auth_token` field](Command#structfield.auth_token).
-            #[inline]
-            pub fn auth_token(&self) -> ::planus::Result<self::AuthTokenRef<'a>> {
-                self.0.access_required(1, "Command", "auth_token")
-            }
-
-            /// Getter for the [`handler_object` field](Command#structfield.handler_object).
-            #[inline]
-            pub fn handler_object(&self) -> ::planus::Result<super::moor_common::ObjRef<'a>> {
-                self.0.access_required(2, "Command", "handler_object")
-            }
-
-            /// Getter for the [`command` field](Command#structfield.command).
-            #[inline]
-            pub fn command(&self) -> ::planus::Result<&'a ::core::primitive::str> {
-                self.0.access_required(3, "Command", "command")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for CommandRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("CommandRef");
-                f.field("client_token", &self.client_token());
-                f.field("auth_token", &self.auth_token());
-                f.field("handler_object", &self.handler_object());
-                f.field("command", &self.command());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<CommandRef<'a>> for Command {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: CommandRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    client_token: ::planus::alloc::boxed::Box::new(
-                        ::core::convert::TryInto::try_into(value.client_token()?)?,
-                    ),
-                    auth_token: ::planus::alloc::boxed::Box::new(
-                        ::core::convert::TryInto::try_into(value.auth_token()?)?,
-                    ),
-                    handler_object: ::planus::alloc::boxed::Box::new(
-                        ::core::convert::TryInto::try_into(value.handler_object()?)?,
-                    ),
-                    command: ::core::convert::Into::into(value.command()?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for CommandRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for CommandRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location("[CommandRef]", "get", buffer.offset_from_start)
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<Command>> for Command {
-            type Value = ::planus::Offset<Command>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<Command>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for CommandRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[CommandRef]", "read_as_root", 0)
-                })
-            }
-        }
-
         /// The table `Verbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Verbs` in the file `moor_rpc.fbs:767`
+        /// * Table `Verbs` in the file `moor_rpc.fbs:760`
         #[derive(
             Clone,
             Debug,
@@ -71251,7 +70905,7 @@ mod root {
         /// The table `ConnectedInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:775`
+        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:768`
         #[derive(
             Clone,
             Debug,
@@ -71526,7 +71180,7 @@ mod root {
         /// The table `CaptureOutputInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:786`
+        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:779`
         #[derive(
             Clone,
             Debug,
@@ -71824,7 +71478,7 @@ mod root {
         /// The union `InvocationMode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationMode` in the file `moor_rpc.fbs:790`
+        /// * Union `InvocationMode` in the file `moor_rpc.fbs:783`
         #[derive(
             Clone,
             Debug,
@@ -72045,6 +71699,352 @@ mod root {
 
         impl<'a> ::planus::VectorReadUnion<'a> for InvocationModeRef<'a> {
             const VECTOR_NAME: &'static str = "[InvocationModeRef]";
+        }
+
+        /// The table `Command` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `Command` in the file `moor_rpc.fbs:788`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct Command {
+            /// The field `auth_token` in the table `Command`
+            pub auth_token: ::planus::alloc::boxed::Box<self::AuthToken>,
+            /// The field `handler_object` in the table `Command`
+            pub handler_object: ::planus::alloc::boxed::Box<super::moor_common::Obj>,
+            /// The field `command` in the table `Command`
+            pub command: ::planus::alloc::string::String,
+            /// The field `mode` in the table `Command`
+            pub mode: self::InvocationMode,
+        }
+
+        impl Command {
+            /// Creates a [CommandBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> CommandBuilder<()> {
+                CommandBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_auth_token: impl ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                field_handler_object: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+                field_command: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_mode: impl ::planus::WriteAsUnion<self::InvocationMode>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_auth_token = field_auth_token.prepare(builder);
+                let prepared_handler_object = field_handler_object.prepare(builder);
+                let prepared_command = field_command.prepare(builder);
+                let prepared_mode = field_mode.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<self::AuthToken>>(0);
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(1);
+                table_writer.write_entry::<::planus::Offset<str>>(2);
+                table_writer.write_entry::<::planus::Offset<self::InvocationMode>>(4);
+                table_writer.write_entry::<u8>(3);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_auth_token);
+                        object_writer.write::<_, _, 4>(&prepared_handler_object);
+                        object_writer.write::<_, _, 4>(&prepared_command);
+                        object_writer.write::<_, _, 4>(&prepared_mode.offset());
+                        object_writer.write::<_, _, 1>(&prepared_mode.tag());
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<Command>> for Command {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<Command>> for Command {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<Command>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<Command> for Command {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
+                Command::create(
+                    builder,
+                    &self.auth_token,
+                    &self.handler_object,
+                    &self.command,
+                    &self.mode,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [Command] type.
+        ///
+        /// Can be created using the [Command::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct CommandBuilder<State>(State);
+
+        impl CommandBuilder<()> {
+            /// Setter for the [`auth_token` field](Command#structfield.auth_token).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn auth_token<T0>(self, value: T0) -> CommandBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+            {
+                CommandBuilder((value,))
+            }
+        }
+
+        impl<T0> CommandBuilder<(T0,)> {
+            /// Setter for the [`handler_object` field](Command#structfield.handler_object).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn handler_object<T1>(self, value: T1) -> CommandBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            {
+                let (v0,) = self.0;
+                CommandBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> CommandBuilder<(T0, T1)> {
+            /// Setter for the [`command` field](Command#structfield.command).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn command<T2>(self, value: T2) -> CommandBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                let (v0, v1) = self.0;
+                CommandBuilder((v0, v1, value))
+            }
+        }
+
+        impl<T0, T1, T2> CommandBuilder<(T0, T1, T2)> {
+            /// Setter for the [`mode` field](Command#structfield.mode).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn mode<T3>(self, value: T3) -> CommandBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsUnion<self::InvocationMode>,
+            {
+                let (v0, v1, v2) = self.0;
+                CommandBuilder((v0, v1, v2, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3> CommandBuilder<(T0, T1, T2, T3)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [Command].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command>
+            where
+                Self: ::planus::WriteAsOffset<Command>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T3: ::planus::WriteAsUnion<self::InvocationMode>,
+            > ::planus::WriteAs<::planus::Offset<Command>> for CommandBuilder<(T0, T1, T2, T3)>
+        {
+            type Prepared = ::planus::Offset<Command>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T3: ::planus::WriteAsUnion<self::InvocationMode>,
+            > ::planus::WriteAsOptional<::planus::Offset<Command>>
+            for CommandBuilder<(T0, T1, T2, T3)>
+        {
+            type Prepared = ::planus::Offset<Command>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<Command>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T3: ::planus::WriteAsUnion<self::InvocationMode>,
+            > ::planus::WriteAsOffset<Command> for CommandBuilder<(T0, T1, T2, T3)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Command> {
+                let (v0, v1, v2, v3) = &self.0;
+                Command::create(builder, v0, v1, v2, v3)
+            }
+        }
+
+        /// Reference to a deserialized [Command].
+        #[derive(Copy, Clone)]
+        pub struct CommandRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> CommandRef<'a> {
+            /// Getter for the [`auth_token` field](Command#structfield.auth_token).
+            #[inline]
+            pub fn auth_token(&self) -> ::planus::Result<self::AuthTokenRef<'a>> {
+                self.0.access_required(0, "Command", "auth_token")
+            }
+
+            /// Getter for the [`handler_object` field](Command#structfield.handler_object).
+            #[inline]
+            pub fn handler_object(&self) -> ::planus::Result<super::moor_common::ObjRef<'a>> {
+                self.0.access_required(1, "Command", "handler_object")
+            }
+
+            /// Getter for the [`command` field](Command#structfield.command).
+            #[inline]
+            pub fn command(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(2, "Command", "command")
+            }
+
+            /// Getter for the [`mode` field](Command#structfield.mode).
+            #[inline]
+            pub fn mode(&self) -> ::planus::Result<self::InvocationModeRef<'a>> {
+                self.0.access_union_required(3, "Command", "mode")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for CommandRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("CommandRef");
+                f.field("auth_token", &self.auth_token());
+                f.field("handler_object", &self.handler_object());
+                f.field("command", &self.command());
+                f.field("mode", &self.mode());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<CommandRef<'a>> for Command {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: CommandRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    auth_token: ::planus::alloc::boxed::Box::new(
+                        ::core::convert::TryInto::try_into(value.auth_token()?)?,
+                    ),
+                    handler_object: ::planus::alloc::boxed::Box::new(
+                        ::core::convert::TryInto::try_into(value.handler_object()?)?,
+                    ),
+                    command: ::core::convert::Into::into(value.command()?),
+                    mode: ::core::convert::TryInto::try_into(value.mode()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for CommandRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for CommandRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location("[CommandRef]", "get", buffer.offset_from_start)
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<Command>> for Command {
+            type Value = ::planus::Offset<Command>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<Command>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for CommandRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[CommandRef]", "read_as_root", 0)
+                })
+            }
         }
 
         /// The table `InvokeVerb` in the namespace `MoorRpc`
@@ -79635,8 +79635,8 @@ mod root {
                 ::planus::alloc::boxed::Box<self::SystemHandlerResponseReply>,
             ),
 
-            /// The variant of type `VerbCallResponse` in the union `DaemonToClientReplyUnion`
-            VerbCallResponse(::planus::alloc::boxed::Box<self::VerbCallResponse>),
+            /// The variant of type `InvocationResponse` in the union `DaemonToClientReplyUnion`
+            InvocationResponse(::planus::alloc::boxed::Box<self::InvocationResponse>),
 
             /// The variant of type `BatchWorldStateReply` in the union `DaemonToClientReplyUnion`
             BatchWorldStateReply(::planus::alloc::boxed::Box<self::BatchWorldStateReply>),
@@ -79845,9 +79845,9 @@ mod root {
             }
 
             #[inline]
-            pub fn create_verb_call_response(
+            pub fn create_invocation_response(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::VerbCallResponse>,
+                value: impl ::planus::WriteAsOffset<self::InvocationResponse>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(25, value.prepare(builder).downcast())
             }
@@ -79915,8 +79915,8 @@ mod root {
                     Self::SystemHandlerResponseReply(value) => {
                         Self::create_system_handler_response_reply(builder, value)
                     }
-                    Self::VerbCallResponse(value) => {
-                        Self::create_verb_call_response(builder, value)
+                    Self::InvocationResponse(value) => {
+                        Self::create_invocation_response(builder, value)
                     }
                     Self::BatchWorldStateReply(value) => {
                         Self::create_batch_world_state_reply(builder, value)
@@ -80232,14 +80232,14 @@ mod root {
                 DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`VerbCallResponse` variant](DaemonToClientReplyUnion#variant.VerbCallResponse).
+            /// Creates an instance of the [`InvocationResponse` variant](DaemonToClientReplyUnion#variant.InvocationResponse).
             #[inline]
-            pub fn verb_call_response<T>(
+            pub fn invocation_response<T>(
                 self,
                 value: T,
             ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
             where
-                T: ::planus::WriteAsOffset<self::VerbCallResponse>,
+                T: ::planus::WriteAsOffset<self::InvocationResponse>,
             {
                 DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
             }
@@ -80958,7 +80958,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallResponse>,
+            T: ::planus::WriteAsOffset<self::InvocationResponse>,
         {
             #[inline]
             fn prepare(
@@ -80972,7 +80972,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallResponse>,
+            T: ::planus::WriteAsOffset<self::InvocationResponse>,
         {
             #[inline]
             fn prepare(
@@ -81067,7 +81067,7 @@ mod root {
             ListObjectsReply(self::ListObjectsReplyRef<'a>),
             PropertyUpdated(self::PropertyUpdatedRef<'a>),
             SystemHandlerResponseReply(self::SystemHandlerResponseReplyRef<'a>),
-            VerbCallResponse(self::VerbCallResponseRef<'a>),
+            InvocationResponse(self::InvocationResponseRef<'a>),
             BatchWorldStateReply(self::BatchWorldStateReplyRef<'a>),
             ClientEvents(self::ClientEventsRef<'a>),
         }
@@ -81221,8 +81221,8 @@ mod root {
                         ))
                     }
 
-                    DaemonToClientReplyUnionRef::VerbCallResponse(value) => {
-                        Self::VerbCallResponse(::planus::alloc::boxed::Box::new(
+                    DaemonToClientReplyUnionRef::InvocationResponse(value) => {
+                        Self::InvocationResponse(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -81321,7 +81321,7 @@ mod root {
                     24 => ::core::result::Result::Ok(Self::SystemHandlerResponseReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    25 => ::core::result::Result::Ok(Self::VerbCallResponse(
+                    25 => ::core::result::Result::Ok(Self::InvocationResponse(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     26 => ::core::result::Result::Ok(Self::BatchWorldStateReply(
@@ -90008,54 +90008,56 @@ mod root {
             }
         }
 
-        /// The union `VerbCallResponseUnion` in the namespace `MoorRpc`
+        /// The union `InvocationOutcome` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbCallResponseUnion` in the file `moor_rpc.fbs:1101`
+        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1101`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub enum VerbCallResponseUnion {
-            /// The variant of type `VerbCallSuccess` in the union `VerbCallResponseUnion`
-            VerbCallSuccess(::planus::alloc::boxed::Box<self::VerbCallSuccess>),
+        pub enum InvocationOutcome {
+            /// The variant of type `InvocationSuccess` in the union `InvocationOutcome`
+            InvocationSuccess(::planus::alloc::boxed::Box<self::InvocationSuccess>),
 
-            /// The variant of type `VerbCallError` in the union `VerbCallResponseUnion`
-            VerbCallError(::planus::alloc::boxed::Box<self::VerbCallError>),
+            /// The variant of type `InvocationError` in the union `InvocationOutcome`
+            InvocationError(::planus::alloc::boxed::Box<self::InvocationError>),
         }
 
-        impl VerbCallResponseUnion {
-            /// Creates a [VerbCallResponseUnionBuilder] for serializing an instance of this table.
+        impl InvocationOutcome {
+            /// Creates a [InvocationOutcomeBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> VerbCallResponseUnionBuilder<::planus::Uninitialized> {
-                VerbCallResponseUnionBuilder(::planus::Uninitialized)
+            pub fn builder() -> InvocationOutcomeBuilder<::planus::Uninitialized> {
+                InvocationOutcomeBuilder(::planus::Uninitialized)
             }
 
             #[inline]
-            pub fn create_verb_call_success(
+            pub fn create_invocation_success(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::VerbCallSuccess>,
+                value: impl ::planus::WriteAsOffset<self::InvocationSuccess>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
             }
 
             #[inline]
-            pub fn create_verb_call_error(
+            pub fn create_invocation_error(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::VerbCallError>,
+                value: impl ::planus::WriteAsOffset<self::InvocationError>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
             }
         }
 
-        impl ::planus::WriteAsUnion<VerbCallResponseUnion> for VerbCallResponseUnion {
+        impl ::planus::WriteAsUnion<InvocationOutcome> for InvocationOutcome {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
                 match self {
-                    Self::VerbCallSuccess(value) => Self::create_verb_call_success(builder, value),
-                    Self::VerbCallError(value) => Self::create_verb_call_error(builder, value),
+                    Self::InvocationSuccess(value) => {
+                        Self::create_invocation_success(builder, value)
+                    }
+                    Self::InvocationError(value) => Self::create_invocation_error(builder, value),
                 }
             }
         }
 
-        impl ::planus::WriteAsOptionalUnion<VerbCallResponseUnion> for VerbCallResponseUnion {
+        impl ::planus::WriteAsOptionalUnion<InvocationOutcome> for InvocationOutcome {
             #[inline]
             fn prepare(
                 &self,
@@ -90065,128 +90067,128 @@ mod root {
             }
         }
 
-        /// Builder for serializing an instance of the [VerbCallResponseUnion] type.
+        /// Builder for serializing an instance of the [InvocationOutcome] type.
         ///
-        /// Can be created using the [VerbCallResponseUnion::builder] method.
+        /// Can be created using the [InvocationOutcome::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct VerbCallResponseUnionBuilder<T>(T);
+        pub struct InvocationOutcomeBuilder<T>(T);
 
-        impl VerbCallResponseUnionBuilder<::planus::Uninitialized> {
-            /// Creates an instance of the [`VerbCallSuccess` variant](VerbCallResponseUnion#variant.VerbCallSuccess).
+        impl InvocationOutcomeBuilder<::planus::Uninitialized> {
+            /// Creates an instance of the [`InvocationSuccess` variant](InvocationOutcome#variant.InvocationSuccess).
             #[inline]
-            pub fn verb_call_success<T>(
+            pub fn invocation_success<T>(
                 self,
                 value: T,
-            ) -> VerbCallResponseUnionBuilder<::planus::Initialized<1, T>>
+            ) -> InvocationOutcomeBuilder<::planus::Initialized<1, T>>
             where
-                T: ::planus::WriteAsOffset<self::VerbCallSuccess>,
+                T: ::planus::WriteAsOffset<self::InvocationSuccess>,
             {
-                VerbCallResponseUnionBuilder(::planus::Initialized(value))
+                InvocationOutcomeBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`VerbCallError` variant](VerbCallResponseUnion#variant.VerbCallError).
+            /// Creates an instance of the [`InvocationError` variant](InvocationOutcome#variant.InvocationError).
             #[inline]
-            pub fn verb_call_error<T>(
+            pub fn invocation_error<T>(
                 self,
                 value: T,
-            ) -> VerbCallResponseUnionBuilder<::planus::Initialized<2, T>>
+            ) -> InvocationOutcomeBuilder<::planus::Initialized<2, T>>
             where
-                T: ::planus::WriteAsOffset<self::VerbCallError>,
+                T: ::planus::WriteAsOffset<self::InvocationError>,
             {
-                VerbCallResponseUnionBuilder(::planus::Initialized(value))
+                InvocationOutcomeBuilder(::planus::Initialized(value))
             }
         }
 
-        impl<const N: u8, T> VerbCallResponseUnionBuilder<::planus::Initialized<N, T>> {
-            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [VerbCallResponseUnion].
+        impl<const N: u8, T> InvocationOutcomeBuilder<::planus::Initialized<N, T>> {
+            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [InvocationOutcome].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<VerbCallResponseUnion>
+            ) -> ::planus::UnionOffset<InvocationOutcome>
             where
-                Self: ::planus::WriteAsUnion<VerbCallResponseUnion>,
+                Self: ::planus::WriteAsUnion<InvocationOutcome>,
             {
                 ::planus::WriteAsUnion::prepare(&self, builder)
             }
         }
 
-        impl<T> ::planus::WriteAsUnion<VerbCallResponseUnion>
-            for VerbCallResponseUnionBuilder<::planus::Initialized<1, T>>
+        impl<T> ::planus::WriteAsUnion<InvocationOutcome>
+            for InvocationOutcomeBuilder<::planus::Initialized<1, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallSuccess>,
+            T: ::planus::WriteAsOffset<self::InvocationSuccess>,
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<VerbCallResponseUnion> {
+            ) -> ::planus::UnionOffset<InvocationOutcome> {
                 ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
             }
         }
 
-        impl<T> ::planus::WriteAsOptionalUnion<VerbCallResponseUnion>
-            for VerbCallResponseUnionBuilder<::planus::Initialized<1, T>>
+        impl<T> ::planus::WriteAsOptionalUnion<InvocationOutcome>
+            for InvocationOutcomeBuilder<::planus::Initialized<1, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallSuccess>,
+            T: ::planus::WriteAsOffset<self::InvocationSuccess>,
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<VerbCallResponseUnion>> {
+            ) -> ::core::option::Option<::planus::UnionOffset<InvocationOutcome>> {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
-        impl<T> ::planus::WriteAsUnion<VerbCallResponseUnion>
-            for VerbCallResponseUnionBuilder<::planus::Initialized<2, T>>
+        impl<T> ::planus::WriteAsUnion<InvocationOutcome>
+            for InvocationOutcomeBuilder<::planus::Initialized<2, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallError>,
+            T: ::planus::WriteAsOffset<self::InvocationError>,
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<VerbCallResponseUnion> {
+            ) -> ::planus::UnionOffset<InvocationOutcome> {
                 ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
             }
         }
 
-        impl<T> ::planus::WriteAsOptionalUnion<VerbCallResponseUnion>
-            for VerbCallResponseUnionBuilder<::planus::Initialized<2, T>>
+        impl<T> ::planus::WriteAsOptionalUnion<InvocationOutcome>
+            for InvocationOutcomeBuilder<::planus::Initialized<2, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbCallError>,
+            T: ::planus::WriteAsOffset<self::InvocationError>,
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<VerbCallResponseUnion>> {
+            ) -> ::core::option::Option<::planus::UnionOffset<InvocationOutcome>> {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
 
-        /// Reference to a deserialized [VerbCallResponseUnion].
+        /// Reference to a deserialized [InvocationOutcome].
         #[derive(Copy, Clone, Debug)]
-        pub enum VerbCallResponseUnionRef<'a> {
-            VerbCallSuccess(self::VerbCallSuccessRef<'a>),
-            VerbCallError(self::VerbCallErrorRef<'a>),
+        pub enum InvocationOutcomeRef<'a> {
+            InvocationSuccess(self::InvocationSuccessRef<'a>),
+            InvocationError(self::InvocationErrorRef<'a>),
         }
 
-        impl<'a> ::core::convert::TryFrom<VerbCallResponseUnionRef<'a>> for VerbCallResponseUnion {
+        impl<'a> ::core::convert::TryFrom<InvocationOutcomeRef<'a>> for InvocationOutcome {
             type Error = ::planus::Error;
 
-            fn try_from(value: VerbCallResponseUnionRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: InvocationOutcomeRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(match value {
-                    VerbCallResponseUnionRef::VerbCallSuccess(value) => {
-                        Self::VerbCallSuccess(::planus::alloc::boxed::Box::new(
+                    InvocationOutcomeRef::InvocationSuccess(value) => {
+                        Self::InvocationSuccess(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
 
-                    VerbCallResponseUnionRef::VerbCallError(value) => {
-                        Self::VerbCallError(::planus::alloc::boxed::Box::new(
+                    InvocationOutcomeRef::InvocationError(value) => {
+                        Self::InvocationError(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -90194,17 +90196,17 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableReadUnion<'a> for VerbCallResponseUnionRef<'a> {
+        impl<'a> ::planus::TableReadUnion<'a> for InvocationOutcomeRef<'a> {
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
                 tag: u8,
                 field_offset: usize,
             ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
                 match tag {
-                    1 => ::core::result::Result::Ok(Self::VerbCallSuccess(
+                    1 => ::core::result::Result::Ok(Self::InvocationSuccess(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    2 => ::core::result::Result::Ok(Self::VerbCallError(
+                    2 => ::core::result::Result::Ok(Self::InvocationError(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -90216,25 +90218,25 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadUnion<'a> for VerbCallResponseUnionRef<'a> {
-            const VECTOR_NAME: &'static str = "[VerbCallResponseUnionRef]";
+        impl<'a> ::planus::VectorReadUnion<'a> for InvocationOutcomeRef<'a> {
+            const VECTOR_NAME: &'static str = "[InvocationOutcomeRef]";
         }
 
-        /// The table `VerbCallSuccess` in the namespace `MoorRpc`
+        /// The table `InvocationSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallSuccess` in the file `moor_rpc.fbs:1106`
+        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1106`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct VerbCallSuccess {
-            /// The field `result` in the table `VerbCallSuccess`
+        pub struct InvocationSuccess {
+            /// The field `result` in the table `InvocationSuccess`
             pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
         }
 
-        impl VerbCallSuccess {
-            /// Creates a [VerbCallSuccessBuilder] for serializing an instance of this table.
+        impl InvocationSuccess {
+            /// Creates a [InvocationSuccessBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> VerbCallSuccessBuilder<()> {
-                VerbCallSuccessBuilder(())
+            pub fn builder() -> InvocationSuccessBuilder<()> {
+                InvocationSuccessBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -90257,140 +90259,141 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<VerbCallSuccess>> for VerbCallSuccess {
+        impl ::planus::WriteAs<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallSuccess> {
+            ) -> ::planus::Offset<InvocationSuccess> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>> for VerbCallSuccess {
+        impl ::planus::WriteAsOptional<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallSuccess>> {
+            ) -> ::core::option::Option<::planus::Offset<InvocationSuccess>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccess {
+        impl ::planus::WriteAsOffset<InvocationSuccess> for InvocationSuccess {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallSuccess> {
-                VerbCallSuccess::create(builder, &self.result)
+            ) -> ::planus::Offset<InvocationSuccess> {
+                InvocationSuccess::create(builder, &self.result)
             }
         }
 
-        /// Builder for serializing an instance of the [VerbCallSuccess] type.
+        /// Builder for serializing an instance of the [InvocationSuccess] type.
         ///
-        /// Can be created using the [VerbCallSuccess::builder] method.
+        /// Can be created using the [InvocationSuccess::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct VerbCallSuccessBuilder<State>(State);
+        pub struct InvocationSuccessBuilder<State>(State);
 
-        impl VerbCallSuccessBuilder<()> {
-            /// Setter for the [`result` field](VerbCallSuccess#structfield.result).
+        impl InvocationSuccessBuilder<()> {
+            /// Setter for the [`result` field](InvocationSuccess#structfield.result).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn result<T0>(self, value: T0) -> VerbCallSuccessBuilder<(T0,)>
+            pub fn result<T0>(self, value: T0) -> InvocationSuccessBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
             {
-                VerbCallSuccessBuilder((value,))
+                InvocationSuccessBuilder((value,))
             }
         }
 
-        impl<T0> VerbCallSuccessBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VerbCallSuccess].
+        impl<T0> InvocationSuccessBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [InvocationSuccess].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallSuccess>
+            ) -> ::planus::Offset<InvocationSuccess>
             where
-                Self: ::planus::WriteAsOffset<VerbCallSuccess>,
+                Self: ::planus::WriteAsOffset<InvocationSuccess>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAs<::planus::Offset<VerbCallSuccess>> for VerbCallSuccessBuilder<(T0,)>
+            ::planus::WriteAs<::planus::Offset<InvocationSuccess>>
+            for InvocationSuccessBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<VerbCallSuccess>;
+            type Prepared = ::planus::Offset<InvocationSuccess>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallSuccess> {
+            ) -> ::planus::Offset<InvocationSuccess> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOptional<::planus::Offset<VerbCallSuccess>>
-            for VerbCallSuccessBuilder<(T0,)>
+            ::planus::WriteAsOptional<::planus::Offset<InvocationSuccess>>
+            for InvocationSuccessBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<VerbCallSuccess>;
+            type Prepared = ::planus::Offset<InvocationSuccess>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallSuccess>> {
+            ) -> ::core::option::Option<::planus::Offset<InvocationSuccess>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOffset<VerbCallSuccess> for VerbCallSuccessBuilder<(T0,)>
+            ::planus::WriteAsOffset<InvocationSuccess> for InvocationSuccessBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallSuccess> {
+            ) -> ::planus::Offset<InvocationSuccess> {
                 let (v0,) = &self.0;
-                VerbCallSuccess::create(builder, v0)
+                InvocationSuccess::create(builder, v0)
             }
         }
 
-        /// Reference to a deserialized [VerbCallSuccess].
+        /// Reference to a deserialized [InvocationSuccess].
         #[derive(Copy, Clone)]
-        pub struct VerbCallSuccessRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct InvocationSuccessRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> VerbCallSuccessRef<'a> {
-            /// Getter for the [`result` field](VerbCallSuccess#structfield.result).
+        impl<'a> InvocationSuccessRef<'a> {
+            /// Getter for the [`result` field](InvocationSuccess#structfield.result).
             #[inline]
             pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0.access_required(0, "VerbCallSuccess", "result")
+                self.0.access_required(0, "InvocationSuccess", "result")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for VerbCallSuccessRef<'a> {
+        impl<'a> ::core::fmt::Debug for InvocationSuccessRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("VerbCallSuccessRef");
+                let mut f = f.debug_struct("InvocationSuccessRef");
                 f.field("result", &self.result());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<VerbCallSuccessRef<'a>> for VerbCallSuccess {
+        impl<'a> ::core::convert::TryFrom<InvocationSuccessRef<'a>> for InvocationSuccess {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: VerbCallSuccessRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: InvocationSuccessRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.result()?,
@@ -90399,7 +90402,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for VerbCallSuccessRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for InvocationSuccessRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -90411,7 +90414,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for VerbCallSuccessRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for InvocationSuccessRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -90421,7 +90424,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[VerbCallSuccessRef]",
+                        "[InvocationSuccessRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -90432,8 +90435,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<VerbCallSuccess>> for VerbCallSuccess {
-            type Value = ::planus::Offset<VerbCallSuccess>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
+            type Value = ::planus::Offset<InvocationSuccess>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -90442,7 +90445,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<VerbCallSuccess>],
+                values: &[::planus::Offset<InvocationSuccess>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -90457,7 +90460,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for VerbCallSuccessRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for InvocationSuccessRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -90467,26 +90470,26 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[VerbCallSuccessRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[InvocationSuccessRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `VerbCallError` in the namespace `MoorRpc`
+        /// The table `InvocationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallError` in the file `moor_rpc.fbs:1110`
+        /// * Table `InvocationError` in the file `moor_rpc.fbs:1110`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct VerbCallError {
-            /// The field `error` in the table `VerbCallError`
+        pub struct InvocationError {
+            /// The field `error` in the table `InvocationError`
             pub error: ::planus::alloc::boxed::Box<self::SchedulerError>,
         }
 
-        impl VerbCallError {
-            /// Creates a [VerbCallErrorBuilder] for serializing an instance of this table.
+        impl InvocationError {
+            /// Creates a [InvocationErrorBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> VerbCallErrorBuilder<()> {
-                VerbCallErrorBuilder(())
+            pub fn builder() -> InvocationErrorBuilder<()> {
+                InvocationErrorBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -90509,125 +90512,140 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<VerbCallError>> for VerbCallError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbCallError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<VerbCallError>> for VerbCallError {
+        impl ::planus::WriteAs<::planus::Offset<InvocationError>> for InvocationError {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallError>> {
+            ) -> ::planus::Offset<InvocationError> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<InvocationError>> for InvocationError {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<InvocationError>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<VerbCallError> for VerbCallError {
+        impl ::planus::WriteAsOffset<InvocationError> for InvocationError {
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbCallError> {
-                VerbCallError::create(builder, &self.error)
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<InvocationError> {
+                InvocationError::create(builder, &self.error)
             }
         }
 
-        /// Builder for serializing an instance of the [VerbCallError] type.
+        /// Builder for serializing an instance of the [InvocationError] type.
         ///
-        /// Can be created using the [VerbCallError::builder] method.
+        /// Can be created using the [InvocationError::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct VerbCallErrorBuilder<State>(State);
+        pub struct InvocationErrorBuilder<State>(State);
 
-        impl VerbCallErrorBuilder<()> {
-            /// Setter for the [`error` field](VerbCallError#structfield.error).
+        impl InvocationErrorBuilder<()> {
+            /// Setter for the [`error` field](InvocationError#structfield.error).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn error<T0>(self, value: T0) -> VerbCallErrorBuilder<(T0,)>
+            pub fn error<T0>(self, value: T0) -> InvocationErrorBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
             {
-                VerbCallErrorBuilder((value,))
+                InvocationErrorBuilder((value,))
             }
         }
 
-        impl<T0> VerbCallErrorBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VerbCallError].
+        impl<T0> InvocationErrorBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [InvocationError].
             #[inline]
-            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbCallError>
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<InvocationError>
             where
-                Self: ::planus::WriteAsOffset<VerbCallError>,
+                Self: ::planus::WriteAsOffset<InvocationError>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAs<::planus::Offset<VerbCallError>> for VerbCallErrorBuilder<(T0,)>
+            ::planus::WriteAs<::planus::Offset<InvocationError>> for InvocationErrorBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<VerbCallError>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbCallError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOptional<::planus::Offset<VerbCallError>>
-            for VerbCallErrorBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<VerbCallError>;
+            type Prepared = ::planus::Offset<InvocationError>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallError>> {
+            ) -> ::planus::Offset<InvocationError> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
+            ::planus::WriteAsOptional<::planus::Offset<InvocationError>>
+            for InvocationErrorBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<InvocationError>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<InvocationError>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOffset<VerbCallError> for VerbCallErrorBuilder<(T0,)>
+            ::planus::WriteAsOffset<InvocationError> for InvocationErrorBuilder<(T0,)>
         {
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VerbCallError> {
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<InvocationError> {
                 let (v0,) = &self.0;
-                VerbCallError::create(builder, v0)
+                InvocationError::create(builder, v0)
             }
         }
 
-        /// Reference to a deserialized [VerbCallError].
+        /// Reference to a deserialized [InvocationError].
         #[derive(Copy, Clone)]
-        pub struct VerbCallErrorRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct InvocationErrorRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> VerbCallErrorRef<'a> {
-            /// Getter for the [`error` field](VerbCallError#structfield.error).
+        impl<'a> InvocationErrorRef<'a> {
+            /// Getter for the [`error` field](InvocationError#structfield.error).
             #[inline]
             pub fn error(&self) -> ::planus::Result<self::SchedulerErrorRef<'a>> {
-                self.0.access_required(0, "VerbCallError", "error")
+                self.0.access_required(0, "InvocationError", "error")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for VerbCallErrorRef<'a> {
+        impl<'a> ::core::fmt::Debug for InvocationErrorRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("VerbCallErrorRef");
+                let mut f = f.debug_struct("InvocationErrorRef");
                 f.field("error", &self.error());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<VerbCallErrorRef<'a>> for VerbCallError {
+        impl<'a> ::core::convert::TryFrom<InvocationErrorRef<'a>> for InvocationError {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: VerbCallErrorRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: InvocationErrorRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     error: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.error()?,
@@ -90636,7 +90654,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for VerbCallErrorRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for InvocationErrorRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -90648,7 +90666,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for VerbCallErrorRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for InvocationErrorRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -90658,7 +90676,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[VerbCallErrorRef]",
+                        "[InvocationErrorRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -90669,8 +90687,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<VerbCallError>> for VerbCallError {
-            type Value = ::planus::Offset<VerbCallError>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<InvocationError>> for InvocationError {
+            type Value = ::planus::Offset<InvocationError>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -90679,7 +90697,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<VerbCallError>],
+                values: &[::planus::Offset<InvocationError>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -90694,7 +90712,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for VerbCallErrorRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for InvocationErrorRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -90704,44 +90722,44 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[VerbCallErrorRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[InvocationErrorRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `VerbCallResponse` in the namespace `MoorRpc`
+        /// The table `InvocationResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCallResponse` in the file `moor_rpc.fbs:1114`
+        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1114`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct VerbCallResponse {
-            /// The field `response` in the table `VerbCallResponse`
-            pub response: self::VerbCallResponseUnion,
-            /// The field `output` in the table `VerbCallResponse`
+        pub struct InvocationResponse {
+            /// The field `outcome` in the table `InvocationResponse`
+            pub outcome: self::InvocationOutcome,
+            /// The field `output` in the table `InvocationResponse`
             pub output: ::planus::alloc::vec::Vec<super::moor_common::NarrativeEvent>,
         }
 
-        impl VerbCallResponse {
-            /// Creates a [VerbCallResponseBuilder] for serializing an instance of this table.
+        impl InvocationResponse {
+            /// Creates a [InvocationResponseBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> VerbCallResponseBuilder<()> {
-                VerbCallResponseBuilder(())
+            pub fn builder() -> InvocationResponseBuilder<()> {
+                InvocationResponseBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
-                field_response: impl ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                field_outcome: impl ::planus::WriteAsUnion<self::InvocationOutcome>,
                 field_output: impl ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
             ) -> ::planus::Offset<Self> {
-                let prepared_response = field_response.prepare(builder);
+                let prepared_outcome = field_outcome.prepare(builder);
                 let prepared_output = field_output.prepare(builder);
 
                 let mut table_writer: ::planus::table_writer::TableWriter<10> =
                     ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::VerbCallResponseUnion>>(1);
+                table_writer.write_entry::<::planus::Offset<self::InvocationOutcome>>(1);
                 table_writer.write_entry::<::planus::Offset<
                     [::planus::Offset<super::moor_common::NarrativeEvent>],
                 >>(2);
@@ -90749,197 +90767,197 @@ mod root {
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_response.offset());
+                        object_writer.write::<_, _, 4>(&prepared_outcome.offset());
                         object_writer.write::<_, _, 4>(&prepared_output);
-                        object_writer.write::<_, _, 1>(&prepared_response.tag());
+                        object_writer.write::<_, _, 1>(&prepared_outcome.tag());
                     });
                 }
                 builder.current_offset()
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<VerbCallResponse>> for VerbCallResponse {
+        impl ::planus::WriteAs<::planus::Offset<InvocationResponse>> for InvocationResponse {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallResponse> {
+            ) -> ::planus::Offset<InvocationResponse> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<VerbCallResponse>> for VerbCallResponse {
+        impl ::planus::WriteAsOptional<::planus::Offset<InvocationResponse>> for InvocationResponse {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallResponse>> {
+            ) -> ::core::option::Option<::planus::Offset<InvocationResponse>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<VerbCallResponse> for VerbCallResponse {
+        impl ::planus::WriteAsOffset<InvocationResponse> for InvocationResponse {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallResponse> {
-                VerbCallResponse::create(builder, &self.response, &self.output)
+            ) -> ::planus::Offset<InvocationResponse> {
+                InvocationResponse::create(builder, &self.outcome, &self.output)
             }
         }
 
-        /// Builder for serializing an instance of the [VerbCallResponse] type.
+        /// Builder for serializing an instance of the [InvocationResponse] type.
         ///
-        /// Can be created using the [VerbCallResponse::builder] method.
+        /// Can be created using the [InvocationResponse::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct VerbCallResponseBuilder<State>(State);
+        pub struct InvocationResponseBuilder<State>(State);
 
-        impl VerbCallResponseBuilder<()> {
-            /// Setter for the [`response` field](VerbCallResponse#structfield.response).
+        impl InvocationResponseBuilder<()> {
+            /// Setter for the [`outcome` field](InvocationResponse#structfield.outcome).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn response<T0>(self, value: T0) -> VerbCallResponseBuilder<(T0,)>
+            pub fn outcome<T0>(self, value: T0) -> InvocationResponseBuilder<(T0,)>
             where
-                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
             {
-                VerbCallResponseBuilder((value,))
+                InvocationResponseBuilder((value,))
             }
         }
 
-        impl<T0> VerbCallResponseBuilder<(T0,)> {
-            /// Setter for the [`output` field](VerbCallResponse#structfield.output).
+        impl<T0> InvocationResponseBuilder<(T0,)> {
+            /// Setter for the [`output` field](InvocationResponse#structfield.output).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn output<T1>(self, value: T1) -> VerbCallResponseBuilder<(T0, T1)>
+            pub fn output<T1>(self, value: T1) -> InvocationResponseBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
             {
                 let (v0,) = self.0;
-                VerbCallResponseBuilder((v0, value))
+                InvocationResponseBuilder((v0, value))
             }
         }
 
-        impl<T0, T1> VerbCallResponseBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VerbCallResponse].
+        impl<T0, T1> InvocationResponseBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [InvocationResponse].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallResponse>
+            ) -> ::planus::Offset<InvocationResponse>
             where
-                Self: ::planus::WriteAsOffset<VerbCallResponse>,
+                Self: ::planus::WriteAsOffset<InvocationResponse>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<
-                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
                 T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAs<::planus::Offset<VerbCallResponse>>
-            for VerbCallResponseBuilder<(T0, T1)>
+            > ::planus::WriteAs<::planus::Offset<InvocationResponse>>
+            for InvocationResponseBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<VerbCallResponse>;
+            type Prepared = ::planus::Offset<InvocationResponse>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallResponse> {
+            ) -> ::planus::Offset<InvocationResponse> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<
-                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
                 T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAsOptional<::planus::Offset<VerbCallResponse>>
-            for VerbCallResponseBuilder<(T0, T1)>
+            > ::planus::WriteAsOptional<::planus::Offset<InvocationResponse>>
+            for InvocationResponseBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<VerbCallResponse>;
+            type Prepared = ::planus::Offset<InvocationResponse>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<VerbCallResponse>> {
+            ) -> ::core::option::Option<::planus::Offset<InvocationResponse>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<
-                T0: ::planus::WriteAsUnion<self::VerbCallResponseUnion>,
+                T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
                 T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
-            > ::planus::WriteAsOffset<VerbCallResponse> for VerbCallResponseBuilder<(T0, T1)>
+            > ::planus::WriteAsOffset<InvocationResponse> for InvocationResponseBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<VerbCallResponse> {
+            ) -> ::planus::Offset<InvocationResponse> {
                 let (v0, v1) = &self.0;
-                VerbCallResponse::create(builder, v0, v1)
+                InvocationResponse::create(builder, v0, v1)
             }
         }
 
-        /// Reference to a deserialized [VerbCallResponse].
+        /// Reference to a deserialized [InvocationResponse].
         #[derive(Copy, Clone)]
-        pub struct VerbCallResponseRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct InvocationResponseRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> VerbCallResponseRef<'a> {
-            /// Getter for the [`response` field](VerbCallResponse#structfield.response).
+        impl<'a> InvocationResponseRef<'a> {
+            /// Getter for the [`outcome` field](InvocationResponse#structfield.outcome).
             #[inline]
-            pub fn response(&self) -> ::planus::Result<self::VerbCallResponseUnionRef<'a>> {
+            pub fn outcome(&self) -> ::planus::Result<self::InvocationOutcomeRef<'a>> {
                 self.0
-                    .access_union_required(0, "VerbCallResponse", "response")
+                    .access_union_required(0, "InvocationResponse", "outcome")
             }
 
-            /// Getter for the [`output` field](VerbCallResponse#structfield.output).
+            /// Getter for the [`output` field](InvocationResponse#structfield.output).
             #[inline]
             pub fn output(
                 &self,
             ) -> ::planus::Result<
                 ::planus::Vector<'a, ::planus::Result<super::moor_common::NarrativeEventRef<'a>>>,
             > {
-                self.0.access_required(2, "VerbCallResponse", "output")
+                self.0.access_required(2, "InvocationResponse", "output")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for VerbCallResponseRef<'a> {
+        impl<'a> ::core::fmt::Debug for InvocationResponseRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("VerbCallResponseRef");
-                f.field("response", &self.response());
+                let mut f = f.debug_struct("InvocationResponseRef");
+                f.field("outcome", &self.outcome());
                 f.field("output", &self.output());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<VerbCallResponseRef<'a>> for VerbCallResponse {
+        impl<'a> ::core::convert::TryFrom<InvocationResponseRef<'a>> for InvocationResponse {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: VerbCallResponseRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: InvocationResponseRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
-                    response: ::core::convert::TryInto::try_into(value.response()?)?,
+                    outcome: ::core::convert::TryInto::try_into(value.outcome()?)?,
                     output: value.output()?.to_vec_result()?,
                 })
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for VerbCallResponseRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for InvocationResponseRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -90951,7 +90969,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for VerbCallResponseRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for InvocationResponseRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -90961,7 +90979,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[VerbCallResponseRef]",
+                        "[InvocationResponseRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -90972,8 +90990,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<VerbCallResponse>> for VerbCallResponse {
-            type Value = ::planus::Offset<VerbCallResponse>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<InvocationResponse>> for InvocationResponse {
+            type Value = ::planus::Offset<InvocationResponse>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -90982,7 +91000,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<VerbCallResponse>],
+                values: &[::planus::Offset<InvocationResponse>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -90997,7 +91015,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for VerbCallResponseRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for InvocationResponseRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -91007,7 +91025,7 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[VerbCallResponseRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[InvocationResponseRef]", "read_as_root", 0)
                 })
             }
         }

@@ -18,14 +18,14 @@
 
 use flume::{Receiver, RecvTimeoutError};
 use moor_common::model::{ObjFlag, ObjectRef};
-use moor_common::tasks::{AbortLimitReason, NarrativeEvent, SchedulerError, TaskId};
+use moor_common::tasks::{AbortLimitReason, NarrativeEvent, SchedulerError, Session, TaskId};
 use moor_kernel::{
     SchedulerClient,
-    tasks::{AbortTaskOutcome, TaskNotification},
+    tasks::{AbortTaskOutcome, TaskHandle, TaskNotification},
 };
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
-    InvocationMode, ObjectInfo, ServerFeatures, VerbCallOutcome, VerbCallResponse,
+    InvocationMode, InvocationOutcome, InvocationResponse, ObjectInfo, ServerFeatures,
     VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
 };
 use moor_runtime_api::{AuthToken, ClientToken, RpcMessageError};
@@ -346,21 +346,36 @@ impl RuntimeApi for RpcMessageHandler {
             }
 
             ClientRequest::Command {
-                client_token,
                 auth_token,
                 handler_object,
                 command,
-            } => {
-                let (_connection, player) =
-                    self.verify_tokens(client_token, auth_token, client_id)?;
-                self.submit_command_task_typed(
-                    scheduler_client,
-                    client_id,
-                    &handler_object,
-                    &player,
-                    command,
-                )
-            }
+                mode,
+            } => match mode {
+                InvocationMode::Connected { client_token } => {
+                    let (_connection, player) =
+                        self.verify_tokens(client_token, auth_token, client_id)?;
+                    self.submit_command_task_typed(
+                        scheduler_client,
+                        client_id,
+                        &handler_object,
+                        &player,
+                        command,
+                    )
+                }
+                InvocationMode::CaptureOutput { timeout } => {
+                    let player = self.validate_auth_token(auth_token, None)?;
+                    let deadline = self.capture_deadline(timeout)?;
+                    debug!(%player, ?handler_object, ?deadline, "Submitting captured command");
+                    self.submit_captured_command_task_typed(
+                        scheduler_client,
+                        client_id,
+                        &player,
+                        &handler_object,
+                        command,
+                        deadline,
+                    )
+                }
+            },
 
             ClientRequest::Detach {
                 client_token,
@@ -849,7 +864,7 @@ struct TypedLoginCommand {
     attach: bool,
 }
 
-/// Decide the deadline for a captured verb call.
+/// Decide the deadline for a captured invocation.
 ///
 /// `requested` of `None` means "use the configured maximum". Zero is not a deadline, and a request
 /// for longer than the daemon allows is refused rather than silently clamped, so a caller can size
@@ -877,9 +892,9 @@ fn resolve_capture_deadline(
 }
 
 fn capture_timeout_reply(deadline: Duration, output: Vec<NarrativeEvent>) -> ClientReply {
-    ClientReply::VerbCallResponse {
-        response: VerbCallResponse {
-            outcome: VerbCallOutcome::Error {
+    ClientReply::InvocationResponse {
+        response: InvocationResponse {
+            outcome: InvocationOutcome::Error {
                 error: SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(deadline)),
             },
             output,
@@ -892,17 +907,17 @@ fn capture_result_reply(
     take_output: impl FnOnce() -> Vec<NarrativeEvent>,
 ) -> ClientReply {
     let outcome = match result {
-        Ok(TaskNotification::Result(result)) => VerbCallOutcome::Success { result },
-        Ok(TaskNotification::Suspended) => VerbCallOutcome::Error {
+        Ok(TaskNotification::Result(result)) => InvocationOutcome::Success { result },
+        Ok(TaskNotification::Suspended) => InvocationOutcome::Error {
             error: SchedulerError::TaskAbortedError,
         },
-        Err(error) => VerbCallOutcome::Error { error },
+        Err(error) => InvocationOutcome::Error { error },
     };
-    let response = VerbCallResponse {
+    let response = InvocationResponse {
         outcome,
         output: take_output(),
     };
-    ClientReply::VerbCallResponse { response }
+    ClientReply::InvocationResponse { response }
 }
 
 impl RpcMessageHandler {
@@ -1161,24 +1176,11 @@ impl RpcMessageHandler {
         }
     }
 
-    /// Resolve how long a captured verb call may wait for its result, against this daemon's
-    /// configured maximum.
+    /// Resolve how long a captured invocation may wait for its result.
     fn capture_deadline(&self, requested: Option<Duration>) -> Result<Duration, RpcMessageError> {
         resolve_capture_deadline(requested, self.config.runtime.max_capture_deadline())
     }
 
-    /// Run a verb and wait for its result, collecting the narrative output it committed instead
-    /// of delivering that output to a connection.
-    ///
-    /// The task keeps running while this waits, including across suspension. At the deadline,
-    /// cancellation wins unless the task has already claimed its terminal transaction commit. A
-    /// claimed completion is irrevocable, so the daemon waits for session finalization and returns
-    /// that result instead of reporting a timeout after committing its mutations.
-    ///
-    /// The deadline covers submission and cancellation as well as the run itself. Both of those
-    /// are synchronous scheduler requests which can take seconds of their own under load, and a
-    /// caller that gave up at the deadline would otherwise see its transport time out rather than
-    /// the time-limit reply this returns.
     #[allow(clippy::too_many_arguments)]
     fn submit_captured_verb_task_typed(
         &self,
@@ -1190,6 +1192,79 @@ impl RpcMessageHandler {
         args: Vec<Var>,
         authority: &Obj,
         deadline: Duration,
+    ) -> Result<ClientReply, RpcMessageError> {
+        self.submit_captured_task_typed(
+            scheduler_client,
+            client_id,
+            player,
+            deadline,
+            "verb",
+            move |scheduler_client, expires_at, session| {
+                scheduler_client.submit_verb_task_before(
+                    expires_at,
+                    player,
+                    object,
+                    verb,
+                    moor_var::List::from_iter(args),
+                    v_empty_str(),
+                    authority,
+                    session,
+                )
+            },
+        )
+    }
+
+    fn submit_captured_command_task_typed(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        player: &Obj,
+        handler_object: &Obj,
+        command: String,
+        deadline: Duration,
+    ) -> Result<ClientReply, RpcMessageError> {
+        self.submit_captured_task_typed(
+            scheduler_client,
+            client_id,
+            player,
+            deadline,
+            "command",
+            move |scheduler_client, expires_at, session| {
+                scheduler_client.submit_command_task_before(
+                    expires_at,
+                    handler_object,
+                    player,
+                    &command,
+                    session,
+                )
+            },
+        )
+    }
+
+    /// Run a task and wait for its result, collecting committed narrative output instead of
+    /// delivering it to a connection.
+    ///
+    /// The task keeps running while this waits, including across suspension. At the deadline,
+    /// cancellation wins unless the task has already claimed its terminal transaction commit. A
+    /// claimed completion is irrevocable, so the daemon waits for session finalization and returns
+    /// that result instead of reporting a timeout after committing its mutations.
+    ///
+    /// The deadline covers submission and cancellation as well as the run itself. Both of those
+    /// are synchronous scheduler requests which can take seconds of their own under load, and a
+    /// caller that gave up at the deadline would otherwise see its transport time out rather than
+    /// the time-limit reply this returns.
+    fn submit_captured_task_typed(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        player: &Obj,
+        deadline: Duration,
+        operation: &'static str,
+        submit: impl FnOnce(
+            &SchedulerClient,
+            Instant,
+            Arc<dyn Session>,
+        ) -> Result<TaskHandle, SchedulerError>,
     ) -> Result<ClientReply, RpcMessageError> {
         use crate::rpc::output_capture_session::OutputCaptureSession;
         use moor_kernel::tasks::TaskNotification;
@@ -1219,19 +1294,10 @@ impl RpcMessageHandler {
         if submission_budget.is_zero() {
             return Ok(capture_timeout_reply(deadline, take_output()));
         }
-        let task_handle = match scheduler_client.submit_verb_task_before(
-            expires_at,
-            player,
-            object,
-            verb,
-            moor_var::List::from_iter(args),
-            v_empty_str(),
-            authority,
-            session.clone(),
-        ) {
+        let task_handle = match submit(&scheduler_client, expires_at, session.clone()) {
             Ok(t) => t,
             Err(e) => {
-                error!(error = ?e, "Error submitting captured verb task");
+                error!(?operation, error = ?e, "Error submitting captured task");
                 if Instant::now() >= expires_at {
                     return Ok(capture_timeout_reply(deadline, take_output()));
                 }
@@ -1257,18 +1323,18 @@ impl RpcMessageHandler {
             }
             match receiver.recv_timeout(remaining) {
                 Ok((_, Ok(TaskNotification::Result(v)))) => {
-                    return Ok(ClientReply::VerbCallResponse {
-                        response: VerbCallResponse {
-                            outcome: VerbCallOutcome::Success { result: v },
+                    return Ok(ClientReply::InvocationResponse {
+                        response: InvocationResponse {
+                            outcome: InvocationOutcome::Success { result: v },
                             output: take_output(),
                         },
                     });
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => {
-                    return Ok(ClientReply::VerbCallResponse {
-                        response: VerbCallResponse {
-                            outcome: VerbCallOutcome::Error { error: e },
+                    return Ok(ClientReply::InvocationResponse {
+                        response: InvocationResponse {
+                            outcome: InvocationOutcome::Error { error: e },
                             output: take_output(),
                         },
                     });
@@ -1321,9 +1387,9 @@ impl RpcMessageHandler {
                     ?error,
                     "Captured task cancellation was not acknowledged"
                 );
-                return ClientReply::VerbCallResponse {
-                    response: VerbCallResponse {
-                        outcome: VerbCallOutcome::Error { error },
+                return ClientReply::InvocationResponse {
+                    response: InvocationResponse {
+                        outcome: InvocationOutcome::Error { error },
                         output: take_output(),
                     },
                 };
@@ -1336,9 +1402,9 @@ impl RpcMessageHandler {
                 Ok((_task_id, result)) => capture_result_reply(result, take_output),
                 Err(error) => {
                     error!(task_id, ?error, "Completing captured task lost its result");
-                    ClientReply::VerbCallResponse {
-                        response: VerbCallResponse {
-                            outcome: VerbCallOutcome::Error {
+                    ClientReply::InvocationResponse {
+                        response: InvocationResponse {
+                            outcome: InvocationOutcome::Error {
                                 error: SchedulerError::SchedulerNotResponding,
                             },
                             output: take_output(),
@@ -1354,9 +1420,9 @@ impl RpcMessageHandler {
                         ?error,
                         "Scheduler could not determine captured task outcome"
                     );
-                    ClientReply::VerbCallResponse {
-                        response: VerbCallResponse {
-                            outcome: VerbCallOutcome::Error {
+                    ClientReply::InvocationResponse {
+                        response: InvocationResponse {
+                            outcome: InvocationOutcome::Error {
                                 error: SchedulerError::TaskNotFound(task_id),
                             },
                             output: take_output(),

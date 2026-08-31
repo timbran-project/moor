@@ -6,33 +6,33 @@ import flatbuffers
 from flatbuffers.compat import import_numpy
 np = import_numpy()
 
-class VerbCallResponse(object):
+class InvocationResponse(object):
     __slots__ = ['_tab']
 
     @classmethod
     def GetRootAs(cls, buf, offset=0):
         n = flatbuffers.encode.Get(flatbuffers.packer.uoffset, buf, offset)
-        x = VerbCallResponse()
+        x = InvocationResponse()
         x.Init(buf, n + offset)
         return x
 
     @classmethod
-    def GetRootAsVerbCallResponse(cls, buf, offset=0):
+    def GetRootAsInvocationResponse(cls, buf, offset=0):
         """This method is deprecated. Please switch to GetRootAs."""
         return cls.GetRootAs(buf, offset)
-    # VerbCallResponse
+    # InvocationResponse
     def Init(self, buf, pos):
         self._tab = flatbuffers.table.Table(buf, pos)
 
-    # VerbCallResponse
-    def ResponseType(self):
+    # InvocationResponse
+    def OutcomeType(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 0
 
-    # VerbCallResponse
-    def Response(self):
+    # InvocationResponse
+    def Outcome(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
         if o != 0:
             from flatbuffers.table import Table
@@ -41,7 +41,7 @@ class VerbCallResponse(object):
             return obj
         return None
 
-    # VerbCallResponse
+    # InvocationResponse
     def Output(self, j):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
@@ -54,33 +54,33 @@ class VerbCallResponse(object):
             return obj
         return None
 
-    # VerbCallResponse
+    # InvocationResponse
     def OutputLength(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
-    # VerbCallResponse
+    # InvocationResponse
     def OutputIsNone(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         return o == 0
 
-def VerbCallResponseStart(builder): builder.StartObject(3)
+def InvocationResponseStart(builder): builder.StartObject(3)
 def Start(builder):
-    return VerbCallResponseStart(builder)
-def VerbCallResponseAddResponseType(builder, responseType): builder.PrependUint8Slot(0, responseType, 0)
-def AddResponseType(builder, responseType):
-    return VerbCallResponseAddResponseType(builder, responseType)
-def VerbCallResponseAddResponse(builder, response): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(response), 0)
-def AddResponse(builder, response):
-    return VerbCallResponseAddResponse(builder, response)
-def VerbCallResponseAddOutput(builder, output): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(output), 0)
+    return InvocationResponseStart(builder)
+def InvocationResponseAddOutcomeType(builder, outcomeType): builder.PrependUint8Slot(0, outcomeType, 0)
+def AddOutcomeType(builder, outcomeType):
+    return InvocationResponseAddOutcomeType(builder, outcomeType)
+def InvocationResponseAddOutcome(builder, outcome): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(outcome), 0)
+def AddOutcome(builder, outcome):
+    return InvocationResponseAddOutcome(builder, outcome)
+def InvocationResponseAddOutput(builder, output): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(output), 0)
 def AddOutput(builder, output):
-    return VerbCallResponseAddOutput(builder, output)
-def VerbCallResponseStartOutputVector(builder, numElems): return builder.StartVector(4, numElems, 4)
+    return InvocationResponseAddOutput(builder, output)
+def InvocationResponseStartOutputVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartOutputVector(builder, numElems):
-    return VerbCallResponseStartOutputVector(builder, numElems)
-def VerbCallResponseEnd(builder): return builder.EndObject()
+    return InvocationResponseStartOutputVector(builder, numElems)
+def InvocationResponseEnd(builder): return builder.EndObject()
 def End(builder):
-    return VerbCallResponseEnd(builder)
+    return InvocationResponseEnd(builder)

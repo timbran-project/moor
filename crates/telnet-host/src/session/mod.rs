@@ -40,7 +40,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
-        ClientReply, ClientRequest, ConnectType as ApiConnectType,
+        ClientReply, ClientRequest, ConnectType as ApiConnectType, InvocationMode,
     },
 };
 use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
@@ -1695,10 +1695,12 @@ impl TelnetConnection {
                 .client_call(
                     self.client_id,
                     ClientRequest::Command {
-                        client_token: self.client_token.clone(),
                         auth_token: auth_token.clone(),
                         handler_object: self.handler_object,
                         command: line,
+                        mode: InvocationMode::Connected {
+                            client_token: self.client_token.clone(),
+                        },
                     },
                 )
                 .await

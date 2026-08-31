@@ -13,13 +13,15 @@
 
 //! Verb listing, retrieval, invocation, and programming endpoints.
 
+use super::invocation_response;
+
 use crate::host::{
     auth::{EphemeralAuth, StatelessAuth},
     flatbuffer_response,
     negotiate::{
         BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, JSON_CONTENT_TYPE, ResponseFormat,
-        TEXT_PLAIN_CONTENT_TYPE, negotiate_response_format, reply_result_to_json,
-        require_content_type, verb_call_response_to_json,
+        TEXT_PLAIN_CONTENT_TYPE, invocation_response_to_json, negotiate_response_format,
+        reply_result_to_json, require_content_type,
     },
     web_host,
 };
@@ -30,13 +32,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use moor_common::model::ObjectRef;
-use moor_runtime_api::{
-    api::{ClientReply, ClientRequest, EntityType, InvocationMode},
-    api_codec::encode_verb_call_response,
-};
+use moor_runtime_api::api::{ClientRequest, EntityType, InvocationMode};
 use moor_schema::{
     convert::{var_from_flatbuffer, var_from_flatbuffer_ref},
-    rpc as moor_rpc, var as moor_var_schema,
+    var as moor_var_schema,
 };
 use moor_var::Symbol;
 use planus::ReadAsRoot;
@@ -205,7 +204,7 @@ pub async fn invoke_verb_handler(
         mode: InvocationMode::CaptureOutput { timeout: None },
     };
 
-    // This endpoint answers with a bare VerbCallResponse rather than the ReplyResult envelope the
+    // This endpoint answers with a bare InvocationResponse rather than the ReplyResult envelope the
     // other endpoints use, so take the typed reply and encode only the final HTTP form.
     let reply = match rpc_client.client_call(client_id, invoke_msg).await {
         Ok(reply) => reply,
@@ -214,7 +213,7 @@ pub async fn invoke_verb_handler(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let response = match verb_call_response(reply) {
+    let response = match invocation_response(reply) {
         Ok(response) => response,
         Err(status) => return status.into_response(),
     };
@@ -226,7 +225,7 @@ pub async fn invoke_verb_handler(
             flatbuffer_response(response_bytes)
         }
         ResponseFormat::Json => {
-            verb_call_response_to_json(&response).unwrap_or_else(|status| status.into_response())
+            invocation_response_to_json(&response).unwrap_or_else(|status| status.into_response())
         }
     }
 }
@@ -257,18 +256,6 @@ fn decode_json_args(body: &[u8]) -> Result<Vec<moor_var::Var>, String> {
         return Err("decoded JSON arguments were not a list".to_string());
     };
     Ok(args.iter().collect())
-}
-
-/// Turn the daemon's typed reply to a verb invocation into the FlatBuffer this endpoint returns.
-fn verb_call_response(reply: ClientReply) -> Result<moor_rpc::VerbCallResponse, StatusCode> {
-    let ClientReply::VerbCallResponse { response } = reply else {
-        error!("Unexpected daemon reply to a verb invocation: {reply:?}");
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
-    };
-    encode_verb_call_response(response).map_err(|e| {
-        error!("Failed to encode verb call response: {e:?}");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
 }
 
 pub async fn verb_program_handler(
@@ -339,7 +326,8 @@ pub async fn verb_program_handler(
 mod tests {
     use super::*;
     use moor_common::tasks::{NarrativeEvent, SchedulerError};
-    use moor_runtime_api::api::{VerbCallOutcome, VerbCallResponse};
+    use moor_runtime_api::api::{ClientReply, InvocationOutcome, InvocationResponse};
+    use moor_schema::rpc as moor_rpc;
     use moor_var::{Obj, v_int, v_obj, v_str};
 
     #[test]
@@ -374,15 +362,15 @@ mod tests {
             false,
             None,
         );
-        let reply = ClientReply::VerbCallResponse {
-            response: VerbCallResponse {
-                outcome: VerbCallOutcome::Success { result: v_int(7) },
+        let reply = ClientReply::InvocationResponse {
+            response: InvocationResponse {
+                outcome: InvocationOutcome::Success { result: v_int(7) },
                 output: vec![event],
             },
         };
 
-        let encoded = verb_call_response(reply).expect("Should encode the response");
-        let moor_rpc::VerbCallResponseUnion::VerbCallSuccess(success) = encoded.response else {
+        let encoded = invocation_response(reply).expect("Should encode the response");
+        let moor_rpc::InvocationOutcome::InvocationSuccess(success) = encoded.outcome else {
             panic!("Expected a success response");
         };
         assert_eq!(encoded.output.len(), 1);
@@ -393,10 +381,10 @@ mod tests {
     }
 
     #[test]
-    fn a_task_error_is_encoded_as_a_verb_call_error() {
-        let reply = ClientReply::VerbCallResponse {
-            response: VerbCallResponse {
-                outcome: VerbCallOutcome::Error {
+    fn a_task_error_is_encoded_as_an_invocation_error() {
+        let reply = ClientReply::InvocationResponse {
+            response: InvocationResponse {
+                outcome: InvocationOutcome::Error {
                     error: SchedulerError::TaskAbortedCancelled,
                 },
                 output: vec![NarrativeEvent::notify(
@@ -410,20 +398,20 @@ mod tests {
             },
         };
 
-        let encoded = verb_call_response(reply).expect("Should encode the response");
+        let encoded = invocation_response(reply).expect("Should encode the response");
         assert!(matches!(
-            encoded.response,
-            moor_rpc::VerbCallResponseUnion::VerbCallError(_)
+            encoded.outcome,
+            moor_rpc::InvocationOutcome::InvocationError(_)
         ));
         assert_eq!(encoded.output.len(), 1);
     }
 
     #[test]
-    fn a_reply_that_is_not_a_verb_call_response_is_an_error() {
+    fn a_reply_that_is_not_an_invocation_response_is_an_error() {
         let reply = ClientReply::TaskSubmitted { task_id: 1 };
 
         assert_eq!(
-            verb_call_response(reply),
+            invocation_response(reply),
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         );
     }

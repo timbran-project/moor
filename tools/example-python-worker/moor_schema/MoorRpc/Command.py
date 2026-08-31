@@ -25,19 +25,8 @@ class Command(object):
         self._tab = flatbuffers.table.Table(buf, pos)
 
     # Command
-    def ClientToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
-        if o != 0:
-            x = self._tab.Indirect(o + self._tab.Pos)
-            from MoorRpc.ClientToken import ClientToken
-            obj = ClientToken()
-            obj.Init(self._tab.Bytes, x)
-            return obj
-        return None
-
-    # Command
     def AuthToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorRpc.AuthToken import AuthToken
@@ -48,7 +37,7 @@ class Command(object):
 
     # Command
     def HandlerObject(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorCommon.Obj import Obj
@@ -59,26 +48,46 @@ class Command(object):
 
     # Command
     def Command(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             return self._tab.String(o + self._tab.Pos)
         return None
 
-def CommandStart(builder): builder.StartObject(4)
+    # Command
+    def ModeType(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # Command
+    def Mode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        if o != 0:
+            from flatbuffers.table import Table
+            obj = Table(bytearray(), 0)
+            self._tab.Union(obj, o)
+            return obj
+        return None
+
+def CommandStart(builder): builder.StartObject(5)
 def Start(builder):
     return CommandStart(builder)
-def CommandAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
-def AddClientToken(builder, clientToken):
-    return CommandAddClientToken(builder, clientToken)
-def CommandAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
+def CommandAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
 def AddAuthToken(builder, authToken):
     return CommandAddAuthToken(builder, authToken)
-def CommandAddHandlerObject(builder, handlerObject): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(handlerObject), 0)
+def CommandAddHandlerObject(builder, handlerObject): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(handlerObject), 0)
 def AddHandlerObject(builder, handlerObject):
     return CommandAddHandlerObject(builder, handlerObject)
-def CommandAddCommand(builder, command): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(command), 0)
+def CommandAddCommand(builder, command): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(command), 0)
 def AddCommand(builder, command):
     return CommandAddCommand(builder, command)
+def CommandAddModeType(builder, modeType): builder.PrependUint8Slot(3, modeType, 0)
+def AddModeType(builder, modeType):
+    return CommandAddModeType(builder, modeType)
+def CommandAddMode(builder, mode): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(mode), 0)
+def AddMode(builder, mode):
+    return CommandAddMode(builder, mode)
 def CommandEnd(builder): return builder.EndObject()
 def End(builder):
     return CommandEnd(builder)

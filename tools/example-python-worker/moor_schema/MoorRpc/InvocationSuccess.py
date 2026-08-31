@@ -6,41 +6,41 @@ import flatbuffers
 from flatbuffers.compat import import_numpy
 np = import_numpy()
 
-class VerbCallError(object):
+class InvocationSuccess(object):
     __slots__ = ['_tab']
 
     @classmethod
     def GetRootAs(cls, buf, offset=0):
         n = flatbuffers.encode.Get(flatbuffers.packer.uoffset, buf, offset)
-        x = VerbCallError()
+        x = InvocationSuccess()
         x.Init(buf, n + offset)
         return x
 
     @classmethod
-    def GetRootAsVerbCallError(cls, buf, offset=0):
+    def GetRootAsInvocationSuccess(cls, buf, offset=0):
         """This method is deprecated. Please switch to GetRootAs."""
         return cls.GetRootAs(buf, offset)
-    # VerbCallError
+    # InvocationSuccess
     def Init(self, buf, pos):
         self._tab = flatbuffers.table.Table(buf, pos)
 
-    # VerbCallError
-    def Error(self):
+    # InvocationSuccess
+    def Result(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
-            from MoorRpc.SchedulerError import SchedulerError
-            obj = SchedulerError()
+            from MoorVar.Var import Var
+            obj = Var()
             obj.Init(self._tab.Bytes, x)
             return obj
         return None
 
-def VerbCallErrorStart(builder): builder.StartObject(1)
+def InvocationSuccessStart(builder): builder.StartObject(1)
 def Start(builder):
-    return VerbCallErrorStart(builder)
-def VerbCallErrorAddError(builder, error): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(error), 0)
-def AddError(builder, error):
-    return VerbCallErrorAddError(builder, error)
-def VerbCallErrorEnd(builder): return builder.EndObject()
+    return InvocationSuccessStart(builder)
+def InvocationSuccessAddResult(builder, result): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(result), 0)
+def AddResult(builder, result):
+    return InvocationSuccessAddResult(builder, result)
+def InvocationSuccessEnd(builder): return builder.EndObject()
 def End(builder):
-    return VerbCallErrorEnd(builder)
+    return InvocationSuccessEnd(builder)

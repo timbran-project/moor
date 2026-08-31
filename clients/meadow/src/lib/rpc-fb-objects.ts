@@ -108,7 +108,7 @@ export async function invokeVerbFlatBuffer(
 
         const eventIdBytes = narrativeEvent.eventId()?.dataArray();
         const eventId = eventIdBytes
-            ? Array.from(eventIdBytes).map((b: number) => b.toString(16).padStart(2, "0")).join("")
+            ? Array.from(eventIdBytes as ArrayLike<number>).map((b) => b.toString(16).padStart(2, "0")).join("")
             : "";
         const timestamp = new Date(Number(narrativeEvent.timestamp()) / 1000000);
         const authorVar = narrativeEvent.author();

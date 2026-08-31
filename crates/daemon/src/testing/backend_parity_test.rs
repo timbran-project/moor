@@ -23,9 +23,9 @@ mod tests {
     use moor_common::tasks::Event;
     use moor_runtime_api::{
         AuthToken, ClientToken, HostType, RpcMessageError,
-        api::{ClientReply, ClientRequest, HostReply, HostRequest, ListenerInfo},
-        mk_client_pong_msg, mk_command_msg, mk_connection_establish_msg, mk_host_pong_msg,
-        mk_login_command_msg, mk_register_host_msg, obj_fb,
+        api::{ClientReply, ClientRequest, HostReply, HostRequest, InvocationMode, ListenerInfo},
+        mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
+        mk_host_pong_msg, mk_login_command_msg, mk_register_host_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
@@ -275,10 +275,10 @@ mod tests {
                 .client_call(
                     client_id,
                     ClientRequest::Command {
-                        client_token,
                         auth_token,
                         handler_object: player_obj,
                         command: "@who".to_string(),
+                        mode: InvocationMode::Connected { client_token },
                     },
                 )
                 .unwrap_or_else(|e| panic!("{} command failed: {e}", backend.name()));
@@ -487,16 +487,22 @@ mod tests {
                 ))
             }
             ClientRequest::Command {
-                client_token,
                 auth_token,
                 handler_object,
                 command,
-            } => Ok(mk_command_msg(
-                &client_token,
-                &auth_token,
-                &handler_object,
-                command,
-            )),
+                mode,
+            } => match mode {
+                InvocationMode::Connected { client_token } => Ok(mk_command_msg(
+                    &client_token,
+                    &auth_token,
+                    &handler_object,
+                    command,
+                )),
+                InvocationMode::CaptureOutput { timeout } => {
+                    mk_command_capture_msg(&auth_token, &handler_object, command, timeout)
+                        .ok_or_else(|| "Failed to encode captured command".to_string())
+                }
+            },
             ClientRequest::ClientPong {
                 client_token,
                 client_sys_time,

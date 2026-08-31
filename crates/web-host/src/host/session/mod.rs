@@ -23,7 +23,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken, HostType,
     api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
-        ClientReply, ClientRequest, RuntimeClient,
+        ClientReply, ClientRequest, InvocationMode, RuntimeClient,
     },
     api_codec::encode_client_event_bytes,
 };
@@ -336,10 +336,12 @@ impl ClientSession {
             .client_call(
                 self.client_id,
                 ClientRequest::Command {
-                    client_token: self.client_token.clone(),
                     auth_token: self.auth_token.clone(),
                     handler_object: self.handler_object,
                     command: cmd,
+                    mode: InvocationMode::Connected {
+                        client_token: self.client_token.clone(),
+                    },
                 },
             )
             .await;

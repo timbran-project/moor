@@ -12,11 +12,11 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { CompileError } from "@moor/schema/generated/moor-common/compile-error";
+import { InvocationError } from "@moor/schema/generated/moor-rpc/invocation-error";
+import { unionToInvocationOutcome } from "@moor/schema/generated/moor-rpc/invocation-outcome";
+import { InvocationResponse } from "@moor/schema/generated/moor-rpc/invocation-response";
+import { InvocationSuccess } from "@moor/schema/generated/moor-rpc/invocation-success";
 import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { VerbCallError } from "@moor/schema/generated/moor-rpc/verb-call-error";
-import { VerbCallResponse } from "@moor/schema/generated/moor-rpc/verb-call-response";
-import { unionToVerbCallResponseUnion } from "@moor/schema/generated/moor-rpc/verb-call-response-union";
-import { VerbCallSuccess } from "@moor/schema/generated/moor-rpc/verb-call-success";
 import { VerbCompilationError } from "@moor/schema/generated/moor-rpc/verb-compilation-error";
 import {
     unionToVerbProgramErrorUnion,
@@ -38,39 +38,39 @@ function replyTypeName(value: unknown): string {
 export function parseVerbCallUnionFromBytes(
     bytes: Uint8Array,
     context: string,
-): VerbCallSuccess | VerbCallError {
+): InvocationSuccess | InvocationError {
     const verbCallResponse = parseVerbCallResponseFromBytes(bytes);
     return parseVerbCallUnionFromResponse(verbCallResponse, context);
 }
 
-export function parseVerbCallResponseFromBytes(bytes: Uint8Array): VerbCallResponse {
-    return VerbCallResponse.getRootAsVerbCallResponse(new flatbuffers.ByteBuffer(bytes));
+export function parseVerbCallResponseFromBytes(bytes: Uint8Array): InvocationResponse {
+    return InvocationResponse.getRootAsInvocationResponse(new flatbuffers.ByteBuffer(bytes));
 }
 
 export function parseVerbCallUnionFromReply(
     replyUnion: unknown,
     context: string,
-): VerbCallSuccess | VerbCallError {
+): InvocationSuccess | InvocationError {
     return parseVerbCallUnionFromResponse(parseVerbCallResponseFromReply(replyUnion, context), context);
 }
 
-export function parseVerbCallResponseFromReply(replyUnion: unknown, context: string): VerbCallResponse {
-    if (!(replyUnion instanceof VerbCallResponse)) {
+export function parseVerbCallResponseFromReply(replyUnion: unknown, context: string): InvocationResponse {
+    if (!(replyUnion instanceof InvocationResponse)) {
         throw new Error(`${context}: unexpected reply type ${replyTypeName(replyUnion)}`);
     }
     return replyUnion;
 }
 
 export interface ParsedVerbCallSuccess {
-    response: VerbCallResponse;
-    success: VerbCallSuccess;
+    response: InvocationResponse;
+    success: InvocationSuccess;
 }
 
 export class VerbCallFailure extends Error {
     constructor(
         message: string,
-        readonly response: VerbCallResponse,
-        readonly failure: VerbCallError,
+        readonly response: InvocationResponse,
+        readonly failure: InvocationError,
     ) {
         super(message);
         this.name = "VerbCallFailure";
@@ -94,30 +94,30 @@ export function parseVerbCallSuccessFromReply(
 }
 
 function parseVerbCallUnionFromResponse(
-    verbCallResponse: VerbCallResponse,
+    verbCallResponse: InvocationResponse,
     context: string,
-): VerbCallSuccess | VerbCallError {
-    const responseType = verbCallResponse.responseType();
-    const responseUnion = unionToVerbCallResponseUnion(
-        responseType,
-        (obj: any) => verbCallResponse.response(obj),
+): InvocationSuccess | InvocationError {
+    const outcomeType = verbCallResponse.outcomeType();
+    const responseUnion = unionToInvocationOutcome(
+        outcomeType,
+        (obj: any) => verbCallResponse.outcome(obj),
     );
 
     if (!responseUnion) {
         throw new Error(`${context}: failed to parse verb call response`);
     }
-    if (!(responseUnion instanceof VerbCallSuccess) && !(responseUnion instanceof VerbCallError)) {
+    if (!(responseUnion instanceof InvocationSuccess) && !(responseUnion instanceof InvocationError)) {
         throw new Error(`${context}: unexpected verb call response union`);
     }
     return responseUnion;
 }
 
 function ensureVerbCallSuccess(
-    response: VerbCallResponse,
-    responseUnion: VerbCallSuccess | VerbCallError,
+    response: InvocationResponse,
+    responseUnion: InvocationSuccess | InvocationError,
     context: string,
 ): ParsedVerbCallSuccess {
-    if (responseUnion instanceof VerbCallError) {
+    if (responseUnion instanceof InvocationError) {
         const schedulerError = responseUnion.error();
         if (schedulerError) {
             const errorType = schedulerError.errorType();

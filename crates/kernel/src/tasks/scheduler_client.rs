@@ -82,6 +82,77 @@ impl SchedulerClient {
             .map_err(|_| SchedulerError::SchedulerNotResponding)?
     }
 
+    fn submit_task_before(
+        &self,
+        expires_at: Instant,
+        request: impl FnOnce(&Scheduler) -> Result<TaskHandle, SchedulerError> + Send + 'static,
+    ) -> Result<TaskHandle, SchedulerError> {
+        let timeout = expires_at.saturating_duration_since(Instant::now());
+        let (reply_send, reply_recv) = flume::bounded(1);
+        let handoff = Arc::new(AtomicU8::new(HANDOFF_WAITING));
+        let request_handoff = handoff.clone();
+        self.scheduler
+            .enqueue_client_request(Box::new(move |scheduler| {
+                if request_handoff.load(Ordering::Acquire) == HANDOFF_ABANDONED {
+                    return;
+                }
+
+                let result = if Instant::now() >= expires_at {
+                    Err(SchedulerError::SchedulerNotResponding)
+                } else {
+                    request(scheduler)
+                };
+                let task_id = result.as_ref().ok().map(TaskHandle::task_id);
+
+                if request_handoff
+                    .compare_exchange(
+                        HANDOFF_WAITING,
+                        HANDOFF_DELIVERED,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_err()
+                {
+                    if let Some(task_id) = task_id {
+                        scheduler.handle_abort_task(task_id);
+                    }
+                    return;
+                }
+
+                if reply_send.send(result).is_err()
+                    && let Some(task_id) = task_id
+                {
+                    scheduler.handle_abort_task(task_id);
+                }
+            }))?;
+
+        match reply_recv.recv_timeout(timeout) {
+            Ok(result) => result,
+            Err(flume::RecvTimeoutError::Disconnected) => {
+                Err(SchedulerError::SchedulerNotResponding)
+            }
+            Err(flume::RecvTimeoutError::Timeout) => {
+                if handoff
+                    .compare_exchange(
+                        HANDOFF_WAITING,
+                        HANDOFF_ABANDONED,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
+                {
+                    return Err(SchedulerError::SchedulerNotResponding);
+                }
+
+                // The scheduler won the handoff before the deadline. It has committed to sending
+                // the handle, so wait for that send rather than orphaning the submitted task.
+                reply_recv
+                    .recv()
+                    .map_err(|_| SchedulerError::SchedulerNotResponding)?
+            }
+        }
+    }
+
     fn ensure_running(&self) -> Result<(), SchedulerError> {
         if self.scheduler.state() != SchedulerState::Running {
             return Err(SchedulerError::SchedulerNotResponding);
@@ -105,6 +176,27 @@ impl SchedulerClient {
         let player = *player;
         let command = command.to_string();
         self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+            scheduler.submit_command_task_inner(handler_object, player, command, session)
+        })
+    }
+
+    /// Submit a command only while `expires_at` has not passed.
+    pub fn submit_command_task_before(
+        &self,
+        expires_at: Instant,
+        handler_object: &Obj,
+        player: &Obj,
+        command: &str,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitCommandTaskLatency);
+
+        let handler_object = *handler_object;
+        let player = *player;
+        let command = command.to_string();
+        self.submit_task_before(expires_at, move |scheduler| {
             scheduler.submit_command_task_inner(handler_object, player, command, session)
         })
     }
@@ -190,78 +282,17 @@ impl SchedulerClient {
         let player = *player;
         let vloc = vloc.clone();
         let authority_principal = *authority_principal;
-        let timeout = expires_at.saturating_duration_since(Instant::now());
-        let (reply_send, reply_recv) = flume::bounded(1);
-        let handoff = Arc::new(AtomicU8::new(HANDOFF_WAITING));
-        let request_handoff = handoff.clone();
-        self.scheduler
-            .enqueue_client_request(Box::new(move |scheduler| {
-                if request_handoff.load(Ordering::Acquire) == HANDOFF_ABANDONED {
-                    return;
-                }
-
-                let result = if Instant::now() >= expires_at {
-                    Err(SchedulerError::SchedulerNotResponding)
-                } else {
-                    scheduler.submit_verb_task_inner(
-                        player,
-                        vloc,
-                        verb,
-                        args,
-                        argstr,
-                        authority_principal,
-                        session,
-                    )
-                };
-                let task_id = result.as_ref().ok().map(TaskHandle::task_id);
-
-                if request_handoff
-                    .compare_exchange(
-                        HANDOFF_WAITING,
-                        HANDOFF_DELIVERED,
-                        Ordering::AcqRel,
-                        Ordering::Acquire,
-                    )
-                    .is_err()
-                {
-                    if let Some(task_id) = task_id {
-                        scheduler.handle_abort_task(task_id);
-                    }
-                    return;
-                }
-
-                if reply_send.send(result).is_err()
-                    && let Some(task_id) = task_id
-                {
-                    scheduler.handle_abort_task(task_id);
-                }
-            }))?;
-
-        match reply_recv.recv_timeout(timeout) {
-            Ok(result) => result,
-            Err(flume::RecvTimeoutError::Disconnected) => {
-                Err(SchedulerError::SchedulerNotResponding)
-            }
-            Err(flume::RecvTimeoutError::Timeout) => {
-                if handoff
-                    .compare_exchange(
-                        HANDOFF_WAITING,
-                        HANDOFF_ABANDONED,
-                        Ordering::AcqRel,
-                        Ordering::Acquire,
-                    )
-                    .is_ok()
-                {
-                    return Err(SchedulerError::SchedulerNotResponding);
-                }
-
-                // The scheduler won the handoff before the deadline. It has committed to sending
-                // the handle, so wait for that send rather than orphaning the submitted task.
-                reply_recv
-                    .recv()
-                    .map_err(|_| SchedulerError::SchedulerNotResponding)?
-            }
-        }
+        self.submit_task_before(expires_at, move |scheduler| {
+            scheduler.submit_verb_task_inner(
+                player,
+                vloc,
+                verb,
+                args,
+                argstr,
+                authority_principal,
+                session,
+            )
+        })
     }
 
     /// result has stopped waiting. Returns false if the task had already finished.

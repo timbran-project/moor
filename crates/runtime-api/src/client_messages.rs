@@ -48,7 +48,7 @@ pub fn mk_login_command_msg(
     }
 }
 
-/// Build a Command message
+/// Build a command whose output goes to the invoking connection.
 #[inline]
 pub fn mk_command_msg(
     client_token: &ClientToken,
@@ -56,12 +56,44 @@ pub fn mk_command_msg(
     handler_object: &Obj,
     command: String,
 ) -> rpc::HostClientToDaemonMessage {
+    mk_command_msg_with_mode(
+        auth_token,
+        handler_object,
+        command,
+        rpc::InvocationMode::ConnectedInvocation(Box::new(rpc::ConnectedInvocation {
+            client_token: client_token_fb(client_token),
+        })),
+    )
+}
+
+/// Build a command whose committed output and result are returned together.
+#[inline]
+pub fn mk_command_capture_msg(
+    auth_token: &AuthToken,
+    handler_object: &Obj,
+    command: String,
+    timeout: Option<Duration>,
+) -> Option<rpc::HostClientToDaemonMessage> {
+    Some(mk_command_msg_with_mode(
+        auth_token,
+        handler_object,
+        command,
+        capture_invocation_mode(timeout)?,
+    ))
+}
+
+fn mk_command_msg_with_mode(
+    auth_token: &AuthToken,
+    handler_object: &Obj,
+    command: String,
+    mode: rpc::InvocationMode,
+) -> rpc::HostClientToDaemonMessage {
     rpc::HostClientToDaemonMessage {
         message: rpc::HostClientToDaemonMessageUnion::Command(Box::new(rpc::Command {
-            client_token: client_token_fb(client_token),
             auth_token: auth_token_fb(auth_token),
             handler_object: obj_fb(handler_object),
             command,
+            mode,
         })),
     }
 }
@@ -473,20 +505,24 @@ pub fn mk_invoke_verb_capture_msg(
     args: Vec<&Var>,
     timeout: Option<Duration>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
-    let timeout_ms = match timeout {
-        Some(timeout) if timeout.is_zero() || timeout > MAX_CAPTURE_DEADLINE => return None,
-        Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
-        None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
-    };
     mk_invoke_verb_msg_with_mode(
         auth_token,
         object,
         verb_name,
         args,
-        rpc::InvocationMode::CaptureOutputInvocation(Box::new(rpc::CaptureOutputInvocation {
-            timeout_ms,
-        })),
+        capture_invocation_mode(timeout)?,
     )
+}
+
+fn capture_invocation_mode(timeout: Option<Duration>) -> Option<rpc::InvocationMode> {
+    let timeout_ms = match timeout {
+        Some(timeout) if timeout.is_zero() || timeout > MAX_CAPTURE_DEADLINE => return None,
+        Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
+        None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
+    };
+    Some(rpc::InvocationMode::CaptureOutputInvocation(Box::new(
+        rpc::CaptureOutputInvocation { timeout_ms },
+    )))
 }
 
 fn mk_invoke_verb_msg_with_mode(
