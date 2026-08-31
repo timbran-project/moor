@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{SchedulerError, SchedulerError::CompilationError, Session};
@@ -24,10 +27,11 @@ use crate::tasks::world_state_action::{
 };
 use crate::{
     config::FeaturesConfig,
-    tasks::{AbortTaskOutcome, SchedulerOp, TaskHandle, TaskId, TaskNotification, sched_counters},
+    tasks::{AbortTaskOutcome, SchedulerOp, TaskHandle, TaskId, sched_counters},
 };
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
 const GC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -158,7 +162,44 @@ impl SchedulerClient {
         })
     }
 
-    /// Cancel a task that the daemon itself submitted, because whatever was waiting for its
+    /// Submit a verb task only while `expires_at` has not passed. The scheduler checks the
+    /// deadline inside its queued closure, so a timed-out caller cannot leave an orphan task.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_verb_task_before(
+        &self,
+        expires_at: Instant,
+        player: &Obj,
+        vloc: &ObjectRef,
+        verb: Symbol,
+        args: List,
+        argstr: Var,
+        authority_principal: &Obj,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitVerbTaskLatency);
+
+        let player = *player;
+        let vloc = vloc.clone();
+        let authority_principal = *authority_principal;
+        let timeout = expires_at.saturating_duration_since(Instant::now());
+        self.request_with_timeout(timeout, move |scheduler| {
+            if Instant::now() >= expires_at {
+                return Err(SchedulerError::SchedulerNotResponding);
+            }
+            scheduler.submit_verb_task_inner(
+                player,
+                vloc,
+                verb,
+                args,
+                argstr,
+                authority_principal,
+                session,
+            )
+        })
+    }
+
     /// result has stopped waiting. Returns false if the task had already finished.
     ///
     /// This is not the MOO-visible `kill_task()`: there is no requesting task to check
@@ -174,19 +215,9 @@ impl SchedulerClient {
         victim_task_id: TaskId,
         timeout: Duration,
     ) -> Result<AbortTaskOutcome, SchedulerError> {
-        let outcome = self.request_with_timeout(timeout, move |scheduler| {
+        self.request_with_timeout(timeout, move |scheduler| {
             Ok(scheduler.handle_abort_task(victim_task_id))
-        })?;
-        if let AbortTaskOutcome::Completed(ref result) = outcome {
-            let cloned = match result {
-                Ok(TaskNotification::Result(value)) => Ok(TaskNotification::Result(value.clone())),
-                Ok(TaskNotification::Suspended) => Ok(TaskNotification::Suspended),
-                Err(error) => Err(error.clone()),
-            };
-            self.scheduler
-                .finalize_completed_task(victim_task_id, cloned);
-        }
-        Ok(outcome)
+        })
     }
 
     /// Receive input that the suspended task requested from the authenticated connection.

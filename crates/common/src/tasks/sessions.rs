@@ -139,19 +139,20 @@ pub trait Session: Send + Sync {
     /// Spool output to the given player's connection.
     /// The actual output will not be sent until the task commits, and will be thrown out on
     /// rollback.
-    fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        self.send_event_with_size(player, event, None)
+    fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError>;
+
+    /// Return the retained size this session would charge for an event, when it performs capture
+    /// accounting. Ordinary connected sessions return `None` and do no recursive payload scan.
+    fn retained_event_size(&self, _player: Obj, _event: &NarrativeEvent) -> Option<usize> {
+        None
     }
 
-    /// Spool output with a payload size already computed by the caller.
-    ///
-    /// Sessions which do not need accounting ignore the hint. Captured sessions use it to avoid
-    /// recursively walking a large value while the scheduler lifecycle lock is held.
+    /// Spool output with a retained size already computed outside scheduler lifecycle locks.
     fn send_event_with_size(
         &self,
         player: Obj,
         event: Box<NarrativeEvent>,
-        _size_bytes: Option<usize>,
+        _size_bytes: usize,
     ) -> Result<(), SessionError> {
         self.send_event(player, event)
     }
@@ -287,8 +288,10 @@ pub enum SessionError {
     NoConnectionForPlayer(Obj),
     #[error("Could not deliver session message")]
     DeliveryError,
+    #[error("Session output exceeded its {0}-event limit")]
+    OutputEventLimitExceeded(usize),
     #[error("Session output exceeded its {0}-byte limit")]
-    OutputLimitExceeded(usize),
+    OutputByteLimitExceeded(usize),
     #[error("Could not commit session: {0}")]
     CommitError(String),
     #[error("Invalid authorization token")]

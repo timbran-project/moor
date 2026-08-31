@@ -92,8 +92,8 @@ pub enum TaskNotification {
 pub enum AbortTaskOutcome {
     /// Cancellation won while the task was still active or suspended.
     Cancelled,
-    /// Completion, including session finalization, won before cancellation.
-    Completed(Result<TaskNotification, SchedulerError>),
+    /// The task has committed world state and is still finalizing its session.
+    Completing,
     /// The scheduler no longer has enough state to determine the terminal outcome.
     NotFound,
 }

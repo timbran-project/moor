@@ -170,6 +170,9 @@ fn execute_to_completion(
             VMHostResponse::AbortLimit(AbortLimitReason::Time(_)) => {
                 panic!("Unexpected time abort")
             }
+            VMHostResponse::AbortLimit(AbortLimitReason::OutputEvents(_)) => {
+                panic!("Unexpected captured output event abort")
+            }
             VMHostResponse::AbortLimit(AbortLimitReason::OutputBytes(_)) => {
                 panic!("Unexpected captured output abort")
             }

@@ -1188,8 +1188,8 @@ impl RpcMessageHandler {
         if submission_budget.is_zero() {
             return Ok(capture_timeout_reply(deadline));
         }
-        let task_handle = match scheduler_client.submit_verb_task_with_timeout(
-            submission_budget,
+        let task_handle = match scheduler_client.submit_verb_task_before(
+            expires_at,
             player,
             object,
             verb,
@@ -1279,7 +1279,7 @@ impl RpcMessageHandler {
         &self,
         scheduler_client: &SchedulerClient,
         task_id: TaskId,
-        _receiver: &Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
+        receiver: &Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
         expires_at: Instant,
         deadline: Duration,
         take_output: impl FnOnce() -> Vec<NarrativeEvent>,
@@ -1301,25 +1301,34 @@ impl RpcMessageHandler {
 
         match outcome {
             AbortTaskOutcome::Cancelled => capture_timeout_reply(deadline),
-            AbortTaskOutcome::Completed(Ok(TaskNotification::Result(result))) => {
-                ClientReply::VerbCallResponse {
-                    response: VerbCallResponse::Success {
-                        result,
-                        output: take_output(),
+            AbortTaskOutcome::Completing => {
+                let remaining = expires_at.saturating_duration_since(Instant::now());
+                match receiver.recv_timeout(remaining) {
+                    Ok((_task_id, Ok(TaskNotification::Result(result)))) => {
+                        ClientReply::VerbCallResponse {
+                            response: VerbCallResponse::Success {
+                                result,
+                                output: take_output(),
+                            },
+                        }
+                    }
+                    Ok((_task_id, Ok(TaskNotification::Suspended))) => {
+                        ClientReply::VerbCallResponse {
+                            response: VerbCallResponse::Error {
+                                error: SchedulerError::TaskAbortedError,
+                            },
+                        }
+                    }
+                    Ok((_task_id, Err(error))) => ClientReply::VerbCallResponse {
+                        response: VerbCallResponse::Error { error },
+                    },
+                    Err(_) => ClientReply::VerbCallResponse {
+                        response: VerbCallResponse::Error {
+                            error: SchedulerError::SchedulerNotResponding,
+                        },
                     },
                 }
             }
-            AbortTaskOutcome::Completed(Ok(TaskNotification::Suspended)) => {
-                error!(task_id, "Scheduler returned a suspended terminal outcome");
-                ClientReply::VerbCallResponse {
-                    response: VerbCallResponse::Error {
-                        error: SchedulerError::TaskAbortedError,
-                    },
-                }
-            }
-            AbortTaskOutcome::Completed(Err(error)) => ClientReply::VerbCallResponse {
-                response: VerbCallResponse::Error { error },
-            },
             AbortTaskOutcome::NotFound => {
                 error!(
                     task_id,

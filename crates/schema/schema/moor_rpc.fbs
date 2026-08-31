@@ -55,7 +55,8 @@ table EnrollmentResponse {
 enum AbortLimitReason: uint8 {
     Ticks = 0,
     Time = 1,
-    OutputBytes = 2
+    OutputBytes = 2,
+    OutputEvents = 3
 }
 
 table AbortLimit {
@@ -63,6 +64,7 @@ table AbortLimit {
     ticks: uint64;  // for Ticks variant
     time_nanos: uint64;  // for Time variant (Duration as nanos)
     output_bytes: uint64;  // for OutputBytes variant
+    output_events: uint64;  // for OutputEvents variant
 }
 
 union SchedulerErrorUnion {

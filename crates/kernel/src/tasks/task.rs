@@ -702,6 +702,13 @@ impl Task {
             VMHostResponse::ContinueOk => Some(self),
 
             VMHostResponse::CompleteSuccess(result) => {
+                if self.kill_switch.load(std::sync::atomic::Ordering::Acquire) {
+                    rollback_current_transaction()
+                        .expect("Could not rollback cancelled task transaction");
+                    task_scheduler_client.abort_cancelled();
+                    return None;
+                }
+
                 // Special case: in case of return from $do_command @ top-level, we need to look at the results:
                 //      non-true value? => parse_command and restart (in same transaction)
                 //      true value? => commit and return success.
@@ -992,6 +999,9 @@ impl Task {
                             "Time".to_string(),
                             format!("{:.3}s", duration.as_secs_f64()),
                         ),
+                        AbortLimitReason::OutputEvents(events) => {
+                            ("OutputEvents".to_string(), events.to_string())
+                        }
                         AbortLimitReason::OutputBytes(bytes) => {
                             ("OutputBytes".to_string(), bytes.to_string())
                         }

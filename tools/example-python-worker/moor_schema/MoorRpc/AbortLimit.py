@@ -45,7 +45,21 @@ class AbortLimit(object):
             return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
         return 0
 
-def AbortLimitStart(builder): builder.StartObject(3)
+    # AbortLimit
+    def OutputBytes(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+    # AbortLimit
+    def OutputEvents(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+def AbortLimitStart(builder): builder.StartObject(5)
 def Start(builder):
     return AbortLimitStart(builder)
 def AbortLimitAddReason(builder, reason): builder.PrependUint8Slot(0, reason, 0)
@@ -57,6 +71,12 @@ def AddTicks(builder, ticks):
 def AbortLimitAddTimeNanos(builder, timeNanos): builder.PrependUint64Slot(2, timeNanos, 0)
 def AddTimeNanos(builder, timeNanos):
     return AbortLimitAddTimeNanos(builder, timeNanos)
+def AbortLimitAddOutputBytes(builder, outputBytes): builder.PrependUint64Slot(3, outputBytes, 0)
+def AddOutputBytes(builder, outputBytes):
+    return AbortLimitAddOutputBytes(builder, outputBytes)
+def AbortLimitAddOutputEvents(builder, outputEvents): builder.PrependUint64Slot(4, outputEvents, 0)
+def AddOutputEvents(builder, outputEvents):
+    return AbortLimitAddOutputEvents(builder, outputEvents)
 def AbortLimitEnd(builder): return builder.EndObject()
 def End(builder):
     return AbortLimitEnd(builder)

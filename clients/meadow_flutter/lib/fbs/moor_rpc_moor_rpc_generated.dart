@@ -28,12 +28,19 @@ class AbortLimitReason {
       value == null ? null : AbortLimitReason.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 1;
+  static const int maxValue = 3;
   static bool containsValue(int value) => values.containsKey(value);
 
   static const AbortLimitReason Ticks = AbortLimitReason._(0);
   static const AbortLimitReason Time = AbortLimitReason._(1);
-  static const Map<int, AbortLimitReason> values = {0: Ticks, 1: Time};
+  static const AbortLimitReason OutputBytes = AbortLimitReason._(2);
+  static const AbortLimitReason OutputEvents = AbortLimitReason._(3);
+  static const Map<int, AbortLimitReason> values = {
+    0: Ticks,
+    1: Time,
+    2: OutputBytes,
+    3: OutputEvents,
+  };
 
   static const fb.Reader<AbortLimitReason> reader = _AbortLimitReasonReader();
 
@@ -2289,10 +2296,12 @@ class AbortLimit {
   );
   int get ticks => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 6, 0);
   int get timeNanos => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 8, 0);
+  int get outputBytes => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 10, 0);
+  int get outputEvents => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
 
   @override
   String toString() {
-    return 'AbortLimit{reason: ${reason}, ticks: ${ticks}, timeNanos: ${timeNanos}}';
+    return 'AbortLimit{reason: ${reason}, ticks: ${ticks}, timeNanos: ${timeNanos}, outputBytes: ${outputBytes}, outputEvents: ${outputEvents}}';
   }
 }
 
@@ -2310,7 +2319,7 @@ class AbortLimitBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(5);
   }
 
   int addReason(AbortLimitReason? reason) {
@@ -2328,6 +2337,16 @@ class AbortLimitBuilder {
     return fbBuilder.offset;
   }
 
+  int addOutputBytes(int? outputBytes) {
+    fbBuilder.addUint64(3, outputBytes);
+    return fbBuilder.offset;
+  }
+
+  int addOutputEvents(int? outputEvents) {
+    fbBuilder.addUint64(4, outputEvents);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -2337,22 +2356,30 @@ class AbortLimitObjectBuilder extends fb.ObjectBuilder {
   final AbortLimitReason? _reason;
   final int? _ticks;
   final int? _timeNanos;
+  final int? _outputBytes;
+  final int? _outputEvents;
 
   AbortLimitObjectBuilder({
     AbortLimitReason? reason,
     int? ticks,
     int? timeNanos,
+    int? outputBytes,
+    int? outputEvents,
   }) : _reason = reason,
        _ticks = ticks,
-       _timeNanos = timeNanos;
+       _timeNanos = timeNanos,
+       _outputBytes = outputBytes,
+       _outputEvents = outputEvents;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(5);
     fbBuilder.addUint8(0, _reason?.value);
     fbBuilder.addUint64(1, _ticks);
     fbBuilder.addUint64(2, _timeNanos);
+    fbBuilder.addUint64(3, _outputBytes);
+    fbBuilder.addUint64(4, _outputEvents);
     return fbBuilder.endTable();
   }
 

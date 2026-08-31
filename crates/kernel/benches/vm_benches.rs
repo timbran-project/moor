@@ -155,6 +155,9 @@ fn execute(
             VMHostResponse::AbortLimit(AbortLimitReason::Time(time)) => {
                 panic!("Unexpected abort: {time:?}");
             }
+            VMHostResponse::AbortLimit(AbortLimitReason::OutputEvents(events)) => {
+                panic!("Unexpected captured output event abort: {events} events");
+            }
             VMHostResponse::AbortLimit(AbortLimitReason::OutputBytes(bytes)) => {
                 panic!("Unexpected captured output abort: {bytes} bytes");
             }
