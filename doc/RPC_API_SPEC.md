@@ -681,10 +681,11 @@ be no greater than that maximum; a request asking for longer is refused rather t
 maximum is itself capped at `MAX_CAPTURE_DEADLINE` (300 s), so a caller that cannot read the
 daemon's configuration still knows the longest wait any daemon can ask of it.
 
-On expiry the task is cancelled and the reply is a `TaskAbortedLimit` time error. The deadline
-covers submitting and cancelling the task as well as running it, so the reply arrives within it. A
-caller's own receive timeout must still be longer than the deadline, or it will give up on a reply
-that is about to arrive.
+On expiry the task is cancelled and the reply is a `TaskAbortedLimit` time error. Cancellation and
+the terminal transaction commit are ordered atomically. If the task claimed its terminal commit
+first, the daemon waits for session finalization and returns that result instead of reporting a
+timeout after committing mutations. This finalization can extend the response slightly beyond the
+requested deadline. A caller's receive timeout must allow for that cleanup interval.
 
 ---
 

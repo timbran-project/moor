@@ -542,8 +542,9 @@ verb runs as the authenticated player, with that player's authority, and with no
 it: output from forked tasks is not included, and a verb that asks for input fails. The deadline is
 the daemon's configured maximum for a captured call (`runtime.max_capture_deadline`, 60 s by
 default). A call that overruns it is cancelled and answered with a `200` whose `VerbCallError`
-carries a `TaskAbortedLimit` time error, so a timeout is reported in the response body rather than
-as an HTTP status.
+carries a `TaskAbortedLimit` time error. If the terminal transaction commit wins the deadline race,
+the daemon instead finishes that commit and returns its result; session finalization can extend the
+response slightly beyond the deadline.
 
 Requires: `X-Moor-Auth-Token`
 

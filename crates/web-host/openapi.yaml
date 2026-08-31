@@ -670,8 +670,9 @@ paths:
         daemon's configured maximum for a captured call (`runtime.max_capture_deadline`,
         60 s by default).  A call that overruns it is cancelled and answered
         with a `200` whose `VerbCallError` carries a `TaskAbortedLimit` time
-        error, so a timeout is reported in the response body rather than as an
-        HTTP status.
+        error.  If the terminal transaction commit wins the deadline race, the
+        daemon instead finishes that commit and returns its result; session
+        finalization can extend the response slightly beyond the deadline.
       security:
         - MoorAuthToken: []
       parameters:
