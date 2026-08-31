@@ -24,7 +24,7 @@ use moor_var::{
     v_binary, v_bool, v_empty_list, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_none,
     v_obj, v_str, v_sym,
 };
-use planus::{Builder, Offset, WriteAsOffset};
+use planus::{Builder, Offset, ReadAsRoot, WriteAsOffset};
 use thiserror::Error;
 use var::{VarUnion, VarUnionRef};
 
@@ -482,6 +482,17 @@ pub fn var_from_flatbuffer_ref(fb_ref: var::VarRef<'_>) -> Result<Var, VarConver
     var_from_flatbuffer_ref_internal(fb_ref, ConversionContext::Rpc)
 }
 
+/// Convert an owned FlatBuffer representation into an RPC `Var`.
+///
+/// Planus does not expose a reference view over its owned generated types, so
+/// this writes the value to a temporary buffer before using the shared decoder.
+pub fn var_from_flatbuffer(fb: var::Var) -> Result<Var, VarConversionError> {
+    let mut builder = Builder::new();
+    let bytes = builder.finish(&fb, None);
+    let fb_ref = var::VarRef::read_as_root(bytes).map_err(|e| fb_err(e.to_string()))?;
+    var_from_flatbuffer_ref(fb_ref)
+}
+
 /// Internal ref-based conversion with context
 fn var_from_flatbuffer_ref_internal(
     fb_ref: var::VarRef<'_>,
@@ -739,5 +750,13 @@ mod tests {
         let decoded = var_from_db_flatbuffer_ref(root).unwrap();
 
         assert_eq!(decoded, nested);
+    }
+
+    #[test]
+    fn owned_rpc_value_round_trips() {
+        let expected = v_list(&[v_int(7), v_str("argument")]);
+        let encoded = var_to_flatbuffer(&expected).unwrap();
+
+        assert_eq!(var_from_flatbuffer(encoded).unwrap(), expected);
     }
 }

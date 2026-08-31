@@ -536,12 +536,12 @@ Requires: `X-Moor-Auth-Token`
 
 **Invoke a verb and return the result**
 
-Calls a verb on the given object with FlatBuffer-encoded arguments. Returns a `VerbCallResponse`
-containing the narrative events the call committed and either a success result or an error. Output
-is present for both outcomes, so a failed call includes notifications committed before the failure
-and its traceback. The verb runs as the authenticated player, with that player's authority, and with
-no connection behind it: output from forked tasks is not included, and a verb that asks for input
-fails. The deadline is the daemon's configured maximum for a captured call
+Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments. Returns a
+`VerbCallResponse` containing the narrative events the call committed and either a success result or
+an error. Output is present for both outcomes, so a failed call includes notifications committed
+before the failure and its traceback. The verb runs as the authenticated player, with that player's
+authority, and with no connection behind it: output from forked tasks is not included, and a verb
+that asks for input fails. The deadline is the daemon's configured maximum for a captured call
 (`runtime.max_capture_deadline`, 60 s by default). A call that overruns it is cancelled and answered
 with a `200` whose `VerbCallError` carries a `TaskAbortedLimit` time error. If the terminal
 transaction commit wins the deadline race, the daemon instead finishes that commit and returns its
@@ -559,6 +559,18 @@ Requires: `X-Moor-Auth-Token`
 **Request body** (required)
 
 - Content-Type: `application/x-flatbuffers`
+- Content-Type: `application/json`
+
+  JSON arguments use the lossless generated `MoorVar.VarUnion` representation:
+
+  ```json
+  {
+    "args": [
+      { "VarInt": { "value": 7 } },
+      { "VarStr": { "value": "argument" } }
+    ]
+  }
+  ```
 
 **Responses**
 
