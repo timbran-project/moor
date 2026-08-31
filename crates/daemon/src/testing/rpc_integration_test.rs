@@ -32,10 +32,10 @@ mod tests {
         api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
         mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
         mk_detach_host_msg, mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
-        mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
-        mk_login_command_msg, mk_program_msg, mk_properties_msg, mk_register_host_msg,
-        mk_request_performance_counters_msg, mk_request_sys_prop_msg, mk_requested_input_msg,
-        mk_verbs_msg, obj_fb,
+        mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+        mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg, mk_properties_msg,
+        mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
+        mk_requested_input_msg, mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
@@ -989,6 +989,42 @@ mod tests {
             .expect("Command verb arguments should update");
     }
 
+    fn program_system_handler(env: &TestEnvironment, code: &str) {
+        let login_client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(env, login_client_id);
+        let add_verb = mk_eval_msg(
+            &client_token,
+            &auth_token,
+            format!(
+                "add_verb(#0, {{#{}, \"rxd\", \"invoke_http_handler\"}}, {{\"this\", \"none\", \"this\"}});",
+                player.id().0
+            ),
+        );
+        env.transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                login_client_id,
+                add_verb,
+            )
+            .expect("System handler verb should be created");
+
+        let program = mk_program_msg(
+            &auth_token,
+            &ObjectRef::Id(SYSTEM_OBJECT),
+            &Symbol::mk("invoke_http_handler"),
+            code.lines().map(str::to_string).collect(),
+        );
+        env.transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                program,
+            )
+            .expect("System handler verb should compile");
+    }
+
     fn captured_output(
         response: &moor_rpc::InvocationResponse,
     ) -> Vec<moor_common::tasks::NarrativeEvent> {
@@ -1199,6 +1235,82 @@ mod tests {
         let (error, _output) = captured_error(&reply);
         let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
             panic!("Expected TaskAbortedLimit, got {:?}", error.error);
+        };
+        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
+    }
+
+    #[test]
+    fn test_system_handler_runs_without_a_connection() {
+        let env = setup_test_environment();
+        program_system_handler(&env, "return \"webhook response\";");
+
+        let invoke = mk_invoke_system_handler_msg(
+            &Uuid::new_v4(),
+            "http",
+            vec![],
+            None,
+            Some(Duration::from_secs(30)),
+        )
+        .expect("System handler message should encode");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                invoke,
+            )
+            .expect("System handler should run without connection state");
+        let moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(response) = &reply.reply
+        else {
+            panic!("Expected SystemHandlerResponseReply, got {:?}", reply.reply);
+        };
+        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerSuccess(success) =
+            &response.response
+        else {
+            panic!("Expected SystemHandlerSuccess, got {:?}", response.response);
+        };
+        let mut builder = planus::Builder::new();
+        let bytes = builder.finish(success.result.as_ref(), None).to_vec();
+        let result = moor_schema::convert::var_from_flatbuffer_ref(
+            moor_schema::var::VarRef::read_as_root(&bytes).unwrap(),
+        )
+        .expect("System handler result should decode");
+        assert_eq!(result, moor_var::v_str("webhook response"));
+    }
+
+    #[test]
+    fn test_system_handler_cancels_on_deadline() {
+        let env = setup_test_environment();
+        program_system_handler(&env, "suspend(60);\nreturn 1;");
+
+        let invoke = mk_invoke_system_handler_msg(
+            &Uuid::new_v4(),
+            "http",
+            vec![],
+            None,
+            Some(Duration::from_millis(500)),
+        )
+        .expect("System handler message should encode");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                invoke,
+            )
+            .expect("System handler should return its deadline error");
+        let moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(response) = &reply.reply
+        else {
+            panic!("Expected SystemHandlerResponseReply, got {:?}", reply.reply);
+        };
+        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerError(error) = &response.response
+        else {
+            panic!("Expected SystemHandlerError, got {:?}", response.response);
+        };
+        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = &error.error.error else {
+            panic!("Expected TaskAbortedLimit, got {:?}", error.error.error);
         };
         assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
     }

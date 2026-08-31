@@ -915,6 +915,8 @@ table InvokeSystemHandler {
     handler_type: string (required);
     args: [MoorVar.Var] (required);
     auth_token: AuthToken;
+    // Zero asks for the daemon's configured maximum.
+    timeout_ms: uint64 = 0;
 }
 
 // Ask for the world's welcome message: `#0:do_login_command` with no arguments, as the system

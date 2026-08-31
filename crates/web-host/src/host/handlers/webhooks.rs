@@ -20,10 +20,11 @@ use axum::{
     http::{HeaderMap, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
 };
-use moor_common::tasks::SchedulerError;
+use moor_common::tasks::{AbortLimitReason, SchedulerError};
 use moor_runtime_api::api::{ClientReply, ClientRequest, SystemHandlerResponse};
 use moor_var::{List, SYSTEM_OBJECT, Var, Variant};
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::time::Duration;
+use std::{collections::HashMap, net::SocketAddr};
 use tracing::{debug, error};
 
 /// Helper function to create internal server error responses with logging
@@ -159,15 +160,7 @@ pub async fn web_hook_handler(
     let webhook_request = WebHookRequest::from_http(method, uri, headers, Some(body), addr);
     let args = webhook_request.to_moo_args();
 
-    // Establish temporary connection for web hook
-    let (client_id, rpc_client, client_token) = match host.establish_client_connection(addr).await {
-        Ok(connection) => connection,
-        Err(e) => {
-            return internal_server_error(&format!(
-                "Failed to establish connection for web hook: {e}"
-            ));
-        }
-    };
+    let (client_id, rpc_client) = host.new_stateless_client();
 
     debug!(
         "Preparing system handler invocation for webhook with {} args",
@@ -178,30 +171,18 @@ pub async fn web_hook_handler(
         handler_type: "http".to_string(),
         args,
         auth_token: None,
+        timeout: Some(Duration::from_secs(30)),
     };
     debug!("System handler message created successfully");
 
-    // Execute with timeout - daemon will now wait for task completion
-    let timeout_duration = Duration::from_secs(30); // Longer timeout for task completion
-    debug!(
-        "Making RPC call with timeout: {}ms",
-        timeout_duration.as_millis()
-    );
-    let invoke_result =
-        tokio::time::timeout(timeout_duration, rpc_client.client_call(client_id, request)).await;
-
-    let reply = match invoke_result {
-        Ok(Ok(reply)) => {
+    let reply = match rpc_client.client_call(client_id, request).await {
+        Ok(reply) => {
             debug!("RPC call succeeded");
             reply
         }
-        Ok(Err(e)) => {
+        Err(e) => {
             error!("RPC call failed for web hook: {:?}", e);
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
-        Err(_) => {
-            error!("Web hook execution timed out");
-            return StatusCode::REQUEST_TIMEOUT.into_response();
         }
     };
 
@@ -213,17 +194,6 @@ pub async fn web_hook_handler(
     };
 
     debug!("Response: {response:?}");
-
-    // Hard detach for ephemeral HTTP connections - immediate cleanup
-    let _ = rpc_client
-        .client_call(
-            client_id,
-            ClientRequest::Detach {
-                client_token,
-                disconnected: true,
-            },
-        )
-        .await;
 
     response
 }
@@ -248,6 +218,7 @@ fn handle_system_handler_response(response: SystemHandlerResponse) -> Response {
 /// Handle system handler error
 fn handle_system_handler_error(scheduler_error: SchedulerError) -> Response {
     let status_code = match &scheduler_error {
+        SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(_)) => StatusCode::REQUEST_TIMEOUT,
         SchedulerError::TaskAbortedVerbNotFound(_, _)
         | SchedulerError::ObjectResolutionFailed(_) => {
             debug!("Resource not found - returning 404: {:?}", scheduler_error);
@@ -368,5 +339,19 @@ fn handle_webhook_result(result: &Var) -> Result<Response, Box<dyn std::error::E
             Ok(response)
         }
         _ => Err(format!("Unsupported result variant: {:?}", result.variant()).into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_system_handler_deadline_returns_request_timeout() {
+        let response = handle_system_handler_error(SchedulerError::TaskAbortedLimit(
+            AbortLimitReason::Time(Duration::from_secs(30)),
+        ));
+
+        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
     }
 }
