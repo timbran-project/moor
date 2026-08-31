@@ -595,6 +595,14 @@ table CaptureOutputInvocation {
 }
 ```
 
+The HTTP command, eval, and verb-invocation endpoints accept `timeout_ms` as an optional query
+parameter. An absent value or zero uses the daemon maximum. A positive value selects that many
+milliseconds. It must not exceed the daemon maximum or the 300000 protocol limit. An invalid value
+returns HTTP status 400.
+
+If a task reaches its deadline, the HTTP response keeps status 200. Its outcome is
+`InvocationError(TaskAbortedLimit)`. The deadline includes submission, execution, and cancellation.
+
 **Response**: `DaemonToClientReply::TaskSubmitted` for `ConnectedInvocation`,
 `DaemonToClientReply::InvocationResponse` for `CaptureOutputInvocation`.
 
