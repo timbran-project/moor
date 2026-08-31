@@ -613,6 +613,36 @@ table TaskSubmitted {
 **Usage**: The primary way users interact with the MOO. Capture mode runs the same command parser
 without a connection and returns the root task's result and committed narrative output directly.
 
+#### Command processing and errors
+
+The daemon processes a command in this order:
+
+1. If `#0:do_command` exists, the daemon calls it first.
+2. If `#0:do_command` returns a true value, the task succeeds with that value.
+3. If the verb is absent or returns false, the daemon uses the normal command parser.
+4. If the parser rejects the input, the task returns
+   `InvocationError(CommandExecutionError(CouldNotParseCommand))`.
+5. If no command verb matches and the player has a location, the daemon calls `:huh` there.
+6. If the player has no location or `:huh` does not exist, the task returns
+   `InvocationError(CommandExecutionError(NoCommandMatch))`.
+
+Any invoked verb can return a value or raise an error. This includes `#0:do_command`, the selected
+command verb, and `:huh`. The result becomes the task outcome. The protocol does not create an "I do
+not understand" message. If `:huh` creates this message, it is ordinary narrative output.
+
+Permission and database errors use the corresponding `CommandExecutionError` variant. Deadline,
+cancellation, and verb execution errors use their normal scheduler-error variants. All these task
+errors appear inside `InvocationError` for a captured command.
+
+A connected command reports an error through `ClientEvent::TaskErrorEvent`. A captured command
+reports it through `InvocationResponse.outcome.InvocationError`. The response includes committed
+root-task output for both outcomes. Thus, an error can include output committed before the error.
+
+The HTTP command endpoint returns status 200 for a completed `InvocationError`. HTTP status 200 only
+means that the daemon completed the request. Callers must inspect the invocation outcome. HTTP
+status 400 only means that the request body is not valid UTF-8. A MOO parse error returns
+status 200.
+
 ---
 
 ### Eval
@@ -625,21 +655,23 @@ Evaluates a MOO expression (typically for debugging/programming).
 
 ```flatbuffers
 table Eval {
-    client_token: ClientToken;
-    auth_token: AuthToken;
-    expression: string;                          // MOO expression to evaluate
+    auth_token: AuthToken (required);
+    expression: string (required);               // MOO expression to evaluate
+    mode: InvocationMode (required);              // How output is delivered
 }
 ```
 
-**Response**: `DaemonToClientReply::EvalResult`
+**Response**: `DaemonToClientReply::EvalResult` for `ConnectedInvocation`,
+`DaemonToClientReply::InvocationResponse` for `CaptureOutputInvocation`.
 
 ```flatbuffers
 table EvalResult {
-    result: VarBytes;                            // Result value
+    result: Var (required);                      // Result value
 }
 ```
 
-**Usage**: Used for quick expression evaluation without command parsing.
+**Usage**: Used for quick expression evaluation without command parsing. Capture mode returns the
+result or error with committed root-task output and does not require a connection.
 
 ---
 
@@ -841,11 +873,10 @@ Programs a verb with new code.
 
 ```flatbuffers
 table Program {
-    client_token: ClientToken;
-    auth_token: AuthToken;
-    object: ObjectRef;
-    verb: Symbol;
-    code: [string];                              // Lines of code
+    auth_token: AuthToken (required);
+    object: ObjectRef (required);
+    verb: Symbol (required);
+    code: [string] (required);                   // Lines of code
 }
 ```
 

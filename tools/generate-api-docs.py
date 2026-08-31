@@ -21,6 +21,7 @@ Reads:  crates/web-host/openapi.yaml
 Writes: book/src/web-client/http-api-reference.md
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -150,11 +151,15 @@ def render_request_body(spec, body):
             render_schema_fields(spec, schema, lines)
         example = media.get("example")
         if example:
+            if isinstance(example, str):
+                rendered_example = example.strip()
+            else:
+                rendered_example = json.dumps(example, indent=2)
             lines.append("")
             lines.append("  Example:")
-            lines.append(f"  ```")
-            lines.append(f"  {example.strip()}")
-            lines.append(f"  ```")
+            lines.append("  ```")
+            lines.extend(f"  {line}" for line in rendered_example.splitlines())
+            lines.append("  ```")
     lines.append("")
     return "\n".join(lines)
 
