@@ -147,13 +147,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `rpc`:
 
-- `InvokeVerb` and `Command` now carry an `InvocationMode` union instead of a client token.
-  `ConnectedInvocation` is the previous behaviour: the reply is the submitted task id, and output
-  reaches the invoking connection's event stream. `CaptureOutputInvocation` runs the call with no
-  connection behind it and replies with a single `InvocationResponse` holding the outcome and the
-  narrative output the call committed, once the root task finishes. Output is preserved for both
-  successful and failed calls. Both modes require an `AuthToken`, and that principal is both the
-  player the verb runs as and the authority it runs with.
+- `InvokeVerb`, `Command`, and `Eval` now carry an `InvocationMode` union instead of a client token.
+  `ConnectedInvocation` runs with an interactive connection and sends output to its event stream.
+  `InvokeVerb` and `Command` acknowledge submission. `Eval` retains its synchronous `EvalResult`
+  reply. `CaptureOutputInvocation` runs with no connection. After the root task finishes, it returns
+  one `InvocationResponse` with the outcome and committed narrative output. Successful and failed
+  calls preserve this output. Both modes require an `AuthToken`. This principal is the player and
+  the authority.
 - A captured call waits at most `timeout_ms`, bounded by the new `runtime.max_capture_deadline`
   daemon setting (default 60 seconds, and never more than 300). A `timeout_ms` of zero asks for that
   configured maximum, so a caller need not guess. A request asking for longer is refused rather than
@@ -166,6 +166,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `CallSystemVerb` is replaced by `InvokeWelcomeMessage`, which takes no arguments and always
   invokes `#0:do_login_command` as `#0` with its output captured. There is no longer any way to call
   an arbitrary verb with system authority and no credentials.
+- HTTP eval uses captured execution. Verb programming now uses only the auth token and creates no
+  daemon connection. Webhook system handlers also run without connection state. They retain their
+  response type and use the same deadline and cancellation logic.
 
 ### Fixed
 

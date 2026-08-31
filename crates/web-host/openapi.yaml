@@ -1320,12 +1320,11 @@ paths:
       tags: [Webhooks]
       summary: Receive an external webhook (GET)
       description: |
-        Forwards the request to the MOO `:handle_webhook` verb on
-        `$system`.  The MOO verb determines the response status code,
-        body, and content type.
+        The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no
+        daemon connection state. The MOO verb determines the response status code, body, and
+        content type.
 
-        **No authentication required** — the request runs as the system
-        user.  Body limit is 2 MB.
+        **No authentication required** — the request runs as the system user. Body limit is 2 MB.
       parameters:
         - name: path
           in: path
