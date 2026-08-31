@@ -17,9 +17,9 @@ use crate::host::{
     auth::{EphemeralAuth, StatelessAuth},
     flatbuffer_response,
     negotiate::{
-        BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE,
-        negotiate_response_format, reply_result_to_json, require_content_type,
-        verb_call_response_to_json,
+        BOTH_FORMATS, FLATBUFFERS_CONTENT_TYPE, JSON_CONTENT_TYPE, ResponseFormat,
+        TEXT_PLAIN_CONTENT_TYPE, negotiate_response_format, reply_result_to_json,
+        require_content_type, verb_call_response_to_json,
     },
     web_host,
 };
@@ -34,7 +34,10 @@ use moor_runtime_api::{
     api::{ClientReply, ClientRequest, EntityType, InvocationMode},
     api_codec::encode_verb_call_response,
 };
-use moor_schema::{convert::var_from_flatbuffer_ref, rpc as moor_rpc, var as moor_var_schema};
+use moor_schema::{
+    convert::{var_from_flatbuffer, var_from_flatbuffer_ref},
+    rpc as moor_rpc, var as moor_var_schema,
+};
 use moor_var::Symbol;
 use planus::ReadAsRoot;
 use serde::Deserialize;
@@ -43,6 +46,11 @@ use tracing::{debug, error};
 #[derive(Deserialize)]
 pub struct VerbsQuery {
     inherited: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct InvokeVerbJsonRequest {
+    args: Vec<moor_var_schema::VarUnion>,
 }
 
 pub async fn verb_retrieval_handler(
@@ -143,13 +151,6 @@ pub async fn invoke_verb_handler(
     Path((object_path, verb_name)): Path<(String, String)>,
     body: Bytes,
 ) -> Response {
-    if let Err(status) = require_content_type(
-        header_map.get(header::CONTENT_TYPE),
-        &[FLATBUFFERS_CONTENT_TYPE],
-        true, // allow missing for backwards compat
-    ) {
-        return status.into_response();
-    }
     let format = match negotiate_response_format(
         header_map.get(header::ACCEPT),
         BOTH_FORMATS,
@@ -176,25 +177,19 @@ pub async fn invoke_verb_handler(
 
     let verb_symbol = Symbol::mk(&verb_name);
 
-    // Parse the FlatBuffer request body containing args as a Var (list)
-    let args_var = match moor_var_schema::VarRef::read_as_root(&body) {
-        Ok(var_ref) => match var_from_flatbuffer_ref(var_ref) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to parse args var: {}", e);
-                return StatusCode::BAD_REQUEST.into_response();
-            }
-        },
-        Err(e) => {
-            error!("Failed to parse FlatBuffer args: {}", e);
-            return StatusCode::BAD_REQUEST.into_response();
-        }
+    let content_type = header_map.get(header::CONTENT_TYPE);
+    let moo_args = if require_content_type(content_type, &[FLATBUFFERS_CONTENT_TYPE], true).is_ok()
+    {
+        decode_flatbuffer_args(&body)
+    } else if require_content_type(content_type, &[JSON_CONTENT_TYPE], false).is_ok() {
+        decode_json_args(&body)
+    } else {
+        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response();
     };
-
-    let moo_args: Vec<moor_var::Var> = match args_var.variant() {
-        moor_var::Variant::List(l) => l.iter().collect(),
-        _ => {
-            error!("Args must be a list");
+    let moo_args = match moo_args {
+        Ok(args) => args,
+        Err(e) => {
+            error!("Failed to parse verb arguments: {e}");
             return StatusCode::BAD_REQUEST.into_response();
         }
     };
@@ -234,6 +229,34 @@ pub async fn invoke_verb_handler(
             verb_call_response_to_json(&response).unwrap_or_else(|status| status.into_response())
         }
     }
+}
+
+fn decode_flatbuffer_args(body: &[u8]) -> Result<Vec<moor_var::Var>, String> {
+    let args_ref = moor_var_schema::VarRef::read_as_root(body).map_err(|e| e.to_string())?;
+    let args = var_from_flatbuffer_ref(args_ref).map_err(|e| e.to_string())?;
+    let moor_var::Variant::List(args) = args.variant() else {
+        return Err("arguments must be a list".to_string());
+    };
+    Ok(args.iter().collect())
+}
+
+fn decode_json_args(body: &[u8]) -> Result<Vec<moor_var::Var>, String> {
+    let request: InvokeVerbJsonRequest = serde_json::from_slice(body).map_err(|e| e.to_string())?;
+    let elements = request
+        .args
+        .into_iter()
+        .map(|variant| moor_var_schema::Var { variant })
+        .collect();
+    let args = var_from_flatbuffer(moor_var_schema::Var {
+        variant: moor_var_schema::VarUnion::VarList(Box::new(moor_var_schema::VarList {
+            elements,
+        })),
+    })
+    .map_err(|e| e.to_string())?;
+    let moor_var::Variant::List(args) = args.variant() else {
+        return Err("decoded JSON arguments were not a list".to_string());
+    };
+    Ok(args.iter().collect())
 }
 
 /// Turn the daemon's typed reply to a verb invocation into the FlatBuffer this endpoint returns.
@@ -318,6 +341,28 @@ mod tests {
     use moor_common::tasks::{NarrativeEvent, SchedulerError};
     use moor_runtime_api::api::{VerbCallOutcome, VerbCallResponse};
     use moor_var::{Obj, v_int, v_obj, v_str};
+
+    #[test]
+    fn json_verb_arguments_decode_losslessly() {
+        let body = br#"{
+            "args": [
+                {"VarInt": {"value": 7}},
+                {"VarStr": {"value": "argument"}}
+            ]
+        }"#;
+
+        assert_eq!(
+            decode_json_args(body).unwrap(),
+            vec![v_int(7), v_str("argument")]
+        );
+    }
+
+    #[test]
+    fn invalid_json_verb_argument_is_rejected() {
+        let body = br#"{"args":[{"NotAVar":{"value":7}}]}"#;
+
+        assert!(decode_json_args(body).is_err());
+    }
 
     #[test]
     fn a_verb_call_result_and_its_output_survive_encoding() {

@@ -661,7 +661,7 @@ paths:
       tags: [Verbs]
       summary: Invoke a verb and return the result
       description: |
-        Calls a verb on the given object with FlatBuffer-encoded arguments.
+        Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments.
         Returns a `VerbCallResponse` containing the narrative events the call
         committed and either a success result or an error.  Output is present
         for both outcomes, so a failed call includes notifications committed
@@ -686,6 +686,22 @@ paths:
           application/x-flatbuffers:
             schema: { type: string, format: binary }
             # Logical: Var — a list of verb arguments
+          application/json:
+            schema:
+              type: object
+              properties:
+                args:
+                  type: array
+                  items:
+                    type: object
+                    description: |
+                      One lossless `MoorVar.VarUnion` value, represented by its
+                      generated variant name and table fields.
+              required: [args]
+            example:
+              args:
+                - VarInt: { value: 7 }
+                - VarStr: { value: "argument" }
       responses:
         "200":
           description: Verb call result
