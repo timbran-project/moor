@@ -17,9 +17,10 @@
 
 use crate::host::{
     auth, flatbuffer_response,
+    handlers::invocation_response,
     negotiate::{
-        BOTH_FORMATS, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE, negotiate_response_format,
-        reply_result_to_json, require_content_type,
+        BOTH_FORMATS, ResponseFormat, TEXT_PLAIN_CONTENT_TYPE, invocation_response_to_json,
+        negotiate_response_format, reply_result_to_json, require_content_type,
     },
     session::{ClientSession, webrtc::WebRtcConfig},
 };
@@ -38,7 +39,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken, RpcError, RpcMessageError,
     api::{
         ClientReply, ClientRequest, ConnectType, HostReply, HostRequest, HostServices,
-        RuntimeClient,
+        InvocationMode, RuntimeClient,
     },
     api_codec::{encode_client_success_bytes, encode_host_success_bytes},
 };
@@ -999,13 +1000,11 @@ pub async fn resolve_objref_handler(
 }
 
 pub async fn eval_handler(
-    auth::EphemeralAuth {
+    auth::StatelessAuth {
         auth_token,
         client_id,
-        client_token,
         rpc_client,
-        ..
-    }: auth::EphemeralAuth,
+    }: auth::StatelessAuth,
     header_map: HeaderMap,
     expression: Bytes,
 ) -> Response {
@@ -1028,24 +1027,31 @@ pub async fn eval_handler(
     let expression = String::from_utf8_lossy(&expression).to_string();
 
     let eval_msg = ClientRequest::Eval {
-        client_token,
         auth_token,
         expression,
+        mode: InvocationMode::CaptureOutput { timeout: None },
     };
 
-    let reply_bytes = match rpc_call(client_id, &rpc_client, eval_msg).await {
-        Ok(bytes) => bytes,
+    let reply = match rpc_client.client_call(client_id, eval_msg).await {
+        Ok(reply) => reply,
+        Err(error) => {
+            error!(?error, "Eval RPC failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let response = match invocation_response(reply) {
+        Ok(response) => response,
         Err(status) => return status.into_response(),
     };
 
-    // DetachGuard in EphemeralAuth handles cleanup automatically
-
     match format {
-        ResponseFormat::FlatBuffers => flatbuffer_response(reply_bytes),
-        ResponseFormat::Json => match reply_result_to_json(&reply_bytes) {
-            Ok(resp) => resp,
-            Err(status) => status.into_response(),
-        },
+        ResponseFormat::FlatBuffers => {
+            let mut builder = planus::Builder::new();
+            flatbuffer_response(builder.finish(&response, None).to_vec())
+        }
+        ResponseFormat::Json => {
+            invocation_response_to_json(&response).unwrap_or_else(|status| status.into_response())
+        }
     }
 }
 

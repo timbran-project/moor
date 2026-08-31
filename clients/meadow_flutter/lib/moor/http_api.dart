@@ -28,11 +28,11 @@ import 'package:meadow_flutter/moor/types/moor_obj.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
-class VerbInvocationSuccess {
+class CapturedInvocationSuccess {
   final moor_rpc.InvocationSuccess response;
   final List<moor_common.NarrativeEvent> output;
 
-  const VerbInvocationSuccess({
+  const CapturedInvocationSuccess({
     required this.response,
     required this.output,
   });
@@ -40,17 +40,17 @@ class VerbInvocationSuccess {
   moor_var.Var? get result => response.result;
 }
 
-class VerbInvocationException implements Exception {
+class CapturedInvocationException implements Exception {
   final moor_rpc.InvocationError response;
   final List<moor_common.NarrativeEvent> output;
 
-  const VerbInvocationException({
+  const CapturedInvocationException({
     required this.response,
     required this.output,
   });
 
   @override
-  String toString() => 'Verb invocation failed: $response';
+  String toString() => 'Invocation failed: $response';
 }
 
 class MoorHttpApi {
@@ -484,7 +484,7 @@ class MoorHttpApi {
     ).toBytes();
   }
 
-  Future<VerbInvocationSuccess> invokeVerb({
+  Future<CapturedInvocationSuccess> invokeVerb({
     required String authToken,
     required String objectCurie,
     required String verbName,
@@ -527,14 +527,14 @@ class MoorHttpApi {
       if (error == null) {
         throw Exception('invoke verb: invalid error response ($outcome)');
       }
-      throw VerbInvocationException(response: error, output: output);
+      throw CapturedInvocationException(response: error, output: output);
     }
 
     final success = outcome as moor_rpc.InvocationSuccess?;
     if (success == null) {
       throw Exception('invoke verb: missing InvocationSuccess');
     }
-    return VerbInvocationSuccess(response: success, output: output);
+    return CapturedInvocationSuccess(response: success, output: output);
   }
 
   Future<moor_rpc.VerbProgramResponse> compileVerb({
@@ -748,19 +748,27 @@ class MoorHttpApi {
       throw Exception('eval http ${resp.statusCode}: ${resp.reasonPhrase}');
     }
 
-    final reply = _parseClientSuccess(resp.bodyBytes, context: 'eval');
-    final replyType = reply.replyType?.value ?? 0;
-    if (replyType != moor_rpc.DaemonToClientReplyUnionTypeId.EvalResult.value) {
-      throw Exception('eval: unexpected reply type $replyType');
+    final invocation = moor_rpc.InvocationResponse(resp.bodyBytes);
+    final outcome = invocation.outcome;
+    if (outcome == null) {
+      throw Exception('eval: missing InvocationResponse');
+    }
+    if (invocation.outcomeType?.value !=
+        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
+      final error = outcome as moor_rpc.InvocationError?;
+      if (error == null) {
+        throw Exception('eval: invalid error response ($outcome)');
+      }
+      throw CapturedInvocationException(
+        response: error,
+        output: invocation.output ?? const <moor_common.NarrativeEvent>[],
+      );
     }
 
-    final evalResult = reply.reply as moor_rpc.EvalResult?;
-    if (evalResult == null) {
-      throw Exception('eval: missing EvalResult');
-    }
-    final result = evalResult.result;
+    final success = outcome as moor_rpc.InvocationSuccess?;
+    final result = success?.result;
     if (result == null) {
-      throw Exception('eval: missing EvalResult.result');
+      throw Exception('eval: missing InvocationSuccess.result');
     }
     return MoorVar.fromFlatBuffer(result);
   }

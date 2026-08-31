@@ -426,8 +426,8 @@ pub enum HostReply {
 /// How an invocation's output is to be delivered.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvocationMode {
-    /// Deliver output to the invoking connection's event stream. The reply comes as soon as the
-    /// task is submitted, and the caller watches its own event stream for the outcome.
+    /// Run with an interactive connection and deliver output to that connection's event stream.
+    /// The request determines whether its reply acknowledges submission or contains the result.
     Connected { client_token: ClientToken },
     /// Run with no connection behind the call, collect the narrative output the root task commits,
     /// and reply once it finishes. `timeout` bounds the wait; `None` asks for the daemon's
@@ -511,9 +511,9 @@ pub enum ClientRequest {
         argstr: Var,
     },
     Eval {
-        client_token: ClientToken,
         auth_token: AuthToken,
         expression: String,
+        mode: InvocationMode,
     },
     InvokeVerb {
         auth_token: AuthToken,

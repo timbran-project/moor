@@ -31,7 +31,7 @@ mod tests {
         AuthToken, ClientToken, RpcMessageError,
         api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
         mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
-        mk_detach_host_msg, mk_detach_msg, mk_eval_msg, mk_host_pong_msg,
+        mk_detach_host_msg, mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
         mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
         mk_login_command_msg, mk_program_msg, mk_properties_msg, mk_register_host_msg,
         mk_request_performance_counters_msg, mk_request_sys_prop_msg, mk_requested_input_msg,
@@ -1143,6 +1143,65 @@ mod tests {
         let (result, output) = captured_success(&reply);
         assert_eq!(result, moor_var::v_int(42));
         assert_eq!(captured_notify_text(&output), vec!["command output"]);
+    }
+
+    #[test]
+    fn test_captured_eval_returns_result_and_output_without_a_connection() {
+        let env = setup_test_environment();
+        let login_client_id = Uuid::new_v4();
+        let (_client_token, auth_token, player) = logged_in_wizard(&env, login_client_id);
+
+        let eval = mk_eval_capture_msg(
+            &auth_token,
+            "notify(player, \"eval output\"); return {player, 42};".to_string(),
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured eval message");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                eval,
+            )
+            .expect("Captured eval should succeed without a connection");
+
+        let (result, output) = captured_success(&reply);
+        assert_eq!(
+            result,
+            moor_var::v_list(&[moor_var::v_obj(player), moor_var::v_int(42)])
+        );
+        assert_eq!(captured_notify_text(&output), vec!["eval output"]);
+    }
+
+    #[test]
+    fn test_captured_eval_cancels_on_deadline() {
+        let env = setup_test_environment();
+        let login_client_id = Uuid::new_v4();
+        let (_client_token, auth_token, _player) = logged_in_wizard(&env, login_client_id);
+
+        let eval = mk_eval_capture_msg(
+            &auth_token,
+            "suspend(60); return 1;".to_string(),
+            Some(Duration::from_millis(500)),
+        )
+        .expect("Failed to build captured eval message");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                eval,
+            )
+            .expect("Captured eval should reply once the deadline passes");
+
+        let (error, _output) = captured_error(&reply);
+        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
+            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
+        };
+        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
     }
 
     #[test]

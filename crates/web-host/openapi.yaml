@@ -570,9 +570,9 @@ paths:
       tags: [Eval]
       summary: Evaluate a MOO expression
       description: |
-        Evaluates a MOO expression server-side on behalf of the
-        authenticated player.  Uses an ephemeral daemon connection that is
-        automatically cleaned up.
+        Evaluates a MOO expression as the authenticated player. The request waits for completion
+        without creating a daemon connection and returns committed narrative output with the
+        result.
       security:
         - MoorAuthToken: []
       requestBody:
@@ -587,7 +587,7 @@ paths:
           content:
             application/x-flatbuffers:
               schema: { type: string, format: binary }
-              # Logical: EvalResult { success, result_var, error_message }
+              # Logical: InvocationResponse { InvocationSuccess | InvocationError, output }
             application/json:
               schema:
                 type: object

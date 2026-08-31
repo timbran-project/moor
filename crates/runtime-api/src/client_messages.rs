@@ -241,11 +241,39 @@ pub fn mk_eval_msg(
     auth_token: &AuthToken,
     expression: String,
 ) -> rpc::HostClientToDaemonMessage {
+    mk_eval_msg_with_mode(
+        auth_token,
+        expression,
+        rpc::InvocationMode::ConnectedInvocation(Box::new(rpc::ConnectedInvocation {
+            client_token: client_token_fb(client_token),
+        })),
+    )
+}
+
+/// Build an Eval message that captures output and waits for completion.
+#[inline]
+pub fn mk_eval_capture_msg(
+    auth_token: &AuthToken,
+    expression: String,
+    timeout: Option<Duration>,
+) -> Option<rpc::HostClientToDaemonMessage> {
+    Some(mk_eval_msg_with_mode(
+        auth_token,
+        expression,
+        capture_invocation_mode(timeout)?,
+    ))
+}
+
+fn mk_eval_msg_with_mode(
+    auth_token: &AuthToken,
+    expression: String,
+    mode: rpc::InvocationMode,
+) -> rpc::HostClientToDaemonMessage {
     rpc::HostClientToDaemonMessage {
         message: rpc::HostClientToDaemonMessageUnion::Eval(Box::new(rpc::Eval {
-            client_token: client_token_fb(client_token),
             auth_token: auth_token_fb(auth_token),
             expression,
+            mode,
         })),
     }
 }

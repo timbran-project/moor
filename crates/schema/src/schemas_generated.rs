@@ -74241,23 +74241,12 @@ mod root {
             ::serde::Deserialize,
         )]
         pub struct Eval {
-            /// The field `client_token` in the table `Eval`
-            pub client_token: ::planus::alloc::boxed::Box<self::ClientToken>,
             /// The field `auth_token` in the table `Eval`
             pub auth_token: ::planus::alloc::boxed::Box<self::AuthToken>,
             /// The field `expression` in the table `Eval`
             pub expression: ::planus::alloc::string::String,
-        }
-
-        #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for Eval {
-            fn default() -> Self {
-                Self {
-                    client_token: ::core::default::Default::default(),
-                    auth_token: ::core::default::Default::default(),
-                    expression: ::core::default::Default::default(),
-                }
-            }
+            /// The field `mode` in the table `Eval`
+            pub mode: self::InvocationMode,
         }
 
         impl Eval {
@@ -74270,25 +74259,27 @@ mod root {
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
-                field_client_token: impl ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
                 field_auth_token: impl ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
                 field_expression: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_mode: impl ::planus::WriteAsUnion<self::InvocationMode>,
             ) -> ::planus::Offset<Self> {
-                let prepared_client_token = field_client_token.prepare(builder);
                 let prepared_auth_token = field_auth_token.prepare(builder);
                 let prepared_expression = field_expression.prepare(builder);
+                let prepared_mode = field_mode.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                let mut table_writer: ::planus::table_writer::TableWriter<12> =
                     ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::ClientToken>>(0);
-                table_writer.write_entry::<::planus::Offset<self::AuthToken>>(1);
-                table_writer.write_entry::<::planus::Offset<str>>(2);
+                table_writer.write_entry::<::planus::Offset<self::AuthToken>>(0);
+                table_writer.write_entry::<::planus::Offset<str>>(1);
+                table_writer.write_entry::<::planus::Offset<self::InvocationMode>>(3);
+                table_writer.write_entry::<u8>(2);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_client_token);
                         object_writer.write::<_, _, 4>(&prepared_auth_token);
                         object_writer.write::<_, _, 4>(&prepared_expression);
+                        object_writer.write::<_, _, 4>(&prepared_mode.offset());
+                        object_writer.write::<_, _, 1>(&prepared_mode.tag());
                     });
                 }
                 builder.current_offset()
@@ -74319,12 +74310,7 @@ mod root {
         impl ::planus::WriteAsOffset<Eval> for Eval {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Eval> {
-                Eval::create(
-                    builder,
-                    &self.client_token,
-                    &self.auth_token,
-                    &self.expression,
-                )
+                Eval::create(builder, &self.auth_token, &self.expression, &self.mode)
             }
         }
 
@@ -74336,24 +74322,24 @@ mod root {
         pub struct EvalBuilder<State>(State);
 
         impl EvalBuilder<()> {
-            /// Setter for the [`client_token` field](Eval#structfield.client_token).
+            /// Setter for the [`auth_token` field](Eval#structfield.auth_token).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn client_token<T0>(self, value: T0) -> EvalBuilder<(T0,)>
+            pub fn auth_token<T0>(self, value: T0) -> EvalBuilder<(T0,)>
             where
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
             {
                 EvalBuilder((value,))
             }
         }
 
         impl<T0> EvalBuilder<(T0,)> {
-            /// Setter for the [`auth_token` field](Eval#structfield.auth_token).
+            /// Setter for the [`expression` field](Eval#structfield.expression).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn auth_token<T1>(self, value: T1) -> EvalBuilder<(T0, T1)>
+            pub fn expression<T1>(self, value: T1) -> EvalBuilder<(T0, T1)>
             where
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
             {
                 let (v0,) = self.0;
                 EvalBuilder((v0, value))
@@ -74361,12 +74347,12 @@ mod root {
         }
 
         impl<T0, T1> EvalBuilder<(T0, T1)> {
-            /// Setter for the [`expression` field](Eval#structfield.expression).
+            /// Setter for the [`mode` field](Eval#structfield.mode).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn expression<T2>(self, value: T2) -> EvalBuilder<(T0, T1, T2)>
+            pub fn mode<T2>(self, value: T2) -> EvalBuilder<(T0, T1, T2)>
             where
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T2: ::planus::WriteAsUnion<self::InvocationMode>,
             {
                 let (v0, v1) = self.0;
                 EvalBuilder((v0, v1, value))
@@ -74385,9 +74371,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+                T2: ::planus::WriteAsUnion<self::InvocationMode>,
             > ::planus::WriteAs<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Eval>;
@@ -74399,9 +74385,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+                T2: ::planus::WriteAsUnion<self::InvocationMode>,
             > ::planus::WriteAsOptional<::planus::Offset<Eval>> for EvalBuilder<(T0, T1, T2)>
         {
             type Prepared = ::planus::Offset<Eval>;
@@ -74416,9 +74402,9 @@ mod root {
         }
 
         impl<
-                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
-                T1: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
-                T2: ::planus::WriteAs<::planus::Offset<str>>,
+                T0: ::planus::WriteAs<::planus::Offset<self::AuthToken>>,
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+                T2: ::planus::WriteAsUnion<self::InvocationMode>,
             > ::planus::WriteAsOffset<Eval> for EvalBuilder<(T0, T1, T2)>
         {
             #[inline]
@@ -74433,31 +74419,31 @@ mod root {
         pub struct EvalRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
         impl<'a> EvalRef<'a> {
-            /// Getter for the [`client_token` field](Eval#structfield.client_token).
-            #[inline]
-            pub fn client_token(&self) -> ::planus::Result<self::ClientTokenRef<'a>> {
-                self.0.access_required(0, "Eval", "client_token")
-            }
-
             /// Getter for the [`auth_token` field](Eval#structfield.auth_token).
             #[inline]
             pub fn auth_token(&self) -> ::planus::Result<self::AuthTokenRef<'a>> {
-                self.0.access_required(1, "Eval", "auth_token")
+                self.0.access_required(0, "Eval", "auth_token")
             }
 
             /// Getter for the [`expression` field](Eval#structfield.expression).
             #[inline]
             pub fn expression(&self) -> ::planus::Result<&'a ::core::primitive::str> {
-                self.0.access_required(2, "Eval", "expression")
+                self.0.access_required(1, "Eval", "expression")
+            }
+
+            /// Getter for the [`mode` field](Eval#structfield.mode).
+            #[inline]
+            pub fn mode(&self) -> ::planus::Result<self::InvocationModeRef<'a>> {
+                self.0.access_union_required(2, "Eval", "mode")
             }
         }
 
         impl<'a> ::core::fmt::Debug for EvalRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 let mut f = f.debug_struct("EvalRef");
-                f.field("client_token", &self.client_token());
                 f.field("auth_token", &self.auth_token());
                 f.field("expression", &self.expression());
+                f.field("mode", &self.mode());
                 f.finish()
             }
         }
@@ -74468,13 +74454,11 @@ mod root {
             #[allow(unreachable_code)]
             fn try_from(value: EvalRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
-                    client_token: ::planus::alloc::boxed::Box::new(
-                        ::core::convert::TryInto::try_into(value.client_token()?)?,
-                    ),
                     auth_token: ::planus::alloc::boxed::Box::new(
                         ::core::convert::TryInto::try_into(value.auth_token()?)?,
                     ),
                     expression: ::core::convert::Into::into(value.expression()?),
+                    mode: ::core::convert::TryInto::try_into(value.mode()?)?,
                 })
             }
         }
