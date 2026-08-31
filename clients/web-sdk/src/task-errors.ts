@@ -106,6 +106,12 @@ export function schedulerErrorToNarrative(schedulerError: SchedulerError): Sched
                 case AbortLimitReason.Time:
                     message = "Task ran out of seconds";
                     break;
+                case AbortLimitReason.OutputBytes:
+                    message = "Task produced too much captured output";
+                    break;
+                case AbortLimitReason.OutputEvents:
+                    message = "Task produced too many captured output events";
+                    break;
             }
             break;
         }
