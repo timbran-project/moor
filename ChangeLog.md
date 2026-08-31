@@ -147,10 +147,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `rpc`:
 
-- `InvokeVerb` now carries an `InvocationMode` union instead of a client token.
+- `InvokeVerb` and `Command` now carry an `InvocationMode` union instead of a client token.
   `ConnectedInvocation` is the previous behaviour: the reply is the submitted task id, and output
   reaches the invoking connection's event stream. `CaptureOutputInvocation` runs the call with no
-  connection behind it and replies with a single `VerbCallResponse` holding the outcome and the
+  connection behind it and replies with a single `InvocationResponse` holding the outcome and the
   narrative output the call committed, once the root task finishes. Output is preserved for both
   successful and failed calls. Both modes require an `AuthToken`, and that principal is both the
   player the verb runs as and the authority it runs with.
