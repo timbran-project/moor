@@ -601,14 +601,10 @@ impl TaskQ {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
-        if let Some(task) = self.active.get_mut(&victim_task_id)
+        if let Some(task) = self.active.get(&victim_task_id)
             && task.phase == RunningTaskPhase::Completing
         {
-            return task
-                .terminal_result
-                .take()
-                .map(AbortTaskOutcome::Completed)
-                .unwrap_or(AbortTaskOutcome::NotFound);
+            return AbortTaskOutcome::Completing;
         }
 
         let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
@@ -866,19 +862,17 @@ mod tests {
     }
 
     #[test]
-    fn abort_task_observes_completion_reserved_during_session_commit() {
+    fn abort_task_waits_for_session_finalization() {
         let mut task_q = task_q();
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
         let task = task_q.active.get_mut(&10).unwrap();
         task.phase = RunningTaskPhase::Completing;
         task.terminal_result = Some(Ok(TaskNotification::Result(v_int(42))));
 
-        let AbortTaskOutcome::Completed(Ok(TaskNotification::Result(result))) =
-            task_q.abort_task(10)
-        else {
-            panic!("expected the reserved completion result");
-        };
-        assert_eq!(result, v_int(42));
+        assert!(matches!(
+            task_q.abort_task(10),
+            AbortTaskOutcome::Completing
+        ));
         assert!(task_q.active.contains_key(&10));
         assert!(!task_q.active[&10].kill_switch.load(Ordering::SeqCst));
     }

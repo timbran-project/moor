@@ -35,7 +35,9 @@ pub enum AbortLimitReason {
     Ticks(usize),
     /// This task hit its allotted time limit.
     Time(Duration),
-    /// This task produced more captured output than the caller may retain.
+    /// This task produced more captured events than the caller may retain.
+    OutputEvents(usize),
+    /// This task produced more captured output bytes than the caller may retain.
     OutputBytes(usize),
 }
 

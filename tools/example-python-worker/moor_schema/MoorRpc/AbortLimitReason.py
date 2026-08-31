@@ -5,3 +5,5 @@
 class AbortLimitReason(object):
     Ticks = 0
     Time = 1
+    OutputBytes = 2
+    OutputEvents = 3

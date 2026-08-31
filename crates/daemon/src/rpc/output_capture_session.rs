@@ -53,13 +53,23 @@ pub struct CaptureAccumulator {
     buffer: Mutex<CaptureBuffer>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CaptureLimit {
+    Events(usize),
+    Bytes(usize),
+}
+
 impl CaptureAccumulator {
-    /// Whether `additional_events`/`additional_bytes` on top of what is already committed, plus
-    /// what the caller has buffered but not yet committed, would exceed the limits.
-    fn would_exceed(&self, pending_events: usize, pending_bytes: usize) -> bool {
+    /// Which limit `additional_events`/`additional_bytes` would exceed on top of committed output.
+    fn exceeded_limit(&self, pending_events: usize, pending_bytes: usize) -> Option<CaptureLimit> {
         let buffer = self.buffer.lock().unwrap();
-        buffer.events.len() + pending_events > MAX_CAPTURED_EVENTS
-            || buffer.bytes + pending_bytes > MAX_CAPTURED_BYTES
+        if buffer.events.len() + pending_events > MAX_CAPTURED_EVENTS {
+            return Some(CaptureLimit::Events(MAX_CAPTURED_EVENTS));
+        }
+        if buffer.bytes + pending_bytes > MAX_CAPTURED_BYTES {
+            return Some(CaptureLimit::Bytes(MAX_CAPTURED_BYTES));
+        }
+        None
     }
 
     fn extend(&self, events: Vec<(Obj, Box<NarrativeEvent>)>, bytes: usize) {
@@ -227,30 +237,35 @@ impl Session for OutputCaptureSession {
     }
 
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        let size = self
-            .capture
-            .as_ref()
-            .and_then(|_| (player == self.player).then(|| event_size_bytes(&event)));
+        let Some(size) = self.retained_event_size(player, &event) else {
+            self.events.push_event(player, event);
+            return Ok(());
+        };
         self.send_event_with_size(player, event, size)
+    }
+
+    fn retained_event_size(&self, player: Obj, event: &NarrativeEvent) -> Option<usize> {
+        (self.capture.is_some() && player == self.player).then(|| event_size_bytes(event))
     }
 
     fn send_event_with_size(
         &self,
         player: Obj,
         event: Box<NarrativeEvent>,
-        size_bytes: Option<usize>,
+        size_bytes: usize,
     ) -> Result<(), SessionError> {
         // Only the caller's own output is bounded; anything addressed elsewhere is published on
         // commit and is no more this session's to hold than a connected session's would be.
         if let Some(capture) = self.capture.as_ref()
             && player == self.player
         {
-            let size = size_bytes.unwrap_or_else(|| event_size_bytes(&event));
+            let size = size_bytes;
             let mut pending = self.pending.lock().unwrap();
-            if capture.would_exceed(pending.events + 1, pending.bytes + size) {
-                // Refusing here aborts the task, which is the only way to stop a verb that would
-                // otherwise accumulate without limit in a response nobody can receive.
-                return Err(SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES));
+            if let Some(limit) = capture.exceeded_limit(pending.events + 1, pending.bytes + size) {
+                return Err(match limit {
+                    CaptureLimit::Events(events) => SessionError::OutputEventLimitExceeded(events),
+                    CaptureLimit::Bytes(bytes) => SessionError::OutputByteLimitExceeded(bytes),
+                });
             }
             pending.events += 1;
             pending.bytes += size;
@@ -554,7 +569,7 @@ mod tests {
             .expect_err("over the limit");
         assert!(matches!(
             err,
-            SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES)
+            SessionError::OutputEventLimitExceeded(MAX_CAPTURED_EVENTS)
         ));
     }
 
@@ -571,7 +586,7 @@ mod tests {
                 Err(err) => {
                     assert!(matches!(
                         err,
-                        SessionError::OutputLimitExceeded(MAX_CAPTURED_BYTES)
+                        SessionError::OutputByteLimitExceeded(MAX_CAPTURED_BYTES)
                     ));
                     break;
                 }

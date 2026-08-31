@@ -1855,6 +1855,10 @@ impl TelnetConnection {
             SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(_)) => {
                 self.send_line("Task ran out of seconds").await?;
             }
+            SchedulerError::TaskAbortedLimit(AbortLimitReason::OutputEvents(_)) => {
+                self.send_line("Task produced too many captured output events")
+                    .await?;
+            }
             SchedulerError::TaskAbortedLimit(AbortLimitReason::OutputBytes(_)) => {
                 self.send_line("Task produced too much captured output")
                     .await?;

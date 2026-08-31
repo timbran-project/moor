@@ -1564,6 +1564,9 @@ fn format_scheduler_error(error: &SchedulerError) -> String {
             match reason {
                 AbortLimitReason::Ticks(t) => format!("Task exceeded tick limit ({} ticks)", t),
                 AbortLimitReason::Time(d) => format!("Task exceeded time limit ({:?})", d),
+                AbortLimitReason::OutputEvents(events) => {
+                    format!("Task exceeded captured output limit ({events} events)")
+                }
                 AbortLimitReason::OutputBytes(bytes) => {
                     format!("Task exceeded captured output limit ({bytes} bytes)")
                 }

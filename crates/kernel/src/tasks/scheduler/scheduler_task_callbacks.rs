@@ -359,6 +359,13 @@ impl Scheduler {
                 warn!(?task_id, time = ?t, "Task aborted, time exceeded");
                 format!("Abort: Task exceeded time limit of {t:?}")
             }
+            AbortLimitReason::OutputEvents(events) => {
+                warn!(
+                    ?task_id,
+                    events, "Task aborted, captured event count exceeded"
+                );
+                format!("Abort: Task exceeded captured output limit of {events} events")
+            }
             AbortLimitReason::OutputBytes(bytes) => {
                 warn!(?task_id, bytes, "Task aborted, captured output exceeded");
                 format!("Abort: Task exceeded captured output limit of {bytes} bytes")
@@ -395,6 +402,7 @@ impl Scheduler {
         let resource_str = match limit_reason {
             AbortLimitReason::Ticks(_) => "ticks",
             AbortLimitReason::Time(_) => "seconds",
+            AbortLimitReason::OutputEvents(_) => "output events",
             AbortLimitReason::OutputBytes(_) => "output bytes",
         };
 
@@ -871,23 +879,6 @@ impl Scheduler {
         lc.task_q.abort_task(victim_task_id)
     }
 
-    pub fn finalize_completed_task(
-        &self,
-        task_id: TaskId,
-        result: Result<TaskNotification, SchedulerError>,
-    ) {
-        let mut lc = self.lifecycle.lock();
-        let Some(mut task) = lc.task_q.active.remove(&task_id) else {
-            return;
-        };
-        lc.task_q.suspended.enqueue_dependents_for(task_id);
-        lc.task_q.remove_message_queue(task_id);
-        lc.task_q.live_tasks.remove(task_id);
-        if let Some(sender) = task.result_sender.take() {
-            let _ = sender.send((task_id, result));
-        }
-    }
-
     pub fn handle_resume_task(
         &self,
         task_id: TaskId,
@@ -919,7 +910,7 @@ impl Scheduler {
         task_id: TaskId,
         player: Obj,
         event: Box<NarrativeEvent>,
-        size_bytes: usize,
+        size_bytes: Option<usize>,
     ) {
         let mut lc = self.lifecycle.lock();
         // Task is asking to notify a player of an event.
@@ -927,15 +918,19 @@ impl Scheduler {
             warn!(task_id, "Task not found for notify request");
             return;
         };
-        let Err(error) = task
-            .session
-            .send_event_with_size(player, event, Some(size_bytes))
-        else {
+        let send_result = match size_bytes {
+            Some(size_bytes) => task.session.send_event_with_size(player, event, size_bytes),
+            None => task.session.send_event(player, event),
+        };
+        let Err(error) = send_result else {
             return;
         };
         warn!(?error, "Could not notify player; cancelling task");
         let scheduler_error = match error {
-            SessionError::OutputLimitExceeded(limit) => {
+            SessionError::OutputEventLimitExceeded(limit) => {
+                TaskAbortedLimit(AbortLimitReason::OutputEvents(limit))
+            }
+            SessionError::OutputByteLimitExceeded(limit) => {
                 TaskAbortedLimit(AbortLimitReason::OutputBytes(limit))
             }
             _ => TaskAbortedError,
