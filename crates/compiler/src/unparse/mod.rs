@@ -22,7 +22,7 @@ use crate::{
 };
 use base64::{Engine, engine::general_purpose};
 use moor_common::util::{write_i64_decimal, write_quoted_str};
-use moor_var::{Obj, Var, Variant, program::opcode::ScatterLabel};
+use moor_var::{Lambda, Obj, Var, Variant, program::opcode::ScatterLabel};
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -32,6 +32,7 @@ pub(crate) struct Unparse<'a> {
     tree: &'a Parse,
     fully_paren: bool,
     indent_width: usize,
+    name_subs: Option<&'a HashMap<Obj, String>>,
 }
 
 const INDENT_LEVEL: usize = 2;
@@ -43,7 +44,19 @@ impl<'a> Unparse<'a> {
             tree,
             fully_paren,
             indent_width,
+            name_subs: None,
         }
+    }
+
+    fn new_objsub(
+        tree: &'a Parse,
+        fully_paren: bool,
+        should_indent: bool,
+        name_subs: &'a HashMap<Obj, String>,
+    ) -> Self {
+        let mut unparse = Self::new(tree, fully_paren, should_indent);
+        unparse.name_subs = Some(name_subs);
+        unparse
     }
 
     fn write_arg<W: std::fmt::Write>(
@@ -121,6 +134,142 @@ impl<'a> Unparse<'a> {
         for _ in 0..(indent * self.indent_width) {
             writer.write_char(' ')?;
         }
+        Ok(())
+    }
+
+    fn write_value_literal<W: std::fmt::Write>(
+        &self,
+        value: &Var,
+        indent_depth: usize,
+        writer: &mut W,
+    ) -> Result<(), DecompileError> {
+        let Some(name_subs) = self.name_subs else {
+            return write_literal(value, writer);
+        };
+        write_literal_objsub(value, name_subs, indent_depth, writer)
+    }
+
+    fn write_lambda_literal<W: std::fmt::Write>(
+        &self,
+        lambda: &Lambda,
+        indent_depth: usize,
+        writer: &mut W,
+    ) -> Result<(), DecompileError> {
+        let is_simple_expr = self.tree.stmts.len() == 1
+            && matches!(
+                &self.tree.stmts[0].node,
+                crate::ast::StmtNode::Expr(crate::ast::Expr::Return(Some(_)))
+            );
+
+        if is_simple_expr {
+            write!(writer, "{{")?;
+        } else {
+            write!(writer, "fn (")?;
+        }
+
+        for (i, label) in lambda.0.params.labels.iter().enumerate() {
+            if i > 0 {
+                write!(writer, ", ")?;
+            }
+            match label {
+                ScatterLabel::Required(name) => {
+                    if let Some(var) = lambda.0.body.var_names().find_variable(name) {
+                        write!(writer, "{}", var.to_symbol().as_arc_str())?;
+                    } else {
+                        write!(writer, "param_{}", name.0)?;
+                    }
+                }
+                ScatterLabel::Optional(name, _) => {
+                    if let Some(var) = lambda.0.body.var_names().find_variable(name) {
+                        write!(writer, "?{}", var.to_symbol().as_arc_str())?;
+                    } else {
+                        write!(writer, "?param_{}", name.0)?;
+                    }
+                }
+                ScatterLabel::Rest(name) => {
+                    if let Some(var) = lambda.0.body.var_names().find_variable(name) {
+                        write!(writer, "@{}", var.to_symbol().as_arc_str())?;
+                    } else {
+                        write!(writer, "@param_{}", name.0)?;
+                    }
+                }
+            }
+        }
+
+        if is_simple_expr {
+            write!(writer, "}} => ")?;
+            let crate::ast::StmtNode::Expr(crate::ast::Expr::Return(Some(expr))) =
+                &self.tree.stmts[0].node
+            else {
+                unreachable!()
+            };
+            self.write_expr(expr, writer)?;
+        } else {
+            write!(writer, ") ")?;
+            self.write_lambda_body_inline(&self.tree.stmts, writer)?;
+            write!(writer, "endfn")?;
+        }
+
+        let mut wrote_metadata = false;
+        if !lambda.0.captured_env.is_empty() {
+            let var_names = lambda.0.body.var_names();
+            for (scope_depth, frame) in lambda.0.captured_env.iter().enumerate() {
+                let mut scope_buf = String::new();
+
+                for (var_offset, var_value) in frame.iter().enumerate() {
+                    if var_value.is_none() {
+                        continue;
+                    }
+
+                    let maybe_name = var_names.names().iter().find_map(|name| {
+                        if name.1 as usize == scope_depth && name.0 as usize == var_offset {
+                            var_names.ident_for_name(name)
+                        } else {
+                            None
+                        }
+                    });
+
+                    let Some(symbol) = maybe_name else {
+                        continue;
+                    };
+
+                    if !scope_buf.is_empty() {
+                        write!(scope_buf, ", ")?;
+                    }
+                    write!(scope_buf, "{}: ", symbol.as_arc_str())?;
+                    self.write_value_literal(
+                        var_value,
+                        indent_depth + INDENT_LEVEL,
+                        &mut scope_buf,
+                    )?;
+                }
+
+                if scope_buf.is_empty() {
+                    continue;
+                }
+                if !wrote_metadata {
+                    write!(writer, " with captured [")?;
+                    wrote_metadata = true;
+                } else {
+                    write!(writer, ", ")?;
+                }
+                write!(writer, "{{{scope_buf}}}")?;
+            }
+
+            if wrote_metadata {
+                write!(writer, "]")?;
+            }
+        }
+
+        if lambda.0.self_var.is_some() {
+            if !wrote_metadata {
+                write!(writer, " with ")?;
+            } else {
+                write!(writer, " ")?;
+            }
+            write!(writer, "self 1")?;
+        }
+
         Ok(())
     }
 }
@@ -301,120 +450,10 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
         }
         Variant::Lambda(l) => {
             use crate::decompile;
-            use moor_var::program::opcode::ScatterLabel;
 
             let decompiled_tree = decompile::program_to_tree(&l.0.body).unwrap();
             let temp_unparse = Unparse::new(&decompiled_tree, false, true);
-            let is_simple_expr = decompiled_tree.stmts.len() == 1
-                && matches!(
-                    &decompiled_tree.stmts[0].node,
-                    crate::ast::StmtNode::Expr(crate::ast::Expr::Return(Some(_)))
-                );
-
-            if is_simple_expr {
-                write!(writer, "{{")?;
-            } else {
-                write!(writer, "fn (")?;
-            }
-
-            for (i, label) in l.0.params.labels.iter().enumerate() {
-                if i > 0 {
-                    write!(writer, ", ")?;
-                }
-                match label {
-                    ScatterLabel::Required(name) => {
-                        if let Some(var) = l.0.body.var_names().find_variable(name) {
-                            write!(writer, "{}", var.to_symbol().as_arc_str())?;
-                        } else {
-                            write!(writer, "param_{}", name.0)?;
-                        }
-                    }
-                    ScatterLabel::Optional(name, _) => {
-                        if let Some(var) = l.0.body.var_names().find_variable(name) {
-                            write!(writer, "?{}", var.to_symbol().as_arc_str())?;
-                        } else {
-                            write!(writer, "?param_{}", name.0)?;
-                        }
-                    }
-                    ScatterLabel::Rest(name) => {
-                        if let Some(var) = l.0.body.var_names().find_variable(name) {
-                            write!(writer, "@{}", var.to_symbol().as_arc_str())?;
-                        } else {
-                            write!(writer, "@param_{}", name.0)?;
-                        }
-                    }
-                }
-            }
-
-            if is_simple_expr {
-                write!(writer, "}} => ")?;
-                if let crate::ast::StmtNode::Expr(crate::ast::Expr::Return(Some(expr))) =
-                    &decompiled_tree.stmts[0].node
-                {
-                    temp_unparse.write_expr(expr, writer)?;
-                } else {
-                    unreachable!()
-                }
-            } else {
-                write!(writer, ") ")?;
-                temp_unparse.write_lambda_body_inline(&decompiled_tree.stmts, writer)?;
-                write!(writer, "endfn")?;
-            }
-
-            let mut wrote_metadata = false;
-            if !l.0.captured_env.is_empty() {
-                let var_names = l.0.body.var_names();
-                for (scope_depth, frame) in l.0.captured_env.iter().enumerate() {
-                    let mut scope_buf = String::new();
-
-                    for (var_offset, var_value) in frame.iter().enumerate() {
-                        if var_value.is_none() {
-                            continue;
-                        }
-
-                        let maybe_name = var_names.names().iter().find_map(|name| {
-                            if name.1 as usize == scope_depth && name.0 as usize == var_offset {
-                                var_names.ident_for_name(name)
-                            } else {
-                                None
-                            }
-                        });
-
-                        let Some(symbol) = maybe_name else {
-                            continue;
-                        };
-
-                        if !scope_buf.is_empty() {
-                            write!(scope_buf, ", ")?;
-                        }
-                        write!(scope_buf, "{}: ", symbol.as_arc_str())?;
-                        write_literal(var_value, &mut scope_buf)?;
-                    }
-
-                    if scope_buf.is_empty() {
-                        continue;
-                    }
-                    if !wrote_metadata {
-                        write!(writer, " with captured [")?;
-                        wrote_metadata = true;
-                    } else {
-                        write!(writer, ", ")?;
-                    }
-                    write!(writer, "{{{scope_buf}}}")?;
-                }
-                if wrote_metadata {
-                    write!(writer, "]")?;
-                }
-            }
-
-            if l.0.self_var.is_some() {
-                if !wrote_metadata {
-                    write!(writer, " with ")?;
-                } else {
-                    write!(writer, " ")?;
-                }
-                write!(writer, "self 1")?;
-            }
+            temp_unparse.write_lambda_literal(l, 0, writer)?;
         }
     }
     Ok(())
@@ -551,111 +590,11 @@ pub fn write_literal_objsub<W: std::fmt::Write>(
             write!(writer, "{}", f(&oid))?;
         }
         Variant::Lambda(l) => {
-            write!(writer, "{{")?;
-            for (i, label) in l.0.params.labels.iter().enumerate() {
-                if i > 0 {
-                    write!(writer, ", ")?;
-                }
-                match label {
-                    ScatterLabel::Required(name) => {
-                        write!(
-                            writer,
-                            "{}",
-                            l.0.body
-                                .var_names()
-                                .ident_for_name(name)
-                                .map(|s| s.as_arc_str().to_string())
-                                .unwrap_or_else(|| "x".to_string())
-                        )?;
-                    }
-                    ScatterLabel::Optional(name, _) => {
-                        write!(
-                            writer,
-                            "?{}",
-                            l.0.body
-                                .var_names()
-                                .ident_for_name(name)
-                                .map(|s| s.as_arc_str().to_string())
-                                .unwrap_or_else(|| "x".to_string())
-                        )?;
-                    }
-                    ScatterLabel::Rest(name) => {
-                        write!(
-                            writer,
-                            "@{}",
-                            l.0.body
-                                .var_names()
-                                .ident_for_name(name)
-                                .map(|s| s.as_arc_str().to_string())
-                                .unwrap_or_else(|| "x".to_string())
-                        )?;
-                    }
-                }
-            }
-            write!(writer, "}} => 1")?;
+            use crate::decompile;
 
-            let mut wrote_metadata = false;
-
-            if !l.0.captured_env.is_empty() {
-                let var_names = l.0.body.var_names();
-
-                for (scope_depth, frame) in l.0.captured_env.iter().enumerate() {
-                    let mut scope_buf = String::new();
-
-                    for (var_offset, var_value) in frame.iter().enumerate() {
-                        if var_value.is_none() {
-                            continue;
-                        }
-
-                        let maybe_name = var_names.names().iter().find_map(|name| {
-                            if name.1 as usize == scope_depth && name.0 as usize == var_offset {
-                                var_names.ident_for_name(name)
-                            } else {
-                                None
-                            }
-                        });
-
-                        let Some(symbol) = maybe_name else {
-                            continue;
-                        };
-
-                        if !scope_buf.is_empty() {
-                            write!(scope_buf, ", ")?;
-                        }
-                        write!(scope_buf, "{}: ", symbol.as_arc_str())?;
-                        write_literal_objsub(
-                            var_value,
-                            name_subs,
-                            indent_depth + INDENT_LEVEL,
-                            &mut scope_buf,
-                        )?;
-                    }
-
-                    if scope_buf.is_empty() {
-                        continue;
-                    }
-                    if !wrote_metadata {
-                        write!(writer, " with captured [")?;
-                        wrote_metadata = true;
-                    } else {
-                        write!(writer, ", ")?;
-                    }
-                    write!(writer, "{{{scope_buf}}}")?;
-                }
-
-                if wrote_metadata {
-                    write!(writer, "]")?;
-                }
-            }
-
-            if l.0.self_var.is_some() {
-                if !wrote_metadata {
-                    write!(writer, " with ")?;
-                } else {
-                    write!(writer, " ")?;
-                }
-                write!(writer, "self 1")?;
-            }
+            let decompiled_tree = decompile::program_to_tree(&l.0.body).unwrap();
+            let temp_unparse = Unparse::new_objsub(&decompiled_tree, false, true, name_subs);
+            temp_unparse.write_lambda_literal(l, indent_depth, writer)?;
         }
         _ => {
             write_literal(v, writer)?;

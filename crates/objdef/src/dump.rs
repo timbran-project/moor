@@ -733,18 +733,10 @@ mod tests {
         model::{CommitResult, ObjectKind, PropAttrs, PropFlag, TaskPermissions, WorldStateSource},
         util::BitEnum,
     };
-    use moor_compiler::{CompileOptions, compile};
+    use moor_compiler::{CompileOptions, parse_literal_value, to_literal};
     use moor_db::{Database, DatabaseConfig, TxDB};
     use moor_textdump::{TextdumpImportOptions, textdump_load};
-    use moor_var::{
-        Obj, SYSTEM_OBJECT, Symbol, Var,
-        program::{
-            labels::Label,
-            names::Name,
-            opcode::{ScatterArgs, ScatterLabel},
-        },
-        v_int, v_list, v_obj, v_str,
-    };
+    use moor_var::{Obj, SYSTEM_OBJECT, Symbol, v_int, v_list, v_obj, v_str};
     use semver::Version;
     use std::{
         collections::BTreeMap,
@@ -1347,40 +1339,9 @@ mod tests {
             )
             .unwrap();
 
-            // Create a simple lambda by compiling a lambda expression
-            let lambda_source = "return {x} => x + 1;";
-            let lambda_program = compile(lambda_source, CompileOptions::default()).unwrap();
-            // Extract the lambda from the compiled program - it should be the result of the return statement
-            let simple_lambda = match lambda_program
-                .literals()
-                .iter()
-                .find(|lit| lit.as_lambda().is_some())
-            {
-                Some(lambda_var) => lambda_var.clone(),
-                None => {
-                    // Fallback: create a simple test lambda manually with correct parameter mapping
-                    let simple_source = "return x + 1;";
-                    let simple_program = compile(simple_source, CompileOptions::default()).unwrap();
-                    let x_name = Name(11, 0, 0); // x variable from debug output above
-                    let simple_params = ScatterArgs {
-                        labels: vec![ScatterLabel::Required(x_name)],
-                        done: Label(0),
-                    };
-                    Var::mk_lambda(simple_params, simple_program, vec![], None)
-                }
-            };
-
-            // Create a lambda with captured environment - use fallback approach
-            let captured_source = "return x + captured_var;";
-            let captured_program = compile(captured_source, CompileOptions::default()).unwrap();
-            let x_name = Name(11, 0, 0); // x variable from the compiled environment
-            let captured_params = ScatterArgs {
-                labels: vec![ScatterLabel::Required(x_name)],
-                done: Label(0),
-            };
-            let captured_env = vec![vec![v_int(42), v_int(123)]];
+            let simple_lambda = parse_literal_value("{x} => x + 1").unwrap();
             let captured_lambda =
-                Var::mk_lambda(captured_params, captured_program, captured_env, None);
+                parse_literal_value("{x} => x + base with captured [{base: 42}]").unwrap();
 
             // Define lambda properties
             tx.define_property(
@@ -1434,7 +1395,7 @@ mod tests {
         );
         assert!(content.contains("=>"), "Should contain lambda arrow syntax");
         assert!(
-            content.contains("{x} => 1"),
+            content.contains("{x} => x + 1"),
             "Should contain correct lambda syntax"
         );
 
@@ -1444,12 +1405,8 @@ mod tests {
             "Should contain captured environment metadata"
         );
         assert!(
-            content.contains("player: 42"),
-            "Should contain variable name mapping for first captured var"
-        );
-        assert!(
-            content.contains("this: 123"),
-            "Should contain variable name mapping for second captured var"
+            content.contains("base: 42"),
+            "Should contain the captured variable name and value"
         );
 
         // Load objdef back into new database - should now work with literal_lambda support
@@ -1488,6 +1445,7 @@ mod tests {
                 simple_prop.as_lambda().is_some(),
                 "Simple lambda should be loaded as lambda"
             );
+            assert!(to_literal(&simple_prop).contains("x + 1"));
 
             let captured_prop = tx
                 .retrieve_property(
@@ -1502,27 +1460,15 @@ mod tests {
             );
 
             if let Some(lambda) = captured_prop.as_lambda() {
-                // With metadata support, captured environments should now be preserved
-                assert_eq!(
-                    lambda.0.captured_env.len(),
-                    1,
-                    "Should preserve captured environment with metadata"
-                );
-                assert_eq!(
-                    lambda.0.captured_env[0].len(),
-                    2,
-                    "Should have 2 captured variables"
-                );
-                assert_eq!(
-                    lambda.0.captured_env[0][0],
-                    v_int(42),
-                    "First captured var should be 42"
-                );
-                assert_eq!(
-                    lambda.0.captured_env[0][1],
-                    v_int(123),
-                    "Second captured var should be 123"
-                );
+                let captures = lambda
+                    .0
+                    .captured_env
+                    .iter()
+                    .flatten()
+                    .filter(|value| !value.is_none())
+                    .cloned()
+                    .collect::<Vec<_>>();
+                assert_eq!(captures, vec![v_int(42)]);
             }
         }
     }

@@ -25,7 +25,8 @@ mod tests {
     };
     use moor_common::tasks::NoopClientSession;
     use moor_compiler::{CompileOptions, Program, compile, parse_literal_value, to_literal};
-    use moor_db::{DatabaseConfig, TxDB};
+    use moor_db::{Database, DatabaseConfig, TxDB};
+    use moor_objdef::{ObjectDefinitionLoader, dump_snapshot_object_definitions};
     use moor_var::program::ProgramType;
     use moor_var::{
         E_ARGS, E_DIV, E_INVARG, E_PERM, E_QUOTA, E_RANGE, E_TYPE, Error, IndexMode, List, NOTHING,
@@ -273,6 +274,105 @@ mod tests {
             ),
             Ok(v_int(30))
         );
+    }
+
+    #[test]
+    fn test_objdef_lambda_export_preserves_executable_body() {
+        let expression_lambda = run_moo("return {value} => value + 1;").unwrap();
+        let stored_lambda = run_moo(
+            r#"
+                let base = 40;
+                return fn (value, ?increment = 2)
+                    if (value == #0)
+                        return base + increment;
+                    endif
+                    return -1;
+                endfn;
+            "#,
+        )
+        .unwrap();
+
+        let invoke_program = compile(
+            "return {this.expression_lambda(3), this.stored_lambda(#0)};",
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let db1 = test_db_with_verb("invoke", &invoke_program);
+        {
+            let mut tx = db1.new_world_state().unwrap();
+            tx.set_object_metadata(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                Symbol::mk("import_export_id"),
+                v_str("system"),
+            )
+            .unwrap();
+            tx.define_property(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                Symbol::mk("stored_lambda"),
+                &SYSTEM_OBJECT,
+                PropFlag::all_flags(),
+                Some(stored_lambda),
+            )
+            .unwrap();
+            tx.define_property(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                Symbol::mk("expression_lambda"),
+                &SYSTEM_OBJECT,
+                PropFlag::all_flags(),
+                Some(expression_lambda),
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let original_result = call_verb(
+            db1.new_world_state().unwrap(),
+            Arc::new(NoopClientSession::new()),
+            BuiltinRegistry::new(),
+            "invoke",
+            List::mk_list(&[]),
+        )
+        .unwrap();
+        assert_eq!(original_result, v_list(&[v_int(4), v_int(42)]));
+
+        let export_dir = tempfile::tempdir().unwrap();
+        let snapshot = db1.create_snapshot().unwrap();
+        dump_snapshot_object_definitions(snapshot.as_ref(), export_dir.path()).unwrap();
+        let exported = std::fs::read_to_string(export_dir.path().join("system.moo")).unwrap();
+        assert!(exported.contains("fn (value, ?increment)"));
+        assert!(exported.contains("base + increment"));
+        assert!(exported.contains("{value} => value + 1"));
+        assert!(exported.contains("value == SYSTEM"));
+        assert!(!exported.contains("} => 1"));
+
+        let (db2, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        {
+            let mut loader = db2.loader_client().unwrap();
+            let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
+            defloader
+                .load_objdef_directory(
+                    CompileOptions::default(),
+                    export_dir.path(),
+                    Default::default(),
+                )
+                .unwrap();
+            loader.commit().unwrap();
+        }
+
+        let imported_result = call_verb(
+            db2.new_world_state().unwrap(),
+            Arc::new(NoopClientSession::new()),
+            BuiltinRegistry::new(),
+            "invoke",
+            List::mk_list(&[]),
+        )
+        .unwrap();
+        assert_eq!(imported_result, original_result);
     }
 
     #[test]

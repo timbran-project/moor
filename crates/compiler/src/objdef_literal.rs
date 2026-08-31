@@ -628,7 +628,8 @@ impl<'a> LiteralParser<'a> {
         ),
         ObjDefParseError,
     > {
-        let source = format!("return {lambda_source};");
+        let lambda_source_with_constants = self.resolve_lambda_constants(lambda_source);
+        let source = format!("return {lambda_source_with_constants};");
         let program = compile(&source, crate::CompileOptions::default())
             .map_err(|e| ObjDefParseError::VerbCompileError(e, lambda_source.to_string()))?;
 
@@ -651,6 +652,28 @@ impl<'a> LiteralParser<'a> {
             program.lambda_program(program_offset).clone(),
             self_var,
         ))
+    }
+
+    fn resolve_lambda_constants(&self, source: &str) -> String {
+        let mut resolved = String::with_capacity(source.len());
+        let mut copied_through = 0usize;
+
+        for token in crate::lexer::lex(source) {
+            if token.kind != crate::SyntaxKind::Ident {
+                continue;
+            }
+            let symbol = Symbol::mk(&source[token.span.clone()]);
+            let Some(value) = self.context.constants().get(&symbol) else {
+                continue;
+            };
+
+            resolved.push_str(&source[copied_through..token.span.start]);
+            resolved.push_str(&crate::unparse::to_literal(value));
+            copied_through = token.span.end;
+        }
+
+        resolved.push_str(&source[copied_through..]);
+        resolved
     }
 
     fn bind_lambda_captures(
@@ -713,6 +736,29 @@ impl<'a> LiteralParser<'a> {
         Ok(Some(Name(1, 0, 0)))
     }
 
+    fn finish_lambda_value(&mut self, lambda_source: &str) -> Result<Var, ObjDefParseError> {
+        let (params, body_program, compiled_self_var) = self.compile_lambda_value(lambda_source)?;
+
+        let mut capture_frames = Vec::new();
+        let mut self_var = compiled_self_var;
+
+        self.skip_trivia();
+        if self.eat_keyword("with") {
+            self.skip_trivia();
+            if self.eat_keyword("captured") {
+                capture_frames = self.parse_lambda_captured_env()?;
+                self.skip_trivia();
+            }
+            if self.eat_keyword("self") {
+                self.skip_trivia();
+                self_var = self.parse_lambda_self_ref()?;
+            }
+        }
+
+        let captured_env = self.bind_lambda_captures(capture_frames, &body_program)?;
+        Ok(Var::mk_lambda(params, body_program, captured_env, self_var))
+    }
+
     /// `lambda-literal = lambda-params '=>' expr ['with captured ...]`
     fn parse_literal_lambda(&mut self) -> Result<Var, ObjDefParseError> {
         let lambda_start = self.pos;
@@ -731,29 +777,34 @@ impl<'a> LiteralParser<'a> {
             Stopper::Char('}'),
             Stopper::Char(';'),
         ])?;
-        let lambda_source = self.source[lambda_start..self.pos].trim();
-        let (params, body_program, compiled_self_var) = self.compile_lambda_value(lambda_source)?;
+        let lambda_source = self.source[lambda_start..self.pos].trim().to_string();
+        self.finish_lambda_value(&lambda_source)
+    }
 
-        let mut capture_frames = Vec::new();
-        let mut self_var = compiled_self_var;
+    fn parse_literal_fn_lambda(&mut self) -> Result<Var, ObjDefParseError> {
+        let lambda_start = self.pos;
+        let tokens = crate::lexer::lex(self.remaining());
+        let mut depth = 0usize;
 
-        self.skip_trivia();
-        if !self.eat_keyword("with") {
-            return Ok(Var::mk_lambda(params, body_program, vec![], self_var));
+        for token in tokens {
+            match token.kind {
+                crate::SyntaxKind::FnKw => depth += 1,
+                crate::SyntaxKind::EndFnKw => {
+                    if depth == 0 {
+                        return Err(self.parse_error("unexpected endfn in lambda literal"));
+                    }
+                    depth -= 1;
+                    if depth == 0 {
+                        self.pos = lambda_start + token.span.end;
+                        let lambda_source = self.source[lambda_start..self.pos].to_string();
+                        return self.finish_lambda_value(&lambda_source);
+                    }
+                }
+                _ => {}
+            }
         }
 
-        self.skip_trivia();
-        if self.eat_keyword("captured") {
-            capture_frames = self.parse_lambda_captured_env()?;
-            self.skip_trivia();
-        }
-        if self.eat_keyword("self") {
-            self.skip_trivia();
-            self_var = self.parse_lambda_self_ref()?;
-        }
-
-        let captured_env = self.bind_lambda_captures(capture_frames, &body_program)?;
-        Ok(Var::mk_lambda(params, body_program, captured_env, self_var))
+        Err(self.parse_error("expected endfn to close lambda literal"))
     }
 
     fn brace_starts_lambda(&self) -> bool {
@@ -1437,7 +1488,8 @@ impl<'a> LiteralParser<'a> {
         self.skip_trivia();
         // Only container literals recurse; count their entry so scalar leaves
         // and map keys do not inflate the nesting depth.
-        let is_container = matches!(self.peek_char(), Some('[' | '{' | '<'));
+        let is_container =
+            matches!(self.peek_char(), Some('[' | '{' | '<')) || self.starts_with_keyword("fn");
         if is_container {
             self.depth += 1;
             if self.depth > crate::objdef::MAX_LITERAL_NESTING {
@@ -1480,6 +1532,9 @@ impl<'a> LiteralParser<'a> {
             _ => {
                 if self.remaining().starts_with("b\"") {
                     return self.parse_binary_value();
+                }
+                if self.starts_with_keyword("fn") {
+                    return self.parse_literal_fn_lambda();
                 }
 
                 let start = self.pos;

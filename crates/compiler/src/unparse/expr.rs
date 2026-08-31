@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{Unparse, write_literal};
+use super::Unparse;
 use crate::{
     ast::{self, CallTarget, Expr},
     decompile::DecompileError,
@@ -140,7 +140,7 @@ impl<'a> Unparse<'a> {
                 }
                 Ok(())
             }
-            Expr::Value(value) => write_literal(value, writer),
+            Expr::Value(value) => self.write_value_literal(value, 0, writer),
             Expr::TypeConstant(typ) => write!(writer, "{}", typ.to_literal()).map_err(Into::into),
             Expr::Id(id) => {
                 write!(writer, "{}", self.unparse_variable(id).as_arc_str()).map_err(Into::into)
