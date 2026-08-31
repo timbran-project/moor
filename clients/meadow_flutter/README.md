@@ -119,8 +119,8 @@ etc.).
 ./tool/test.sh         # flutter test
 ```
 
-Regenerating the checked-in Dart FlatBuffers bindings requires `flatc 25.9.23`, matching the
-vendored Dart runtime:
+Regenerating the checked-in Dart FlatBuffers bindings requires `flatc`. Compatibility is checked by
+building the generated client against the version of `flat_buffers` in `pubspec.lock`. Run:
 
 ```bash
 ./tool/gen_flatbuffers.sh
