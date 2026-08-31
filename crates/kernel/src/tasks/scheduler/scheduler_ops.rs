@@ -481,7 +481,7 @@ impl Scheduler {
             // Notify all live tasks of shutdown.
             for task in lc.task_q.active.values() {
                 let _ = task.session.notify_shutdown(msg.clone());
-                task.kill_switch.store(true, Ordering::SeqCst);
+                task.control.request_cancel();
             }
             info!(
                 active_tasks = lc.task_q.active.len(),

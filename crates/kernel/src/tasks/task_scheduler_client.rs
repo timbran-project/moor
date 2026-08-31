@@ -14,6 +14,7 @@
 use std::time::SystemTime;
 
 use crate::{
+    task_context::with_current_session,
     tasks::{
         SchedulerOp, TaskDescription, sched_counters, task::Task, task_telemetry::TaskTelemetry,
     },
@@ -181,15 +182,10 @@ impl TaskSchedulerClient {
     }
 
     pub fn notify(&self, player: Obj, event: Box<NarrativeEvent>) {
-        let size_bytes = {
-            let lc = self.scheduler.lifecycle.lock();
-            lc.task_q
-                .active
-                .get(&self.task_id)
-                .and_then(|task| task.session.retained_event_size(player, &event))
-        };
-        self.scheduler
-            .handle_notify(self.task_id, player, event, size_bytes);
+        let result = with_current_session(|session| session.send_event(player, event));
+        if let Err(error) = result {
+            self.scheduler.handle_notify_error(self.task_id, error);
+        }
     }
 
     pub fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) {

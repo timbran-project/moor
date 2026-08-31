@@ -22,14 +22,10 @@
 //! A task is generally tied 1:1 with a player connection, and usually come from one command, but
 //! they can also be 'forked' from other tasks.
 //!
-use std::{
-    collections::HashSet,
-    sync::{Arc, atomic::AtomicBool},
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use crate::task_context::{
-    TransactionRenewalError, commit_current_transaction, has_active_task,
+    TransactionRenewalError, commit_current_transaction, current_session, has_active_task,
     rollback_current_transaction, with_current_transaction, with_current_transaction_mut,
     with_new_transaction,
 };
@@ -40,8 +36,8 @@ use std::sync::LazyLock;
 use tracing::{error, warn};
 
 use crate::{
-    trace_task_abort, trace_task_complete, trace_task_start, trace_task_suspend,
-    trace_task_suspend_with_delay,
+    tasks::task_control::TaskControl, trace_task_abort, trace_task_complete, trace_task_start,
+    trace_task_suspend, trace_task_suspend_with_delay,
 };
 
 #[cfg(feature = "trace_events")]
@@ -130,8 +126,8 @@ pub struct Task {
     authority_principal_flags: BitEnum<ObjFlag>,
     /// The actual VM host which is managing the execution of this task.
     pub(crate) vm_host: VmHost,
-    /// True if the task should die.
-    pub(crate) kill_switch: Arc<AtomicBool>,
+    /// Arbitration between cancellation and transaction commit.
+    pub(crate) control: Arc<TaskControl>,
     /// The number of retries this process has undergone.
     pub(crate) retries: u8,
     /// A copy of the VM state at the time the task was created or last committed/suspended.
@@ -154,7 +150,7 @@ impl Task {
         authority_principal: Obj,
         task_start: TaskStart,
         server_options: &ServerOptions,
-        kill_switch: Arc<AtomicBool>,
+        control: Arc<TaskControl>,
     ) -> Box<Self> {
         let is_background = task_start.is_background();
         let state = TaskState::Pending(task_start.clone());
@@ -217,7 +213,7 @@ impl Task {
             vm_host,
             authority_principal,
             authority_principal_flags: BitEnum::new(),
-            kill_switch,
+            control,
             retries: 0,
             retry_state,
             handling_uncaught_error: false,
@@ -250,7 +246,7 @@ impl Task {
         vm_host: VmHost,
         authority_principal: Obj,
         authority_principal_flags: BitEnum<ObjFlag>,
-        kill_switch: Arc<AtomicBool>,
+        control: Arc<TaskControl>,
         retries: u8,
         retry_state: ExecState,
         handling_uncaught_error: bool,
@@ -265,7 +261,7 @@ impl Task {
             vm_host,
             authority_principal,
             authority_principal_flags,
-            kill_switch,
+            control,
             retries,
             retry_state,
             handling_uncaught_error,
@@ -287,7 +283,7 @@ impl Task {
 
         while task.vm_host.is_running() {
             // Check kill switch.
-            if task.kill_switch.load(std::sync::atomic::Ordering::Relaxed) {
+            if task.control.is_cancelled() {
                 if has_active_task() {
                     rollback_current_transaction()
                         .expect("Could not rollback cancelled task transaction");
@@ -309,6 +305,112 @@ impl Task {
         }
 
         // Transaction is automatically cleaned up by _tx_guard drop
+    }
+
+    fn cancel_before_commit(&self, task_scheduler_client: &TaskSchedulerClient) {
+        if has_active_task() {
+            rollback_current_transaction()
+                .expect("Could not rollback transaction after cancellation won");
+        }
+        task_scheduler_client.abort_cancelled();
+    }
+
+    /// Commit before handing task ownership to a scheduler callback.
+    ///
+    /// The callback releases the boundary claim after it commits the session. Until then,
+    /// cancellation leaves the active-task record in place for deterministic cleanup.
+    fn commit_yield_transaction(
+        &self,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Result<CommitResult, WorldStateError>> {
+        if !self.control.begin_boundary_commit() {
+            self.cancel_before_commit(task_scheduler_client);
+            return None;
+        }
+
+        let result = commit_current_transaction();
+        if matches!(result, Ok(CommitResult::Success { .. })) {
+            return Some(result);
+        }
+
+        if self.control.finish_boundary_commit() {
+            return Some(result);
+        }
+
+        if let Err(error) = session.rollback() {
+            warn!(
+                ?error,
+                "Could not roll back session after cancelled yield commit"
+            );
+        }
+        self.cancel_before_commit(task_scheduler_client);
+        None
+    }
+
+    fn commit_terminal_transaction(
+        &self,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Result<CommitResult, WorldStateError>> {
+        if !self.control.begin_terminal_commit() {
+            self.cancel_before_commit(task_scheduler_client);
+            return None;
+        }
+
+        let result = commit_current_transaction();
+        let committed = matches!(result, Ok(CommitResult::Success { .. }));
+        if self.control.finish_terminal_commit(committed) {
+            return Some(result);
+        }
+
+        if let Err(error) = session.rollback() {
+            warn!(
+                ?error,
+                "Could not roll back session after cancelled terminal commit"
+            );
+        }
+        self.cancel_before_commit(task_scheduler_client);
+        None
+    }
+
+    fn rollback_terminal_transaction(&self, task_scheduler_client: &TaskSchedulerClient) -> bool {
+        if !self.control.begin_terminal_commit() {
+            self.cancel_before_commit(task_scheduler_client);
+            return false;
+        }
+        rollback_current_transaction().expect("Could not rollback terminal task transaction");
+        self.control.finish_terminal_commit(true)
+    }
+
+    fn renew_transaction<R>(
+        &self,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+        create_transaction: impl FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
+    ) -> Option<Result<(CommitResult, Option<R>), TransactionRenewalError>> {
+        if !self.control.begin_boundary_commit() {
+            self.cancel_before_commit(task_scheduler_client);
+            return None;
+        }
+
+        let result = with_new_transaction(create_transaction);
+        let committed = matches!(
+            result,
+            Ok((CommitResult::Success { .. }, _)) | Err(TransactionRenewalError::Begin(_))
+        );
+        if self.control.finish_boundary_commit() {
+            return Some(result);
+        }
+
+        if !committed && let Err(error) = session.rollback() {
+            warn!(
+                ?error,
+                "Could not roll back session after cancelled transaction renewal"
+            );
+        }
+        self.cancel_before_commit(task_scheduler_client);
+        None
     }
 
     #[inline]
@@ -501,6 +603,11 @@ impl Task {
             self.program_cache.key_count(),
         );
 
+        if self.control.is_cancelled() {
+            self.cancel_before_commit(task_scheduler_client);
+            return None;
+        }
+
         // Having done that, what should we now do?
         match vm_exec_result {
             VMHostResponse::DispatchFork(fork_request) => {
@@ -508,14 +615,15 @@ impl Task {
                 let task_id_var = fork_request.task_id;
                 let fork_request = fork_request;
 
-                match with_new_transaction(|| {
+                let renewal = self.renew_transaction(task_scheduler_client, session, || {
                     let new_world_state =
                         task_scheduler_client.begin_new_transaction().map_err(|e| {
                             WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
                         })?;
                     let task_id = task_scheduler_client.request_fork(fork_request);
                     Ok((new_world_state, task_id))
-                }) {
+                })?;
+                match renewal {
                     Ok((CommitResult::Success { .. }, Some(task_id))) => {
                         if let Some(task_id_var) = task_id_var {
                             self.vm_host
@@ -555,13 +663,14 @@ impl Task {
                     let _t = perfc
                         .timers
                         .start(SchedulerOp::TaskRecvImmediateResumeLatency);
-                    match with_new_transaction(|| {
+                    let renewal = self.renew_transaction(task_scheduler_client, session, || {
                         let new_world_state =
                             task_scheduler_client.begin_new_transaction().map_err(|e| {
                                 WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
                             })?;
                         Ok((new_world_state, ()))
-                    }) {
+                    })?;
+                    match renewal {
                         Ok((CommitResult::Success { .. }, _)) => {
                             let messages = task_scheduler_client.task_recv();
                             let resume_value = List::from_iter(messages).into();
@@ -609,13 +718,14 @@ impl Task {
 
                 if is_immediate {
                     // Fast path: get new transaction and continue immediately
-                    match with_new_transaction(|| {
+                    let renewal = self.renew_transaction(task_scheduler_client, session, || {
                         let new_world_state =
                             task_scheduler_client.begin_new_transaction().map_err(|e| {
                                 WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
                             })?;
                         Ok((new_world_state, ()))
-                    }) {
+                    })?;
+                    match renewal {
                         Ok((CommitResult::Success { .. }, _)) => {
                             // Resume first (which resets start_time), then snapshot
                             // so retry_state has fresh timing if we need to restore
@@ -648,7 +758,8 @@ impl Task {
                 }
 
                 // VMHost is now suspended for execution, and we'll be waiting for a Resume
-                let commit_result = commit_current_transaction()
+                let commit_result = self
+                    .commit_yield_transaction(task_scheduler_client, session)?
                     .expect("Could not commit world state before suspend");
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
@@ -676,7 +787,8 @@ impl Task {
                 // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
 
                 // Attempt commit... See comments/notes on Suspend above.
-                let commit_result = commit_current_transaction()
+                let commit_result = self
+                    .commit_yield_transaction(task_scheduler_client, session)?
                     .expect("Could not commit world state before suspend");
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
@@ -702,13 +814,6 @@ impl Task {
             VMHostResponse::ContinueOk => Some(self),
 
             VMHostResponse::CompleteSuccess(result) => {
-                if self.kill_switch.load(std::sync::atomic::Ordering::Acquire) {
-                    rollback_current_transaction()
-                        .expect("Could not rollback cancelled task transaction");
-                    task_scheduler_client.abort_cancelled();
-                    return None;
-                }
-
                 // Special case: in case of return from $do_command @ top-level, we need to look at the results:
                 //      non-true value? => parse_command and restart (in same transaction)
                 //      true value? => commit and return success.
@@ -751,8 +856,9 @@ impl Task {
                         };
 
                         // Restore the original exception and handle it normally
-                        let commit_result =
-                            commit_current_transaction().expect("Could not attempt commit");
+                        let commit_result = self
+                            .commit_terminal_transaction(task_scheduler_client, session)?
+                            .expect("Could not attempt commit");
 
                         let CommitResult::Success { .. } = commit_result else {
                             let conflict_info = match commit_result {
@@ -791,7 +897,9 @@ impl Task {
                     self.pending_exception = None;
                 }
 
-                let commit_result = commit_current_transaction().expect("Could not attempt commit");
+                let commit_result = self
+                    .commit_terminal_transaction(task_scheduler_client, session)?
+                    .expect("Could not attempt commit");
 
                 let (mutations_made, timestamp) = match commit_result {
                     CommitResult::Success {
@@ -822,7 +930,9 @@ impl Task {
             VMHostResponse::CompleteAbort => {
                 error!(task_id = self.task_id, "Task aborted");
 
-                rollback_current_transaction().expect("Could not rollback world state transaction");
+                if !self.rollback_terminal_transaction(task_scheduler_client) {
+                    return None;
+                }
 
                 self.vm_host.stop();
 
@@ -916,7 +1026,9 @@ impl Task {
                 // Normal exception reporting (either no handler found, or handler itself threw)
                 // Commands that end in exceptions are still expected to be committed, to
                 // conform with MOO's expectations.
-                let commit_result = commit_current_transaction().expect("Could not attempt commit");
+                let commit_result = self
+                    .commit_terminal_transaction(task_scheduler_client, session)?
+                    .expect("Could not attempt commit");
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("exception reporting", conflict_info.as_ref());
@@ -957,8 +1069,9 @@ impl Task {
                 None
             }
             VMHostResponse::CompleteRollback(commit_session) => {
-                // Rollback the transaction
-                rollback_current_transaction().expect("Could not rollback world state transaction");
+                if !self.rollback_terminal_transaction(task_scheduler_client) {
+                    return None;
+                }
 
                 // And then decide if we are going to rollback th session as well.
                 if !commit_session {
@@ -1022,10 +1135,13 @@ impl Task {
                 // Collect traceback information for the handler
                 let (stack_list, backtrace_list) = self.vm_host.get_traceback();
                 let disposition = if task_scheduler_client.rollback_on_task_limit() {
-                    rollback_current_transaction().expect("Could not rollback world state");
+                    if !self.rollback_terminal_transaction(task_scheduler_client) {
+                        return None;
+                    }
                     TaskLimitDisposition::Rollback
                 } else {
-                    match commit_current_transaction()
+                    match self
+                        .commit_terminal_transaction(task_scheduler_client, session)?
                         .expect("Could not commit world state after task limit")
                     {
                         CommitResult::Success {
@@ -1220,9 +1336,20 @@ impl Task {
                 match batch_result {
                     Ok(_) => {
                         if rollback {
+                            if !self.control.begin_terminal_commit() {
+                                self.cancel_before_commit(tsc);
+                                return false;
+                            }
                             let _ = rollback_current_transaction();
+                            self.control.finish_terminal_commit(true);
                         } else {
-                            match commit_current_transaction() {
+                            let session = current_session();
+                            let Some(commit_result) =
+                                self.commit_terminal_transaction(tsc, session.as_ref())
+                            else {
+                                return false;
+                            };
+                            match commit_result {
                                 Ok(CommitResult::Success { .. }) => {}
                                 Ok(CommitResult::ConflictRetry { conflict_info }) => {
                                     let msg = match conflict_info {
@@ -1625,14 +1752,14 @@ fn find_verb_for_command(
 mod tests {
     use std::sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     };
     use std::time::{Duration, Instant};
 
     use moor_common::{
         model::{
-            ArgSpec, ObjFlag, ObjectKind, ObjectRef, PrepSpec, PropFlag, VerbArgsSpec, VerbFlag,
-            WorldState, WorldStateError, WorldStateSource,
+            ArgSpec, CommitResult, ObjFlag, ObjectKind, ObjectRef, PrepSpec, PropFlag,
+            VerbArgsSpec, VerbFlag, WorldState, WorldStateError, WorldStateSource,
             loader::{LoaderInterface, SnapshotInterface},
         },
         tasks::{
@@ -1695,6 +1822,46 @@ mod tests {
     }
 
     impl Database for FailingDatabase {
+        fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError> {
+            self.inner.loader_client()
+        }
+
+        fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, WorldStateError> {
+            self.inner.create_snapshot()
+        }
+
+        fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError> {
+            self.inner.create_snapshot_async(callback)
+        }
+
+        fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError> {
+            self.inner.gc_interface()
+        }
+    }
+
+    struct GatedConflictDatabase {
+        inner: TxDB,
+        gate_next_world_state: Arc<AtomicBool>,
+        started: flume::Sender<()>,
+        release: flume::Receiver<()>,
+    }
+
+    impl WorldStateSource for GatedConflictDatabase {
+        fn new_world_state(&self) -> Result<Box<dyn WorldState>, WorldStateError> {
+            let world_state = self.inner.new_world_state()?;
+            if self.gate_next_world_state.swap(false, Ordering::SeqCst) {
+                self.started.send(()).unwrap();
+                self.release.recv().unwrap();
+            }
+            Ok(world_state)
+        }
+
+        fn checkpoint(&self) -> Result<(), WorldStateError> {
+            self.inner.checkpoint()
+        }
+    }
+
+    impl Database for GatedConflictDatabase {
         fn loader_client(&self) -> Result<Box<dyn LoaderInterface>, WorldStateError> {
             self.inner.loader_client()
         }
@@ -1962,6 +2129,73 @@ mod tests {
             .unwrap();
         let result = wait_result(&handle).unwrap();
         assert_eq!(result, v_int(2));
+    }
+
+    #[test]
+    fn captured_output_survives_conflict_retry() {
+        let verb = Symbol::mk("capture_retry");
+        let database = setup_database(&[TestVerb {
+            name: verb,
+            program: compile(
+                "name = this.name; notify(player, \"successful attempt\"); this.name = name; return 42;",
+                CompileOptions::default(),
+            )
+            .unwrap(),
+            argspec: VerbArgsSpec::this_none_this(),
+        }]);
+        let database_probe = database.clone();
+        let gate_next_world_state = Arc::new(AtomicBool::new(false));
+        let (started_send, started_recv) = flume::bounded(1);
+        let (release_send, release_recv) = flume::bounded(1);
+        let (client, _scheduler) = start_scheduler(Box::new(GatedConflictDatabase {
+            inner: database,
+            gate_next_world_state: gate_next_world_state.clone(),
+            started: started_send,
+            release: release_recv,
+        }));
+
+        gate_next_world_state.store(true, Ordering::SeqCst);
+        let session = Arc::new(MockClientSession::new());
+        let submit_client = client.clone();
+        let submit_session = session.clone();
+        let submit = std::thread::spawn(move || {
+            submit_client.submit_verb_task(
+                &SYSTEM_OBJECT,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                verb,
+                List::mk_list(&[]),
+                v_empty_str(),
+                &SYSTEM_OBJECT,
+                submit_session,
+            )
+        });
+
+        started_recv
+            .recv_timeout(Duration::from_secs(1))
+            .expect("task transaction should reach the conflict gate");
+        let mut competing = database_probe.new_world_state().unwrap();
+        competing
+            .update_property(
+                &system_permissions(),
+                &SYSTEM_OBJECT,
+                Symbol::mk("name"),
+                &v_str("concurrent writer"),
+            )
+            .unwrap();
+        assert!(matches!(
+            competing.commit().unwrap(),
+            CommitResult::Success { .. }
+        ));
+        release_send.send(()).unwrap();
+
+        let handle = submit.join().unwrap().unwrap();
+        assert_eq!(wait_result(&handle), Ok(v_int(42)));
+        let committed = session.committed();
+        assert_eq!(committed.len(), 1);
+        let moor_common::tasks::Event::Notify { value, .. } = committed[0].event() else {
+            panic!("expected a notify event");
+        };
+        assert_eq!(value, v_str("successful attempt"));
     }
 
     /// Killing the current task aborts it instead of completing successfully.

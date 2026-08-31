@@ -21,7 +21,7 @@ use moor_common::util::{Deadline, Instant, Timestamp};
 use std::{
     collections::{HashMap, VecDeque},
     hash::BuildHasherDefault,
-    sync::{Arc, OnceLock, atomic::AtomicBool},
+    sync::{Arc, OnceLock},
     time::{Duration, SystemTime},
 };
 use tracing::{error, info, warn};
@@ -35,7 +35,10 @@ use moor_var::{Obj, Var};
 use papaya::HashMap as PapayaHashMap;
 
 use crate::{
-    tasks::{task::Task, task_pool::TaskThreadPool, task_telemetry::TaskRunBaseline},
+    tasks::{
+        task::Task, task_control::TaskControl, task_pool::TaskThreadPool,
+        task_telemetry::TaskRunBaseline,
+    },
     vm::extract_anonymous_refs_from_vm_exec_state,
 };
 
@@ -137,12 +140,11 @@ pub(crate) struct RunningTask {
     pub(crate) dispatched_at: Instant,
     /// Immutable operating-system counters captured by the worker on entry.
     pub(crate) run_baseline: Arc<OnceLock<TaskRunBaseline>>,
-    /// A kill switch to signal the task to stop. True means the VM execution thread should stop
-    /// as soon as it can.
-    pub(crate) kill_switch: Arc<AtomicBool>,
+    /// Arbitration between cancellation and transaction commit.
+    pub(crate) control: Arc<TaskControl>,
     /// The connection-session for this task.
     pub(crate) session: Arc<dyn Session>,
-    /// An error requested by a scheduler-side operation. The worker observes the kill switch,
+    /// An error requested by a scheduler-side operation. The worker observes cancellation,
     /// rolls back, and reports this error instead of a generic cancellation.
     pub(crate) abort_error: Option<SchedulerError>,
     /// A terminal result reserved while session finalization happens outside the lifecycle lock.
@@ -1197,7 +1199,7 @@ mod tests {
                 initial_env: None,
             },
             &test_server_options(),
-            Arc::new(AtomicBool::new(false)),
+            Arc::new(TaskControl::new()),
         )
     }
 

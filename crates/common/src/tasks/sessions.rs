@@ -141,22 +141,6 @@ pub trait Session: Send + Sync {
     /// rollback.
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError>;
 
-    /// Return the retained size this session would charge for an event, when it performs capture
-    /// accounting. Ordinary connected sessions return `None` and do no recursive payload scan.
-    fn retained_event_size(&self, _player: Obj, _event: &NarrativeEvent) -> Option<usize> {
-        None
-    }
-
-    /// Spool output with a retained size already computed outside scheduler lifecycle locks.
-    fn send_event_with_size(
-        &self,
-        player: Obj,
-        event: Box<NarrativeEvent>,
-        _size_bytes: usize,
-    ) -> Result<(), SessionError> {
-        self.send_event(player, event)
-    }
-
     /// Spool an event for logging only (no broadcast to connections).
     /// On commit, the event will be written to the player's event log but will not be sent to
     /// any connected clients. Used by `event_log()` builtin to allow MOO code to control what
@@ -528,6 +512,10 @@ impl Session for MockClientSession {
             system: self.system.clone(),
             input_requests: self.input_requests.clone(),
         }))
+    }
+
+    fn fork_retry(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
+        Ok(self)
     }
 
     fn request_input(

@@ -2167,7 +2167,7 @@ pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConve
         vm_host,
         authority_principal,
         moor_common::util::BitEnum::new(),
-        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        std::sync::Arc::new(crate::tasks::task_control::TaskControl::new()),
         retries,
         retry_state,
         handling_uncaught_error,

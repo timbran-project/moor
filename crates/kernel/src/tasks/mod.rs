@@ -38,6 +38,7 @@ pub(crate) mod maintenance;
 pub(crate) mod scheduler_client;
 pub(crate) mod storage_compaction;
 pub(crate) mod task;
+pub(crate) mod task_control;
 pub(crate) mod task_pool;
 pub(crate) mod task_program_cache;
 pub(crate) mod task_q;

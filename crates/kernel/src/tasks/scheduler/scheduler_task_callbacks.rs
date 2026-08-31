@@ -90,7 +90,7 @@ impl Scheduler {
         lc.discard_pending_sends(task_id);
 
         // Make sure the old thread is dead.
-        task.kill_switch.store(true, Ordering::SeqCst);
+        task.control.request_cancel();
 
         if lc.state != SchedulerState::Running {
             debug!(task_id, "Discarding transaction retry during shutdown");
@@ -319,15 +319,21 @@ impl Scheduler {
             backtrace,
         } = limit_info;
 
-        // Extract task and session under lock.
-        let (mut task, session, player) = {
+        // Reserve the terminal result before finalizing the session. A deadline which arrives
+        // during finalization must wait for this result instead of observing a missing task.
+        let (session, player) = {
             let mut lc = self.lifecycle.lock();
-            let Some(task) = lc.task_q.active.remove(&task_id) else {
+            let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 warn!(task_id, "Task not found for abort");
                 return;
             };
+            task.terminal_result = Some(Err(TaskAbortedLimit(limit_reason)));
+            task.phase = RunningTaskPhase::Completing;
+            let session = task.session.clone();
+            let player = task.player;
+
             match disposition {
                 TaskLimitDisposition::Commit {
                     mutations_made,
@@ -341,9 +347,7 @@ impl Scheduler {
                 TaskLimitDisposition::Rollback => lc.discard_pending_sends(task_id),
             }
             lc.task_q.remove_message_queue(task_id);
-            let session = task.session.clone();
-            let player = task.player;
-            (task, session, player)
+            (session, player)
         };
 
         // Send the abort notification and finalize the session outside the lock.
@@ -455,13 +459,8 @@ impl Scheduler {
             }
         }
 
-        // Report the original task as aborted (handler outcome doesn't affect this)
-        lc.task_q.suspended.enqueue_dependents_for(task_id);
-        lc.task_q.send_task_result_direct(
-            task_id,
-            task.result_sender.take(),
-            Err(TaskAbortedLimit(limit_reason)),
-        );
+        // Report the original task as aborted (handler outcome doesn't affect this).
+        lc.task_q.send_reserved_task_result(task_id);
     }
 
     pub fn handle_task_exception(&self, task_id: TaskId, exception: Box<Exception>) {
@@ -561,6 +560,10 @@ impl Scheduler {
                 debug!(task_id, "Discarding suspension request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
+                if let Some(task) = lc.task_q.active.get(&task_id) {
+                    task.control.request_cancel();
+                    task.control.finish_boundary_commit();
+                }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
                         .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -589,6 +592,9 @@ impl Scheduler {
             );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
+            if let Some(task) = lc.task_q.active.get(&task_id) {
+                task.control.finish_boundary_commit();
+            }
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
@@ -597,6 +603,10 @@ impl Scheduler {
             debug!(task_id, "Cancelling suspension completed during shutdown");
             lc.discard_pending_sends(task_id);
             lc.task_q.remove_message_queue(task_id);
+            if let Some(task) = lc.task_q.active.get(&task_id) {
+                task.control.request_cancel();
+                task.control.finish_boundary_commit();
+            }
             if lc.task_q.active.contains_key(&task_id) {
                 lc.task_q
                     .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -610,6 +620,12 @@ impl Scheduler {
         if tc.phase != RunningTaskPhase::Suspending {
             warn!(task_id, phase = ?tc.phase, "Task suspension phase changed unexpectedly");
             return;
+        }
+        if !tc.control.finish_boundary_commit() {
+            lc.task_q.remove_message_queue(task_id);
+            return lc
+                .task_q
+                .send_task_result(task_id, Err(TaskAbortedCancelled));
         }
         lc.flush_pending_sends(task_id);
 
@@ -759,6 +775,10 @@ impl Scheduler {
                 debug!(task_id, "Discarding input request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
+                if let Some(task) = lc.task_q.active.get(&task_id) {
+                    task.control.request_cancel();
+                    task.control.finish_boundary_commit();
+                }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
                         .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -788,6 +808,9 @@ impl Scheduler {
             );
             let mut lc = self.lifecycle.lock();
             lc.discard_pending_sends(task_id);
+            if let Some(task) = lc.task_q.active.get(&task_id) {
+                task.control.finish_boundary_commit();
+            }
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
@@ -797,6 +820,10 @@ impl Scheduler {
                 debug!(task_id, "Cancelling input request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
+                if let Some(task) = lc.task_q.active.get(&task_id) {
+                    task.control.request_cancel();
+                    task.control.finish_boundary_commit();
+                }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
                         .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -811,6 +838,9 @@ impl Scheduler {
         {
             warn!("Could not request input from session; aborting task");
             let mut lc = self.lifecycle.lock();
+            if let Some(task) = lc.task_q.active.get(&task_id) {
+                task.control.finish_boundary_commit();
+            }
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
@@ -822,6 +852,10 @@ impl Scheduler {
             );
             lc.discard_pending_sends(task_id);
             lc.task_q.remove_message_queue(task_id);
+            if let Some(task) = lc.task_q.active.get(&task_id) {
+                task.control.request_cancel();
+                task.control.finish_boundary_commit();
+            }
             if lc.task_q.active.contains_key(&task_id) {
                 lc.task_q
                     .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -835,6 +869,12 @@ impl Scheduler {
         if tc.phase != RunningTaskPhase::RequestingInput {
             warn!(task_id, phase = ?tc.phase, "Task input phase changed unexpectedly");
             return;
+        }
+        if !tc.control.finish_boundary_commit() {
+            lc.task_q.remove_message_queue(task_id);
+            return lc
+                .task_q
+                .send_task_result(task_id, Err(TaskAbortedCancelled));
         }
         lc.flush_pending_sends(task_id);
         let tc = lc
@@ -905,24 +945,14 @@ impl Scheduler {
         lc.task_q.disconnect_task(task_id, &player);
     }
 
-    pub fn handle_notify(
-        &self,
-        task_id: TaskId,
-        player: Obj,
-        event: Box<NarrativeEvent>,
-        size_bytes: Option<usize>,
-    ) {
+    pub fn handle_notify_error(&self, task_id: TaskId, error: SessionError) {
         let mut lc = self.lifecycle.lock();
-        // Task is asking to notify a player of an event.
         let Some(task) = lc.task_q.active.get_mut(&task_id) else {
-            warn!(task_id, "Task not found for notify request");
-            return;
-        };
-        let send_result = match size_bytes {
-            Some(size_bytes) => task.session.send_event_with_size(player, event, size_bytes),
-            None => task.session.send_event(player, event),
-        };
-        let Err(error) = send_result else {
+            debug!(
+                task_id,
+                ?error,
+                "Ignoring session error from cancelled task"
+            );
             return;
         };
         warn!(?error, "Could not notify player; cancelling task");
@@ -936,7 +966,7 @@ impl Scheduler {
             _ => TaskAbortedError,
         };
         task.abort_error = Some(scheduler_error);
-        task.kill_switch.store(true, Ordering::SeqCst);
+        task.control.request_cancel();
     }
 
     pub fn handle_log_event(&self, task_id: TaskId, player: Obj, event: Box<NarrativeEvent>) {

@@ -12,7 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::{
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -34,6 +37,10 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 const GC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+const HANDOFF_WAITING: u8 = 0;
+const HANDOFF_DELIVERED: u8 = 1;
+const HANDOFF_ABANDONED: u8 = 2;
 
 /// Garbage collection statistics
 #[derive(Debug, Clone)]
@@ -184,20 +191,77 @@ impl SchedulerClient {
         let vloc = vloc.clone();
         let authority_principal = *authority_principal;
         let timeout = expires_at.saturating_duration_since(Instant::now());
-        self.request_with_timeout(timeout, move |scheduler| {
-            if Instant::now() >= expires_at {
-                return Err(SchedulerError::SchedulerNotResponding);
+        let (reply_send, reply_recv) = flume::bounded(1);
+        let handoff = Arc::new(AtomicU8::new(HANDOFF_WAITING));
+        let request_handoff = handoff.clone();
+        self.scheduler
+            .enqueue_client_request(Box::new(move |scheduler| {
+                if request_handoff.load(Ordering::Acquire) == HANDOFF_ABANDONED {
+                    return;
+                }
+
+                let result = if Instant::now() >= expires_at {
+                    Err(SchedulerError::SchedulerNotResponding)
+                } else {
+                    scheduler.submit_verb_task_inner(
+                        player,
+                        vloc,
+                        verb,
+                        args,
+                        argstr,
+                        authority_principal,
+                        session,
+                    )
+                };
+                let task_id = result.as_ref().ok().map(TaskHandle::task_id);
+
+                if request_handoff
+                    .compare_exchange(
+                        HANDOFF_WAITING,
+                        HANDOFF_DELIVERED,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_err()
+                {
+                    if let Some(task_id) = task_id {
+                        scheduler.handle_abort_task(task_id);
+                    }
+                    return;
+                }
+
+                if reply_send.send(result).is_err()
+                    && let Some(task_id) = task_id
+                {
+                    scheduler.handle_abort_task(task_id);
+                }
+            }))?;
+
+        match reply_recv.recv_timeout(timeout) {
+            Ok(result) => result,
+            Err(flume::RecvTimeoutError::Disconnected) => {
+                Err(SchedulerError::SchedulerNotResponding)
             }
-            scheduler.submit_verb_task_inner(
-                player,
-                vloc,
-                verb,
-                args,
-                argstr,
-                authority_principal,
-                session,
-            )
-        })
+            Err(flume::RecvTimeoutError::Timeout) => {
+                if handoff
+                    .compare_exchange(
+                        HANDOFF_WAITING,
+                        HANDOFF_ABANDONED,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
+                    .is_ok()
+                {
+                    return Err(SchedulerError::SchedulerNotResponding);
+                }
+
+                // The scheduler won the handoff before the deadline. It has committed to sending
+                // the handle, so wait for that send rather than orphaning the submitted task.
+                reply_recv
+                    .recv()
+                    .map_err(|_| SchedulerError::SchedulerNotResponding)?
+            }
+        }
     }
 
     /// result has stopped waiting. Returns false if the task had already finished.
@@ -934,6 +998,63 @@ mod tests {
         client
             .submit_shutdown("timeout test complete")
             .expect("scheduler should process shutdown after the delayed request");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
+    #[test]
+    fn expired_submission_does_not_start_an_orphan_task() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let client = scheduler.client().unwrap();
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+
+        let (started_send, started_recv) = mpsc::channel();
+        let (release_send, release_recv) = mpsc::channel();
+        let blocking_client = client.clone();
+        let blocker = std::thread::spawn(move || {
+            blocking_client.request_with_timeout(Duration::from_secs(1), move |_scheduler| {
+                started_send.send(()).unwrap();
+                release_recv.recv().unwrap();
+                Ok(())
+            })
+        });
+        started_recv.recv_timeout(Duration::from_secs(1)).unwrap();
+
+        let result = client.submit_verb_task_before(
+            Instant::now() + Duration::from_millis(20),
+            &SYSTEM_OBJECT,
+            &ObjectRef::Id(SYSTEM_OBJECT),
+            Symbol::mk("never_started"),
+            List::mk_list(&[]),
+            moor_var::v_empty_str(),
+            &SYSTEM_OBJECT,
+            Arc::new(NoopClientSession::new()),
+        );
+        assert!(matches!(
+            result,
+            Err(SchedulerError::SchedulerNotResponding)
+        ));
+
+        release_send.send(()).unwrap();
+        assert_eq!(blocker.join().unwrap(), Ok(()));
+        assert_eq!(client.check_status(), Ok(()));
+        assert!(scheduler.lifecycle.lock().task_q.active.is_empty());
+
+        client
+            .submit_shutdown("submission handoff test complete")
+            .expect("scheduler should stop");
         threads
             .join()
             .expect("all scheduler-owned threads should stop");

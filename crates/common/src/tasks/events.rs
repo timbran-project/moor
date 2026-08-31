@@ -103,11 +103,11 @@ impl ByteSized for NarrativeEvent {
                     ..
                 } => {
                     value.size_bytes()
-                        + content_type.as_ref().map_or(0, |s| s.as_string().len())
+                        + content_type.as_ref().map_or(0, |s| s.as_str().len())
                         + metadata
                             .iter()
                             .flatten()
-                            .map(|(key, value)| key.as_string().len() + value.size_bytes())
+                            .map(|(key, value)| key.as_str().len() + value.size_bytes())
                             .sum::<usize>()
                 }
                 Event::Present(presentation) => presentation.size_bytes(),
@@ -130,9 +130,9 @@ impl ByteSized for NarrativeEvent {
                     namespace,
                     kind,
                     payload,
-                } => namespace.as_string().len() + kind.as_string().len() + payload.size_bytes(),
+                } => namespace.as_str().len() + kind.as_str().len() + payload.size_bytes(),
                 Event::SetConnectionOption { option, value, .. } => {
-                    option.as_string().len() + value.size_bytes()
+                    option.as_str().len() + value.size_bytes()
                 }
             }
     }
