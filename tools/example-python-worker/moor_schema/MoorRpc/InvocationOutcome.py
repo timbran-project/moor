@@ -2,7 +2,7 @@
 
 # namespace: MoorRpc
 
-class VerbCallResponseUnion(object):
+class InvocationOutcome(object):
     NONE = 0
-    VerbCallSuccess = 1
-    VerbCallError = 2
+    InvocationSuccess = 1
+    InvocationError = 2

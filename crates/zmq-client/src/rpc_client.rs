@@ -415,22 +415,18 @@ impl RpcClient {
 
 /// The receive timeout a message needs, when it needs more than the configured default.
 ///
-/// Only a captured verb invocation does: the daemon holds the reply until the task finishes or its
+/// Only a captured invocation does: the daemon holds the reply until the task finishes or its
 /// deadline expires. A request that asks the daemon to pick the deadline, and the welcome message
 /// which always uses the daemon's configured maximum, are sized against the protocol ceiling
 /// instead, because the client cannot see what the daemon is configured to.
 fn required_receive_timeout_ms(rpc_msg: &moor_rpc::HostClientToDaemonMessage) -> Option<i32> {
     let deadline_ms = match &rpc_msg.message {
-        moor_rpc::HostClientToDaemonMessageUnion::InvokeVerb(invoke) => match &invoke.mode {
-            moor_rpc::InvocationMode::CaptureOutputInvocation(capture) => {
-                if capture.timeout_ms == 0 {
-                    MAX_CAPTURE_DEADLINE_MS
-                } else {
-                    capture.timeout_ms
-                }
-            }
-            moor_rpc::InvocationMode::ConnectedInvocation(_) => return None,
-        },
+        moor_rpc::HostClientToDaemonMessageUnion::Command(command) => {
+            capture_deadline_ms(&command.mode)?
+        }
+        moor_rpc::HostClientToDaemonMessageUnion::InvokeVerb(invoke) => {
+            capture_deadline_ms(&invoke.mode)?
+        }
         moor_rpc::HostClientToDaemonMessageUnion::InvokeWelcomeMessage(_) => {
             MAX_CAPTURE_DEADLINE_MS
         }
@@ -440,12 +436,23 @@ fn required_receive_timeout_ms(rpc_msg: &moor_rpc::HostClientToDaemonMessage) ->
     Some(deadline_ms.saturating_add(RECEIVE_TIMEOUT_MARGIN_MS))
 }
 
+fn capture_deadline_ms(mode: &moor_rpc::InvocationMode) -> Option<u64> {
+    let moor_rpc::InvocationMode::CaptureOutputInvocation(capture) = mode else {
+        return None;
+    };
+    Some(if capture.timeout_ms == 0 {
+        MAX_CAPTURE_DEADLINE_MS
+    } else {
+        capture.timeout_ms
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use moor_runtime_api::{
-        AuthToken, ClientToken, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
-        mk_invoke_welcome_message_msg, mk_list_objects_msg,
+        AuthToken, ClientToken, mk_command_capture_msg, mk_invoke_verb_capture_msg,
+        mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_list_objects_msg,
     };
     use moor_var::Symbol;
     use std::time::Duration;
@@ -474,6 +481,22 @@ mod tests {
             &moor_common::model::ObjectRef::Id(moor_var::Obj::mk_id(1)),
             &Symbol::mk("look"),
             vec![],
+            Some(Duration::from_secs(120)),
+        )
+        .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(
+            timeout_ms > 120_000,
+            "receive timeout {timeout_ms}ms must exceed the 120000ms deadline"
+        );
+    }
+
+    #[test]
+    fn a_captured_command_waits_longer_than_its_own_deadline() {
+        let msg = mk_command_capture_msg(
+            &auth_token(),
+            &moor_var::SYSTEM_OBJECT,
+            "look".to_string(),
             Some(Duration::from_secs(120)),
         )
         .expect("message");

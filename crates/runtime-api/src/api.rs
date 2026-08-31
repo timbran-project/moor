@@ -226,17 +226,17 @@ pub enum VerbProgramResponse {
     Failure { error: SchedulerError },
 }
 
-/// Whether invoking a verb returned a value or failed.
+/// Whether a captured invocation returned a value or failed.
 #[derive(Debug, Clone)]
-pub enum VerbCallOutcome {
+pub enum InvocationOutcome {
     Success { result: Var },
     Error { error: SchedulerError },
 }
 
-/// The outcome and committed narrative output of invoking a verb.
+/// The outcome and committed narrative output of a captured invocation.
 #[derive(Debug, Clone)]
-pub struct VerbCallResponse {
-    pub outcome: VerbCallOutcome,
+pub struct InvocationResponse {
+    pub outcome: InvocationOutcome,
     pub output: Vec<moor_common::tasks::NarrativeEvent>,
 }
 
@@ -423,7 +423,7 @@ pub enum HostReply {
 // Client requests and replies
 // ---------------------------------------------------------------------------
 
-/// How a verb invocation's output is to be delivered.
+/// How an invocation's output is to be delivered.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InvocationMode {
     /// Deliver output to the invoking connection's event stream. The reply comes as soon as the
@@ -488,10 +488,10 @@ pub enum ClientRequest {
         acceptable_content_types: Option<Vec<Symbol>>,
     },
     Command {
-        client_token: ClientToken,
         auth_token: AuthToken,
         handler_object: Obj,
         command: String,
+        mode: InvocationMode,
     },
     Detach {
         client_token: ClientToken,
@@ -678,8 +678,8 @@ pub enum ClientReply {
     SystemHandlerResponseReply {
         response: SystemHandlerResponse,
     },
-    VerbCallResponse {
-        response: VerbCallResponse,
+    InvocationResponse {
+        response: InvocationResponse,
     },
     BatchWorldStateReply {
         results: Vec<WorldStateResultEntry>,

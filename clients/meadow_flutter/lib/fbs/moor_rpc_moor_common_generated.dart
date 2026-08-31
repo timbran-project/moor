@@ -539,7 +539,9 @@ class VarBytesBuilder {
 class VarBytesObjectBuilder extends fb.ObjectBuilder {
   final List<int>? _data;
 
-  VarBytesObjectBuilder({List<int>? data}) : _data = data;
+  VarBytesObjectBuilder({
+    List<int>? data,
+  }) : _data = data;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -611,7 +613,9 @@ class SymbolBuilder {
 class SymbolObjectBuilder extends fb.ObjectBuilder {
   final String? _value;
 
-  SymbolObjectBuilder({String? value}) : _value = value;
+  SymbolObjectBuilder({
+    String? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -683,7 +687,9 @@ class UuidBuilder {
 class UuidObjectBuilder extends fb.ObjectBuilder {
   final List<int>? _data;
 
-  UuidObjectBuilder({List<int>? data}) : _data = data;
+  UuidObjectBuilder({
+    List<int>? data,
+  }) : _data = data;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -754,7 +760,9 @@ class ObjIdBuilder {
 class ObjIdObjectBuilder extends fb.ObjectBuilder {
   final int? _id;
 
-  ObjIdObjectBuilder({int? id}) : _id = id;
+  ObjIdObjectBuilder({
+    int? id,
+  }) : _id = id;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -824,7 +832,9 @@ class UuObjIdBuilder {
 class UuObjIdObjectBuilder extends fb.ObjectBuilder {
   final int? _packedValue;
 
-  UuObjIdObjectBuilder({int? packedValue}) : _packedValue = packedValue;
+  UuObjIdObjectBuilder({
+    int? packedValue,
+  }) : _packedValue = packedValue;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -894,7 +904,9 @@ class AnonymousObjIdBuilder {
 class AnonymousObjIdObjectBuilder extends fb.ObjectBuilder {
   final int? _packedValue;
 
-  AnonymousObjIdObjectBuilder({int? packedValue}) : _packedValue = packedValue;
+  AnonymousObjIdObjectBuilder({
+    int? packedValue,
+  }) : _packedValue = packedValue;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -982,9 +994,11 @@ class ObjObjectBuilder extends fb.ObjectBuilder {
   final ObjUnionTypeId? _objType;
   final dynamic _obj;
 
-  ObjObjectBuilder({ObjUnionTypeId? objType, dynamic obj})
-    : _objType = objType,
-      _obj = obj;
+  ObjObjectBuilder({
+    ObjUnionTypeId? objType,
+    dynamic obj,
+  }) : _objType = objType,
+       _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1475,8 +1489,9 @@ class PresentEventBuilder {
 class PresentEventObjectBuilder extends fb.ObjectBuilder {
   final PresentationObjectBuilder? _presentation;
 
-  PresentEventObjectBuilder({PresentationObjectBuilder? presentation})
-    : _presentation = presentation;
+  PresentEventObjectBuilder({
+    PresentationObjectBuilder? presentation,
+  }) : _presentation = presentation;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1547,8 +1562,9 @@ class UnpresentEventBuilder {
 class UnpresentEventObjectBuilder extends fb.ObjectBuilder {
   final String? _presentationId;
 
-  UnpresentEventObjectBuilder({String? presentationId})
-    : _presentationId = presentationId;
+  UnpresentEventObjectBuilder({
+    String? presentationId,
+  }) : _presentationId = presentationId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1621,8 +1637,9 @@ class TracebackEventBuilder {
 class TracebackEventObjectBuilder extends fb.ObjectBuilder {
   final ExceptionObjectBuilder? _exception;
 
-  TracebackEventObjectBuilder({ExceptionObjectBuilder? exception})
-    : _exception = exception;
+  TracebackEventObjectBuilder({
+    ExceptionObjectBuilder? exception,
+  }) : _exception = exception;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1810,9 +1827,11 @@ class EventObjectBuilder extends fb.ObjectBuilder {
   final EventUnionTypeId? _eventType;
   final dynamic _event;
 
-  EventObjectBuilder({EventUnionTypeId? eventType, dynamic event})
-    : _eventType = eventType,
-      _event = event;
+  EventObjectBuilder({
+    EventUnionTypeId? eventType,
+    dynamic event,
+  }) : _eventType = eventType,
+       _event = event;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2027,9 +2046,11 @@ class PresentationAttributeObjectBuilder extends fb.ObjectBuilder {
   final String? _key;
   final String? _value;
 
-  PresentationAttributeObjectBuilder({String? key, String? value})
-    : _key = key,
-      _value = value;
+  PresentationAttributeObjectBuilder({
+    String? key,
+    String? value,
+  }) : _key = key,
+       _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2216,7 +2237,11 @@ class CompileContextObjectBuilder extends fb.ObjectBuilder {
   final int? _line;
   final int? _col;
 
-  CompileContextObjectBuilder({int? line, int? col}) : _line = line, _col = col;
+  CompileContextObjectBuilder({
+    int? line,
+    int? col,
+  }) : _line = line,
+       _col = col;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3097,9 +3122,11 @@ class BadSlotNameObjectBuilder extends fb.ObjectBuilder {
   final CompileContextObjectBuilder? _context;
   final String? _slot;
 
-  BadSlotNameObjectBuilder({CompileContextObjectBuilder? context, String? slot})
-    : _context = context,
-      _slot = slot;
+  BadSlotNameObjectBuilder({
+    CompileContextObjectBuilder? context,
+    String? slot,
+  }) : _context = context,
+       _slot = slot;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3174,8 +3201,9 @@ class InvalidAssignmentBuilder {
 class InvalidAssignmentObjectBuilder extends fb.ObjectBuilder {
   final CompileContextObjectBuilder? _context;
 
-  InvalidAssignmentObjectBuilder({CompileContextObjectBuilder? context})
-    : _context = context;
+  InvalidAssignmentObjectBuilder({
+    CompileContextObjectBuilder? context,
+  }) : _context = context;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3471,9 +3499,11 @@ class CompileErrorObjectBuilder extends fb.ObjectBuilder {
   final CompileErrorUnionTypeId? _errorType;
   final dynamic _error;
 
-  CompileErrorObjectBuilder({CompileErrorUnionTypeId? errorType, dynamic error})
-    : _errorType = errorType,
-      _error = error;
+  CompileErrorObjectBuilder({
+    CompileErrorUnionTypeId? errorType,
+    dynamic error,
+  }) : _errorType = errorType,
+       _error = error;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3544,7 +3574,9 @@ class ObjectRefIdBuilder {
 class ObjectRefIdObjectBuilder extends fb.ObjectBuilder {
   final ObjObjectBuilder? _obj;
 
-  ObjectRefIdObjectBuilder({ObjObjectBuilder? obj}) : _obj = obj;
+  ObjectRefIdObjectBuilder({
+    ObjObjectBuilder? obj,
+  }) : _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3616,8 +3648,9 @@ class ObjectRefSysObjBuilder {
 class ObjectRefSysObjObjectBuilder extends fb.ObjectBuilder {
   final List<SymbolObjectBuilder>? _symbols;
 
-  ObjectRefSysObjObjectBuilder({List<SymbolObjectBuilder>? symbols})
-    : _symbols = symbols;
+  ObjectRefSysObjObjectBuilder({
+    List<SymbolObjectBuilder>? symbols,
+  }) : _symbols = symbols;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3692,8 +3725,9 @@ class ObjectRefMatchBuilder {
 class ObjectRefMatchObjectBuilder extends fb.ObjectBuilder {
   final String? _matchString;
 
-  ObjectRefMatchObjectBuilder({String? matchString})
-    : _matchString = matchString;
+  ObjectRefMatchObjectBuilder({
+    String? matchString,
+  }) : _matchString = matchString;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3785,9 +3819,11 @@ class ObjectRefObjectBuilder extends fb.ObjectBuilder {
   final ObjectRefUnionTypeId? _refType;
   final dynamic _ref;
 
-  ObjectRefObjectBuilder({ObjectRefUnionTypeId? refType, dynamic ref})
-    : _refType = refType,
-      _ref = ref;
+  ObjectRefObjectBuilder({
+    ObjectRefUnionTypeId? refType,
+    dynamic ref,
+  }) : _refType = refType,
+       _ref = ref;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3859,8 +3895,9 @@ class ObjectNotFoundBuilder {
 class ObjectNotFoundObjectBuilder extends fb.ObjectBuilder {
   final ObjectRefObjectBuilder? _objectRef;
 
-  ObjectNotFoundObjectBuilder({ObjectRefObjectBuilder? objectRef})
-    : _objectRef = objectRef;
+  ObjectNotFoundObjectBuilder({
+    ObjectRefObjectBuilder? objectRef,
+  }) : _objectRef = objectRef;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -3931,7 +3968,9 @@ class ObjectAlreadyExistsBuilder {
 class ObjectAlreadyExistsObjectBuilder extends fb.ObjectBuilder {
   final ObjObjectBuilder? _obj;
 
-  ObjectAlreadyExistsObjectBuilder({ObjObjectBuilder? obj}) : _obj = obj;
+  ObjectAlreadyExistsObjectBuilder({
+    ObjObjectBuilder? obj,
+  }) : _obj = obj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4139,9 +4178,11 @@ class PropertyNotFoundObjectBuilder extends fb.ObjectBuilder {
   final ObjObjectBuilder? _obj;
   final String? _property;
 
-  PropertyNotFoundObjectBuilder({ObjObjectBuilder? obj, String? property})
-    : _obj = obj,
-      _property = property;
+  PropertyNotFoundObjectBuilder({
+    ObjObjectBuilder? obj,
+    String? property,
+  }) : _obj = obj,
+       _property = property;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4591,9 +4632,11 @@ class VerbNotFoundObjectBuilder extends fb.ObjectBuilder {
   final ObjObjectBuilder? _obj;
   final String? _verb;
 
-  VerbNotFoundObjectBuilder({ObjObjectBuilder? obj, String? verb})
-    : _obj = obj,
-      _verb = verb;
+  VerbNotFoundObjectBuilder({
+    ObjObjectBuilder? obj,
+    String? verb,
+  }) : _obj = obj,
+       _verb = verb;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4667,7 +4710,9 @@ class InvalidVerbBuilder {
 class InvalidVerbObjectBuilder extends fb.ObjectBuilder {
   final int? _vid;
 
-  InvalidVerbObjectBuilder({int? vid}) : _vid = vid;
+  InvalidVerbObjectBuilder({
+    int? vid,
+  }) : _vid = vid;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4872,9 +4917,11 @@ class DuplicateVerbObjectBuilder extends fb.ObjectBuilder {
   final ObjObjectBuilder? _obj;
   final SymbolObjectBuilder? _verb;
 
-  DuplicateVerbObjectBuilder({ObjObjectBuilder? obj, SymbolObjectBuilder? verb})
-    : _obj = obj,
-      _verb = verb;
+  DuplicateVerbObjectBuilder({
+    ObjObjectBuilder? obj,
+    SymbolObjectBuilder? verb,
+  }) : _obj = obj,
+       _verb = verb;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4947,7 +4994,9 @@ class FailedMatchBuilder {
 class FailedMatchObjectBuilder extends fb.ObjectBuilder {
   final String? _matchString;
 
-  FailedMatchObjectBuilder({String? matchString}) : _matchString = matchString;
+  FailedMatchObjectBuilder({
+    String? matchString,
+  }) : _matchString = matchString;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5020,8 +5069,9 @@ class AmbiguousMatchBuilder {
 class AmbiguousMatchObjectBuilder extends fb.ObjectBuilder {
   final String? _matchString;
 
-  AmbiguousMatchObjectBuilder({String? matchString})
-    : _matchString = matchString;
+  AmbiguousMatchObjectBuilder({
+    String? matchString,
+  }) : _matchString = matchString;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5094,7 +5144,9 @@ class InvalidRenumberBuilder {
 class InvalidRenumberObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  InvalidRenumberObjectBuilder({String? message}) : _message = message;
+  InvalidRenumberObjectBuilder({
+    String? message,
+  }) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5169,7 +5221,9 @@ class WorldStateDatabaseErrorBuilder {
 class WorldStateDatabaseErrorObjectBuilder extends fb.ObjectBuilder {
   final String? _message;
 
-  WorldStateDatabaseErrorObjectBuilder({String? message}) : _message = message;
+  WorldStateDatabaseErrorObjectBuilder({
+    String? message,
+  }) : _message = message;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5732,7 +5786,9 @@ class PrepSpecBuilder {
 class PrepSpecObjectBuilder extends fb.ObjectBuilder {
   final int? _value;
 
-  PrepSpecObjectBuilder({int? value}) : _value = value;
+  PrepSpecObjectBuilder({
+    int? value,
+  }) : _value = value;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -5817,10 +5873,13 @@ class VerbArgsSpecObjectBuilder extends fb.ObjectBuilder {
   final int? _prep;
   final ArgSpec? _iobj;
 
-  VerbArgsSpecObjectBuilder({ArgSpec? dobj, int? prep, ArgSpec? iobj})
-    : _dobj = dobj,
-      _prep = prep,
-      _iobj = iobj;
+  VerbArgsSpecObjectBuilder({
+    ArgSpec? dobj,
+    int? prep,
+    ArgSpec? iobj,
+  }) : _dobj = dobj,
+       _prep = prep,
+       _iobj = iobj;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6131,7 +6190,9 @@ class VerbDefsBuilder {
 class VerbDefsObjectBuilder extends fb.ObjectBuilder {
   final List<VerbDefObjectBuilder>? _verbs;
 
-  VerbDefsObjectBuilder({List<VerbDefObjectBuilder>? verbs}) : _verbs = verbs;
+  VerbDefsObjectBuilder({
+    List<VerbDefObjectBuilder>? verbs,
+  }) : _verbs = verbs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -6207,7 +6268,9 @@ class PropDefsBuilder {
 class PropDefsObjectBuilder extends fb.ObjectBuilder {
   final List<PropDefObjectBuilder>? _props;
 
-  PropDefsObjectBuilder({List<PropDefObjectBuilder>? props}) : _props = props;
+  PropDefsObjectBuilder({
+    List<PropDefObjectBuilder>? props,
+  }) : _props = props;
 
   /// Finish building, and store into the [fbBuilder].
   @override

@@ -301,10 +301,13 @@ class StoredNameObjectBuilder extends fb.ObjectBuilder {
   final int? _scopeDepth;
   final int? _scopeId;
 
-  StoredNameObjectBuilder({int? offset, int? scopeDepth, int? scopeId})
-    : _offset = offset,
-      _scopeDepth = scopeDepth,
-      _scopeId = scopeId;
+  StoredNameObjectBuilder({
+    int? offset,
+    int? scopeDepth,
+    int? scopeId,
+  }) : _offset = offset,
+       _scopeDepth = scopeDepth,
+       _scopeId = scopeId;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -469,8 +472,9 @@ class StoredNamedVarBuilder {
 class StoredNamedVarObjectBuilder extends fb.ObjectBuilder {
   final moor_common.SymbolObjectBuilder? _symbol;
 
-  StoredNamedVarObjectBuilder({moor_common.SymbolObjectBuilder? symbol})
-    : _symbol = symbol;
+  StoredNamedVarObjectBuilder({
+    moor_common.SymbolObjectBuilder? symbol,
+  }) : _symbol = symbol;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -541,8 +545,9 @@ class StoredRegisterVarBuilder {
 class StoredRegisterVarObjectBuilder extends fb.ObjectBuilder {
   final int? _registerNum;
 
-  StoredRegisterVarObjectBuilder({int? registerNum})
-    : _registerNum = registerNum;
+  StoredRegisterVarObjectBuilder({
+    int? registerNum,
+  }) : _registerNum = registerNum;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1020,8 +1025,9 @@ class StoredScatterRequiredBuilder {
 class StoredScatterRequiredObjectBuilder extends fb.ObjectBuilder {
   final StoredNameObjectBuilder? _name;
 
-  StoredScatterRequiredObjectBuilder({StoredNameObjectBuilder? name})
-    : _name = name;
+  StoredScatterRequiredObjectBuilder({
+    StoredNameObjectBuilder? name,
+  }) : _name = name;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1189,8 +1195,9 @@ class StoredScatterRestBuilder {
 class StoredScatterRestObjectBuilder extends fb.ObjectBuilder {
   final StoredNameObjectBuilder? _name;
 
-  StoredScatterRestObjectBuilder({StoredNameObjectBuilder? name})
-    : _name = name;
+  StoredScatterRestObjectBuilder({
+    StoredNameObjectBuilder? name,
+  }) : _name = name;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1876,9 +1883,11 @@ class StoredErrorOperandObjectBuilder extends fb.ObjectBuilder {
   final int? _discriminant;
   final String? _symbol;
 
-  StoredErrorOperandObjectBuilder({int? discriminant, String? symbol})
-    : _discriminant = discriminant,
-      _symbol = symbol;
+  StoredErrorOperandObjectBuilder({
+    int? discriminant,
+    String? symbol,
+  }) : _discriminant = discriminant,
+       _symbol = symbol;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1960,9 +1969,11 @@ class ForkVectorObjectBuilder extends fb.ObjectBuilder {
   final int? _offset;
   final List<int>? _opcodes;
 
-  ForkVectorObjectBuilder({int? offset, List<int>? opcodes})
-    : _offset = offset,
-      _opcodes = opcodes;
+  ForkVectorObjectBuilder({
+    int? offset,
+    List<int>? opcodes,
+  }) : _offset = offset,
+       _opcodes = opcodes;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2523,9 +2534,11 @@ class LineSpanObjectBuilder extends fb.ObjectBuilder {
   final int? _offset;
   final int? _lineNumber;
 
-  LineSpanObjectBuilder({int? offset, int? lineNumber})
-    : _offset = offset,
-      _lineNumber = lineNumber;
+  LineSpanObjectBuilder({
+    int? offset,
+    int? lineNumber,
+  }) : _offset = offset,
+       _lineNumber = lineNumber;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2597,8 +2610,9 @@ class ForkLineSpansBuilder {
 class ForkLineSpansObjectBuilder extends fb.ObjectBuilder {
   final List<LineSpanObjectBuilder>? _spans;
 
-  ForkLineSpansObjectBuilder({List<LineSpanObjectBuilder>? spans})
-    : _spans = spans;
+  ForkLineSpansObjectBuilder({
+    List<LineSpanObjectBuilder>? spans,
+  }) : _spans = spans;
 
   /// Finish building, and store into the [fbBuilder].
   @override

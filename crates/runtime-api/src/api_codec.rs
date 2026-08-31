@@ -820,21 +820,18 @@ pub fn decode_client_request(
             })
         }
         U::Command(cmd) => {
-            let client_token = cmd
-                .client_token()
-                .rpc_err()
-                .and_then(|r| client_token_from_ref(r).rpc_err())?;
             let auth_token = cmd
                 .auth_token()
                 .rpc_err()
                 .and_then(|r| auth_token_from_ref(r).rpc_err())?;
             let handler_object = extract_obj_rpc(&cmd, "handler_object", |c| c.handler_object())?;
             let command = extract_string_rpc(&cmd, "command", |c| c.command())?;
+            let mode = invocation_mode_from_ref(cmd.mode().rpc_err()?)?;
             Ok(ClientRequest::Command {
-                client_token,
                 auth_token,
                 handler_object,
                 command,
+                mode,
             })
         }
         U::Detach(detach) => {
@@ -914,23 +911,7 @@ pub fn decode_client_request(
                 .iter()
                 .filter_map(|v| v.ok().and_then(|v| convert::var_from_ref(v).ok()))
                 .collect();
-            let mode = match invoke.mode().rpc_err()? {
-                moor_rpc::InvocationModeRef::ConnectedInvocation(connected) => {
-                    let client_token = connected
-                        .client_token()
-                        .rpc_err()
-                        .and_then(|r| client_token_from_ref(r).rpc_err())?;
-                    InvocationMode::Connected { client_token }
-                }
-                moor_rpc::InvocationModeRef::CaptureOutputInvocation(capture) => {
-                    // Zero is how a caller says it has no opinion, so it decodes to None and the
-                    // daemon supplies its own configured maximum.
-                    let timeout_ms = capture.timeout_ms().rpc_err()?;
-                    InvocationMode::CaptureOutput {
-                        timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
-                    }
-                }
-            };
+            let mode = invocation_mode_from_ref(invoke.mode().rpc_err()?)?;
             Ok(ClientRequest::InvokeVerb {
                 auth_token,
                 object,
@@ -1151,6 +1132,26 @@ pub fn decode_client_request(
                 .and_then(|r| auth_token_from_ref(r).rpc_err())?;
             let objref = extract_object_ref_rpc(&resolve, "objref", |r| r.objref())?;
             Ok(ClientRequest::Resolve { auth_token, objref })
+        }
+    }
+}
+
+fn invocation_mode_from_ref(
+    mode: moor_rpc::InvocationModeRef<'_>,
+) -> Result<InvocationMode, RpcMessageError> {
+    match mode {
+        moor_rpc::InvocationModeRef::ConnectedInvocation(connected) => {
+            let client_token = connected
+                .client_token()
+                .rpc_err()
+                .and_then(|r| client_token_from_ref(r).rpc_err())?;
+            Ok(InvocationMode::Connected { client_token })
+        }
+        moor_rpc::InvocationModeRef::CaptureOutputInvocation(capture) => {
+            let timeout_ms = capture.timeout_ms().rpc_err()?;
+            Ok(InvocationMode::CaptureOutput {
+                timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
+            })
         }
     }
 }
@@ -1722,8 +1723,8 @@ pub fn encode_client_reply(
                 )),
             }
         }
-        ClientReply::VerbCallResponse { response } => moor_rpc::DaemonToClientReply {
-            reply: U::VerbCallResponse(Box::new(encode_verb_call_response(response)?)),
+        ClientReply::InvocationResponse { response } => moor_rpc::DaemonToClientReply {
+            reply: U::InvocationResponse(Box::new(encode_invocation_response(response)?)),
         },
         ClientReply::BatchWorldStateReply { results } => {
             let result_entries = encode_ws_results(results)?;
@@ -1737,13 +1738,12 @@ pub fn encode_client_reply(
     Ok(reply)
 }
 
-/// Encode a verb call's outcome on its own, without the reply envelope around it.
+/// Encode a captured invocation's outcome without the reply envelope around it.
 ///
-/// The HTTP verb endpoint answers with a bare `VerbCallResponse`, so it needs this without going
-/// through [`encode_client_reply`] and unwrapping the result again.
-pub fn encode_verb_call_response(
-    response: api::VerbCallResponse,
-) -> Result<moor_rpc::VerbCallResponse, RpcMessageError> {
+/// HTTP invocation endpoints answer with a bare `InvocationResponse`.
+pub fn encode_invocation_response(
+    response: api::InvocationResponse,
+) -> Result<moor_rpc::InvocationResponse, RpcMessageError> {
     let output_fb: Vec<moor_rpc::NarrativeEvent> = response
         .output
         .into_iter()
@@ -1754,25 +1754,25 @@ pub fn encode_verb_call_response(
         })
         .collect::<Result<_, _>>()?;
     let response_fb = match response.outcome {
-        api::VerbCallOutcome::Success { result } => {
+        api::InvocationOutcome::Success { result } => {
             let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
                 RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
             })?;
-            moor_rpc::VerbCallResponseUnion::VerbCallSuccess(Box::new(moor_rpc::VerbCallSuccess {
+            moor_rpc::InvocationOutcome::InvocationSuccess(Box::new(moor_rpc::InvocationSuccess {
                 result: Box::new(result_fb),
             }))
         }
-        api::VerbCallOutcome::Error { error } => {
+        api::InvocationOutcome::Error { error } => {
             let scheduler_error_fb = scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
                 RpcMessageError::InternalError(format!("Failed to encode scheduler error: {e}"))
             })?;
-            moor_rpc::VerbCallResponseUnion::VerbCallError(Box::new(moor_rpc::VerbCallError {
+            moor_rpc::InvocationOutcome::InvocationError(Box::new(moor_rpc::InvocationError {
                 error: Box::new(scheduler_error_fb),
             }))
         }
     };
-    Ok(moor_rpc::VerbCallResponse {
-        response: response_fb,
+    Ok(moor_rpc::InvocationResponse {
+        outcome: response_fb,
         output: output_fb,
     })
 }
@@ -2023,7 +2023,8 @@ mod tests {
         AuthToken, ClientToken,
         api::{BatchAction, ClientEvent, ClientEventMessage, ClientRequest, InvocationMode},
         client_messages::{
-            mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
+            mk_command_capture_msg, mk_command_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+            mk_invoke_welcome_message_msg,
         },
     };
 
@@ -2071,6 +2072,56 @@ mod tests {
             mode,
             InvocationMode::Connected {
                 client_token: ClientToken("client".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn connected_command_round_trip() {
+        let message = mk_command_msg(
+            &ClientToken("client".to_string()),
+            &AuthToken("auth".to_string()),
+            &Obj::mk_id(0),
+            "look".to_string(),
+        );
+
+        let ClientRequest::Command {
+            auth_token,
+            handler_object,
+            command,
+            mode,
+        } = round_trip(message)
+        else {
+            panic!("expected Command");
+        };
+        assert_eq!(auth_token, AuthToken("auth".to_string()));
+        assert_eq!(handler_object, Obj::mk_id(0));
+        assert_eq!(command, "look");
+        assert_eq!(
+            mode,
+            InvocationMode::Connected {
+                client_token: ClientToken("client".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn captured_command_round_trip() {
+        let message = mk_command_capture_msg(
+            &AuthToken("auth".to_string()),
+            &Obj::mk_id(0),
+            "look".to_string(),
+            Some(Duration::from_secs(5)),
+        )
+        .unwrap();
+
+        let ClientRequest::Command { mode, .. } = round_trip(message) else {
+            panic!("expected Command");
+        };
+        assert_eq!(
+            mode,
+            InvocationMode::CaptureOutput {
+                timeout: Some(Duration::from_secs(5))
             }
         );
     }

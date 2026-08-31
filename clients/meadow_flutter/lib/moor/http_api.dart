@@ -29,7 +29,7 @@ import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
 class VerbInvocationSuccess {
-  final moor_rpc.VerbCallSuccess response;
+  final moor_rpc.InvocationSuccess response;
   final List<moor_common.NarrativeEvent> output;
 
   const VerbInvocationSuccess({
@@ -41,7 +41,7 @@ class VerbInvocationSuccess {
 }
 
 class VerbInvocationException implements Exception {
-  final moor_rpc.VerbCallError response;
+  final moor_rpc.InvocationError response;
   final List<moor_common.NarrativeEvent> output;
 
   const VerbInvocationException({
@@ -85,25 +85,25 @@ class MoorHttpApi {
     final reply = _parseClientSuccess(bytes, context: 'welcome message');
     final replyType = reply.replyType?.value ?? 0;
 
-    // DaemonToClientReplyUnionTypeId.VerbCallResponse is expected.
+    // DaemonToClientReplyUnionTypeId.InvocationResponse is expected.
     if (replyType !=
-        moor_rpc.DaemonToClientReplyUnionTypeId.VerbCallResponse.value) {
+        moor_rpc.DaemonToClientReplyUnionTypeId.InvocationResponse.value) {
       throw Exception('welcome message: unexpected reply type $replyType');
     }
 
-    final verbCall = reply.reply as moor_rpc.VerbCallResponse?;
-    if (verbCall == null) {
-      throw Exception('welcome message: missing VerbCallResponse');
+    final invocation = reply.reply as moor_rpc.InvocationResponse?;
+    if (invocation == null) {
+      throw Exception('welcome message: missing InvocationResponse');
     }
 
-    if (verbCall.responseType?.value !=
-        moor_rpc.VerbCallResponseUnionTypeId.VerbCallSuccess.value) {
+    if (invocation.outcomeType?.value !=
+        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
       throw Exception('welcome message: verb call failed');
     }
 
-    final success = verbCall.response as moor_rpc.VerbCallSuccess?;
+    final success = invocation.outcome as moor_rpc.InvocationSuccess?;
     if (success == null) {
-      throw Exception('welcome message: missing VerbCallSuccess');
+      throw Exception('welcome message: missing InvocationSuccess');
     }
 
     // Mirror Meadow web behavior: first NotifyEvent in the output determines
@@ -111,7 +111,7 @@ class MoorHttpApi {
     var contentType = 'text/plain';
     var outLines = const <String>[];
 
-    final output = verbCall.output;
+    final output = invocation.output;
     if (output != null) {
       for (final evt in output) {
         final e = evt.event;
@@ -513,26 +513,26 @@ class MoorHttpApi {
       );
     }
 
-    // Unlike most /v1 endpoints, /invoke returns a raw VerbCallResponse buffer
+    // Unlike most /v1 endpoints, /invoke returns a raw InvocationResponse buffer
     // (see clients/web-sdk/src/verb.ts:parseVerbCallSuccessFromBytes).
-    final verbCall = moor_rpc.VerbCallResponse(resp.bodyBytes);
-    final response = verbCall.response;
-    if (response == null) {
-      throw Exception('invoke verb: missing VerbCallResponse');
+    final invocation = moor_rpc.InvocationResponse(resp.bodyBytes);
+    final outcome = invocation.outcome;
+    if (outcome == null) {
+      throw Exception('invoke verb: missing InvocationResponse');
     }
-    final output = verbCall.output ?? const <moor_common.NarrativeEvent>[];
-    if (verbCall.responseType?.value !=
-        moor_rpc.VerbCallResponseUnionTypeId.VerbCallSuccess.value) {
-      final error = response as moor_rpc.VerbCallError?;
+    final output = invocation.output ?? const <moor_common.NarrativeEvent>[];
+    if (invocation.outcomeType?.value !=
+        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
+      final error = outcome as moor_rpc.InvocationError?;
       if (error == null) {
-        throw Exception('invoke verb: invalid error response ($response)');
+        throw Exception('invoke verb: invalid error response ($outcome)');
       }
       throw VerbInvocationException(response: error, output: output);
     }
 
-    final success = response as moor_rpc.VerbCallSuccess?;
+    final success = outcome as moor_rpc.InvocationSuccess?;
     if (success == null) {
-      throw Exception('invoke verb: missing VerbCallSuccess');
+      throw Exception('invoke verb: missing InvocationSuccess');
     }
     return VerbInvocationSuccess(response: success, output: output);
   }

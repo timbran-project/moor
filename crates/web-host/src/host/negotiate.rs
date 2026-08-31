@@ -126,9 +126,9 @@ pub fn reply_result_to_json(fb_bytes: &[u8]) -> Result<Response, StatusCode> {
     Ok(json_response(&owned))
 }
 
-/// Convert a VerbCallResponse (already built as owned type) to a JSON response.
-pub fn verb_call_response_to_json(
-    response: &moor_rpc::VerbCallResponse,
+/// Convert an invocation response to JSON.
+pub fn invocation_response_to_json(
+    response: &moor_rpc::InvocationResponse,
 ) -> Result<Response, StatusCode> {
     Ok(json_response(response))
 }
