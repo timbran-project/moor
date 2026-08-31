@@ -365,6 +365,8 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
             if !l.0.captured_env.is_empty() {
                 let var_names = l.0.body.var_names();
                 for (scope_depth, frame) in l.0.captured_env.iter().enumerate() {
+                    let mut scope_buf = String::new();
+
                     for (var_offset, var_value) in frame.iter().enumerate() {
                         if var_value.is_none() {
                             continue;
@@ -378,18 +380,27 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
                             }
                         });
 
-                        if !wrote_metadata {
-                            write!(writer, " with captured [")?;
-                            wrote_metadata = true;
-                        } else {
-                            write!(writer, ", ")?;
-                        }
+                        let Some(symbol) = maybe_name else {
+                            continue;
+                        };
 
-                        if let Some(symbol) = maybe_name {
-                            write!(writer, "{}: ", symbol.as_arc_str())?;
+                        if !scope_buf.is_empty() {
+                            write!(scope_buf, ", ")?;
                         }
-                        write_literal(var_value, writer)?;
+                        write!(scope_buf, "{}: ", symbol.as_arc_str())?;
+                        write_literal(var_value, &mut scope_buf)?;
                     }
+
+                    if scope_buf.is_empty() {
+                        continue;
+                    }
+                    if !wrote_metadata {
+                        write!(writer, " with captured [")?;
+                        wrote_metadata = true;
+                    } else {
+                        write!(writer, ", ")?;
+                    }
+                    write!(writer, "{{{scope_buf}}}")?;
                 }
                 if wrote_metadata {
                     write!(writer, "]")?;

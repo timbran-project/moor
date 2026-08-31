@@ -24,7 +24,7 @@ mod tests {
         WorldState, WorldStateSource,
     };
     use moor_common::tasks::NoopClientSession;
-    use moor_compiler::{CompileOptions, Program, compile};
+    use moor_compiler::{CompileOptions, Program, compile, parse_literal_value, to_literal};
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::program::ProgramType;
     use moor_var::{
@@ -215,6 +215,64 @@ mod tests {
             return f(2);
         "#;
         assert_eq!(run_moo(program), Ok(v_int(42)));
+    }
+
+    #[test]
+    fn test_lambda_capture_literal_preserves_frame_syntax() {
+        let value = run_moo(
+            r#"
+                let outer_value = 10;
+                let make_lambda = fn ()
+                    let scoped_value = 20;
+                    return {} => outer_value + scoped_value;
+                endfn;
+                return make_lambda();
+            "#,
+        )
+        .unwrap();
+        let lambda = value.as_lambda().unwrap();
+        let nonempty_frames = lambda
+            .0
+            .captured_env
+            .iter()
+            .filter(|frame| frame.iter().any(|value| !value.is_none()))
+            .count();
+        assert!(
+            nonempty_frames >= 2,
+            "expected captures from two scopes: {:?}",
+            lambda.0.captured_env
+        );
+        assert!(
+            lambda
+                .0
+                .captured_env
+                .iter()
+                .any(|frame| frame.len() > frame.iter().filter(|value| !value.is_none()).count())
+        );
+
+        let literal = to_literal(&value);
+        let capture_suffix = literal.split_once("with captured [").unwrap().1;
+        assert_eq!(capture_suffix.matches('{').count(), nonempty_frames);
+
+        let reparsed = parse_literal_value(&literal).unwrap();
+        let mut captured_values = reparsed
+            .as_lambda()
+            .unwrap()
+            .0
+            .captured_env
+            .iter()
+            .flatten()
+            .filter_map(Var::as_integer)
+            .collect::<Vec<_>>();
+        captured_values.sort_unstable();
+        assert_eq!(captured_values, vec![10, 20]);
+        assert_eq!(
+            run_moo_with_args(
+                "f = fromliteral(args[1]); return f();",
+                List::mk_list(&[v_str(&literal)]),
+            ),
+            Ok(v_int(30))
+        );
     }
 
     #[test]
