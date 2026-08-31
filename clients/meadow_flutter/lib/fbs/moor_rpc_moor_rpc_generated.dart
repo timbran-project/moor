@@ -11950,21 +11950,19 @@ class Program {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  ClientToken? get clientToken =>
-      ClientToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   AuthToken? get authToken =>
-      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   moor_common.ObjectRef? get object =>
-      moor_common.ObjectRef.reader.vTableGetNullable(_bc, _bcOffset, 8);
+      moor_common.ObjectRef.reader.vTableGetNullable(_bc, _bcOffset, 6);
   moor_common.Symbol? get verb =>
-      moor_common.Symbol.reader.vTableGetNullable(_bc, _bcOffset, 10);
+      moor_common.Symbol.reader.vTableGetNullable(_bc, _bcOffset, 8);
   List<String>? get code => const fb.ListReader<String>(
     fb.StringReader(),
-  ).vTableGetNullable(_bc, _bcOffset, 12);
+  ).vTableGetNullable(_bc, _bcOffset, 10);
 
   @override
   String toString() {
-    return 'Program{clientToken: ${clientToken}, authToken: ${authToken}, object: ${object}, verb: ${verb}, code: ${code}}';
+    return 'Program{authToken: ${authToken}, object: ${object}, verb: ${verb}, code: ${code}}';
   }
 }
 
@@ -11982,31 +11980,26 @@ class ProgramBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(5);
+    fbBuilder.startTable(4);
   }
 
-  int addClientTokenOffset(int? offset) {
+  int addAuthTokenOffset(int? offset) {
     fbBuilder.addOffset(0, offset);
     return fbBuilder.offset;
   }
 
-  int addAuthTokenOffset(int? offset) {
+  int addObjectOffset(int? offset) {
     fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
 
-  int addObjectOffset(int? offset) {
+  int addVerbOffset(int? offset) {
     fbBuilder.addOffset(2, offset);
     return fbBuilder.offset;
   }
 
-  int addVerbOffset(int? offset) {
-    fbBuilder.addOffset(3, offset);
-    return fbBuilder.offset;
-  }
-
   int addCodeOffset(int? offset) {
-    fbBuilder.addOffset(4, offset);
+    fbBuilder.addOffset(3, offset);
     return fbBuilder.offset;
   }
 
@@ -12016,20 +12009,17 @@ class ProgramBuilder {
 }
 
 class ProgramObjectBuilder extends fb.ObjectBuilder {
-  final ClientTokenObjectBuilder? _clientToken;
   final AuthTokenObjectBuilder? _authToken;
   final moor_common.ObjectRefObjectBuilder? _object;
   final moor_common.SymbolObjectBuilder? _verb;
   final List<String>? _code;
 
   ProgramObjectBuilder({
-    ClientTokenObjectBuilder? clientToken,
     AuthTokenObjectBuilder? authToken,
     moor_common.ObjectRefObjectBuilder? object,
     moor_common.SymbolObjectBuilder? verb,
     List<String>? code,
-  }) : _clientToken = clientToken,
-       _authToken = authToken,
+  }) : _authToken = authToken,
        _object = object,
        _verb = verb,
        _code = code;
@@ -12037,19 +12027,17 @@ class ProgramObjectBuilder extends fb.ObjectBuilder {
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    final int? clientTokenOffset = _clientToken?.getOrCreateOffset(fbBuilder);
     final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
     final int? objectOffset = _object?.getOrCreateOffset(fbBuilder);
     final int? verbOffset = _verb?.getOrCreateOffset(fbBuilder);
     final int? codeOffset = _code == null
         ? null
         : fbBuilder.writeList(_code!.map(fbBuilder.writeString).toList());
-    fbBuilder.startTable(5);
-    fbBuilder.addOffset(0, clientTokenOffset);
-    fbBuilder.addOffset(1, authTokenOffset);
-    fbBuilder.addOffset(2, objectOffset);
-    fbBuilder.addOffset(3, verbOffset);
-    fbBuilder.addOffset(4, codeOffset);
+    fbBuilder.startTable(4);
+    fbBuilder.addOffset(0, authTokenOffset);
+    fbBuilder.addOffset(1, objectOffset);
+    fbBuilder.addOffset(2, verbOffset);
+    fbBuilder.addOffset(3, codeOffset);
     return fbBuilder.endTable();
   }
 

@@ -933,7 +933,6 @@ mod tests {
         assert!(result.is_ok(), "add_verb should succeed: {result:?}");
 
         let program = mk_program_msg(
-            client_token,
             auth_token,
             &ObjectRef::Id(player),
             &Symbol::mk(verb),
@@ -942,7 +941,7 @@ mod tests {
         let result = env.transport.process_client_message(
             env.message_handler.as_ref(),
             env.scheduler_client.clone(),
-            client_id,
+            Uuid::new_v4(),
             program,
         );
         let Ok(reply) = &result else {

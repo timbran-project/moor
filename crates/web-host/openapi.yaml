@@ -665,8 +665,8 @@ paths:
       tags: [Verbs]
       summary: Set a verb's program code
       description: |
-        Uploads MOO source code for a verb.  Uses an ephemeral daemon
-        connection (attach + detach).
+        Uploads MOO source code for a verb as the authenticated player. This operation does not
+        create daemon connection state.
       security:
         - MoorAuthToken: []
       parameters:

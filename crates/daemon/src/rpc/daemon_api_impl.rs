@@ -716,14 +716,12 @@ impl RuntimeApi for RpcMessageHandler {
             }
 
             ClientRequest::Program {
-                client_token,
                 auth_token,
                 object,
                 verb,
                 code,
             } => {
-                let (_connection, player) =
-                    self.verify_tokens(client_token, auth_token, client_id)?;
+                let player = self.validate_auth_token(auth_token, None)?;
                 self.program_verb_typed(scheduler_client, &player, &object, verb, code)
             }
 

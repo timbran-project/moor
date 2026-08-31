@@ -1036,22 +1036,12 @@ impl MoorClient {
         verb_name: &str,
         code: Vec<String>,
     ) -> Result<()> {
-        let client_token = self
-            .client_token
-            .as_ref()
-            .ok_or_else(|| eyre!("Not connected"))?;
         let auth_token = self
             .auth_token
             .as_ref()
             .ok_or_else(|| eyre!("Not authenticated"))?;
 
-        let program_msg = mk_program_msg(
-            client_token,
-            auth_token,
-            object,
-            &Symbol::mk(verb_name),
-            code,
-        );
+        let program_msg = mk_program_msg(auth_token, object, &Symbol::mk(verb_name), code);
 
         let reply_bytes = self
             .rpc_call_with_timeout(program_msg, &format!("Program verb '{}'", verb_name))

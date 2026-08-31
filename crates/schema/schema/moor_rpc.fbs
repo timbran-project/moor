@@ -814,7 +814,6 @@ table Retrieve {
 }
 
 table Program {
-    client_token: ClientToken (required);
     auth_token: AuthToken (required);
     object: MoorCommon.ObjectRef (required);
     verb: MoorCommon.Symbol (required);

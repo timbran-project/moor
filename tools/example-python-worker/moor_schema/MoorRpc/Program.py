@@ -25,19 +25,8 @@ class Program(object):
         self._tab = flatbuffers.table.Table(buf, pos)
 
     # Program
-    def ClientToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
-        if o != 0:
-            x = self._tab.Indirect(o + self._tab.Pos)
-            from MoorRpc.ClientToken import ClientToken
-            obj = ClientToken()
-            obj.Init(self._tab.Bytes, x)
-            return obj
-        return None
-
-    # Program
     def AuthToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorRpc.AuthToken import AuthToken
@@ -48,7 +37,7 @@ class Program(object):
 
     # Program
     def Object(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorCommon.ObjectRef import ObjectRef
@@ -59,7 +48,7 @@ class Program(object):
 
     # Program
     def Verb(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorCommon.Symbol import Symbol
@@ -70,7 +59,7 @@ class Program(object):
 
     # Program
     def Code(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             a = self._tab.Vector(o)
             return self._tab.String(a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
@@ -78,32 +67,29 @@ class Program(object):
 
     # Program
     def CodeLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # Program
     def CodeIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         return o == 0
 
-def ProgramStart(builder): builder.StartObject(5)
+def ProgramStart(builder): builder.StartObject(4)
 def Start(builder):
     return ProgramStart(builder)
-def ProgramAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
-def AddClientToken(builder, clientToken):
-    return ProgramAddClientToken(builder, clientToken)
-def ProgramAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
+def ProgramAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
 def AddAuthToken(builder, authToken):
     return ProgramAddAuthToken(builder, authToken)
-def ProgramAddObject(builder, object): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(object), 0)
+def ProgramAddObject(builder, object): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(object), 0)
 def AddObject(builder, object):
     return ProgramAddObject(builder, object)
-def ProgramAddVerb(builder, verb): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(verb), 0)
+def ProgramAddVerb(builder, verb): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(verb), 0)
 def AddVerb(builder, verb):
     return ProgramAddVerb(builder, verb)
-def ProgramAddCode(builder, code): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(code), 0)
+def ProgramAddCode(builder, code): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(code), 0)
 def AddCode(builder, code):
     return ProgramAddCode(builder, code)
 def ProgramStartCodeVector(builder, numElems): return builder.StartVector(4, numElems, 4)

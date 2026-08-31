@@ -1145,7 +1145,6 @@ impl TelnetConnection {
                     .client_call(
                         self.client_id,
                         ClientRequest::Program {
-                            client_token: self.client_token.clone(),
                             auth_token: auth_token.clone(),
                             object: target,
                             verb,

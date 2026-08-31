@@ -348,12 +348,11 @@ fn encode_client_request(
                 RpcError::CouldNotDecode("Failed to encode set client attribute value".to_string())
             })?,
         ClientRequest::Program {
-            client_token,
             auth_token,
             object,
             verb,
             code,
-        } => mk_program_msg(&client_token, &auth_token, &object, &verb, code),
+        } => mk_program_msg(&auth_token, &object, &verb, code),
         ClientRequest::GetEventLogPublicKey { auth_token } => {
             mk_get_event_log_pubkey_msg(&auth_token)
         }
