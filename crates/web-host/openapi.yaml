@@ -56,6 +56,8 @@ tags:
       return 404.
   - name: WebSocket
     description: WebSocket connections for real-time interaction
+  - name: Commands
+    description: MOO command execution
   - name: Eval
     description: Server-side MOO expression evaluation
   - name: Verbs
@@ -518,7 +520,49 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  # ── Eval ──────────────────────────────────────────────────────────────
+  # ── Commands and eval ─────────────────────────────────────────────────
+
+  /v1/command:
+    post:
+      operationId: executeCommand
+      tags: [Commands]
+      summary: Execute a MOO command and return its result
+      description: |
+        Parses and executes one MOO command as the authenticated player. The
+        daemon collects narrative output from the root task and returns it with
+        either the result or the task error. The request does not create a
+        persistent connection. Input requests fail, and output from forked
+        tasks is not included.
+      security:
+        - MoorAuthToken: []
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema: { type: string }
+            example: "look"
+      responses:
+        "200":
+          description: Command result and captured narrative output
+          content:
+            application/x-flatbuffers:
+              schema: { type: string, format: binary }
+              # Logical: InvocationResponse { InvocationSuccess | InvocationError, output }
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: The request body is not valid UTF-8
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "406":
+          $ref: "#/components/responses/NotAcceptable"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /v1/eval:
     post:
@@ -662,7 +706,7 @@ paths:
       summary: Invoke a verb and return the result
       description: |
         Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments.
-        Returns a `VerbCallResponse` containing the narrative events the call
+        Returns an `InvocationResponse` containing the narrative events the call
         committed and either a success result or an error.  Output is present
         for both outcomes, so a failed call includes notifications committed
         before the failure and its traceback.  The verb runs as the authenticated
@@ -671,7 +715,7 @@ paths:
         fails.  The deadline is the
         daemon's configured maximum for a captured call (`runtime.max_capture_deadline`,
         60 s by default).  A call that overruns it is cancelled and answered
-        with a `200` whose `VerbCallError` carries a `TaskAbortedLimit` time
+        with a `200` whose `InvocationError` carries a `TaskAbortedLimit` time
         error.  If the terminal transaction commit wins the deadline race, the
         daemon instead finishes that commit and returns its result; session
         finalization can extend the response slightly beyond the deadline.
@@ -708,7 +752,7 @@ paths:
           content:
             application/x-flatbuffers:
               schema: { type: string, format: binary }
-              # Logical: VerbCallResponse { VerbCallSuccess | VerbCallError, output }
+              # Logical: InvocationResponse { InvocationSuccess | InvocationError, output }
             application/json:
               schema:
                 type: object

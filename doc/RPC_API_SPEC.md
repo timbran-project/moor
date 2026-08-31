@@ -578,14 +578,25 @@ Executes a MOO command.
 
 ```flatbuffers
 table Command {
-    client_token: ClientToken;
     auth_token: AuthToken;
     handler_object: Obj;
     command: string;                             // The command to execute
+    mode: InvocationMode (required);             // How output is delivered
+}
+
+union InvocationMode { ConnectedInvocation, CaptureOutputInvocation }
+
+table ConnectedInvocation {
+    client_token: ClientToken (required);         // The connection output goes to
+}
+
+table CaptureOutputInvocation {
+    timeout_ms: uint64 = 0;                       // 0 = the daemon's configured maximum
 }
 ```
 
-**Response**: `DaemonToClientReply::TaskSubmitted`
+**Response**: `DaemonToClientReply::TaskSubmitted` for `ConnectedInvocation`,
+`DaemonToClientReply::InvocationResponse` for `CaptureOutputInvocation`.
 
 ```flatbuffers
 table TaskSubmitted {
@@ -593,13 +604,14 @@ table TaskSubmitted {
 }
 ```
 
-**Events**:
+**Connected events**:
 
 - `ClientEvent::TaskSuccessEvent` when task completes successfully
 - `ClientEvent::TaskErrorEvent` if task fails
 - `ClientEvent::NarrativeEventMessage` for narrative output
 
-**Usage**: The primary way users interact with the MOO.
+**Usage**: The primary way users interact with the MOO. Capture mode runs the same command parser
+without a connection and returns the root task's result and committed narrative output directly.
 
 ---
 
@@ -648,20 +660,10 @@ table InvokeVerb {
     args: [Var] (required);                       // Arguments
     mode: InvocationMode (required);              // How output is delivered
 }
-
-union InvocationMode { ConnectedInvocation, CaptureOutputInvocation }
-
-table ConnectedInvocation {
-    client_token: ClientToken (required);         // The connection output goes to
-}
-
-table CaptureOutputInvocation {
-    timeout_ms: uint64 = 0;                       // 0 = the daemon's configured maximum
-}
 ```
 
 **Response**: `DaemonToClientReply::TaskSubmitted` for `ConnectedInvocation`,
-`DaemonToClientReply::VerbCallResponse` for `CaptureOutputInvocation`.
+`DaemonToClientReply::InvocationResponse` for `CaptureOutputInvocation`.
 
 **Usage**: Programmatic verb invocation, bypassing command parsing.
 
@@ -702,7 +704,7 @@ maximum capture deadline.
 
 **Fields**: none.
 
-**Response**: `DaemonToClientReply::VerbCallResponse`
+**Response**: `DaemonToClientReply::InvocationResponse`
 
 ---
 

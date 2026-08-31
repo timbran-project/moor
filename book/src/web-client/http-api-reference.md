@@ -407,6 +407,43 @@ Requires: `X-Moor-Auth-Token`
 
 ---
 
+## Commands
+
+MOO command execution
+
+### `POST /v1/command`
+
+**Execute a MOO command and return its result**
+
+Parses and executes one command as the authenticated player. The response contains the root task's
+result or error and its committed narrative output. The request does not create a persistent
+connection. Input requests fail, and output from forked tasks is not included.
+
+Requires: `X-Moor-Auth-Token`
+
+**Request body** (required)
+
+- Content-Type: `text/plain`
+
+  Example:
+  ```
+  look
+  ```
+
+**Responses**
+
+- **200**: Command result and captured narrative output
+  - Content-Type: `application/x-flatbuffers`
+  - Content-Type: `application/json`
+- **400**: Request body is not valid UTF-8
+- **401**: Missing or invalid auth token
+- **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
+- **415**: Unsupported content type
+- **500**: Internal server error
+- **503**: Daemon is unreachable
+
+---
+
 ## Eval
 
 Server-side MOO expression evaluation
@@ -537,13 +574,13 @@ Requires: `X-Moor-Auth-Token`
 **Invoke a verb and return the result**
 
 Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments. Returns a
-`VerbCallResponse` containing the narrative events the call committed and either a success result or
-an error. Output is present for both outcomes, so a failed call includes notifications committed
+`InvocationResponse` containing the narrative events the call committed and either a success result
+or an error. Output is present for both outcomes, so a failed call includes notifications committed
 before the failure and its traceback. The verb runs as the authenticated player, with that player's
 authority, and with no connection behind it: output from forked tasks is not included, and a verb
 that asks for input fails. The deadline is the daemon's configured maximum for a captured call
 (`runtime.max_capture_deadline`, 60 s by default). A call that overruns it is cancelled and answered
-with a `200` whose `VerbCallError` carries a `TaskAbortedLimit` time error. If the terminal
+with a `200` whose `InvocationError` carries a `TaskAbortedLimit` time error. If the terminal
 transaction commit wins the deadline race, the daemon instead finishes that commit and returns its
 result; session finalization can extend the response slightly beyond the deadline.
 
