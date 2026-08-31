@@ -1105,7 +1105,6 @@ union VerbCallResponseUnion {
 
 table VerbCallSuccess {
     result: MoorVar.Var (required);
-    output: [MoorCommon.NarrativeEvent] (required);
 }
 
 table VerbCallError {
@@ -1114,6 +1113,7 @@ table VerbCallError {
 
 table VerbCallResponse {
     response: VerbCallResponseUnion (required);
+    output: [MoorCommon.NarrativeEvent] (required);
 }
 
 table DaemonToClientReply {

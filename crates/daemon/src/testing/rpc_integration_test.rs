@@ -961,8 +961,27 @@ mod tests {
         );
     }
 
-    /// The result value and captured narrative text of a successful captured call.
-    fn captured_success(reply: &moor_rpc::DaemonToClientReply) -> (moor_var::Var, Vec<String>) {
+    fn captured_output(
+        response: &moor_rpc::VerbCallResponse,
+    ) -> Vec<moor_common::tasks::NarrativeEvent> {
+        response
+            .output
+            .iter()
+            .map(|event| {
+                let mut builder = planus::Builder::new();
+                let bytes = builder.finish(event, None).to_vec();
+                moor_schema::convert::narrative_event_from_ref(
+                    moor_schema::common::NarrativeEventRef::read_as_root(&bytes).unwrap(),
+                )
+                .expect("Failed to decode narrative event")
+            })
+            .collect()
+    }
+
+    /// The result value and captured narrative events of a successful captured call.
+    fn captured_success(
+        reply: &moor_rpc::DaemonToClientReply,
+    ) -> (moor_var::Var, Vec<moor_common::tasks::NarrativeEvent>) {
         let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
             panic!("Expected VerbCallResponse, got {:?}", reply.reply);
         };
@@ -977,37 +996,38 @@ mod tests {
         )
         .expect("Failed to decode result var");
 
-        let output = success
-            .output
-            .iter()
-            .map(|event| {
-                let mut builder = planus::Builder::new();
-                let bytes = builder.finish(event, None).to_vec();
-                let event = moor_schema::convert::narrative_event_from_ref(
-                    moor_schema::common::NarrativeEventRef::read_as_root(&bytes).unwrap(),
-                )
-                .expect("Failed to decode narrative event");
-                match event.event() {
-                    moor_common::tasks::Event::Notify { value, .. } => {
-                        value.as_string().expect("Expected a string notify").into()
-                    }
-                    other => panic!("Unexpected narrative event: {other:?}"),
-                }
-            })
-            .collect();
-
-        (result, output)
+        (result, captured_output(response))
     }
 
-    /// The scheduler error of a failed captured call.
-    fn captured_error(reply: &moor_rpc::DaemonToClientReply) -> moor_rpc::SchedulerError {
+    /// The scheduler error and committed narrative events of a failed captured call.
+    fn captured_error(
+        reply: &moor_rpc::DaemonToClientReply,
+    ) -> (
+        moor_rpc::SchedulerError,
+        Vec<moor_common::tasks::NarrativeEvent>,
+    ) {
         let moor_rpc::DaemonToClientReplyUnion::VerbCallResponse(response) = &reply.reply else {
             panic!("Expected VerbCallResponse, got {:?}", reply.reply);
         };
         let moor_rpc::VerbCallResponseUnion::VerbCallError(error) = &response.response else {
             panic!("Expected error, got {:?}", response.response);
         };
-        *error.error.clone()
+        (*error.error.clone(), captured_output(response))
+    }
+
+    fn captured_notify_text(output: &[moor_common::tasks::NarrativeEvent]) -> Vec<String> {
+        output
+            .iter()
+            .filter_map(|event| match event.event() {
+                moor_common::tasks::Event::Notify { value, .. } => Some(
+                    value
+                        .as_string()
+                        .expect("Expected a string notification")
+                        .into(),
+                ),
+                _ => None,
+            })
+            .collect()
     }
 
     /// A captured invocation runs as the authenticated player, and comes back with both the verb's
@@ -1053,7 +1073,7 @@ mod tests {
             moor_var::v_list(&[moor_var::v_obj(player), moor_var::v_int(42)]),
             "The call should run as the authenticated player and return its value"
         );
-        assert_eq!(output, vec!["first".to_string(), "second".to_string()]);
+        assert_eq!(captured_notify_text(&output), vec!["first", "second"]);
     }
 
     /// A forked task is an independent task, so its output does not appear in the parent's
@@ -1094,7 +1114,7 @@ mod tests {
             .expect("Captured invocation should succeed");
 
         let (_result, output) = captured_success(&reply);
-        assert_eq!(output, vec!["from root".to_string()]);
+        assert_eq!(captured_notify_text(&output), vec!["from root"]);
     }
 
     /// There is nobody to ask, so an input request fails the task rather than hanging.
@@ -1138,6 +1158,52 @@ mod tests {
         let _ = captured_error(&reply);
     }
 
+    /// A failed call returns output committed before the failure, including its traceback.
+    #[test]
+    fn test_captured_invoke_verb_returns_output_on_error() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "error_output_test",
+            "notify(player, \"before failure\");\nraise(E_INVARG, \"boom\");",
+        );
+
+        let invoke = mk_invoke_verb_capture_msg(
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("error_output_test"),
+            vec![],
+            Some(Duration::from_secs(30)),
+        )
+        .expect("Failed to build captured invoke message");
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Captured invocation should reply with its error");
+
+        let (_error, output) = captured_error(&reply);
+        assert_eq!(captured_notify_text(&output), vec!["before failure"]);
+        assert!(
+            output
+                .iter()
+                .any(|event| matches!(event.event(), moor_common::tasks::Event::Traceback(_))),
+            "The captured error should include its traceback"
+        );
+    }
+
     /// When the deadline passes, the task is cancelled and the caller is told it hit a time limit.
     #[test]
     fn test_captured_invoke_verb_cancels_on_deadline() {
@@ -1174,7 +1240,7 @@ mod tests {
             )
             .expect("Captured invocation should reply once the deadline passes");
 
-        let error = captured_error(&reply);
+        let (error, _output) = captured_error(&reply);
         let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
             panic!("Expected TaskAbortedLimit, got {:?}", error.error);
         };

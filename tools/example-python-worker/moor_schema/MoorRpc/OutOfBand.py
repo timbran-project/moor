@@ -58,13 +58,28 @@ class OutOfBand(object):
         return None
 
     # OutOfBand
-    def Command(self):
+    def Args(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
-            return self._tab.String(o + self._tab.Pos)
+            x = self._tab.Indirect(o + self._tab.Pos)
+            from MoorVar.Var import Var
+            obj = Var()
+            obj.Init(self._tab.Bytes, x)
+            return obj
         return None
 
-def OutOfBandStart(builder): builder.StartObject(4)
+    # OutOfBand
+    def Argstr(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        if o != 0:
+            x = self._tab.Indirect(o + self._tab.Pos)
+            from MoorVar.Var import Var
+            obj = Var()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+def OutOfBandStart(builder): builder.StartObject(5)
 def Start(builder):
     return OutOfBandStart(builder)
 def OutOfBandAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
@@ -76,9 +91,12 @@ def AddAuthToken(builder, authToken):
 def OutOfBandAddHandlerObject(builder, handlerObject): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(handlerObject), 0)
 def AddHandlerObject(builder, handlerObject):
     return OutOfBandAddHandlerObject(builder, handlerObject)
-def OutOfBandAddCommand(builder, command): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(command), 0)
-def AddCommand(builder, command):
-    return OutOfBandAddCommand(builder, command)
+def OutOfBandAddArgs(builder, args): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(args), 0)
+def AddArgs(builder, args):
+    return OutOfBandAddArgs(builder, args)
+def OutOfBandAddArgstr(builder, argstr): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(argstr), 0)
+def AddArgstr(builder, argstr):
+    return OutOfBandAddArgstr(builder, argstr)
 def OutOfBandEnd(builder): return builder.EndObject()
 def End(builder):
     return OutOfBandEnd(builder)

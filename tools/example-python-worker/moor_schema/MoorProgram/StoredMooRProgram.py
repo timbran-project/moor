@@ -32,8 +32,15 @@ class StoredMooRProgram(object):
         return 0
 
     # StoredMooRProgram
-    def MainVector(self, j):
+    def BuiltinSignature(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+    # StoredMooRProgram
+    def MainVector(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             a = self._tab.Vector(o)
             return self._tab.Get(flatbuffers.number_types.Uint16Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 2))
@@ -41,26 +48,26 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def MainVectorAsNumpy(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Uint16Flags, o)
         return 0
 
     # StoredMooRProgram
     def MainVectorLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def MainVectorIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
         return o == 0
 
     # StoredMooRProgram
     def ForkVectors(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -73,19 +80,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def ForkVectorsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def ForkVectorsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         return o == 0
 
     # StoredMooRProgram
     def Literals(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -98,19 +105,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def LiteralsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def LiteralsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
         return o == 0
 
     # StoredMooRProgram
     def JumpLabels(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -123,19 +130,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def JumpLabelsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def JumpLabelsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
         return o == 0
 
     # StoredMooRProgram
     def VarNames(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(16))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorProgram.StoredNames import StoredNames
@@ -143,31 +150,6 @@ class StoredMooRProgram(object):
             obj.Init(self._tab.Bytes, x)
             return obj
         return None
-
-    # StoredMooRProgram
-    def SymbolTable(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(16))
-        if o != 0:
-            x = self._tab.Vector(o)
-            x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
-            x = self._tab.Indirect(x)
-            from MoorCommon.Symbol import Symbol
-            obj = Symbol()
-            obj.Init(self._tab.Bytes, x)
-            return obj
-        return None
-
-    # StoredMooRProgram
-    def SymbolTableLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(16))
-        if o != 0:
-            return self._tab.VectorLen(o)
-        return 0
-
-    # StoredMooRProgram
-    def SymbolTableIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(16))
-        return o == 0
 
     # StoredMooRProgram
     def ScatterTables(self, j):
@@ -295,35 +277,8 @@ class StoredMooRProgram(object):
         return o == 0
 
     # StoredMooRProgram
-    def ErrorOperands(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
-        if o != 0:
-            a = self._tab.Vector(o)
-            return self._tab.Get(flatbuffers.number_types.Uint8Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 1))
-        return 0
-
-    # StoredMooRProgram
-    def ErrorOperandsAsNumpy(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
-        if o != 0:
-            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Uint8Flags, o)
-        return 0
-
-    # StoredMooRProgram
-    def ErrorOperandsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
-        if o != 0:
-            return self._tab.VectorLen(o)
-        return 0
-
-    # StoredMooRProgram
-    def ErrorOperandsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
-        return o == 0
-
-    # StoredMooRProgram
     def ErrorOperandsFull(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -336,19 +291,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def ErrorOperandsFullLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def ErrorOperandsFullIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
         return o == 0
 
     # StoredMooRProgram
     def LambdaPrograms(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -361,19 +316,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def LambdaProgramsLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def LambdaProgramsIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
         return o == 0
 
     # StoredMooRProgram
     def LineNumberSpans(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -386,19 +341,19 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def LineNumberSpansLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def LineNumberSpansIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
         return o == 0
 
     # StoredMooRProgram
     def ForkLineNumberSpans(self, j):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
         if o != 0:
             x = self._tab.Vector(o)
             x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
@@ -411,55 +366,120 @@ class StoredMooRProgram(object):
 
     # StoredMooRProgram
     def ForkLineNumberSpansLength(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
         if o != 0:
             return self._tab.VectorLen(o)
         return 0
 
     # StoredMooRProgram
     def ForkLineNumberSpansIsNone(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
         return o == 0
 
-def StoredMooRProgramStart(builder): builder.StartObject(17)
+    # StoredMooRProgram
+    def MainMaxStack(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxStacks(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 8))
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxStacksAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Uint64Flags, o)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxStacksLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxStacksIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        return o == 0
+
+    # StoredMooRProgram
+    def MainMaxScopeDepth(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxScopeDepths(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 8))
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxScopeDepthsAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Uint64Flags, o)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxScopeDepthsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # StoredMooRProgram
+    def ForkMaxScopeDepthsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        return o == 0
+
+def StoredMooRProgramStart(builder): builder.StartObject(20)
 def Start(builder):
     return StoredMooRProgramStart(builder)
 def StoredMooRProgramAddVersion(builder, version): builder.PrependUint16Slot(0, version, 0)
 def AddVersion(builder, version):
     return StoredMooRProgramAddVersion(builder, version)
-def StoredMooRProgramAddMainVector(builder, mainVector): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(mainVector), 0)
+def StoredMooRProgramAddBuiltinSignature(builder, builtinSignature): builder.PrependUint64Slot(1, builtinSignature, 0)
+def AddBuiltinSignature(builder, builtinSignature):
+    return StoredMooRProgramAddBuiltinSignature(builder, builtinSignature)
+def StoredMooRProgramAddMainVector(builder, mainVector): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(mainVector), 0)
 def AddMainVector(builder, mainVector):
     return StoredMooRProgramAddMainVector(builder, mainVector)
 def StoredMooRProgramStartMainVectorVector(builder, numElems): return builder.StartVector(2, numElems, 2)
 def StartMainVectorVector(builder, numElems):
     return StoredMooRProgramStartMainVectorVector(builder, numElems)
-def StoredMooRProgramAddForkVectors(builder, forkVectors): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(forkVectors), 0)
+def StoredMooRProgramAddForkVectors(builder, forkVectors): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(forkVectors), 0)
 def AddForkVectors(builder, forkVectors):
     return StoredMooRProgramAddForkVectors(builder, forkVectors)
 def StoredMooRProgramStartForkVectorsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartForkVectorsVector(builder, numElems):
     return StoredMooRProgramStartForkVectorsVector(builder, numElems)
-def StoredMooRProgramAddLiterals(builder, literals): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(literals), 0)
+def StoredMooRProgramAddLiterals(builder, literals): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(literals), 0)
 def AddLiterals(builder, literals):
     return StoredMooRProgramAddLiterals(builder, literals)
 def StoredMooRProgramStartLiteralsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartLiteralsVector(builder, numElems):
     return StoredMooRProgramStartLiteralsVector(builder, numElems)
-def StoredMooRProgramAddJumpLabels(builder, jumpLabels): builder.PrependUOffsetTRelativeSlot(4, flatbuffers.number_types.UOffsetTFlags.py_type(jumpLabels), 0)
+def StoredMooRProgramAddJumpLabels(builder, jumpLabels): builder.PrependUOffsetTRelativeSlot(5, flatbuffers.number_types.UOffsetTFlags.py_type(jumpLabels), 0)
 def AddJumpLabels(builder, jumpLabels):
     return StoredMooRProgramAddJumpLabels(builder, jumpLabels)
 def StoredMooRProgramStartJumpLabelsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartJumpLabelsVector(builder, numElems):
     return StoredMooRProgramStartJumpLabelsVector(builder, numElems)
-def StoredMooRProgramAddVarNames(builder, varNames): builder.PrependUOffsetTRelativeSlot(5, flatbuffers.number_types.UOffsetTFlags.py_type(varNames), 0)
+def StoredMooRProgramAddVarNames(builder, varNames): builder.PrependUOffsetTRelativeSlot(6, flatbuffers.number_types.UOffsetTFlags.py_type(varNames), 0)
 def AddVarNames(builder, varNames):
     return StoredMooRProgramAddVarNames(builder, varNames)
-def StoredMooRProgramAddSymbolTable(builder, symbolTable): builder.PrependUOffsetTRelativeSlot(6, flatbuffers.number_types.UOffsetTFlags.py_type(symbolTable), 0)
-def AddSymbolTable(builder, symbolTable):
-    return StoredMooRProgramAddSymbolTable(builder, symbolTable)
-def StoredMooRProgramStartSymbolTableVector(builder, numElems): return builder.StartVector(4, numElems, 4)
-def StartSymbolTableVector(builder, numElems):
-    return StoredMooRProgramStartSymbolTableVector(builder, numElems)
 def StoredMooRProgramAddScatterTables(builder, scatterTables): builder.PrependUOffsetTRelativeSlot(7, flatbuffers.number_types.UOffsetTFlags.py_type(scatterTables), 0)
 def AddScatterTables(builder, scatterTables):
     return StoredMooRProgramAddScatterTables(builder, scatterTables)
@@ -490,36 +510,48 @@ def AddListComprehensions(builder, listComprehensions):
 def StoredMooRProgramStartListComprehensionsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartListComprehensionsVector(builder, numElems):
     return StoredMooRProgramStartListComprehensionsVector(builder, numElems)
-def StoredMooRProgramAddErrorOperands(builder, errorOperands): builder.PrependUOffsetTRelativeSlot(12, flatbuffers.number_types.UOffsetTFlags.py_type(errorOperands), 0)
-def AddErrorOperands(builder, errorOperands):
-    return StoredMooRProgramAddErrorOperands(builder, errorOperands)
-def StoredMooRProgramStartErrorOperandsVector(builder, numElems): return builder.StartVector(1, numElems, 1)
-def StartErrorOperandsVector(builder, numElems):
-    return StoredMooRProgramStartErrorOperandsVector(builder, numElems)
-def StoredMooRProgramAddErrorOperandsFull(builder, errorOperandsFull): builder.PrependUOffsetTRelativeSlot(13, flatbuffers.number_types.UOffsetTFlags.py_type(errorOperandsFull), 0)
+def StoredMooRProgramAddErrorOperandsFull(builder, errorOperandsFull): builder.PrependUOffsetTRelativeSlot(12, flatbuffers.number_types.UOffsetTFlags.py_type(errorOperandsFull), 0)
 def AddErrorOperandsFull(builder, errorOperandsFull):
     return StoredMooRProgramAddErrorOperandsFull(builder, errorOperandsFull)
 def StoredMooRProgramStartErrorOperandsFullVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartErrorOperandsFullVector(builder, numElems):
     return StoredMooRProgramStartErrorOperandsFullVector(builder, numElems)
-def StoredMooRProgramAddLambdaPrograms(builder, lambdaPrograms): builder.PrependUOffsetTRelativeSlot(14, flatbuffers.number_types.UOffsetTFlags.py_type(lambdaPrograms), 0)
+def StoredMooRProgramAddLambdaPrograms(builder, lambdaPrograms): builder.PrependUOffsetTRelativeSlot(13, flatbuffers.number_types.UOffsetTFlags.py_type(lambdaPrograms), 0)
 def AddLambdaPrograms(builder, lambdaPrograms):
     return StoredMooRProgramAddLambdaPrograms(builder, lambdaPrograms)
 def StoredMooRProgramStartLambdaProgramsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartLambdaProgramsVector(builder, numElems):
     return StoredMooRProgramStartLambdaProgramsVector(builder, numElems)
-def StoredMooRProgramAddLineNumberSpans(builder, lineNumberSpans): builder.PrependUOffsetTRelativeSlot(15, flatbuffers.number_types.UOffsetTFlags.py_type(lineNumberSpans), 0)
+def StoredMooRProgramAddLineNumberSpans(builder, lineNumberSpans): builder.PrependUOffsetTRelativeSlot(14, flatbuffers.number_types.UOffsetTFlags.py_type(lineNumberSpans), 0)
 def AddLineNumberSpans(builder, lineNumberSpans):
     return StoredMooRProgramAddLineNumberSpans(builder, lineNumberSpans)
 def StoredMooRProgramStartLineNumberSpansVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartLineNumberSpansVector(builder, numElems):
     return StoredMooRProgramStartLineNumberSpansVector(builder, numElems)
-def StoredMooRProgramAddForkLineNumberSpans(builder, forkLineNumberSpans): builder.PrependUOffsetTRelativeSlot(16, flatbuffers.number_types.UOffsetTFlags.py_type(forkLineNumberSpans), 0)
+def StoredMooRProgramAddForkLineNumberSpans(builder, forkLineNumberSpans): builder.PrependUOffsetTRelativeSlot(15, flatbuffers.number_types.UOffsetTFlags.py_type(forkLineNumberSpans), 0)
 def AddForkLineNumberSpans(builder, forkLineNumberSpans):
     return StoredMooRProgramAddForkLineNumberSpans(builder, forkLineNumberSpans)
 def StoredMooRProgramStartForkLineNumberSpansVector(builder, numElems): return builder.StartVector(4, numElems, 4)
 def StartForkLineNumberSpansVector(builder, numElems):
     return StoredMooRProgramStartForkLineNumberSpansVector(builder, numElems)
+def StoredMooRProgramAddMainMaxStack(builder, mainMaxStack): builder.PrependUint64Slot(16, mainMaxStack, 0)
+def AddMainMaxStack(builder, mainMaxStack):
+    return StoredMooRProgramAddMainMaxStack(builder, mainMaxStack)
+def StoredMooRProgramAddForkMaxStacks(builder, forkMaxStacks): builder.PrependUOffsetTRelativeSlot(17, flatbuffers.number_types.UOffsetTFlags.py_type(forkMaxStacks), 0)
+def AddForkMaxStacks(builder, forkMaxStacks):
+    return StoredMooRProgramAddForkMaxStacks(builder, forkMaxStacks)
+def StoredMooRProgramStartForkMaxStacksVector(builder, numElems): return builder.StartVector(8, numElems, 8)
+def StartForkMaxStacksVector(builder, numElems):
+    return StoredMooRProgramStartForkMaxStacksVector(builder, numElems)
+def StoredMooRProgramAddMainMaxScopeDepth(builder, mainMaxScopeDepth): builder.PrependUint64Slot(18, mainMaxScopeDepth, 0)
+def AddMainMaxScopeDepth(builder, mainMaxScopeDepth):
+    return StoredMooRProgramAddMainMaxScopeDepth(builder, mainMaxScopeDepth)
+def StoredMooRProgramAddForkMaxScopeDepths(builder, forkMaxScopeDepths): builder.PrependUOffsetTRelativeSlot(19, flatbuffers.number_types.UOffsetTFlags.py_type(forkMaxScopeDepths), 0)
+def AddForkMaxScopeDepths(builder, forkMaxScopeDepths):
+    return StoredMooRProgramAddForkMaxScopeDepths(builder, forkMaxScopeDepths)
+def StoredMooRProgramStartForkMaxScopeDepthsVector(builder, numElems): return builder.StartVector(8, numElems, 8)
+def StartForkMaxScopeDepthsVector(builder, numElems):
+    return StoredMooRProgramStartForkMaxScopeDepthsVector(builder, numElems)
 def StoredMooRProgramEnd(builder): return builder.EndObject()
 def End(builder):
     return StoredMooRProgramEnd(builder)

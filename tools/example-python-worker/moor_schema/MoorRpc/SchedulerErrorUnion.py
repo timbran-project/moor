@@ -20,3 +20,5 @@ class SchedulerErrorUnion(object):
     VerbRetrievalFailed = 14
     ObjectResolutionFailed = 15
     GarbageCollectionFailed = 16
+    CheckpointInProgress = 17
+    StorageMaintenanceInProgress = 18

@@ -671,8 +671,9 @@ outcome.
 
 `CaptureOutputInvocation` runs the verb with no connection behind it. The daemon collects the
 narrative output the root task commits and replies once the call finishes, with either the returned
-value or the task error. Output from forked tasks is not included, and a verb that asks for input
-fails.
+value or the task error. The output is part of the response envelope for both outcomes, so an error
+includes output committed before the failure and its traceback. Output from forked tasks is not
+included, and a verb that asks for input fails.
 
 `timeout_ms` bounds the wait. Zero, the default, asks for the daemon's configured maximum capture
 deadline (`runtime.max_capture_deadline`, 60 s by default), which is what a caller with no opinion

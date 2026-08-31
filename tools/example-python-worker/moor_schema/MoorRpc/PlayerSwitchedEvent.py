@@ -46,7 +46,21 @@ class PlayerSwitchedEvent(object):
             return obj
         return None
 
-def PlayerSwitchedEventStart(builder): builder.StartObject(2)
+    # PlayerSwitchedEvent
+    def Silent(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # PlayerSwitchedEvent
+    def PreserveHistory(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+def PlayerSwitchedEventStart(builder): builder.StartObject(4)
 def Start(builder):
     return PlayerSwitchedEventStart(builder)
 def PlayerSwitchedEventAddNewPlayer(builder, newPlayer): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(newPlayer), 0)
@@ -55,6 +69,12 @@ def AddNewPlayer(builder, newPlayer):
 def PlayerSwitchedEventAddNewAuthToken(builder, newAuthToken): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(newAuthToken), 0)
 def AddNewAuthToken(builder, newAuthToken):
     return PlayerSwitchedEventAddNewAuthToken(builder, newAuthToken)
+def PlayerSwitchedEventAddSilent(builder, silent): builder.PrependBoolSlot(2, silent, 0)
+def AddSilent(builder, silent):
+    return PlayerSwitchedEventAddSilent(builder, silent)
+def PlayerSwitchedEventAddPreserveHistory(builder, preserveHistory): builder.PrependBoolSlot(3, preserveHistory, 0)
+def AddPreserveHistory(builder, preserveHistory):
+    return PlayerSwitchedEventAddPreserveHistory(builder, preserveHistory)
 def PlayerSwitchedEventEnd(builder): return builder.EndObject()
 def End(builder):
     return PlayerSwitchedEventEnd(builder)

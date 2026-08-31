@@ -15,3 +15,4 @@ class CompileErrorUnion(object):
     BadSlotName = 9
     InvalidAssignment = 10
     InvalidTypeLiteralAssignment = 11
+    AssignmentToCapturedVariable = 12

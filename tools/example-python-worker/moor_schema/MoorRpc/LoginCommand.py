@@ -73,7 +73,18 @@ class LoginCommand(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
-def LoginCommandStart(builder): builder.StartObject(4)
+    # LoginCommand
+    def RegistrationData(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
+        if o != 0:
+            x = self._tab.Indirect(o + self._tab.Pos)
+            from MoorVar.VarMap import VarMap
+            obj = VarMap()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+def LoginCommandStart(builder): builder.StartObject(6)
 def Start(builder):
     return LoginCommandStart(builder)
 def LoginCommandAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
@@ -91,6 +102,9 @@ def StartConnectArgsVector(builder, numElems):
 def LoginCommandAddDoAttach(builder, doAttach): builder.PrependBoolSlot(3, doAttach, 0)
 def AddDoAttach(builder, doAttach):
     return LoginCommandAddDoAttach(builder, doAttach)
+def LoginCommandAddRegistrationData(builder, registrationData): builder.PrependUOffsetTRelativeSlot(5, flatbuffers.number_types.UOffsetTFlags.py_type(registrationData), 0)
+def AddRegistrationData(builder, registrationData):
+    return LoginCommandAddRegistrationData(builder, registrationData)
 def LoginCommandEnd(builder): return builder.EndObject()
 def End(builder):
     return LoginCommandEnd(builder)

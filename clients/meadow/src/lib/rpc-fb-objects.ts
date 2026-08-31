@@ -90,15 +90,18 @@ export async function invokeVerbFlatBuffer(
         headers,
         body: bodyBuffer,
     });
-    const verbCallSuccess = parseVerbCallSuccessFromBytes(bytes, "Verb invocation failed");
+    const { response: verbCallResponse, success: verbCallSuccess } = parseVerbCallSuccessFromBytes(
+        bytes,
+        "Verb invocation failed",
+    );
 
     const resultVar = verbCallSuccess.result();
     const result = resultVar ? new MoorVar(resultVar).toJS() : null;
 
     const output: VerbInvocationResult["output"] = [];
-    const outputCount = verbCallSuccess.outputLength();
+    const outputCount = verbCallResponse.outputLength();
     for (let i = 0; i < outputCount; i++) {
-        const narrativeEvent = verbCallSuccess.output(i, new NarrativeEvent());
+        const narrativeEvent = verbCallResponse.output(i, new NarrativeEvent());
         if (!narrativeEvent) {
             continue;
         }
@@ -206,10 +209,13 @@ export async function invokeWelcomeMessageFlatBuffer(): Promise<{
         }
 
         const replyUnion = parseClientReplyUnion(bytes, "Invoke welcome message");
-        const verbCallSuccess = parseVerbCallSuccessFromReply(replyUnion, "Invoke welcome message failed");
+        const { response: verbCallResponse } = parseVerbCallSuccessFromReply(
+            replyUnion,
+            "Invoke welcome message failed",
+        );
 
         return extractWelcomeMessage(
-            verbCallSuccess,
+            verbCallResponse,
             (value) => new MoorVar(value as any).toJS(),
         );
     } catch (err) {

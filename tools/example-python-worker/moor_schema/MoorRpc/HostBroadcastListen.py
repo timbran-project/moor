@@ -50,11 +50,29 @@ class HostBroadcastListen(object):
         return 0
 
     # HostBroadcastListen
-    def PrintMessages(self):
+    def Options(self, j):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
         if o != 0:
-            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
-        return False
+            x = self._tab.Vector(o)
+            x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
+            x = self._tab.Indirect(x)
+            from MoorVar.VarMapPair import VarMapPair
+            obj = VarMapPair()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+    # HostBroadcastListen
+    def OptionsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # HostBroadcastListen
+    def OptionsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        return o == 0
 
 def HostBroadcastListenStart(builder): builder.StartObject(4)
 def Start(builder):
@@ -68,9 +86,12 @@ def AddHostType(builder, hostType):
 def HostBroadcastListenAddPort(builder, port): builder.PrependUint16Slot(2, port, 0)
 def AddPort(builder, port):
     return HostBroadcastListenAddPort(builder, port)
-def HostBroadcastListenAddPrintMessages(builder, printMessages): builder.PrependBoolSlot(3, printMessages, 0)
-def AddPrintMessages(builder, printMessages):
-    return HostBroadcastListenAddPrintMessages(builder, printMessages)
+def HostBroadcastListenAddOptions(builder, options): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(options), 0)
+def AddOptions(builder, options):
+    return HostBroadcastListenAddOptions(builder, options)
+def HostBroadcastListenStartOptionsVector(builder, numElems): return builder.StartVector(4, numElems, 4)
+def StartOptionsVector(builder, numElems):
+    return HostBroadcastListenStartOptionsVector(builder, numElems)
 def HostBroadcastListenEnd(builder): return builder.EndObject()
 def End(builder):
     return HostBroadcastListenEnd(builder)
