@@ -1260,10 +1260,10 @@ pub fn decode_batch_action(
             let obj = objectref_from_ref(req.object().rpc_err()?).rpc_err()?;
             let verb_name = Symbol::mk(req.verb_name().rpc_err()?.value().rpc_err()?);
             let code_vec = req.code().rpc_err()?;
-            let code: Vec<String> = code_vec
+            let code = code_vec
                 .iter()
-                .filter_map(|s| s.ok().map(|s| s.to_string()))
-                .collect();
+                .map(|line| line.rpc_err().map(str::to_string))
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(BatchAction::ProgramVerb {
                 obj,
                 verb_name,
@@ -1277,19 +1277,22 @@ pub fn decode_batch_action(
         moor_rpc::WorldStateActionUnionRef::WsQueryObjects(req) => {
             let parent = req
                 .parent()
-                .ok()
-                .flatten()
-                .and_then(|r| obj_from_ref(r).ok());
+                .rpc_err()?
+                .map(obj_from_ref)
+                .transpose()
+                .rpc_err()?;
             let location = req
                 .location()
-                .ok()
-                .flatten()
-                .and_then(|r| obj_from_ref(r).ok());
+                .rpc_err()?
+                .map(obj_from_ref)
+                .transpose()
+                .rpc_err()?;
             let owner = req
                 .owner()
-                .ok()
-                .flatten()
-                .and_then(|r| obj_from_ref(r).ok());
+                .rpc_err()?
+                .map(obj_from_ref)
+                .transpose()
+                .rpc_err()?;
             let flags_all = req.flags_all().unwrap_or(0);
             let flags_any = req.flags_any().unwrap_or(0);
             Ok(BatchAction::QueryObjects {
@@ -1306,12 +1309,22 @@ pub fn decode_batch_action(
 pub fn decode_owned_batch_action(
     action: moor_rpc::WorldStateActionUnion,
 ) -> Result<BatchAction, RpcMessageError> {
+    let mut actions = decode_owned_batch_actions(vec![moor_rpc::WorldStateActionEntry {
+        id: "decode".to_string(),
+        action,
+    }])?;
+    actions
+        .pop()
+        .map(|entry| entry.action)
+        .ok_or_else(|| RpcMessageError::InvalidRequest("Missing batch action".to_string()))
+}
+
+pub fn decode_owned_batch_actions(
+    actions: Vec<moor_rpc::WorldStateActionEntry>,
+) -> Result<Vec<BatchActionEntry>, RpcMessageError> {
     let batch = moor_rpc::BatchWorldState {
         auth_token: auth_token_fb(&AuthToken("decode".to_string())),
-        actions: vec![moor_rpc::WorldStateActionEntry {
-            id: "decode".to_string(),
-            action,
-        }],
+        actions,
         rollback: false,
     };
     let mut builder = planus::Builder::new();
@@ -1319,13 +1332,15 @@ pub fn decode_owned_batch_action(
     let batch_ref = moor_rpc::BatchWorldStateRef::read_as_root(&bytes)
         .map_err(|e| RpcMessageError::InvalidRequest(format!("Invalid batch action: {e}")))?;
     let actions = batch_ref.actions().rpc_err()?;
-    let entry = actions
+    actions
         .iter()
-        .next()
-        .ok_or_else(|| RpcMessageError::InvalidRequest("Missing batch action".to_string()))?
-        .rpc_err()?;
-    let action = entry.action().rpc_err()?;
-    decode_batch_action(action)
+        .map(|entry| {
+            let entry = entry.rpc_err()?;
+            let id = entry.id().rpc_err()?.to_string();
+            let action = decode_batch_action(entry.action().rpc_err()?)?;
+            Ok(BatchActionEntry { id, action })
+        })
+        .collect()
 }
 
 // ===========================================================================
@@ -2006,14 +2021,15 @@ mod tests {
 
     use crate::{
         AuthToken, ClientToken,
-        api::{ClientEvent, ClientEventMessage, ClientRequest, InvocationMode},
+        api::{BatchAction, ClientEvent, ClientEventMessage, ClientRequest, InvocationMode},
         client_messages::{
             mk_invoke_verb_capture_msg, mk_invoke_verb_msg, mk_invoke_welcome_message_msg,
         },
     };
 
     use super::{
-        decode_client_event_message_ref, decode_client_request, encode_client_event_bytes,
+        decode_client_event_message_ref, decode_client_request, decode_owned_batch_actions,
+        encode_client_event_bytes,
     };
 
     /// Round-trip a client message through the wire format the way the daemon sees it.
@@ -2123,6 +2139,30 @@ mod tests {
             round_trip(mk_invoke_welcome_message_msg()),
             ClientRequest::InvokeWelcomeMessage
         ));
+    }
+
+    #[test]
+    fn owned_batch_actions_decode_together() {
+        let actions = vec![
+            rpc::WorldStateActionEntry {
+                id: "list".to_string(),
+                action: rpc::WorldStateActionUnion::WsListObjects(Box::new(rpc::WsListObjects {})),
+            },
+            rpc::WorldStateActionEntry {
+                id: "all".to_string(),
+                action: rpc::WorldStateActionUnion::WsRequestAllObjects(Box::new(
+                    rpc::WsRequestAllObjects {},
+                )),
+            },
+        ];
+
+        let decoded = decode_owned_batch_actions(actions).unwrap();
+
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].id, "list");
+        assert!(matches!(decoded[0].action, BatchAction::ListObjects));
+        assert_eq!(decoded[1].id, "all");
+        assert!(matches!(decoded[1].action, BatchAction::RequestAllObjects));
     }
 
     #[test]

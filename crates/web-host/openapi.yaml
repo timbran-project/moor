@@ -977,7 +977,8 @@ paths:
       description: |
         Submits a list of world state actions to be executed in a single
         transaction.  Supports both FlatBuffers (`BatchWorldState` table)
-        and JSON payloads.
+        and JSON payloads.  The server rejects the full request if any action
+        cannot be decoded; it never executes a partial batch.
       security:
         - MoorAuthToken: []
       requestBody:
