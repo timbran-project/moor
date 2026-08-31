@@ -884,19 +884,16 @@ pub fn decode_client_request(
             })
         }
         U::Eval(eval) => {
-            let client_token = eval
-                .client_token()
-                .rpc_err()
-                .and_then(|r| client_token_from_ref(r).rpc_err())?;
             let auth_token = eval
                 .auth_token()
                 .rpc_err()
                 .and_then(|r| auth_token_from_ref(r).rpc_err())?;
             let expression = extract_string_rpc(&eval, "expression", |e| e.expression())?;
+            let mode = invocation_mode_from_ref(eval.mode().rpc_err()?)?;
             Ok(ClientRequest::Eval {
-                client_token,
                 auth_token,
                 expression,
+                mode,
             })
         }
         U::InvokeVerb(invoke) => {

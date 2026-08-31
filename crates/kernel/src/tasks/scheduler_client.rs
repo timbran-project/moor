@@ -386,6 +386,37 @@ impl SchedulerClient {
         })
     }
 
+    /// Submit an eval task only while `expires_at` has not passed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_eval_task_before(
+        &self,
+        expires_at: Instant,
+        player: &Obj,
+        authority_principal: &Obj,
+        code: String,
+        initial_env: Option<Vec<(Symbol, Var)>>,
+        session: Arc<dyn Session>,
+        config: Arc<FeaturesConfig>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        self.ensure_running()?;
+
+        let _timer = sched_counters()
+            .timers
+            .start(SchedulerOp::SubmitEvalTaskLatency);
+        let program = compile(code.as_str(), config.compile_options()).map_err(CompilationError)?;
+        let player = *player;
+        let authority_principal = *authority_principal;
+        self.submit_task_before(expires_at, move |scheduler| {
+            scheduler.submit_eval_task_inner(
+                player,
+                authority_principal,
+                program,
+                initial_env,
+                session,
+            )
+        })
+    }
+
     pub fn submit_shutdown(&self, msg: &str) -> Result<(), SchedulerError> {
         let msg = msg.to_string();
         self.request_with_timeout(LONG_REQUEST_TIMEOUT, move |scheduler| {

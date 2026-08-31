@@ -467,43 +467,56 @@ impl RuntimeApi for RpcMessageHandler {
             }
 
             ClientRequest::Eval {
-                client_token,
                 auth_token,
                 expression,
-            } => {
-                let (connection, player) =
-                    self.verify_tokens(client_token, auth_token, client_id)?;
-                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
-                let task_handle = match scheduler_client.submit_eval_task(
-                    &player,
-                    &player,
-                    expression,
-                    None,
-                    session,
-                    self.config.features.clone(),
-                ) {
-                    Ok(t) => t,
-                    Err(e) => {
-                        error!(error = ?e, "Error submitting eval task");
-                        return Err(RpcMessageError::TaskError(e));
-                    }
-                };
-                use moor_kernel::tasks::TaskNotification;
-                let receiver = task_handle.into_receiver();
-                loop {
-                    match receiver.recv() {
-                        Ok((_, Ok(TaskNotification::Result(v)))) => {
-                            break Ok(ClientReply::EvalResult { result: v });
-                        }
-                        Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                        Ok((_, Err(e))) => break Err(RpcMessageError::TaskError(e)),
+                mode,
+            } => match mode {
+                InvocationMode::Connected { client_token } => {
+                    let (connection, player) =
+                        self.verify_tokens(client_token, auth_token, client_id)?;
+                    let session = Arc::new(self.new_rpc_session(client_id, connection, player));
+                    let task_handle = match scheduler_client.submit_eval_task(
+                        &player,
+                        &player,
+                        expression,
+                        None,
+                        session,
+                        self.config.features.clone(),
+                    ) {
+                        Ok(t) => t,
                         Err(e) => {
-                            error!(error = ?e, "Error processing eval");
-                            break Err(RpcMessageError::InternalError(e.to_string()));
+                            error!(error = ?e, "Error submitting eval task");
+                            return Err(RpcMessageError::TaskError(e));
+                        }
+                    };
+                    use moor_kernel::tasks::TaskNotification;
+                    let receiver = task_handle.into_receiver();
+                    loop {
+                        match receiver.recv() {
+                            Ok((_, Ok(TaskNotification::Result(v)))) => {
+                                break Ok(ClientReply::EvalResult { result: v });
+                            }
+                            Ok((_, Ok(TaskNotification::Suspended))) => continue,
+                            Ok((_, Err(e))) => break Err(RpcMessageError::TaskError(e)),
+                            Err(e) => {
+                                error!(error = ?e, "Error processing eval");
+                                break Err(RpcMessageError::InternalError(e.to_string()));
+                            }
                         }
                     }
                 }
-            }
+                InvocationMode::CaptureOutput { timeout } => {
+                    let player = self.validate_auth_token(auth_token, None)?;
+                    let deadline = self.capture_deadline(timeout)?;
+                    self.submit_captured_eval_task_typed(
+                        scheduler_client,
+                        client_id,
+                        &player,
+                        expression,
+                        deadline,
+                    )
+                }
+            },
 
             ClientRequest::InvokeVerb {
                 auth_token,
@@ -1236,6 +1249,29 @@ impl RpcMessageHandler {
                     player,
                     &command,
                     session,
+                )
+            },
+        )
+    }
+
+    fn submit_captured_eval_task_typed(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        player: &Obj,
+        expression: String,
+        deadline: Duration,
+    ) -> Result<ClientReply, RpcMessageError> {
+        let features = self.config.features.clone();
+        self.submit_captured_task_typed(
+            scheduler_client,
+            client_id,
+            player,
+            deadline,
+            "eval",
+            move |scheduler_client, expires_at, session| {
+                scheduler_client.submit_eval_task_before(
+                    expires_at, player, player, expression, None, session, features,
                 )
             },
         )

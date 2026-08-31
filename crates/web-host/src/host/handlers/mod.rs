@@ -37,7 +37,9 @@ use moor_runtime_api::{api::ClientReply, api_codec::encode_invocation_response};
 use moor_schema::rpc as moor_rpc;
 use tracing::error;
 
-fn invocation_response(reply: ClientReply) -> Result<moor_rpc::InvocationResponse, StatusCode> {
+pub(super) fn invocation_response(
+    reply: ClientReply,
+) -> Result<moor_rpc::InvocationResponse, StatusCode> {
     let ClientReply::InvocationResponse { response } = reply else {
         error!(?reply, "Unexpected daemon reply to captured invocation");
         return Err(StatusCode::INTERNAL_SERVER_ERROR);

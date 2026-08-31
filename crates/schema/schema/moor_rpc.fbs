@@ -763,8 +763,8 @@ table Verbs {
     inherited: bool;
 }
 
-// Deliver the call's output to the invoking connection's event stream, and reply as soon as the
-// task is submitted.
+// Run with an interactive connection and deliver output to that connection's event stream. The
+// request determines whether its reply acknowledges submission or contains the result.
 table ConnectedInvocation {
     client_token: ClientToken (required);
 }
@@ -837,9 +837,9 @@ table OutOfBand {
 }
 
 table Eval {
-    client_token: ClientToken (required);
     auth_token: AuthToken (required);
     expression: string (required);
+    mode: InvocationMode (required);
 }
 
 table Resolve {

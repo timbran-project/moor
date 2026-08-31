@@ -12306,16 +12306,31 @@ class Eval {
   final fb.BufferContext _bc;
   final int _bcOffset;
 
-  ClientToken? get clientToken =>
-      ClientToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   AuthToken? get authToken =>
-      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 4);
   String? get expression =>
-      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 8);
+      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
+  InvocationModeTypeId? get modeType => InvocationModeTypeId._createOrNull(
+    const fb.Uint8Reader().vTableGetNullable(_bc, _bcOffset, 8),
+  );
+  dynamic get mode {
+    switch (modeType?.value) {
+      case 1:
+        return ConnectedInvocation.reader.vTableGetNullable(_bc, _bcOffset, 10);
+      case 2:
+        return CaptureOutputInvocation.reader.vTableGetNullable(
+          _bc,
+          _bcOffset,
+          10,
+        );
+      default:
+        return null;
+    }
+  }
 
   @override
   String toString() {
-    return 'Eval{clientToken: ${clientToken}, authToken: ${authToken}, expression: ${expression}}';
+    return 'Eval{authToken: ${authToken}, expression: ${expression}, modeType: ${modeType}, mode: ${mode}}';
   }
 }
 
@@ -12332,21 +12347,26 @@ class EvalBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(4);
   }
 
-  int addClientTokenOffset(int? offset) {
+  int addAuthTokenOffset(int? offset) {
     fbBuilder.addOffset(0, offset);
     return fbBuilder.offset;
   }
 
-  int addAuthTokenOffset(int? offset) {
+  int addExpressionOffset(int? offset) {
     fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
 
-  int addExpressionOffset(int? offset) {
-    fbBuilder.addOffset(2, offset);
+  int addModeType(InvocationModeTypeId? modeType) {
+    fbBuilder.addUint8(2, modeType?.value);
+    return fbBuilder.offset;
+  }
+
+  int addModeOffset(int? offset) {
+    fbBuilder.addOffset(3, offset);
     return fbBuilder.offset;
   }
 
@@ -12356,30 +12376,34 @@ class EvalBuilder {
 }
 
 class EvalObjectBuilder extends fb.ObjectBuilder {
-  final ClientTokenObjectBuilder? _clientToken;
   final AuthTokenObjectBuilder? _authToken;
   final String? _expression;
+  final InvocationModeTypeId? _modeType;
+  final dynamic _mode;
 
   EvalObjectBuilder({
-    ClientTokenObjectBuilder? clientToken,
     AuthTokenObjectBuilder? authToken,
     String? expression,
-  }) : _clientToken = clientToken,
-       _authToken = authToken,
-       _expression = expression;
+    InvocationModeTypeId? modeType,
+    dynamic mode,
+  }) : _authToken = authToken,
+       _expression = expression,
+       _modeType = modeType,
+       _mode = mode;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    final int? clientTokenOffset = _clientToken?.getOrCreateOffset(fbBuilder);
     final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
     final int? expressionOffset = _expression == null
         ? null
         : fbBuilder.writeString(_expression!);
-    fbBuilder.startTable(3);
-    fbBuilder.addOffset(0, clientTokenOffset);
-    fbBuilder.addOffset(1, authTokenOffset);
-    fbBuilder.addOffset(2, expressionOffset);
+    final int? modeOffset = _mode?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(4);
+    fbBuilder.addOffset(0, authTokenOffset);
+    fbBuilder.addOffset(1, expressionOffset);
+    fbBuilder.addUint8(2, _modeType?.value);
+    fbBuilder.addOffset(3, modeOffset);
     return fbBuilder.endTable();
   }
 

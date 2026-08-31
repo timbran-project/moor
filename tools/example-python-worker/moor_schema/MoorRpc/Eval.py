@@ -25,19 +25,8 @@ class Eval(object):
         self._tab = flatbuffers.table.Table(buf, pos)
 
     # Eval
-    def ClientToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
-        if o != 0:
-            x = self._tab.Indirect(o + self._tab.Pos)
-            from MoorRpc.ClientToken import ClientToken
-            obj = ClientToken()
-            obj.Init(self._tab.Bytes, x)
-            return obj
-        return None
-
-    # Eval
     def AuthToken(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(4))
         if o != 0:
             x = self._tab.Indirect(o + self._tab.Pos)
             from MoorRpc.AuthToken import AuthToken
@@ -48,23 +37,43 @@ class Eval(object):
 
     # Eval
     def Expression(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
         if o != 0:
             return self._tab.String(o + self._tab.Pos)
         return None
 
-def EvalStart(builder): builder.StartObject(3)
+    # Eval
+    def ModeType(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # Eval
+    def Mode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(10))
+        if o != 0:
+            from flatbuffers.table import Table
+            obj = Table(bytearray(), 0)
+            self._tab.Union(obj, o)
+            return obj
+        return None
+
+def EvalStart(builder): builder.StartObject(4)
 def Start(builder):
     return EvalStart(builder)
-def EvalAddClientToken(builder, clientToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(clientToken), 0)
-def AddClientToken(builder, clientToken):
-    return EvalAddClientToken(builder, clientToken)
-def EvalAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
+def EvalAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
 def AddAuthToken(builder, authToken):
     return EvalAddAuthToken(builder, authToken)
-def EvalAddExpression(builder, expression): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(expression), 0)
+def EvalAddExpression(builder, expression): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(expression), 0)
 def AddExpression(builder, expression):
     return EvalAddExpression(builder, expression)
+def EvalAddModeType(builder, modeType): builder.PrependUint8Slot(2, modeType, 0)
+def AddModeType(builder, modeType):
+    return EvalAddModeType(builder, modeType)
+def EvalAddMode(builder, mode): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(mode), 0)
+def AddMode(builder, mode):
+    return EvalAddMode(builder, mode)
 def EvalEnd(builder): return builder.EndObject()
 def End(builder):
     return EvalEnd(builder)
