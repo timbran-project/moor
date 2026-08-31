@@ -415,9 +415,36 @@ MOO command execution
 
 **Execute a MOO command and return its result**
 
-Parses and executes one command as the authenticated player. The response contains the root task's
-result or error and its committed narrative output. The request does not create a persistent
-connection. Input requests fail, and output from forked tasks is not included.
+The daemon parses and executes one MOO command as the authenticated player. The request does not
+create a persistent connection. Input requests fail. Output from forked tasks is not included.
+
+The daemon processes the command in this order:
+
+1. If `#0:do_command` exists, the daemon calls it first.
+2. If `#0:do_command` returns a true value, the task succeeds with that value.
+3. If the verb is absent or returns false, the daemon uses the normal command parser.
+4. If the parser rejects the input, the outcome is `InvocationError` with
+   `CommandExecutionError(CouldNotParseCommand)`.
+5. If no command verb matches and the player has a location, the daemon calls `:huh` there.
+6. If the player has no location or `:huh` does not exist, the outcome is `InvocationError` with
+   `CommandExecutionError(NoCommandMatch)`.
+
+Any invoked verb can return a value or raise an error. This includes `#0:do_command`, the selected
+command verb, and `:huh`. The result becomes the invocation outcome. The protocol does not create an
+"I do not understand" message. If `:huh` creates this message, it is ordinary narrative output.
+
+Permission and database errors use the corresponding `CommandExecutionError` variant. Deadline,
+cancellation, and verb execution errors use their normal scheduler-error variants. All these task
+errors appear inside `InvocationError`.
+
+A valid HTTP request receives status 200 after the task finishes. HTTP status 200 does not mean that
+the MOO task succeeded. The `InvocationResponse.outcome` field identifies `InvocationSuccess` or
+`InvocationError`. Task errors remain inside `InvocationError`. The `output` field contains
+committed root-task output for both outcomes. It can contain output committed before a later task
+error.
+
+HTTP status 400 only means that the request body is not valid UTF-8. A MOO parse error is a
+completed task response with HTTP status 200.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -432,13 +459,14 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Command result and captured narrative output
+- **200**: Completed command invocation. `InvocationResponse.outcome` identifies task success or
+  error. The HTTP status remains 200 for a completed `InvocationError` response.
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
-- **400**: Request body is not valid UTF-8
+- **400**: The request body is not valid UTF-8
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
-- **415**: Unsupported content type
+- **415**: Unsupported Content-Type
 - **500**: Internal server error
 - **503**: Daemon is unreachable
 
@@ -452,8 +480,8 @@ Server-side MOO expression evaluation
 
 **Evaluate a MOO expression**
 
-The daemon evaluates a MOO expression as the authenticated player. This operation creates no daemon
-connection state. The response contains the result and committed narrative output.
+Evaluates a MOO expression as the authenticated player. The request waits for completion without
+creating a daemon connection and returns committed narrative output with the result.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -468,7 +496,7 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Evaluation result and committed narrative output
+- **200**: Evaluation result
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
 - **401**: Missing or invalid auth token
@@ -536,7 +564,8 @@ Requires: `X-Moor-Auth-Token`
 
 **Set a verb's program code**
 
-This operation programs a verb as the authenticated player. It creates no daemon connection state.
+Uploads MOO source code for a verb as the authenticated player. This operation does not create
+daemon connection state.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -573,7 +602,7 @@ Requires: `X-Moor-Auth-Token`
 
 **Invoke a verb and return the result**
 
-Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments. Returns a
+Calls a verb on the given object with FlatBuffer- or JSON-encoded arguments. Returns an
 `InvocationResponse` containing the narrative events the call committed and either a success result
 or an error. Output is present for both outcomes, so a failed call includes notifications committed
 before the failure and its traceback. The verb runs as the authenticated player, with that player's
@@ -598,13 +627,24 @@ Requires: `X-Moor-Auth-Token`
 - Content-Type: `application/x-flatbuffers`
 - Content-Type: `application/json`
 
-  JSON arguments use the lossless generated `MoorVar.VarUnion` representation:
+  | Field  | Type  | Required | Description |
+  | ------ | ----- | -------- | ----------- |
+  | `args` | array | Yes      |             |
 
-  ```json
+  Example:
+  ```
   {
     "args": [
-      { "VarInt": { "value": 7 } },
-      { "VarStr": { "value": "argument" } }
+      {
+        "VarInt": {
+          "value": 7
+        }
+      },
+      {
+        "VarStr": {
+          "value": "argument"
+        }
+      }
     ]
   }
   ```
@@ -795,8 +835,8 @@ Requires: `X-Moor-Auth-Token`
 **Execute multiple world state operations atomically**
 
 Submits a list of world state actions to be executed in a single transaction. Supports both
-FlatBuffers (`BatchWorldState` table) and JSON payloads. If any action is invalid, the server
-rejects the full request without executing a partial batch.
+FlatBuffers (`BatchWorldState` table) and JSON payloads. The server rejects the full request if any
+action cannot be decoded; it never executes a partial batch.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -1080,8 +1120,8 @@ connection state. The MOO verb determines the response status code, body, and co
 
 **Receive an external webhook (POST)**
 
-Forwards the request to the MOO `:handle_webhook` verb on `$system`. The MOO verb determines the
-response status code, body, and content type.
+The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no daemon
+connection state. The MOO verb determines the response status code, body, and content type.
 
 **No authentication required** — the request runs as the system user. Body limit is 2 MB.
 
@@ -1109,8 +1149,8 @@ response status code, body, and content type.
 
 **Receive an external webhook (PUT)**
 
-Forwards the request to the MOO `:handle_webhook` verb on `$system`. The MOO verb determines the
-response status code, body, and content type.
+The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no daemon
+connection state. The MOO verb determines the response status code, body, and content type.
 
 **No authentication required** — the request runs as the system user. Body limit is 2 MB.
 
@@ -1138,8 +1178,8 @@ response status code, body, and content type.
 
 **Receive an external webhook (DELETE)**
 
-Forwards the request to the MOO `:handle_webhook` verb on `$system`. The MOO verb determines the
-response status code, body, and content type.
+The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no daemon
+connection state. The MOO verb determines the response status code, body, and content type.
 
 **No authentication required** — the request runs as the system user. Body limit is 2 MB.
 
@@ -1163,8 +1203,8 @@ response status code, body, and content type.
 
 **Receive an external webhook (PATCH)**
 
-Forwards the request to the MOO `:handle_webhook` verb on `$system`. The MOO verb determines the
-response status code, body, and content type.
+The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no daemon
+connection state. The MOO verb determines the response status code, body, and content type.
 
 **No authentication required** — the request runs as the system user. Body limit is 2 MB.
 
