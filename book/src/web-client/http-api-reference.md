@@ -452,8 +452,8 @@ Server-side MOO expression evaluation
 
 **Evaluate a MOO expression**
 
-Evaluates a MOO expression server-side on behalf of the authenticated player. Uses an ephemeral
-daemon connection that is automatically cleaned up.
+The daemon evaluates a MOO expression as the authenticated player. This operation creates no daemon
+connection state. The response contains the result and committed narrative output.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -468,7 +468,7 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Evaluation result
+- **200**: Evaluation result and committed narrative output
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
 - **401**: Missing or invalid auth token
@@ -536,7 +536,7 @@ Requires: `X-Moor-Auth-Token`
 
 **Set a verb's program code**
 
-Uploads MOO source code for a verb. Uses an ephemeral daemon connection (attach + detach).
+This operation programs a verb as the authenticated player. It creates no daemon connection state.
 
 Requires: `X-Moor-Auth-Token`
 
@@ -1055,8 +1055,8 @@ External webhook receiver (forwarded to MOO)
 
 **Receive an external webhook (GET)**
 
-Forwards the request to the MOO `:handle_webhook` verb on `$system`. The MOO verb determines the
-response status code, body, and content type.
+The web host forwards the request to the MOO `#0:invoke_http_handler` verb. It creates no daemon
+connection state. The MOO verb determines the response status code, body, and content type.
 
 **No authentication required** — the request runs as the system user. Body limit is 2 MB.
 
