@@ -541,14 +541,18 @@ pub fn mk_invoke_verb_capture_msg(
 }
 
 fn capture_invocation_mode(timeout: Option<Duration>) -> Option<rpc::InvocationMode> {
-    let timeout_ms = match timeout {
-        Some(timeout) if timeout.is_zero() || timeout > MAX_CAPTURE_DEADLINE => return None,
-        Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
-        None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
-    };
+    let timeout_ms = capture_timeout_ms(timeout)?;
     Some(rpc::InvocationMode::CaptureOutputInvocation(Box::new(
         rpc::CaptureOutputInvocation { timeout_ms },
     )))
+}
+
+fn capture_timeout_ms(timeout: Option<Duration>) -> Option<u64> {
+    Some(match timeout {
+        Some(timeout) if timeout.is_zero() || timeout > MAX_CAPTURE_DEADLINE => return None,
+        Some(timeout) => u64::try_from(timeout.as_millis()).ok()?,
+        None => SERVER_DEFAULT_CAPTURE_TIMEOUT_MS,
+    })
 }
 
 fn mk_invoke_verb_msg_with_mode(
@@ -612,6 +616,7 @@ pub fn mk_invoke_system_handler_msg(
     handler_type: &str,
     args: Vec<&Var>,
     auth_token: Option<&AuthToken>,
+    timeout: Option<Duration>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let args_fb: Vec<var::Var> = args.iter().filter_map(|v| var_fb(v).map(|b| *b)).collect();
 
@@ -626,6 +631,7 @@ pub fn mk_invoke_system_handler_msg(
                 handler_type: handler_type.to_string(),
                 args: args_fb,
                 auth_token: auth_token.map(auth_token_fb),
+                timeout_ms: capture_timeout_ms(timeout)?,
             },
         )),
     })

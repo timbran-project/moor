@@ -694,11 +694,10 @@ impl SchedulerClient {
         })
     }
 
-    /// Submit a system handler task with proper permissions lookup.
-    /// This method looks up the #0.invoke_handler_perms property and uses that user
-    /// as the permissions object for the verb invocation.
-    pub fn submit_system_handler_task(
+    /// Submit a named system handler on `#0` as `player` only before `expires_at`.
+    pub fn submit_system_handler_task_before(
         &self,
+        expires_at: Instant,
         player: &Obj,
         handler_type: String,
         args: Vec<Var>,
@@ -709,7 +708,7 @@ impl SchedulerClient {
             .start(SchedulerOp::SubmitSystemHandlerTaskLatency);
 
         let player = *player;
-        self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
+        self.submit_task_before(expires_at, move |scheduler| {
             scheduler.submit_system_handler_task_inner(player, handler_type, args, session)
         })
     }

@@ -585,6 +585,7 @@ pub enum ClientRequest {
         handler_type: String,
         args: Vec<Var>,
         auth_token: Option<AuthToken>,
+        timeout: Option<Duration>,
     },
     InvokeWelcomeMessage,
     BatchWorldState {

@@ -427,6 +427,14 @@ fn required_receive_timeout_ms(rpc_msg: &moor_rpc::HostClientToDaemonMessage) ->
         moor_rpc::HostClientToDaemonMessageUnion::InvokeVerb(invoke) => {
             capture_deadline_ms(&invoke.mode)?
         }
+        moor_rpc::HostClientToDaemonMessageUnion::Eval(eval) => capture_deadline_ms(&eval.mode)?,
+        moor_rpc::HostClientToDaemonMessageUnion::InvokeSystemHandler(handler) => {
+            if handler.timeout_ms == 0 {
+                MAX_CAPTURE_DEADLINE_MS
+            } else {
+                handler.timeout_ms
+            }
+        }
         moor_rpc::HostClientToDaemonMessageUnion::InvokeWelcomeMessage(_) => {
             MAX_CAPTURE_DEADLINE_MS
         }
@@ -451,8 +459,9 @@ fn capture_deadline_ms(mode: &moor_rpc::InvocationMode) -> Option<u64> {
 mod tests {
     use super::*;
     use moor_runtime_api::{
-        AuthToken, ClientToken, mk_command_capture_msg, mk_invoke_verb_capture_msg,
-        mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_list_objects_msg,
+        AuthToken, ClientToken, mk_command_capture_msg, mk_eval_capture_msg,
+        mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+        mk_invoke_welcome_message_msg, mk_list_objects_msg,
     };
     use moor_var::Symbol;
     use std::time::Duration;
@@ -505,6 +514,41 @@ mod tests {
             timeout_ms > 120_000,
             "receive timeout {timeout_ms}ms must exceed the 120000ms deadline"
         );
+    }
+
+    #[test]
+    fn a_captured_eval_waits_longer_than_its_own_deadline() {
+        let msg = mk_eval_capture_msg(
+            &auth_token(),
+            "return 1;".to_string(),
+            Some(Duration::from_secs(120)),
+        )
+        .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(timeout_ms > 120_000);
+    }
+
+    #[test]
+    fn a_system_handler_waits_for_the_longest_daemon_deadline() {
+        let msg = mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None)
+            .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(timeout_ms > MAX_CAPTURE_DEADLINE_MS as i32);
+    }
+
+    #[test]
+    fn a_system_handler_waits_longer_than_its_own_deadline() {
+        let msg = mk_invoke_system_handler_msg(
+            &Uuid::new_v4(),
+            "http",
+            vec![],
+            None,
+            Some(Duration::from_secs(30)),
+        )
+        .expect("message");
+        let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
+        assert!(timeout_ms > 30_000);
+        assert!(timeout_ms < MAX_CAPTURE_DEADLINE_MS as i32);
     }
 
     #[test]

@@ -1089,11 +1089,13 @@ pub fn decode_client_request(
                 Ok(Some(auth_ref)) => Some(auth_token_from_ref(auth_ref).rpc_err()?),
                 _ => None,
             };
+            let timeout_ms = invoke.timeout_ms().rpc_err()?;
             Ok(ClientRequest::InvokeSystemHandler {
                 host_id,
                 handler_type,
                 args,
                 auth_token,
+                timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
             })
         }
         U::InvokeWelcomeMessage(_) => Ok(ClientRequest::InvokeWelcomeMessage),

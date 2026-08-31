@@ -377,14 +377,19 @@ fn encode_client_request(
             handler_type,
             args,
             auth_token,
+            timeout,
         } => {
             let args_refs: Vec<&Var> = args.iter().collect();
-            mk_invoke_system_handler_msg(&host_id, &handler_type, args_refs, auth_token.as_ref())
-                .ok_or_else(|| {
-                    RpcError::CouldNotDecode(
-                        "Failed to encode invoke system handler args".to_string(),
-                    )
-                })?
+            mk_invoke_system_handler_msg(
+                &host_id,
+                &handler_type,
+                args_refs,
+                auth_token.as_ref(),
+                timeout,
+            )
+            .ok_or_else(|| {
+                RpcError::CouldNotDecode("Failed to encode invoke system handler args".to_string())
+            })?
         }
         ClientRequest::InvokeWelcomeMessage => mk_invoke_welcome_message_msg(),
         ClientRequest::BatchWorldState {

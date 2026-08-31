@@ -13590,10 +13590,11 @@ class InvokeSystemHandler {
   ).vTableGetNullable(_bc, _bcOffset, 8);
   AuthToken? get authToken =>
       AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 10);
+  int get timeoutMs => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
 
   @override
   String toString() {
-    return 'InvokeSystemHandler{hostId: ${hostId}, handlerType: ${handlerType}, args: ${args}, authToken: ${authToken}}';
+    return 'InvokeSystemHandler{hostId: ${hostId}, handlerType: ${handlerType}, args: ${args}, authToken: ${authToken}, timeoutMs: ${timeoutMs}}';
   }
 }
 
@@ -13611,7 +13612,7 @@ class InvokeSystemHandlerBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(4);
+    fbBuilder.startTable(5);
   }
 
   int addHostIdOffset(int? offset) {
@@ -13634,6 +13635,11 @@ class InvokeSystemHandlerBuilder {
     return fbBuilder.offset;
   }
 
+  int addTimeoutMs(int? timeoutMs) {
+    fbBuilder.addUint64(4, timeoutMs);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -13644,16 +13650,19 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
   final String? _handlerType;
   final List<moor_var.VarObjectBuilder>? _args;
   final AuthTokenObjectBuilder? _authToken;
+  final int? _timeoutMs;
 
   InvokeSystemHandlerObjectBuilder({
     moor_common.UuidObjectBuilder? hostId,
     String? handlerType,
     List<moor_var.VarObjectBuilder>? args,
     AuthTokenObjectBuilder? authToken,
+    int? timeoutMs,
   }) : _hostId = hostId,
        _handlerType = handlerType,
        _args = args,
-       _authToken = authToken;
+       _authToken = authToken,
+       _timeoutMs = timeoutMs;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -13668,11 +13677,12 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
             _args!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
           );
     final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(4);
+    fbBuilder.startTable(5);
     fbBuilder.addOffset(0, hostIdOffset);
     fbBuilder.addOffset(1, handlerTypeOffset);
     fbBuilder.addOffset(2, argsOffset);
     fbBuilder.addOffset(3, authTokenOffset);
+    fbBuilder.addUint64(4, _timeoutMs);
     return fbBuilder.endTable();
   }
 

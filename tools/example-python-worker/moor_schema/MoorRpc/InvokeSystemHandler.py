@@ -78,7 +78,14 @@ class InvokeSystemHandler(object):
             return obj
         return None
 
-def InvokeSystemHandlerStart(builder): builder.StartObject(4)
+    # InvokeSystemHandler
+    def TimeoutMs(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(12))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
+        return 0
+
+def InvokeSystemHandlerStart(builder): builder.StartObject(5)
 def Start(builder):
     return InvokeSystemHandlerStart(builder)
 def InvokeSystemHandlerAddHostId(builder, hostId): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(hostId), 0)
@@ -96,6 +103,9 @@ def StartArgsVector(builder, numElems):
 def InvokeSystemHandlerAddAuthToken(builder, authToken): builder.PrependUOffsetTRelativeSlot(3, flatbuffers.number_types.UOffsetTFlags.py_type(authToken), 0)
 def AddAuthToken(builder, authToken):
     return InvokeSystemHandlerAddAuthToken(builder, authToken)
+def InvokeSystemHandlerAddTimeoutMs(builder, timeoutMs): builder.PrependUint64Slot(4, timeoutMs, 0)
+def AddTimeoutMs(builder, timeoutMs):
+    return InvokeSystemHandlerAddTimeoutMs(builder, timeoutMs)
 def InvokeSystemHandlerEnd(builder): return builder.EndObject()
 def End(builder):
     return InvokeSystemHandlerEnd(builder)
