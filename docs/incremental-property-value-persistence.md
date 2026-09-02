@@ -1,12 +1,12 @@
 # Bounded Property Append Log
 
-Status: proposal
+Status: implemented
 
 Date: 2026-09-02
 
 ## Decision
 
-mooR can reduce large-list write amplification with a bounded append log for property values.
+mooR reduces large-list write amplification with a bounded append log for property values.
 
 The first implementation supports validated appends to top-level lists. All other updates store a
 complete `Var` value.
@@ -107,11 +107,11 @@ serializes only this suffix.
 The new format reuses the `object_propvalues` keyspace. Each physical key has this form:
 
 ```text
-<ObjAndUUIDHolder bytes><publication version, big endian>
+<ObjAndUUIDHolder bytes><record version, big endian>
 ```
 
 `ObjAndUUIDHolder` has a fixed-size byte representation. The suffix keeps all records for one
-property adjacent and orders them by publication version.
+property adjacent and orders them by record version.
 
 Each value has a small versioned envelope:
 
@@ -139,8 +139,11 @@ ListAppend {
 `Full` uses the current database encoding for `Var`. `ListAppend` contains an encoded list of the
 new elements.
 
-The record key contains the physical publication order. The record envelope contains the logical
+The record key contains a monotonic storage-record version. The record envelope contains the logical
 tuple timestamp.
+
+The writer restores the next record version from the largest persisted key during startup. The
+record version therefore does not collide when the runtime publication counter restarts.
 
 These values are different. Recovery must not derive the tuple timestamp from the publication
 version.
@@ -157,11 +160,14 @@ Two limits control each chain:
 - The maximum number of append records
 - The maximum sum of encoded append bytes
 
-The initial limits are configuration constants in the database crate. Benchmarks must determine
-their values before the format lands.
+The database permits 64 records in one chain. Thus, a chain contains one `Full` record and at most
+63 `ListAppend` records.
+
+The encoded append payloads can contain at most 4 MiB. The writer creates a complete record before
+the next append exceeds either limit.
 
 The ordered writer keeps a small chain index for active property values. The index stores the active
-record versions, append count, and append bytes.
+record versions and append bytes. The record count comes from the version list.
 
 Most properties have one `Full` record. Their chain-index entry therefore stores one version and no
 append allocation.
@@ -176,7 +182,7 @@ property value.
 An insertion or replacement uses this sequence:
 
 1. An encoder serializes the complete final value.
-2. The ordered writer inserts a new `Full` record at the current publication version.
+2. The ordered writer inserts a new `Full` record at the next record version.
 3. The same Fjall batch removes all previous records for that property.
 4. The writer updates its chain index after a successful commit.
 
@@ -189,7 +195,7 @@ A validated append uses this sequence:
 
 1. An encoder serializes the suffix.
 2. The ordered writer reads the chain metadata from its in-memory index.
-3. The writer inserts one `ListAppend` record at the current publication version.
+3. The writer inserts one `ListAppend` record at the next record version.
 4. The writer updates its chain index after a successful commit.
 
 The Fjall batch also contains every other relation update from the transaction. The transaction
@@ -236,15 +242,37 @@ operations contain small keys and Fjall tombstones.
 A point read processes one complete record and at most `N - 1` suffix records. A complete database
 scan reads the same bytes in property-key order.
 
-The chain index uses one publication version for a complete property. A property with deltas uses at
-most `N` publication versions plus counters.
+The chain index uses one record version for a complete property. A property with deltas uses at most
+`N` record versions plus counters.
 
-Benchmarks must report the rollup latency, amortized bytes, read cost, and chain-index memory. These
-measurements determine `N` and the byte limit.
+The benchmarks report rollup latency, amortized bytes, and read cost. The chain index stores one
+`u64` for each visible record and one byte counter for each active property.
+
+## Measured Result
+
+The write benchmark used one list with 1,024 strings. Each string contained 9,472 bytes. The base
+list therefore contained 9,699,328 string bytes.
+
+The benchmark applied 70 one-string appends. All 70 updates passed the append classifier. The run
+produced these results:
+
+- The classifier used 204 microseconds per append.
+- The normal database encoder used 16.5 microseconds per transaction.
+- The Fjall commit used 25.5 microseconds per transaction.
+- The append records used 669,611 bytes in total.
+- One foreground rollup encoded 10,340,775 bytes in 13.9 milliseconds.
+- The total encoded property data was approximately 157 KB per append.
+- The writer reported no backpressure.
+
+Without append records, the 70 updates encode approximately 679 MB of complete values. The bounded
+chain encoded approximately 11.0 MB, including the rollup.
+
+The export benchmark used a 9.7 MB value with 63 append records. Snapshot reconstruction and export
+used 2.58 milliseconds at the median and 2.84 milliseconds at p95.
 
 ## Read and Recovery Path
 
-A property prefix scan returns its visible records in publication order. Reconstruction uses this
+A property prefix scan returns its visible records in record-version order. Reconstruction uses this
 sequence:
 
 1. Decode the first record as a complete `Var`.
@@ -278,8 +306,8 @@ transaction retries.
 Automatic append merging is unsafe for generic MOO code. A transaction can read the old list and
 make another write that depends on that value.
 
-The persistence layer receives only accepted publication versions. It records those versions in the
-same order as the current batch writer.
+The persistence layer receives accepted transactions in publication order. It assigns record
+versions in the same order.
 
 ## Atomicity and Errors
 
@@ -303,16 +331,17 @@ property.
 ## Database Format
 
 This change is a breaking database-format change. The implementation increments the major format
-version in `fjall_migration.rs`.
+version in `fjall_format.rs`.
 
 The implementation does not add a dual reader or an in-place conversion. Existing databases must use
 an object-definition export and import across this change.
 
-The exact envelope and key encoding need golden-byte tests. Those tests become the format contract.
+Golden-byte tests cover the record envelope and key encoding. Those tests define the format
+contract.
 
 ## Metrics and Diagnostics
 
-The implementation records these counters:
+The implementation records these metrics:
 
 - Append candidates
 - Accepted append records
@@ -321,38 +350,38 @@ The implementation records these counters:
 - Foreground rollups
 - Encoded complete bytes
 - Encoded suffix bytes
-- Active chain counts by length bucket
 - Rollup encoding time
 - Reconstruction time and record count
 
-The existing slow-encoding warning remains useful for complete replacements and rollups. Append
-records add the base size, suffix size, and chain length to debug-level diagnostics.
+The existing slow-encoding warning remains useful for complete replacements and rollups. The
+benchmark reports the suffix bytes and foreground rollups.
 
-## Implementation Plan
+## Implementation Phases
 
-### Phase 1: Classifier and Measurements
+### Phase 1: Classifier and Measurements (complete)
 
-Add the classifier without a storage-format change. Count accepted candidates and their suffix
-sizes, but continue to encode complete values.
+This phase added the classifier without a storage-format change. It counted accepted candidates and
+their suffix sizes but continued to encode complete values.
 
-Extend `bench-string-history` with these cases:
+The `bench-string-history` workload includes these cases:
 
 - Append one short string to a large list.
 - Append several strings in one transaction.
 - Replace one element in a large list.
 - Append after a list reconstruction without shared chunks.
 
-This phase establishes the classifier hit rate and its comparison cost.
+This phase established the classifier hit rate and its comparison cost.
 
-### Phase 2: Record Codec and Reconstruction
+### Phase 2: Record Codec and Reconstruction (complete)
 
-Add the new key and value codecs. Add the shared reconstruction implementation and corruption tests.
+This phase added the new key and value codecs. It also added the shared reconstruction code and
+corruption tests.
 
-Use fresh temporary databases in tests. Do not add an old-format reader.
+The tests use fresh temporary databases. The implementation does not contain an old-format reader.
 
-### Phase 3: Prepared Property Mutations
+### Phase 3: Prepared Property Mutations (complete)
 
-Add a property-specific prepared operation. Keep generic relation operations unchanged.
+This phase added a property-specific prepared operation. Generic relation operations did not change.
 
 The prepared append carries these values:
 
@@ -365,20 +394,21 @@ final Var
 
 The complete operation carries an encoded `Var`. The delete operation carries only the property key.
 
-### Phase 4: Ordered Writer and Rollup
+### Phase 4: Ordered Writer and Rollup (complete)
 
-Add the chain index and the rollup encoder. Expand one logical property operation into the required
-Fjall insert and remove operations.
+This phase added the chain index and the rollup encoder. One logical property operation now expands
+into the required Fjall operations.
 
-Make sure that the writer preserves publication order while it waits for a rollup. Add a queue
-saturation test for the rollup path.
+The writer preserves publication order while it waits for a rollup. A queue-saturation test covers
+the separate rollup channel.
 
-### Phase 5: Loader and Export Integration
+### Phase 5: Loader and Export Integration (complete)
 
-Route startup, point reads, and exports through `PropertyValueStore`. Remove all direct one-record
-decoding for `object_propvalues`.
+This phase routed startup, point reads, and exports through `PropertyValueStore`. It removed direct
+one-record decoding for `object_propvalues`.
 
-Then run the full database tests, objdef export tests, and Cowbell integration tests.
+The database tests cover restart, point reads, exports, replacement, deletion, and corruption. The
+final verification also includes the objdef and Cowbell tests.
 
 ## Acceptance Criteria
 

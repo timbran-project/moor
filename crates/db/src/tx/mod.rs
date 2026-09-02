@@ -21,6 +21,7 @@ mod transaction;
 
 pub use check::{CheckRelation, PotentialConflict, ProposedOp};
 pub use commit_bloom::CommitBloom;
+pub(crate) use indexes::HashRelationIndex;
 pub use indexes::RelationIndex;
 pub use relation::Relation;
 pub use resolve::{AcceptIdentical, ConflictResolver, FailOnConflict, SmartMergeResolver};

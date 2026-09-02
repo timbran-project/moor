@@ -7,6 +7,18 @@ Run `make bench-string-history` to measure appends to large string-list properti
 starts four writer tasks by default. Each task appends 20 strings to a list that contains 1,024
 distinct strings. Each string contains 2,048 bytes.
 
+Use this configuration for one property with approximately 9.7 MB of string data and enough
+appends to exercise one foreground rollup:
+
+```shell
+make bench-string-history HISTORY_WRITERS=1 HISTORY_ENTRIES=1024 \
+  HISTORY_ENTRY_BYTES=9472 HISTORY_APPENDS=70 HISTORY_SETTLE_SECONDS=2
+```
+
+The database metrics report complete and suffix bytes, ordinary encoding and commit time, rollup
+count and time, and backpressure. `cargo bench -p moor-db --bench objdef_export_benches` measures
+snapshot reconstruction and export of the corresponding bounded append chain.
+
 Use `HISTORY_WRITERS`, `HISTORY_ENTRIES`, `HISTORY_ENTRY_BYTES`, `HISTORY_APPENDS`, and
 `HISTORY_APPEND_DELAY` to change the workload. `HISTORY_APPEND_WIDTH` appends multiple strings in
 one update. `HISTORY_MUTATION_MODE=1` replaces one element, while mode 2 rebuilds the prefix before

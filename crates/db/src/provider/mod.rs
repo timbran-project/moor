@@ -14,8 +14,8 @@
 use crate::{Error, Timestamp};
 
 pub mod batch_writer;
+pub mod fjall_format;
 pub(crate) mod fjall_maintenance;
-pub mod fjall_migration;
 pub mod fjall_provider;
 pub mod fjall_snapshot_loader;
 pub(crate) mod property_value_store;
@@ -38,16 +38,4 @@ pub trait Provider<Domain, Codomain>: Clone {
 
     // Stop any background processing that is running on this provider.
     fn stop(&self) -> Result<(), Error>;
-}
-
-/// Generic database migration interface for format changes.
-/// Each storage backend (e.g., Fjall) implements this to handle version detection and migrations.
-pub trait Migrator {
-    /// Check if migration is needed and perform it if so.
-    /// Should be idempotent - safe to call multiple times.
-    fn migrate_if_needed(&self) -> Result<(), String>;
-
-    /// Mark the database as migrated to the current version.
-    /// Called after a fresh database is created.
-    fn mark_current_version(&self) -> Result<(), String>;
 }

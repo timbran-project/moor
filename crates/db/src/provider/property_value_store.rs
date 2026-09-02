@@ -13,19 +13,18 @@
 
 //! Physical record codec and bounded reconstruction for incremental property values.
 
-#![allow(
-    dead_code,
-    reason = "the record codec is activated by later incremental persistence phases"
-)]
-
 use crate::{
     ObjAndUUIDHolder, db_counters,
     tx::{OpType, Timestamp, WorkingSet},
 };
-use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
+use moor_common::{
+    model::{WorldStateCountOp, WorldStateTimerOp},
+    util::Instant,
+};
 use moor_schema::convert::{encode_db_var, var_from_db_flatbuffer_ref};
 use moor_var::{List, Var};
 use planus::ReadAsRoot;
+use smallvec::{SmallVec, smallvec};
 use zerocopy::{FromBytes, IntoBytes};
 
 const RECORD_MAGIC: [u8; 4] = *b"MPRV";
@@ -173,6 +172,8 @@ impl PropertyValueRecordKind {
 
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub(crate) enum PropertyValueRecordError {
+    #[error("failed to read property-value storage: {0}")]
+    Storage(String),
     #[error("property-value record key has an invalid length")]
     InvalidKeyLength,
     #[error("property-value record has a truncated header")]
@@ -193,8 +194,8 @@ pub(crate) enum PropertyValueRecordError {
     MissingFullRecord,
     #[error("property-value chain contains a second complete value")]
     UnexpectedFullRecord,
-    #[error("property-value records are not in publication order")]
-    PublicationOrder,
+    #[error("property-value records are not in record-version order")]
+    RecordOrder,
     #[error("property-value list append has an empty suffix")]
     EmptyListAppend,
     #[error("property-value list append does not contain a list")]
@@ -205,18 +206,22 @@ pub(crate) enum PropertyValueRecordError {
     AppendRecordLimit,
     #[error("property-value chain exceeds its append-byte limit")]
     AppendByteLimit,
+    #[error("property-value range contains records for more than one property")]
+    MultipleProperties,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PropertyValueChainLimits {
-    pub max_append_records: usize,
+    /// Maximum number of records, including the initial complete record.
+    pub max_records: usize,
+    /// Maximum encoded payload bytes across all append records.
     pub max_append_bytes: usize,
 }
 
 impl PropertyValueChainLimits {
-    pub const fn new(max_append_records: usize, max_append_bytes: usize) -> Self {
+    pub const fn new(max_records: usize, max_append_bytes: usize) -> Self {
         Self {
-            max_append_records,
+            max_records,
             max_append_bytes,
         }
     }
@@ -225,16 +230,16 @@ impl PropertyValueChainLimits {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PropertyValueRecordKey {
     pub property: ObjAndUUIDHolder,
-    pub publication_version: u64,
+    pub record_version: u64,
 }
 
 pub(crate) fn encode_property_value_record_key(
     property: &ObjAndUUIDHolder,
-    publication_version: u64,
+    record_version: u64,
 ) -> [u8; PROPERTY_RECORD_KEY_BYTES] {
     let mut key = [0; PROPERTY_RECORD_KEY_BYTES];
     key[..PROPERTY_KEY_BYTES].copy_from_slice(property.as_bytes());
-    key[PROPERTY_KEY_BYTES..].copy_from_slice(&publication_version.to_be_bytes());
+    key[PROPERTY_KEY_BYTES..].copy_from_slice(&record_version.to_be_bytes());
     key
 }
 
@@ -247,14 +252,14 @@ pub(crate) fn decode_property_value_record_key(
 
     let property = ObjAndUUIDHolder::read_from_bytes(&key[..PROPERTY_KEY_BYTES])
         .map_err(|_| PropertyValueRecordError::InvalidKeyLength)?;
-    let publication_version = u64::from_be_bytes(
+    let record_version = u64::from_be_bytes(
         key[PROPERTY_KEY_BYTES..]
             .try_into()
             .map_err(|_| PropertyValueRecordError::InvalidKeyLength)?,
     );
     Ok(PropertyValueRecordKey {
         property,
-        publication_version,
+        record_version,
     })
 }
 
@@ -362,47 +367,49 @@ pub(crate) fn property_value_record_payload_bytes(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PropertyValueChain {
-    full_version: u64,
-    append_versions: Vec<u64>,
+    record_versions: SmallVec<[u64; 1]>,
     append_bytes: usize,
 }
 
 impl PropertyValueChain {
-    pub fn full(publication_version: u64) -> Self {
+    pub fn full(record_version: u64) -> Self {
         Self {
-            full_version: publication_version,
-            append_versions: Vec::new(),
+            record_versions: smallvec![record_version],
             append_bytes: 0,
         }
     }
 
+    #[cfg(test)]
     pub fn full_version(&self) -> u64 {
-        self.full_version
+        self.record_versions[0]
     }
 
+    #[cfg(test)]
     pub fn append_versions(&self) -> &[u64] {
-        &self.append_versions
+        &self.record_versions[1..]
     }
 
+    #[cfg(test)]
     pub fn append_count(&self) -> usize {
-        self.append_versions.len()
+        self.record_versions.len() - 1
     }
 
+    #[cfg(test)]
     pub fn append_bytes(&self) -> usize {
         self.append_bytes
     }
 
     pub fn record_versions(&self) -> impl Iterator<Item = u64> + '_ {
-        std::iter::once(self.full_version).chain(self.append_versions.iter().copied())
+        self.record_versions.iter().copied()
     }
 
     pub fn reaches_limit(&self, additional_bytes: usize, limits: PropertyValueChainLimits) -> bool {
-        self.append_versions.len().saturating_add(1) >= limits.max_append_records
-            || self.append_bytes.saturating_add(additional_bytes) >= limits.max_append_bytes
+        self.record_versions.len() >= limits.max_records
+            || self.append_bytes.saturating_add(additional_bytes) > limits.max_append_bytes
     }
 
-    pub fn push_append(&mut self, publication_version: u64, append_bytes: usize) {
-        self.append_versions.push(publication_version);
+    pub fn push_append(&mut self, record_version: u64, append_bytes: usize) {
+        self.record_versions.push(record_version);
         self.append_bytes = self.append_bytes.saturating_add(append_bytes);
     }
 }
@@ -418,10 +425,11 @@ pub(crate) struct PropertyValueReconstructor {
     limits: PropertyValueChainLimits,
     value: Option<Var>,
     logical_timestamp: Timestamp,
-    full_version: u64,
-    append_versions: Vec<u64>,
+    record_versions: SmallVec<[u64; 1]>,
     append_bytes: usize,
     last_version: Option<u64>,
+    record_count: usize,
+    started_at: Instant,
 }
 
 impl PropertyValueReconstructor {
@@ -430,30 +438,31 @@ impl PropertyValueReconstructor {
             limits,
             value: None,
             logical_timestamp: Timestamp(0),
-            full_version: 0,
-            append_versions: Vec::new(),
+            record_versions: SmallVec::new(),
             append_bytes: 0,
             last_version: None,
+            record_count: 0,
+            started_at: Instant::now(),
         }
     }
 
     pub fn push(
         &mut self,
-        publication_version: u64,
+        record_version: u64,
         record: &[u8],
     ) -> Result<(), PropertyValueRecordError> {
         if self
             .last_version
-            .is_some_and(|last_version| publication_version <= last_version)
+            .is_some_and(|last_version| record_version <= last_version)
         {
-            return Err(PropertyValueRecordError::PublicationOrder);
+            return Err(PropertyValueRecordError::RecordOrder);
         }
 
         let record = decode_property_value_record(record)?;
         match (&self.value, record.kind) {
             (None, PropertyValueRecordKind::Full) => {
                 self.value = Some(decode_var(record.payload)?);
-                self.full_version = publication_version;
+                self.record_versions.push(record_version);
             }
             (None, PropertyValueRecordKind::ListAppend) => {
                 return Err(PropertyValueRecordError::MissingFullRecord);
@@ -462,7 +471,7 @@ impl PropertyValueReconstructor {
                 return Err(PropertyValueRecordError::UnexpectedFullRecord);
             }
             (Some(value), PropertyValueRecordKind::ListAppend) => {
-                if self.append_versions.len() >= self.limits.max_append_records {
+                if self.record_versions.len() >= self.limits.max_records {
                     return Err(PropertyValueRecordError::AppendRecordLimit);
                 }
                 let append_bytes = self
@@ -489,13 +498,14 @@ impl PropertyValueReconstructor {
                     .map_err(|_| PropertyValueRecordError::InvalidListAppend)?
                     .with_cleared_hint();
                 self.value = Some(appended);
-                self.append_versions.push(publication_version);
+                self.record_versions.push(record_version);
                 self.append_bytes = append_bytes;
             }
         }
 
         self.logical_timestamp = record.logical_timestamp;
-        self.last_version = Some(publication_version);
+        self.last_version = Some(record_version);
+        self.record_count += 1;
         Ok(())
     }
 
@@ -503,16 +513,134 @@ impl PropertyValueReconstructor {
         let Some(value) = self.value else {
             return Err(PropertyValueRecordError::EmptyChain);
         };
+        db_counters().timers_rare.record_elapsed(
+            WorldStateTimerOp::PropertyValueReconstruct,
+            self.started_at.elapsed(),
+        );
+        db_counters().counters.add(
+            WorldStateCountOp::PropertyValueReconstructedRecords,
+            isize::try_from(self.record_count).unwrap_or(isize::MAX),
+        );
         Ok(ReconstructedPropertyValue {
             logical_timestamp: self.logical_timestamp,
             value,
             chain: PropertyValueChain {
-                full_version: self.full_version,
-                append_versions: self.append_versions,
+                record_versions: self.record_versions,
                 append_bytes: self.append_bytes,
             },
         })
     }
+}
+
+pub(crate) struct PropertyValueScan {
+    records: fjall::Iter,
+    limits: PropertyValueChainLimits,
+    current_property: Option<ObjAndUUIDHolder>,
+    reconstructor: Option<PropertyValueReconstructor>,
+    pending: Option<(fjall::Slice, fjall::Slice)>,
+    failed: bool,
+}
+
+impl PropertyValueScan {
+    pub fn new(records: fjall::Iter, limits: PropertyValueChainLimits) -> Self {
+        Self {
+            records,
+            limits,
+            current_property: None,
+            reconstructor: None,
+            pending: None,
+            failed: false,
+        }
+    }
+
+    fn finish_current(
+        &mut self,
+    ) -> Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError> {
+        let property = self
+            .current_property
+            .take()
+            .ok_or(PropertyValueRecordError::EmptyChain)?;
+        let value = self
+            .reconstructor
+            .take()
+            .ok_or(PropertyValueRecordError::EmptyChain)?
+            .finish()?;
+        Ok((property, value))
+    }
+
+    fn fail(
+        &mut self,
+        error: PropertyValueRecordError,
+    ) -> Option<Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>>
+    {
+        self.failed = true;
+        Some(Err(error))
+    }
+}
+
+impl Iterator for PropertyValueScan {
+    type Item = Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.failed {
+            return None;
+        }
+
+        loop {
+            let record = if let Some(record) = self.pending.take() {
+                record
+            } else {
+                let Some(record) = self.records.next() else {
+                    return self.reconstructor.is_some().then(|| self.finish_current());
+                };
+                match record.into_inner() {
+                    Ok(record) => record,
+                    Err(error) => {
+                        return self.fail(PropertyValueRecordError::Storage(error.to_string()));
+                    }
+                }
+            };
+            let (key, value) = record;
+            let decoded_key = match decode_property_value_record_key(&key) {
+                Ok(key) => key,
+                Err(error) => return self.fail(error),
+            };
+
+            if self
+                .current_property
+                .as_ref()
+                .is_some_and(|property| *property != decoded_key.property)
+            {
+                self.pending = Some((key, value));
+                return Some(self.finish_current());
+            }
+
+            if self.current_property.is_none() {
+                self.current_property = Some(decoded_key.property);
+                self.reconstructor = Some(PropertyValueReconstructor::new(self.limits));
+            }
+            if let Err(error) = self
+                .reconstructor
+                .as_mut()
+                .expect("property-value reconstructor")
+                .push(decoded_key.record_version, &value)
+            {
+                return self.fail(error);
+            }
+        }
+    }
+}
+
+pub(crate) fn reconstruct_property_value(
+    records: fjall::Iter,
+    limits: PropertyValueChainLimits,
+) -> Result<Option<(ObjAndUUIDHolder, ReconstructedPropertyValue)>, PropertyValueRecordError> {
+    let mut scan = PropertyValueScan::new(records, limits);
+    let first = scan.next().transpose()?;
+    if scan.next().transpose()?.is_some() {
+        return Err(PropertyValueRecordError::MultipleProperties);
+    }
+    Ok(first)
 }
 
 fn decode_var(payload: &[u8]) -> Result<Var, PropertyValueRecordError> {
@@ -583,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn record_key_orders_publication_versions() {
+    fn record_key_orders_record_versions() {
         let property = holder();
         let first = encode_property_value_record_key(&property, 1);
         let second = encode_property_value_record_key(&property, 256);
@@ -594,13 +722,13 @@ mod tests {
             decode_property_value_record_key(&second).unwrap(),
             PropertyValueRecordKey {
                 property,
-                publication_version: 256,
+                record_version: 256,
             }
         );
     }
 
     #[test]
-    fn record_bounds_cover_all_publication_versions() {
+    fn record_bounds_cover_all_record_versions() {
         let property = holder();
         let (lower, upper) = property_value_record_bounds(&property);
 
@@ -675,7 +803,7 @@ mod tests {
         reconstructor.push(2, &full).unwrap();
         assert_eq!(
             reconstructor.push(1, &append),
-            Err(PropertyValueRecordError::PublicationOrder)
+            Err(PropertyValueRecordError::RecordOrder)
         );
     }
 
@@ -693,12 +821,21 @@ mod tests {
             Err(PropertyValueRecordError::AppendRecordLimit)
         );
 
-        let mut byte_limited = PropertyValueReconstructor::new(PropertyValueChainLimits::new(1, 0));
+        let mut byte_limited = PropertyValueReconstructor::new(PropertyValueChainLimits::new(2, 0));
         byte_limited.push(1, &full).unwrap();
         assert_eq!(
             byte_limited.push(2, &append),
             Err(PropertyValueRecordError::AppendByteLimit)
         );
+    }
+
+    #[test]
+    fn chain_accepts_the_exact_append_byte_limit() {
+        let mut chain = PropertyValueChain::full(1);
+        chain.push_append(2, 40);
+
+        assert!(!chain.reaches_limit(60, PropertyValueChainLimits::new(3, 100)));
+        assert!(chain.reaches_limit(61, PropertyValueChainLimits::new(3, 100)));
     }
 
     #[test]

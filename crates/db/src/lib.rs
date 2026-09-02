@@ -134,8 +134,8 @@ pub enum DatabaseOpenError {
     #[error("failed to create temporary database directory: {source}")]
     TempDir { source: std::io::Error },
 
-    #[error("failed to migrate database at {path:?}: {detail}")]
-    Migration { path: PathBuf, detail: String },
+    #[error("invalid database format at {path:?}: {detail}")]
+    Format { path: PathBuf, detail: String },
 
     #[error("failed to open database at {path:?}: {detail}")]
     Open { path: PathBuf, detail: String },
@@ -162,12 +162,6 @@ pub enum DatabaseOpenError {
         index: usize,
         len: usize,
     },
-
-    #[error("failed to mark fresh database version at {path:?}: {detail}")]
-    MarkVersion { path: PathBuf, detail: String },
-
-    #[error("invalid tuple value format in database at {path:?}: {detail}")]
-    TupleValueFormat { path: PathBuf, detail: String },
 
     #[error("failed to seed relation {relation:?} from database at {path:?}: {detail}")]
     SeedRelation {

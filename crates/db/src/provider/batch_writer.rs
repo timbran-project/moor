@@ -41,14 +41,17 @@ use crate::{
     DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, ObjAndUUIDHolder, db_counters,
     engine::property_definitions::PropertyDefinitionChange,
     provider::property_value_store::{
-        PROPERTY_RECORD_KEY_BYTES, PROPERTY_VALUE_CHAIN_LIMITS, PreparedPropertyValueMutation,
-        PreparedPropertyValueOp, PropertyValueChain, PropertyValueChainLimits, encode_full_record,
+        PROPERTY_RECORD_KEY_BYTES, PreparedPropertyValueMutation, PreparedPropertyValueOp,
+        PropertyValueChain, PropertyValueChainLimits, encode_full_record,
         encode_list_append_record, encode_property_value_record_key,
         property_value_record_payload_bytes,
     },
     tx::{Error, Timestamp},
 };
 use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
+
+#[cfg(test)]
+use crate::provider::property_value_store::PROPERTY_VALUE_CHAIN_LIMITS;
 
 /// A single operation to be written to fjall.
 pub struct BatchOp {
@@ -146,10 +149,6 @@ pub enum BatchOpType {
     Delete {
         key: fjall::Slice,
     },
-    #[allow(
-        dead_code,
-        reason = "the property-value relation switches to this operation in the loader phase"
-    )]
     PropertyValue(PreparedPropertyValueOp),
 }
 
@@ -240,7 +239,7 @@ enum PropertyValueChainChange {
     },
     Append {
         property: ObjAndUUIDHolder,
-        publication_version: u64,
+        record_version: u64,
         payload_bytes: usize,
     },
     Delete(ObjAndUUIDHolder),
@@ -586,6 +585,7 @@ struct WriterState {
     property_names: PropertyNames,
     property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
     property_value_limits: PropertyValueChainLimits,
+    next_property_value_record_version: u64,
 }
 
 struct WriterInit {
@@ -601,6 +601,11 @@ impl WriterState {
         property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
         property_value_limits: PropertyValueChainLimits,
     ) -> Self {
+        let next_property_value_record_version = property_value_chains
+            .values()
+            .flat_map(PropertyValueChain::record_versions)
+            .max()
+            .map_or(1, |version| version.saturating_add(1));
         Self {
             waiting_batches: BTreeMap::new(),
             barrier_waiters: Vec::new(),
@@ -609,6 +614,7 @@ impl WriterState {
             property_names: PropertyNames::new(property_names),
             property_value_chains,
             property_value_limits,
+            next_property_value_record_version,
         }
     }
 
@@ -647,6 +653,7 @@ impl BatchWriter {
         Self::with_property_names(db, AHashMap::new())
     }
 
+    #[cfg(test)]
     pub(crate) fn with_property_names(
         db: fjall::Database,
         property_names: AHashMap<Uuid, Symbol>,
@@ -1081,6 +1088,7 @@ impl BatchWriter {
         let transaction = timestamp.0;
         let mut write_batch = db.batch();
         let mut property_value_changes = Vec::new();
+        let property_value_record_version = state.next_property_value_record_version;
 
         for op in operations {
             let EncodedBatchOp { partition, op_type } = op;
@@ -1096,7 +1104,10 @@ impl BatchWriter {
                     let previous_chain = state.property_value_chains.get(&property);
                     match mutation {
                         EncodedPropertyValueMutation::Replace { record } => {
-                            let key = encode_property_value_record_key(&property, version);
+                            let key = encode_property_value_record_key(
+                                &property,
+                                property_value_record_version,
+                            );
                             write_batch.insert(&partition, key, record);
                             if let Some(chain) = previous_chain {
                                 for old_version in chain.record_versions() {
@@ -1108,7 +1119,7 @@ impl BatchWriter {
                             }
                             property_value_changes.push(PropertyValueChainChange::Reset {
                                 property,
-                                full_version: version,
+                                full_version: property_value_record_version,
                             });
                         }
                         EncodedPropertyValueMutation::AppendList {
@@ -1152,7 +1163,10 @@ impl BatchWriter {
                                     ));
                                 }
 
-                                let key = encode_property_value_record_key(&property, version);
+                                let key = encode_property_value_record_key(
+                                    &property,
+                                    property_value_record_version,
+                                );
                                 write_batch.insert(&partition, key, rollup.record);
                                 for old_version in chain.record_versions() {
                                     let key =
@@ -1162,14 +1176,17 @@ impl BatchWriter {
                                 }
                                 property_value_changes.push(PropertyValueChainChange::Reset {
                                     property,
-                                    full_version: version,
+                                    full_version: property_value_record_version,
                                 });
                             } else {
-                                let key = encode_property_value_record_key(&property, version);
+                                let key = encode_property_value_record_key(
+                                    &property,
+                                    property_value_record_version,
+                                );
                                 write_batch.insert(&partition, key, record);
                                 property_value_changes.push(PropertyValueChainChange::Append {
                                     property,
-                                    publication_version: version,
+                                    record_version: property_value_record_version,
                                     payload_bytes,
                                 });
                             }
@@ -1191,6 +1208,15 @@ impl BatchWriter {
         }
 
         let op_count = write_batch.len();
+        let next_property_value_record_version = if property_value_changes.is_empty() {
+            None
+        } else {
+            Some(
+                property_value_record_version
+                    .checked_add(1)
+                    .ok_or_else(|| "property-value record version exhausted".to_string())?,
+            )
+        };
 
         let outstanding_flushes_before = db.outstanding_flushes();
         let active_compactions_before = db.active_compactions();
@@ -1215,19 +1241,22 @@ impl BatchWriter {
                 }
                 PropertyValueChainChange::Append {
                     property,
-                    publication_version,
+                    record_version,
                     payload_bytes,
                 } => {
                     state
                         .property_value_chains
                         .get_mut(&property)
                         .expect("validated property-value append chain")
-                        .push_append(publication_version, payload_bytes);
+                        .push_append(record_version, payload_bytes);
                 }
                 PropertyValueChainChange::Delete(property) => {
                     state.property_value_chains.remove(&property);
                 }
             }
+        }
+        if let Some(next_property_value_record_version) = next_property_value_record_version {
+            state.next_property_value_record_version = next_property_value_record_version;
         }
 
         if encoding.elapsed > ENCODE_WARNING_DURATION
@@ -1695,12 +1724,12 @@ mod tests {
         )
         .unwrap();
 
-        let snapshot = writer.snapshot(2, Duration::from_secs(2)).unwrap();
-        let full_record = snapshot
+        let before_rollup = writer.snapshot(2, Duration::from_secs(2)).unwrap();
+        let full_record = before_rollup
             .get(&partition, encode_property_value_record_key(&property, 1))
             .unwrap()
             .expect("complete record");
-        let append_record = snapshot
+        let append_record = before_rollup
             .get(&partition, encode_property_value_record_key(&property, 2))
             .unwrap()
             .expect("append record");
@@ -1724,20 +1753,38 @@ mod tests {
             ),
         )
         .unwrap();
-        let snapshot = writer.snapshot(3, Duration::from_secs(2)).unwrap();
+        let after_rollup = writer.snapshot(3, Duration::from_secs(2)).unwrap();
+        assert!(
+            before_rollup
+                .get(&partition, encode_property_value_record_key(&property, 1))
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            before_rollup
+                .get(&partition, encode_property_value_record_key(&property, 2))
+                .unwrap()
+                .is_some()
+        );
         assert_eq!(
-            snapshot
+            before_rollup
+                .get(&partition, encode_property_value_record_key(&property, 3))
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            after_rollup
                 .get(&partition, encode_property_value_record_key(&property, 1))
                 .unwrap(),
             None
         );
         assert_eq!(
-            snapshot
+            after_rollup
                 .get(&partition, encode_property_value_record_key(&property, 2))
                 .unwrap(),
             None
         );
-        let record = snapshot
+        let record = after_rollup
             .get(&partition, encode_property_value_record_key(&property, 3))
             .unwrap()
             .expect("rollup record");

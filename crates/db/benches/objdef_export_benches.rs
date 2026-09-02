@@ -17,17 +17,24 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_db::{Database, DatabaseConfig, TxDB};
-use moor_var::{NOTHING, SYSTEM_OBJECT, Symbol, v_int};
+use moor_var::{NOTHING, SYSTEM_OBJECT, Symbol, v_int, v_list_iter, v_str};
 
 const PROPERTIES: usize = 64;
 const WIDE_DESCENDANTS: usize = 1_000;
 const DEEP_DESCENDANTS: usize = 1_024;
+const PROPERTY_CHAIN_APPENDS: usize = 63;
+const PROPERTY_CHAIN_INITIAL_ENTRIES: usize = 1_024;
+const PROPERTY_CHAIN_ENTRY_BYTES: usize = 9_472;
 
 struct WideExportContext {
     db: TxDB,
 }
 
 struct DeepExportContext {
+    db: TxDB,
+}
+
+struct PropertyChainExportContext {
     db: TxDB,
 }
 
@@ -99,6 +106,49 @@ fn create_deep_db() -> TxDB {
     db
 }
 
+fn create_property_chain_db() -> TxDB {
+    let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+    let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
+    let property = Symbol::mk("history");
+    let entry_text = "x".repeat(PROPERTY_CHAIN_ENTRY_BYTES);
+    let entry = v_str(&entry_text);
+    let mut tx = db.new_world_state().unwrap();
+    tx.create_object(
+        &permissions,
+        &NOTHING,
+        &SYSTEM_OBJECT,
+        ObjFlag::all_flags(),
+        ObjectKind::NextObjid,
+    )
+    .unwrap();
+    tx.define_property(
+        &permissions,
+        &SYSTEM_OBJECT,
+        &SYSTEM_OBJECT,
+        property,
+        &SYSTEM_OBJECT,
+        PropFlag::rw(),
+        Some(v_list_iter(
+            (0..PROPERTY_CHAIN_INITIAL_ENTRIES).map(|_| entry.clone()),
+        )),
+    )
+    .unwrap();
+    assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
+
+    for _ in 0..PROPERTY_CHAIN_APPENDS {
+        let mut tx = db.new_world_state().unwrap();
+        let current = tx
+            .retrieve_property(&permissions, &SYSTEM_OBJECT, property)
+            .unwrap();
+        let appended = current.push(&entry).unwrap();
+        tx.update_property(&permissions, &SYSTEM_OBJECT, property, &appended)
+            .unwrap();
+        assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
+    }
+    db.wait_for_persistence().unwrap();
+    db
+}
+
 impl BenchContext for WideExportContext {
     fn prepare(_num_chunks: usize) -> Self {
         Self {
@@ -111,6 +161,14 @@ impl BenchContext for DeepExportContext {
     fn prepare(_num_chunks: usize) -> Self {
         Self {
             db: create_deep_db(),
+        }
+    }
+}
+
+impl BenchContext for PropertyChainExportContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        Self {
+            db: create_property_chain_db(),
         }
     }
 }
@@ -138,6 +196,12 @@ fn scan_deep(ctx: &mut DeepExportContext, chunk_size: usize, _chunk_num: usize) 
     }
 }
 
+fn scan_property_chain(ctx: &mut PropertyChainExportContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        scan_export(&ctx.db, 1);
+    }
+}
+
 benchmark_main!(BenchmarkMainOptions::default(), |runner| {
     runner.group::<WideExportContext>("Objdef snapshot export", |group| {
         group
@@ -154,5 +218,13 @@ benchmark_main!(BenchmarkMainOptions::default(), |runner| {
                 "objects",
             ))
             .bench("deep_inheritance", scan_deep);
+    });
+    runner.group::<PropertyChainExportContext>("Objdef snapshot export", |group| {
+        group
+            .throughput(Throughput::per_operation(
+                (PROPERTY_CHAIN_INITIAL_ENTRIES * PROPERTY_CHAIN_ENTRY_BYTES) as u64,
+                "logical bytes",
+            ))
+            .bench("bounded_property_append_chain", scan_property_chain);
     });
 });

@@ -45,10 +45,11 @@ use crate::{
     provider::batch_writer::{BatchEncoder, BatchValue},
     tx::{EncodeFor, Error, RelationCodomain, RelationDomain, Timestamp},
 };
+use ahash::AHashMap;
 use byteview::ByteView;
 use fjall::Slice;
-use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
-use moor_var::{ByteSized, ListAppendError, OP_HINT_LIST_APPEND, Var};
+use moor_common::model::WorldStateTimerOp;
+use moor_var::Var;
 use planus::{ReadAsRoot, WriteAsOffset};
 use std::{any::Any, marker::PhantomData};
 
@@ -65,7 +66,12 @@ where
 }
 
 const TIMESTAMP_BYTES: usize = std::mem::size_of::<u64>();
-const LIST_APPEND_COMPARISON_BUDGET: usize = 128;
+
+type SeededPropertyValueIndex = (
+    Box<dyn crate::tx::RelationIndex<crate::ObjAndUUIDHolder, Var>>,
+    Timestamp,
+    AHashMap<crate::ObjAndUUIDHolder, super::property_value_store::PropertyValueChain>,
+);
 
 fn frame_value(payload: &[u8], timestamp: Timestamp) -> Slice {
     let mut framed = Vec::with_capacity(payload.len() + TIMESTAMP_BYTES);
@@ -160,10 +166,6 @@ where
 }
 
 impl FjallProvider<crate::ObjAndUUIDHolder, Var> {
-    #[allow(
-        dead_code,
-        reason = "the property-value relation switches to this encoder in the loader phase"
-    )]
     pub(crate) fn encode_property_value_working_set(
         &self,
         working_set: crate::tx::WorkingSet<crate::ObjAndUUIDHolder, Var>,
@@ -190,6 +192,29 @@ impl FjallProvider<crate::ObjAndUUIDHolder, Var> {
             })
             .collect()
     }
+
+    pub(crate) fn seeded_property_value_index(&self) -> Result<SeededPropertyValueIndex, Error> {
+        use super::property_value_store::{PROPERTY_VALUE_CHAIN_LIMITS, PropertyValueScan};
+        use crate::tx::{HashRelationIndex, RelationIndex};
+
+        let mut index = HashRelationIndex::new();
+        let mut chains = AHashMap::new();
+        let mut max_timestamp = Timestamp(0);
+        for entry in PropertyValueScan::new(self.fjall_keyspace.iter(), PROPERTY_VALUE_CHAIN_LIMITS)
+        {
+            let (property, reconstructed) =
+                entry.map_err(|error| Error::RetrievalFailure(error.to_string()))?;
+            max_timestamp = max_timestamp.max(reconstructed.logical_timestamp);
+            chains.insert(property.clone(), reconstructed.chain);
+            index.insert_entry(
+                reconstructed.logical_timestamp,
+                property,
+                reconstructed.value,
+            );
+        }
+        index.set_provider_fully_loaded(true);
+        Ok((Box::new(index), max_timestamp, chains))
+    }
 }
 
 impl<Domain, Codomain> FjallProvider<Domain, Codomain>
@@ -206,8 +231,6 @@ where
     ) -> Result<Vec<super::batch_writer::BatchOp>, Error> {
         use super::batch_writer::{BatchOp, BatchOpType};
         use crate::tx::OpType;
-
-        self.observe_property_value_mutations(&working_set);
 
         let mut batch_ops = Vec::with_capacity(working_set.len());
         for (domain, op) in working_set.tuples() {
@@ -239,85 +262,6 @@ where
             }
         }
         Ok(batch_ops)
-    }
-
-    fn observe_property_value_mutations(
-        &self,
-        working_set: &crate::tx::WorkingSet<Domain, Codomain>,
-    ) {
-        use crate::tx::OpType;
-
-        if self.relation_name != "object_propvalues" {
-            return;
-        }
-
-        let counters = &db_counters().counters;
-        for (domain, op) in working_set.tuples_ref() {
-            let codomain = match &op.operation {
-                OpType::Insert(codomain) | OpType::Update(codomain) => codomain,
-                OpType::Delete => continue,
-            };
-            let Some(value) = (codomain as &dyn Any).downcast_ref::<Var>() else {
-                return;
-            };
-
-            if !matches!(&op.operation, OpType::Update(_)) || value.op_hint() != OP_HINT_LIST_APPEND
-            {
-                counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
-                continue;
-            }
-
-            counters.inc(WorldStateCountOp::PropertyListAppendCandidate);
-            let _classification_timer = db_counters()
-                .timers_rare
-                .start(WorldStateTimerOp::PropertyListAppendClassify);
-            let Some(base_entry) = working_set.base_index().index_lookup(domain) else {
-                counters.inc(WorldStateCountOp::PropertyListAppendMissingBase);
-                counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
-                continue;
-            };
-            let Some(base) = (&base_entry.value as &dyn Any).downcast_ref::<Var>() else {
-                counters.inc(WorldStateCountOp::PropertyListAppendNonList);
-                counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
-                continue;
-            };
-            let (Some(base_list), Some(final_list)) = (base.as_list(), value.as_list()) else {
-                counters.inc(WorldStateCountOp::PropertyListAppendNonList);
-                counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
-                continue;
-            };
-
-            let suffix = match base_list.append_suffix(final_list, LIST_APPEND_COMPARISON_BUDGET) {
-                Ok(suffix) => suffix,
-                Err(reason) => {
-                    let counter = match reason {
-                        ListAppendError::NotLonger => {
-                            WorldStateCountOp::PropertyListAppendNotLonger
-                        }
-                        ListAppendError::PrefixMismatch => {
-                            WorldStateCountOp::PropertyListAppendPrefixMismatch
-                        }
-                        ListAppendError::ComparisonBudgetExceeded => {
-                            WorldStateCountOp::PropertyListAppendComparisonBudget
-                        }
-                    };
-                    counters.inc(counter);
-                    counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
-                    continue;
-                }
-            };
-
-            let suffix_bytes = suffix.iter_ref().map(ByteSized::size_bytes).sum::<usize>();
-            counters.inc(WorldStateCountOp::PropertyListAppendAccepted);
-            counters.add(
-                WorldStateCountOp::PropertyListAppendSuffixElements,
-                isize::try_from(suffix.len()).unwrap_or(isize::MAX),
-            );
-            counters.add(
-                WorldStateCountOp::PropertyListAppendSuffixBytes,
-                isize::try_from(suffix_bytes).unwrap_or(isize::MAX),
-            );
-        }
     }
 
     fn batch_op_source(&self, domain: &Domain) -> super::batch_writer::BatchOpSource {
