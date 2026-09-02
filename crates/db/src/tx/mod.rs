@@ -61,6 +61,11 @@ impl<T> RelationDomain for T where T: Hash + Eq + Clone + Debug + Display + Send
 /// - `PartialEq`: For conflict detection and comparison
 /// - `Send + Sync + 'static`: For thread-safe, owned storage
 pub trait RelationCodomain: Clone + PartialEq + Send + Sync + 'static {
+    /// Clone the value for the committed relation index.
+    fn clone_for_commit(&self) -> Self {
+        self.clone()
+    }
+
     /// Attempt to merge conflicting values.
     /// Returns Some(merged_value) if successful, None if conflict is unresolvable.
     fn try_merge(&self, _base: &Self, _theirs: &Self) -> Option<Self> {
@@ -70,6 +75,10 @@ pub trait RelationCodomain: Clone + PartialEq + Send + Sync + 'static {
 
 // Implement for Var with smart merge logic
 impl RelationCodomain for Var {
+    fn clone_for_commit(&self) -> Self {
+        self.clone().with_cleared_hint()
+    }
+
     fn try_merge(&self, base: &Self, theirs: &Self) -> Option<Self> {
         // Only merge if both operations provided a hint
         use moor_var::{OP_HINT_FLYWEIGHT_ADD_SLOT, OP_HINT_MAP_INSERT};
