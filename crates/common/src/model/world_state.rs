@@ -826,6 +826,7 @@ pub enum WorldStateTimerOp {
     BatchWriterCommit,
     BatchWriterBackpressureBlock,
     PropertyListAppendClassify,
+    PropertyValueRollupEncode,
 }
 
 #[derive(Copy, Clone, Debug, DeriveLabel)]
@@ -844,6 +845,9 @@ pub enum WorldStateCountOp {
     PropertyListAppendPrefixMismatch,
     PropertyListAppendComparisonBudget,
     PropertyValueCompleteReplacement,
+    PropertyValueFullEncodedBytes,
+    PropertyValueAppendEncodedBytes,
+    PropertyValueForegroundRollup,
 }
 
 const WS_SHARD_COUNT: usize = 16;

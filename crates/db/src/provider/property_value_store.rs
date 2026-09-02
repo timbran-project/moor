@@ -38,6 +38,9 @@ const FULL_RECORD_KIND: u8 = 0;
 const LIST_APPEND_RECORD_KIND: u8 = 1;
 const LIST_APPEND_COMPARISON_BUDGET: usize = 128;
 
+pub(crate) const PROPERTY_VALUE_CHAIN_LIMITS: PropertyValueChainLimits =
+    PropertyValueChainLimits::new(64, 4 * 1024 * 1024);
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PreparedPropertyValueOp {
     pub property: ObjAndUUIDHolder,
@@ -351,6 +354,12 @@ pub(crate) fn decode_property_value_record(
     })
 }
 
+pub(crate) fn property_value_record_payload_bytes(
+    record: &[u8],
+) -> Result<usize, PropertyValueRecordError> {
+    Ok(decode_property_value_record(record)?.payload.len())
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PropertyValueChain {
     full_version: u64,
@@ -359,6 +368,14 @@ pub(crate) struct PropertyValueChain {
 }
 
 impl PropertyValueChain {
+    pub fn full(publication_version: u64) -> Self {
+        Self {
+            full_version: publication_version,
+            append_versions: Vec::new(),
+            append_bytes: 0,
+        }
+    }
+
     pub fn full_version(&self) -> u64 {
         self.full_version
     }
@@ -373,6 +390,20 @@ impl PropertyValueChain {
 
     pub fn append_bytes(&self) -> usize {
         self.append_bytes
+    }
+
+    pub fn record_versions(&self) -> impl Iterator<Item = u64> + '_ {
+        std::iter::once(self.full_version).chain(self.append_versions.iter().copied())
+    }
+
+    pub fn reaches_limit(&self, additional_bytes: usize, limits: PropertyValueChainLimits) -> bool {
+        self.append_versions.len().saturating_add(1) >= limits.max_append_records
+            || self.append_bytes.saturating_add(additional_bytes) >= limits.max_append_bytes
+    }
+
+    pub fn push_append(&mut self, publication_version: u64, append_bytes: usize) {
+        self.append_versions.push(publication_version);
+        self.append_bytes = self.append_bytes.saturating_add(append_bytes);
     }
 }
 
