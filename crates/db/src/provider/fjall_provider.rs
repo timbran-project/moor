@@ -159,6 +159,39 @@ where
     }
 }
 
+impl FjallProvider<crate::ObjAndUUIDHolder, Var> {
+    #[allow(
+        dead_code,
+        reason = "the property-value relation switches to this encoder in the loader phase"
+    )]
+    pub(crate) fn encode_property_value_working_set(
+        &self,
+        working_set: crate::tx::WorkingSet<crate::ObjAndUUIDHolder, Var>,
+    ) -> Vec<super::batch_writer::BatchOp> {
+        use super::{
+            batch_writer::{BatchOp, BatchOpSource, BatchOpType},
+            property_value_store::prepare_property_value_working_set,
+        };
+
+        prepare_property_value_working_set(working_set)
+            .into_iter()
+            .map(|prepared| {
+                let object = prepared.property.obj();
+                let uuid = prepared.property.uuid();
+                BatchOp {
+                    partition: self.fjall_keyspace.clone(),
+                    op_type: BatchOpType::PropertyValue(prepared),
+                    source: BatchOpSource::Property {
+                        relation: self.relation_name,
+                        object,
+                        uuid,
+                    },
+                }
+            })
+            .collect()
+    }
+}
+
 impl<Domain, Codomain> FjallProvider<Domain, Codomain>
 where
     Domain: RelationDomain,

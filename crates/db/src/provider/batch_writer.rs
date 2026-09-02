@@ -32,14 +32,22 @@ use ahash::AHashMap;
 use flume::{Receiver, Sender};
 use moor_common::model::HasUuid;
 use moor_common::threading::spawn_efficient;
-use moor_var::{Obj, Symbol};
+use moor_var::{Obj, Symbol, Var};
 use parking_lot::Mutex;
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::engine::property_definitions::PropertyDefinitionChange;
-use crate::tx::{Error, Timestamp};
-use crate::{DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, db_counters};
+use crate::{
+    DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, ObjAndUUIDHolder, db_counters,
+    engine::property_definitions::PropertyDefinitionChange,
+    provider::property_value_store::{
+        PROPERTY_RECORD_KEY_BYTES, PROPERTY_VALUE_CHAIN_LIMITS, PreparedPropertyValueMutation,
+        PreparedPropertyValueOp, PropertyValueChain, PropertyValueChainLimits, encode_full_record,
+        encode_list_append_record, encode_property_value_record_key,
+        property_value_record_payload_bytes,
+    },
+    tx::{Error, Timestamp},
+};
 use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
 
 /// A single operation to be written to fjall.
@@ -138,6 +146,11 @@ pub enum BatchOpType {
     Delete {
         key: fjall::Slice,
     },
+    #[allow(
+        dead_code,
+        reason = "the property-value relation switches to this operation in the loader phase"
+    )]
+    PropertyValue(PreparedPropertyValueOp),
 }
 
 /// Reusable serialization state owned by an encoding worker.
@@ -200,6 +213,37 @@ enum EncodedBatchOpType {
     Delete {
         key: fjall::Slice,
     },
+    PropertyValue(EncodedPropertyValueOp),
+}
+
+struct EncodedPropertyValueOp {
+    property: ObjAndUUIDHolder,
+    mutation: EncodedPropertyValueMutation,
+}
+
+enum EncodedPropertyValueMutation {
+    Replace {
+        record: fjall::Slice,
+    },
+    AppendList {
+        record: fjall::Slice,
+        payload_bytes: usize,
+        final_value: Var,
+    },
+    Delete,
+}
+
+enum PropertyValueChainChange {
+    Reset {
+        property: ObjAndUUIDHolder,
+        full_version: u64,
+    },
+    Append {
+        property: ObjAndUUIDHolder,
+        publication_version: u64,
+        payload_bytes: usize,
+    },
+    Delete(ObjAndUUIDHolder),
 }
 
 struct EncodingStats {
@@ -296,6 +340,41 @@ enum EncoderMsg {
         admission: CommitAdmission,
     },
     Stop,
+}
+
+enum RollupMsg {
+    Encode {
+        value: Var,
+        timestamp: Timestamp,
+        reply: oneshot::Sender<Result<RollupResult, String>>,
+    },
+    Stop,
+}
+
+struct RollupResult {
+    record: fjall::Slice,
+    elapsed: Duration,
+}
+
+#[derive(Clone)]
+struct RollupEncoder {
+    sender: Sender<RollupMsg>,
+}
+
+impl RollupEncoder {
+    fn encode(&self, value: Var, timestamp: Timestamp) -> Result<RollupResult, String> {
+        let (reply, receiver) = oneshot::channel();
+        self.sender
+            .send(RollupMsg::Encode {
+                value,
+                timestamp,
+                reply,
+            })
+            .map_err(|_| "property-value rollup encoder disconnected".to_string())?;
+        receiver
+            .recv()
+            .map_err(|error| format!("property-value rollup encoder failed to reply: {error}"))?
+    }
 }
 
 const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -505,16 +584,31 @@ struct WriterState {
     snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
     property_names: PropertyNames,
+    property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+    property_value_limits: PropertyValueChainLimits,
+}
+
+struct WriterInit {
+    property_names: AHashMap<Uuid, Symbol>,
+    property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+    property_value_limits: PropertyValueChainLimits,
+    rollup_encoder: RollupEncoder,
 }
 
 impl WriterState {
-    fn new(property_names: AHashMap<Uuid, Symbol>) -> Self {
+    fn new(
+        property_names: AHashMap<Uuid, Symbol>,
+        property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+        property_value_limits: PropertyValueChainLimits,
+    ) -> Self {
         Self {
             waiting_batches: BTreeMap::new(),
             barrier_waiters: Vec::new(),
             snapshot_waiters: Vec::new(),
             next_version: 1,
             property_names: PropertyNames::new(property_names),
+            property_value_chains,
+            property_value_limits,
         }
     }
 
@@ -538,6 +632,8 @@ pub struct BatchWriter {
     join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
     encoder_handles: Mutex<Vec<JoinHandle<Result<(), String>>>>,
     admission: Arc<CommitAdmissionGate>,
+    rollup_sender: Sender<RollupMsg>,
+    rollup_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
 }
 
 // If batch writes take longer than this, give a friendly warning to alert the user that something
@@ -555,6 +651,20 @@ impl BatchWriter {
         db: fjall::Database,
         property_names: AHashMap<Uuid, Symbol>,
     ) -> Self {
+        Self::with_property_value_state(
+            db,
+            property_names,
+            AHashMap::new(),
+            PROPERTY_VALUE_CHAIN_LIMITS,
+        )
+    }
+
+    pub(crate) fn with_property_value_state(
+        db: fjall::Database,
+        property_names: AHashMap<Uuid, Symbol>,
+        property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+        property_value_limits: PropertyValueChainLimits,
+    ) -> Self {
         let kill_switch = Arc::new(AtomicBool::new(false));
         let completed_version = Arc::new(AtomicU64::new(0));
         let (sender, receiver) = flume::bounded::<WriterMsg>(WRITER_QUEUE_CAPACITY);
@@ -567,12 +677,31 @@ impl BatchWriter {
                 timeout: DEFAULT_COMMIT_QUEUE_TIMEOUT,
             },
         ));
+        let (rollup_sender, rollup_receiver) = flume::bounded::<RollupMsg>(1);
+        let rollup_handle = moor_common::threading::spawn_perf("moor-db-rollup-enc", move || {
+            Self::rollup_encoder_loop(rollup_receiver)
+        })
+        .expect("failed to spawn property-value rollup encoder thread");
+        let rollup_encoder = RollupEncoder {
+            sender: rollup_sender.clone(),
+        };
 
         let ks = kill_switch.clone();
         let completed = completed_version.clone();
 
         let join_handle = spawn_efficient("moor-batch-writer", move || {
-            Self::writer_loop(db, receiver, ks, completed, property_names)
+            Self::writer_loop(
+                db,
+                receiver,
+                ks,
+                completed,
+                WriterInit {
+                    property_names,
+                    property_value_chains,
+                    property_value_limits,
+                    rollup_encoder,
+                },
+            )
         })
         .expect("failed to spawn batch writer thread");
 
@@ -597,6 +726,8 @@ impl BatchWriter {
             join_handle: Mutex::new(Some(join_handle)),
             encoder_handles: Mutex::new(encoder_handles),
             admission,
+            rollup_sender,
+            rollup_handle: Mutex::new(Some(rollup_handle)),
         }
     }
 
@@ -627,14 +758,40 @@ impl BatchWriter {
         }
     }
 
+    fn rollup_encoder_loop(receiver: Receiver<RollupMsg>) -> Result<(), String> {
+        let mut encoder = BatchEncoder::new();
+        loop {
+            let msg = receiver
+                .recv()
+                .map_err(|_| "property-value rollup encoder channel disconnected".to_string())?;
+            let RollupMsg::Encode {
+                value,
+                timestamp,
+                reply,
+            } = msg
+            else {
+                return Ok(());
+            };
+
+            let start = Instant::now();
+            let result = encode_full_record(encoder.var_builder(), &value, timestamp)
+                .map(|record| RollupResult {
+                    record: record.into(),
+                    elapsed: start.elapsed(),
+                })
+                .map_err(|error| format!("failed to encode property-value rollup: {error}"));
+            reply.send(result).ok();
+        }
+    }
+
     fn writer_loop(
         db: fjall::Database,
         receiver: Receiver<WriterMsg>,
         kill_switch: Arc<AtomicBool>,
         completed_version: Arc<AtomicU64>,
-        property_names: AHashMap<Uuid, Symbol>,
+        init: WriterInit,
     ) -> Result<(), String> {
-        let result = Self::run_writer(db, receiver, kill_switch, completed_version, property_names);
+        let result = Self::run_writer(db, receiver, kill_switch, completed_version, init);
         if let Err(error) = &result {
             error!("Batch writer failed: {error}");
             #[cfg(not(test))]
@@ -648,9 +805,16 @@ impl BatchWriter {
         receiver: Receiver<WriterMsg>,
         kill_switch: Arc<AtomicBool>,
         completed_version: Arc<AtomicU64>,
-        property_names: AHashMap<Uuid, Symbol>,
+        init: WriterInit,
     ) -> Result<(), String> {
-        let mut state = WriterState::new(property_names);
+        let WriterInit {
+            property_names,
+            property_value_chains,
+            property_value_limits,
+            rollup_encoder,
+        } = init;
+        let mut state =
+            WriterState::new(property_names, property_value_chains, property_value_limits);
 
         loop {
             if kill_switch.load(Ordering::Relaxed) {
@@ -661,7 +825,7 @@ impl BatchWriter {
                         &mut state,
                         completed_version.load(Ordering::Acquire),
                     )?;
-                    Self::persist_ready(&db, &mut state, &completed_version)?;
+                    Self::persist_ready(&db, &mut state, &completed_version, &rollup_encoder)?;
                 }
 
                 if !state.waiting_batches.is_empty() {
@@ -690,7 +854,7 @@ impl BatchWriter {
                         &mut state,
                         completed_version.load(Ordering::Acquire),
                     )?;
-                    Self::persist_ready(&db, &mut state, &completed_version)?;
+                    Self::persist_ready(&db, &mut state, &completed_version, &rollup_encoder)?;
                 }
                 Err(flume::RecvTimeoutError::Timeout) => {}
                 Err(flume::RecvTimeoutError::Disconnected) => {
@@ -739,6 +903,7 @@ impl BatchWriter {
         db: &fjall::Database,
         state: &mut WriterState,
         completed_version: &AtomicU64,
+        rollup_encoder: &RollupEncoder,
     ) -> Result<(), String> {
         while let Some(batch) = state.waiting_batches.remove(&state.next_version) {
             let batch = match batch {
@@ -749,7 +914,7 @@ impl BatchWriter {
                 }
             };
             let version = batch.version;
-            if let Err(error) = Self::commit_batch(db, batch, &mut state.property_names) {
+            if let Err(error) = Self::commit_batch(db, batch, state, rollup_encoder) {
                 Self::fail_waiters(state, &error);
                 return Err(error);
             }
@@ -803,6 +968,78 @@ impl BatchWriter {
                         encoded_bytes += key.len();
                         EncodedBatchOpType::Delete { key }
                     }
+                    BatchOpType::PropertyValue(prepared) => {
+                        let op_start = Instant::now();
+                        let PreparedPropertyValueOp { property, mutation } = prepared;
+                        let mutation = match mutation {
+                            PreparedPropertyValueMutation::Replace { value } => {
+                                let record =
+                                    encode_full_record(encoder.var_builder(), &value, timestamp)
+                                        .map_err(|error| {
+                                            format!(
+                                                "failed to encode complete property value: {error}"
+                                            )
+                                        })?;
+                                db_counters().counters.add(
+                                    WorldStateCountOp::PropertyValueFullEncodedBytes,
+                                    isize::try_from(record.len()).unwrap_or(isize::MAX),
+                                );
+                                EncodedPropertyValueMutation::Replace {
+                                    record: record.into(),
+                                }
+                            }
+                            PreparedPropertyValueMutation::AppendList {
+                                suffix,
+                                final_value,
+                            } => {
+                                let record = encode_list_append_record(
+                                    encoder.var_builder(),
+                                    &suffix,
+                                    timestamp,
+                                )
+                                .map_err(|error| {
+                                    format!("failed to encode property list append: {error}")
+                                })?;
+                                let payload_bytes = property_value_record_payload_bytes(&record)
+                                    .map_err(|error| {
+                                        format!(
+                                            "failed to inspect encoded property list append: {error}"
+                                        )
+                                    })?;
+                                db_counters().counters.add(
+                                    WorldStateCountOp::PropertyValueAppendEncodedBytes,
+                                    isize::try_from(record.len()).unwrap_or(isize::MAX),
+                                );
+                                EncodedPropertyValueMutation::AppendList {
+                                    record: record.into(),
+                                    payload_bytes,
+                                    final_value,
+                                }
+                            }
+                            PreparedPropertyValueMutation::Delete => {
+                                EncodedPropertyValueMutation::Delete
+                            }
+                        };
+                        let elapsed = op_start.elapsed();
+                        let bytes = match &mutation {
+                            EncodedPropertyValueMutation::Replace { record }
+                            | EncodedPropertyValueMutation::AppendList { record, .. } => {
+                                PROPERTY_RECORD_KEY_BYTES + record.len()
+                            }
+                            EncodedPropertyValueMutation::Delete => PROPERTY_RECORD_KEY_BYTES,
+                        };
+                        encoded_bytes += bytes;
+                        if slowest
+                            .as_ref()
+                            .is_none_or(|(_, slowest_elapsed, _)| elapsed > *slowest_elapsed)
+                        {
+                            slowest = Some((source, elapsed, bytes));
+                        }
+                        EncodedBatchOpType::PropertyValue(EncodedPropertyValueOp {
+                            property,
+                            mutation,
+                        })
+                    }
                 };
                 encoded_operations.push(EncodedBatchOp { partition, op_type });
             }
@@ -831,18 +1068,19 @@ impl BatchWriter {
     fn commit_batch(
         db: &fjall::Database,
         batch: EncodedCommitBatch,
-        property_names: &mut PropertyNames,
+        state: &mut WriterState,
+        rollup_encoder: &RollupEncoder,
     ) -> Result<(), String> {
         let EncodedCommitBatch {
             version,
             timestamp,
             operations,
             property_definition_changes,
-            encoding,
+            mut encoding,
         } = batch;
         let transaction = timestamp.0;
-        let op_count = operations.len();
         let mut write_batch = db.batch();
+        let mut property_value_changes = Vec::new();
 
         for op in operations {
             let EncodedBatchOp { partition, op_type } = op;
@@ -853,8 +1091,106 @@ impl BatchWriter {
                 EncodedBatchOpType::Delete { key } => {
                     write_batch.remove(&partition, key);
                 }
+                EncodedBatchOpType::PropertyValue(op) => {
+                    let EncodedPropertyValueOp { property, mutation } = op;
+                    let previous_chain = state.property_value_chains.get(&property);
+                    match mutation {
+                        EncodedPropertyValueMutation::Replace { record } => {
+                            let key = encode_property_value_record_key(&property, version);
+                            write_batch.insert(&partition, key, record);
+                            if let Some(chain) = previous_chain {
+                                for old_version in chain.record_versions() {
+                                    let key =
+                                        encode_property_value_record_key(&property, old_version);
+                                    write_batch.remove(&partition, key);
+                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
+                                }
+                            }
+                            property_value_changes.push(PropertyValueChainChange::Reset {
+                                property,
+                                full_version: version,
+                            });
+                        }
+                        EncodedPropertyValueMutation::AppendList {
+                            record,
+                            payload_bytes,
+                            final_value,
+                        } => {
+                            let Some(chain) = previous_chain else {
+                                return Err(format!(
+                                    "property-value append for {property} has no complete record"
+                                ));
+                            };
+                            if chain.reaches_limit(payload_bytes, state.property_value_limits) {
+                                let rollup = rollup_encoder.encode(final_value, timestamp)?;
+                                db_counters().timers_rare.record_elapsed(
+                                    WorldStateTimerOp::PropertyValueRollupEncode,
+                                    rollup.elapsed,
+                                );
+                                db_counters()
+                                    .counters
+                                    .inc(WorldStateCountOp::PropertyValueForegroundRollup);
+                                db_counters().counters.add(
+                                    WorldStateCountOp::PropertyValueFullEncodedBytes,
+                                    isize::try_from(rollup.record.len()).unwrap_or(isize::MAX),
+                                );
+                                encoding.elapsed += rollup.elapsed;
+                                encoding.encoded_bytes +=
+                                    PROPERTY_RECORD_KEY_BYTES + rollup.record.len();
+                                let source = BatchOpSource::Property {
+                                    relation: "object_propvalues",
+                                    object: property.obj(),
+                                    uuid: property.uuid(),
+                                };
+                                if encoding.slowest.as_ref().is_none_or(
+                                    |(_, slowest_elapsed, _)| rollup.elapsed > *slowest_elapsed,
+                                ) {
+                                    encoding.slowest = Some((
+                                        source,
+                                        rollup.elapsed,
+                                        PROPERTY_RECORD_KEY_BYTES + rollup.record.len(),
+                                    ));
+                                }
+
+                                let key = encode_property_value_record_key(&property, version);
+                                write_batch.insert(&partition, key, rollup.record);
+                                for old_version in chain.record_versions() {
+                                    let key =
+                                        encode_property_value_record_key(&property, old_version);
+                                    write_batch.remove(&partition, key);
+                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
+                                }
+                                property_value_changes.push(PropertyValueChainChange::Reset {
+                                    property,
+                                    full_version: version,
+                                });
+                            } else {
+                                let key = encode_property_value_record_key(&property, version);
+                                write_batch.insert(&partition, key, record);
+                                property_value_changes.push(PropertyValueChainChange::Append {
+                                    property,
+                                    publication_version: version,
+                                    payload_bytes,
+                                });
+                            }
+                        }
+                        EncodedPropertyValueMutation::Delete => {
+                            if let Some(chain) = previous_chain {
+                                for old_version in chain.record_versions() {
+                                    let key =
+                                        encode_property_value_record_key(&property, old_version);
+                                    write_batch.remove(&partition, key);
+                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
+                                }
+                            }
+                            property_value_changes.push(PropertyValueChainChange::Delete(property));
+                        }
+                    }
+                }
             }
         }
+
+        let op_count = write_batch.len();
 
         let outstanding_flushes_before = db.outstanding_flushes();
         let active_compactions_before = db.active_compactions();
@@ -866,13 +1202,39 @@ impl BatchWriter {
         db_counters()
             .timers_rare
             .record_elapsed(WorldStateTimerOp::BatchWriterCommit, commit_elapsed);
-        property_names.apply(property_definition_changes);
+        state.property_names.apply(property_definition_changes);
+        for change in property_value_changes {
+            match change {
+                PropertyValueChainChange::Reset {
+                    property,
+                    full_version,
+                } => {
+                    state
+                        .property_value_chains
+                        .insert(property, PropertyValueChain::full(full_version));
+                }
+                PropertyValueChainChange::Append {
+                    property,
+                    publication_version,
+                    payload_bytes,
+                } => {
+                    state
+                        .property_value_chains
+                        .get_mut(&property)
+                        .expect("validated property-value append chain")
+                        .push_append(publication_version, payload_bytes);
+                }
+                PropertyValueChainChange::Delete(property) => {
+                    state.property_value_chains.remove(&property);
+                }
+            }
+        }
 
         if encoding.elapsed > ENCODE_WARNING_DURATION
             && let Some((slowest_target, slowest_encode_elapsed, slowest_encoded_bytes)) =
                 encoding.slowest
         {
-            let slowest_target = property_names.display(&slowest_target);
+            let slowest_target = state.property_names.display(&slowest_target);
             warn!(
                 op_count,
                 encoded_bytes = encoding.encoded_bytes,
@@ -1019,7 +1381,7 @@ impl BatchWriter {
     }
 
     pub fn stop(&self) -> Result<(), String> {
-        let mut encoder_error = None;
+        let mut shutdown_error = None;
         let mut encoder_handles = self.encoder_handles.lock();
         for _ in 0..encoder_handles.len() {
             self.encoder_sender.send(EncoderMsg::Stop).ok();
@@ -1028,10 +1390,10 @@ impl BatchWriter {
             match handle.join() {
                 Ok(Ok(())) => {}
                 Ok(Err(error)) => {
-                    encoder_error.get_or_insert(error);
+                    shutdown_error.get_or_insert(error);
                 }
                 Err(_) => {
-                    encoder_error.get_or_insert("batch encoder thread panicked".to_string());
+                    shutdown_error.get_or_insert("batch encoder thread panicked".to_string());
                 }
             };
         }
@@ -1040,12 +1402,34 @@ impl BatchWriter {
         self.kill_switch.store(true, Ordering::SeqCst);
         let mut jh = self.join_handle.lock();
         if let Some(handle) = jh.take() {
-            let writer_result = handle
-                .join()
-                .map_err(|_| "batch writer thread panicked".to_string())?;
-            writer_result?;
+            match handle.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    shutdown_error.get_or_insert(error);
+                }
+                Err(_) => {
+                    shutdown_error.get_or_insert("batch writer thread panicked".to_string());
+                }
+            }
         }
-        encoder_error.map_or(Ok(()), Err)
+        drop(jh);
+
+        let mut rollup_handle = self.rollup_handle.lock();
+        if let Some(handle) = rollup_handle.take() {
+            self.rollup_sender.send(RollupMsg::Stop).ok();
+            match handle.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    shutdown_error.get_or_insert(error);
+                }
+                Err(_) => {
+                    shutdown_error
+                        .get_or_insert("property-value rollup encoder thread panicked".to_string());
+                }
+            }
+        }
+
+        shutdown_error.map_or(Ok(()), Err)
     }
 }
 
@@ -1060,8 +1444,12 @@ impl Drop for BatchWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::provider::property_value_store::{
+        PropertyValueReconstructor, encode_property_value_record_key,
+    };
     use fjall::{KeyspaceCreateOptions, Readable};
     use moor_common::model::PropDef;
+    use moor_var::{List, v_int, v_list};
 
     fn test_database() -> (tempfile::TempDir, fjall::Database) {
         let tempdir = tempfile::tempdir().unwrap();
@@ -1106,6 +1494,30 @@ mod tests {
 
         drop(held);
         assert!(gate.acquire(Timestamp(3)).is_ok());
+    }
+
+    fn property_batch(
+        version: u64,
+        partition: &fjall::Keyspace,
+        property: &ObjAndUUIDHolder,
+        mutation: PreparedPropertyValueMutation,
+    ) -> CommitBatch {
+        CommitBatch::from_ops(
+            version,
+            Timestamp(version),
+            vec![BatchOp {
+                partition: partition.clone(),
+                op_type: BatchOpType::PropertyValue(PreparedPropertyValueOp {
+                    property: property.clone(),
+                    mutation,
+                }),
+                source: BatchOpSource::Property {
+                    relation: "object_propvalues",
+                    object: property.obj(),
+                    uuid: property.uuid(),
+                },
+            }],
+        )
     }
 
     #[test]
@@ -1240,6 +1652,128 @@ mod tests {
             snapshot.get(&second, b"key").unwrap().as_deref(),
             Some(&b"second"[..])
         );
+    }
+
+    #[test]
+    fn property_appends_roll_up_in_publication_order() {
+        let (_tempdir, database) = test_database();
+        let partition = database
+            .keyspace("object_propvalues", KeyspaceCreateOptions::default)
+            .unwrap();
+        let limits = PropertyValueChainLimits::new(2, usize::MAX);
+        let writer = BatchWriter::with_property_value_state(
+            database,
+            AHashMap::new(),
+            AHashMap::new(),
+            limits,
+        );
+        let property = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(7));
+
+        write(
+            &writer,
+            property_batch(
+                2,
+                &partition,
+                &property,
+                PreparedPropertyValueMutation::AppendList {
+                    suffix: List::mk_list(&[v_int(2)]),
+                    final_value: v_list(&[v_int(1), v_int(2)]),
+                },
+            ),
+        )
+        .unwrap();
+        write(
+            &writer,
+            property_batch(
+                1,
+                &partition,
+                &property,
+                PreparedPropertyValueMutation::Replace {
+                    value: v_list(&[v_int(1)]),
+                },
+            ),
+        )
+        .unwrap();
+
+        let snapshot = writer.snapshot(2, Duration::from_secs(2)).unwrap();
+        let full_record = snapshot
+            .get(&partition, encode_property_value_record_key(&property, 1))
+            .unwrap()
+            .expect("complete record");
+        let append_record = snapshot
+            .get(&partition, encode_property_value_record_key(&property, 2))
+            .unwrap()
+            .expect("append record");
+        let mut reconstructor = PropertyValueReconstructor::new(limits);
+        reconstructor.push(1, &full_record).unwrap();
+        reconstructor.push(2, &append_record).unwrap();
+        let reconstructed = reconstructor.finish().unwrap();
+        assert_eq!(reconstructed.value, v_list(&[v_int(1), v_int(2)]));
+        assert_eq!(reconstructed.chain.append_count(), 1);
+
+        write(
+            &writer,
+            property_batch(
+                3,
+                &partition,
+                &property,
+                PreparedPropertyValueMutation::AppendList {
+                    suffix: List::mk_list(&[v_int(3)]),
+                    final_value: v_list(&[v_int(1), v_int(2), v_int(3)]),
+                },
+            ),
+        )
+        .unwrap();
+        let snapshot = writer.snapshot(3, Duration::from_secs(2)).unwrap();
+        assert_eq!(
+            snapshot
+                .get(&partition, encode_property_value_record_key(&property, 1))
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            snapshot
+                .get(&partition, encode_property_value_record_key(&property, 2))
+                .unwrap(),
+            None
+        );
+        let record = snapshot
+            .get(&partition, encode_property_value_record_key(&property, 3))
+            .unwrap()
+            .expect("rollup record");
+        let mut reconstructor = PropertyValueReconstructor::new(limits);
+        reconstructor.push(3, &record).unwrap();
+        let reconstructed = reconstructor.finish().unwrap();
+        assert_eq!(reconstructed.logical_timestamp, Timestamp(3));
+        assert_eq!(reconstructed.value, v_list(&[v_int(1), v_int(2), v_int(3)]));
+        assert_eq!(reconstructed.chain, PropertyValueChain::full(3));
+    }
+
+    #[test]
+    fn rollup_encoding_does_not_use_the_writer_queue() {
+        let (writer_sender, _writer_receiver) = flume::bounded::<WriterMsg>(1);
+        let (barrier_reply, _barrier_receiver) = oneshot::channel();
+        writer_sender
+            .send(WriterMsg::Barrier {
+                through_version: 1,
+                reply: barrier_reply,
+            })
+            .unwrap();
+        assert!(writer_sender.is_full());
+
+        let (rollup_sender, rollup_receiver) = flume::bounded(1);
+        let handle = std::thread::spawn(move || BatchWriter::rollup_encoder_loop(rollup_receiver));
+        let encoder = RollupEncoder {
+            sender: rollup_sender.clone(),
+        };
+        let encoded = encoder
+            .encode(v_list(&[v_int(1), v_int(2)]), Timestamp(9))
+            .unwrap();
+        assert!(!encoded.record.is_empty());
+        assert!(writer_sender.is_full());
+
+        rollup_sender.send(RollupMsg::Stop).unwrap();
+        handle.join().unwrap().unwrap();
     }
 
     struct FailingValue;
