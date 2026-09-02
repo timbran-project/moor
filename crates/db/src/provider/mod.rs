@@ -18,6 +18,7 @@ pub(crate) mod fjall_maintenance;
 pub mod fjall_migration;
 pub mod fjall_provider;
 pub mod fjall_snapshot_loader;
+pub(crate) mod property_value_store;
 
 /// The `Provider` trait is a generic interface for a value store that backs the transactional
 /// front.
