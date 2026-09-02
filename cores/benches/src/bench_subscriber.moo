@@ -17,6 +17,8 @@ object BENCH_SUBSCRIBER [
   property fanout_cursor (owner: ARCH_WIZARD, flags: "rw") = 1;
   property fanout_direct_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
   property history_entry (owner: ARCH_WIZARD, flags: "rw") = "";
+  property history_append_width (owner: ARCH_WIZARD, flags: "rw") = 1;
+  property history_mutation_mode (owner: ARCH_WIZARD, flags: "rw") = 0;
   property history_running (owner: ARCH_WIZARD, flags: "rw") = 0;
   property last_attacker (owner: ARCH_WIZARD, flags: "rw") = #-1;
   property mode (owner: ARCH_WIZARD, flags: "rw") = 0;
@@ -190,7 +192,19 @@ object BENCH_SUBSCRIBER [
     try
       for i in [1..append_count]
         counter = counter + 1;
-        this.string_history = {@this.string_history, this.history_entry + ":" + tostr(counter)};
+        additions = {this.history_entry + ":" + tostr(counter) + ":" + tostr(j) for j in [1..this.history_append_width]};
+        if (this.history_mutation_mode == 1)
+          history = this.string_history;
+          history[1] = additions[1];
+          this.string_history = history;
+        elseif (this.history_mutation_mode == 2)
+          rebuilt = {entry for entry in (this.string_history)};
+          this.string_history = {@rebuilt, @additions};
+        elseif (this.history_append_width == 1)
+          this.string_history = {@this.string_history, additions[1]};
+        else
+          this.string_history = {@this.string_history, @additions};
+        endif
         commit();
         suspend(append_delay);
       endfor
@@ -209,6 +223,8 @@ object BENCH_SUBSCRIBER [
     this.defender_momentum = 50.0;
     this.fanout_cursor = 1;
     this.history_entry = "";
+    this.history_append_width = 1;
+    this.history_mutation_mode = 0;
     this.history_running = 0;
     this.last_attacker = #-1;
     this.string_history = {};

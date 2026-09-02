@@ -8,8 +8,10 @@ starts four writer tasks by default. Each task appends 20 strings to a list that
 distinct strings. Each string contains 2,048 bytes.
 
 Use `HISTORY_WRITERS`, `HISTORY_ENTRIES`, `HISTORY_ENTRY_BYTES`, `HISTORY_APPENDS`, and
-`HISTORY_APPEND_DELAY` to change the workload. The setup phase persists the initial lists before
-the benchmark captures the performance counters.
+`HISTORY_APPEND_DELAY` to change the workload. `HISTORY_APPEND_WIDTH` appends multiple strings in
+one update. `HISTORY_MUTATION_MODE=1` replaces one element, while mode 2 rebuilds the prefix before
+each append. The setup phase persists the initial lists before the benchmark captures the
+performance counters.
 
 Use this command to put pressure on the batch-writer queue:
 

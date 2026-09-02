@@ -248,6 +248,7 @@ object BENCH_CONTROLLER [
         this:log_key_counter_deltas(category_label, delta, {"task_recv_immediate_resume_latency", "task_message_delivery_to_recv_latency", "task_wake_signal_to_dispatch_start_latency", "task_wake_to_dispatch_latency"});
       elseif (category == "db")
         this:log_key_counter_deltas(category_label, delta, {"commit_check_phase", "commit_apply_phase", "commit_process_phase", "commit_wait_phase", "apply_index_insert", "batch_writer_backpressure", "batch_writer_backpressure_block", "provider_pending_ops_read_lock_wait", "provider_pending_ops_write_lock_wait"});
+        this:log_key_counter_deltas(category_label, delta, {"property_list_append_classify", "property_list_append_candidate", "property_list_append_accepted", "property_list_append_suffix_elements", "property_list_append_suffix_bytes", "property_list_append_missing_base", "property_list_append_non_list", "property_list_append_not_longer", "property_list_append_prefix_mismatch", "property_list_append_comparison_budget", "property_value_complete_replacement"});
       endif
     endfor
     this:log_top_counter_deltas(label + ":ops", all_delta, 20);
@@ -362,14 +363,16 @@ object BENCH_CONTROLLER [
 
   method test_string_history_append owner: ARCH_WIZARD
     "Append strings to large list properties from independent tasks.";
-    "Optional args: writers, initial_entries, entry_bytes, appends_per_writer, append_delay, settle_seconds";
+    "Optional args: writers, initial_entries, entry_bytes, appends_per_writer, append_delay, settle_seconds, append_width, mutation_mode";
     writer_count = length(args) > 0 ? toint(args[1]) | 4;
     initial_entries = length(args) > 1 ? toint(args[2]) | 1024;
     entry_bytes = length(args) > 2 ? toint(args[3]) | 2048;
     appends_per_writer = length(args) > 3 ? toint(args[4]) | 20;
     append_delay = length(args) > 4 ? tofloat(args[5]) | 0.0;
     settle_seconds = length(args) > 5 ? tofloat(args[6]) | 5.0;
-    if (writer_count < 1 || initial_entries < 1 || entry_bytes < 1 || appends_per_writer < 1 || append_delay < 0.0 || settle_seconds < 0.0)
+    append_width = length(args) > 6 ? toint(args[7]) | 1;
+    mutation_mode = length(args) > 7 ? toint(args[8]) | 0;
+    if (writer_count < 1 || initial_entries < 1 || entry_bytes < 1 || appends_per_writer < 1 || append_delay < 0.0 || settle_seconds < 0.0 || append_width < 1 || mutation_mode < 0 || mutation_mode > 2)
       raise(E_INVARG, "History benchmark arguments must be positive. Delays can be zero.");
     endif
     server_log("=== STRING HISTORY APPEND BENCHMARK STARTING ===");
@@ -378,6 +381,8 @@ object BENCH_CONTROLLER [
     server_log("Entry bytes: " + tostr(entry_bytes));
     server_log("Appends per writer: " + tostr(appends_per_writer));
     server_log("Append delay: " + tostr(append_delay));
+    server_log("Append width: " + tostr(append_width));
+    server_log("Mutation mode: " + tostr(mutation_mode));
     total_initial_bytes = writer_count * initial_entries * entry_bytes;
     total_appends = writer_count * appends_per_writer;
     server_log("Initial string bytes: " + tostr(total_initial_bytes));
@@ -389,6 +394,8 @@ object BENCH_CONTROLLER [
       seed_history = {this:make_numbered_history_entry(entry, entry_bytes, writer_number, entry_number) for entry_number in [1..initial_entries]};
       writer = create(#667, #2);
       writer.history_entry = this:make_numbered_history_entry(entry, entry_bytes, writer_number, 0);
+      writer.history_append_width = append_width;
+      writer.history_mutation_mode = mutation_mode;
       writer.history_running = 1;
       writer.string_history = seed_history;
       this.subscribers = {@this.subscribers, writer};
@@ -417,7 +424,7 @@ object BENCH_CONTROLLER [
     if (running > 0)
       raise(E_QUOTA, "History benchmark did not complete within 300 seconds.");
     endif
-    expected_entries = initial_entries + appends_per_writer;
+    expected_entries = mutation_mode == 1 ? initial_entries | initial_entries + appends_per_writer * append_width;
     for writer in (this.subscribers)
       if (length(writer.string_history) != expected_entries)
         raise(E_QUOTA, "A history writer did not complete all appends.");
@@ -428,7 +435,7 @@ object BENCH_CONTROLLER [
     suspend(settle_seconds);
     counter_after = this:capture_perf_counters();
     this:log_perf_delta("string_history_append", counter_before, counter_after);
-    server_log("HISTORY_APPEND_RESULT writers=" + tostr(writer_count) + " initial_entries=" + tostr(initial_entries) + " entry_bytes=" + tostr(entry_bytes) + " appends=" + tostr(total_appends) + " producer_elapsed_seconds=" + tostr(elapsed));
+    server_log("HISTORY_APPEND_RESULT writers=" + tostr(writer_count) + " initial_entries=" + tostr(initial_entries) + " entry_bytes=" + tostr(entry_bytes) + " appends=" + tostr(total_appends) + " append_width=" + tostr(append_width) + " mutation_mode=" + tostr(mutation_mode) + " producer_elapsed_seconds=" + tostr(elapsed));
     for writer in (this.subscribers)
       if (valid(writer))
         recycle(writer);
