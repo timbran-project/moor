@@ -213,6 +213,15 @@ where
         self.tuples
     }
 
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        WorkingSetTuples<Domain, Codomain>,
+        Arc<dyn RelationIndex<Domain, Codomain>>,
+    ) {
+        (self.tuples, self.base_index)
+    }
+
     pub fn tuples_ref(&self) -> &WorkingSetTuples<Domain, Codomain> {
         &self.tuples
     }

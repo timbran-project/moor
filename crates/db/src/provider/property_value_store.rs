@@ -18,7 +18,11 @@
     reason = "the record codec is activated by later incremental persistence phases"
 )]
 
-use crate::{ObjAndUUIDHolder, tx::Timestamp};
+use crate::{
+    ObjAndUUIDHolder, db_counters,
+    tx::{OpType, Timestamp, WorkingSet},
+};
+use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
 use moor_schema::convert::{encode_db_var, var_from_db_flatbuffer_ref};
 use moor_var::{List, Var};
 use planus::ReadAsRoot;
@@ -32,6 +36,114 @@ pub(crate) const PROPERTY_RECORD_KEY_BYTES: usize = PROPERTY_KEY_BYTES + size_of
 
 const FULL_RECORD_KIND: u8 = 0;
 const LIST_APPEND_RECORD_KIND: u8 = 1;
+const LIST_APPEND_COMPARISON_BUDGET: usize = 128;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PreparedPropertyValueOp {
+    pub property: ObjAndUUIDHolder,
+    pub mutation: PreparedPropertyValueMutation,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum PreparedPropertyValueMutation {
+    Replace { value: Var },
+    AppendList { suffix: List, final_value: Var },
+    Delete,
+}
+
+pub(crate) fn prepare_property_value_working_set(
+    working_set: WorkingSet<ObjAndUUIDHolder, Var>,
+) -> Vec<PreparedPropertyValueOp> {
+    let operation_count = working_set.len();
+    let (operations, base_index) = working_set.into_parts();
+    let mut prepared = Vec::with_capacity(operation_count);
+
+    for (property, operation) in operations {
+        let base = base_index.index_lookup(&property).map(|entry| &entry.value);
+        prepared.push(PreparedPropertyValueOp {
+            property,
+            mutation: prepare_property_value_mutation(base, operation.operation),
+        });
+    }
+    prepared
+}
+
+fn prepare_property_value_mutation(
+    base: Option<&Var>,
+    operation: OpType<Var>,
+) -> PreparedPropertyValueMutation {
+    let value = match operation {
+        OpType::Delete => return PreparedPropertyValueMutation::Delete,
+        OpType::Insert(value) => {
+            db_counters()
+                .counters
+                .inc(WorldStateCountOp::PropertyValueCompleteReplacement);
+            return PreparedPropertyValueMutation::Replace { value };
+        }
+        OpType::Update(value) => value,
+    };
+
+    if value.op_hint() != moor_var::OP_HINT_LIST_APPEND {
+        db_counters()
+            .counters
+            .inc(WorldStateCountOp::PropertyValueCompleteReplacement);
+        return PreparedPropertyValueMutation::Replace { value };
+    }
+
+    let counters = &db_counters().counters;
+    counters.inc(WorldStateCountOp::PropertyListAppendCandidate);
+    let _classification_timer = db_counters()
+        .timers_rare
+        .start(WorldStateTimerOp::PropertyListAppendClassify);
+    let Some(base) = base else {
+        counters.inc(WorldStateCountOp::PropertyListAppendMissingBase);
+        counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
+        return PreparedPropertyValueMutation::Replace { value };
+    };
+    let (Some(base), Some(final_value)) = (base.as_list(), value.as_list()) else {
+        counters.inc(WorldStateCountOp::PropertyListAppendNonList);
+        counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
+        return PreparedPropertyValueMutation::Replace { value };
+    };
+
+    let suffix = match base.append_suffix(final_value, LIST_APPEND_COMPARISON_BUDGET) {
+        Ok(suffix) => suffix,
+        Err(reason) => {
+            let counter = match reason {
+                moor_var::ListAppendError::NotLonger => {
+                    WorldStateCountOp::PropertyListAppendNotLonger
+                }
+                moor_var::ListAppendError::PrefixMismatch => {
+                    WorldStateCountOp::PropertyListAppendPrefixMismatch
+                }
+                moor_var::ListAppendError::ComparisonBudgetExceeded => {
+                    WorldStateCountOp::PropertyListAppendComparisonBudget
+                }
+            };
+            counters.inc(counter);
+            counters.inc(WorldStateCountOp::PropertyValueCompleteReplacement);
+            return PreparedPropertyValueMutation::Replace { value };
+        }
+    };
+
+    let suffix_bytes = suffix
+        .iter_ref()
+        .map(moor_var::ByteSized::size_bytes)
+        .sum::<usize>();
+    counters.inc(WorldStateCountOp::PropertyListAppendAccepted);
+    counters.add(
+        WorldStateCountOp::PropertyListAppendSuffixElements,
+        isize::try_from(suffix.len()).unwrap_or(isize::MAX),
+    );
+    counters.add(
+        WorldStateCountOp::PropertyListAppendSuffixBytes,
+        isize::try_from(suffix_bytes).unwrap_or(isize::MAX),
+    );
+    PreparedPropertyValueMutation::AppendList {
+        suffix,
+        final_value: value,
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PropertyValueRecordKind {
@@ -388,6 +500,55 @@ mod tests {
 
     fn holder() -> ObjAndUUIDHolder {
         ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1234))
+    }
+
+    #[test]
+    fn prepares_a_shared_list_append() {
+        let base = (0..4096).map(v_int).collect::<List>();
+        let final_value = base.clone().push_owned(&v_int(4096));
+
+        let prepared = prepare_property_value_mutation(
+            Some(&Var::from(base)),
+            OpType::Update(final_value.clone()),
+        );
+
+        let PreparedPropertyValueMutation::AppendList {
+            suffix,
+            final_value: prepared_value,
+        } = prepared
+        else {
+            panic!("expected a prepared list append");
+        };
+        assert_eq!(suffix, List::mk_list(&[v_int(4096)]));
+        assert_eq!(prepared_value, final_value);
+    }
+
+    #[test]
+    fn prepares_replacements_and_deletes() {
+        let replacement = prepare_property_value_mutation(None, OpType::Insert(v_int(7)));
+        assert_eq!(
+            replacement,
+            PreparedPropertyValueMutation::Replace { value: v_int(7) }
+        );
+
+        let rebuilt_base = (0..4096).map(v_int).collect::<List>();
+        let rebuilt_final = (0..4097).map(v_int).collect::<List>();
+        let replacement = prepare_property_value_mutation(
+            Some(&Var::from(rebuilt_base)),
+            OpType::Update(Var::from_list_with_hint(
+                rebuilt_final,
+                moor_var::OP_HINT_LIST_APPEND,
+            )),
+        );
+        assert!(matches!(
+            replacement,
+            PreparedPropertyValueMutation::Replace { .. }
+        ));
+
+        assert_eq!(
+            prepare_property_value_mutation(None, OpType::Delete),
+            PreparedPropertyValueMutation::Delete
+        );
     }
 
     #[test]
