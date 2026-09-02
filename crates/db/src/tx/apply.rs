@@ -63,8 +63,9 @@ where
         for (domain, op) in working_set.tuples().into_iter() {
             match op.operation {
                 OpType::Insert(codomain) | OpType::Update(codomain) => {
-                    self.source.put(op.write_ts, &domain, &codomain).ok();
-                    inserts.push((op.write_ts, domain, codomain));
+                    let committed = codomain.clone_for_commit();
+                    self.source.put(op.write_ts, &domain, &committed).ok();
+                    inserts.push((op.write_ts, domain, committed));
                 }
                 OpType::Delete => {
                     self.source.del(op.write_ts, &domain).unwrap();
@@ -95,7 +96,7 @@ where
         for (domain, op) in working_set.tuples_ref().iter() {
             match &op.operation {
                 OpType::Insert(codomain) | OpType::Update(codomain) => {
-                    inserts.push((op.write_ts, domain.clone(), codomain.clone()));
+                    inserts.push((op.write_ts, domain.clone(), codomain.clone_for_commit()));
                 }
                 OpType::Delete => {
                     tombstones.push((op.write_ts, domain.clone()));
@@ -142,7 +143,7 @@ where
         for (domain, op) in working_set.tuples_ref().iter() {
             match &op.operation {
                 OpType::Insert(codomain) | OpType::Update(codomain) => {
-                    inserts.push((op.write_ts, domain.clone(), codomain.clone()));
+                    inserts.push((op.write_ts, domain.clone(), codomain.clone_for_commit()));
                 }
                 OpType::Delete => {
                     tombstones.push((op.write_ts, domain.clone()));
