@@ -18,7 +18,13 @@ use uuid::Uuid;
 
 use crate::{
     EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
-    provider::fjall_provider::{FjallCodec, decode_fjall_value, split_fjall_value},
+    provider::{
+        fjall_provider::{FjallCodec, decode_fjall_value, split_fjall_value},
+        property_value_store::{
+            PROPERTY_VALUE_CHAIN_LIMITS, PropertyValueScan, property_value_record_bounds,
+            reconstruct_property_value,
+        },
+    },
     tx::{EncodeFor, Error, Timestamp},
 };
 use moor_common::{
@@ -34,6 +40,7 @@ use moor_common::{
 };
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 use planus::ReadAsRoot;
+use zerocopy::IntoBytes;
 
 /// A snapshot-based implementation of LoaderInterface for read-only database access
 pub struct FjallSnapshotLoader {
@@ -62,7 +69,7 @@ struct FjallSnapshotExportSession {
     verbdefs: ObjectRelationCursor<Vec<SnapshotVerbDefinition>>,
     propdefs: PropertyDefinitionIndex,
     programs: ObjectUuidRelationCursor<ProgramType>,
-    values: ObjectUuidRelationCursor<Var>,
+    values: PropertyValueCursor,
     permissions: ObjectUuidRelationCursor<PropPerms>,
     entity_metadata: ObjectMetadataCursor,
     property_uuid_scratch: Vec<Uuid>,
@@ -514,6 +521,53 @@ where
                 Ordering::Less => self.pending = None,
                 Ordering::Equal => {
                     let (_, holder, value) = self.pending.take().expect("pending relation entry");
+                    values.push((holder.uuid(), Some(value)));
+                }
+                Ordering::Greater => break,
+            }
+        }
+        Ok(UuidValues(values))
+    }
+}
+
+struct PropertyValueCursor {
+    scan: PropertyValueScan,
+    pending: Option<(ObjectOrderKey, ObjAndUUIDHolder, Var)>,
+}
+
+impl PropertyValueCursor {
+    fn new(snapshot: &fjall::Snapshot, keyspace: &fjall::Keyspace) -> Self {
+        Self {
+            scan: PropertyValueScan::new(snapshot.iter(keyspace), PROPERTY_VALUE_CHAIN_LIMITS),
+            pending: None,
+        }
+    }
+
+    fn next_entry(
+        &mut self,
+    ) -> Result<Option<(ObjectOrderKey, ObjAndUUIDHolder, Var)>, WorldStateError> {
+        let Some(entry) = self.scan.next() else {
+            return Ok(None);
+        };
+        let (property, reconstructed) =
+            entry.map_err(|error| WorldStateError::DatabaseError(error.to_string()))?;
+        let order_key = object_order_key(property.obj.as_bytes())?;
+        Ok(Some((order_key, property, reconstructed.value)))
+    }
+
+    fn take_object(&mut self, target: &ObjectOrderKey) -> Result<UuidValues<Var>, WorldStateError> {
+        let mut values = Vec::new();
+        loop {
+            if self.pending.is_none() {
+                self.pending = self.next_entry()?;
+            }
+            let Some((order_key, _, _)) = self.pending.as_ref() else {
+                break;
+            };
+            match order_key.cmp(target) {
+                Ordering::Less => self.pending = None,
+                Ordering::Equal => {
+                    let (_, holder, value) = self.pending.take().expect("pending property value");
                     values.push((holder.uuid(), Some(value)));
                 }
                 Ordering::Greater => break,
@@ -1029,10 +1083,7 @@ impl FjallSnapshotExportSession {
                 &loader.snapshot,
                 &loader.object_verbs_keyspace,
             ),
-            values: ObjectUuidRelationCursor::new(
-                &loader.snapshot,
-                &loader.object_propvalues_keyspace,
-            ),
+            values: PropertyValueCursor::new(&loader.snapshot, &loader.object_propvalues_keyspace),
             permissions: ObjectUuidRelationCursor::new(
                 &loader.snapshot,
                 &loader.object_propflags_keyspace,
@@ -1179,6 +1230,28 @@ impl FjallSnapshotLoader {
         Ok(Some(codomain))
     }
 
+    fn get_property_value(
+        &self,
+        property: &ObjAndUUIDHolder,
+    ) -> Result<Option<Var>, WorldStateError> {
+        let (start, end) = property_value_record_bounds(property);
+        let reconstructed = reconstruct_property_value(
+            self.snapshot
+                .range(&self.object_propvalues_keyspace, start..=end),
+            PROPERTY_VALUE_CHAIN_LIMITS,
+        )
+        .map_err(|error| WorldStateError::DatabaseError(error.to_string()))?;
+        let Some((stored_property, reconstructed)) = reconstructed else {
+            return Ok(None);
+        };
+        if stored_property != *property {
+            return Err(WorldStateError::DatabaseError(
+                "Property-value range returned a different property".to_string(),
+            ));
+        }
+        Ok(Some(reconstructed.value))
+    }
+
     // Individual getter methods for each keyspace
     fn get_object_owner(&self, objid: &Obj) -> Result<Obj, WorldStateError> {
         Ok(self
@@ -1247,8 +1320,7 @@ impl FjallSnapshotLoader {
         let key = ObjAndUUIDHolder::new(obj, uuid);
 
         // Get property value
-        let value = self
-            .get_from_snapshot::<ObjAndUUIDHolder, Var>(&self.object_propvalues_keyspace, &key)?;
+        let value = self.get_property_value(&key)?;
 
         // Get property permissions - if not found, this property doesn't exist on this object
         let Some(perms) = self.get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(

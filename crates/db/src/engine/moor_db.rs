@@ -29,11 +29,9 @@ use crate::{
 use crate::{
     engine::relation_defs::define_relations,
     provider::{
-        Migrator,
-        batch_writer::BatchWriter,
-        fjall_migration::{self, FjallMigrator},
-        fjall_provider::FjallProvider,
+        batch_writer::BatchWriter, fjall_format, fjall_provider::FjallProvider,
         fjall_snapshot_loader::FjallSnapshotLoader,
+        property_value_store::PROPERTY_VALUE_CHAIN_LIMITS,
     },
 };
 use fjall::{Database, KeyspaceCreateOptions};
@@ -140,8 +138,6 @@ impl Caches {
 }
 
 const SEQUENCE_COUNT: usize = 15;
-const TUPLE_VALUE_FORMAT_KEY: &[u8] = b"__tuple_value_format__";
-const TUPLE_VALUE_FORMAT: &[u8] = b"timestamp-suffix-object-keys-v2";
 
 pub(crate) struct SequenceState {
     values: [CachePadded<AtomicI64>; SEQUENCE_COUNT],
@@ -320,13 +316,9 @@ impl MoorDB {
         let path = path.unwrap_or_else(|| tmpdir.as_ref().unwrap().path());
         let path_buf = path.to_path_buf();
 
-        // Check and perform migration BEFORE opening the database
-        // This ensures migration happens atomically via copy-and-swap
-        fjall_migration::fjall_check_and_migrate(path).map_err(|e| {
-            DatabaseOpenError::Migration {
-                path: path_buf.clone(),
-                detail: e.to_string(),
-            }
+        fjall_format::fjall_check_format(path).map_err(|e| DatabaseOpenError::Format {
+            path: path_buf.clone(),
+            detail: e.to_string(),
         })?;
 
         let keyspace = Database::builder(path)
@@ -351,46 +343,7 @@ impl MoorDB {
             fresh = true;
         }
 
-        if fresh {
-            sequences_partition
-                .insert(TUPLE_VALUE_FORMAT_KEY, TUPLE_VALUE_FORMAT)
-                .map_err(|error| DatabaseOpenError::TupleValueFormat {
-                    path: path_buf.clone(),
-                    detail: format!("failed to write format marker: {error}"),
-                })?;
-        } else {
-            let stored_format =
-                sequences_partition
-                    .get(TUPLE_VALUE_FORMAT_KEY)
-                    .map_err(|error| DatabaseOpenError::TupleValueFormat {
-                        path: path_buf.clone(),
-                        detail: format!("failed to read format marker: {error}"),
-                    })?;
-            if stored_format.as_deref() != Some(TUPLE_VALUE_FORMAT) {
-                let found = stored_format
-                    .as_deref()
-                    .map(String::from_utf8_lossy)
-                    .map_or_else(|| "missing".to_string(), |value| value.into_owned());
-                return Err(DatabaseOpenError::TupleValueFormat {
-                    path: path_buf,
-                    detail: format!(
-                        "expected {}, found {found}",
-                        String::from_utf8_lossy(TUPLE_VALUE_FORMAT)
-                    ),
-                });
-            }
-        }
-
-        if fresh {
-            // Fresh database - mark it with the current version
-            let migrator = FjallMigrator::new(keyspace.clone(), sequences_partition.clone());
-            migrator
-                .mark_current_version()
-                .map_err(|e| DatabaseOpenError::MarkVersion {
-                    path: path_buf.clone(),
-                    detail: e.to_string(),
-                })?;
-        } else {
+        if !fresh {
             // Load sequences from existing database
             for i in 0..SEQUENCE_COUNT {
                 let seq_value = sequences_partition
@@ -417,7 +370,7 @@ impl MoorDB {
         }
 
         let relations = Relations::init(&keyspace, &config, &path_buf)?;
-        let initial_root =
+        let (initial_root, property_value_chains) =
             relations.snapshot(0, Timestamp(0), Arc::new(Caches::new()), &path_buf)?;
         let start_tx_num = initial_root
             .committed_ts
@@ -434,7 +387,12 @@ impl MoorDB {
             .map(|definition| (definition.uuid(), definition.name()))
             .collect();
         let snapshot_planes = SnapshotPlanes::new(Arc::new(initial_root));
-        let batch_writer = BatchWriter::with_property_names(keyspace.clone(), property_names);
+        let batch_writer = BatchWriter::with_property_value_state(
+            keyspace.clone(),
+            property_names,
+            property_value_chains,
+            PROPERTY_VALUE_CHAIN_LIMITS,
+        );
 
         let s = Arc::new(Self {
             monotonic: CachePadded::new(AtomicU64::new(start_tx_num)),
@@ -521,12 +479,37 @@ impl Drop for MoorDB {
 mod tests {
     use super::*;
     use crate::engine::relation_defs::RebaseCheck;
+    use crate::provider::property_value_store::{
+        PropertyValueRecordKind, decode_property_value_record, decode_property_value_record_key,
+    };
     use fjall::PersistMode;
     use moor_common::{
         model::{CommitResult, ObjAttrs, ObjectKind, PropFlag},
         util::BitEnum,
     };
-    use moor_var::{NOTHING, Obj, Symbol, v_int};
+    use moor_var::{NOTHING, Obj, Symbol, v_int, v_list};
+
+    fn property_value_records(
+        db: &MoorDB,
+    ) -> Vec<(ObjAndUUIDHolder, u64, PropertyValueRecordKind, Timestamp)> {
+        db.relations
+            .object_propvalues
+            .provider()
+            .partition()
+            .iter()
+            .map(|entry| {
+                let (key, value) = entry.into_inner().unwrap();
+                let key = decode_property_value_record_key(&key).unwrap();
+                let value = decode_property_value_record(&value).unwrap();
+                (
+                    key.property,
+                    key.record_version,
+                    value.kind,
+                    value.logical_timestamp,
+                )
+            })
+            .collect()
+    }
 
     #[test]
     fn sequence_increment_returns_each_reserved_value_once() {
@@ -589,7 +572,181 @@ mod tests {
     }
 
     #[test]
-    fn reopen_rejects_a_missing_tuple_value_format_marker() {
+    fn property_append_chain_survives_snapshot_export_and_reopen() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "append test"),
+            )
+            .unwrap();
+        let property_uuid = tx
+            .define_property(
+                &object,
+                &object,
+                Symbol::mk("values"),
+                &object,
+                BitEnum::new(),
+                Some(v_list(&[v_int(1), v_int(2)])),
+            )
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        let mut tx = db.start_transaction();
+        let current = tx
+            .retrieve_property(&object, property_uuid)
+            .unwrap()
+            .0
+            .unwrap();
+        let appended = current.push(&v_int(3)).unwrap();
+        tx.set_property(&object, property_uuid, appended.clone())
+            .unwrap();
+        let CommitResult::Success {
+            timestamp: append_timestamp,
+            ..
+        } = tx.commit().unwrap()
+        else {
+            panic!("append transaction did not commit");
+        };
+        db.wait_for_persistence().unwrap();
+
+        let property = ObjAndUUIDHolder::new(&object, property_uuid);
+        let records = property_value_records(&db);
+        assert_eq!(records.len(), 2);
+        assert!(records.iter().all(|(stored, ..)| stored == &property));
+        assert_eq!(records[0].2, PropertyValueRecordKind::Full);
+        assert_eq!(records[1].2, PropertyValueRecordKind::ListAppend);
+        assert_eq!(records[1].3, Timestamp(append_timestamp));
+
+        let snapshot = db.create_snapshot().unwrap();
+        assert_eq!(
+            snapshot
+                .get_property_value(&object, property_uuid)
+                .unwrap()
+                .0,
+            Some(appended.clone())
+        );
+        let mut export = snapshot.begin_export(&[]).unwrap();
+        let exported = export.next_object().unwrap().unwrap();
+        let exported_property = exported
+            .properties
+            .iter()
+            .find(|property| property.definition.uuid() == property_uuid)
+            .unwrap();
+        assert_eq!(exported_property.value, Some(appended.clone()));
+        assert!(export.next_object().unwrap().is_none());
+        drop(export);
+        drop(snapshot);
+
+        let old_max_version = records.iter().map(|record| record.1).max().unwrap();
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let root = reopened.snapshot_planes.load_root();
+        let recovered = root.object_propvalues.index_lookup(&property).unwrap();
+        assert_eq!(recovered.value, appended);
+        assert_eq!(recovered.ts, Timestamp(append_timestamp));
+
+        let mut tx = reopened.start_transaction();
+        let current = tx
+            .retrieve_property(&object, property_uuid)
+            .unwrap()
+            .0
+            .unwrap();
+        let appended_again = current.push(&v_int(4)).unwrap();
+        tx.set_property(&object, property_uuid, appended_again.clone())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        reopened.wait_for_persistence().unwrap();
+
+        let records = property_value_records(&reopened);
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[2].2, PropertyValueRecordKind::ListAppend);
+        assert!(records[2].1 > old_max_version);
+        assert_eq!(
+            reopened
+                .create_snapshot()
+                .unwrap()
+                .get_property_value(&object, property_uuid)
+                .unwrap()
+                .0,
+            Some(appended_again)
+        );
+
+        let mut tx = reopened.start_transaction();
+        tx.set_property(&object, property_uuid, v_list(&[v_int(99)]))
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        reopened.wait_for_persistence().unwrap();
+        let records = property_value_records(&reopened);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].2, PropertyValueRecordKind::Full);
+
+        let mut tx = reopened.start_transaction();
+        tx.clear_property(&object, property_uuid).unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        reopened.wait_for_persistence().unwrap();
+        assert!(property_value_records(&reopened).is_empty());
+    }
+
+    #[test]
+    fn reopen_rejects_a_corrupt_property_value_chain() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        tx.define_property(
+            &object,
+            &object,
+            Symbol::mk("value"),
+            &object,
+            BitEnum::new(),
+            Some(v_int(1)),
+        )
+        .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.stop().unwrap();
+        drop(db);
+
+        let database = Database::builder(path).open().unwrap();
+        let values = database
+            .keyspace("object_propvalues", KeyspaceCreateOptions::default)
+            .unwrap();
+        let (key, _) = values.iter().next().unwrap().into_inner().unwrap();
+        values.insert(key, b"corrupt").unwrap();
+        database.persist(PersistMode::SyncAll).unwrap();
+        drop(values);
+        drop(database);
+
+        let Err(error) = MoorDB::try_open(Some(path), DatabaseConfig::default()) else {
+            panic!("database with a corrupt property-value chain was accepted");
+        };
+        assert!(matches!(
+            error,
+            DatabaseOpenError::SeedRelation {
+                relation: "object_propvalues",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn reopen_rejects_a_missing_database_format_marker() {
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path();
         let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
@@ -602,15 +759,15 @@ mod tests {
         let sequences = database
             .keyspace("sequences", KeyspaceCreateOptions::default)
             .unwrap();
-        sequences.remove(TUPLE_VALUE_FORMAT_KEY).unwrap();
+        sequences.remove(b"__db_version__").unwrap();
         database.persist(PersistMode::SyncAll).unwrap();
         drop(sequences);
         drop(database);
 
         let Err(error) = MoorDB::try_open(Some(path), DatabaseConfig::default()) else {
-            panic!("database without a tuple value format marker was accepted");
+            panic!("database without a format marker was accepted");
         };
-        assert!(matches!(error, DatabaseOpenError::TupleValueFormat { .. }));
+        assert!(matches!(error, DatabaseOpenError::Format { .. }));
     }
 
     #[test]

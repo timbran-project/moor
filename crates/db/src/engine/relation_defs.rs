@@ -113,6 +113,27 @@ where
 /// The macro requires the `paste` crate for token concatenation to generate
 /// unique variable names for each relation during initialization.
 macro_rules! define_relations {
+    (@seed_relation object_propvalues, $this:expr, $db_path:ident, $committed_ts:ident, $index:ident, $max_timestamp:ident) => {};
+
+    (@seed_relation $field:ident, $this:expr, $db_path:ident, $committed_ts:ident, $index:ident, $max_timestamp:ident) => {
+        let ($index, $max_timestamp) = $this.$field
+            .seeded_index_with_max_timestamp()
+            .map_err(|e| crate::DatabaseOpenError::SeedRelation {
+                path: $db_path.to_path_buf(),
+                relation: stringify!($field),
+                detail: e.to_string(),
+            })?;
+        $committed_ts = $committed_ts.max($max_timestamp);
+    };
+
+    (@encode_working_set object_propvalues, $provider:expr, $working_set:expr) => {
+        Ok::<_, crate::tx::Error>($provider.encode_property_value_working_set($working_set))
+    };
+
+    (@encode_working_set $field:ident, $provider:expr, $working_set:expr) => {
+        $provider.encode_working_set($working_set)
+    };
+
     // Entry point: parse all items
     (
         $(
@@ -450,27 +471,53 @@ macro_rules! define_relations {
                     committed_ts: crate::tx::Timestamp,
                     caches: std::sync::Arc<crate::engine::moor_db::Caches>,
                     db_path: &std::path::Path,
-                ) -> Result<WorldStateSnapshot, crate::DatabaseOpenError> {
+                ) -> Result<
+                    (
+                        WorldStateSnapshot,
+                        ahash::AHashMap<
+                            crate::ObjAndUUIDHolder,
+                            crate::provider::property_value_store::PropertyValueChain,
+                        >,
+                    ),
+                    crate::DatabaseOpenError,
+                > {
                     let mut committed_ts = committed_ts;
+                    let (
+                        object_propvalues_index,
+                        object_propvalues_max_timestamp,
+                        property_value_chains,
+                    ) = self
+                        .object_propvalues
+                        .provider()
+                        .seeded_property_value_index()
+                        .map_err(|e| crate::DatabaseOpenError::SeedRelation {
+                            path: db_path.to_path_buf(),
+                            relation: "object_propvalues",
+                            detail: e.to_string(),
+                        })?;
+                    committed_ts = committed_ts.max(object_propvalues_max_timestamp);
                     $(
-                        let ([<$field _index>], [<$field _max_timestamp>]) = self.$field
-                            .seeded_index_with_max_timestamp()
-                            .map_err(|e| crate::DatabaseOpenError::SeedRelation {
-                                path: db_path.to_path_buf(),
-                                relation: stringify!($field),
-                                detail: e.to_string(),
-                            })?;
-                        committed_ts = committed_ts.max([<$field _max_timestamp>]);
+                        define_relations!(@seed_relation
+                            $field,
+                            self,
+                            db_path,
+                            committed_ts,
+                            [<$field _index>],
+                            [<$field _max_timestamp>]
+                        );
                     )*
 
-                    Ok(WorldStateSnapshot {
-                        version,
-                        committed_ts,
-                        caches,
-                        $( $field: std::sync::Arc::from([<$field _index>]), )*
-                        commit_bloom: None,
-                        bloom_since_version: 0,
-                    })
+                    Ok((
+                        WorldStateSnapshot {
+                            version,
+                            committed_ts,
+                            caches,
+                            $( $field: std::sync::Arc::from([<$field _index>]), )*
+                            commit_bloom: None,
+                            bloom_since_version: 0,
+                        },
+                        property_value_chains,
+                    ))
                 }
 
                 fn snapshot_with_all_fully_loaded(
@@ -523,9 +570,11 @@ macro_rules! define_relations {
                     $(
                         if !working_sets.$field.is_empty() {
                             all_ops.extend(
-                                self.$field
-                                    .provider()
-                                    .encode_working_set(working_sets.$field)?,
+                                define_relations!(@encode_working_set
+                                    $field,
+                                    self.$field.provider(),
+                                    working_sets.$field
+                                )?,
                             );
                         }
                     )*

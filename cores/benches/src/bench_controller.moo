@@ -249,6 +249,7 @@ object BENCH_CONTROLLER [
       elseif (category == "db")
         this:log_key_counter_deltas(category_label, delta, {"commit_check_phase", "commit_apply_phase", "commit_process_phase", "commit_wait_phase", "apply_index_insert", "batch_writer_backpressure", "batch_writer_backpressure_block", "provider_pending_ops_read_lock_wait", "provider_pending_ops_write_lock_wait"});
         this:log_key_counter_deltas(category_label, delta, {"property_list_append_classify", "property_list_append_candidate", "property_list_append_accepted", "property_list_append_suffix_elements", "property_list_append_suffix_bytes", "property_list_append_missing_base", "property_list_append_non_list", "property_list_append_not_longer", "property_list_append_prefix_mismatch", "property_list_append_comparison_budget", "property_value_complete_replacement"});
+        this:log_key_counter_deltas(category_label, delta, {"property_value_full_encoded_bytes", "property_value_append_encoded_bytes", "property_value_foreground_rollup", "property_value_rollup_encode", "property_value_reconstruct", "property_value_reconstructed_records"});
       endif
     endfor
     this:log_top_counter_deltas(label + ":ops", all_delta, 20);

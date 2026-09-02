@@ -75,6 +75,7 @@ byteview.workspace = true
 paste.workspace = true
 rand.workspace = true
 semver.workspace = true
+smallvec.workspace = true
 uuid.workspace = true
 zerocopy.workspace = true
 
