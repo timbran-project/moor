@@ -31,6 +31,19 @@ use std::{
 #[repr(transparent)]
 pub struct List(Box<imbl::Vector<Var>>);
 
+const SMALL_APPEND_MAX_ELEMENTS: usize = 64;
+
+/// Reason that a candidate list update cannot use append-only persistence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ListAppendError {
+    /// The candidate does not add elements.
+    NotLonger,
+    /// The existing list is not a prefix of the candidate.
+    PrefixMismatch,
+    /// Prefix validation needs more element comparisons than the caller permits.
+    ComparisonBudgetExceeded,
+}
+
 impl List {
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -58,6 +71,49 @@ impl List {
 
     pub fn iter_ref(&self) -> impl ExactSizeIterator<Item = &Var> + '_ {
         self.0.iter()
+    }
+
+    /// Return the suffix added to this list after a bounded prefix comparison.
+    ///
+    /// Shared RRB-tree chunks need no element comparisons. The comparison budget
+    /// limits work on changed or independently constructed chunks.
+    pub fn append_suffix(
+        &self,
+        candidate: &Self,
+        mut comparison_budget: usize,
+    ) -> Result<Self, ListAppendError> {
+        let prefix_len = self.len();
+        if candidate.len() <= prefix_len {
+            return Err(ListAppendError::NotLonger);
+        }
+
+        let mut prefix_focus = self.0.focus();
+        let mut candidate_focus = candidate.0.focus();
+        let mut index = 0;
+
+        while index < prefix_len {
+            let (prefix_range, prefix_chunk) = prefix_focus.chunk_at(index);
+            let (candidate_range, candidate_chunk) = candidate_focus.chunk_at(index);
+            let end = prefix_len.min(prefix_range.end).min(candidate_range.end);
+            let prefix_slice = &prefix_chunk[index - prefix_range.start..end - prefix_range.start];
+            let candidate_slice =
+                &candidate_chunk[index - candidate_range.start..end - candidate_range.start];
+
+            let chunks_are_shared = std::ptr::eq(prefix_slice.as_ptr(), candidate_slice.as_ptr());
+            if !chunks_are_shared {
+                let comparisons = end - index;
+                if comparisons > comparison_budget {
+                    return Err(ListAppendError::ComparisonBudgetExceeded);
+                }
+                comparison_budget -= comparisons;
+                if prefix_slice != candidate_slice {
+                    return Err(ListAppendError::PrefixMismatch);
+                }
+            }
+            index = end;
+        }
+
+        Ok(Self(Box::new(candidate.0.skip(prefix_len))))
     }
 
     #[inline]
@@ -100,7 +156,13 @@ impl List {
             return Err(E_TYPE.msg("attempt to append non-list"));
         };
         let mut v = *self.0;
-        v.append(other.0.as_ref().clone());
+        if other.len() <= SMALL_APPEND_MAX_ELEMENTS {
+            for value in other.iter_ref() {
+                v.push_back(value.clone());
+            }
+        } else {
+            v.append(other.0.as_ref().clone());
+        }
         Ok(Var::from_list_with_hint(
             List(Box::new(v)),
             OP_HINT_LIST_APPEND,
@@ -380,7 +442,7 @@ impl std::iter::FromIterator<Var> for List {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Error, IndexMode, List, Sequence,
+        Error, IndexMode, List, ListAppendError, Sequence,
         error::ErrorCode::{E_RANGE, E_TYPE},
         v_bool_int,
         variant::Variant,
@@ -423,6 +485,67 @@ mod tests {
         assert_ne!(l1, l3);
         assert_ne!(l1, l4);
         assert_ne!(l1, l5);
+    }
+
+    #[test]
+    fn append_suffix_uses_shared_chunks() {
+        let base = (0..4096).map(Var::mk_integer).collect::<List>();
+        let candidate = base.clone().push_owned(&Var::mk_integer(4096));
+        let candidate = candidate.as_list().unwrap();
+
+        let suffix = base.append_suffix(candidate, 128).unwrap();
+
+        assert_eq!(suffix.len(), 1);
+        assert_eq!(suffix[0], Var::mk_integer(4096));
+    }
+
+    #[test]
+    fn append_suffix_uses_shared_chunks_for_small_list_append() {
+        let base = (0..4096).map(Var::mk_integer).collect::<List>();
+        let suffix = (4096..4100).map(Var::mk_integer).collect::<List>();
+        let candidate = base.clone().append_owned(&Var::from(suffix)).unwrap();
+        let candidate = candidate.as_list().unwrap();
+
+        let suffix = base.append_suffix(candidate, 128).unwrap();
+
+        assert_eq!(suffix.len(), 4);
+        assert_eq!(suffix[0], Var::mk_integer(4096));
+        assert_eq!(suffix[3], Var::mk_integer(4099));
+    }
+
+    #[test]
+    fn append_suffix_accepts_small_independent_lists() {
+        let base = (0..8).map(Var::mk_integer).collect::<List>();
+        let candidate = (0..9).map(Var::mk_integer).collect::<List>();
+
+        let suffix = base.append_suffix(&candidate, 8).unwrap();
+
+        assert_eq!(suffix.len(), 1);
+        assert_eq!(suffix[0], Var::mk_integer(8));
+    }
+
+    #[test]
+    fn append_suffix_rejects_changed_prefix() {
+        let base = (0..8).map(Var::mk_integer).collect::<List>();
+        let mut values = (0..9).map(Var::mk_integer).collect::<Vec<_>>();
+        values[4] = Var::mk_integer(99);
+        let candidate = values.into_iter().collect::<List>();
+
+        assert_eq!(
+            base.append_suffix(&candidate, 8),
+            Err(ListAppendError::PrefixMismatch)
+        );
+    }
+
+    #[test]
+    fn append_suffix_bounds_independent_prefix_work() {
+        let base = (0..4096).map(Var::mk_integer).collect::<List>();
+        let candidate = (0..4097).map(Var::mk_integer).collect::<List>();
+
+        assert_eq!(
+            base.append_suffix(&candidate, 128),
+            Err(ListAppendError::ComparisonBudgetExceeded)
+        );
     }
 
     #[test]

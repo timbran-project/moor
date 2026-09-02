@@ -15,6 +15,8 @@ HISTORY_ENTRY_BYTES ?= 2048
 HISTORY_APPENDS ?= 20
 HISTORY_APPEND_DELAY ?= 0
 HISTORY_SETTLE_SECONDS ?= 5
+HISTORY_APPEND_WIDTH ?= 1
+HISTORY_MUTATION_MODE ?= 0
 HISTORY_TIMEOUT ?= 360
 FANOUT ?= 4
 CHECKS_PER_TICK ?= 2
@@ -58,7 +60,7 @@ bench-write-stress: $(SRC_FILES)
 
 bench-string-history: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
-	--test-wizard=2 --run-tests true --test-filter "#668:test_string_history_append" --test-timeout $(HISTORY_TIMEOUT) --test-args "{$(HISTORY_WRITERS), $(HISTORY_ENTRIES), $(HISTORY_ENTRY_BYTES), $(HISTORY_APPENDS), $(HISTORY_APPEND_DELAY), $(HISTORY_SETTLE_SECONDS)}"
+	--test-wizard=2 --run-tests true --test-filter "#668:test_string_history_append" --test-timeout $(HISTORY_TIMEOUT) --test-args "{$(HISTORY_WRITERS), $(HISTORY_ENTRIES), $(HISTORY_ENTRY_BYTES), $(HISTORY_APPENDS), $(HISTORY_APPEND_DELAY), $(HISTORY_SETTLE_SECONDS), $(HISTORY_APPEND_WIDTH), $(HISTORY_MUTATION_MODE)}"
 
 bench-combat-stress: $(SRC_FILES)
 	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \

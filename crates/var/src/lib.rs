@@ -33,7 +33,7 @@ pub use diff::{ValueDiffOptions, value_diff, value_diff3};
 pub use error::{Error, ErrorCode, ErrorCode::*};
 pub use flyweight::Flyweight;
 pub use lambda::Lambda;
-pub use list::List;
+pub use list::{List, ListAppendError};
 pub use map::Map;
 pub use obj::{AMBIGUOUS, AnonymousObjid, FAILED_MATCH, NOTHING, Obj, SYSTEM_OBJECT, UuObjid};
 use std::fmt::Debug;

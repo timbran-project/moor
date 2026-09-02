@@ -1566,7 +1566,7 @@ impl Var {
     #[cold]
     #[inline(never)]
     fn clone_complex(&self) -> Self {
-        match self.tag {
+        let mut cloned = match self.tag {
             // Str, List, Map, Lambda: data contains transmuted value, clone = Arc bump
             TAG_STR => {
                 let s = unsafe { &*(&self.data as *const u64 as *const string::Str) };
@@ -1610,7 +1610,9 @@ impl Var {
                 }
             }
             _ => unreachable!("clone_complex called on simple type"),
-        }
+        };
+        cloned.meta = self.meta;
+        cloned
     }
 
     #[cold]
@@ -2170,6 +2172,8 @@ mod tests {
 
         let pushed = base.clone().push_owned(&v_int(4)).unwrap();
         assert_eq!(pushed, v_list(&[v_int(1), v_int(2), v_int(3), v_int(4)]));
+        assert_eq!(pushed.op_hint(), OP_HINT_LIST_APPEND);
+        assert_eq!(pushed.clone().op_hint(), OP_HINT_LIST_APPEND);
 
         let inserted = base
             .clone()
