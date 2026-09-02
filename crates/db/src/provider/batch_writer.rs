@@ -32,15 +32,14 @@ use ahash::AHashMap;
 use flume::{Receiver, Sender};
 use moor_common::model::HasUuid;
 use moor_common::threading::spawn_efficient;
-use moor_common::util::Timestamp as MonoTimestamp;
 use moor_var::{Obj, Symbol};
 use parking_lot::Mutex;
-use tracing::{error, trace, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::db_counters;
 use crate::engine::property_definitions::PropertyDefinitionChange;
 use crate::tx::{Error, Timestamp};
+use crate::{DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, db_counters};
 use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
 
 /// A single operation to be written to fjall.
@@ -292,7 +291,10 @@ enum WriterMsg {
 }
 
 enum EncoderMsg {
-    Commit(CommitBatch),
+    Commit {
+        batch: CommitBatch,
+        admission: CommitAdmission,
+    },
     Stop,
 }
 
@@ -300,6 +302,202 @@ const RECEIVE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const ENCODE_QUEUE_CAPACITY: usize = 1000;
 const WRITER_QUEUE_CAPACITY: usize = 64;
 const MAX_ENCODER_THREADS: usize = 8;
+
+#[derive(Clone, Copy, Debug)]
+struct CommitAdmissionPolicy {
+    warn_after: Duration,
+    timeout: Duration,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum CommitAdmissionError {
+    #[error("database commit queue remained full for {waited:?}")]
+    Timeout { waited: Duration },
+    #[error("database commit queue admission is unavailable")]
+    Unavailable,
+}
+
+pub(crate) struct CommitAdmission {
+    return_to: Sender<()>,
+}
+
+impl Drop for CommitAdmission {
+    fn drop(&mut self) {
+        let _ = self.return_to.try_send(());
+    }
+}
+
+#[derive(Default)]
+struct BackpressureEpisode {
+    started_at: Option<Instant>,
+    waiters: usize,
+    rejected: usize,
+    warned: bool,
+}
+
+struct CommitAdmissionGate {
+    available: Receiver<()>,
+    return_to: Sender<()>,
+    capacity: usize,
+    warn_after_nanos: AtomicU64,
+    timeout_nanos: AtomicU64,
+    episode: Mutex<BackpressureEpisode>,
+}
+
+impl CommitAdmissionGate {
+    fn new(capacity: usize, policy: CommitAdmissionPolicy) -> Self {
+        let (return_to, available) = flume::bounded(capacity);
+        for _ in 0..capacity {
+            return_to
+                .send(())
+                .expect("commit admission token channel must accept its initial capacity");
+        }
+        Self {
+            available,
+            return_to,
+            capacity,
+            warn_after_nanos: AtomicU64::new(Self::duration_nanos(policy.warn_after)),
+            timeout_nanos: AtomicU64::new(Self::duration_nanos(policy.timeout)),
+            episode: Mutex::new(BackpressureEpisode::default()),
+        }
+    }
+
+    fn duration_nanos(duration: Duration) -> u64 {
+        u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX)
+    }
+
+    fn duration_from_nanos(nanos: u64) -> Duration {
+        Duration::from_nanos(nanos)
+    }
+
+    fn set_policy(&self, warn_after: Duration, timeout: Duration) {
+        self.warn_after_nanos
+            .store(Self::duration_nanos(warn_after), Ordering::Release);
+        self.timeout_nanos
+            .store(Self::duration_nanos(timeout), Ordering::Release);
+    }
+
+    fn policy(&self) -> CommitAdmissionPolicy {
+        CommitAdmissionPolicy {
+            warn_after: Self::duration_from_nanos(self.warn_after_nanos.load(Ordering::Acquire)),
+            timeout: Self::duration_from_nanos(self.timeout_nanos.load(Ordering::Acquire)),
+        }
+    }
+
+    fn permit(&self) -> CommitAdmission {
+        CommitAdmission {
+            return_to: self.return_to.clone(),
+        }
+    }
+
+    fn begin_wait(&self) {
+        let mut episode = self.episode.lock();
+        episode.waiters += 1;
+        episode.started_at.get_or_insert_with(Instant::now);
+    }
+
+    fn warn_if_needed(&self, transaction: Timestamp, waited: Duration) {
+        let waiters = {
+            let mut episode = self.episode.lock();
+            if episode.warned {
+                return;
+            }
+            episode.warned = true;
+            episode.waiters
+        };
+        warn!(
+            transaction = transaction.0,
+            ?waited,
+            waiters,
+            queue_used = self.capacity.saturating_sub(self.available.len()),
+            queue_capacity = self.capacity,
+            "Database commit queue remains full"
+        );
+    }
+
+    fn finish_wait(&self, rejected: bool) {
+        let finished = {
+            let mut episode = self.episode.lock();
+            episode.waiters = episode.waiters.saturating_sub(1);
+            if rejected {
+                episode.rejected += 1;
+            }
+            if episode.waiters != 0 {
+                return;
+            }
+            let result = episode
+                .started_at
+                .map(|started_at| (started_at.elapsed(), episode.rejected, episode.warned));
+            *episode = BackpressureEpisode::default();
+            result
+        };
+        if let Some((elapsed, rejected, true)) = finished {
+            warn!(
+                ?elapsed,
+                rejected, "Database commit queue wait episode ended"
+            );
+        }
+    }
+
+    fn acquire(&self, transaction: Timestamp) -> Result<CommitAdmission, CommitAdmissionError> {
+        match self.available.try_recv() {
+            Ok(()) => return Ok(self.permit()),
+            Err(flume::TryRecvError::Disconnected) => {
+                return Err(CommitAdmissionError::Unavailable);
+            }
+            Err(flume::TryRecvError::Empty) => {}
+        }
+
+        db_counters()
+            .counters
+            .inc(WorldStateCountOp::BatchWriterBackpressure);
+        let started_at = Instant::now();
+        self.begin_wait();
+
+        loop {
+            let policy = self.policy();
+            let waited = started_at.elapsed();
+            if waited >= policy.timeout {
+                self.warn_if_needed(transaction, waited);
+                self.finish_wait(true);
+                db_counters()
+                    .timers_rare
+                    .record_elapsed(WorldStateTimerOp::BatchWriterBackpressureBlock, waited);
+                return Err(CommitAdmissionError::Timeout { waited });
+            }
+
+            let until_warning = policy.warn_after.saturating_sub(waited);
+            let until_timeout = policy.timeout.saturating_sub(waited);
+            let wait_for = if until_warning.is_zero() {
+                self.warn_if_needed(transaction, waited);
+                until_timeout
+            } else {
+                until_warning.min(until_timeout)
+            };
+
+            match self.available.recv_timeout(wait_for) {
+                Ok(()) => {
+                    let waited = started_at.elapsed();
+                    self.finish_wait(false);
+                    db_counters()
+                        .timers_rare
+                        .record_elapsed(WorldStateTimerOp::BatchWriterBackpressureBlock, waited);
+                    return Ok(self.permit());
+                }
+                Err(flume::RecvTimeoutError::Timeout) => {
+                    let waited = started_at.elapsed();
+                    if waited >= policy.warn_after {
+                        self.warn_if_needed(transaction, waited);
+                    }
+                }
+                Err(flume::RecvTimeoutError::Disconnected) => {
+                    self.finish_wait(false);
+                    return Err(CommitAdmissionError::Unavailable);
+                }
+            }
+        }
+    }
+}
 
 struct WriterState {
     waiting_batches: BTreeMap<u64, Result<EncodedCommitBatch, String>>,
@@ -339,6 +537,7 @@ pub struct BatchWriter {
     completed_version: Arc<AtomicU64>,
     join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
     encoder_handles: Mutex<Vec<JoinHandle<Result<(), String>>>>,
+    admission: Arc<CommitAdmissionGate>,
 }
 
 // If batch writes take longer than this, give a friendly warning to alert the user that something
@@ -361,6 +560,13 @@ impl BatchWriter {
         let (sender, receiver) = flume::bounded::<WriterMsg>(WRITER_QUEUE_CAPACITY);
         let (encoder_sender, encoder_receiver) =
             flume::bounded::<EncoderMsg>(ENCODE_QUEUE_CAPACITY);
+        let admission = Arc::new(CommitAdmissionGate::new(
+            ENCODE_QUEUE_CAPACITY,
+            CommitAdmissionPolicy {
+                warn_after: DEFAULT_COMMIT_QUEUE_WARN,
+                timeout: DEFAULT_COMMIT_QUEUE_TIMEOUT,
+            },
+        ));
 
         let ks = kill_switch.clone();
         let completed = completed_version.clone();
@@ -390,6 +596,7 @@ impl BatchWriter {
             completed_version,
             join_handle: Mutex::new(Some(join_handle)),
             encoder_handles: Mutex::new(encoder_handles),
+            admission,
         }
     }
 
@@ -408,9 +615,10 @@ impl BatchWriter {
             let msg = receiver
                 .recv()
                 .map_err(|_| "batch encoder channel disconnected".to_string())?;
-            let EncoderMsg::Commit(batch) = msg else {
+            let EncoderMsg::Commit { batch, admission } = msg else {
                 return Ok(());
             };
+            drop(admission);
 
             let encoded = Self::encode_batch(batch, &mut encoder);
             sender
@@ -736,43 +944,38 @@ impl BatchWriter {
         }
     }
 
-    pub fn write(&self, batch: CommitBatch) -> Result<(), String> {
-        let version = batch.version;
-        let ts = batch.timestamp;
-        let op_count = batch.operations.len();
-        let msg = EncoderMsg::Commit(batch);
+    pub(crate) fn admit_commit(
+        &self,
+        transaction: Timestamp,
+    ) -> Result<CommitAdmission, CommitAdmissionError> {
+        self.admission.acquire(transaction)
+    }
 
-        match self.encoder_sender.try_send(msg) {
-            Ok(()) => Ok(()),
-            Err(flume::TrySendError::Full(msg)) => {
-                db_counters()
-                    .counters
-                    .inc(WorldStateCountOp::BatchWriterBackpressure);
-                trace!(
-                    "BatchWriter backpressure: encoding queue full, blocking on version {} / transaction {} ({} ops)",
-                    version, ts.0, op_count
-                );
-                let start = MonoTimestamp::now();
-                self.encoder_sender
-                    .send(msg)
-                    .map_err(|_| "batch encoder channel disconnected".to_string())?;
-                let elapsed = start.elapsed();
-                db_counters().timers_rare.record_elapsed(
-                    WorldStateTimerOp::BatchWriterBackpressureBlock,
-                    start.instant().elapsed(),
-                );
-                if elapsed > Duration::from_secs(1) {
-                    warn!(
-                        "BatchWriter backpressure: encoding queue blocked version {} / transaction {} for {:?}",
-                        version, ts.0, elapsed
-                    );
+    pub(crate) fn set_commit_queue_policy(&self, warn_after: Duration, timeout: Duration) {
+        self.admission.set_policy(warn_after, timeout);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn hold_all_admission(&self) -> Vec<CommitAdmission> {
+        (0..self.admission.capacity)
+            .map(|index| {
+                self.admit_commit(Timestamp(index as u64))
+                    .expect("test should be able to reserve the configured admission capacity")
+            })
+            .collect()
+    }
+
+    pub fn write(&self, batch: CommitBatch, admission: CommitAdmission) -> Result<(), String> {
+        self.encoder_sender
+            .try_send(EncoderMsg::Commit { batch, admission })
+            .map_err(|error| match error {
+                flume::TrySendError::Full(_) => {
+                    "batch encoder queue full after admission was reserved".to_string()
                 }
-                Ok(())
-            }
-            Err(flume::TrySendError::Disconnected(_)) => {
-                Err("batch encoder channel disconnected".to_string())
-            }
-        }
+                flume::TrySendError::Disconnected(_) => {
+                    "batch encoder channel disconnected".to_string()
+                }
+            })
     }
 
     pub fn completed_version(&self) -> u64 {
@@ -877,6 +1080,34 @@ mod tests {
         batch
     }
 
+    fn write(writer: &BatchWriter, batch: CommitBatch) -> Result<(), String> {
+        let admission = writer
+            .admit_commit(batch.timestamp)
+            .map_err(|error| error.to_string())?;
+        writer.write(batch, admission)
+    }
+
+    #[test]
+    fn admission_times_out_and_recovers_without_waiting_forever() {
+        let gate = CommitAdmissionGate::new(
+            1,
+            CommitAdmissionPolicy {
+                warn_after: Duration::from_millis(1),
+                timeout: Duration::from_millis(10),
+            },
+        );
+        let held = gate.acquire(Timestamp(1)).unwrap();
+
+        let error = match gate.acquire(Timestamp(2)) {
+            Ok(_) => panic!("admission unexpectedly succeeded while its only permit was held"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, CommitAdmissionError::Timeout { .. }));
+
+        drop(held);
+        assert!(gate.acquire(Timestamp(3)).is_ok());
+    }
+
     #[test]
     fn property_source_uses_writer_local_name() {
         let object = Obj::mk_id(42);
@@ -916,9 +1147,7 @@ mod tests {
             .unwrap();
         let writer = BatchWriter::new(database);
 
-        writer
-            .write(encoded_batch(1, &partition, b"key", b"value"))
-            .unwrap();
+        write(&writer, encoded_batch(1, &partition, b"key", b"value")).unwrap();
         let snapshot = writer.snapshot(1, Duration::from_secs(1)).unwrap();
 
         assert_eq!(writer.completed_version(), 1);
@@ -936,9 +1165,7 @@ mod tests {
             .unwrap();
         let writer = BatchWriter::new(database);
 
-        writer
-            .write(encoded_batch(1, &partition, b"key", b"value"))
-            .unwrap();
+        write(&writer, encoded_batch(1, &partition, b"key", b"value")).unwrap();
         writer.wait_for_version(1).unwrap();
 
         assert_eq!(writer.completed_version(), 1);
@@ -956,14 +1183,10 @@ mod tests {
             .unwrap();
         let writer = BatchWriter::new(database);
 
-        writer
-            .write(encoded_batch(2, &partition, b"key", b"newer"))
-            .unwrap();
+        write(&writer, encoded_batch(2, &partition, b"key", b"newer")).unwrap();
         assert_eq!(writer.completed_version(), 0);
 
-        writer
-            .write(encoded_batch(1, &partition, b"key", b"older"))
-            .unwrap();
+        write(&writer, encoded_batch(1, &partition, b"key", b"older")).unwrap();
         let snapshot = writer.snapshot(2, Duration::from_secs(1)).unwrap();
 
         assert_eq!(
@@ -981,12 +1204,8 @@ mod tests {
         let writer = BatchWriter::new(database.clone());
         let initial_seqno = database.visible_seqno();
 
-        writer
-            .write(encoded_batch(1, &partition, b"key", b"first"))
-            .unwrap();
-        writer
-            .write(encoded_batch(2, &partition, b"key", b"second"))
-            .unwrap();
+        write(&writer, encoded_batch(1, &partition, b"key", b"first")).unwrap();
+        write(&writer, encoded_batch(2, &partition, b"key", b"second")).unwrap();
         let snapshot = writer.snapshot(2, Duration::from_secs(1)).unwrap();
 
         assert_eq!(database.visible_seqno(), initial_seqno + 2);
@@ -1010,7 +1229,7 @@ mod tests {
         batch.insert_encoded(first.clone(), b"key".to_vec(), b"first".to_vec());
         batch.insert_encoded(second.clone(), b"key".to_vec(), b"second".to_vec());
 
-        writer.write(batch).unwrap();
+        write(&writer, batch).unwrap();
         let snapshot = writer.snapshot(1, Duration::from_secs(1)).unwrap();
 
         assert_eq!(
@@ -1045,7 +1264,7 @@ mod tests {
         let mut batch = CommitBatch::with_capacity(2, Timestamp(2), 1);
         batch.insert(partition.clone(), b"key".to_vec(), Box::new(FailingValue));
 
-        writer.write(batch).unwrap();
+        write(&writer, batch).unwrap();
 
         let (reply, receiver) = oneshot::channel();
         writer
@@ -1056,9 +1275,7 @@ mod tests {
             })
             .unwrap();
 
-        writer
-            .write(encoded_batch(1, &partition, b"other", b"value"))
-            .unwrap();
+        write(&writer, encoded_batch(1, &partition, b"other", b"value")).unwrap();
         let error = match receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
             Ok(_) => panic!("snapshot unexpectedly succeeded"),
             Err(error) => error,

@@ -2065,8 +2065,10 @@ impl WorldStateTransaction {
             .timers_hot
             .start(WorldStateTimerOp::CommitWaitPhase);
         let result = db.commit_writes(ws, enqueued_at);
-        record_commit_result(&result);
-        Ok(result)
+        if let Ok(result) = &result {
+            record_commit_result(result);
+        }
+        result
     }
 
     pub fn rollback(self) -> Result<(), WorldStateError> {

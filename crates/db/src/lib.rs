@@ -56,6 +56,9 @@ pub use tx::{
     RelationIndex, RelationTransaction, SmartMergeResolver, Timestamp, Tx, WorkingSet,
 };
 
+pub const DEFAULT_COMMIT_QUEUE_WARN: Duration = Duration::from_secs(1);
+pub const DEFAULT_COMMIT_QUEUE_TIMEOUT: Duration = Duration::from_secs(5);
+
 pub type SnapshotCallback = Box<
     dyn FnOnce(Result<Box<dyn SnapshotInterface>, WorldStateError>) -> Result<(), WorldStateError>
         + Send,
@@ -183,6 +186,9 @@ pub trait Database: Send + Sync + WorldStateSource {
     fn create_snapshot_async(&self, callback: SnapshotCallback) -> Result<(), WorldStateError>;
     fn gc_interface(&self) -> Result<Box<dyn GCInterface>, WorldStateError>;
 
+    /// Update the wait policy for admission to the database commit queue.
+    fn set_commit_queue_policy(&self, _warn_after: Duration, _timeout: Duration) {}
+
     /// Major-compact selected relation keyspaces and return one result for each relation.
     fn compact_relations(
         &self,
@@ -277,6 +283,10 @@ impl Database for TxDB {
         let tx = self.storage.start_transaction();
         let tx = api::world_state::DbWorldState { tx };
         Ok(Box::new(tx))
+    }
+
+    fn set_commit_queue_policy(&self, warn_after: Duration, timeout: Duration) {
+        self.storage.set_commit_queue_policy(warn_after, timeout);
     }
 
     fn compact_relations(

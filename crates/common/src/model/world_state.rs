@@ -12,6 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use fast_telemetry::{DeriveLabel, ExportMetrics, LabeledCounter, LabeledSampledTimer};
+use std::time::Duration;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -30,7 +31,8 @@ use crate::{
     util::{BitEnum, hot_stride, rare_stride},
 };
 use moor_var::{
-    E_INVARG, E_INVIND, E_PERM, E_PROPNF, E_RECMOVE, E_TYPE, E_VERBNF, Error, Obj, Symbol, Var,
+    E_INVARG, E_INVIND, E_PERM, E_PROPNF, E_QUOTA, E_RECMOVE, E_TYPE, E_VERBNF, Error, Obj, Symbol,
+    Var,
     program::{ProgramType, opcode::BuiltinId},
 };
 
@@ -195,6 +197,9 @@ pub enum WorldStateError {
     #[error("DB communications/internal error: {0}")]
     DatabaseError(String),
 
+    #[error("Database commit queue remained full for {0:?}")]
+    DatabaseOverloaded(Duration),
+
     /// A rollback was requested, and the caller should retry the operation.
     #[error("Rollback requested, retry operation")]
     RollbackRetry,
@@ -223,6 +228,11 @@ impl WorldStateError {
             Self::FailedMatch(msg) => E_INVARG.with_msg(|| format!("Failed object match: {msg}")),
             Self::AmbiguousMatch(msg) => E_INVARG.with_msg(|| format!("Ambiguous object match: {msg}")),
             Self::InvalidRenumber(msg) => E_INVARG.with_msg(|| msg.clone()),
+            Self::DatabaseOverloaded(waited) => E_QUOTA.with_msg(|| {
+                format!(
+                    "Database writer remained overloaded for {waited:?}. The transaction was not committed."
+                )
+            }),
             _ => panic!("Unhandled error code: {self:?}"),
         }
     }
@@ -851,5 +861,18 @@ impl WorldStatePerf {
             timers_rare: LabeledSampledTimer::with_latency_buckets(WS_SHARD_COUNT, rare_stride()),
             counters: LabeledCounter::new(WS_SHARD_COUNT),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commit_queue_overload_maps_to_quota_error() {
+        let error = WorldStateError::DatabaseOverloaded(Duration::from_secs(5)).to_error();
+
+        assert_eq!(error.err_type(), E_QUOTA);
+        assert!(error.to_string().contains("transaction was not committed"));
     }
 }

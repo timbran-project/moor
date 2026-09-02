@@ -58,8 +58,8 @@ use moor_common::{
     util::{BitEnum, Instant, parse_into_words},
 };
 use moor_var::{
-    Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Variant, v_empty_str, v_err,
-    v_int, v_obj, v_str, v_string,
+    E_EXEC, Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Variant, v_empty_str,
+    v_err, v_int, v_obj, v_str, v_string,
 };
 
 use crate::{
@@ -315,6 +315,26 @@ impl Task {
         task_scheduler_client.abort_cancelled();
     }
 
+    fn reject_commit(&self, task_scheduler_client: &TaskSchedulerClient, error: WorldStateError) {
+        if let TaskStart::StartBatchWorldState { result_sink, .. } = self.state.task_start() {
+            *result_sink.lock().unwrap() = Some(Err(
+                moor_common::tasks::SchedulerError::CommandExecutionError(
+                    CommandError::DatabaseError(error.clone()),
+                ),
+            ));
+        }
+        let error = match error {
+            error @ WorldStateError::DatabaseOverloaded(_) => error.to_error(),
+            error => E_EXEC.with_msg(|| format!("Database commit failed: {error}")),
+        };
+        let (stack, backtrace) = self.vm_host.get_traceback();
+        task_scheduler_client.commit_rejected(Box::new(Exception {
+            error,
+            stack,
+            backtrace,
+        }));
+    }
+
     /// Commit before handing task ownership to a scheduler callback.
     ///
     /// The callback releases the boundary claim after it commits the session. Until then,
@@ -323,19 +343,25 @@ impl Task {
         &self,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Result<CommitResult, WorldStateError>> {
+    ) -> Option<CommitResult> {
         if !self.control.begin_boundary_commit() {
             self.cancel_before_commit(task_scheduler_client);
             return None;
         }
 
         let result = commit_current_transaction();
-        if matches!(result, Ok(CommitResult::Success { .. })) {
-            return Some(result);
+        if matches!(&result, Ok(CommitResult::Success { .. })) {
+            return result.ok();
         }
 
         if self.control.finish_boundary_commit() {
-            return Some(result);
+            return match result {
+                Ok(result) => Some(result),
+                Err(error) => {
+                    self.reject_commit(task_scheduler_client, error);
+                    None
+                }
+            };
         }
 
         if let Err(error) = session.rollback() {
@@ -352,7 +378,7 @@ impl Task {
         &self,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Result<CommitResult, WorldStateError>> {
+    ) -> Option<CommitResult> {
         if !self.control.begin_terminal_commit() {
             self.cancel_before_commit(task_scheduler_client);
             return None;
@@ -361,7 +387,13 @@ impl Task {
         let result = commit_current_transaction();
         let committed = matches!(result, Ok(CommitResult::Success { .. }));
         if self.control.finish_terminal_commit(committed) {
-            return Some(result);
+            return match result {
+                Ok(result) => Some(result),
+                Err(error) => {
+                    self.reject_commit(task_scheduler_client, error);
+                    None
+                }
+            };
         }
 
         if let Err(error) = session.rollback() {
@@ -645,8 +677,7 @@ impl Task {
                     }
                     Err(TransactionRenewalError::Commit(e)) => {
                         error!("Failed to commit before fork dispatch: {e:?}");
-                        session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self, "fork dispatch", None);
+                        self.reject_commit(task_scheduler_client, e);
                         None
                     }
                     Err(TransactionRenewalError::Begin(e)) => {
@@ -693,12 +724,7 @@ impl Task {
                         }
                         Err(TransactionRenewalError::Commit(e)) => {
                             error!("Failed to commit before task_recv: {e:?}");
-                            session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(
-                                self,
-                                "task_recv immediate resume",
-                                None,
-                            );
+                            self.reject_commit(task_scheduler_client, e);
                             return None;
                         }
                         Err(TransactionRenewalError::Begin(e)) => {
@@ -745,8 +771,7 @@ impl Task {
                         }
                         Err(TransactionRenewalError::Commit(e)) => {
                             error!("Failed to commit before immediate resume: {e:?}");
-                            session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self, "immediate resume", None);
+                            self.reject_commit(task_scheduler_client, e);
                             return None;
                         }
                         Err(TransactionRenewalError::Begin(e)) => {
@@ -758,9 +783,8 @@ impl Task {
                 }
 
                 // VMHost is now suspended for execution, and we'll be waiting for a Resume
-                let commit_result = self
-                    .commit_yield_transaction(task_scheduler_client, session)?
-                    .expect("Could not commit world state before suspend");
+                let commit_result =
+                    self.commit_yield_transaction(task_scheduler_client, session)?;
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("suspend", conflict_info.as_ref());
@@ -787,9 +811,8 @@ impl Task {
                 // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
 
                 // Attempt commit... See comments/notes on Suspend above.
-                let commit_result = self
-                    .commit_yield_transaction(task_scheduler_client, session)?
-                    .expect("Could not commit world state before suspend");
+                let commit_result =
+                    self.commit_yield_transaction(task_scheduler_client, session)?;
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("input suspend", conflict_info.as_ref());
@@ -856,9 +879,8 @@ impl Task {
                         };
 
                         // Restore the original exception and handle it normally
-                        let commit_result = self
-                            .commit_terminal_transaction(task_scheduler_client, session)?
-                            .expect("Could not attempt commit");
+                        let commit_result =
+                            self.commit_terminal_transaction(task_scheduler_client, session)?;
 
                         let CommitResult::Success { .. } = commit_result else {
                             let conflict_info = match commit_result {
@@ -897,9 +919,8 @@ impl Task {
                     self.pending_exception = None;
                 }
 
-                let commit_result = self
-                    .commit_terminal_transaction(task_scheduler_client, session)?
-                    .expect("Could not attempt commit");
+                let commit_result =
+                    self.commit_terminal_transaction(task_scheduler_client, session)?;
 
                 let (mutations_made, timestamp) = match commit_result {
                     CommitResult::Success {
@@ -1026,9 +1047,8 @@ impl Task {
                 // Normal exception reporting (either no handler found, or handler itself threw)
                 // Commands that end in exceptions are still expected to be committed, to
                 // conform with MOO's expectations.
-                let commit_result = self
-                    .commit_terminal_transaction(task_scheduler_client, session)?
-                    .expect("Could not attempt commit");
+                let commit_result =
+                    self.commit_terminal_transaction(task_scheduler_client, session)?;
 
                 if let CommitResult::ConflictRetry { conflict_info } = commit_result {
                     self.log_conflict_retry("exception reporting", conflict_info.as_ref());
@@ -1140,10 +1160,7 @@ impl Task {
                     }
                     TaskLimitDisposition::Rollback
                 } else {
-                    match self
-                        .commit_terminal_transaction(task_scheduler_client, session)?
-                        .expect("Could not commit world state after task limit")
-                    {
+                    match self.commit_terminal_transaction(task_scheduler_client, session)? {
                         CommitResult::Success {
                             mutations_made,
                             timestamp,
@@ -1350,8 +1367,8 @@ impl Task {
                                 return false;
                             };
                             match commit_result {
-                                Ok(CommitResult::Success { .. }) => {}
-                                Ok(CommitResult::ConflictRetry { conflict_info }) => {
+                                CommitResult::Success { .. } => {}
+                                CommitResult::ConflictRetry { conflict_info } => {
                                     let msg = match conflict_info {
                                         Some(info) => format!("Transaction conflict: {info}"),
                                         None => "Transaction conflict".to_string(),
@@ -1368,19 +1385,6 @@ impl Task {
                                     tsc.command_error(CommandError::DatabaseError(
                                         moor_common::model::WorldStateError::DatabaseError(
                                             "Transaction conflict".to_string(),
-                                        ),
-                                    ));
-                                    return false;
-                                }
-                                Err(e) => {
-                                    *result_sink.lock().unwrap() = Some(Err(
-                                        moor_common::tasks::SchedulerError::CommandExecutionError(
-                                            CommandError::DatabaseError(e),
-                                        ),
-                                    ));
-                                    tsc.command_error(CommandError::DatabaseError(
-                                        moor_common::model::WorldStateError::DatabaseError(
-                                            "Commit failed".to_string(),
                                         ),
                                     ));
                                     return false;

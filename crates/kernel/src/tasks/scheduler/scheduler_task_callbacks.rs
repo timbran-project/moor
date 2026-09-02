@@ -501,6 +501,33 @@ impl Scheduler {
         );
     }
 
+    pub fn handle_task_commit_rejected(&self, task_id: TaskId, exception: Box<Exception>) {
+        let session = {
+            let mut lc = self.lifecycle.lock();
+            let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+                warn!(task_id, "Task not found after database commit rejection");
+                return;
+            };
+            task.terminal_result = Some(Err(TaskAbortedException(exception.as_ref().clone())));
+            task.phase = RunningTaskPhase::Completing;
+            let session = task.session.clone();
+            lc.discard_pending_sends(task_id);
+            lc.task_q.remove_message_queue(task_id);
+            session
+        };
+
+        if let Err(error) = session.rollback() {
+            warn!(
+                task_id,
+                ?error,
+                "Could not roll back session after database commit rejection"
+            );
+        }
+
+        let mut lc = self.lifecycle.lock();
+        lc.task_q.send_reserved_task_result(task_id);
+    }
+
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::ForkTask);

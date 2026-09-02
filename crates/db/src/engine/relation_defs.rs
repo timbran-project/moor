@@ -196,7 +196,11 @@ macro_rules! define_relations {
             /// (e.g., real database vs. mock/in-memory for testing).
             pub(crate) trait TransactionContext: Send + Sync {
                 /// Commit a write transaction with its working sets.
-                fn commit_writes(&self, ws: Box<WorkingSets>, enqueued_at: Instant) -> moor_common::model::CommitResult;
+                fn commit_writes(
+                    &self,
+                    ws: Box<WorkingSets>,
+                    enqueued_at: Instant,
+                ) -> Result<moor_common::model::CommitResult, moor_common::model::WorldStateError>;
                 /// Commit a read-only transaction, potentially updating caches.
                 fn commit_read_only(&self, snapshot_version: u64, caches: crate::engine::moor_db::Caches);
                 /// Get the current database disk usage in bytes.

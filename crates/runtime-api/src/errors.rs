@@ -249,6 +249,13 @@ pub fn world_state_error_to_flatbuffer_struct(
                 },
             ))
         }
+        WorldStateError::DatabaseOverloaded(_) => {
+            common::WorldStateErrorUnion::WorldStateDatabaseError(Box::new(
+                common::WorldStateDatabaseError {
+                    message: error.to_string(),
+                },
+            ))
+        }
         WorldStateError::RollbackRetry => {
             common::WorldStateErrorUnion::RollbackRetry(Box::new(common::RollbackRetry {}))
         }

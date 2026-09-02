@@ -1160,7 +1160,8 @@ impl SuspensionQ {
 mod tests {
     use super::*;
     use crate::tasks::{
-        DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart,
+        DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_MAX_TASK_MAILBOX,
+        DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart,
     };
     use moor_common::tasks::NoopClientSession;
     use moor_var::SYSTEM_OBJECT;
@@ -1176,6 +1177,8 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            db_commit_queue_warn: DEFAULT_DB_COMMIT_QUEUE_WARN,
+            db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
             rollback_on_task_limit: false,
         }
     }
