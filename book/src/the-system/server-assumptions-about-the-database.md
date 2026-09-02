@@ -13,16 +13,26 @@ and then defining various properties on that object. The server checks for wheth
 following properties on that `$server_options` object and uses their values to control server
 operation:
 
-| Property               | Description                                                      |
-| ---------------------- | ---------------------------------------------------------------- |
-| bg_seconds             | The number of seconds allotted to background tasks.              |
-| bg_ticks               | The number of ticks allotted to background tasks.                |
-| fg_seconds             | The number of seconds allotted to foreground tasks.              |
-| fg_ticks               | The number of ticks allotted to foreground tasks.                |
-| max_stack_depth        | The maximum number of levels of nested verb calls.               |
-| max_task_mailbox       | The maximum number of messages in one task mailbox.              |
-| max_task_retries       | The maximum number of transaction-conflict retries for one task. |
-| rollback_on_task_limit | Whether a tick or time limit rolls back the current transaction. |
+| Property                        | Description                                                               |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| bg_seconds                      | The number of seconds allotted to background tasks.                       |
+| bg_ticks                        | The number of ticks allotted to background tasks.                         |
+| db_commit_queue_timeout_seconds | The wait before a full commit queue rejects a transaction with `E_QUOTA`. |
+| db_commit_queue_warn_seconds    | The wait before a full commit queue writes a warning to the server log.   |
+| fg_seconds                      | The number of seconds allotted to foreground tasks.                       |
+| fg_ticks                        | The number of ticks allotted to foreground tasks.                         |
+| max_stack_depth                 | The maximum number of levels of nested verb calls.                        |
+| max_task_mailbox                | The maximum number of messages in one task mailbox.                       |
+| max_task_retries                | The maximum number of transaction-conflict retries for one task.          |
+| rollback_on_task_limit          | Whether a tick or time limit rolls back the current transaction.          |
+
+The default warning wait is 1 second. The default rejection wait is 5 seconds. Both properties
+accept non-negative integers and floating-point values. Call `load_server_options()` after you
+change either property.
+
+The warning wait cannot be longer than the rejection wait. In that case, the server uses the
+rejection wait for both actions. A rejected task ends with `E_QUOTA`. The server does not publish
+the transaction, and it rolls back the buffered session output.
 
 `rollback_on_task_limit` is false when the property does not exist. The server accepts a boolean or
 an integer value. For detailed behavior, read

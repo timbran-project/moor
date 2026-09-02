@@ -41,7 +41,9 @@ use moor_common::model::loader::SnapshotInterface;
 use moor_common::util::CachePadded;
 use moor_common::util::Instant;
 use moor_common::{
-    model::{CommitResult, HasUuid, ObjFlag, PropDefs, PropPerms, ValSet, VerbDefs},
+    model::{
+        CommitResult, HasUuid, ObjFlag, PropDefs, PropPerms, ValSet, VerbDefs, WorldStateError,
+    },
     util::BitEnum,
 };
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
@@ -51,6 +53,7 @@ use std::{
         Arc,
         atomic::{AtomicI64, AtomicU16, AtomicU64, Ordering},
     },
+    time::Duration,
 };
 use tempfile::TempDir;
 use tracing::{error, info};
@@ -208,7 +211,11 @@ pub struct MoorDB {
 }
 
 impl TransactionContext for MoorDB {
-    fn commit_writes(&self, ws: Box<WorkingSets>, enqueued_at: Instant) -> CommitResult {
+    fn commit_writes(
+        &self,
+        ws: Box<WorkingSets>,
+        enqueued_at: Instant,
+    ) -> Result<CommitResult, WorldStateError> {
         self.commit_writes(ws, enqueued_at)
     }
 
@@ -222,6 +229,11 @@ impl TransactionContext for MoorDB {
 }
 
 impl MoorDB {
+    pub(crate) fn set_commit_queue_policy(&self, warn_after: Duration, timeout: Duration) {
+        self.batch_writer
+            .set_commit_queue_policy(warn_after, timeout);
+    }
+
     /// Create a snapshot-based SnapshotInterface for consistent read-only access
     pub fn create_snapshot(&self) -> Result<Box<dyn SnapshotInterface>, crate::tx::Error> {
         let published_version = self.snapshot_planes.load_root().version;
@@ -652,6 +664,35 @@ mod tests {
         assert_eq!(results.len(), selected.len());
         assert_eq!(results[0].relation, selected[0]);
         assert_eq!(results[1].relation, selected[1]);
+    }
+
+    #[test]
+    fn commit_admission_timeout_does_not_publish_transaction() {
+        let db = MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        db.set_commit_queue_policy(Duration::ZERO, Duration::from_millis(10));
+        let admission = db.batch_writer.hold_all_admission();
+        let root_version = db.snapshot_planes.load_root().version;
+        let object = Obj::mk_id(1);
+        let mut tx = db.start_transaction();
+        tx.set_object_name(&object, "rejected".to_string()).unwrap();
+
+        let error = tx.commit().unwrap_err();
+
+        assert!(matches!(error, WorldStateError::DatabaseOverloaded(_)));
+        assert_eq!(db.snapshot_planes.load_root().version, root_version);
+        assert!(matches!(
+            db.start_transaction().get_object_name(&object),
+            Err(WorldStateError::ObjectNotFound(_))
+        ));
+
+        drop(admission);
+        let mut tx = db.start_transaction();
+        tx.set_object_name(&object, "accepted".to_string()).unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        assert_eq!(
+            db.start_transaction().get_object_name(&object).unwrap(),
+            "accepted"
+        );
     }
 
     #[test]

@@ -96,6 +96,11 @@ impl TaskSchedulerClient {
             .handle_task_exception(self.task_id, exception);
     }
 
+    pub fn commit_rejected(&self, exception: Box<Exception>) {
+        self.scheduler
+            .handle_task_commit_rejected(self.task_id, exception);
+    }
+
     pub fn request_fork(&self, fork: Box<Fork>) -> TaskId {
         let _timer = sched_counters()
             .timers

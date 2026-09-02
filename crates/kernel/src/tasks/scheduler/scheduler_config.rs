@@ -24,6 +24,10 @@ static DUMP_INTERVAL: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("dump_inter
 static GC_INTERVAL: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("gc_interval"));
 static MAX_TASK_RETRIES: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_task_retries"));
 static MAX_TASK_MAILBOX: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("max_task_mailbox"));
+static DB_COMMIT_QUEUE_WARN_SECONDS: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("db_commit_queue_warn_seconds"));
+static DB_COMMIT_QUEUE_TIMEOUT_SECONDS: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("db_commit_queue_timeout_seconds"));
 static ROLLBACK_ON_TASK_LIMIT: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("rollback_on_task_limit"));
 
@@ -50,6 +54,21 @@ fn load_float_sysprop(server_options_obj: &Obj, name: Symbol, tx: &dyn WorldStat
         Some(f) if f.is_finite() && f >= 0.0 => Some(f),
         _ => {
             warn!("${name} is not a non-negative number");
+            None
+        }
+    }
+}
+
+fn load_duration_sysprop(
+    server_options_obj: &Obj,
+    name: Symbol,
+    tx: &dyn WorldState,
+) -> Option<Duration> {
+    let seconds = load_float_sysprop(server_options_obj, name, tx)?;
+    match Duration::try_from_secs_f64(seconds) {
+        Ok(duration) => Some(duration),
+        Err(_) => {
+            warn!("${name} is too large to represent as a duration");
             None
         }
     }
@@ -126,6 +145,28 @@ impl Scheduler {
         {
             so.max_task_mailbox = max_task_mailbox as usize;
         }
+        if let Some(warn_after) = load_duration_sysprop(
+            &server_options_obj,
+            *DB_COMMIT_QUEUE_WARN_SECONDS,
+            tx.as_ref(),
+        ) {
+            so.db_commit_queue_warn = warn_after;
+        }
+        if let Some(timeout) = load_duration_sysprop(
+            &server_options_obj,
+            *DB_COMMIT_QUEUE_TIMEOUT_SECONDS,
+            tx.as_ref(),
+        ) {
+            so.db_commit_queue_timeout = timeout;
+        }
+        if so.db_commit_queue_warn > so.db_commit_queue_timeout {
+            warn!(
+                warn_seconds = so.db_commit_queue_warn.as_secs_f64(),
+                timeout_seconds = so.db_commit_queue_timeout.as_secs_f64(),
+                "$server_options.db_commit_queue_warn_seconds exceeds the commit queue timeout; using the timeout as the warning threshold"
+            );
+            so.db_commit_queue_warn = so.db_commit_queue_timeout;
+        }
         if let Some(rollback_on_task_limit) =
             load_bool_sysprop(&server_options_obj, *ROLLBACK_ON_TASK_LIMIT, tx.as_ref())
         {
@@ -163,6 +204,8 @@ impl Scheduler {
         }
         tx.rollback().unwrap();
 
+        self.database
+            .set_commit_queue_policy(so.db_commit_queue_warn, so.db_commit_queue_timeout);
         self.server_options.store(Arc::new(so));
 
         info!("Server options refreshed.");

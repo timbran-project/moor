@@ -44,7 +44,8 @@ use crate::{
     config::Config,
     tasks::{
         AbortTaskOutcome, DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS,
-        DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
+        DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS,
+        DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
         DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
         TaskNotification, TaskStart,
         gc_thread::spawn_gc_mark_phase,
@@ -229,6 +230,8 @@ impl Scheduler {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            db_commit_queue_warn: DEFAULT_DB_COMMIT_QUEUE_WARN,
+            db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
             rollback_on_task_limit: false,
         };
         let builtin_registry = BuiltinRegistry::new();
@@ -605,8 +608,12 @@ mod tests {
     use moor_common::tasks::{
         ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
     };
-    use moor_common::util::Timestamp;
+    use moor_common::{
+        model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
+        util::{BitEnum, Timestamp},
+    };
     use moor_db::{DatabaseConfig, TxDB};
+    use moor_var::v_float;
     use std::collections::HashSet;
     use std::sync::Barrier;
 
@@ -768,6 +775,69 @@ mod tests {
         scheduler_with_system_control(Arc::new(NoopSystemControl::default()))
     }
 
+    #[test]
+    fn commit_queue_policy_loads_from_server_options() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let mut tx = database.new_world_state().unwrap();
+        let system = tx
+            .create_object(
+                &TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new()),
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        assert_eq!(system, SYSTEM_OBJECT);
+        let server_options = tx
+            .create_object(
+                &TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new()),
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        for (object, name, value) in [
+            (SYSTEM_OBJECT, "server_options", v_obj(server_options)),
+            (
+                server_options,
+                "db_commit_queue_warn_seconds",
+                v_float(0.25),
+            ),
+            (
+                server_options,
+                "db_commit_queue_timeout_seconds",
+                v_float(1.5),
+            ),
+        ] {
+            tx.define_property(
+                &TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new()),
+                &object,
+                &object,
+                Symbol::mk(name),
+                &SYSTEM_OBJECT,
+                PropFlag::all_flags(),
+                Some(value),
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(crate::tasks::NoopTasksDb {}),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let options = scheduler.server_options.load();
+        assert_eq!(options.db_commit_queue_warn, Duration::from_millis(250));
+        assert_eq!(options.db_commit_queue_timeout, Duration::from_millis(1500));
+    }
+
     struct FailingSwitchSystemControl;
 
     impl SystemControl for FailingSwitchSystemControl {
@@ -841,6 +911,8 @@ mod tests {
             gc_interval: None,
             max_task_retries: DEFAULT_MAX_TASK_RETRIES,
             max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            db_commit_queue_warn: DEFAULT_DB_COMMIT_QUEUE_WARN,
+            db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
             rollback_on_task_limit: false,
         };
         SuspendedTask {
@@ -974,6 +1046,40 @@ mod tests {
             .task_q
             .send_task_result(task_id, Ok(v_int(0)));
 
+        assert!(!scheduler.handle_task_exists(task_id));
+    }
+
+    #[test]
+    fn rejected_commit_rolls_back_session_effects() {
+        let scheduler = scheduler();
+        let task_id = 147;
+        let session = Arc::new(moor_common::tasks::MockClientSession::new());
+        session
+            .send_event(
+                SYSTEM_OBJECT,
+                Box::new(NarrativeEvent::notify(
+                    v_obj(SYSTEM_OBJECT),
+                    v_str("must be discarded"),
+                    None,
+                    false,
+                    false,
+                    None,
+                )),
+            )
+            .unwrap();
+        insert_active_task(&scheduler, task_id, session.clone());
+
+        scheduler.handle_task_commit_rejected(
+            task_id,
+            Box::new(moor_common::tasks::Exception {
+                error: E_QUOTA.with_msg(|| "database writer overloaded".to_string()),
+                stack: Vec::new(),
+                backtrace: Vec::new(),
+            }),
+        );
+
+        assert!(session.received().is_empty());
+        assert!(session.committed().is_empty());
         assert!(!scheduler.handle_task_exists(task_id));
     }
 

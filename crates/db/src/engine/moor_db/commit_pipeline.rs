@@ -29,7 +29,10 @@ use crate::engine::property_definitions::{
     PropertyDefinitionChange, collect_property_definition_changes,
 };
 use crate::engine::relation_defs::RebaseCheck;
-use moor_common::model::{CommitResult, ConflictInfo, ConflictTarget, WorldStateTimerOp};
+use crate::provider::batch_writer::{CommitAdmission, CommitAdmissionError};
+use moor_common::model::{
+    CommitResult, ConflictInfo, ConflictTarget, WorldStateError, WorldStateTimerOp,
+};
 use moor_common::util::Instant;
 use std::time::Duration;
 use tracing::{error, trace, warn};
@@ -63,6 +66,7 @@ impl MoorDB {
         publication_version: u64,
         tx_timestamp: crate::tx::Timestamp,
         property_definition_changes: Vec<PropertyDefinitionChange>,
+        admission: CommitAdmission,
     ) {
         let mut batch = match self.relations.working_sets_to_batch(
             working_sets,
@@ -91,7 +95,7 @@ impl MoorDB {
             );
         }
 
-        if let Err(error) = self.batch_writer.write(batch) {
+        if let Err(error) = self.batch_writer.write(batch, admission) {
             Self::report_persistence_failure(&format!(
                 "failed to enqueue transaction {publication_version}: {error}"
             ));
@@ -109,7 +113,7 @@ impl MoorDB {
         &self,
         ws: Box<WorkingSets>,
         _enqueued_at: Instant,
-    ) -> CommitResult {
+    ) -> Result<CommitResult, WorldStateError> {
         let counters = db_counters();
         let _process_timer = counters
             .timers_hot
@@ -137,10 +141,10 @@ impl MoorDB {
                     ancestry_cache,
                 },
             );
-            return CommitResult::Success {
+            return Ok(CommitResult::Success {
                 mutations_made: false,
                 timestamp: tx_timestamp.0,
-            };
+            });
         }
 
         let start_time = Instant::now();
@@ -167,9 +171,9 @@ impl MoorDB {
             if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
                 let conflict_info = enrich_conflict_info(&current_root, conflict_info);
                 trace!("Transaction conflict during commit: {conflict_info}");
-                return CommitResult::ConflictRetry {
+                return Ok(CommitResult::ConflictRetry {
                     conflict_info: Some(conflict_info),
-                };
+                });
             }
         }
 
@@ -197,6 +201,18 @@ impl MoorDB {
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
 
+        let admission =
+            self.batch_writer
+                .admit_commit(tx_timestamp)
+                .map_err(|error| match error {
+                    CommitAdmissionError::Timeout { waited } => {
+                        WorldStateError::DatabaseOverloaded(waited)
+                    }
+                    CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
+                        "Database commit queue admission is unavailable".to_string(),
+                    ),
+                })?;
+
         // Phase 2: Try to publish
         let publication_version = next_root.version;
         if self
@@ -208,11 +224,12 @@ impl MoorDB {
                 publication_version,
                 tx_timestamp,
                 property_definition_changes,
+                admission,
             );
-            return CommitResult::Success {
+            return Ok(CommitResult::Success {
                 mutations_made: true,
                 timestamp: tx_timestamp.0,
-            };
+            });
         }
 
         // Phase 3: CAS failed — try to rebase onto the winner's snapshot.
@@ -231,9 +248,9 @@ impl MoorDB {
                     %conflict_info,
                     "Transaction found an exact key overlap after CAS loss"
                 );
-                return CommitResult::ConflictRetry {
+                return Ok(CommitResult::ConflictRetry {
                     conflict_info: Some(conflict_info),
-                };
+                });
             }
 
             let combined_caches = Caches {
@@ -264,11 +281,12 @@ impl MoorDB {
                     publication_version,
                     tx_timestamp,
                     property_definition_changes,
+                    admission,
                 );
-                return CommitResult::Success {
+                return Ok(CommitResult::Success {
                     mutations_made: true,
                     timestamp: tx_timestamp.0,
-                };
+                });
             }
 
             // Another writer won. The prepared operations have now been proven
@@ -276,8 +294,8 @@ impl MoorDB {
             checked_root = winner;
         }
 
-        CommitResult::ConflictRetry {
+        Ok(CommitResult::ConflictRetry {
             conflict_info: None,
-        }
+        })
     }
 }

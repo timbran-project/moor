@@ -11,7 +11,11 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{fmt::Debug, sync::LazyLock, time::SystemTime};
+use std::{
+    fmt::Debug,
+    sync::LazyLock,
+    time::{Duration, SystemTime},
+};
 
 use flume::Receiver;
 use moor_compiler::{Program, to_literal};
@@ -59,6 +63,8 @@ pub const DEFAULT_MAX_STACK_DEPTH: usize = 50;
 pub const DEFAULT_GC_INTERVAL_SECONDS: u64 = 30;
 pub const DEFAULT_MAX_TASK_RETRIES: u8 = 10;
 pub const DEFAULT_MAX_TASK_MAILBOX: usize = 1000;
+pub const DEFAULT_DB_COMMIT_QUEUE_WARN: Duration = moor_db::DEFAULT_COMMIT_QUEUE_WARN;
+pub const DEFAULT_DB_COMMIT_QUEUE_TIMEOUT: Duration = moor_db::DEFAULT_COMMIT_QUEUE_TIMEOUT;
 /// Interval for tasks DB compaction (independent of GC)
 pub const DEFAULT_COMPACT_INTERVAL_SECONDS: u64 = 300;
 
@@ -165,6 +171,10 @@ pub struct ServerOptions {
     pub max_task_retries: u8,
     /// Maximum number of messages allowed in a task's mailbox (for task_send/task_recv).
     pub max_task_mailbox: usize,
+    /// Wait before a blocked database commit logs an overload warning.
+    pub db_commit_queue_warn: Duration,
+    /// Wait before a blocked database commit rejects the transaction.
+    pub db_commit_queue_timeout: Duration,
     /// Roll back database changes and buffered effects when a task reaches its tick or time limit.
     pub rollback_on_task_limit: bool,
 }
