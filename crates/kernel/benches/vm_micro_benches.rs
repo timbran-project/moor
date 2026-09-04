@@ -11,8 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! VM opcode dispatch micro-benchmarks using the bench-utils framework
-//! Measures CPU-level performance characteristics (IPC, frontend stalls, branch prediction)
+//! VM opcode dispatch microbenchmarks using micromeasure.
+//! Measures cycles, instructions, and branch behavior per dispatched opcode.
 
 use micromeasure::{
     BenchContext, BenchmarkMainOptions, LinuxPerfBackend, Throughput, benchmark_main, black_box,
@@ -127,8 +127,7 @@ fn prepare_vm_execution(
     vm_host
 }
 
-/// Benchmark context for dispatch micro-tests
-/// Pre-creates the VM and DB infrastructure once, then reuses it for each sample
+/// Fresh VM and DB infrastructure prepared outside each sample's measurement window.
 struct DispatchContext {
     db: TxDB,
     vm_host: VmHost,
@@ -312,8 +311,8 @@ benchmark_main!(
     },
     |runner| {
         runner.group::<DispatchContext>("dispatch", |g| {
-            g.backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
-                .throughput(Throughput::per_operation(1, "opcodes"))
+            let g = g.backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()));
+            g.throughput(Throughput::per_operation(1, "opcodes"))
                 .factory(&|| DispatchContext::with_program("while(1) 1; endwhile"))
                 .bench(
                     "dispatch_constant_discard",

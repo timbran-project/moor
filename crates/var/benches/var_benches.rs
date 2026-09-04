@@ -12,8 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, NoContext, Throughput,
-    benchmark_main, black_box,
+    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, LinuxPerfBackend, NoContext,
+    ReportContext, Throughput, benchmark_main, black_box,
 };
 use moor_var::{
     E_INVARG, E_TYPE, Error, IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int,
@@ -158,28 +158,27 @@ fn float_add(ctx: &mut FloatContext, chunk_size: usize, _chunk_num: usize) {
     let mut v = ctx.0.clone();
     for _ in 0..chunk_size {
         v = v.add(&v_float(1.0)).unwrap();
+        black_box(&v);
     }
 }
 
-// Mixed type: int + float (tests the slow path)
-fn mixed_add(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
-    let mut v = ctx.0.clone();
+// Keep the operands mixed on every iteration, including after the first result.
+fn mixed_int_float_add(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
+    let rhs = v_float(1.0);
     for _ in 0..chunk_size {
-        v = v.add(&v_float(1.0)).unwrap();
+        black_box(black_box(&ctx.0).add(black_box(&rhs)).unwrap());
     }
 }
 
 fn int_eq(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
-    let v = ctx.0.clone();
     for _ in 0..chunk_size {
-        let _ = v.eq(&v);
+        black_box(black_box(&ctx.0).eq(black_box(&ctx.0)));
     }
 }
 
 fn int_cmp(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
-    let v = ctx.0.clone();
     for _ in 0..chunk_size {
-        let _ = v.cmp(&v);
+        black_box(black_box(&ctx.0).cmp(black_box(&ctx.0)));
     }
 }
 
@@ -188,6 +187,7 @@ fn list_push(ctx: &mut SmallListContext, chunk_size: usize, _chunk_num: usize) {
     for _ in 0..chunk_size {
         v = v.push(&v_int(1)).unwrap();
     }
+    black_box(v);
 }
 
 fn list_index_pos(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
@@ -195,7 +195,7 @@ fn list_index_pos(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usi
     let list_len = 100_000; // LargeListContext has 100k items
     for c in 0..chunk_size {
         let index = c % list_len; // Cycle through available indices
-        let _ = v.index(&v_int(index as i64), IndexMode::ZeroBased).unwrap();
+        black_box(v.index(&v_int(index as i64), IndexMode::ZeroBased).unwrap());
     }
 }
 
@@ -207,11 +207,12 @@ fn list_index_assign(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: 
         v = v
             .index_set(
                 &v_int(index as i64),
-                &v_int(index as i64),
+                &v_int(-(c as i64) - 1),
                 IndexMode::ZeroBased,
             )
             .unwrap();
     }
+    black_box(v);
 }
 
 // === VAR CONSTRUCTION BENCHMARKS ===
@@ -541,19 +542,22 @@ impl BenchContext for ListCloneContext {
 
 fn var_clone_ints(ctx: &mut IntCloneContext, chunk_size: usize, _chunk_num: usize) {
     for _ in 0..chunk_size {
-        ctx.1 = ctx.0.clone();
+        ctx.1 = black_box(&ctx.0).clone();
+        black_box(&ctx.1);
     }
 }
 
 fn var_clone_strings(ctx: &mut StringCloneContext, chunk_size: usize, _chunk_num: usize) {
     for _ in 0..chunk_size {
-        ctx.1 = ctx.0.clone();
+        ctx.1 = black_box(&ctx.0).clone();
+        black_box(&ctx.1);
     }
 }
 
 fn var_clone_lists(ctx: &mut ListCloneContext, chunk_size: usize, _chunk_num: usize) {
     for _ in 0..chunk_size {
-        ctx.1 = ctx.0.clone();
+        ctx.1 = black_box(&ctx.0).clone();
+        black_box(&ctx.1);
     }
 }
 
@@ -674,62 +678,27 @@ fn str_replace_unicode_ci(
     }
 }
 
-// Context that pre-creates pools of Vars to drop
-struct DropContext {
-    int_vars: Vec<Var>,
-    string_vars: Vec<Var>,
-    list_vars: Vec<Var>,
-    mixed_vars: Vec<Var>,
-}
+// Each sample owns exactly the values it will drop; construction is not timed.
+struct DropContext(Vec<Var>);
 
 impl BenchContext for DropContext {
-    fn prepare(_num_chunks: usize) -> Self {
-        let pool_size = 100_000; // Pool size matches our preferred chunk size
-        DropContext {
-            int_vars: (0..pool_size).map(|i| v_int(i as i64)).collect(),
-            string_vars: (0..pool_size).map(|i| v_str(&format!("str_{i}"))).collect(),
-            list_vars: (0..pool_size)
-                .map(|i| v_list(&[v_int(i as i64), v_str("item")]))
-                .collect(),
-            mixed_vars: (0..pool_size)
-                .map(|i| match i % 5 {
-                    0 => v_int(i as i64),
-                    1 => v_str(&format!("str_{i}")),
-                    2 => v_list(&[v_int(i as i64)]),
-                    3 => v_float(i as f64),
-                    _ => v_bool(i % 2 == 0),
-                })
-                .collect(),
-        }
+    fn prepare(chunk_size: usize) -> Self {
+        Self((0..chunk_size).map(|i| v_int(i as i64)).collect())
     }
 
     fn chunk_size() -> Option<usize> {
-        Some(50_000) // Use half the pool size so we can do multiple samples
+        // Bound allocation during setup, including on machines with fast drops.
+        Some(50_000)
     }
 }
 
-fn var_drop_ints(ctx: &mut DropContext, chunk_size: usize, _chunk_num: usize) {
-    // Drop exactly chunk_size items from the pool
-    ctx.int_vars.truncate(ctx.int_vars.len() - chunk_size);
-}
-
-fn var_drop_strings(ctx: &mut DropContext, chunk_size: usize, _chunk_num: usize) {
-    // Drop exactly chunk_size items from the pool
-    ctx.string_vars.truncate(ctx.string_vars.len() - chunk_size);
-}
-
-fn var_drop_lists(ctx: &mut DropContext, chunk_size: usize, _chunk_num: usize) {
-    // Drop exactly chunk_size items from the pool
-    ctx.list_vars.truncate(ctx.list_vars.len() - chunk_size);
-}
-
-fn var_drop_mixed(ctx: &mut DropContext, chunk_size: usize, _chunk_num: usize) {
-    // Drop exactly chunk_size items from the pool
-    ctx.mixed_vars.truncate(ctx.mixed_vars.len() - chunk_size);
+fn var_drop(ctx: &mut DropContext, _chunk_size: usize, _chunk_num: usize) {
+    black_box(&mut ctx.0).clear();
 }
 
 benchmark_main!(
     BenchmarkMainOptions {
+        report_context: Some(ReportContext::default().with_environment("workload_revision", "2")),
         filter_help: Some(
             "all, int, list, scope, construct, drop, clone, or any benchmark name substring"
                 .to_string()
@@ -753,7 +722,7 @@ benchmark_main!(
             g.bench("int_add_option_helper", int_add_option_helper);
             g.bench("int_add_direct_checked", int_add_direct_checked);
             g.bench("int_add_direct_wrapping", int_add_direct_wrapping);
-            g.bench("mixed_add", mixed_add);
+            g.bench("mixed_int_float_add", mixed_int_float_add);
             g.bench("int_eq", int_eq);
             g.bench("int_cmp", int_cmp);
         });
@@ -837,11 +806,41 @@ benchmark_main!(
         });
 
         runner.group::<DropContext>("Var Drop Benchmarks", |g| {
-            let g = g.throughput(Throughput::per_operation(1, "vars"));
-            g.bench("var_drop_ints", var_drop_ints);
-            g.bench("var_drop_strings", var_drop_strings);
-            g.bench("var_drop_lists", var_drop_lists);
-            g.bench("var_drop_mixed", var_drop_mixed);
+            // Short drop samples need a counter set that can schedule without multiplexing.
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "vars"));
+            g.bench("var_drop_ints", var_drop);
+            g.factory_for_chunk(&|chunk_size| {
+                DropContext(
+                    (0..chunk_size)
+                        .map(|i| v_str(&format!("str_{i}")))
+                        .collect(),
+                )
+            })
+            .bench("var_drop_strings", var_drop);
+            g.factory_for_chunk(&|chunk_size| {
+                DropContext(
+                    (0..chunk_size)
+                        .map(|i| v_list(&[v_int(i as i64), v_str("item")]))
+                        .collect(),
+                )
+            })
+            .bench("var_drop_lists", var_drop);
+            g.factory_for_chunk(&|chunk_size| {
+                DropContext(
+                    (0..chunk_size)
+                        .map(|i| match i % 5 {
+                            0 => v_int(i as i64),
+                            1 => v_str(&format!("str_{i}")),
+                            2 => v_list(&[v_int(i as i64)]),
+                            3 => v_float(i as f64),
+                            _ => v_bool(i % 2 == 0),
+                        })
+                        .collect(),
+                )
+            })
+            .bench("var_drop_mixed", var_drop);
         });
 
         runner.group::<IntCloneContext>("Var Clone (Int) Benchmarks", |g| {

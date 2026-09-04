@@ -12,8 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use micromeasure::{
-    BenchContext, BenchmarkMainOptions, BenchmarkRuntimeOptions, Throughput, benchmark_main,
-    black_box,
+    BenchContext, BenchSampleResult, BenchmarkMainOptions, BenchmarkRuntimeOptions, ReportContext,
+    Throughput, benchmark_main, black_box,
 };
 use moor_var::{IndexMode, Symbol, Var, v_int, v_str, v_sym};
 use std::time::Duration;
@@ -29,6 +29,7 @@ struct MapContext {
     small_map: Var,
     small_keys: Vec<Var>,
     small_values: Vec<Var>,
+    small_insert_key: Var,
     update_value: Var,
 }
 
@@ -80,6 +81,7 @@ impl BenchContext for MapContext {
             small_map: Var::mk_map(&small_pairs),
             small_keys,
             small_values,
+            small_insert_key: v_str("new_small_key"),
             update_value: v_int(42),
         }
     }
@@ -112,10 +114,16 @@ fn map_set_existing(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) 
     black_box(map);
 }
 
-fn map_set_new_insert_destructive(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
+/// Insert absent keys, resetting the map after each key-set traversal.
+/// The measurement includes the amortized reset and disposal of each map.
+fn map_set_new_insert_batches(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
-        let key = &ctx.insert_keys[i & (WORKING_KEY_SET_SIZE - 1)];
+        let idx = i & (WORKING_KEY_SET_SIZE - 1);
+        if idx == 0 && i != 0 {
+            map = ctx.base_map.clone();
+        }
+        let key = &ctx.insert_keys[idx];
         map = map
             .set(key, &ctx.update_value, IndexMode::ZeroBased)
             .unwrap();
@@ -123,7 +131,11 @@ fn map_set_new_insert_destructive(ctx: &mut MapContext, chunk_size: usize, _chun
     black_box(map);
 }
 
-fn map_set_new_insert_steady(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
+fn map_insert_remove_steady(
+    ctx: &mut MapContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) -> BenchSampleResult {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
         let key = &ctx.insert_keys[i & (WORKING_KEY_SET_SIZE - 1)];
@@ -134,6 +146,7 @@ fn map_set_new_insert_steady(ctx: &mut MapContext, chunk_size: usize, _chunk_num
         map = new_map;
     }
     black_box(map);
+    BenchSampleResult::operations(2 * chunk_size as u64)
 }
 
 fn map_set_owned_existing(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
@@ -179,11 +192,11 @@ fn map_small_insert_remove_steady_owned_operands(
     ctx: &mut MapContext,
     chunk_size: usize,
     _chunk_num: usize,
-) {
+) -> BenchSampleResult {
     let mut map = ctx.small_map.clone();
     for i in 0..chunk_size {
         let idx = i & (ctx.small_keys.len() - 1);
-        let key = ctx.small_keys[idx].clone();
+        let key = ctx.small_insert_key.clone();
         let value = ctx.small_values[idx].clone();
         map = map
             .set_owned_vars(key.clone(), value, IndexMode::ZeroBased)
@@ -192,19 +205,30 @@ fn map_small_insert_remove_steady_owned_operands(
         map = new_map;
     }
     black_box(map);
+    BenchSampleResult::operations(2 * chunk_size as u64)
 }
 
-fn map_remove_hit_destructive(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
+/// Drain maps in batches so every removal remains a hit.
+/// Reset and disposal costs are included, as in the batched insertion case.
+fn map_remove_hit_batches(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
-        let key = &ctx.existing_keys[i & (WORKING_KEY_SET_SIZE - 1)];
+        let idx = i & (WORKING_KEY_SET_SIZE - 1);
+        if idx == 0 && i != 0 {
+            map = ctx.base_map.clone();
+        }
+        let key = &ctx.existing_keys[idx];
         let (new_map, _) = map.remove(key, false).unwrap();
         map = new_map;
     }
     black_box(map);
 }
 
-fn map_remove_hit_steady(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
+fn map_remove_insert_steady(
+    ctx: &mut MapContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) -> BenchSampleResult {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
         let key = &ctx.existing_keys[i & (WORKING_KEY_SET_SIZE - 1)];
@@ -214,6 +238,7 @@ fn map_remove_hit_steady(ctx: &mut MapContext, chunk_size: usize, _chunk_num: us
             .unwrap();
     }
     black_box(map);
+    BenchSampleResult::operations(2 * chunk_size as u64)
 }
 
 fn map_remove_miss(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
@@ -226,25 +251,29 @@ fn map_remove_miss(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
     black_box(map);
 }
 
-fn map_remove_case_sensitive_hit_destructive(
+fn map_remove_case_sensitive_hit_batches(
     ctx: &mut MapContext,
     chunk_size: usize,
     _chunk_num: usize,
 ) {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
-        let key = &ctx.existing_keys[i & (WORKING_KEY_SET_SIZE - 1)];
+        let idx = i & (WORKING_KEY_SET_SIZE - 1);
+        if idx == 0 && i != 0 {
+            map = ctx.base_map.clone();
+        }
+        let key = &ctx.existing_keys[idx];
         let (new_map, _) = map.remove(key, true).unwrap();
         map = new_map;
     }
     black_box(map);
 }
 
-fn map_remove_case_sensitive_hit_steady(
+fn map_remove_insert_case_sensitive_steady(
     ctx: &mut MapContext,
     chunk_size: usize,
     _chunk_num: usize,
-) {
+) -> BenchSampleResult {
     let mut map = ctx.base_map.clone();
     for i in 0..chunk_size {
         let key = &ctx.existing_keys[i & (WORKING_KEY_SET_SIZE - 1)];
@@ -254,10 +283,12 @@ fn map_remove_case_sensitive_hit_steady(
             .unwrap();
     }
     black_box(map);
+    BenchSampleResult::operations(2 * chunk_size as u64)
 }
 
 benchmark_main!(
     BenchmarkMainOptions {
+        report_context: Some(ReportContext::default().with_environment("workload_revision", "2")),
         filter_help: Some("all or any benchmark name substring".to_string()),
         runtime: BenchmarkRuntimeOptions {
             warm_up_duration: Duration::from_millis(250),
@@ -273,11 +304,8 @@ benchmark_main!(
             g.bench("map_get_hit", map_get_hit);
             g.bench("map_get_miss", map_get_miss);
             g.bench("map_set_existing", map_set_existing);
-            g.bench(
-                "map_set_new_insert_destructive",
-                map_set_new_insert_destructive,
-            );
-            g.bench("map_set_new_insert_steady", map_set_new_insert_steady);
+            g.bench("map_set_new_insert_batches", map_set_new_insert_batches);
+            g.bench_sample("map_insert_remove_steady", map_insert_remove_steady);
             g.bench("map_set_owned_existing", map_set_owned_existing);
             g.bench(
                 "map_small_set_owned_borrowed_operands",
@@ -287,20 +315,20 @@ benchmark_main!(
                 "map_small_set_owned_owned_operands",
                 map_small_set_owned_owned_operands,
             );
-            g.bench(
+            g.bench_sample(
                 "map_small_insert_remove_steady_owned_operands",
                 map_small_insert_remove_steady_owned_operands,
             );
-            g.bench("map_remove_hit_destructive", map_remove_hit_destructive);
-            g.bench("map_remove_hit_steady", map_remove_hit_steady);
+            g.bench("map_remove_hit_batches", map_remove_hit_batches);
+            g.bench_sample("map_remove_insert_steady", map_remove_insert_steady);
             g.bench("map_remove_miss", map_remove_miss);
             g.bench(
-                "map_remove_case_sensitive_hit_destructive",
-                map_remove_case_sensitive_hit_destructive,
+                "map_remove_case_sensitive_hit_batches",
+                map_remove_case_sensitive_hit_batches,
             );
-            g.bench(
-                "map_remove_case_sensitive_hit_steady",
-                map_remove_case_sensitive_hit_steady,
+            g.bench_sample(
+                "map_remove_insert_case_sensitive_steady",
+                map_remove_insert_case_sensitive_steady,
             );
         });
     }
