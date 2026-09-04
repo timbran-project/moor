@@ -30,9 +30,9 @@ use moor_common::{
 };
 use moor_compiler::offset_for_builtin;
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_NACC, E_PERM, E_TYPE, E_VERBNF, List, NOTHING, Obj, Sequence,
-    Symbol, Var, Variant, v_arc_str, v_empty_list, v_empty_str, v_int, v_list, v_list_iter,
-    v_map_iter, v_obj, v_str, v_string, v_sym,
+    Associative, E_ARGS, E_INVARG, E_NACC, E_PERM, E_TYPE, E_VERBNF, List, NOTHING, Obj,
+    SYSTEM_OBJECT, Sequence, Symbol, Var, Variant, v_arc_str, v_empty_list, v_empty_str, v_int,
+    v_list, v_list_iter, v_map_iter, v_obj, v_str, v_string, v_sym,
 };
 
 use crate::{
@@ -645,7 +645,8 @@ fn bf_create_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 }
 
 /// The given object is destroyed, irrevocably. The programmer must either own object or be a wizard; otherwise, E_PERM is raised.
-/// If object is not valid, then E_INVARG is raised. The children of object are reparented to the parent of object.
+/// If object is not valid or is the system object (#0), then E_INVARG is raised.
+/// The children of object are reparented to the parent of object.
 /// Before object is recycled, each object in its contents is moved to #-1 (implying a call to object's exitfunc verb, if any)
 /// and then object's `recycle' verb, if any, is called with no arguments.
 /// Usage: `none recycle(obj object)`
@@ -663,6 +664,13 @@ fn bf_recycle(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_TYPE.msg("recycle() first argument must be an object"),
         ));
     };
+
+    // The server requires #0 for login and system hooks, even when the caller is a wizard.
+    if obj == SYSTEM_OBJECT {
+        return Err(BfErr::ErrValue(
+            E_INVARG.msg("cannot recycle() the system object (#0)"),
+        ));
+    }
 
     if obj.is_anonymous() {
         return Err(BfErr::ErrValue(

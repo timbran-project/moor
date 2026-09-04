@@ -288,10 +288,11 @@ none recycle(obj object)
 destroy object irrevocably.
 
 The given object is destroyed, irrevocably. The programmer must either own object or be a wizard;
-otherwise, `E_PERM` is raised. If object is not valid, then `E_INVARG` is raised. The children of
-object are reparented to the parent of object. Before object is recycled, each object in its
-contents is moved to `#-1` (implying a call to object's `exitfunc` verb, if any) and then object's
-`recycle` verb, if any, is called with no arguments.
+otherwise, `E_PERM` is raised. If object is not valid, then `E_INVARG` is raised. The system object
+(`#0`) cannot be recycled, even by a wizard: `E_INVARG` is raised before any hooks or changes. The
+children of object are reparented to the parent of object. Before object is recycled, each object in
+its contents is moved to `#-1` (implying a call to object's `exitfunc` verb, if any) and then
+object's `recycle` verb, if any, is called with no arguments.
 
 After object is recycled, if the owner of the former object has a property named `ownership_quota`
 and the value of that property is a integer, then `recycle()` treats that value as a _quota_ and
