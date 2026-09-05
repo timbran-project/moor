@@ -31,8 +31,9 @@ COPY ./tools ./tools
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 
-# We bring this over so we can get the git hash via shadow-rs. A bit bloated, but oh well.
+# .dockerignore excludes Git objects and history from this metadata copy.
 COPY ./.git ./.git
+RUN mkdir -p .git/objects
 
 # Build configuration: Use ARG to allow build-time customization
 ARG BUILD_PROFILE=debug
@@ -43,6 +44,8 @@ ARG CARGO_BUILD_JOBS=6
 # Build either debug (fast) or release (optimized) based on BUILD_PROFILE
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/moor-build/target,sharing=locked \
+    VERGEN_GIT_SHA="$(git rev-parse --verify HEAD)" && \
+    export VERGEN_GIT_SHA && \
     if [ "$BUILD_PROFILE" = "release" ] || [ "$BUILD_PROFILE" = "release-fast" ]; then \
         PROFILE_FLAG="--profile $BUILD_PROFILE"; \
         if [ "$BUILD_PROFILE" = "release" ]; then PROFILE_FLAG="--release"; fi; \

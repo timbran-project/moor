@@ -55,6 +55,7 @@ COPY ./tools ./tools
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./.git ./.git
+RUN mkdir -p .git/objects
 
 # Build configuration
 ARG BUILD_PROFILE=release
@@ -65,6 +66,8 @@ ARG CARGO_BUILD_FLAGS=""
 # Sets codegen-units=1 to reduce memory usage during linking
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/moor-build/target,sharing=locked \
+    VERGEN_GIT_SHA="$(git rev-parse --verify HEAD)" && \
+    export VERGEN_GIT_SHA && \
     export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig && \
     export PKG_CONFIG_SYSROOT_DIR=/ && \
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc && \

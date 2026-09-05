@@ -15,14 +15,13 @@ use vergen::{Cargo, Emitter};
 use vergen_gitcl::Gitcl;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Emit cargo version info with idempotent mode to prevent constant rebuilds
-    let cargo = Cargo::all_cargo();
+    // Docker passes the SHA explicitly to invalidate cached build-script output.
+    println!("cargo:rerun-if-env-changed=VERGEN_GIT_SHA");
 
-    // Emit git SHA with idempotent mode.
+    let cargo = Cargo::all_cargo();
     let gitcl = Gitcl::builder().sha(true).build();
 
     Emitter::default()
-        .idempotent()
         .add_instructions(&cargo)?
         .add_instructions(&gitcl)?
         .emit()?;
