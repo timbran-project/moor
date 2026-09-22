@@ -169,7 +169,7 @@ open an issue on the [mooR GitHub issue tracker](https://github.com/timbran-proj
 
 | Name                                               | Complete | Notes                                    |
 | -------------------------------------------------- | -------- | ---------------------------------------- |
-| [`astar`](algorithms.md#astar)                     | &check;  | mooR extension. Tile-grid pathfinding    |
+| [`grid_astar`](algorithms.md#grid_astar)           | &check;  | mooR extension. Tile-grid pathfinding    |
 | [`term_unify`](algorithms.md#term_unify)           | &check;  | mooR extension. Structural unification   |
 | [`term_substitute`](algorithms.md#term_substitute) | &check;  | mooR extension. Structural substitution  |
 | [`term_query`](algorithms.md#term_query)           | &check;  | mooR extension. Bounded structural query |
@@ -238,18 +238,17 @@ mooR handles outbound networking differently than classic LambdaMOO - see the
 [networking section](../networking.md#outbound-network-connections-via-curl_worker) for details on
 using workers for outbound connections.
 
-| Name                                                           | Complete | Notes                                                                                                                                         |
-| -------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`set_connection_option`](server.md#set_connection_option)     | &check;  | Supports binary, hold-input, disable-oob, client-echo, flush-command options. See [networking](../networking.md) for details.                 |
-| [`connection_option`](server.md#connection_option)             | &check;  | Works only for connections, not player objects, since moor has multiple connections per player. `connections(player)` returns all connections |
-| [`connection_options`](server.md#connection_options)           | &check;  | Works only for connections, not player objects, since moor has multiple connections per player. `connections(player)` returns all connections |
-| [`open_network_connection`](server.md#open_network_connection) |          | Not planned - use worker system instead                                                                                                       |
-| [`listen`](server.md#listen)                                   | &check;  | `print-messages` not yet implemented. errors in binding not properly propagating back to the builtin                                          |
-| [`unlisten`](server.md#unlisten)                               | &check;  |                                                                                                                                               |
-| [`listeners`](server.md#listeners)                             | &check;  |                                                                                                                                               |
-| [`output_delimiters`](server.md#output_delimiters)             | &check;  |                                                                                                                                               |
-| [`connection_attributes`](server.md#connection_attributes)     | &check;  | mooR extension - returns map/list based on features                                                                                           |
-| [`buffered_output_length`](server.md#buffered_output_length)   |          | Not planned                                                                                                                                   |
+| Name                                                            | Complete | Notes                                                                                                                                         |
+| --------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`set_connection_option`](server.md#set_connection_option)      | &check;  | Supports binary, hold-input, disable-oob, client-echo, flush-command options. See [networking](../networking.md) for details.                 |
+| [`connection_option`](server.md#connection_option)              | &check;  | Works only for connections, not player objects, since moor has multiple connections per player. `connections(player)` returns all connections |
+| [`connection_options`](../networking.md#connection_optionsconn) | &check;  | Works only for connections, not player objects, since mooR has multiple connections per player. `connections(player)` returns all connections |
+| [`open_network_connection`](server.md#open_network_connection)  |          | Not planned - use worker system instead                                                                                                       |
+| [`listen`](server.md#listen)                                    | &check;  | `print-messages` not yet implemented. errors in binding not properly propagating back to the builtin                                          |
+| [`unlisten`](server.md#unlisten)                                | &check;  |                                                                                                                                               |
+| [`listeners`](server.md#listeners)                              | &check;  |                                                                                                                                               |
+| [`output_delimiters`](server.md#output_delimiters)              | &check;  |                                                                                                                                               |
+| [`buffered_output_length`](server.md#buffered_output_length)    |          | Not planned                                                                                                                                   |
 
 ## Extension from Toast
 
@@ -335,7 +334,7 @@ Functions not part of the original LambdaMOO, but added in moor
 
 | Name                                               | Description                               | Notes |
 | -------------------------------------------------- | ----------------------------------------- | ----- |
-| [`astar`](algorithms.md#astar)                     | Run A* pathfinding over a tile grid       |       |
+| [`grid_astar`](algorithms.md#grid_astar)           | Run A* pathfinding over a tile grid       |       |
 | [`term_unify`](algorithms.md#term_unify)           | Unify one pattern and value               |       |
 | [`term_substitute`](algorithms.md#term_substitute) | Substitute term variables using a binding |       |
 | [`term_query`](algorithms.md#term_query)           | Query supplied facts and positive rules   |       |

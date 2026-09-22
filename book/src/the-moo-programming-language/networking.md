@@ -458,9 +458,9 @@ custom input handlers or mini-parsers within your MOO code.
 
 ```moo
 // Enable hold-input mode to read raw input
-set_connection_option(player, "hold-input", 1);
+set_connection_option(connection(), "hold-input", 1);
 line = read();  // Will return the next line of input
-set_connection_option(player, "hold-input", 0);  // Restore normal command processing
+set_connection_option(connection(), "hold-input", 0);  // Restore normal command processing
 ```
 
 #### `"client-echo"`
@@ -475,9 +475,9 @@ echoes input characters under any circumstances.
 
 ```moo
 // Disable client echo for password entry
-set_connection_option(player, "client-echo", 0);
+set_connection_option(connection(), "client-echo", 0);
 password = read();
-set_connection_option(player, "client-echo", 1);  // Re-enable echo
+set_connection_option(connection(), "client-echo", 1);  // Re-enable echo
 ```
 
 > Note: This option is only available under TCP/IP networking configurations (telnet connections).
@@ -496,7 +496,7 @@ When sending output to a connection in binary mode using `notify()`, you can sen
 
 ```moo
 // Enable binary mode
-set_connection_option(player, "binary", 1);
+set_connection_option(connection(), "binary", 1);
 
 // Send binary data (arbitrary bytes including non-UTF8)
 notify(player, b"AAECA");  // Binary literal
@@ -529,11 +529,11 @@ The default value of this option can be set via the property
 
 ```moo
 // Set a custom flush command
-set_connection_option(player, "flush-command", ".clear");
+set_connection_option(connection(), "flush-command", ".clear");
 // Player can now type ".clear" to flush queued input
 
 // Disable flush command entirely
-set_connection_option(player, "flush-command", "");
+set_connection_option(connection(), "flush-command", "");
 ```
 
 #### `"utf8"`
@@ -546,7 +546,7 @@ when available.
 
 ```moo
 // Enable UTF-8 rich output for this connection
-set_connection_option(player, "utf8", 1);
+set_connection_option(connection(), "utf8", 1);
 ```
 
 The telnet client-side `.UTF8` built-in command toggles this same per-connection option.
@@ -561,7 +561,7 @@ Controls whether telnet rich output is rendered in a screen-reader-friendly form
 
 ```moo
 // Enable screen-reader mode for this connection
-set_connection_option(player, "screen-reader", 1);
+set_connection_option(connection(), "screen-reader", 1);
 ```
 
 The telnet client-side `.SCREENREADER` (or `.A11Y`) built-in command toggles this same
@@ -575,7 +575,7 @@ with the out-of-band prefix will be treated as normal input instead of triggerin
 
 ```moo
 // Disable out-of-band processing
-set_connection_option(player, "disable-oob", 1);
+set_connection_option(connection(), "disable-oob", 1);
 ```
 
 ### `connection_option(conn, option)`
@@ -598,7 +598,7 @@ Retrieves the current value of a specific connection option.
 
 ```moo
 // Check if hold-input is enabled
-if (connection_option(player, "hold-input"))
+if (connection_option(connection(), "hold-input"))
     notify(player, "Input is being held for read() calls");
 endif
 ```
@@ -622,7 +622,7 @@ Returns a list of all connection options and their current values.
 
 ```moo
 // Display all connection options
-for opt in (connection_options(player))
+for opt in (connection_options(connection()))
     {name, value} = opt;
     notify(player, tostr(name, " = ", toliteral(value)));
 endfor
