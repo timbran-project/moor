@@ -135,12 +135,14 @@ obj toobj(value)
 Converts the given MOO value into an object number and returns that object number.
 
 The conversions are very similar to those for `toint()` except that for strings, the number _may_ be
-preceded by `#`.
+preceded by `#`. An integer outside the valid object ID range raises `E_RANGE`; a float outside it
+raises `E_FLOAT`.
 
 ```
 toobj("34")       =>   #34
 toobj("#34")      =>   #34
 toobj("foo")      =>   #0
+toobj(1.0e10)     =>   E_FLOAT (error)
 toobj({1, 2})     =>   E_TYPE (error)
 ```
 

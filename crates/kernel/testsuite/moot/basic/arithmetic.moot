@@ -41,3 +41,48 @@ E_TYPE
 // Type mismatch is raised before the zero-divisor check (LambdaMOO order).
 ; "a" / 0;
 E_TYPE
+
+// Arithmetic is strict: both operands must have the same type (LambdaMOO).
+; 1 + 1.5;
+E_TYPE
+
+; 1.5 - 1;
+E_TYPE
+
+; 1.5 * 2;
+E_TYPE
+
+; 2 ^ 2.0;
+E_TYPE
+
+// ...but a float may be raised to an integer power.
+; return 3.5 ^ 4;
+150.0625
+
+// Ordering comparisons accept only like types, as in LambdaMOO.
+; 1 < "a";
+E_TYPE
+
+; "a" <= 1;
+E_TYPE
+
+; 3 < 4.0;
+E_TYPE
+
+; {1} < {2};
+E_TYPE
+
+; true < false;
+E_TYPE
+
+; return 3 < 4;
+1
+
+; return #34 >= #32;
+1
+
+; return "foo" <= "Boo";
+0
+
+; return E_DIV > E_TYPE;
+1

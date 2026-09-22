@@ -78,9 +78,6 @@ impl Var {
     #[inline(never)]
     fn add_slow(&self, v: &Self) -> Result<Self, Error> {
         match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => float_result(l + r),
-            (Variant::Float(l), Variant::Int(r)) => float_result(l + (r as f64)),
-            (Variant::Int(l), Variant::Float(r)) => float_result(l as f64 + r),
             (Variant::Str(s), Variant::Str(r)) => Ok(s.str_append(r)),
             (_, _) => Err(E_TYPE.with_msg(|| {
                 format!(
@@ -108,18 +105,14 @@ impl Var {
 
     #[inline(never)]
     fn sub_slow(&self, v: &Self) -> Result<Self, Error> {
-        match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => float_result(l - r),
-            (Variant::Float(l), Variant::Int(r)) => float_result(l - (r as f64)),
-            (Variant::Int(l), Variant::Float(r)) => float_result(l as f64 - r),
-            (_, _) => Err(E_TYPE.with_msg(|| {
-                format!(
-                    "Cannot sub type {} and {}",
-                    self.type_code().to_literal(),
-                    v.type_code().to_literal()
-                )
-            })),
-        }
+        // As in LambdaMOO, arithmetic operands must have the same type.
+        Err(E_TYPE.with_msg(|| {
+            format!(
+                "Cannot sub type {} and {}",
+                self.type_code().to_literal(),
+                v.type_code().to_literal()
+            )
+        }))
     }
 
     #[inline]
@@ -138,18 +131,13 @@ impl Var {
 
     #[inline(never)]
     fn mul_slow(&self, v: &Self) -> Result<Self, Error> {
-        match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => float_result(l * r),
-            (Variant::Float(l), Variant::Int(r)) => float_result(l * (r as f64)),
-            (Variant::Int(l), Variant::Float(r)) => float_result(l as f64 * r),
-            (_, _) => Err(E_TYPE.with_msg(|| {
-                format!(
-                    "Cannot mul type {} and {}",
-                    self.type_code().to_literal(),
-                    v.type_code().to_literal()
-                )
-            })),
-        }
+        Err(E_TYPE.with_msg(|| {
+            format!(
+                "Cannot mul type {} and {}",
+                self.type_code().to_literal(),
+                v.type_code().to_literal()
+            )
+        }))
     }
 
     #[inline]
@@ -174,33 +162,13 @@ impl Var {
 
     #[inline(never)]
     fn div_slow(&self, v: &Self) -> Result<Self, Error> {
-        match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => {
-                if r == 0.0 {
-                    return Err(division_by_zero());
-                }
-                float_result(l / r)
-            }
-            (Variant::Float(l), Variant::Int(r)) => {
-                if r == 0 {
-                    return Err(division_by_zero());
-                }
-                float_result(l / (r as f64))
-            }
-            (Variant::Int(l), Variant::Float(r)) => {
-                if r == 0.0 {
-                    return Err(division_by_zero());
-                }
-                float_result((l as f64) / r)
-            }
-            (_, _) => Err(E_TYPE.with_msg(|| {
-                format!(
-                    "Cannot div type {} and {}",
-                    self.type_code().to_literal(),
-                    v.type_code().to_literal()
-                )
-            })),
-        }
+        Err(E_TYPE.with_msg(|| {
+            format!(
+                "Cannot div type {} and {}",
+                self.type_code().to_literal(),
+                v.type_code().to_literal()
+            )
+        }))
     }
 
     #[inline]
@@ -226,33 +194,13 @@ impl Var {
 
     #[inline(never)]
     fn modulus_slow(&self, v: &Self) -> Result<Self, Error> {
-        match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => {
-                if r == 0.0 {
-                    return Err(division_by_zero());
-                }
-                Ok(v_float(l % r))
-            }
-            (Variant::Float(l), Variant::Int(r)) => {
-                if r == 0 {
-                    return Err(division_by_zero());
-                }
-                Ok(v_float(l % (r as f64)))
-            }
-            (Variant::Int(l), Variant::Float(r)) => {
-                if r == 0.0 {
-                    return Err(division_by_zero());
-                }
-                Ok(v_float((l as f64) % r))
-            }
-            (_, _) => Err(E_TYPE.with_msg(|| {
-                format!(
-                    "Cannot modulus type {} and {}",
-                    self.type_code().to_literal(),
-                    v.type_code().to_literal()
-                )
-            })),
-        }
+        Err(E_TYPE.with_msg(|| {
+            format!(
+                "Cannot modulus type {} and {}",
+                self.type_code().to_literal(),
+                v.type_code().to_literal()
+            )
+        }))
     }
 
     #[inline]
@@ -297,7 +245,8 @@ impl Var {
     #[inline(never)]
     fn pow_slow(&self, v: &Self) -> Result<Self, Error> {
         match (self.variant(), v.variant()) {
-            (Variant::Float(l), Variant::Float(r)) => float_result(l.powf(r)),
+            // LambdaMOO allows a float raised to an integer power; the exponent
+            // needs no type equality with the base.
             (Variant::Float(l), Variant::Int(r)) => {
                 // f64 cannot represent integers above 2^53 exactly; converting
                 // the exponent would round e.g. 2^53 + 1 to an even exponent and
@@ -308,7 +257,6 @@ impl Var {
                     float_result(float_pow_int(l, r))
                 }
             }
-            (Variant::Int(l), Variant::Float(r)) => float_result((l as f64).powf(r)),
             (_, _) => Err(E_TYPE.with_msg(|| {
                 format!(
                     "Cannot pow type {} and {}",
@@ -452,10 +400,10 @@ impl Var {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Error,
         error::ErrorCode::{E_DIV, E_FLOAT, E_INVARG, E_RANGE, E_TYPE},
         variant::{v_err, v_float, v_int, v_list, v_objid, v_str},
     };
+    use std::cmp::Ordering;
 
     #[test]
     fn test_truthy() {
@@ -466,47 +414,51 @@ mod tests {
     #[test]
     fn test_add() {
         assert_eq!(v_int(1).add(&v_int(2)), Ok(v_int(3)));
-        assert_eq!(v_int(1).add(&v_float(2.0)), Ok(v_float(3.0)));
-        assert_eq!(v_float(1.).add(&v_int(2)), Ok(v_float(3.)));
         assert_eq!(v_float(1.).add(&v_float(2.)), Ok(v_float(3.)));
         assert_eq!(v_str("a").add(&v_str("b")), Ok(v_str("ab")));
+        // As in LambdaMOO, arithmetic operands must have the same type.
+        assert_eq!(v_int(1).add(&v_float(2.)).unwrap_err().err_type(), E_TYPE);
+        assert_eq!(v_float(1.).add(&v_int(2)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
-    fn test_sub() -> Result<(), Error> {
-        assert_eq!(v_int(1).sub(&v_int(2))?, v_int(-1));
-        assert_eq!(v_int(1).sub(&v_float(2.))?, v_float(-1.));
-        assert_eq!(v_float(1.).sub(&v_int(2))?, v_float(-1.));
-        assert_eq!(v_float(1.).sub(&v_float(2.))?, v_float(-1.));
-        Ok(())
+    fn test_sub() {
+        assert_eq!(v_int(1).sub(&v_int(2)), Ok(v_int(-1)));
+        assert_eq!(v_float(1.).sub(&v_float(2.)), Ok(v_float(-1.)));
+        assert_eq!(v_int(1).sub(&v_float(2.)).unwrap_err().err_type(), E_TYPE);
+        assert_eq!(v_float(1.).sub(&v_int(2)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
-    fn test_mul() -> Result<(), Error> {
-        assert_eq!(v_int(1).mul(&v_int(2))?, v_int(2));
-        assert_eq!(v_int(1).mul(&v_float(2.))?, v_float(2.));
-        assert_eq!(v_float(1.).mul(&v_int(2))?, v_float(2.));
-        assert_eq!(v_float(1.).mul(&v_float(2.))?, v_float(2.));
-        Ok(())
+    fn test_mul() {
+        assert_eq!(v_int(1).mul(&v_int(2)), Ok(v_int(2)));
+        assert_eq!(v_float(1.).mul(&v_float(2.)), Ok(v_float(2.)));
+        assert_eq!(v_int(1).mul(&v_float(2.)).unwrap_err().err_type(), E_TYPE);
+        assert_eq!(v_float(1.).mul(&v_int(2)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
-    fn test_div() -> Result<(), Error> {
-        assert_eq!(v_int(1).div(&v_int(2))?, v_int(0));
-        assert_eq!(v_int(1).div(&v_float(2.))?, v_float(0.5));
-        assert_eq!(v_float(1.).div(&v_int(2))?, v_float(0.5));
-        assert_eq!(v_float(1.).div(&v_float(2.))?, v_float(0.5));
-        Ok(())
+    fn test_div() {
+        assert_eq!(v_int(1).div(&v_int(2)), Ok(v_int(0)));
+        assert_eq!(v_float(1.).div(&v_float(2.)), Ok(v_float(0.5)));
+        assert_eq!(v_int(1).div(&v_float(2.)).unwrap_err().err_type(), E_TYPE);
+        assert_eq!(v_float(1.).div(&v_int(2)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
     fn test_modulus() {
         assert_eq!(v_int(1).modulus(&v_int(2)), Ok(v_int(1)));
-        assert_eq!(v_int(1).modulus(&v_float(2.)), Ok(v_float(1.)));
-        assert_eq!(v_float(1.).modulus(&v_int(2)), Ok(v_float(1.)));
         assert_eq!(v_float(1.).modulus(&v_float(2.)), Ok(v_float(1.)));
         assert_eq!(
             v_str("moop").modulus(&v_int(2)).unwrap_err().err_type(),
+            E_TYPE
+        );
+        assert_eq!(
+            v_int(1).modulus(&v_float(2.)).unwrap_err().err_type(),
+            E_TYPE
+        );
+        assert_eq!(
+            v_float(1.).modulus(&v_int(2)).unwrap_err().err_type(),
             E_TYPE
         );
     }
@@ -515,9 +467,11 @@ mod tests {
     fn test_pow() {
         assert_eq!(v_int(1).pow(&v_int(2)), Ok(v_int(1)));
         assert_eq!(v_int(2).pow(&v_int(2)), Ok(v_int(4)));
-        assert_eq!(v_int(2).pow(&v_float(2.)), Ok(v_float(4.)));
+        // A float may be raised to an integer power (LambdaMOO).
         assert_eq!(v_float(2.).pow(&v_int(2)), Ok(v_float(4.)));
         assert_eq!(v_float(2.).pow(&v_float(2.)), Ok(v_float(4.)));
+        // An integer may not be raised to a float power.
+        assert_eq!(v_int(2).pow(&v_float(2.)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
@@ -542,8 +496,9 @@ mod tests {
             v_float(1.).modulus(&v_float(0.)).unwrap_err().err_type(),
             E_DIV
         );
-        assert_eq!(v_float(1.).div(&v_int(0)).unwrap_err().err_type(), E_DIV);
-        assert_eq!(v_int(1).div(&v_float(0.)).unwrap_err().err_type(), E_DIV);
+        // Type mismatch is raised before the zero-divisor check (LambdaMOO).
+        assert_eq!(v_float(1.).div(&v_int(0)).unwrap_err().err_type(), E_TYPE);
+        assert_eq!(v_int(1).div(&v_float(0.)).unwrap_err().err_type(), E_TYPE);
     }
 
     #[test]
@@ -574,11 +529,11 @@ mod tests {
             E_FLOAT
         );
         assert_eq!(
-            v_float(2.).pow(&v_int(2000)).unwrap_err().err_type(),
+            v_float(2.).pow(&v_float(2000.)).unwrap_err().err_type(),
             E_FLOAT
         );
         assert_eq!(
-            v_int(2).pow(&v_float(2000.)).unwrap_err().err_type(),
+            v_float(2.).pow(&v_int(2000)).unwrap_err().err_type(),
             E_FLOAT
         );
     }
@@ -747,5 +702,44 @@ mod tests {
         let f = v_float(10.74107142857142);
         let i = v_int(100);
         assert!(f <= i);
+    }
+
+    #[test]
+    fn test_operator_compare_type_checks() {
+        // As in LambdaMOO, the ordering operators accept only like types.
+        assert_eq!(v_int(1).compare(&v_int(2)).unwrap(), Ordering::Less);
+        assert_eq!(
+            v_float(2.0).compare(&v_float(1.0)).unwrap(),
+            Ordering::Greater
+        );
+        // Strings order case-insensitively, like `==`.
+        assert_eq!(v_str("a").compare(&v_str("B")).unwrap(), Ordering::Less);
+        assert_eq!(v_objid(1).compare(&v_objid(2)).unwrap(), Ordering::Less);
+        // Error values order by error code.
+        assert_eq!(
+            v_err(E_TYPE).compare(&v_err(E_DIV)).unwrap(),
+            Ordering::Less
+        );
+
+        // Even int/float pairs are of different types, as for `==`.
+        assert_eq!(
+            v_int(1).compare(&v_float(2.0)).unwrap_err().err_type(),
+            E_TYPE
+        );
+        assert_eq!(
+            v_float(1.0).compare(&v_int(2)).unwrap_err().err_type(),
+            E_TYPE
+        );
+        assert_eq!(
+            v_int(1).compare(&v_str("a")).unwrap_err().err_type(),
+            E_TYPE
+        );
+        assert_eq!(
+            v_list(&[v_int(1)])
+                .compare(&v_list(&[v_int(1)]))
+                .unwrap_err()
+                .err_type(),
+            E_TYPE
+        );
     }
 }

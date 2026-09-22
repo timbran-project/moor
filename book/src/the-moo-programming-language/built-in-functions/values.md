@@ -96,6 +96,7 @@ Alias for `toint`. **Description:**
 
 **Returns:** An object reference\
 **Note:** For strings, accepts formats like "123" or "#123". Invalid strings convert to object #0.
+An integer outside the valid object ID range raises `E_RANGE`; a float outside it raises `E_FLOAT`.
 
 ### `tofloat`
 

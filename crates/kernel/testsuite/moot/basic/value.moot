@@ -64,6 +64,12 @@
 ; return toobj("foo");
 #0
 
+; toobj(3000000000);
+E_RANGE
+
+; toobj(1.0e10);
+E_FLOAT
+
 ; return tofloat(34);
 34.0
 

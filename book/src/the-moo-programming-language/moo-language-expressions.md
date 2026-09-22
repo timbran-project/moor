@@ -217,22 +217,8 @@ The `+` operator can also be used to append two strings. The expression
 
 has the value `"foobar"`
 
-The `+` operator can also be used to append two lists. The expression
-
-```
-{1, 2, 3} + {4, 5, 6}
-```
-
-has the value `{1, 2, 3, 4, 5, 6}`
-
-The `+` operator can also be used to append to a list. The expression
-
-```
-{1, 2} + #123
-```
-
-has the value of `{1, 2, #123}` Unless both operands to an arithmetic operator are numbers of the
-same kind (or, for `+`, both strings), the error value `E_TYPE` is raised. If the right-hand operand
+Unless both operands to an arithmetic operator are numbers of the same
+kind (or, for `+`, both strings), the error value `E_TYPE` is raised. If the right-hand operand
 for the division or remainder operators (`/` or `%`) is zero, the error value `E_DIV` is raised.
 
 MOO also supports the exponentiation operation, also known as "raising to a power," using the `^`

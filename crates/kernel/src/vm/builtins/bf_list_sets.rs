@@ -1454,18 +1454,8 @@ fn bf_sort(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
         let ordering = match (elem_a.variant(), elem_b.variant()) {
             (Variant::Int(a), Variant::Int(b)) => a.cmp(&b),
-            (Variant::Float(a), Variant::Float(b)) => {
-                // Handle NaN: NaN is considered equal to itself and less than any other value
-                if a.is_nan() && b.is_nan() {
-                    std::cmp::Ordering::Equal
-                } else if a.is_nan() {
-                    std::cmp::Ordering::Less
-                } else if b.is_nan() {
-                    std::cmp::Ordering::Greater
-                } else {
-                    a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
-                }
-            }
+            // MOO floats are always finite, so a total order is enough here.
+            (Variant::Float(a), Variant::Float(b)) => a.total_cmp(&b),
             (Variant::Obj(a), Variant::Obj(b)) => a.cmp(&b),
             (Variant::Err(a), Variant::Err(b)) => a.name().cmp(&b.name()),
             (Variant::Str(a), Variant::Str(b)) => {

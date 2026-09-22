@@ -1510,6 +1510,27 @@ impl Var {
         lhs == rhs
     }
 
+    /// Ordering comparison for the `<`, `<=`, `>`, and `>=` operators.
+    ///
+    /// As in LambdaMOO, only like types may be ordered: numbers with numbers,
+    /// objects with objects, errors with errors, and strings with strings
+    /// (case-insensitively). Integers and floats are distinct types here, just
+    /// as they are for `==`; lists and everything else raise `E_TYPE`.
+    pub fn compare(&self, v: &Self) -> Result<Ordering, Error> {
+        let orderable = matches!(
+            (self.variant(), v.variant()),
+            (Variant::Int(_), Variant::Int(_))
+                | (Variant::Float(_), Variant::Float(_))
+                | (Variant::Str(_), Variant::Str(_))
+                | (Variant::Obj(_), Variant::Obj(_))
+                | (Variant::Err(_), Variant::Err(_))
+        );
+        if !orderable {
+            return Err(E_TYPE.msg("these values cannot be ordered"));
+        }
+        Ok(self.cmp(v))
+    }
+
     pub fn eq_case_sensitive(&self, other: &Var) -> bool {
         match (self.variant(), other.variant()) {
             (Variant::Str(s1), Variant::Str(s2)) => s1.as_str() == s2.as_str(),

@@ -265,8 +265,8 @@ fn bf_tobool(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
 /// Usage: `obj toobj(int|float|str|obj value)`
 /// Converts a value to an object reference. Strings accept formats like "123" or "#123".
-/// Invalid strings return #0. Raises E_RANGE if the number is outside valid object ID range,
-/// and E_TYPE for unconvertible types.
+/// Invalid strings return #0. Raises E_RANGE for integers outside the valid object ID
+/// range, E_FLOAT for floats outside it, and E_TYPE for unconvertible types.
 fn bf_toobj(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 1 {
         return Err(BfErr::ErrValue(
@@ -286,14 +286,17 @@ fn bf_toobj(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Ok(Ret(v_objid(i)))
         }
         Variant::Float(f) => {
-            let f = if f < i32::MIN as f64 || f > i32::MAX as f64 {
+            // Truncation toward zero must land inside the object number range;
+            // as in LambdaMOO's float-to-integer conversion, a float outside it
+            // raises E_FLOAT.
+            const MIN: f64 = i32::MIN as f64; // -2^31, exactly representable
+            const MAX_EXCLUSIVE: f64 = 2147483648.0; // 2^31
+            if f.ceil() < MIN || f >= MAX_EXCLUSIVE {
                 return Err(BfErr::ErrValue(
-                    E_RANGE.msg("float value outside valid object ID range"),
+                    E_FLOAT.msg("float value out of range for an object number"),
                 ));
-            } else {
-                f as i32
-            };
-            Ok(Ret(v_objid(f)))
+            }
+            Ok(Ret(v_objid(f as i32)))
         }
         Variant::Str(s) if s.as_str().starts_with('#') => {
             match moor_var::Obj::try_from(s.as_str()) {

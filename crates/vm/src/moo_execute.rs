@@ -593,6 +593,30 @@ macro_rules! binary_bool_op {
     };
 }
 
+/// Ordering comparisons type-check: `Var::compare` raises `E_TYPE` unless both
+/// operands are orderable as a pair, as in LambdaMOO.
+macro_rules! binary_cmp_op {
+    ( $f:ident, $op:tt, $bi:expr ) => {
+        let rhs = $f.pop();
+        match $f.peek_top().compare(&rhs) {
+            Ok(ordering) => {
+                // Comparing the ordering against `Equal` gives the operator:
+                // e.g. `a < b` iff `Less < Equal`.
+                let bres: bool = ordering $op std::cmp::Ordering::Equal;
+                *$f.peek_top_mut() = if $bi {
+                    Var::mk_bool(bres)
+                } else {
+                    v_bool_int(bres)
+                };
+            }
+            Err(err_code) => {
+                $f.pop();
+                return push_error_cold(err_code);
+            }
+        }
+    };
+}
+
 macro_rules! binary_var_op {
     ( $f:ident, $op:tt ) => {
         let rhs = $f.pop();
@@ -1421,16 +1445,16 @@ pub fn moo_frame_execute<H: VmHost>(
                 binary_bool_op!(f, !=, features_config.use_boolean_returns);
             }
             Op::Gt => {
-                binary_bool_op!(f, >, features_config.use_boolean_returns);
+                binary_cmp_op!(f, >, features_config.use_boolean_returns);
             }
             Op::Lt => {
-                binary_bool_op!(f, <, features_config.use_boolean_returns);
+                binary_cmp_op!(f, <, features_config.use_boolean_returns);
             }
             Op::Ge => {
-                binary_bool_op!(f, >=, features_config.use_boolean_returns);
+                binary_cmp_op!(f, >=, features_config.use_boolean_returns);
             }
             Op::Le => {
-                binary_bool_op!(f, <=, features_config.use_boolean_returns);
+                binary_cmp_op!(f, <=, features_config.use_boolean_returns);
             }
             Op::In => {
                 let (lhs, rhs) = (f.pop(), f.peek_top());
