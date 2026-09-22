@@ -105,12 +105,14 @@ int toint(value)
 
 Converts the given MOO value into an integer and returns that integer.
 
-Floating-point numbers are rounded toward zero, truncating their fractional parts. Object numbers
-are converted into the equivalent integers. Strings are trimmed and parsed as the decimal encoding
-of a real number which is then converted to an integer. Errors are converted into integers obeying
-the same ordering (with respect to `<=` as the errors themselves. `toint()` raises `E_TYPE` if value
-is a list. If value is a string but the string does not contain a syntactically-correct number, then
-`toint()` returns 0.
+Floating-point numbers are rounded toward zero, truncating their fractional parts; a floating-point
+number outside the range of integers raises `E_FLOAT`. Object numbers are converted into the
+equivalent integers. Strings are trimmed and parsed as the decimal encoding of a real number which
+is then converted to an integer. Errors are converted into integers obeying the same ordering (with
+respect to `<=` as the errors themselves. `toint()` raises `E_TYPE` if value is not convertible
+(e.g., a list). If value is a string that does not contain a syntactically-correct number —
+including strings naming infinities or NaNs, or numbers too large to represent — then `toint()`
+returns 0.
 
 ```
 toint(34.7)        =>   34
@@ -118,7 +120,9 @@ toint(-34.7)       =>   -34
 toint(#34)         =>   34
 toint("34")        =>   34
 toint("34.7")      =>   34
-toint(" - 34  ")   =>   -34
+toint(" -34  ")    =>   -34
+toint("inf")       =>   0
+toint(1.0e30)      =>   E_FLOAT (error)
 toint(E_TYPE)      =>   1
 ```
 
@@ -151,15 +155,19 @@ Converts the given MOO value into a floating-point number and returns that numbe
 Integers and object numbers are converted into the corresponding integral floating-point numbers.
 Strings are trimmed and parsed as the decimal encoding of a real number which is then represented as
 closely as possible as a floating-point number. Errors are first converted to integers as in
-`toint()` and then converted as integers are. `tofloat()` raises `E_TYPE` if value is a list. If
-value is a string but the string does not contain a syntactically-correct number, then `tofloat()`
-returns 0.
+`toint()` and then converted as integers are. `tofloat()` raises `E_TYPE` if value is not
+convertible (e.g., a list). If value is a string that does not contain a syntactically-correct
+number, `tofloat()` raises `E_INVARG`. This includes strings naming infinities or NaNs ("inf",
+"nan") and numbers too large to represent: MOO floating-point numbers are always real (finite)
+numbers.
 
 ```
 tofloat(34)          =>   34.0
 tofloat(#34)         =>   34.0
 tofloat("34")        =>   34.0
 tofloat("34.7")      =>   34.7
+tofloat("nan")       =>   E_INVARG (error)
+tofloat("1e999")     =>   E_INVARG (error)
 tofloat(E_TYPE)      =>   1.0
 ```
 

@@ -191,12 +191,19 @@ impl<R: Read> TextdumpReader<R> {
     }
     fn read_float(&mut self) -> Result<f64, TextdumpReaderError> {
         let buf = self.read_next_line()?;
-        let Ok(f) = buf.trim().parse() else {
+        let Ok(f) = buf.trim().parse::<f64>() else {
             return Err(TextdumpReaderError::ParseError(
                 format!("invalid float: {buf}"),
                 self.line_num,
             ));
         };
+        // As when LambdaMOO reads a database: refuse excessive magnitude and NaN.
+        if !f.is_finite() {
+            return Err(TextdumpReaderError::ParseError(
+                format!("invalid float: {buf}"),
+                self.line_num,
+            ));
+        }
         Ok(f)
     }
     fn read_string(&mut self) -> Result<String, TextdumpReaderError> {

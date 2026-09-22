@@ -30,8 +30,8 @@ use moor_common::{
 };
 use moor_compiler::{BuiltinId, Label, Offset, Op, Program, to_literal};
 use moor_var::{
-    E_ARGS, E_DIV, E_INVARG, E_INVIND, E_PERM, E_RANGE, E_TYPE, E_VARNF, E_VERBNF, Error,
-    IndexMode, List, Obj, SYSTEM_OBJECT, Sequence, Symbol, TypeClass, Var, VarType, Variant,
+    E_ARGS, E_INVARG, E_INVIND, E_PERM, E_RANGE, E_TYPE, E_VARNF, E_VERBNF, Error, IndexMode, List,
+    Obj, SYSTEM_OBJECT, Sequence, Symbol, TypeClass, Var, VarType, Variant,
     program::names::{GlobalName, Name},
     v_arc_str, v_bool, v_bool_int, v_empty_list, v_empty_map, v_empty_str, v_err, v_error, v_float,
     v_flyweight, v_int, v_list, v_map, v_none, v_obj, v_sym,
@@ -567,12 +567,6 @@ fn invalid_verb_name_error(verb: &Var) -> Error {
 #[inline(never)]
 fn invalid_list_append_error() -> Error {
     E_TYPE.msg("invalid value in list append")
-}
-
-#[cold]
-#[inline(never)]
-fn division_by_zero_error() -> Error {
-    E_DIV.msg("division by zero")
 }
 
 #[cold]
@@ -1458,13 +1452,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 binary_var_op!(f, sub);
             }
             Op::Div => {
-                // Explicit division by zero check to raise E_DIV.
-                // Note that LambdaMOO consider 1/0.0 to be E_DIV, but Rust permits it, creating
-                // `inf`.
-                let (divisor, _) = f.peek2();
-                if divisor.is_zero() {
-                    return push_error_cold(division_by_zero_error());
-                };
+                // Zero-divisor and result-reality checks happen in the scalar
+                // arithmetic itself (`E_DIV` / `E_FLOAT`), as in LambdaMOO.
                 binary_var_op!(f, div);
             }
             Op::Add => {
@@ -1474,10 +1463,6 @@ pub fn moo_frame_execute<H: VmHost>(
                 binary_var_op!(f, pow);
             }
             Op::Mod => {
-                let (divisor, _) = f.peek2();
-                if divisor.is_zero() {
-                    return push_error_cold(division_by_zero_error());
-                };
                 binary_var_op!(f, modulus);
             }
             Op::And(label) => {

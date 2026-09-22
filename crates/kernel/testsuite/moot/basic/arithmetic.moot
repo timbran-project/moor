@@ -24,3 +24,20 @@
 
 ; return sqrt(4.0);
 2.0
+
+// Operator type errors raise, as in LambdaMOO.
+; 1 + "a";
+E_TYPE
+
+; "a" - 1;
+E_TYPE
+
+; 1.5 * {};
+E_TYPE
+
+; 1 / "0";
+E_TYPE
+
+// Type mismatch is raised before the zero-divisor check (LambdaMOO order).
+; "a" / 0;
+E_TYPE

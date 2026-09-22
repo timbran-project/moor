@@ -76,6 +76,54 @@
 ; return tofloat(7.3);
 7.3
 
+; return tofloat(#34);
+34.0
+
+; return tofloat(E_TYPE);
+1.0
+
+// LambdaMOO: MOO floats are always real (finite) numbers. Strings naming
+// infinities or NaNs, or values too large to represent, do not contain a real
+// number.
+; tofloat("nan");
+E_INVARG
+
+; tofloat("NaN");
+E_INVARG
+
+; tofloat("inf");
+E_INVARG
+
+; tofloat("-infinity");
+E_INVARG
+
+; tofloat("1e999");
+E_INVARG
+
+; tofloat("garbage");
+E_INVARG
+
+; tofloat({1, 2});
+E_TYPE
+
+; return toint("34.7");
+34
+
+; return toint("inf");
+0
+
+; return toint("nan");
+0
+
+; return toint("1e999");
+0
+
+; toint(1.0e30);
+E_FLOAT
+
+; return toint("9007199254740993");
+9007199254740993
+
 ; return equal(1 + 1, 2);
 1
 

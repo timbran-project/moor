@@ -1393,14 +1393,22 @@ impl<'a> Lowerer<'a> {
                     )
                 },
             )?))),
-            SyntaxKind::FloatLit => Ok(Expr::Value(v_float(token.text().parse::<f64>().map_err(
-                |e| {
+            SyntaxKind::FloatLit => {
+                let f = token.text().parse::<f64>().map_err(|e| {
                     CompileError::StringLexError(
                         self.compile_context(token.text_range()),
                         format!("invalid float literal '{}': {e}", token.text()),
                     )
-                },
-            )?))),
+                })?;
+                // MOO floats are always real numbers; `1e999` is a compile error.
+                if !f.is_finite() {
+                    return Err(CompileError::StringLexError(
+                        self.compile_context(token.text_range()),
+                        format!("float literal '{}' is out of range", token.text()),
+                    ));
+                }
+                Ok(Expr::Value(v_float(f)))
+            }
             SyntaxKind::StringLit => {
                 let parsed = moor_common::util::unquote_str(token.text()).map_err(|e| {
                     CompileError::StringLexError(

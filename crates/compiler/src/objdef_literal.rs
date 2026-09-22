@@ -413,6 +413,16 @@ impl<'a> LiteralParser<'a> {
                     String::new(),
                 )
             })?;
+            // MOO floats are always real numbers; out-of-range literals are errors.
+            if !value.is_finite() {
+                return Err(ObjDefParseError::VerbCompileError(
+                    CompileError::StringLexError(
+                        CompileContext::new(self.line_col(start)),
+                        format!("float literal '{text}' is out of range"),
+                    ),
+                    String::new(),
+                ));
+            }
             Ok(v_float(value))
         } else {
             let value = normalized.parse::<i64>().map_err(|e| {

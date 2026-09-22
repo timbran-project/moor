@@ -135,3 +135,78 @@ E_ARGS
 E_ARGS
 ; round(1.0, "bad");
 E_TYPE
+
+// LambdaMOO: IEEE infinities and NaNs are not allowed in MOO; E_FLOAT is raised
+// wherever one would otherwise be computed.
+; 1e308 + 1e308;
+E_FLOAT
+
+; 1e308 * 10.0;
+E_FLOAT
+
+; 1e308 / 1.0e-308;
+E_FLOAT
+
+; 2.0 ^ 2000.0;
+E_FLOAT
+
+; 0.0 ^ -1.0;
+E_FLOAT
+
+; (-8.0) ^ 0.5;
+E_FLOAT
+
+; exp(1000.0);
+E_FLOAT
+
+; cosh(1000.0);
+E_FLOAT
+
+// Domain errors raise E_INVARG, including at the poles of atanh()
+; sqrt(-1.0);
+E_INVARG
+
+; atanh(1.0);
+E_INVARG
+
+; atanh(-1.0);
+E_INVARG
+
+// round() must not misreport scaling overflow as a math error
+; return round(0.0, 400);
+0.0
+
+; return round(2.5, 400);
+2.5
+
+; return round(2.5, 2147483648);
+2.5
+
+; return round(1e300, 20);
+1e300
+
+; return round(1.5, -400);
+0.0
+
+// Integer exponents keep exact parity beyond 2^53
+; return (-1.0) ^ 9007199254740993;
+-1.0
+
+; asin(2.0);
+E_INVARG
+
+; log(-1.0);
+E_INVARG
+
+// Integer powers with negative exponents follow LambdaMOO
+; return 2 ^ -3;
+0
+
+; return (-1) ^ -3;
+-1
+
+; return 1 ^ -500;
+1
+
+; 0 ^ -1;
+E_DIV

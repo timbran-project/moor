@@ -22,7 +22,7 @@ use crate::{
 use moor_common::util::write_i64_decimal;
 use moor_compiler::{ObjDefParseError, offset_for_builtin, parse_literal_value, to_literal};
 use moor_var::{
-    ByteSized, E_ARGS, E_INVARG, E_MAXREC, E_RANGE, E_TYPE, ValueDiffOptions, Variant,
+    ByteSized, E_ARGS, E_FLOAT, E_INVARG, E_MAXREC, E_RANGE, E_TYPE, ValueDiffOptions, Variant,
     decode_var_cbor, encode_var_cbor, v_binary, v_err, v_float, v_int, v_obj, v_objid, v_str,
     v_string, v_sym, value_diff, value_diff3,
 };
@@ -179,10 +179,20 @@ fn bf_fromliteral(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(value))
 }
 
+/// Mirrors LambdaMOO's `inrange_for_float_to_int`: a float converts to an integer
+/// when truncation toward zero lands inside the integer range.
+fn float_to_int_in_range(f: f64) -> bool {
+    const MIN: f64 = i64::MIN as f64; // -2^63, exactly representable
+    const MAX_EXCLUSIVE: f64 = 9223372036854775808.0; // 2^63
+    f.ceil() >= MIN && f < MAX_EXCLUSIVE
+}
+
 /// Usage: `int toint(int|float|obj|str|error value)`
-/// Converts a value to an integer. Floats are truncated, objects return their ID number,
-/// strings are parsed as numbers (invalid strings return 0), errors return their code.
-/// Raises E_INVARG for UUID objects or unconvertible types.
+/// Converts a value to an integer. Floats are truncated toward zero and raise
+/// `E_FLOAT` when out of integer range; objects return their ID number; strings
+/// are parsed as numbers (invalid or unrepresentable strings return 0); errors
+/// return their code. Raises `E_INVARG` for UUID objects and `E_TYPE` for
+/// unconvertible types.
 fn bf_toint(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 1 {
         return Err(BfErr::ErrValue(
@@ -192,7 +202,14 @@ fn bf_toint(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     match bf_args.args[0].variant() {
         Variant::Bool(b) => Ok(Ret(v_int(if b { 1 } else { 0 }))),
         Variant::Int(i) => Ok(Ret(v_int(i))),
-        Variant::Float(f) => Ok(Ret(v_int(f as i64))),
+        Variant::Float(f) => {
+            if !float_to_int_in_range(f) {
+                return Err(BfErr::ErrValue(
+                    E_FLOAT.msg("float is out of range for an integer"),
+                ));
+            }
+            Ok(Ret(v_int(f as i64)))
+        }
         Variant::Obj(o) => {
             if o.is_uuobjid() {
                 Err(BfErr::ErrValue(
@@ -203,11 +220,19 @@ fn bf_toint(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             }
         }
         Variant::Str(s) => {
-            let i = s.as_str().trim().parse::<f64>();
-            match i {
-                Ok(i) => Ok(Ret(v_int(i as i64))),
-                Err(_) => Ok(Ret(v_int(0))),
+            let s = s.as_str().trim();
+            if let Ok(i) = s.parse::<i64>() {
+                return Ok(Ret(v_int(i)));
             }
+            // Strings denoting non-integer numbers truncate toward zero, matching
+            // toint(tofloat(s)); unparseable or unrepresentable strings give 0.
+            let Ok(f) = s.parse::<f64>() else {
+                return Ok(Ret(v_int(0)));
+            };
+            if !float_to_int_in_range(f) {
+                return Ok(Ret(v_int(0)));
+            }
+            Ok(Ret(v_int(f as i64)))
         }
         Variant::Err(e) => {
             let Some(v) = e.to_int() else {
@@ -219,7 +244,7 @@ fn bf_toint(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Ok(Ret(v_int(v as i64)))
         }
         _ => Err(BfErr::ErrValue(
-            E_INVARG.msg("cannot convert this type to integer"),
+            E_TYPE.msg("cannot convert this type to integer"),
         )),
     }
 }
@@ -240,7 +265,8 @@ fn bf_tobool(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
 /// Usage: `obj toobj(int|float|str|obj value)`
 /// Converts a value to an object reference. Strings accept formats like "123" or "#123".
-/// Invalid strings return #0. Raises E_RANGE if the number is outside valid object ID range.
+/// Invalid strings return #0. Raises E_RANGE if the number is outside valid object ID range,
+/// and E_TYPE for unconvertible types.
 fn bf_toobj(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 1 {
         return Err(BfErr::ErrValue(
@@ -248,6 +274,7 @@ fn bf_toobj(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     match bf_args.args[0].variant() {
+        Variant::Bool(b) => Ok(Ret(v_objid(if b { 1 } else { 0 }))),
         Variant::Int(i) => {
             let i = if i < i32::MIN as i64 || i > i32::MAX as i64 {
                 return Err(BfErr::ErrValue(
@@ -283,14 +310,16 @@ fn bf_toobj(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
         Variant::Obj(o) => Ok(Ret(v_obj(o))),
         _ => Err(BfErr::ErrValue(
-            E_INVARG.msg("cannot convert this type to object"),
+            E_TYPE.msg("cannot convert this type to object"),
         )),
     }
 }
 
-/// Usage: `float tofloat(int|float|str|error value)`
-/// Converts a value to a floating-point number. Strings are parsed as numbers (invalid
-/// strings return 0.0), errors return their code as a float.
+/// Usage: `float tofloat(int|float|obj|str|error value)`
+/// Converts a value to a floating-point number. Strings must contain a real
+/// number: unparseable strings, "nan"/"inf", and values that overflow raise
+/// `E_INVARG`, as MOO floats are always finite. Errors return their code as a
+/// float. Raises `E_TYPE` for unconvertible types.
 fn bf_tofloat(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 1 {
         return Err(BfErr::ErrValue(
@@ -298,13 +327,27 @@ fn bf_tofloat(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
     match bf_args.args[0].variant() {
+        Variant::Bool(b) => Ok(Ret(v_float(if b { 1.0 } else { 0.0 }))),
         Variant::Int(i) => Ok(Ret(v_float(i as f64))),
         Variant::Float(f) => Ok(Ret(v_float(f))),
+        Variant::Obj(o) => {
+            if o.is_uuobjid() {
+                Err(BfErr::ErrValue(
+                    E_INVARG.msg("cannot convert UUID Objects to float"),
+                ))
+            } else {
+                Ok(Ret(v_float(o.id().0 as f64)))
+            }
+        }
         Variant::Str(s) => {
-            let f = s.as_str().trim().parse::<f64>();
-            match f {
-                Ok(f) => Ok(Ret(v_float(f))),
-                Err(_) => Ok(Ret(v_float(0.0))),
+            // As in LambdaMOO: the string must parse to a real number. Rust's
+            // float parser accepts "nan"/"inf" and overflow to infinity, none of
+            // which are representable MOO floats.
+            match s.as_str().trim().parse::<f64>() {
+                Ok(f) if f.is_finite() => Ok(Ret(v_float(f))),
+                _ => Err(BfErr::ErrValue(
+                    E_INVARG.msg("string does not contain a real number"),
+                )),
             }
         }
 
@@ -318,7 +361,7 @@ fn bf_tofloat(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             Ok(Ret(v_float(v as f64)))
         }
         _ => Err(BfErr::ErrValue(
-            E_INVARG.msg("cannot convert this type to float"),
+            E_TYPE.msg("cannot convert this type to float"),
         )),
     }
 }

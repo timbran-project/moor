@@ -236,7 +236,14 @@ impl TryFrom<CborVar> for Var {
             CborVar::None => Ok(v_none()),
             CborVar::Bool(value) => Ok(v_bool(value)),
             CborVar::Int(value) => Ok(v_int(value)),
-            CborVar::FloatBits(bits) => Ok(v_float(f64::from_bits(bits))),
+            CborVar::FloatBits(bits) => {
+                let f = f64::from_bits(bits);
+                // MOO floats are always real (finite) numbers.
+                if !f.is_finite() {
+                    return Err(CborVarError::InvalidData("non-real float".to_string()));
+                }
+                Ok(v_float(f))
+            }
             CborVar::Str(value) => Ok(v_str(&value)),
             CborVar::Obj(value) => Obj::try_read(value)
                 .map(v_obj)

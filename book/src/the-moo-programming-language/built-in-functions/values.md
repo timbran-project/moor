@@ -79,8 +79,9 @@ fromliteral("1 + 2")                 =>   raises E_INVARG
 - `value`: The value to convert (must be a number, object, string, or error)
 
 **Returns:** The integer representation of the value\
-**Note:** String conversion parses the string as a number; invalid strings convert to 0. Boolean
-values convert to 1 for `true` and 0 for `false`.
+**Note:** String conversion parses the string as a number; invalid strings (including "inf", "nan",
+and numbers too large to represent) convert to 0. Boolean values convert to 1 for `true` and 0 for
+`false`. A floating-point number outside the range of integers raises `E_FLOAT`.
 
 ### `tonum`
 
@@ -104,7 +105,9 @@ Alias for `toint`. **Description:**
 - `value`: The value to convert (must be a number, string, or error)
 
 **Returns:** The floating-point representation of the value\
-**Note:** String conversion parses the string as a number; invalid strings convert to 0.0.
+**Note:** String conversion parses the string as a number; a string that does not name a real number
+raises `E_INVARG`. MOO floats are always finite: "inf", "nan", and numbers too large to represent
+raise `E_INVARG`.
 
 ### `tobool`
 

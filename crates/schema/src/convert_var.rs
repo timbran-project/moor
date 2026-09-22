@@ -517,6 +517,10 @@ fn var_from_flatbuffer_ref_internal(
 
         VarUnionRef::VarFloat(f) => {
             let value = f.value().map_err(|e| fb_err(format!("float value: {e}")))?;
+            // MOO floats are always real (finite) numbers.
+            if !value.is_finite() {
+                return Err(fb_err("float value: non-real float".to_string()));
+            }
             Ok(v_float(value))
         }
 
@@ -713,6 +717,21 @@ mod tests {
         // let var = Var::mk_lambda(...);
         // let result = var_to_flatbuffer(&var);
         // assert!(matches!(result, Err(VarConversionError::LambdaNotTransmittable)));
+    }
+
+    #[test]
+    fn test_non_real_float_rejected() {
+        // A hostile or corrupt FlatBuffer can name any f64 bit pattern.
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let fb = var::Var {
+                variant: VarUnion::VarFloat(Box::new(var::VarFloat { value })),
+            };
+            let err = var_from_flatbuffer(fb).unwrap_err();
+            assert!(
+                matches!(err, VarConversionError::DecodingError(_)),
+                "expected decoding error for {value:?}, got {err:?}"
+            );
+        }
     }
 
     #[test]

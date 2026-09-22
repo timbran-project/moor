@@ -16,7 +16,7 @@
 use rand::RngExt;
 
 use moor_compiler::offset_for_builtin;
-use moor_var::{E_ARGS, E_INVARG, E_TYPE, Var, Variant, v_float, v_int, v_str};
+use moor_var::{E_ARGS, E_FLOAT, E_INVARG, E_TYPE, Var, Variant, v_float, v_int, v_str};
 
 use crate::vm::builtins::{BfCallState, BfErr, BfRet, BfRet::Ret, BuiltinFunction};
 
@@ -198,6 +198,20 @@ fn numeric_arg(arg: &Var) -> Result<f64, BfErr> {
     Ok(x)
 }
 
+/// LambdaMOO's math builtins raise `E_INVARG` on domain errors and `E_FLOAT` on
+/// overflow, and MOO floats are always real (finite) numbers. Rust's float math
+/// returns NaN for domain errors and infinity for overflow instead of setting
+/// `errno`, so results are checked here.
+fn math_result(d: f64) -> Result<BfRet, BfErr> {
+    if d.is_nan() {
+        return Err(BfErr::ErrValue(E_INVARG.msg("math domain error")));
+    }
+    if !d.is_finite() {
+        return Err(BfErr::ErrValue(E_FLOAT.msg("math result out of range")));
+    }
+    Ok(Ret(v_float(d)))
+}
+
 /// Macro for creating simple single-argument math functions that take a numeric argument
 /// and return a float result. Used for basic trigonometric and mathematical functions.
 macro_rules! math_fn {
@@ -211,7 +225,7 @@ macro_rules! math_fn {
             }
 
             let x = numeric_arg(&bf_args.args[0])?;
-            Ok(Ret(v_float($math_op(x))))
+            math_result($math_op(x))
         }
     };
 }
@@ -231,10 +245,10 @@ macro_rules! math_fn_with_validation {
             let x = numeric_arg(&bf_args.args[0])?;
 
             if !$validator(x) {
-                return Err(BfErr::ErrValue(E_ARGS.msg($error_msg)));
+                return Err(BfErr::ErrValue(E_INVARG.msg($error_msg)));
             }
 
-            Ok(Ret(v_float($math_op(x))))
+            math_result($math_op(x))
         }
     };
 }
@@ -296,12 +310,12 @@ fn bf_atan(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() == 1 {
         // Single argument: regular atan
         let x = numeric_arg(&bf_args.args[0])?;
-        Ok(Ret(v_float(x.atan())))
+        math_result(x.atan())
     } else {
         // Two arguments: atan2(y, x) - args[0] is y, args[1] is x
         let y = numeric_arg(&bf_args.args[0])?;
         let x = numeric_arg(&bf_args.args[1])?;
-        Ok(Ret(v_float(y.atan2(x))))
+        math_result(y.atan2(x))
     }
 }
 
@@ -384,10 +398,25 @@ fn bf_round(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         let Variant::Int(places) = bf_args.args[1].variant() else {
             return Err(BfErr::Code(E_TYPE));
         };
+        // Rounding at a finer scale than floats can resolve leaves x unchanged;
+        // past these bounds the scale factor is not even representable.
+        if places > 308 {
+            return math_result(x);
+        }
+        if places < -324 {
+            // The only representable multiple of 10^|places| is zero.
+            return math_result(0.0_f64.copysign(x));
+        }
         let factor = 10_f64.powi(places as i32);
-        Ok(Ret(v_float((x * factor).round() / factor)))
+        let scaled = x * factor;
+        if !scaled.is_finite() {
+            // Scale overflow implies the rounding increment is finer than x's
+            // own representable granularity: x is already the rounded value.
+            return math_result(x);
+        }
+        math_result(scaled.round() / factor)
     } else {
-        Ok(Ret(v_float(x.round())))
+        math_result(x.round())
     }
 }
 
@@ -460,11 +489,13 @@ math_fn_with_validation!(
     |x: f64| x >= 1.0,
     "acosh() takes a number >= 1"
 );
-math_fn!(
+math_fn_with_validation!(
     "Usage: `float atanh(num x)`\nReturns the inverse hyperbolic tangent of x. Raises E_INVARG if |x| >= 1.",
     bf_atanh,
     "atanh",
-    |x: f64| x.atanh()
+    |x: f64| x.atanh(),
+    |x: f64| x.abs() < 1.0,
+    "atanh() takes a number with absolute value less than 1"
 );
 
 // Angle conversion functions
@@ -490,7 +521,7 @@ fn bf_hypot(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let x = numeric_arg(&bf_args.args[0])?;
     let y = numeric_arg(&bf_args.args[1])?;
-    Ok(Ret(v_float(x.hypot(y))))
+    math_result(x.hypot(y))
 }
 
 /// Usage: `float copysign(num magnitude, num sign)`
@@ -502,7 +533,7 @@ fn bf_copysign(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let magnitude = numeric_arg(&bf_args.args[0])?;
     let sign = numeric_arg(&bf_args.args[1])?;
-    Ok(Ret(v_float(magnitude.copysign(sign))))
+    math_result(magnitude.copysign(sign))
 }
 
 pub(crate) fn register_bf_num(builtins: &mut [BuiltinFunction]) {

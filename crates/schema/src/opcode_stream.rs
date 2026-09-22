@@ -208,6 +208,8 @@ pub enum DecodeError {
     UnknownOpcode(u16, usize),
     #[error("Invalid enum value: {0} for {1} at PC {2}")]
     InvalidEnum(u16, &'static str, usize),
+    #[error("Non-real float at PC {0}")]
+    NonRealFloat(usize),
 }
 
 // ============================================================================
@@ -1048,7 +1050,13 @@ impl OpStream {
     }
 
     fn decode_f64(&self, pc: &mut usize) -> Result<f64, DecodeError> {
-        Ok(f64::from_bits(self.decode_i64(pc)? as u64))
+        let start = *pc;
+        let value = f64::from_bits(self.decode_i64(pc)? as u64);
+        // MOO floats are always real (finite) numbers.
+        if !value.is_finite() {
+            return Err(DecodeError::NonRealFloat(start));
+        }
+        Ok(value)
     }
 
     fn decode_u64(&self, pc: &mut usize) -> Result<u64, DecodeError> {
@@ -1083,6 +1091,23 @@ mod tests {
         }
 
         assert_eq!(ops, decoded);
+    }
+
+    #[test]
+    fn test_non_real_float_rejected() {
+        // A corrupt program stream can name any f64 bit pattern.
+        let ops = vec![Op::ImmFloat(f64::NAN), Op::Return];
+
+        let mut stream = OpStream::new();
+        for op in &ops {
+            stream.encode(op);
+        }
+
+        let mut pc = 0;
+        assert!(matches!(
+            stream.decode_at(&mut pc),
+            Err(DecodeError::NonRealFloat(_))
+        ));
     }
 
     #[test]
