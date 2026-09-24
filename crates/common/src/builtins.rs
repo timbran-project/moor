@@ -539,8 +539,8 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin(
             "match",
             Q(2),
-            Q(3),
-            vec![Typed(TYPE_STR), Typed(TYPE_STR), Any],
+            Q(4),
+            vec![Typed(TYPE_STR), Typed(TYPE_STR), Any, Typed(TYPE_INT)],
             true,
         ),
         mk_builtin(

@@ -357,6 +357,7 @@ fn perform_regex_match(
     subject: &str,
     case_matters: bool,
     reverse: bool,
+    start: usize,
 ) -> Result<Option<MatchSpans>, Error> {
     let Some(translated_pattern) = translate_pattern(pattern) else {
         return Err(E_INVARG.msg("Invalid regex pattern"));
@@ -395,7 +396,18 @@ fn perform_regex_match(
     let (search_start, search_end) = if reverse {
         (subject.len(), 0)
     } else {
-        (0, subject.len())
+        // Search the full subject so anchors and boundaries retain their context.
+        let start_byte = if start == 0 {
+            0
+        } else {
+            subject
+                .char_indices()
+                .map(|(offset, _)| offset)
+                .chain(std::iter::once(subject.len()))
+                .nth(start)
+                .ok_or_else(|| E_INVARG.msg("match() start is outside the subject"))?
+        };
+        (start_byte, subject.len())
     };
     let mut region = Region::new();
     let search_result = match regex.search_with_param(
@@ -442,7 +454,8 @@ fn perform_regex_match(
 
 /// Common code for both match and rmatch functions.
 fn do_re_match(bf_args: &mut BfCallState<'_>, reverse: bool) -> Result<BfRet, BfErr> {
-    if bf_args.args.len() < 2 || bf_args.args.len() > 3 {
+    let max_args = if reverse { 3 } else { 4 };
+    if bf_args.args.len() < 2 || bf_args.args.len() > max_args {
         return Err(BfErr::Code(E_ARGS));
     }
     let (subject, pattern) = match (bf_args.args[0].variant(), bf_args.args[1].variant()) {
@@ -450,7 +463,7 @@ fn do_re_match(bf_args: &mut BfCallState<'_>, reverse: bool) -> Result<BfRet, Bf
         _ => return Err(BfErr::Code(E_TYPE)),
     };
 
-    let case_matters = if bf_args.args.len() == 3 {
+    let case_matters = if bf_args.args.len() >= 3 {
         let Some(case_matters) = bf_args.args[2].as_integer() else {
             return Err(BfErr::Code(E_TYPE));
         };
@@ -459,10 +472,24 @@ fn do_re_match(bf_args: &mut BfCallState<'_>, reverse: bool) -> Result<BfRet, Bf
         false
     };
 
-    // TODO: Regex pattern cache?
-    let Some((overall, match_vec)) =
-        perform_regex_match(pattern.as_str(), subject.as_str(), case_matters, reverse)
-            .map_err(BfErr::ErrValue)?
+    let start = if bf_args.args.len() == 4 {
+        let start = bf_args.args[3].as_integer().ok_or(BfErr::Code(E_TYPE))?;
+        if start < 1 {
+            return Err(BfErr::Code(E_INVARG));
+        }
+        usize::try_from(start - 1).map_err(|_| BfErr::Code(E_INVARG))?
+    } else {
+        0
+    };
+
+    let Some((overall, match_vec)) = perform_regex_match(
+        pattern.as_str(),
+        subject.as_str(),
+        case_matters,
+        reverse,
+        start,
+    )
+    .map_err(BfErr::ErrValue)?
     else {
         return Ok(Ret(v_empty_list()));
     };
@@ -479,8 +506,10 @@ fn do_re_match(bf_args: &mut BfCallState<'_>, reverse: bool) -> Result<BfRet, Bf
         bf_args.args[0].clone(),
     ])))
 }
-/// Usage: `list match(str subject, str pattern [, bool case_matters])`
+/// Usage: `list match(str subject, str pattern [, int case_matters [, int start]])`
 /// Searches for the first occurrence of pattern in subject using MOO regular expressions.
+/// `start` defaults to 1 and is a character position through `length(subject) + 1`.
+/// Captures use absolute positions; anchors and boundaries see the complete subject.
 /// Returns {} if no match, or {start, end, replacements, subject} where replacements is
 /// a list of 9 {start,end} pairs for captured subpatterns. By default case-insensitive.
 fn bf_match(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -1550,7 +1579,7 @@ mod tests {
     #[test]
     fn test_match_substitute() {
         let source = "*** Welcome to LambdaMOO!!!";
-        let (overall, subs) = perform_regex_match("%(%w*%) to %(%w*%)", source, false, false)
+        let (overall, subs) = perform_regex_match("%(%w*%) to %(%w*%)", source, false, false, 0)
             .unwrap()
             .unwrap();
         assert_eq!(overall, (5, 24));
@@ -1575,7 +1604,7 @@ mod tests {
     #[test]
     fn test_substitute_regression() {
         let source = "help @options";
-        let (_, subs) = perform_regex_match("^help %('%|[^ <][^ ]*%)$", source, false, false)
+        let (_, subs) = perform_regex_match("^help %('%|[^ <][^ ]*%)$", source, false, false, 0)
             .unwrap()
             .unwrap();
         let result = substitute("%1", &subs, source).unwrap();
@@ -1590,6 +1619,7 @@ mod tests {
             source,
             false,
             false,
+            0,
         )
         .unwrap()
         .unwrap();
@@ -1617,7 +1647,7 @@ mod tests {
         let source = "2";
         // In MOO this should yield (1,1). In Python re it's (0,1).
         // 'twas returning None because + support got broken.
-        let (overall, _) = perform_regex_match("[0-9]+ *", source, false, false)
+        let (overall, _) = perform_regex_match("[0-9]+ *", source, false, false, 0)
             .unwrap()
             .unwrap();
         assert_eq!(overall, (1, 1));
@@ -1625,7 +1655,7 @@ mod tests {
 
     #[test]
     fn test_rmatch() {
-        let m = perform_regex_match("o*b", "foobar", false, true)
+        let m = perform_regex_match("o*b", "foobar", false, true, 0)
             .unwrap()
             .unwrap();
         // {4, 4, {{0, -1}
@@ -1651,7 +1681,7 @@ mod tests {
     #[test]
     fn test_match_unicode_indices() {
         let source = "héllo";
-        let (overall, subs) = perform_regex_match("%(é%)", source, false, false)
+        let (overall, subs) = perform_regex_match("%(é%)", source, false, false, 0)
             .unwrap()
             .unwrap();
         assert_eq!(overall, (2, 2));
@@ -1663,7 +1693,7 @@ mod tests {
     #[test]
     fn test_rmatch_unicode_indices() {
         let source = "héllö";
-        let (overall, _) = perform_regex_match("l", source, false, true)
+        let (overall, _) = perform_regex_match("l", source, false, true, 0)
             .unwrap()
             .unwrap();
         assert_eq!(overall, (4, 4));
@@ -1674,7 +1704,7 @@ mod tests {
     #[test]
     fn test_bug() {
         let problematic_regex = "^[]a-zA-Z0-9-%~`!@#$^&()=+{}[|';?/><.,]+$";
-        perform_regex_match(problematic_regex, "foo", false, false).unwrap();
+        perform_regex_match(problematic_regex, "foo", false, false, 0).unwrap();
     }
 
     #[test]

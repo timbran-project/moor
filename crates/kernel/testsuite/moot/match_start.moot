@@ -1,0 +1,64 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
+// match() start positions are one-based character indices in the original subject.
+@wizard
+; return match("ababa", "%(a%)", 1, 3);
+{3, 3, {{3, 3}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}}, "ababa"}
+; return match("ababa", "a", 1, 1) == match("ababa", "a", 1) ? 1 | 0;
+1
+; return match("AbA", "a", 0, 2)[1..2];
+{3, 3}
+; return match("AbA", "a", 1, 2);
+{}
+
+// Anchors and boundaries still see the complete string, including preceding characters.
+; return match("aa", "^a", 1, 2);
+{}
+; return match("ba a", "%<a", 1, 2)[1..2];
+{4, 4}
+; return match("aa", "$", 1, 3)[1..2];
+{3, 2}
+; return match("aa", "a", 1, 3);
+{}
+; return match("", "^$", 1, 1)[1..2];
+{1, 0}
+; return match("ab", "", 1, 2)[1..2];
+{2, 1}
+
+// Captures and positions use characters, not UTF-8 bytes.
+; return match("é🙂é🙂", "%(é%)%(🙂%)", 1, 2);
+{3, 4, {{3, 3}, {4, 4}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}}, "é🙂é🙂"}
+; return substitute("%2-%1", match("é🙂é🙂", "%(é%)%(🙂%)", 1, 2));
+"🙂-é"
+; return match("é🙂", "$", 1, 3)[1..2];
+{3, 2}
+
+; return match("a", "a", 1, 0);
+E_INVARG
+; return match("a", "a", 1, -1);
+E_INVARG
+; return match("a", "a", 1, 3);
+E_INVARG
+; return match("é🙂", ".", 1, 4);
+E_INVARG
+; return match("", ".", 1, 2);
+E_INVARG
+; return match("a", "a", 1, 9223372036854775807);
+E_INVARG
+; return match("a", "a", 1, 1.0);
+E_TYPE
+; return match("a", "a", 1, "1");
+E_TYPE
+; return match("a", "a", 1, true);
+E_TYPE
+; return match("a", "[", 1, 1);
+E_INVARG
+
+// Existing rmatch arity and match case-flag typing are unchanged.
+; return rmatch("aba", "a", 1)[1..2];
+{3, 3}
+; return rmatch("aba", "a", 1, 1);
+E_ARGS
+; return match("a", "a", true, 1);
+E_TYPE

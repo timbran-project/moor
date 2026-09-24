@@ -156,10 +156,16 @@ purposes of searching and matching.
 ### `match`
 
 ```
-list match(str subject, str pattern [, int case_matters])
+list match(str subject, str pattern [, int case_matters [, int start]])
 ```
 
 Searches for the first occurrence of the regular expression pattern in the string subject.
+
+The optional `start` argument is a mooR extension. It defaults to 1 and specifies a character
+position from 1 through `length(subject) + 1`. Searches retain the full subject, so anchors and word
+boundaries keep their original meaning. Returned match and capture positions remain absolute. A
+position after the last character can match an empty suffix. An invalid position raises `E_INVARG`;
+a non-integer position raises `E_TYPE`. `rmatch()` does not accept this argument.
 
 If pattern is syntactically malformed, then `E_INVARG` is raised. The process of matching can in
 some cases consume a great deal of memory in the server; should this memory consumption become
