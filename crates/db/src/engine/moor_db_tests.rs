@@ -92,6 +92,288 @@ mod tests {
         );
     }
 
+    // LambdaMOO db_find_command_verb checks name and arguments together; callable lookup
+    // checks name and x together. Neither ranks a later specific verb above an earlier wildcard.
+    #[test]
+    fn verb_overloads_keep_query_identity_in_warm_and_cold_caches() {
+        use moor_common::{
+            matching::Preposition,
+            model::{ArgSpec, PrepSpec},
+        };
+        let db = test_db();
+        let mut tx = db.start_transaction();
+        let parent = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        let child = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        tx.set_object_parent(&child, &parent).unwrap();
+        let name = Symbol::mk("overload");
+        let bare = VerbArgsSpec::none_none_none();
+        let with = VerbArgsSpec {
+            prep: PrepSpec::Other(Preposition::WithUsing),
+            ..bare
+        };
+        let wildcard = VerbArgsSpec {
+            dobj: ArgSpec::Any,
+            prep: PrepSpec::Any,
+            iobj: ArgSpec::Any,
+        };
+        let exec = BitEnum::new_with(VerbFlag::Exec);
+        for (obj, spec, flags) in [
+            (parent, wildcard, exec),
+            (child, with, BitEnum::new()),
+            (child, bare, exec),
+            (child, wildcard, exec),
+        ] {
+            tx.add_object_verb(
+                &obj,
+                &obj,
+                &[name],
+                ProgramType::MooR(Program::new()),
+                flags,
+                spec,
+            )
+            .unwrap();
+        }
+        let defs = tx.get_verbs(&child).unwrap();
+        let ids: Vec<_> = defs.iter_ref().map(|v| v.uuid()).collect();
+        assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
+        let queries = [
+            (Some(with), None, ids[0]),
+            (Some(bare), None, ids[1]),
+            (None, Some(exec), ids[1]),
+            (None, None, ids[0]),
+            (Some(with), Some(exec), ids[2]),
+        ];
+        // Start each query cold, then interleave it with every other query and direct lookup.
+        for first in 0..queries.len() {
+            let mut tx = db.start_transaction();
+            tx.verb_resolution_cache.borrow_mut().flush();
+            for offset in 0..queries.len() * 3 {
+                let (args, flags, expected) = queries[(first + offset) % queries.len()];
+                assert_eq!(
+                    tx.resolve_verb_handle(&child, name, args, flags)
+                        .unwrap()
+                        .uuid(),
+                    expected
+                );
+                assert_eq!(
+                    tx.resolve_verb_cached(&child, name, args, flags)
+                        .unwrap()
+                        .uuid(),
+                    expected
+                );
+                assert_eq!(tx.get_verb_by_name(&child, name).unwrap().uuid(), ids[0]);
+            }
+            // A wildcard placed before a specific verb wins, including after cache warming.
+            tx.delete_verb(&child, ids[0]).unwrap();
+            tx.delete_verb(&child, ids[1]).unwrap();
+            tx.add_object_verb(
+                &child,
+                &child,
+                &[name],
+                ProgramType::MooR(Program::new()),
+                exec,
+                bare,
+            )
+            .unwrap();
+            assert_eq!(
+                tx.resolve_verb_handle(&child, name, Some(bare), None)
+                    .unwrap()
+                    .uuid(),
+                ids[2]
+            );
+        }
+    }
+
+    #[test]
+    fn verb_overloads_invalidate_hits_and_misses_after_edits() {
+        let db = test_db();
+        let mut tx = db.start_transaction();
+        let parent = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        let child = tx
+            .create_object(ObjectKind::UuObjId, ObjAttrs::default())
+            .unwrap();
+        tx.set_object_parent(&child, &parent).unwrap();
+        let name = Symbol::mk("overload");
+        let bare = VerbArgsSpec::none_none_none();
+        let other = VerbArgsSpec::this_none_this();
+        let exec = BitEnum::new_with(VerbFlag::Exec);
+        tx.add_object_verb(
+            &parent,
+            &parent,
+            &[name],
+            ProgramType::MooR(Program::new()),
+            exec,
+            bare,
+        )
+        .unwrap();
+        let inherited = tx.get_verb_by_name(&parent, name).unwrap().uuid();
+        tx.add_object_verb(
+            &child,
+            &child,
+            &[name],
+            ProgramType::MooR(Program::new()),
+            BitEnum::new(),
+            other,
+        )
+        .unwrap();
+        let first = tx.get_verb_by_name(&child, name).unwrap().uuid();
+        for _ in 0..2 {
+            assert_eq!(
+                tx.resolve_verb_handle(&child, name, Some(bare), None)
+                    .unwrap()
+                    .uuid(),
+                inherited
+            );
+            assert_eq!(
+                tx.resolve_verb_handle(&child, name, Some(other), None)
+                    .unwrap()
+                    .uuid(),
+                first
+            );
+            assert_eq!(
+                tx.resolve_verb_handle(&child, name, None, Some(exec))
+                    .unwrap()
+                    .uuid(),
+                inherited
+            );
+            assert_eq!(tx.get_verb_by_name(&child, name).unwrap().uuid(), first);
+        }
+        tx.update_verb(
+            &child,
+            first,
+            VerbAttrs {
+                args_spec: Some(bare),
+                flags: Some(exec),
+                definer: None,
+                owner: None,
+                names: None,
+                program: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .unwrap()
+                .uuid(),
+            first
+        );
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, None, Some(exec))
+                .unwrap()
+                .uuid(),
+            first
+        );
+        assert!(
+            tx.resolve_verb_handle(&child, name, Some(other), None)
+                .is_err()
+        );
+        // A cached miss for one argument form must not hide another form or a method.
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .unwrap()
+                .uuid(),
+            first
+        );
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, None, Some(exec))
+                .unwrap()
+                .uuid(),
+            first
+        );
+        // Revoking x invalidates a warmed method hit but leaves command lookup usable.
+        tx.update_verb(
+            &child,
+            first,
+            VerbAttrs {
+                flags: Some(BitEnum::new()),
+                definer: None,
+                owner: None,
+                names: None,
+                args_spec: None,
+                program: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, None, Some(exec))
+                .unwrap()
+                .uuid(),
+            inherited
+        );
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .unwrap()
+                .uuid(),
+            first
+        );
+        assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
+        let mut tx = db.start_transaction();
+        tx.add_object_verb(
+            &child,
+            &child,
+            &[name],
+            ProgramType::MooR(Program::new()),
+            exec,
+            other,
+        )
+        .unwrap();
+        let added = tx
+            .get_verbs(&child)
+            .unwrap()
+            .iter_ref()
+            .last()
+            .unwrap()
+            .uuid();
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(other), None)
+                .unwrap()
+                .uuid(),
+            added
+        );
+        tx.update_verb(
+            &child,
+            first,
+            VerbAttrs {
+                names: Some(vec![Symbol::mk("renamed")]),
+                definer: None,
+                owner: None,
+                flags: None,
+                args_spec: None,
+                program: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .unwrap()
+                .uuid(),
+            inherited
+        );
+        tx.delete_verb(&child, added).unwrap();
+        assert!(
+            tx.resolve_verb_handle(&child, name, Some(other), None)
+                .is_err()
+        );
+        tx.set_object_parent(&child, &NOTHING).unwrap();
+        assert!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .is_err()
+        );
+        tx.set_object_parent(&child, &parent).unwrap();
+        assert_eq!(
+            tx.resolve_verb_handle(&child, name, Some(bare), None)
+                .unwrap()
+                .uuid(),
+            inherited
+        );
+    }
+
     #[test]
     fn test_create_object() {
         let db = test_db();

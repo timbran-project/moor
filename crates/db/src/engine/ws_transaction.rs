@@ -1057,7 +1057,10 @@ impl WorldStateTransaction {
         flagspec: Option<BitEnum<VerbFlag>>,
     ) -> Result<ResolvedVerb, WorldStateError> {
         // Check the cache first.
-        let cache_lookup = self.verb_resolution_cache.borrow().lookup(obj, &name);
+        let cache_lookup = self
+            .verb_resolution_cache
+            .borrow()
+            .lookup_spec(obj, &name, argspec, flagspec);
         if let Some(cache_result) = cache_lookup {
             // We recorded a miss here before..
             let Some(verbdef) = cache_result else {
@@ -1088,7 +1091,6 @@ impl WorldStateTransaction {
                 None => *obj,
             }
         };
-        let mut found = false;
         loop {
             let maybe_resolved = self
                 .object_verbdefs
@@ -1100,17 +1102,15 @@ impl WorldStateTransaction {
                         first_parent_hit = true;
                     }
 
-                    // Find the named verb (which may be empty if the verb is not defined on this
-                    // object, but is defined on an ancestor
-                    if let Some(verb) = verbdefs.find_first_named_ref(name) {
+                    // Definition order is significant for both commands and callable verbs.
+                    if let Some(verb) = verbdefs.iter_ref().find(|verb| {
+                        verb.matches_name(name) && verb.matches_spec(&argspec, &flagspec)
+                    }) {
                         let resolved = verb.as_resolved();
                         self.verb_resolution_cache
                             .borrow_mut()
-                            .fill_hit(obj, &name, resolved);
-                        found = true;
-                        if resolved.matches_spec(&argspec, &flagspec) {
-                            return Some(resolved);
-                        }
+                            .fill_hit_spec(obj, &name, argspec, flagspec, resolved);
+                        return Some(resolved);
                     }
                     None
                 })
@@ -1126,13 +1126,10 @@ impl WorldStateTransaction {
             }
         }
 
-        // Record the miss, but only if we actually didn't find anything, otherwise we can end up
-        // recording a miss for things where the argspec didn't match
-        if !found {
-            self.verb_resolution_cache
-                .borrow_mut()
-                .fill_miss(obj, &name);
-        }
+        // Negative results apply only to this query's argument and flag constraints.
+        self.verb_resolution_cache
+            .borrow_mut()
+            .fill_miss_spec(obj, &name, argspec, flagspec);
         Err(WorldStateError::VerbNotFound(*obj, name.to_string()))
     }
 
@@ -1147,7 +1144,10 @@ impl WorldStateTransaction {
         argspec: Option<VerbArgsSpec>,
         flagspec: Option<BitEnum<VerbFlag>>,
     ) -> Result<VerbDef, WorldStateError> {
-        let cache_lookup = self.verb_resolution_cache.borrow().lookup(obj, &name);
+        let cache_lookup = self
+            .verb_resolution_cache
+            .borrow()
+            .lookup_spec(obj, &name, argspec, flagspec);
         let Some(cache_result) = cache_lookup else {
             return Err(WorldStateError::VerbNotFound(*obj, name.to_string()));
         };

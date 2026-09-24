@@ -1,0 +1,60 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// LambdaMOO db_find_command_verb selects the first name AND argspec match.
+// This scenario uses scratch objects independently of the imported core's commands.
+@wizard
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "overload-probe"}, {"any", "with", "any"});
+> set_verb_code(target, "overload-probe", {"return 11;"});
+> add_verb(target, {player, "rxd", "second-probe"}, {"none", "none", "none"});
+> set_verb_code(target, "second-probe", {"return 22;"});
+> set_verb_info(target, "second-probe", {player, "rxd", "overload-probe"});
+> a = parse_command("overload-probe with me", {target});
+> b = parse_command("overload-probe", {target});
+> result = {};
+> for pc in ({a, b, b, a})
+>   result = {@result, length(find_command_verb(pc, {target})), dispatch_command_verb(target, "overload-probe", pc), target:("overload-probe")()};
+> endfor
+> recycle(target);
+> return result;
+{1, 11, 11, 1, 22, 11, 1, 22, 11, 1, 11, 11}
+
+// Command-only definitions can precede a callable overload. Introspection stays first-by-name.
+; target = create(#-1);
+> add_verb(target, {player, "rd", "overload-probe"}, {"none", "none", "none"});
+> set_verb_code(target, "overload-probe", {"return 11;"});
+> add_verb(target, {player, "rxd", "second-probe"}, {"any", "with", "any"});
+> set_verb_code(target, "second-probe", {"return 22;"});
+> set_verb_info(target, "second-probe", {player, "rxd", "overload-probe"});
+> result = {};
+> for i in ({1, 2, 3})
+>   result = {@result, target:("overload-probe")(), dispatch_command_verb(target, "overload-probe", parse_command("overload-probe", {target})), verb_args(target, "overload-probe")};
+> endfor
+> recycle(target);
+> return result;
+{22, 11, {"none", "none", "none"}, 22, 11, {"none", "none", "none"}, 22, 11, {"none", "none", "none"}}
+
+// Assert effects: a core's do_command hook can consume a command's return value.
+; add_property(player, "overload_result", 0, {player, ""});
+> add_verb(player, {player, "rd", "overload-command"}, {"any", "with", "any"});
+> set_verb_code(player, "overload-command", {"player.overload_result = 11;"});
+> add_verb(player, {player, "rd", "second-command"}, {"none", "none", "none"});
+> set_verb_code(player, "second-command", {"player.overload_result = 22;"});
+> set_verb_info(player, "second-command", {player, "rd", "overload-command"});
+> return 1;
+1
+% overload-command with me
+; return player.overload_result;
+11
+% overload-command
+; return player.overload_result;
+22
+% overload-command with me
+; return player.overload_result;
+11
+% overload-command
+; return player.overload_result;
+22
+; delete_verb(player, "overload-command"); delete_verb(player, "overload-command"); delete_property(player, "overload_result"); return 1;
+1

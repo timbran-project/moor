@@ -14,7 +14,12 @@
 use crate::cache::VERB_CACHE_STATS;
 use crate::cache::stats::{CacheStats, LocalCacheStats};
 use ahash::AHasher;
-use moor_common::model::{BUILTIN_PROXY_CACHE_WORDS, BuiltinProxyCacheBits, ResolvedVerb};
+use moor_common::{
+    model::{
+        BUILTIN_PROXY_CACHE_WORDS, BuiltinProxyCacheBits, ResolvedVerb, VerbArgsSpec, VerbFlag,
+    },
+    util::BitEnum,
+};
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, program::opcode::BuiltinId};
 use std::{
     cell::RefCell,
@@ -23,21 +28,40 @@ use std::{
     sync::Arc,
 };
 
-/// Create an optimized cache key by packing Obj and Symbol into a single u128.
-/// Upper 64 bits: obj.as_u64(), Lower 64 bits: symbol.compare_id()
-fn make_cache_key(obj: &Obj, symbol: &Symbol) -> u128 {
-    ((obj.as_u64() as u128) << 64) | (symbol.compare_id() as u128)
+/// A lookup result is valid only for the argument and flag constraints that selected it.
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+struct VerbCacheKey {
+    object: u64,
+    name: u32,
+    constraints: u64,
+}
+
+fn make_cache_key(
+    obj: &Obj,
+    symbol: &Symbol,
+    args: Option<VerbArgsSpec>,
+    flags: Option<BitEnum<VerbFlag>>,
+) -> VerbCacheKey {
+    // Keep the encoded arguments and flags in separate fields, with presence bits so
+    // an unconstrained lookup differs from an explicitly empty flag requirement.
+    let args_bits = args.map_or(0, |args| {
+        (1_u64 << 48)
+            | u64::from(VerbArgsSpec::try_write(args).expect("valid verb argument specification"))
+    });
+    let flag_bits = flags.map_or(0, |flags| (1_u64 << 49) | (u64::from(flags.to_u16()) << 32));
+    VerbCacheKey {
+        object: obj.as_u64(),
+        name: symbol.compare_id(),
+        constraints: args_bits | flag_bits,
+    }
 }
 
 fn remove_entries_for_objects(
-    entries: &mut HashMap<u128, Option<ResolvedVerb>, BuildHasherDefault<AHasher>>,
+    entries: &mut HashMap<VerbCacheKey, Option<ResolvedVerb>, BuildHasherDefault<AHasher>>,
     obj_ids: &HashSet<u64>,
 ) -> usize {
     let before = entries.len();
-    entries.retain(|key, _| {
-        let obj_id = (key >> 64) as u64;
-        !obj_ids.contains(&obj_id)
-    });
+    entries.retain(|key, _| !obj_ids.contains(&key.object));
     before - entries.len()
 }
 
@@ -138,7 +162,7 @@ struct Inner {
     guard_version: i64,
     flushed: bool,
 
-    entries: Arc<HashMap<u128, Option<ResolvedVerb>, BuildHasherDefault<AHasher>>>,
+    entries: Arc<HashMap<VerbCacheKey, Option<ResolvedVerb>, BuildHasherDefault<AHasher>>>,
     first_parent_with_verbs_cache: Arc<HashMap<Obj, Option<Obj>, BuildHasherDefault<AHasher>>>,
     builtin_proxy_absent: BuiltinProxyCacheBits,
 }
@@ -147,7 +171,7 @@ impl Inner {
     /// Get a mutable reference to entries, cloning if necessary (copy-on-write)
     fn entries_mut(
         &mut self,
-    ) -> &mut HashMap<u128, Option<ResolvedVerb>, BuildHasherDefault<AHasher>> {
+    ) -> &mut HashMap<VerbCacheKey, Option<ResolvedVerb>, BuildHasherDefault<AHasher>> {
         Arc::make_mut(&mut self.entries)
     }
 
@@ -193,8 +217,20 @@ impl VerbResolutionCache {
         self.inner.first_parent_cache_mut().insert(*obj, parent);
     }
 
+    /// Look up an unconstrained name search.
     pub fn lookup(&self, obj: &Obj, verb: &Symbol) -> Option<Option<ResolvedVerb>> {
-        let key = make_cache_key(obj, verb);
+        self.lookup_spec(obj, verb, None, None)
+    }
+
+    /// Look up a result for exactly these argument and flag constraints.
+    pub fn lookup_spec(
+        &self,
+        obj: &Obj,
+        verb: &Symbol,
+        args: Option<VerbArgsSpec>,
+        flags: Option<BitEnum<VerbFlag>>,
+    ) -> Option<Option<ResolvedVerb>> {
+        let key = make_cache_key(obj, verb, args, flags);
         let result = self.inner.entries.get(&key).cloned();
 
         match &result {
@@ -252,7 +288,19 @@ impl VerbResolutionCache {
     }
 
     pub fn fill_hit(&mut self, obj: &Obj, verb: &Symbol, verbdef: ResolvedVerb) {
-        let key = make_cache_key(obj, verb);
+        self.fill_hit_spec(obj, verb, None, None, verbdef);
+    }
+
+    /// Cache the first matching definition for a constrained query.
+    pub fn fill_hit_spec(
+        &mut self,
+        obj: &Obj,
+        verb: &Symbol,
+        args: Option<VerbArgsSpec>,
+        flags: Option<BitEnum<VerbFlag>>,
+        verbdef: ResolvedVerb,
+    ) {
+        let key = make_cache_key(obj, verb, args, flags);
         self.inner.version += 1;
         let is_new_entry = match self.inner.entries_mut().entry(key) {
             Entry::Occupied(mut occupied) => {
@@ -270,7 +318,18 @@ impl VerbResolutionCache {
     }
 
     pub fn fill_miss(&mut self, obj: &Obj, verb: &Symbol) {
-        let key = make_cache_key(obj, verb);
+        self.fill_miss_spec(obj, verb, None, None);
+    }
+
+    /// Cache a miss without affecting other argument forms or method lookups.
+    pub fn fill_miss_spec(
+        &mut self,
+        obj: &Obj,
+        verb: &Symbol,
+        args: Option<VerbArgsSpec>,
+        flags: Option<BitEnum<VerbFlag>>,
+    ) {
+        let key = make_cache_key(obj, verb, args, flags);
         self.inner.version += 1;
         let is_new_entry = match self.inner.entries_mut().entry(key) {
             Entry::Occupied(mut occupied) => {
