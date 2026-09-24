@@ -1,0 +1,28 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
+// The supplied scope defines ordinal and ambiguous-candidate order.
+@wizard
+; a = create(#-1);
+> b = create(#-1);
+> a.name = "bronze orb";
+> b.name = "silver orb";
+> add_property(a, "aliases", {"orb"}, {player, "r"});
+> add_property(b, "aliases", {"orb"}, {player, "r"});
+> for n in [1..32]
+>   for scope in ({{a, b}, {b, a}, {{a, "old"}, {b, "orb"}, {a, "orb"}}})
+>     p = parse_command("touch first orb with second orb", scope, true, 0.3);
+>     k = maphaskey(p, 'dobj) ? 'dobj | "dobj";
+>     ik = maphaskey(p, 'iobj) ? 'iobj | "iobj";
+>     expected = typeof(scope[1]) == typeof({}) ? a | scope[1];
+>     other = expected == a ? b | a;
+>     p[k] == expected && p[ik] == other || raise(E_INVARG, "ordinal scope order");
+>     p = parse_command("touch orb", scope, true, 0.3);
+>     ak = maphaskey(p, 'ambiguous_dobj) ? 'ambiguous_dobj | "ambiguous_dobj";
+>     p[ak] == {expected, other} || raise(E_INVARG, "ambiguous scope order");
+>   endfor
+> endfor
+> recycle(a);
+> recycle(b);
+> return 1;
+1

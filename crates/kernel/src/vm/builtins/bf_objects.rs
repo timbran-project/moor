@@ -1468,7 +1468,8 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     struct ListMatchEnvironment {
         permissions: TaskPermissions,
         location_override: Option<Obj>,
-        name_map: std::collections::HashMap<Obj, Vec<String>>,
+        name_map: HashMap<Obj, Vec<String>>,
+        objects: ObjSet,
     }
 
     impl ListMatchEnvironment {
@@ -1476,11 +1477,13 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             who: Obj,
             location_override: Option<Obj>,
             name_map: HashMap<Obj, Vec<String>>,
+            objects: ObjSet,
         ) -> Result<Self, WorldStateError> {
             Ok(Self {
                 permissions: TaskPermissions::new(who, BitEnum::new()),
                 location_override,
                 name_map,
+                objects,
             })
         }
     }
@@ -1508,12 +1511,8 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         }
 
         fn get_surroundings(&self, _player: &Obj) -> Result<ObjSet, WorldStateError> {
-            // For our environment, return all objects from our name map
-            let mut surroundings = ObjSet::default();
-            for obj in self.name_map.keys() {
-                surroundings = surroundings.with_inserted(*obj);
-            }
-            Ok(surroundings)
+            // Ordinal selectors and ambiguous candidates follow the supplied scope order.
+            Ok(self.objects.clone())
         }
 
         fn location_of(&self, player: &Obj) -> Result<Obj, WorldStateError> {
@@ -1528,10 +1527,13 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Process the environment list to build the name mapping
     let mut name_map = HashMap::new();
+    let mut object_order = Vec::with_capacity(environment_list.len());
     for env_entry in environment_list.iter() {
         // Handle simple object entries
         if let Some(obj) = env_entry.as_object() {
-            name_map.insert(obj, Vec::new());
+            if name_map.insert(obj, Vec::new()).is_none() {
+                object_order.push(obj);
+            }
             continue;
         }
 
@@ -1574,14 +1576,21 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             names.push(name_str.to_string());
         }
 
-        name_map.insert(obj, names);
+        if name_map.insert(obj, names).is_none() {
+            object_order.push(obj);
+        }
     }
-    let env =
-        ListMatchEnvironment::new(bf_args.player(), location_override, name_map).map_err(|e| {
-            BfErr::ErrValue(
-                E_INVARG.with_msg(|| format!("parse_command() error creating environment: {e}")),
-            )
-        })?;
+    let env = ListMatchEnvironment::new(
+        bf_args.player(),
+        location_override,
+        name_map,
+        ObjSet::from_items(&object_order),
+    )
+    .map_err(|e| {
+        BfErr::ErrValue(
+            E_INVARG.with_msg(|| format!("parse_command() error creating environment: {e}")),
+        )
+    })?;
 
     // Use the DefaultObjectNameMatcher with our custom environment
     let matcher: Box<dyn ObjectNameMatcher> = if complex_match {
