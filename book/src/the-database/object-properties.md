@@ -67,8 +67,8 @@ object.
 
 The `f` bit specifies whether or not this object is _fertile_, whether or not players other than the
 owner of this object can create new objects with this one as the parent. It also controls whether or
-not non-owners can use the `chparent()` or `chparents()` built-in function to make this object the
-parent of an existing object. The `f` bit can only be set by a wizard or by the owner of the object.
+not non-owners can use the `chparent()` built-in function to make this object the parent of an
+existing object. The `f` bit can only be set by a wizard or by the owner of the object.
 
 All of the built-in properties on any object can, by default, be read by any player. It is possible,
 however, to override this behavior from within the database, making any of these properties readable
