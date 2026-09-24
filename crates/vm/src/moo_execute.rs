@@ -142,12 +142,6 @@ impl VerbExecutionRequest {
 /// The set of parameters for a command verb dispatch with full command environment.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandVerbExecutionRequest {
-    /// Permissions used for permission-sensitive program lookup and cache resolution.
-    ///
-    /// This is not necessarily the authority of the activation that will be pushed. For normal
-    /// verb-owner dispatch, the activation runs as `resolved_verb.owner()` while lookup and program
-    /// materialization still use these permissions.
-    lookup_permissions: TaskPermissions,
     /// Object used when authorizing executable program materialization.
     ///
     /// This is usually the dispatch receiver. It can differ from `program_key.verb_definer` for
@@ -177,7 +171,6 @@ impl CommandVerbExecutionRequest {
     #[allow(clippy::too_many_arguments)]
     #[inline]
     pub fn new(
-        lookup_permissions: TaskPermissions,
         program_authorization_object: Obj,
         activation_authority_flags: BitEnum<ObjFlag>,
         resolved_verb: ResolvedVerb,
@@ -189,7 +182,6 @@ impl CommandVerbExecutionRequest {
         program_key: VerbProgramKey,
     ) -> Self {
         Self {
-            lookup_permissions,
             program_authorization_object,
             activation_authority_flags,
             resolved_verb,
@@ -200,18 +192,6 @@ impl CommandVerbExecutionRequest {
             command,
             program_key,
         }
-    }
-
-    /// Principal used to resolve or materialize the target verb program.
-    #[inline]
-    pub fn lookup_principal(&self) -> Obj {
-        self.lookup_permissions.principal()
-    }
-
-    /// Permissions used to resolve or materialize the target verb program.
-    #[inline]
-    pub fn lookup_permissions(&self) -> &TaskPermissions {
-        &self.lookup_permissions
     }
 
     /// Object to check when authorizing executable program materialization.
@@ -270,8 +250,7 @@ mod execution_request_tests {
     }
 
     #[test]
-    fn command_execution_request_separates_lookup_principal_from_activation_flags() {
-        let lookup_principal = Obj::mk_id(11);
+    fn command_execution_request_preserves_activation_authority() {
         let activation_flags = BitEnum::new_with(ObjFlag::Wizard);
         let command = ParsedCommand {
             verb: Symbol::mk("look"),
@@ -287,7 +266,6 @@ mod execution_request_tests {
             ambiguous_iobj: None,
         };
         let request = CommandVerbExecutionRequest::new(
-            TaskPermissions::new(lookup_principal, BitEnum::new()),
             Obj::mk_id(31),
             activation_flags,
             resolved_verb(Obj::mk_id(21)),
@@ -302,7 +280,6 @@ mod execution_request_tests {
             },
         );
 
-        assert_eq!(request.lookup_principal(), lookup_principal);
         assert_eq!(request.activation_authority_flags(), activation_flags);
         assert_eq!(request.resolved_verb.owner(), Obj::mk_id(21));
     }

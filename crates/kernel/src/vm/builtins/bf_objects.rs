@@ -2049,7 +2049,6 @@ fn bf_dispatch_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfEr
 
             // Build the CommandVerbExecutionRequest
             let exec_request = Box::new(crate::vm::CommandVerbExecutionRequest::new(
-                bf_args.task_permissions(),
                 target,
                 verb_result.permissions_flags,
                 verb_result.verbdef,

@@ -1731,10 +1731,13 @@ fn find_verb_for_command(
             Err(wse) => return Err(CommandError::DatabaseError(wse)),
         };
         if let Some(verb_result) = match_result {
+            // Lookup authorizes command invocation independently of the verb's public flags.
+            let code_permissions =
+                TaskPermissions::new(verb_result.verbdef.owner(), verb_result.permissions_flags);
             return Ok(Some((
                 (
                     ws.retrieve_verb(
-                        permissions,
+                        &code_permissions,
                         &verb_result.program_key.verb_definer,
                         verb_result.program_key.verb_uuid,
                     )

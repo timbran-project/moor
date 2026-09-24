@@ -19,7 +19,7 @@ use std::{
 use tracing::{debug, error, warn};
 
 use moor_common::{
-    model::{ObjFlag, ResolvedVerb},
+    model::{ObjFlag, ResolvedVerb, TaskPermissions},
     tasks::{AbortLimitReason, TaskId},
     util::BitEnum,
 };
@@ -305,13 +305,16 @@ impl VmHost {
                     return ContinueOk;
                 }
                 ExecutionResult::DispatchCommandVerb(exec_request) => {
-                    // Program cache resolution is permission-sensitive and uses the lookup
-                    // principal from dispatch. The activation pushed below runs as the resolved
-                    // verb owner with the dispatch-selected cached flags.
+                    // Command dispatch already authorized this verb by its argument specification.
+                    // Load its code as the verb owner; commands do not require public r or x flags.
+                    let code_permissions = TaskPermissions::new(
+                        exec_request.resolved_verb.owner(),
+                        exec_request.activation_authority_flags(),
+                    );
                     let resolved = match with_current_transaction(|ws| {
                         program_cache.resolve_verb_slot(
                             ws,
-                            exec_request.lookup_permissions(),
+                            &code_permissions,
                             &exec_request.program_authorization_object(),
                             &exec_request.program_key.verb_definer,
                             exec_request.program_key.verb_uuid,

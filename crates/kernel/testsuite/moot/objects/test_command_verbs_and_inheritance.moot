@@ -37,3 +37,45 @@
 "baz"
 % qnz
 "qnz"
+
+// Public read and method-execution flags are not needed for parser commands.
+@wizard
+; move($programmer_player, $d);
+; add_verb($a, {$wizard_player, "rxd", "dispatch_probe"}, {"this", "none", "this"});
+; set_verb_code($a, "dispatch_probe", {"const parsed = parse_command(\"baz\", {$a});", "set_task_perms($player, {{\"builtin_call\", \"dispatch_command_verb\"}});", "return dispatch_command_verb($a, \"baz\", parsed);"});
+
+@programmer
+% foo
+"foo"
+% bar
+"bar"
+% baz
+"baz"
+% qnz
+"qnz"
+
+; return {$a:dispatch_probe(), $a:dispatch_probe()};
+{"baz", "baz"}
+; return {$a:dispatch_probe(), `$a:baz() ! ANY'};
+{"baz", E_VERBNF}
+; return $a:baz();
+E_VERBNF
+; return dispatch_command_verb($a, "baz", parse_command("baz", {$a}));
+E_PERM
+
+// Both native dispatch and a granted custom dispatch retain owner authority and player identity.
+@wizard
+; add_verb($a, {player, "d", "identity_probe"}, {"none", "none", "none"});
+; set_verb_code($a, "identity_probe", {"return {task_perms()[1] == this.owner ? 1 | 0, player == $programmer_player ? 1 | 0};"});
+; set_verb_code($a, "dispatch_probe", {"const parsed = parse_command(\"identity_probe\", {$a});", "set_task_perms($player, {{\"builtin_call\", \"dispatch_command_verb\"}});", "return dispatch_command_verb($a, \"identity_probe\", parsed);"});
+
+@programmer
+% identity_probe
+{1, 1}
+; return $a:dispatch_probe();
+{1, 1}
+
+// A recycled owner supplies no privilege flags, but does not prevent command program loading.
+@wizard
+; owner = create(#-1); target = create(#-1); add_verb(target, {owner, "rxd", "owner_probe"}, {"none", "none", "none"}); set_verb_code(target, "owner_probe", {"return 123;"}); recycle(owner); result = dispatch_command_verb(target, "owner_probe", parse_command("owner_probe", {target})); recycle(target); return result;
+123

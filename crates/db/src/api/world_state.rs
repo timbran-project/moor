@@ -1315,13 +1315,17 @@ impl WorldState for DbWorldState {
             Err(e) => return Err(e),
         };
 
-        auth.require(AuthRule::verb_allows(
-            dispatch.lookup.object,
-            vh.uuid(),
-            &vh.owner(),
-            vh.flags(),
-            VerbFlag::Exec,
-        ))?;
+        // The x flag controls method calls. Command lookup uses the argument specification
+        // and must also allow command-only verbs owned by another principal.
+        if dispatch.lookup.argspec.is_none() {
+            auth.require(AuthRule::verb_allows(
+                dispatch.lookup.object,
+                vh.uuid(),
+                &vh.owner(),
+                vh.flags(),
+                VerbFlag::Exec,
+            ))?;
+        }
         let permissions_flags = match dispatch.flags_source {
             DispatchFlagsSource::Permissions => auth.principal_flags(),
             DispatchFlagsSource::VerbOwner => {

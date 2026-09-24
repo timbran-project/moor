@@ -41,6 +41,58 @@ mod tests {
     }
 
     #[test]
+    fn command_dispatch_does_not_require_method_exec_permission() {
+        use crate::api::world_state::DbWorldState;
+        use moor_common::model::{DispatchFlagsSource, VerbDispatch, VerbLookup, WorldState};
+
+        let db = test_db();
+        let mut tx = db.start_transaction();
+        let owner = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        let player = tx
+            .create_object(ObjectKind::NextObjid, ObjAttrs::default())
+            .unwrap();
+        let mut ws = DbWorldState { tx };
+        let name = Symbol::mk("command_only");
+        let argspec = VerbArgsSpec::this_none_this();
+        ws.add_verb(
+            &permissions(owner),
+            &owner,
+            vec![name],
+            &owner,
+            BitEnum::new_with(VerbFlag::Read) | VerbFlag::Debug,
+            argspec,
+            ProgramType::MooR(Program::new()),
+        )
+        .unwrap();
+
+        let command = ws
+            .dispatch_verb(
+                &permissions(player),
+                VerbDispatch::new(
+                    VerbLookup::command(&owner, name, argspec),
+                    DispatchFlagsSource::VerbOwner,
+                ),
+            )
+            .unwrap();
+        assert!(command.is_some());
+        let method = ws
+            .dispatch_verb(
+                &permissions(player),
+                VerbDispatch::new(
+                    VerbLookup::method(&owner, name),
+                    DispatchFlagsSource::VerbOwner,
+                ),
+            )
+            .unwrap();
+        assert!(
+            method.is_none(),
+            "A command without x must not become a public method"
+        );
+    }
+
+    #[test]
     fn test_create_object() {
         let db = test_db();
         let mut tx = db.start_transaction();
