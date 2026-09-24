@@ -1011,10 +1011,13 @@ impl TelnetConnection {
                         pt.task_id
                     );
                     self.pending_task = None;
-                } else if self.pending_task.is_some()
+                } else if let Some(pt) = &self.pending_task
                     && expecting_input.is_empty()
                     && !self.collecting_input
                 {
+                    // Yield this branch so event reception and the I/O driver can progress.
+                    let remaining = TASK_TIMEOUT.saturating_sub(pt.start_time.elapsed());
+                    tokio::time::sleep(remaining).await;
                     return ReadEvent::PendingEvent;
                 }
 
