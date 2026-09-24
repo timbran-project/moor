@@ -38,7 +38,7 @@ use semver::Version;
 use tempfile::TempDir;
 
 use crate::{
-    connections::ConnectionRegistryFactory,
+    connections::{ConnectionRegistry, ConnectionRegistryFactory},
     event_log::EventLogOps,
     rpc::{MessageHandler, RpcServer, Transport},
     system_control::NoopWorkerInfoSource,
@@ -49,6 +49,7 @@ pub struct TestEnvironment<T: Transport + 'static> {
     pub message_handler: Arc<dyn MessageHandler>,
     pub transport: Arc<T>,
     pub event_log: Arc<MockEventLog>,
+    pub connections: Arc<dyn ConnectionRegistry>,
     pub scheduler_client: SchedulerClient,
     pub rpc_server: Arc<RpcServer>,
     pub kill_switch: Arc<AtomicBool>,
@@ -161,7 +162,7 @@ where
         kill_switch.clone(),
         public_key,
         private_key,
-        connections,
+        connections.clone(),
         event_log.clone() as Arc<dyn EventLogOps>,
         transport_for_server,
         config.clone(),
@@ -208,6 +209,7 @@ where
         message_handler,
         transport,
         event_log,
+        connections,
         scheduler_client,
         rpc_server,
         kill_switch,

@@ -1847,6 +1847,137 @@ mod tests {
     }
 
     #[test]
+    fn login_rejects_invalid_players_before_attachment() {
+        let env = setup_test_environment();
+        let (_, auth_token, wizard) = logged_in_wizard(&env, Uuid::new_v4());
+        let eval = |code: &str| {
+            let request =
+                mk_eval_capture_msg(&auth_token, code.to_string(), Some(Duration::from_secs(10)))
+                    .unwrap();
+            let reply = env
+                .transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    Uuid::new_v4(),
+                    request,
+                )
+                .unwrap();
+            captured_success(&reply).0
+        };
+        eval("add_property(#0, \"login_hook_targets\", {}, {player, \"\"});");
+        env.scheduler_client
+            .submit_verb_program(
+                &wizard,
+                &wizard,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                Symbol::mk("user_connected"),
+                vec!["#0.login_hook_targets = {@#0.login_hook_targets, args[1]};".to_string()],
+            )
+            .unwrap();
+
+        for attach in [false, true] {
+            let client_id = Uuid::new_v4();
+            let (client_token, connection) =
+                establish_connection(&env, client_id, "127.0.0.1:8081", 8081);
+            let original_history = env.connections.history_object_for_client(client_id);
+            for result in ["player", "#0", "#-1", "#999999999"] {
+                env.scheduler_client
+                    .submit_verb_program(
+                        &wizard,
+                        &wizard,
+                        &ObjectRef::Id(SYSTEM_OBJECT),
+                        Symbol::mk("do_login_command"),
+                        vec![format!("return {result};")],
+                    )
+                    .unwrap();
+                let reply = env.transport.process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    client_id,
+                    mk_login_command_msg(
+                        &client_token,
+                        &SYSTEM_OBJECT,
+                        vec!["connect".to_string()],
+                        attach,
+                        None,
+                    ),
+                );
+                assert_eq!(env.connections.player_object_for_client(client_id), None);
+                assert_eq!(
+                    env.connections.connection_object_for_client(client_id),
+                    Some(connection)
+                );
+                assert_eq!(
+                    env.connections.history_object_for_client(client_id),
+                    original_history
+                );
+                let moor_rpc::DaemonToClientReplyUnion::LoginResult(result) = reply.unwrap().reply
+                else {
+                    panic!("Expected a rejected login");
+                };
+                assert!(!result.success);
+                assert!(result.auth_token.is_none());
+                assert!(result.player.is_none());
+            }
+
+            // A rejected candidate must not prevent a later valid login on this connection.
+            env.scheduler_client
+                .submit_verb_program(
+                    &wizard,
+                    &wizard,
+                    &ObjectRef::Id(SYSTEM_OBJECT),
+                    Symbol::mk("do_login_command"),
+                    vec![format!("return {wizard};")],
+                )
+                .unwrap();
+            let reply = env
+                .transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    client_id,
+                    mk_login_command_msg(
+                        &client_token,
+                        &SYSTEM_OBJECT,
+                        vec!["connect".to_string()],
+                        attach,
+                        None,
+                    ),
+                )
+                .unwrap();
+            let moor_rpc::DaemonToClientReplyUnion::LoginResult(result) = reply.reply else {
+                panic!("Expected a successful login");
+            };
+            assert!(result.success);
+            assert_eq!(
+                env.connections.player_object_for_client(client_id),
+                Some(wizard)
+            );
+        }
+
+        // Wait for the successful attached login's hook, then inspect its recorded recipients.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let targets = eval("return #0.login_hook_targets;");
+            let targets = targets.as_list().unwrap();
+            assert!(
+                targets
+                    .iter()
+                    .all(|target| target.as_object() == Some(wizard))
+            );
+            if !targets.is_empty() {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "Connection hook did not run"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[test]
     fn test_system_property_request() {
         let env = setup_test_environment();
 

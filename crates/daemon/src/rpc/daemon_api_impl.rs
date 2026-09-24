@@ -1023,6 +1023,20 @@ impl RpcMessageHandler {
             }
         };
 
+        // Reject invalid login results before mutating connection state or submitting hooks.
+        let player_flags = scheduler_client
+            .get_object_flags(&player)
+            .map_err(|error| RpcMessageError::InternalError(error.to_string()))?;
+        if player_flags & (1 << ObjFlag::User as u8) == 0 {
+            return Ok(ClientReply::LoginResult {
+                success: false,
+                auth_token: None,
+                connect_type: ConnectType::Connected,
+                player: None,
+                player_flags: 0,
+            });
+        }
+
         let Ok(_) = self
             .connections
             .associate_player_object(*connection, player)
@@ -1052,7 +1066,6 @@ impl RpcMessageHandler {
         }
 
         let auth_token = self.make_auth_token(&player);
-        let player_flags = require_player_flags(&scheduler_client, &player)?;
 
         Ok(ClientReply::LoginResult {
             success: true,
