@@ -1530,6 +1530,24 @@ impl WorldStateTransaction {
         Ok(())
     }
 
+    /// Remember the canonical policy actually copied, even if ancestry changes later.
+    fn record_inherited_policy_dependency(
+        &mut self,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        if self.object_propflags.has_domain(&holder).map_err(|e| {
+            WorldStateError::DatabaseError(format!("Error reading property flags: {e:?}"))
+        })? {
+            return Ok(());
+        }
+        let definer = self.find_property_by_uuid(obj, uuid)?.definer();
+        self.inherited_policy_reads
+            .insert(ObjAndUUIDHolder::new(&definer, uuid));
+        Ok(())
+    }
+
     pub fn set_property(
         &mut self,
         obj: &Obj,
@@ -1554,6 +1572,7 @@ impl WorldStateTransaction {
             })? {
                 // No local propflags entry - create one based on inherited permissions
                 let inherited_perms = self.retrieve_property_permissions(obj, uuid)?;
+                self.record_inherited_policy_dependency(obj, uuid)?;
                 upsert(&mut self.object_propflags, holder.clone(), inherited_perms).map_err(
                     |e| {
                         WorldStateError::DatabaseError(format!(
@@ -1686,6 +1705,7 @@ impl WorldStateTransaction {
 
         // If flags or perms updated, do that.
         if new_flags.is_some() || new_owner.is_some() {
+            self.record_inherited_policy_dependency(obj, uuid)?;
             let mut perms = self.retrieve_property_permissions(obj, uuid)?;
 
             if let Some(new_flags) = new_flags {

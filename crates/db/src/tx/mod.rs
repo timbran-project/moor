@@ -24,7 +24,8 @@ pub use commit_bloom::CommitBloom;
 pub(crate) use indexes::HashRelationIndex;
 pub use indexes::RelationIndex;
 pub use relation::Relation;
-pub use resolve::{AcceptIdentical, ConflictResolver, FailOnConflict, SmartMergeResolver};
+pub(crate) use resolve::Resolution;
+pub use resolve::{ConflictResolver, FailOnConflict};
 pub(crate) use transaction::OpType;
 pub use transaction::{RelationTransaction, WorkingSet};
 
@@ -34,7 +35,7 @@ use std::hash::Hash;
 use crate::model::{AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder};
 use moor_common::model::{ObjFlag, PropDefs, PropPerms, VerbDefs};
 use moor_common::util::BitEnum;
-use moor_var::{Associative, Obj, Var, program::ProgramType};
+use moor_var::{Obj, Var, program::ProgramType};
 
 // ============================================================================
 // Trait Bounds for Relation Domain and Codomain Types
@@ -66,118 +67,15 @@ pub trait RelationCodomain: Clone + PartialEq + Send + Sync + 'static {
     fn clone_for_commit(&self) -> Self {
         self.clone()
     }
-
-    /// Attempt to merge conflicting values.
-    /// Returns Some(merged_value) if successful, None if conflict is unresolvable.
-    fn try_merge(&self, _base: &Self, _theirs: &Self) -> Option<Self> {
-        None
-    }
 }
 
-// Implement for Var with smart merge logic
 impl RelationCodomain for Var {
     fn clone_for_commit(&self) -> Self {
         self.clone().with_cleared_hint()
     }
-
-    fn try_merge(&self, base: &Self, theirs: &Self) -> Option<Self> {
-        // Only merge if both operations provided a hint
-        use moor_var::{OP_HINT_FLYWEIGHT_ADD_SLOT, OP_HINT_MAP_INSERT};
-
-        let my_hint = self.op_hint();
-        let their_hint = theirs.op_hint();
-
-        if my_hint != their_hint {
-            return None;
-        }
-
-        match my_hint {
-            OP_HINT_MAP_INSERT => {
-                // Map insert merge: Two concurrent inserts of DIFFERENT keys.
-                let mine_map = self.as_map()?;
-                let their_map = theirs.as_map()?;
-                let base_map = base.as_map()?;
-
-                if mine_map.len() != base_map.len() + 1 || their_map.len() != base_map.len() + 1 {
-                    // Only support single item insert for safety/speed for now
-                    return None;
-                }
-
-                // Find the added key in Mine
-                // Iterate Mine, check if in Base. The one that isn't is our key.
-                let mut my_key = None;
-                let mut my_val = None;
-                for (k, v) in mine_map.iter() {
-                    if !base_map.contains_key(&k, false).unwrap_or(false) {
-                        my_key = Some(k);
-                        my_val = Some(v);
-                        break;
-                    }
-                }
-                let (k_mine, v_mine) = (my_key?, my_val?);
-
-                // Check if Theirs has this key
-                if their_map.contains_key(&k_mine, false).unwrap_or(false) {
-                    // Conflict! Both inserted same key (but different values, since AcceptIdentical failed)
-                    return None;
-                }
-
-                // Merge: Take Theirs, insert My Key/Value
-                // Clear hint - merged values shouldn't carry hints
-                their_map
-                    .set(&k_mine, &v_mine)
-                    .ok()
-                    .map(|v| v.with_cleared_hint())
-            }
-            OP_HINT_FLYWEIGHT_ADD_SLOT => {
-                // Flyweight slot insert merge
-                let mine_fw = self.as_flyweight()?;
-                let their_fw = theirs.as_flyweight()?;
-                let base_fw = base.as_flyweight()?;
-
-                // Delegate must match
-                if mine_fw.delegate() != base_fw.delegate()
-                    || their_fw.delegate() != base_fw.delegate()
-                {
-                    return None;
-                }
-
-                // Verify sizes: both added exactly 1 item to slots
-                let mine_slots = mine_fw.slots_storage();
-                let their_slots = their_fw.slots_storage();
-                let base_slots = base_fw.slots_storage();
-
-                if mine_slots.len() != base_slots.len() + 1
-                    || their_slots.len() != base_slots.len() + 1
-                {
-                    return None;
-                }
-
-                // Find the added slot in Mine
-                let mut my_slot = None;
-                for (k, v) in mine_slots.iter() {
-                    if base_fw.get_slot(k).is_none() {
-                        my_slot = Some((*k, v.clone()));
-                        break;
-                    }
-                }
-                let (k_mine, v_mine) = my_slot?;
-
-                // Check if Theirs has this key
-                if their_fw.get_slot(&k_mine).is_some() {
-                    return None;
-                }
-
-                // Merge: Take Theirs, add My slot
-                // No hint - merged values shouldn't carry hints
-                Some(Var::from_flyweight(their_fw.add_slot(k_mine, v_mine)))
-            }
-            _ => None,
-        }
-    }
 }
 
-// Macro to implement RelationCodomain for other types (no-op merge)
+// Macro to implement RelationCodomain for other types
 macro_rules! impl_relation_codomain {
     ($($t:ty),*) => {
         $(

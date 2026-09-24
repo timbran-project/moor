@@ -58,7 +58,9 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 mod commit_pipeline;
+mod property_policy;
 mod snapshot_planes;
+use property_policy::property_can_clobber;
 
 use snapshot_planes::SnapshotPlanes;
 pub(crate) use snapshot_planes::TxSeed;

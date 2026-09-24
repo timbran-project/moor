@@ -1007,12 +1007,12 @@ mod tests {
     }
 
     #[test]
-    fn test_concurrent_map_insert_merge() {
+    fn test_concurrent_map_insert_conflicts() {
         check_random(
             || {
                 let db = setup_test_db();
                 let obj = Obj::mk_id(1);
-                let prop_name = Symbol::mk("map_merge_test");
+                let prop_name = Symbol::mk("map_conflict_test");
 
                 // Initialize property with empty map
                 {
@@ -1032,17 +1032,19 @@ mod tests {
                 }
 
                 let success_count = Arc::new(AtomicUsize::new(0));
+                let barrier = Arc::new(Barrier::new(2));
 
                 let handles: Vec<_> = (0..2)
                     .map(|thread_id| {
                         let db = db.clone();
                         let success_count = success_count.clone();
+                        let barrier = barrier.clone();
 
                         thread::spawn(move || {
                             let tx = db.start_transaction();
                             let mut ws = DbWorldState { tx };
 
-                            // Read map (base for merge)
+                            // Read the shared base value.
                             let current_map = ws
                                 .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                                 .unwrap();
@@ -1064,6 +1066,7 @@ mod tests {
                             )
                             .unwrap();
 
+                            barrier.wait();
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
                             }
@@ -1075,8 +1078,8 @@ mod tests {
                     handle.join().unwrap();
                 }
 
-                // Both should succeed
-                assert_eq!(success_count.load(Ordering::Relaxed), 2);
+                // Both transactions read the same snapshot; only one may publish.
+                assert_eq!(success_count.load(Ordering::Relaxed), 1);
 
                 // Verify final state
                 let tx = db.start_transaction();
@@ -1085,23 +1088,21 @@ mod tests {
                     .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
 
-                // Should contain both keys
+                // The winner contributes exactly one key.
                 let map = final_map.as_map().unwrap();
-                assert_eq!(map.len(), 2);
-                assert!(map.contains_key(&v_str("key_0"), false).unwrap());
-                assert!(map.contains_key(&v_str("key_1"), false).unwrap());
+                assert_eq!(map.len(), 1);
             },
             10,
         );
     }
 
     #[test]
-    fn test_concurrent_flyweight_slot_merge() {
+    fn test_concurrent_flyweight_slot_conflicts() {
         check_random(
             || {
                 let db = setup_test_db();
                 let obj = Obj::mk_id(1);
-                let prop_name = Symbol::mk("flyweight_merge_test");
+                let prop_name = Symbol::mk("flyweight_conflict_test");
 
                 // Initialize property with empty flyweight
                 {
@@ -1125,11 +1126,13 @@ mod tests {
                 }
 
                 let success_count = Arc::new(AtomicUsize::new(0));
+                let barrier = Arc::new(Barrier::new(2));
 
                 let handles: Vec<_> = (0..2)
                     .map(|thread_id| {
                         let db = db.clone();
                         let success_count = success_count.clone();
+                        let barrier = barrier.clone();
 
                         thread::spawn(move || {
                             let tx = db.start_transaction();
@@ -1158,6 +1161,7 @@ mod tests {
                             )
                             .unwrap();
 
+                            barrier.wait();
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
                             }
@@ -1169,8 +1173,8 @@ mod tests {
                     handle.join().unwrap();
                 }
 
-                // Both should succeed
-                assert_eq!(success_count.load(Ordering::Relaxed), 2);
+                // Both transactions read the same snapshot; only one may publish.
+                assert_eq!(success_count.load(Ordering::Relaxed), 1);
 
                 // Verify final state
                 let tx = db.start_transaction();
@@ -1180,21 +1184,19 @@ mod tests {
                     .unwrap();
                 let final_fw = final_fw_var.as_flyweight().unwrap();
 
-                // Should contain both slots
-                assert_eq!(final_fw.get_slot(&Symbol::mk("slot_0")), Some(&v_int(0)));
-                assert_eq!(final_fw.get_slot(&Symbol::mk("slot_1")), Some(&v_int(1)));
+                assert_eq!(final_fw.slots_storage().len(), 1);
             },
             10,
         );
     }
 
     #[test]
-    fn test_concurrent_flyweight_contents_merge() {
+    fn test_concurrent_flyweight_contents_conflicts() {
         check_random(
             || {
                 let db = setup_test_db();
                 let obj = Obj::mk_id(1);
-                let prop_name = Symbol::mk("flyweight_contents_merge_test");
+                let prop_name = Symbol::mk("flyweight_contents_conflict_test");
 
                 // Initialize property with empty flyweight
                 {
@@ -1218,11 +1220,13 @@ mod tests {
                 }
 
                 let success_count = Arc::new(AtomicUsize::new(0));
+                let barrier = Arc::new(Barrier::new(2));
 
                 let handles: Vec<_> = (0..2)
                     .map(|thread_id| {
                         let db = db.clone();
                         let success_count = success_count.clone();
+                        let barrier = barrier.clone();
 
                         thread::spawn(move || {
                             let tx = db.start_transaction();
@@ -1254,6 +1258,7 @@ mod tests {
                             )
                             .unwrap();
 
+                            barrier.wait();
                             if let Ok(CommitResult::Success { .. }) = Box::new(ws).commit() {
                                 success_count.fetch_add(1, Ordering::Relaxed);
                             }
@@ -1265,8 +1270,8 @@ mod tests {
                     handle.join().unwrap();
                 }
 
-                // Both should succeed
-                assert_eq!(success_count.load(Ordering::Relaxed), 2);
+                // Both transactions read the same snapshot; only one may publish.
+                assert_eq!(success_count.load(Ordering::Relaxed), 1);
 
                 // Verify final state
                 let tx = db.start_transaction();
@@ -1276,11 +1281,9 @@ mod tests {
                     .unwrap();
                 let final_fw = final_fw_var.as_flyweight().unwrap();
 
-                // Contents should contain both 0 and 1
+                // The winner contributes one element.
                 let contents = final_fw.contents();
-                assert_eq!(contents.len(), 2);
-                assert!(contents.contains(&v_int(0), false).unwrap());
-                assert!(contents.contains(&v_int(1), false).unwrap());
+                assert_eq!(contents.len(), 1);
             },
             10,
         );

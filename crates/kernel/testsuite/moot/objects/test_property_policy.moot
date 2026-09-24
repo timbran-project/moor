@@ -1,0 +1,59 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Only wizards can add or remove the overwrite flag, even on programmer-owned properties.
+@wizard
+; o = create(#-1); add_property(#0, "policy_fixture", o, {player, "r"}); add_property(o, "strict", 0, {player, "rwc"}); add_property(o, "replace", 0, {player, "rwo"}); return property_info(o, "strict")[2];
+"rwc"
+; return property_info($policy_fixture, "replace")[2];
+"rwo"
+; set_property_info($policy_fixture, "strict", {player, "rwco"}); return property_info($policy_fixture, "strict")[2];
+"rwco"
+; set_property_info($policy_fixture, "strict", {player, "rwc"}); return property_info($policy_fixture, "strict")[2];
+"rwc"
+; set_property_info($policy_fixture, "strict", {player, "rwz"});
+E_INVARG
+
+@programmer
+; $policy_fixture.replace = 5; return $policy_fixture.replace;
+5
+; set_property_info($policy_fixture, "replace", {player, "rw"});
+E_PERM
+; set_property_info($policy_fixture, "replace", {property_info($policy_fixture, "replace")[1], "rw"});
+E_PERM
+; set_property_info($policy_fixture, "strict", {property_info($policy_fixture, "strict")[1], "rwco"});
+E_PERM
+; add_property(player, "owned_policy", 0, {player, "rw"});
+; set_property_info(player, "owned_policy", {player, "rwo"});
+E_PERM
+; add_property(player, "forbidden_policy", 0, {player, "rwo"});
+E_PERM
+
+@wizard
+; add_property(#0, "policy_owner", #-1, {player, "w"});
+
+@programmer
+; $policy_owner = player;
+
+@wizard
+; set_property_info($policy_owner, "owned_policy", {$policy_owner, "rwo"});
+
+@programmer
+; set_property_info(player, "owned_policy", {player, "rw"});
+E_PERM
+; set_property_info(player, "owned_policy", {player, "ro"}); return property_info(player, "owned_policy")[2];
+"ro"
+; player.owned_policy = 9; return player.owned_policy;
+9
+
+@wizard
+; set_property_info($policy_owner, "owned_policy", {$policy_owner, "rw"}); return property_info($policy_owner, "owned_policy")[2];
+"rw"
+; delete_property($policy_owner, "owned_policy"); delete_property(#0, "policy_owner");
+; child = create($policy_fixture); add_property(#0, "policy_child", child, {player, "r"}); return property_info(child, "replace")[2];
+"rwo"
+; $policy_child.replace = 6; return property_info($policy_child, "replace")[2];
+"rwo"
+; clear_property($policy_child, "replace"); return $policy_child.replace;
+5
+; recycle($policy_child); recycle($policy_fixture); delete_property(#0, "policy_child"); delete_property(#0, "policy_fixture");

@@ -47,15 +47,9 @@ struct PlainCodomain(u64);
 impl RelationCodomain for PlainCodomain {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct MergeCodomain(u64);
+struct ConflictCodomain(u64);
 
-impl RelationCodomain for MergeCodomain {
-    fn try_merge(&self, base: &Self, theirs: &Self) -> Option<Self> {
-        Some(MergeCodomain(
-            self.0.wrapping_add(theirs.0).wrapping_sub(base.0),
-        ))
-    }
-}
+impl RelationCodomain for ConflictCodomain {}
 
 #[derive(Clone)]
 struct InMemoryProvider<C> {
@@ -108,20 +102,20 @@ where
     }
 }
 
-struct CheckMergeContext {
-    relation: Relation<Domain, MergeCodomain, InMemoryProvider<MergeCodomain>>,
-    base_index: Box<dyn RelationIndex<Domain, MergeCodomain>>,
-    check_index: Box<dyn RelationIndex<Domain, MergeCodomain>>,
+struct CheckConflictContext {
+    relation: Relation<Domain, ConflictCodomain, InMemoryProvider<ConflictCodomain>>,
+    base_index: Box<dyn RelationIndex<Domain, ConflictCodomain>>,
+    check_index: Box<dyn RelationIndex<Domain, ConflictCodomain>>,
     domain: Domain,
 }
 
-impl BenchContext for CheckMergeContext {
+impl BenchContext for CheckConflictContext {
     fn prepare(_num_chunks: usize) -> Self {
         let domain = Domain(1);
         let mut data = HashMap::new();
-        data.insert(domain.clone(), MergeCodomain(10));
+        data.insert(domain.clone(), ConflictCodomain(10));
         let provider = Arc::new(InMemoryProvider::new(data));
-        let relation = Relation::new(Symbol::mk("tx-check-merge"), provider);
+        let relation = Relation::new(Symbol::mk("tx-check-conflict"), provider);
         let base_index = relation.seeded_index().unwrap();
         let check_index = base_index.fork();
         Self {
@@ -458,7 +452,7 @@ impl BenchContext for TxOpsContext {
     }
 }
 
-fn check_conflict_merge_rewrite(ctx: &mut CheckMergeContext, chunk_size: usize, chunk_num: usize) {
+fn check_conflict_rejection(ctx: &mut CheckConflictContext, chunk_size: usize, chunk_num: usize) {
     for i in 0..chunk_size {
         let ts = Timestamp(BASE_TS + (chunk_num as u64 * chunk_size as u64) + i as u64);
         let tx = Tx {
@@ -467,17 +461,17 @@ fn check_conflict_merge_rewrite(ctx: &mut CheckMergeContext, chunk_size: usize, 
             snapshot_version: 0,
         };
         let mut rt = ctx.relation.start_from_index(&tx, ctx.base_index.as_ref());
-        rt.update(&ctx.domain, MergeCodomain(11)).unwrap();
+        rt.update(&ctx.domain, ConflictCodomain(11)).unwrap();
         let mut ws = rt.working_set().unwrap();
 
         let mut checker_index = ctx.check_index.fork();
         checker_index.insert_entry(
             Timestamp(tx.ts.0 + 1),
             ctx.domain.clone(),
-            MergeCodomain(20),
+            ConflictCodomain(20),
         );
         let mut checker = ctx.relation.begin_check_from_index(checker_index.as_ref());
-        checker.check(&mut ws).unwrap();
+        assert!(matches!(checker.check(&mut ws), Err(Error::Conflict(_))));
         black_box(ws.len());
     }
 }
@@ -519,13 +513,16 @@ fn check_no_conflict_core(
     }
 }
 
-fn check_conflict_identical_accept_core(
+fn check_conflict_identical_reject_core(
     ctx: &mut CheckConflictIdenticalCoreContext,
     chunk_size: usize,
     _chunk_num: usize,
 ) {
     for _ in 0..chunk_size {
-        ctx.checker.check(&mut ctx.ws).unwrap();
+        assert!(matches!(
+            ctx.checker.check(&mut ctx.ws),
+            Err(Error::Conflict(_))
+        ));
         black_box(());
     }
 }
@@ -770,22 +767,19 @@ benchmark_main!(
         });
 
         runner.group::<CheckConflictIdenticalCoreContext>(
-            "TX Check Benchmarks (Core Identical Accept)",
+            "TX Check Benchmarks (Core Identical Reject)",
             |g| {
                 g.throughput(Throughput::per_operation(1, "rows_checked"))
                     .bench(
-                        "tx_check_conflict_identical_accept_core",
-                        check_conflict_identical_accept_core,
+                        "tx_check_conflict_identical_reject_core",
+                        check_conflict_identical_reject_core,
                     );
             },
         );
 
-        runner.group::<CheckMergeContext>("TX Check Benchmarks (Merge, End-to-End)", |g| {
+        runner.group::<CheckConflictContext>("TX Check Benchmarks (Conflict, End-to-End)", |g| {
             g.throughput(Throughput::per_operation(1, "rows_checked"))
-                .bench(
-                    "tx_check_conflict_merge_rewrite",
-                    check_conflict_merge_rewrite,
-                );
+                .bench("tx_check_conflict_rejection", check_conflict_rejection);
         });
 
         runner.group::<CheckConflictUnresolvableCoreContext>(

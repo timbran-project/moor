@@ -440,6 +440,8 @@ object SYSOBJ [
       retval = E_PERM;
     elseif (!$perm_utils:controls(who, info[1]))
       retval = E_PERM;
+    elseif (typeof(info[2]) == TYPE_STR && index(info[2], "o") && !who.wizard)
+      retval = E_PERM;
     elseif (!$quota_utils:property_addition_permitted(who))
       retval = E_QUOTA;
     elseif (what.owner != who && !who.wizard && !$quota_utils:property_addition_permitted(what.owner))

@@ -21,6 +21,8 @@ pub enum PropFlag {
     Read = 0,
     Write = 1,
     Chown = 2,
+    /// The `o` (overwrite) flag: accept overlapping value writes; last publication wins.
+    Clobber = 3,
 }
 
 impl BitFlag for PropFlag {
@@ -31,6 +33,7 @@ impl BitFlag for PropFlag {
 
 impl PropFlag {
     #[must_use]
+    /// All access-control flags. Conflict policy remains strict.
     pub fn all_flags() -> BitEnum<PropFlag> {
         BitEnum::new_with(PropFlag::Read) | PropFlag::Write | PropFlag::Chown
     }
@@ -44,6 +47,8 @@ impl PropFlag {
                 flags |= 1 << PropFlag::Write as u8;
             } else if c == 'c' {
                 flags |= 1 << PropFlag::Chown as u8;
+            } else if c == 'o' {
+                flags |= 1 << PropFlag::Clobber as u8;
             } else {
                 return None;
             }
@@ -79,6 +84,9 @@ pub fn prop_flags_string(flags: BitEnum<PropFlag>) -> String {
     }
     if flags.contains(PropFlag::Chown) {
         s.push('c');
+    }
+    if flags.contains(PropFlag::Clobber) {
+        s.push('o');
     }
     s
 }
@@ -203,5 +211,18 @@ mod test {
         let pperms = PropPerms::new(Obj::mk_id(1), PropFlag::rc());
         assert_eq!(pperms.owner(), Obj::mk_id(1));
         assert_eq!(pperms.flags(), PropFlag::rc());
+    }
+
+    #[test]
+    fn clobber_flag_round_trips_without_changing_access_defaults() {
+        let flags = PropFlag::parse_str("ocrw").unwrap();
+        assert_eq!(prop_flags_string(flags), "rwco");
+        let perms = PropPerms::new(Obj::mk_id(1), flags);
+        let restored = PropPerms::from(perms.as_ref().clone());
+        assert_eq!(restored, perms);
+        assert!(restored.flags().contains(PropFlag::Clobber));
+        assert!(!PropFlag::all_flags().contains(PropFlag::Clobber));
+        assert!(PropFlag::parse_str("l").is_none());
+        assert!(PropFlag::parse_str("z").is_none());
     }
 }

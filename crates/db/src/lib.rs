@@ -51,9 +51,9 @@ pub use model::{
 };
 pub use provider::Provider;
 pub use tx::{
-    AcceptIdentical, CheckRelation, ConflictResolver, Error, FailOnConflict, PotentialConflict,
-    ProposedOp, Relation, RelationCodomain, RelationCodomainHashable, RelationDomain,
-    RelationIndex, RelationTransaction, SmartMergeResolver, Timestamp, Tx, WorkingSet,
+    CheckRelation, ConflictResolver, Error, FailOnConflict, PotentialConflict, ProposedOp,
+    Relation, RelationCodomain, RelationCodomainHashable, RelationDomain, RelationIndex,
+    RelationTransaction, Timestamp, Tx, WorkingSet,
 };
 
 pub const DEFAULT_COMMIT_QUEUE_WARN: Duration = Duration::from_secs(1);

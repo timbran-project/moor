@@ -237,7 +237,7 @@ macro_rules! define_relations {
                     $(
                         if !ws.$field.is_empty() {
                             let checker = self.$field.as_mut().expect("nonempty working set must have a checker");
-                            if let Err(e) = checker.check(&mut ws.$field) {
+                            if let Err(e) = define_relations!(@check_relation $field, checker, ws) {
                                 if let crate::tx::Error::Conflict(info) = e {
                                     return Err(info);
                                 }
@@ -337,6 +337,9 @@ macro_rules! define_relations {
                     checked: &std::sync::Arc<WorldStateSnapshot>,
                     winner: &std::sync::Arc<WorldStateSnapshot>,
                 ) -> $crate::engine::relation_defs::RebaseCheck {
+                    if let Err(info) = ws.check_property_policies(winner) {
+                        return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(info);
+                    }
                     let bloom_proves_disjoint = checked.version >= winner.bloom_since_version
                         && winner.commit_bloom.as_ref().is_some_and(|winner_bloom| {
                             true $(&& ws.$field.tuples_ref().keys().all(|key| {
@@ -350,6 +353,9 @@ macro_rules! define_relations {
 
                     $(
                         for key in ws.$field.tuples_ref().keys() {
+                            if define_relations!(@can_clobber $field, ws, key) {
+                                continue;
+                            }
                             if !$crate::engine::relation_defs::relation_key_unchanged(
                                 &*checked.$field,
                                 &*winner.$field,
@@ -642,6 +648,7 @@ macro_rules! define_relations {
                         prop_resolution_cache: std::cell::RefCell::new(prop_resolution_cache),
                         ancestry_cache: std::cell::RefCell::new(ancestry_cache),
                         prop_perm_memo: crate::engine::ws_transaction::PropertyPermMemo::new(),
+                        inherited_policy_reads: std::collections::HashSet::new(),
                         has_mutations: false,
                     }
                 }
@@ -652,6 +659,7 @@ macro_rules! define_relations {
             /// This struct contains the working sets for all relations along with
             /// the resolution caches used during transaction processing.
             pub(crate) struct WorkingSets {
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
                 #[allow(dead_code)]
                 pub(crate) tx: Tx,
                 $( pub(crate) $field: WorkingSet<$domain, $codomain>, )*
@@ -685,6 +693,7 @@ macro_rules! define_relations {
                 /// - `AncestryCache`: Ancestry cache
                 fn extract_relation_working_sets(self) -> (RelationWorkingSets, VerbResolutionCache, PropResolutionCache, AncestryCache) {
                     let ws = RelationWorkingSets {
+                        inherited_policy_reads: self.inherited_policy_reads,
                         $( $field: self.$field, )*
                     };
                     (ws, self.verb_resolution_cache, self.prop_resolution_cache, self.ancestry_cache)
@@ -696,6 +705,7 @@ macro_rules! define_relations {
             /// This struct contains only the working sets for relations, with caches
             /// separated out to handle ownership during commit processing.
             pub(crate) struct RelationWorkingSets {
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
                 $( $field: WorkingSet<$domain, $codomain>, )*
             }
 
@@ -705,6 +715,7 @@ macro_rules! define_relations {
             /// all defined database relations. It contains relation transactions for each
             /// relation, along with caches needed for transaction processing.
             pub struct WorldStateTransaction {
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
                 #[allow(dead_code)]
                 pub(crate) tx: Tx,
                 /// Database handle used for direct commit processing.
@@ -747,6 +758,7 @@ macro_rules! define_relations {
                     )*
 
                     let ws = Box::new(WorkingSets {
+                        inherited_policy_reads: self.inherited_policy_reads,
                         tx: self.tx,
                         $( $field, )*
                         verb_resolution_cache: self.verb_resolution_cache.into_inner(),
@@ -767,6 +779,25 @@ macro_rules! define_relations {
             pub const SEQUENCE_MAX_OBJECT: usize = 0;
         }
     };
+
+    // Only property values can opt out of write-conflict rejection.
+    (@check_relation object_propvalues, $checker:ident, $ws:ident) => {{
+        let flags = &$ws.object_propflags;
+        $checker.check_with_resolver(&mut $ws.object_propvalues, |conflict: &$crate::tx::PotentialConflict<crate::model::ObjAndUUIDHolder, moor_var::Var>| {
+            if property_can_clobber(flags, &conflict.domain) {
+                Ok($crate::tx::Resolution::Accept)
+            } else {
+                Err($crate::tx::Error::Conflict(conflict.info.clone()))
+            }
+        })
+    }};
+    (@check_relation $field:ident, $checker:ident, $ws:ident) => {
+        $checker.check(&mut $ws.$field)
+    };
+    (@can_clobber object_propvalues, $ws:ident, $key:ident) => {
+        property_can_clobber(&$ws.object_propflags, $key)
+    };
+    (@can_clobber $field:ident, $ws:ident, $key:ident) => { false };
 
     // Helper rule to create a relation based on arrow type
     (@create_relation =>, $field:ident, $provider:ident) => {

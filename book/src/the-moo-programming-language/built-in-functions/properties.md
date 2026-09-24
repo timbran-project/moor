@@ -11,7 +11,8 @@
 **Returns:** A list containing two elements:
 
 1. The owner of the property (object reference)
-2. A string representing the permission flags: 'r' (read), 'w' (write), 'c' (clear)
+2. A string representing the property flags: `r` (read), `w` (write), `c` (ownership in
+   descendants), and `o` (overwrite concurrent values).
 
 **Note:** Requires read permission on the property.
 
@@ -39,13 +40,19 @@ This is a mooR extension.
 - : A list containing permission information: `[owner, permissions]` or
   `[owner, permissions, new-name]`
   - : The new owner of the property (object reference) `owner`
-  - : A string containing the permission flags (combination of 'r', 'w', 'c') `permissions`
+  - : A string containing the property flags (combination of `r`, `w`, `c`, `o`) `permissions`
   - `new-name`: Optional new name for the property
 
 `info`
 
 **Returns:** An empty list\
 **Note:** Requires appropriate permissions to modify the property.
+
+The `o` flag selects clobber behavior: the last successful publication wins for this property's
+value. Without `o`, overlapping writes cause a transaction retry. Only a wizard can add or remove
+this flag, including when creating a property. Property owners can change other flags while
+retaining the current `o` setting. See
+[property ownership and permissions](../../the-database/object-properties.md#property-ownership-and-permissions).
 
 ## Property Management Functions
 

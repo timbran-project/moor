@@ -657,6 +657,13 @@ impl WorldState for DbWorldState {
             PropFlag::Write,
         ))?;
 
+        if let Some(flags) = attrs.flags
+            && flags.contains(PropFlag::Clobber) != propperms.flags().contains(PropFlag::Clobber)
+        {
+            // Only wizards can change the property's conflict policy.
+            auth.require(AuthRule::property_wizard())?;
+        }
+
         // LambdaMOO/ToastStunt semantics: non-wizards may not transfer property ownership.
         if let Some(new_owner) = attrs.owner {
             auth.require(AuthRule::property_owner_unchanged_or_wizard(
@@ -905,6 +912,9 @@ impl WorldState for DbWorldState {
         let auth = self.auth_context(permissions)?;
         auth.require(AuthRule::property_define(location, &objowner, flags))?;
         auth.require(AuthRule::property_owner_or_wizard(propowner))?;
+        if prop_flags.contains(PropFlag::Clobber) {
+            auth.require(AuthRule::property_wizard())?;
+        }
 
         if initial_value.as_ref().is_some_and(Var::is_none) {
             return Err(WorldStateError::PropertyTypeMismatch);

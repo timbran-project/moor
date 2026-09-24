@@ -92,6 +92,7 @@ fn info_to_prop_attrs(info: &List) -> InfoParseResult {
             'r' => flags |= PropFlag::Read,
             'w' => flags |= PropFlag::Write,
             'c' => flags |= PropFlag::Chown,
+            'o' => flags |= PropFlag::Clobber,
             _ => return InfoParseResult::Fail(E_INVARG.msg("Invalid property info perms")),
         }
     }

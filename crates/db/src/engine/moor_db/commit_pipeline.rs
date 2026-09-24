@@ -151,6 +151,14 @@ impl MoorDB {
 
         // Phase 1: Check conflicts and prepare indexes against current snapshot
         let current_root = self.snapshot_planes.load_root();
+        if snapshot_version != current_root.version
+            && let Err(info) = relation_ws.check_property_policies(&current_root)
+        {
+            return Ok(CommitResult::ConflictRetry {
+                conflict_info: Some(enrich_conflict_info(&current_root, info)),
+            });
+        }
+        relation_ws.clear_clobber_hints();
         let mut checkers = self.relations.begin_check_all(&current_root, &relation_ws);
 
         // Skip conflict check if:
@@ -270,7 +278,7 @@ impl MoorDB {
                 &bloom,
             );
 
-            // Rebase succeeded — no key overlap. Try CAS again.
+            // All overlaps satisfy the property policies. Try CAS again.
             let publication_version = rebased.version;
             if self
                 .snapshot_planes

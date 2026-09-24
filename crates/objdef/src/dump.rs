@@ -783,7 +783,7 @@ mod tests {
                     parent: #-1
                     location: #-1
 
-                    property version (owner: #42, flags: "rc") [ revision -> 7 ] = "1.0";
+                    property version (owner: #42, flags: "rco") [ revision -> 7 ] = "1.0";
 
                     verb "look" (this none none) owner: #42 flags: "rxd" [ modified_by -> #42 ]
                         return "ok";
@@ -811,9 +811,26 @@ mod tests {
             .join("\n");
 
         assert!(text.contains("object #42 [\n  package -> \"core\"\n]"));
-        assert!(text.contains(r#"property version (owner: #42, flags: "rc") [ revision -> 7 ]"#));
+        assert!(text.contains(r#"property version (owner: #42, flags: "rco") [ revision -> 7 ]"#));
         assert!(text.contains(r#"verb look (this none none) owner: #42 flags: "rxd" ["#));
         assert!(text.contains("modified_by -> #42"));
+
+        let (reloaded, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        {
+            let mut loader = reloaded.loader_client().unwrap();
+            ObjectDefinitionLoader::new(loader.as_mut())
+                .load_single_object(&text, CompileOptions::default(), Default::default())
+                .unwrap();
+            assert!(matches!(loader.commit(), Ok(CommitResult::Success { .. })));
+        }
+        let snapshot_reloaded = reloaded.create_snapshot().unwrap();
+        let reloaded_defs = collect_object_definitions(snapshot_reloaded.as_ref()).unwrap();
+        assert!(
+            reloaded_defs[0].property_definitions[0]
+                .perms
+                .flags()
+                .contains(PropFlag::Clobber)
+        );
 
         let collected_dir = tempfile::tempdir().unwrap();
         let streamed_dir = tempfile::tempdir().unwrap();

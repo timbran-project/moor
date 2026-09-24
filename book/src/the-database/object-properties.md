@@ -113,6 +113,15 @@ The permissions on properties are drawn from this set:
 | `r`            | Read permission lets non-owners get the value of the property |
 | `w`            | Write permission lets non-owners set the property value       |
 | `c`            | Change ownership in descendants                               |
+| `o`            | Allow one change to overwrite another (wizards only)          |
+
+With the `o` (overwrite) flag, the last change saved wins when two commands change the same property
+at once. One command's change can be lost.
+
+> **For wizards:** Only wizards can turn this flag on or off. It is intended for special cases where
+> losing a change is acceptable, such as a temporary animation state. Most properties do not need
+> this flag. The [transactions chapter](transactions.md) explains how mooR normally protects against
+> conflicting changes.
 
 The `c` bit is a bit more complicated. Recall that every object has all of the properties that its
 parent does and perhaps some more. Ordinarily, when a child object inherits a property from its
