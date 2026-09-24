@@ -27,32 +27,7 @@ use uuid::Uuid;
 static DAEMON_HOST_BIN: OnceLock<PathBuf> = OnceLock::new();
 fn daemon_host_bin() -> &'static PathBuf {
     DAEMON_HOST_BIN.get_or_init(|| {
-        // If `moor-daemon` already exists, use it.
-        // This is potentially misleading: if you change daemon code, then re-run an integration test,
-        // then you won't automatically get a new build. You'll need to manually build the daemon binary.
-        // This is not a common workflow, and instead rebuilding the daemon all the time is a problem.
-        //
-        // This horribleness can be dropped whenever https://rust-lang.github.io/rfcs/3028-cargo-binary-dependencies.html
-        // is implemented.
-        //
-        // Approach adopted from snapbox: https://docs.rs/snapbox/0.6.21/src/snapbox/cmd.rs.html#853-872
-        let moor_daemon_path = std::env::current_exe()
-            .ok()
-            .map(|mut path| {
-                path.pop();
-                if path.ends_with("deps") {
-                    path.pop();
-                }
-                path
-            })
-            .unwrap()
-            .join(format!("moor-daemon{}", std::env::consts::EXE_SUFFIX));
-        if moor_daemon_path.exists() {
-            eprintln!("Using existing moor-daemon binary: {moor_daemon_path:?}");
-            return moor_daemon_path;
-        }
-
-        // If `moor-daemon` doesn't exist, build it.
+        // Build once per test process so daemon changes are included in wire tests.
         escargot::CargoBuild::new()
             .bin("moor-daemon")
             .manifest_path("../daemon/Cargo.toml")
@@ -73,8 +48,20 @@ fn start_daemon(workdir: &Path, uuid: Uuid) -> ManagedChild {
     ManagedChild::new(
         "daemon",
         Command::new(daemon_host_bin())
-            .arg("--textdump")
+            .arg("--import")
             .arg(test_db_path())
+            .args(["--import-format", "textdump"])
+            .env("XDG_CONFIG_HOME", workdir.join("config"))
+            .arg("--private-key")
+            .arg(workdir.join("moor-signing-key.pem"))
+            .arg("--public-key")
+            .arg(workdir.join("moor-verifying-key.pem"))
+            .arg("--enrollment-listen")
+            .arg(format!("ipc://{}/enrollment.sock", workdir.display()))
+            .arg("--workers-request-listen")
+            .arg(format!("ipc://{}/workers-request.sock", workdir.display()))
+            .arg("--workers-response-listen")
+            .arg(format!("ipc://{}/workers-response.sock", workdir.display()))
             .arg("--events-listen")
             .arg(format!("{NARRATIVE_PATH_ROOT}{uuid}"))
             .arg("--rpc-listen")
@@ -101,9 +88,11 @@ fn start_telnet_host(workdir: &Path, uuid: Uuid, port: u16) -> ManagedChild {
             .arg("--rpc-address")
             .arg(format!("{RPC_PATH_ROOT}{uuid}"))
             .arg("--telnet-address")
-            .arg("0.0.0.0")
+            .arg("127.0.0.1")
             .arg("--telnet-port")
             .arg(format!("{port}"))
+            .args(["--health-check-port", "0"])
+            .env("XDG_CONFIG_HOME", workdir.join("config"))
             .arg("--debug")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -177,9 +166,6 @@ fn test_moot_with_telnet_host<P: AsRef<Path>>(moot_file: P) {
     drop(daemon);
     drop(telnet_host);
 }
-
-// TODO: Disables these for now because of ongoing issues where these run with out of date daemon
-//  binaries unless done from a clean build.
 
 #[ignore]
 #[test]
