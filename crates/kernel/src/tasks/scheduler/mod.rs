@@ -244,7 +244,8 @@ impl Scheduler {
         let lifecycle = TaskLifecycle {
             task_q,
             pending_task_sends: HashMap::new(),
-            next_task_id: 0,
+            // Reserve zero for the no-task sentinel.
+            next_task_id: 1,
             gc_collection_in_progress: false,
             gc_mark_in_progress: false,
             gc_sweep_in_progress: false,
@@ -934,6 +935,24 @@ mod tests {
             result_sender: None,
             timer_generation: 0,
         }
+    }
+
+    #[test]
+    fn fresh_task_ids_exclude_zero_sentinel() {
+        let scheduler = scheduler();
+        let threads = scheduler.start(Arc::new(NoopSessionFactory)).unwrap();
+        let handle = scheduler
+            .submit_command_task_inner(
+                SYSTEM_OBJECT,
+                SYSTEM_OBJECT,
+                "look".to_string(),
+                Arc::new(NoopClientSession::new()),
+            )
+            .unwrap();
+        assert_ne!(handle.task_id(), 0);
+        assert!(!scheduler.handle_task_exists(0));
+        scheduler.stop(None).unwrap();
+        threads.join().unwrap();
     }
 
     #[test]
