@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
 # software: you can redistribute it and/or modify it under the terms of the GNU
 # Affero General Public License as published by the Free Software Foundation,
@@ -51,6 +51,12 @@ fi
 
 export USER_ID=$(id -u)
 export GROUP_ID=$(id -g)
+# Rootless Docker maps container root to the host user, so bind-mounted files are
+# only writable, and stay owned by the invoking user, when the container runs as root.
+if docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q 'name=rootless'; then
+    export USER_ID=0
+    export GROUP_ID=0
+fi
 export MOOR_CONFIG_FILE="${MOOR_CONFIG_FILE:-moor-dev.yaml}"
 
 docker compose up --build "${COMPOSE_ARGS[@]}"
