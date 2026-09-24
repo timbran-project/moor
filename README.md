@@ -2,6 +2,8 @@
 
 # mooR
 
+[![Join Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/Ec94y5983z)
+[![mooR Book](https://img.shields.io/badge/Read-mooR_Book-blue?logo=mdbook&logoColor=white)](https://timbran.org/book/2.0-dev/html/)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink)](https://github.com/sponsors/rdaum)
 
 **mooR** is a network-accessible, multi-user, programmable system for building online social
