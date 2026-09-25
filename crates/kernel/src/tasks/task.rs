@@ -450,6 +450,15 @@ impl Task {
         let snapshot = self.vm_host.snapshot_state();
         self.vm_host.restore_state(&snapshot);
         self.retry_state = snapshot;
+        // `retries` counts conflict retries consecutive since the last successful
+        // transaction boundary, not lifetime retries against this task. Crossing a
+        // successful boundary here (this is only ever called after a commit succeeded)
+        // means whatever conflicts happened before this point are resolved and done;
+        // they must not count against a later, unrelated conflict later in this same
+        // long-lived task's life. This bounds backoff growth and `max_task_retries` to
+        // one piece of work, rather than letting a heartbeat-shaped task accumulate
+        // retries across its entire lifetime and spuriously hit the abort threshold.
+        self.retries = 0;
     }
 
     pub(crate) fn conflict_task_origin(&self) -> String {
@@ -661,6 +670,12 @@ impl Task {
                             self.vm_host
                                 .set_variable(&task_id_var, v_int(task_id as i64));
                         }
+                        // Mirror the other successful-commit paths (task_recv, immediate
+                        // resume, suspend): snapshot state for retry *after* mutating the
+                        // VM with this boundary's result (the task id variable, if any),
+                        // and reset `retries` since a fork dispatch that commits is a
+                        // successful transaction boundary like any other.
+                        self.refresh_retry_state();
                         Some(self)
                     }
                     Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
