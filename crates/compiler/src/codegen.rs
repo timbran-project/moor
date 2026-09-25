@@ -43,14 +43,17 @@ fn do_compile(parse: Parse, compile_options: CompileOptions) -> Result<Program, 
         )
     }
 
-    Ok(cg_state.operands.take_program_parts().build_program(
-        cg_state.var_names,
-        cg_state.emitter.take_jumps(),
-        cg_state.emitter.take_ops(),
-        cg_state.stack.max_depth(),
-        cg_state.scopes.max_depth(),
-        cg_state.line_number_spans,
-    ))
+    Ok(cg_state
+        .operands
+        .take_program_parts(cg_state.declaration_sites)
+        .build_program(
+            cg_state.var_names,
+            cg_state.emitter.take_jumps(),
+            cg_state.emitter.take_ops(),
+            cg_state.stack.max_depth(),
+            cg_state.scopes.max_depth(),
+            cg_state.line_number_spans,
+        ))
 }
 
 /// Compile from a program string using the handwritten frontend parser and lowering path.

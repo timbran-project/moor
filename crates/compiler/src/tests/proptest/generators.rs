@@ -685,7 +685,7 @@ pub fn arb_scatter<S: Strategy<Value = Expr> + Clone + 'static>(
             if let Some(rest_item) = rest {
                 items.push(rest_item);
             }
-            Expr::Scatter(items, Box::new(rhs))
+            Expr::Scatter(items, Box::new(rhs), None)
         },
     )
 }

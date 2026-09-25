@@ -35,7 +35,7 @@ pub enum PrecedenceLevel {
 
 pub fn expr_precedence_level(expr: &Expr) -> PrecedenceLevel {
     match expr {
-        Expr::Assign { .. } | Expr::Scatter(_, _) => PrecedenceLevel::Assignment,
+        Expr::Assign { .. } | Expr::Scatter(..) => PrecedenceLevel::Assignment,
         Expr::Cond { .. } => PrecedenceLevel::Conditional,
         Expr::Or(..) | Expr::And(..) => PrecedenceLevel::Logical,
         Expr::Binary(BinaryOp::BitOr, _, _) => PrecedenceLevel::BitwiseOr,

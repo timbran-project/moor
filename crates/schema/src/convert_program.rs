@@ -41,7 +41,7 @@ use moor_var::program::{
     labels::{JumpLabel, Label, Offset},
     names::{Name, VarName},
     opcode::{BuiltinId, ForSequenceOperand, Op, ScatterArgs, ScatterLabel},
-    program::{PrgInner, Program},
+    program::{DeclarationKind, DeclarationSite, PrgInner, Program, SourceDeclarations},
     stored_program::StoredProgram,
 };
 use planus::{ReadAsRoot, WriteAsOffset};
@@ -50,7 +50,25 @@ use triomphe::Arc;
 
 const MIN_SUPPORTED_STORED_PROGRAM_VERSION: u16 = 3;
 const STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS: u16 = 4;
-const STORED_PROGRAM_VERSION: u16 = STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS;
+const STORED_PROGRAM_VERSION: u16 = 5;
+
+define_enum_mapping! {
+    DeclarationKind <=> fb::DeclarationKind {
+        Let <=> Let,
+        Const <=> Const,
+    }
+}
+
+fn encode_declaration_sites(sites: &[DeclarationSite]) -> Vec<fb::DeclarationSite> {
+    sites
+        .iter()
+        .map(|site| fb::DeclarationSite {
+            offset: site.offset as u64,
+            kind: site.kind.into(),
+            has_initializer: site.has_initializer,
+        })
+        .collect()
+}
 
 // Helper to encode a Name into FlatBuffer StoredName
 fn encode_name(name: &Name) -> fb::StoredName {
@@ -357,6 +375,18 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
         fork_max_stacks: Some(fork_max_stacks),
         main_max_scope_depth: program.main_max_scope_depth() as u64,
         fork_max_scope_depths: Some(fork_max_scope_depths),
+        source_declarations: program.0.source_declarations.as_ref().map(|declarations| {
+            Box::new(fb::SourceDeclarations {
+                main: encode_declaration_sites(&declarations.main),
+                forks: declarations
+                    .forks
+                    .iter()
+                    .map(|sites| fb::DeclarationSites {
+                        sites: encode_declaration_sites(sites),
+                    })
+                    .collect(),
+            })
+        }),
     })
 }
 
@@ -730,6 +760,10 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
         .collect();
     let fork_line_number_spans = fork_line_number_spans?;
 
+    let source_declarations = fb_decode!(fb_prog_ref, source_declarations)
+        .map(|declarations| decode_source_declarations(declarations, &main_vector, &fork_vectors))
+        .transpose()?;
+
     let program = Program(Arc::new(PrgInner {
         literals,
         jump_labels,
@@ -749,6 +783,7 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
         fork_max_scope_depths,
         line_number_spans,
         fork_line_number_spans,
+        source_declarations,
     }));
 
     let actual_builtin_signature = builtin_signature_for_ids(used_builtin_ids(&program));
@@ -761,6 +796,79 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
     }
 
     Ok(program)
+}
+
+fn decode_source_declarations(
+    declarations: fb::SourceDeclarationsRef<'_>,
+    main: &[Op],
+    forks: &[(usize, Vec<Op>)],
+) -> Result<SourceDeclarations, DecodeError> {
+    let declarations: fb::SourceDeclarations = declarations.try_into().map_err(|error| {
+        DecodeError::DecodeFailed(format!("Invalid source declarations: {error}"))
+    })?;
+    if declarations.forks.len() != forks.len() {
+        return Err(DecodeError::DecodeFailed(
+            "Source declaration fork count mismatch".into(),
+        ));
+    }
+    fn decode_sites(
+        sites: Vec<fb::DeclarationSite>,
+        ops: &[Op],
+    ) -> Result<Vec<DeclarationSite>, DecodeError> {
+        let mut previous = None;
+        sites
+            .into_iter()
+            .map(|site| {
+                let offset = usize::try_from(site.offset)
+                    .map_err(|_| DecodeError::DecodeFailed("Declaration offset overflow".into()))?;
+                if previous.is_some_and(|last| last >= offset) {
+                    return Err(DecodeError::DecodeFailed(
+                        "Declaration sites must be strictly ordered".into(),
+                    ));
+                }
+                let scalar = matches!(
+                    ops.get(offset),
+                    Some(
+                        Op::Put(_)
+                            | Op::PutPop(_)
+                            | Op::PutScope0Local(_)
+                            | Op::PutPopScope0Local(_)
+                    )
+                );
+                let scatter = matches!(ops.get(offset), Some(Op::Scatter(_)));
+                if !scalar && !(scatter && site.has_initializer) {
+                    return Err(DecodeError::DecodeFailed(
+                        "Declaration site does not identify a declaration store".into(),
+                    ));
+                }
+                if !site.has_initializer
+                    && !matches!(
+                        offset.checked_sub(1).and_then(|pc| ops.get(pc)),
+                        Some(Op::ImmInt(0))
+                    )
+                {
+                    return Err(DecodeError::DecodeFailed(
+                        "Uninitialized declaration must store a literal zero".into(),
+                    ));
+                }
+                previous = Some(offset);
+                Ok(DeclarationSite {
+                    offset,
+                    kind: site.kind.into(),
+                    has_initializer: site.has_initializer,
+                })
+            })
+            .collect()
+    }
+    Ok(SourceDeclarations {
+        main: decode_sites(declarations.main, main)?,
+        forks: declarations
+            .forks
+            .into_iter()
+            .zip(forks)
+            .map(|(sites, (_, ops))| decode_sites(sites.sites, ops))
+            .collect::<Result<_, _>>()?,
+    })
 }
 
 fn decode_frame_depths(
@@ -1086,7 +1194,93 @@ mod tests {
             fork_max_scope_depths: vec![2],
             line_number_spans: vec![(0, 1)],
             fork_line_number_spans: vec![vec![(0, 2)]],
+            source_declarations: None,
         }))
+    }
+
+    fn program_with_declarations() -> Program {
+        let mut program = test_program();
+        let inner = Arc::make_mut(&mut program.0);
+        inner.main_vector = vec![Op::ImmInt(1), Op::PutPopScope0Local(0), Op::Done];
+        inner.fork_vectors = vec![(0, vec![Op::ImmInt(0), Op::PutPopScope0Local(0), Op::Done])];
+        inner.source_declarations = Some(SourceDeclarations {
+            main: vec![DeclarationSite {
+                offset: 1,
+                kind: DeclarationKind::Const,
+                has_initializer: true,
+            }],
+            forks: vec![vec![DeclarationSite {
+                offset: 1,
+                kind: DeclarationKind::Let,
+                has_initializer: false,
+            }]],
+        });
+        program
+    }
+
+    #[test]
+    fn stored_program_roundtrips_declaration_sites() {
+        let mut program = program_with_declarations();
+        let nested = program.clone();
+        Arc::make_mut(&mut program.0).lambda_programs.push(nested);
+        let stored = program_to_stored(&program).unwrap();
+        assert_eq!(stored_to_program(&stored).unwrap(), program);
+    }
+
+    #[test]
+    fn stored_program_distinguishes_absent_and_empty_declaration_metadata() {
+        let absent = test_program();
+        let mut empty = absent.clone();
+        Arc::make_mut(&mut empty.0).source_declarations = Some(SourceDeclarations {
+            main: vec![],
+            forks: vec![vec![]],
+        });
+        for program in [absent, empty] {
+            let restored = stored_to_program(&program_to_stored(&program).unwrap()).unwrap();
+            assert_eq!(
+                restored.0.source_declarations,
+                program.0.source_declarations
+            );
+        }
+    }
+
+    #[test]
+    fn stored_program_rejects_invalid_declaration_sites() {
+        let original = program_with_declarations();
+        for offset in [0, 2, usize::MAX] {
+            let mut program = original.clone();
+            Arc::make_mut(&mut program.0)
+                .source_declarations
+                .as_mut()
+                .unwrap()
+                .main[0]
+                .offset = offset;
+            assert!(stored_to_program(&program_to_stored(&program).unwrap()).is_err());
+        }
+        let mut omitted_initializer = original.clone();
+        Arc::make_mut(&mut omitted_initializer.0)
+            .source_declarations
+            .as_mut()
+            .unwrap()
+            .main[0]
+            .has_initializer = false;
+        assert!(stored_to_program(&program_to_stored(&omitted_initializer).unwrap()).is_err());
+        let mut duplicate = original.clone();
+        let sites = &mut Arc::make_mut(&mut duplicate.0)
+            .source_declarations
+            .as_mut()
+            .unwrap()
+            .main;
+        sites.push(sites[0]);
+        assert!(stored_to_program(&program_to_stored(&duplicate).unwrap()).is_err());
+        let mut wrong_forks = original;
+        Arc::make_mut(&mut wrong_forks.0)
+            .source_declarations
+            .as_mut()
+            .unwrap()
+            .forks
+            .clear();
+        assert!(stored_to_program(&program_to_stored(&wrong_forks).unwrap()).is_err());
     }
 
     #[test]

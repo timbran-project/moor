@@ -11,6 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use moor_var::program::program::{DeclarationKind, DeclarationSite};
+
 use tracing::warn;
 
 use crate::{
@@ -300,16 +302,26 @@ impl CodegenState {
                 self.emit(Op::MakeFlyweight(slots.len()));
                 self.pop_stack(1 + (slots.len() * 2));
             }
-            Expr::Scatter(scatter, right) => self.generate_scatter_assign(scatter, right)?,
+            Expr::Scatter(scatter, right, declaration) => {
+                self.generate_scatter_assign(scatter, right, *declaration)?
+            }
             Expr::Assign { left, right } => self.generate_assign(left, right)?,
-            Expr::Decl {
-                id,
-                is_const: _,
-                expr,
-            } => match expr {
-                Some(rhs) => self.generate_assign(&Expr::Id(*id), rhs)?,
-                None => self.generate_assign(&Expr::Id(*id), &Expr::Value(v_int(0)))?,
-            },
+            Expr::Decl { id, is_const, expr } => {
+                match expr {
+                    Some(rhs) => self.generate_expr(rhs)?,
+                    None => self.generate_expr(&Expr::Value(v_int(0)))?,
+                }
+                self.declaration_sites.push(DeclarationSite {
+                    offset: self.emitter.pc(),
+                    kind: if *is_const {
+                        DeclarationKind::Const
+                    } else {
+                        DeclarationKind::Let
+                    },
+                    has_initializer: expr.is_some(),
+                });
+                self.emit_put_name(self.find_name(id));
+            }
             Expr::ComprehendRange {
                 variable,
                 end_of_range_register,
@@ -515,6 +527,7 @@ impl CodegenState {
         &mut self,
         scatter: &[ScatterItem],
         right: &Expr,
+        declaration: Option<DeclarationKind>,
     ) -> Result<(), CompileError> {
         self.generate_expr(right)?;
         let mut labels = Vec::with_capacity(scatter.len());
@@ -535,6 +548,13 @@ impl CodegenState {
         }
         let done = self.make_jump_label(None);
         let scater_offset = self.add_scatter_table(labels, done);
+        if let Some(kind) = declaration {
+            self.declaration_sites.push(DeclarationSite {
+                offset: self.emitter.pc(),
+                kind,
+                has_initializer: true,
+            });
+        }
         self.emit(Op::Scatter(scater_offset));
         for (s, label) in optional_defaults {
             self.commit_jump_label(label);

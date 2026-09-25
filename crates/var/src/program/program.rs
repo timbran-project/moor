@@ -33,6 +33,30 @@ pub static EMPTY_PROGRAM: LazyLock<Program> = LazyLock::new(Program::new);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Program(pub Arc<PrgInner>);
 
+/// Source form of an explicit binding declaration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclarationKind {
+    Let,
+    Const,
+}
+
+/// The instruction that completes a declaration, rather than an assignment in its initializer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DeclarationSite {
+    /// Index in the decoded instruction vector, not an offset in packed bytecode.
+    pub offset: usize,
+    pub kind: DeclarationKind,
+    pub has_initializer: bool,
+}
+
+/// Declaration sites for the main instruction vector and each fork vector.
+/// Lambda programs carry their own sites. The VM does not consult this metadata.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SourceDeclarations {
+    pub main: Vec<DeclarationSite>,
+    pub forks: Vec<Vec<DeclarationSite>>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrgInner {
     /// All the literals referenced in this program.
@@ -72,6 +96,8 @@ pub struct PrgInner {
     pub line_number_spans: Vec<(usize, usize)>,
     /// Line number spans for each fork vector.
     pub fork_line_number_spans: Vec<Vec<(usize, usize)>>,
+    /// None means the program predates explicit declaration-site metadata.
+    pub source_declarations: Option<SourceDeclarations>,
 }
 impl Program {
     pub fn new() -> Self {
@@ -94,6 +120,7 @@ impl Program {
             fork_max_scope_depths: vec![],
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
+            source_declarations: Some(SourceDeclarations::default()),
         }))
     }
 

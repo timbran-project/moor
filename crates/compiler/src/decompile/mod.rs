@@ -11,6 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use moor_var::program::program::{DeclarationKind, DeclarationSite};
+
 use crate::{
     BUILTINS,
     ast::{
@@ -105,9 +107,35 @@ impl Decompile {
         self.expr_stack.push_front(expr);
     }
 
+    fn declaration_at(&self, offset: usize) -> Option<DeclarationSite> {
+        let metadata = self.program.0.source_declarations.as_ref()?;
+        let sites = match self.fork_vector {
+            Some(fork) => metadata.forks.get(fork)?,
+            None => &metadata.main,
+        };
+        sites
+            .binary_search_by_key(&offset, |site| site.offset)
+            .ok()
+            .map(|index| sites[index])
+    }
+
     fn decompile_put_expr(&mut self, varname: Name) -> Result<Expr, DecompileError> {
         let expr = self.pop_expr()?;
         let varname = self.decompile_name(&varname)?;
+
+        if self.program.0.source_declarations.is_some() {
+            return Ok(match self.declaration_at(self.position - 1) {
+                Some(site) => Expr::Decl {
+                    id: varname,
+                    is_const: site.kind == DeclarationKind::Const,
+                    expr: site.has_initializer.then_some(Box::new(expr)),
+                },
+                None => Expr::Assign {
+                    left: Box::new(Expr::Id(varname)),
+                    right: Box::new(expr),
+                },
+            });
+        }
 
         // Check if this is the first assignment to this variable in this scope
         let var_key = (varname.id, varname.scope_id);
@@ -1016,6 +1044,7 @@ impl Decompile {
                 self.push_expr(Expr::Pass { args });
             }
             Op::Scatter(sa) => {
+                let declaration = self.declaration_at(self.position - 1).map(|site| site.kind);
                 let mut scatter_items = vec![];
                 // We need to go through and collect the jump labels for the expressions in
                 // optional scatters. We will use this later to compute the end of optional
@@ -1073,8 +1102,8 @@ impl Decompile {
                                     }
 
                                     self.push_expr(expr);
-                                    let assign_expr = self.decompile_put_expr(*id)?;
                                     let _ = self.next()?;
+                                    let assign_expr = self.decompile_put_expr(*id)?;
                                     let Expr::Assign { left: _, right } = assign_expr else {
                                         return Err(MalformedProgram(
                                             format!(
@@ -1114,7 +1143,7 @@ impl Decompile {
                     scatter_items.push(scatter_item);
                 }
                 let e = self.pop_expr()?;
-                self.push_expr(Expr::Scatter(scatter_items, Box::new(e)));
+                self.push_expr(Expr::Scatter(scatter_items, Box::new(e), declaration));
             }
             Op::PushCatchLabel(_) => {
                 // ignore and consume, we don't need it.
@@ -1765,6 +1794,7 @@ pub fn program_to_tree(program: &Program) -> Result<Parse, DecompileError> {
     }
 
     Ok(Parse {
+        explicit_declarations: program.0.source_declarations.is_some(),
         stmts: decompile.statements,
         names: program.var_names().clone(),
         variables,
@@ -1894,6 +1924,48 @@ mod tests {
     fn test_case_decompile_matches(prg: &str) {
         let (parse, decompiled) = parse_decompile(prg);
         assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
+    }
+
+    #[test_case("let value = 1; value = 2; return value;"; "top_level_let")]
+    #[test_case("const fixed = 1; return fixed;"; "top_level_const")]
+    #[test_case("let value; value = 2; return value;"; "uninitialized")]
+    #[test_case("let value = (value = 1); return value;"; "initializer_assignment")]
+    #[test_case("begin let value = (value = 1); return value; end"; "nested_initializer")]
+    #[test_case("let value = 1; begin const value = 2; return value; end return value;"; "shadowing")]
+    #[test_case("let {first, ?second = 2, @rest} = args; first = 3; return {first, second, rest};"; "let_scatter")]
+    #[test_case("const {first, ?second = 2, @rest} = args; return {first, second, rest};"; "const_scatter")]
+    #[test_case("let value = 1; begin {other} = args; const {local} = {value}; return local; end"; "mixed_scatter")]
+    #[test_case("value = 1; value = 2; {other} = args; return value;"; "implicit_assignments")]
+    #[test_case("let value = 1; fork (0) const child = 2; value = child; endfork value = 3; return value;"; "fork")]
+    #[test_case("const captured = 1; fn get() const local = captured; return local; endfn return get();"; "lambda")]
+    #[test_case("fn outer() const x = 1; fork (0) let y = x; fork (0) const z = y; z; endfork endfork return x; endfn return outer();"; "forks_inside_lambda")]
+    #[test_case("fork (0) const captured = 1; fn get() const value = captured; return value; endfn get(); endfork return 0;"; "lambda_inside_fork")]
+    fn declaration_sites_roundtrip(source: &str) {
+        let original_tree = parse_program_frontend(source, CompileOptions::default()).unwrap();
+        let original_text = unparse(&original_tree, false, true).unwrap();
+        let program = compile(source, CompileOptions::default()).unwrap();
+        let tree = program_to_tree(&program).unwrap();
+        let text = unparse(&tree, false, true).unwrap();
+        assert_eq!(text, original_text);
+        let recompiled = compile(&text.join("\n"), CompileOptions::default()).unwrap();
+        assert_eq!(program.main_vector(), recompiled.main_vector());
+        assert_eq!(program.0.fork_vectors, recompiled.0.fork_vectors);
+    }
+
+    #[test]
+    fn missing_declaration_metadata_keeps_existing_nested_decompilation() {
+        let source = "begin let value = 1; value = 2; let {other} = {3}; return value + other; end";
+        let mut program = compile(source, CompileOptions::default()).unwrap();
+        Arc::make_mut(&mut program.0).source_declarations = None;
+        let text = unparse(&program_to_tree(&program).unwrap(), false, true).unwrap();
+        let expected = unparse(
+            &parse_program_frontend(source, CompileOptions::default()).unwrap(),
+            false,
+            true,
+        )
+        .unwrap();
+        assert_eq!(text, expected);
+        compile(&text.join("\n"), CompileOptions::default()).unwrap();
     }
 
     #[test]

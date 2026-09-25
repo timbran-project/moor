@@ -107,6 +107,7 @@ impl<'a> Lowerer<'a> {
         annotate_line_numbers(1, &mut stmts);
         let names = self.names.bind();
         Ok(Parse {
+            explicit_declarations: true,
             stmts,
             variables: self.names,
             names,
@@ -1289,7 +1290,12 @@ impl<'a> Lowerer<'a> {
             )?;
             items.push(ast_item);
         }
-        Ok(Expr::Scatter(items, Box::new(rhs)))
+        let declaration = local_scope.then_some(if is_const {
+            moor_var::program::program::DeclarationKind::Const
+        } else {
+            moor_var::program::program::DeclarationKind::Let
+        });
+        Ok(Expr::Scatter(items, Box::new(rhs), declaration))
     }
 
     fn lower_lambda_params(

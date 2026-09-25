@@ -296,7 +296,8 @@ impl<'a> Unparse<'a> {
                 writeln!(writer, "begin")?;
                 let mut remaining_bindings = *num_bindings;
                 for stmt in body {
-                    if let StmtNode::Expr(Expr::Scatter(items, right)) = &stmt.node
+                    if let StmtNode::Expr(Expr::Scatter(items, right, None)) = &stmt.node
+                        && !self.tree.explicit_declarations
                         && remaining_bindings > 0
                     {
                         let decl_prefix = if items

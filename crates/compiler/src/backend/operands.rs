@@ -21,7 +21,7 @@ use moor_var::{
             ForRangeOperand, ForSequenceOperand, ListComprehend, Op, RangeComprehend, ScatterArgs,
             ScatterLabel,
         },
-        program::{PrgInner, Program},
+        program::{DeclarationSite, PrgInner, Program, SourceDeclarations},
     },
 };
 
@@ -39,6 +39,7 @@ pub struct OperandState {
     fork_max_stacks: Vec<usize>,
     fork_max_scope_depths: Vec<usize>,
     fork_line_number_spans: Vec<Vec<(usize, usize)>>,
+    fork_declaration_sites: Vec<Vec<DeclarationSite>>,
 }
 
 #[derive(Debug, Default)]
@@ -55,6 +56,7 @@ pub struct OperandSnapshot {
     fork_max_stacks: Vec<usize>,
     fork_max_scope_depths: Vec<usize>,
     fork_line_number_spans: Vec<Vec<(usize, usize)>>,
+    fork_declaration_sites: Vec<Vec<DeclarationSite>>,
 }
 
 impl OperandState {
@@ -128,12 +130,14 @@ impl OperandState {
         max_stack: usize,
         max_scope_depth: usize,
         line_spans: Vec<(usize, usize)>,
+        declaration_sites: Vec<DeclarationSite>,
     ) -> Offset {
         let fv = self.fork_vectors.len();
         self.fork_vectors.push((offset, opcodes));
         self.fork_max_stacks.push(max_stack);
         self.fork_max_scope_depths.push(max_scope_depth);
         self.fork_line_number_spans.push(line_spans);
+        self.fork_declaration_sites.push(declaration_sites);
         Offset(fv as u16)
     }
 
@@ -151,6 +155,7 @@ impl OperandState {
             fork_max_stacks: std::mem::take(&mut self.fork_max_stacks),
             fork_max_scope_depths: std::mem::take(&mut self.fork_max_scope_depths),
             fork_line_number_spans: std::mem::take(&mut self.fork_line_number_spans),
+            fork_declaration_sites: std::mem::take(&mut self.fork_declaration_sites),
         };
         self.reset();
         snapshot
@@ -169,6 +174,7 @@ impl OperandState {
         self.fork_max_stacks = snapshot.fork_max_stacks;
         self.fork_max_scope_depths = snapshot.fork_max_scope_depths;
         self.fork_line_number_spans = snapshot.fork_line_number_spans;
+        self.fork_declaration_sites = snapshot.fork_declaration_sites;
     }
 
     pub fn reset(&mut self) {
@@ -184,10 +190,15 @@ impl OperandState {
         self.fork_max_stacks.clear();
         self.fork_max_scope_depths.clear();
         self.fork_line_number_spans.clear();
+        self.fork_declaration_sites.clear();
     }
 
-    pub fn take_program_parts(&mut self) -> ProgramOperandParts {
+    pub fn take_program_parts(
+        &mut self,
+        declaration_sites: Vec<DeclarationSite>,
+    ) -> ProgramOperandParts {
         ProgramOperandParts {
+            main_declaration_sites: declaration_sites,
             literals: std::mem::take(&mut self.literals),
             scatter_tables: std::mem::take(&mut self.scatter_tables),
             for_sequence_operands: std::mem::take(&mut self.for_sequence_operands),
@@ -200,11 +211,13 @@ impl OperandState {
             fork_max_stacks: std::mem::take(&mut self.fork_max_stacks),
             fork_max_scope_depths: std::mem::take(&mut self.fork_max_scope_depths),
             fork_line_number_spans: std::mem::take(&mut self.fork_line_number_spans),
+            fork_declaration_sites: std::mem::take(&mut self.fork_declaration_sites),
         }
     }
 }
 
 pub struct ProgramOperandParts {
+    pub main_declaration_sites: Vec<DeclarationSite>,
     pub literals: Vec<Var>,
     pub scatter_tables: Vec<ScatterArgs>,
     pub for_sequence_operands: Vec<ForSequenceOperand>,
@@ -217,6 +230,7 @@ pub struct ProgramOperandParts {
     pub fork_max_stacks: Vec<usize>,
     pub fork_max_scope_depths: Vec<usize>,
     pub fork_line_number_spans: Vec<Vec<(usize, usize)>>,
+    pub fork_declaration_sites: Vec<Vec<DeclarationSite>>,
 }
 
 impl ProgramOperandParts {
@@ -248,6 +262,10 @@ impl ProgramOperandParts {
             fork_max_scope_depths: self.fork_max_scope_depths,
             line_number_spans,
             fork_line_number_spans: self.fork_line_number_spans,
+            source_declarations: Some(SourceDeclarations {
+                main: self.main_declaration_sites,
+                forks: self.fork_declaration_sites,
+            }),
         }))
     }
 }
@@ -278,7 +296,7 @@ mod tests {
         assert_eq!(second, Label(0));
         assert_eq!(third, Label(1));
 
-        let parts = operands.take_program_parts();
+        let parts = operands.take_program_parts(vec![]);
         assert_eq!(parts.literals, vec![v_int(7), v_int(8)]);
     }
 
@@ -287,13 +305,13 @@ mod tests {
         let mut operands = OperandState::new();
         operands.add_literal(&v_int(7));
         operands.add_error_code_operand(moor_var::E_INVARG);
-        operands.add_fork_vector(4, vec![Op::ImmInt(1)], 1, 2, vec![(0, 12)]);
+        operands.add_fork_vector(4, vec![Op::ImmInt(1)], 1, 2, vec![(0, 12)], vec![]);
 
         let snapshot = operands.snapshot_and_reset();
-        assert!(operands.take_program_parts().literals.is_empty());
+        assert!(operands.take_program_parts(vec![]).literals.is_empty());
 
         operands.restore(snapshot);
-        let parts = operands.take_program_parts();
+        let parts = operands.take_program_parts(vec![]);
         assert_eq!(parts.literals, vec![v_int(7)]);
         assert_eq!(parts.error_operands, vec![moor_var::E_INVARG]);
         assert_eq!(parts.fork_vectors, vec![(4, vec![Op::ImmInt(1)])]);
@@ -310,7 +328,7 @@ mod tests {
         triomphe::Arc::make_mut(&mut lambda.0).line_number_spans = vec![(0, 1), (3, 4)];
 
         let offset = operands.add_lambda_program(lambda, 10);
-        let stored = operands.take_program_parts().lambda_programs;
+        let stored = operands.take_program_parts(vec![]).lambda_programs;
 
         assert_eq!(offset, Offset(0));
         assert_eq!(stored[0].line_number_spans(), &[(0, 11), (3, 14)]);
@@ -320,9 +338,9 @@ mod tests {
     fn build_program_preserves_vectors_and_metadata() {
         let mut operands = OperandState::new();
         operands.add_literal(&v_int(7));
-        operands.add_fork_vector(2, vec![Op::ImmInt(9)], 1, 2, vec![(0, 5)]);
+        operands.add_fork_vector(2, vec![Op::ImmInt(9)], 1, 2, vec![(0, 5)], vec![]);
 
-        let program = operands.take_program_parts().build_program(
+        let program = operands.take_program_parts(vec![]).build_program(
             Names::new(0),
             vec![JumpLabel {
                 id: Label(0),

@@ -190,7 +190,11 @@ pub enum Expr {
     List(Vec<Arg>),
     Map(Vec<(Expr, Expr)>),
     Flyweight(Box<Expr>, Vec<(Symbol, Expr)>, Option<Box<Expr>>),
-    Scatter(Vec<ScatterItem>, Box<Expr>),
+    Scatter(
+        Vec<ScatterItem>,
+        Box<Expr>,
+        Option<moor_var::program::program::DeclarationKind>,
+    ),
     Length,
     ComprehendList {
         variable: Variable,
@@ -942,8 +946,14 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     }
                     self.line(indent, ")");
                 }
-                Expr::Scatter(items, value) => {
-                    self.line(indent, "(scatter");
+                Expr::Scatter(items, value, declaration) => {
+                    self.line(
+                        indent,
+                        match declaration {
+                            Some(kind) => format!("(scatter {kind:?}"),
+                            None => "(scatter".into(),
+                        },
+                    );
                     self.write_scatter_items(items, indent + 1);
                     self.write_expr(value, indent + 1);
                     self.line(indent, ")");
@@ -1155,7 +1165,7 @@ pub trait AstVisitor {
                     self.visit_expr(contents_expr);
                 }
             }
-            Expr::Scatter(items, expr) => {
+            Expr::Scatter(items, expr, _) => {
                 for item in items {
                     if let Some(default_expr) = &item.expr {
                         self.visit_expr(default_expr);

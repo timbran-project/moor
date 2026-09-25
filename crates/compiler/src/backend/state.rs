@@ -11,6 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use moor_var::program::program::DeclarationSite;
+
 use moor_common::model::{CompileContext, CompileError};
 use moor_var::program::{
     labels::{Label, Offset},
@@ -40,6 +42,7 @@ pub struct CodegenState {
     pub(crate) stack: StackState,
     pub(crate) scopes: ScopeDepthState,
     pub(crate) line_number_spans: Vec<(usize, usize)>,
+    pub(crate) declaration_sites: Vec<DeclarationSite>,
     pub(crate) current_line_col: (usize, usize),
     pub(crate) compile_options: CompileOptions,
 }
@@ -65,6 +68,7 @@ impl CodegenState {
             stack: StackState::new(),
             scopes: ScopeDepthState::new(),
             line_number_spans: vec![],
+            declaration_sites: vec![],
             current_line_col: (0, 0),
             compile_options,
         }
@@ -218,9 +222,16 @@ impl CodegenState {
         max_stack: usize,
         max_scope_depth: usize,
         line_spans: Vec<(usize, usize)>,
+        declaration_sites: Vec<DeclarationSite>,
     ) -> Offset {
-        self.operands
-            .add_fork_vector(offset, opcodes, max_stack, max_scope_depth, line_spans)
+        self.operands.add_fork_vector(
+            offset,
+            opcodes,
+            max_stack,
+            max_scope_depth,
+            line_spans,
+            declaration_sites,
+        )
     }
 
     fn lvalue_stack_footprint(expr: &Expr, indexed_above: bool) -> usize {

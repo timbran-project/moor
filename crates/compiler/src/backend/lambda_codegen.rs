@@ -49,6 +49,7 @@ impl CodegenState {
         let stashed_jumps = self.emitter.take_jumps();
         let stashed_operands = self.operands.snapshot_and_reset();
         let stashed_line_number_spans = std::mem::take(&mut self.line_number_spans);
+        let stashed_declarations = std::mem::take(&mut self.declaration_sites);
         let stashed_stack = self.stack.snapshot_and_reset();
         let stashed_scopes = self.scopes.snapshot_and_reset();
 
@@ -100,20 +101,24 @@ impl CodegenState {
             )
         }
 
-        let lambda_program = self.operands.take_program_parts().build_program(
-            self.var_names.clone(),
-            self.emitter.take_jumps(),
-            self.emitter.take_ops(),
-            lambda_max_stack,
-            lambda_max_scope_depth,
-            std::mem::take(&mut self.line_number_spans),
-        );
+        let lambda_program = self
+            .operands
+            .take_program_parts(std::mem::take(&mut self.declaration_sites))
+            .build_program(
+                self.var_names.clone(),
+                self.emitter.take_jumps(),
+                self.emitter.take_ops(),
+                lambda_max_stack,
+                lambda_max_scope_depth,
+                std::mem::take(&mut self.line_number_spans),
+            );
 
         self.emitter.replace_ops(stashed_ops);
         self.var_names = stashed_var_names;
         self.emitter.replace_jumps(stashed_jumps);
         self.operands.restore(stashed_operands);
         self.line_number_spans = stashed_line_number_spans;
+        self.declaration_sites = stashed_declarations;
         self.stack.restore(stashed_stack);
         self.scopes.restore(stashed_scopes);
 
@@ -324,7 +329,7 @@ fn assign_expr_lambda_source_lines(expr: &mut Expr) {
                 assign_expr_lambda_source_lines(expr);
             }
         }
-        Expr::Scatter(items, right) => {
+        Expr::Scatter(items, right, _) => {
             for item in items {
                 if let Some(expr) = &mut item.expr {
                     assign_expr_lambda_source_lines(expr);
@@ -431,7 +436,7 @@ impl AstVisitor for CaptureAnalyzer {
                 }
                 self.walk_expr(expr);
             }
-            Expr::Scatter(items, _) => {
+            Expr::Scatter(items, _, _) => {
                 for item in items {
                     if self.is_outer_scope_variable(&item.id) {
                         self.assigned_captures

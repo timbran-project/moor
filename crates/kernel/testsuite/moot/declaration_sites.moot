@@ -1,0 +1,20 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// Explicit declarations survive verb_code(), recompilation, and constant checks.
+@wizard
+; const object = create(#-1); add_verb(object, {player, "rxd", "probe"}, {"this", "none", "this"}); set_verb_code(object, "probe", {"let value = (value = 1);", "const {extra} = {2};", "return value + extra;"}); const code = verb_code(object, "probe"); const errors = set_verb_code(object, "probe", code); const rejected = set_verb_code(object, "probe", {@code[1..2], "extra = 4;"}); const result = {index(code[1], "let value") == 1, index(code[2], "const {extra}") == 1, !errors, typeof(rejected) == TYPE_LIST && length(rejected) > 0, object:probe()}; recycle(object); return result;
+{1 == 1, 1 == 1, 1 == 1, 1 == 1, 3}
+// The initializer assignment must not become the declaration.
+; const object = create(#-1); add_verb(object, {player, "rxd", "probe"}, {"this", "none", "this"}); set_verb_code(object, "probe", {"begin", "let value = (value = 1);", "return value;", "end"}); const code = verb_code(object, "probe"); const errors = set_verb_code(object, "probe", code); const result = {!errors, object:probe()}; recycle(object); return result;
+{1 == 1, 1}

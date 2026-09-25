@@ -179,6 +179,24 @@ table ForkVector {
 // Main Program structure
 // ============================================================================
 
+enum DeclarationKind: uint8 { Let, Const }
+
+// Offsets index decoded instructions, not packed opcode words.
+struct DeclarationSite {
+    offset: uint64;
+    kind: DeclarationKind;
+    has_initializer: bool;
+}
+
+table DeclarationSites {
+    sites: [DeclarationSite] (required);
+}
+
+table SourceDeclarations {
+    main: [DeclarationSite] (required);
+    forks: [DeclarationSites] (required);
+}
+
 // MOO-specific program representation
 table StoredMooRProgram {
     // Schema version for migrations
@@ -240,6 +258,9 @@ table StoredMooRProgram {
 
     // Maximum runtime scope-stack depth for each fork vector
     fork_max_scope_depths: [uint64];
+
+    // Absent for programs compiled without exact declaration sites.
+    source_declarations: SourceDeclarations;
 }
 
 // Union for different program language implementations

@@ -267,7 +267,12 @@ fn format_expr_to_source(expr: &Expr) -> String {
                 _ => panic!("Unknown VarType: {:?}", var_type),
             }
         }
-        Expr::Scatter(items, rhs) => {
+        Expr::Scatter(items, rhs, declaration) => {
+            let prefix = match declaration {
+                Some(moor_var::program::program::DeclarationKind::Let) => "let ",
+                Some(moor_var::program::program::DeclarationKind::Const) => "const ",
+                None => "",
+            };
             let items_str: Vec<String> = items
                 .iter()
                 .map(|item| {
@@ -290,7 +295,7 @@ fn format_expr_to_source(expr: &Expr) -> String {
                 .collect();
             // Scatter assignment: {a, b, c} = rhs (not {a, b, c = rhs})
             format!(
-                "{{{}}} = {}",
+                "{prefix}{{{}}} = {}",
                 items_str.join(", "),
                 format_expr_to_source(rhs)
             )

@@ -212,6 +212,7 @@ impl CodegenState {
 
                 let stashed_ops = self.emitter.take_ops();
                 let stashed_line_spans = std::mem::take(&mut self.line_number_spans);
+                let stashed_declarations = std::mem::take(&mut self.declaration_sites);
                 let stashed_stack = self.stack.snapshot_and_reset();
                 let stashed_scopes = self.scopes.snapshot_and_reset();
 
@@ -236,9 +237,11 @@ impl CodegenState {
                     )
                 }
                 let fork_line_spans = std::mem::take(&mut self.line_number_spans);
+                let fork_declarations = std::mem::take(&mut self.declaration_sites);
 
                 self.emitter.replace_ops(stashed_ops);
                 self.line_number_spans = stashed_line_spans;
+                self.declaration_sites = stashed_declarations;
                 self.stack.restore(stashed_stack);
                 self.scopes.restore(stashed_scopes);
 
@@ -248,6 +251,7 @@ impl CodegenState {
                     fork_max_stack,
                     fork_max_scope_depth,
                     fork_line_spans,
+                    fork_declarations,
                 );
                 self.emit(Op::Fork {
                     id: id.as_ref().map(|id| self.find_name(id)),

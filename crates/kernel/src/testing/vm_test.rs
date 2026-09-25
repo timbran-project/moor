@@ -60,6 +60,7 @@ mod tests {
             fork_max_scope_depths: vec![],
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
+            source_declarations: None,
         }))
     }
 
@@ -126,6 +127,53 @@ mod tests {
 
     fn test_db_with_verb(verb_name: &str, program: &Program) -> TxDB {
         test_db_with_verbs(&[(verb_name, program)])
+    }
+
+    #[test]
+    fn declaration_metadata_survives_storage_source_and_execution() {
+        use moor_compiler::{CompileOptions, compile, program_to_tree, unparse};
+        use moor_schema::convert_program::{program_to_stored, stored_to_program};
+
+        let cases = [
+            (
+                "let value = (value = 1); value = value + 1; return value;",
+                2,
+            ),
+            (
+                "let value = 1; begin const value = 2; value; end return value;",
+                1,
+            ),
+            (
+                "const {first, ?second = 2, @rest} = {3}; return first + second;",
+                5,
+            ),
+            ("let value; value = 4; return value;", 4),
+            (
+                "const captured = 7; fn get() const {local} = {captured}; return local; endfn return get();",
+                7,
+            ),
+        ];
+        for (source, expected) in cases {
+            let program = compile(source, CompileOptions::default()).unwrap();
+            let restored = stored_to_program(&program_to_stored(&program).unwrap()).unwrap();
+            assert_eq!(restored, program);
+            let text = unparse(&program_to_tree(&restored).unwrap(), false, true)
+                .unwrap()
+                .join("\n");
+            let recompiled = compile(&text, CompileOptions::default()).unwrap();
+            assert_eq!(program.main_vector(), recompiled.main_vector());
+            for program in [&restored, &recompiled] {
+                let db = test_db_with_verb("test", program);
+                let result = call_verb(
+                    db.new_world_state().unwrap(),
+                    Arc::new(NoopClientSession::new()),
+                    BuiltinRegistry::new(),
+                    "test",
+                    List::mk_list(&[]),
+                );
+                assert_eq!(result, Ok(v_int(expected)), "{source}");
+            }
+        }
     }
 
     #[test]

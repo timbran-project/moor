@@ -20,4 +20,6 @@ pub struct Parse {
     pub stmts: Vec<Stmt>,
     pub variables: VarScope,
     pub names: Names,
+    /// False only when decompiling a program without declaration-site metadata.
+    pub explicit_declarations: bool,
 }

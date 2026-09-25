@@ -116857,10 +116857,968 @@ mod root {
             }
         }
 
+        /// The enum `DeclarationKind` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Enum `DeclarationKind` in the file `moor_program.fbs:182`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        #[repr(u8)]
+        pub enum DeclarationKind {
+            /// The variant `Let` in the enum `DeclarationKind`
+            Let = 0,
+
+            /// The variant `Const` in the enum `DeclarationKind`
+            Const = 1,
+        }
+
+        impl DeclarationKind {
+            /// Array containing all valid variants of DeclarationKind
+            pub const ENUM_VALUES: [Self; 2] = [Self::Let, Self::Const];
+        }
+
+        impl ::core::convert::TryFrom<u8> for DeclarationKind {
+            type Error = ::planus::errors::UnknownEnumTagKind;
+            #[inline]
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(DeclarationKind::Let),
+                    1 => ::core::result::Result::Ok(DeclarationKind::Const),
+
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
+                }
+            }
+        }
+
+        impl ::core::convert::From<DeclarationKind> for u8 {
+            #[inline]
+            fn from(value: DeclarationKind) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for DeclarationKind {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<DeclarationKind> for DeclarationKind {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> DeclarationKind {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsDefault<DeclarationKind, DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+                default: &DeclarationKind,
+            ) -> ::core::option::Option<DeclarationKind> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptional<DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<DeclarationKind> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        impl<'buf> ::planus::TableRead<'buf> for DeclarationKind {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
+            }
+        }
+
+        impl<'buf> ::planus::VectorReadInner<'buf> for DeclarationKind {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "DeclarationKind",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<DeclarationKind> for DeclarationKind {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[Self],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - i as u32,
+                    );
+                }
+            }
+        }
+
+        /// The struct `DeclarationSite` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Struct `DeclarationSite` in the file `moor_program.fbs:185`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct DeclarationSite {
+            /// The field `offset` in the struct `DeclarationSite`
+            pub offset: u64,
+
+            /// The field `kind` in the struct `DeclarationSite`
+            pub kind: self::DeclarationKind,
+
+            /// The field `has_initializer` in the struct `DeclarationSite`
+            pub has_initializer: bool,
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for DeclarationSite {
+            const ALIGNMENT: usize = 8;
+            const SIZE: usize = 16;
+        }
+
+        #[allow(clippy::identity_op)]
+        impl ::planus::WriteAsPrimitive<DeclarationSite> for DeclarationSite {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                let (cur, cursor) = cursor.split::<8, 8>();
+                self.offset.write(cur, buffer_position - 0);
+                let (cur, cursor) = cursor.split::<1, 7>();
+                self.kind.write(cur, buffer_position - 8);
+                let (cur, cursor) = cursor.split::<1, 6>();
+                self.has_initializer.write(cur, buffer_position - 9);
+                let cursor = cursor.write::<6, 0>([0; 6]);
+                cursor.finish([]);
+            }
+        }
+
+        impl ::planus::WriteAsOffset<DeclarationSite> for DeclarationSite {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSite> {
+                unsafe {
+                    builder.write_with(16, 7, |buffer_position, bytes| {
+                        let bytes = bytes.as_mut_ptr();
+
+                        ::planus::WriteAsPrimitive::write(
+                            self,
+                            ::planus::Cursor::new(
+                                &mut *(bytes as *mut [::core::mem::MaybeUninit<u8>; 16]),
+                            ),
+                            buffer_position,
+                        );
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<DeclarationSite> for DeclarationSite {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsOptional<DeclarationSite> for DeclarationSite {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> ::core::option::Option<Self> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        /// Reference to a deserialized [DeclarationSite].
+        #[derive(Copy, Clone)]
+        pub struct DeclarationSiteRef<'a>(::planus::ArrayWithStartOffset<'a, 16>);
+
+        impl<'a> DeclarationSiteRef<'a> {
+            /// Getter for the [`offset` field](DeclarationSite#structfield.offset).
+            pub fn offset(&self) -> u64 {
+                let buffer = self.0.advance_as_array::<8>(0).unwrap();
+
+                u64::from_le_bytes(*buffer.as_array())
+            }
+
+            /// Getter for the [`kind` field](DeclarationSite#structfield.kind).
+            pub fn kind(
+                &self,
+            ) -> ::core::result::Result<self::DeclarationKind, ::planus::errors::UnknownEnumTag>
+            {
+                let buffer = self.0.advance_as_array::<1>(8).unwrap();
+
+                let value: ::core::result::Result<self::DeclarationKind, _> =
+                    ::core::convert::TryInto::try_into(u8::from_le_bytes(*buffer.as_array()));
+                value.map_err(|e| {
+                    e.with_error_location("DeclarationSiteRef", "kind", buffer.offset_from_start)
+                })
+            }
+
+            /// Getter for the [`has_initializer` field](DeclarationSite#structfield.has_initializer).
+            pub fn has_initializer(&self) -> bool {
+                let buffer = self.0.advance_as_array::<1>(9).unwrap();
+
+                buffer.as_array()[0] != 0
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for DeclarationSiteRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("DeclarationSiteRef");
+                f.field("offset", &self.offset());
+                f.field("kind", &self.kind());
+                f.field("has_initializer", &self.has_initializer());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::From<::planus::ArrayWithStartOffset<'a, 16>> for DeclarationSiteRef<'a> {
+            fn from(array: ::planus::ArrayWithStartOffset<'a, 16>) -> Self {
+                Self(array)
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<DeclarationSiteRef<'a>> for DeclarationSite {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: DeclarationSiteRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    offset: value.offset(),
+                    kind: value.kind()?,
+                    has_initializer: value.has_initializer(),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for DeclarationSiteRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let buffer = buffer.advance_as_array::<16>(offset)?;
+                ::core::result::Result::Ok(Self(buffer))
+            }
+        }
+
+        impl<'a> ::planus::VectorRead<'a> for DeclarationSiteRef<'a> {
+            const STRIDE: usize = 16;
+
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> Self {
+                Self(unsafe { buffer.unchecked_advance_as_array(offset) })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<DeclarationSite> for DeclarationSite {
+            const STRIDE: usize = 16;
+
+            type Value = DeclarationSite;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self::Value {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[DeclarationSite],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 16];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (16 * i) as u32,
+                    );
+                }
+            }
+        }
+
+        /// The table `DeclarationSites` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `DeclarationSites` in the file `moor_program.fbs:191`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct DeclarationSites {
+            /// The field `sites` in the table `DeclarationSites`
+            pub sites: ::planus::alloc::vec::Vec<self::DeclarationSite>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for DeclarationSites {
+            fn default() -> Self {
+                Self {
+                    sites: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl DeclarationSites {
+            /// Creates a [DeclarationSitesBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> DeclarationSitesBuilder<()> {
+                DeclarationSitesBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_sites: impl ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_sites = field_sites.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<[self::DeclarationSite]>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_sites);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<DeclarationSites>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<DeclarationSites> for DeclarationSites {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                DeclarationSites::create(builder, &self.sites)
+            }
+        }
+
+        /// Builder for serializing an instance of the [DeclarationSites] type.
+        ///
+        /// Can be created using the [DeclarationSites::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct DeclarationSitesBuilder<State>(State);
+
+        impl DeclarationSitesBuilder<()> {
+            /// Setter for the [`sites` field](DeclarationSites#structfield.sites).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sites<T0>(self, value: T0) -> DeclarationSitesBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            {
+                DeclarationSitesBuilder((value,))
+            }
+        }
+
+        impl<T0> DeclarationSitesBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [DeclarationSites].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites>
+            where
+                Self: ::planus::WriteAsOffset<DeclarationSites>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAs<::planus::Offset<DeclarationSites>>
+            for DeclarationSitesBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<DeclarationSites>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAsOptional<::planus::Offset<DeclarationSites>>
+            for DeclarationSitesBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<DeclarationSites>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<DeclarationSites>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAsOffset<DeclarationSites> for DeclarationSitesBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                let (v0,) = &self.0;
+                DeclarationSites::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [DeclarationSites].
+        #[derive(Copy, Clone)]
+        pub struct DeclarationSitesRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> DeclarationSitesRef<'a> {
+            /// Getter for the [`sites` field](DeclarationSites#structfield.sites).
+            #[inline]
+            pub fn sites(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, self::DeclarationSiteRef<'a>>> {
+                self.0.access_required(0, "DeclarationSites", "sites")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for DeclarationSitesRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("DeclarationSitesRef");
+                f.field("sites", &self.sites());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<DeclarationSitesRef<'a>> for DeclarationSites {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: DeclarationSitesRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    sites: value.sites()?.to_vec()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for DeclarationSitesRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for DeclarationSitesRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[DeclarationSitesRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Value = ::planus::Offset<DeclarationSites>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<DeclarationSites>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for DeclarationSitesRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[DeclarationSitesRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `SourceDeclarations` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `SourceDeclarations` in the file `moor_program.fbs:195`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct SourceDeclarations {
+            /// The field `main` in the table `SourceDeclarations`
+            pub main: ::planus::alloc::vec::Vec<self::DeclarationSite>,
+            /// The field `forks` in the table `SourceDeclarations`
+            pub forks: ::planus::alloc::vec::Vec<self::DeclarationSites>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for SourceDeclarations {
+            fn default() -> Self {
+                Self {
+                    main: ::core::default::Default::default(),
+                    forks: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl SourceDeclarations {
+            /// Creates a [SourceDeclarationsBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> SourceDeclarationsBuilder<()> {
+                SourceDeclarationsBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_main: impl ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+                field_forks: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::DeclarationSites>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_main = field_main.prepare(builder);
+                let prepared_forks = field_forks.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<[self::DeclarationSite]>>(0);
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_main);
+                        object_writer.write::<_, _, 4>(&prepared_forks);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<SourceDeclarations>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<SourceDeclarations> for SourceDeclarations {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                SourceDeclarations::create(builder, &self.main, &self.forks)
+            }
+        }
+
+        /// Builder for serializing an instance of the [SourceDeclarations] type.
+        ///
+        /// Can be created using the [SourceDeclarations::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct SourceDeclarationsBuilder<State>(State);
+
+        impl SourceDeclarationsBuilder<()> {
+            /// Setter for the [`main` field](SourceDeclarations#structfield.main).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main<T0>(self, value: T0) -> SourceDeclarationsBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            {
+                SourceDeclarationsBuilder((value,))
+            }
+        }
+
+        impl<T0> SourceDeclarationsBuilder<(T0,)> {
+            /// Setter for the [`forks` field](SourceDeclarations#structfield.forks).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn forks<T1>(self, value: T1) -> SourceDeclarationsBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+            {
+                let (v0,) = self.0;
+                SourceDeclarationsBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> SourceDeclarationsBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [SourceDeclarations].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations>
+            where
+                Self: ::planus::WriteAsOffset<SourceDeclarations>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+            > ::planus::WriteAs<::planus::Offset<SourceDeclarations>>
+            for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<SourceDeclarations>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+            > ::planus::WriteAsOptional<::planus::Offset<SourceDeclarations>>
+            for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<SourceDeclarations>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<SourceDeclarations>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+            > ::planus::WriteAsOffset<SourceDeclarations> for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                let (v0, v1) = &self.0;
+                SourceDeclarations::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [SourceDeclarations].
+        #[derive(Copy, Clone)]
+        pub struct SourceDeclarationsRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> SourceDeclarationsRef<'a> {
+            /// Getter for the [`main` field](SourceDeclarations#structfield.main).
+            #[inline]
+            pub fn main(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, self::DeclarationSiteRef<'a>>> {
+                self.0.access_required(0, "SourceDeclarations", "main")
+            }
+
+            /// Getter for the [`forks` field](SourceDeclarations#structfield.forks).
+            #[inline]
+            pub fn forks(
+                &self,
+            ) -> ::planus::Result<
+                ::planus::Vector<'a, ::planus::Result<self::DeclarationSitesRef<'a>>>,
+            > {
+                self.0.access_required(1, "SourceDeclarations", "forks")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for SourceDeclarationsRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("SourceDeclarationsRef");
+                f.field("main", &self.main());
+                f.field("forks", &self.forks());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<SourceDeclarationsRef<'a>> for SourceDeclarations {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: SourceDeclarationsRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    main: value.main()?.to_vec()?,
+                    forks: value.forks()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for SourceDeclarationsRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for SourceDeclarationsRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[SourceDeclarationsRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Value = ::planus::Offset<SourceDeclarations>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<SourceDeclarations>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for SourceDeclarationsRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[SourceDeclarationsRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `StoredMooRProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredMooRProgram` in the file `moor_program.fbs:183`
+        /// * Table `StoredMooRProgram` in the file `moor_program.fbs:201`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredMooRProgram {
             /// The field `version` in the table `StoredMooRProgram`
@@ -116903,6 +117861,9 @@ mod root {
             pub main_max_scope_depth: u64,
             /// The field `fork_max_scope_depths` in the table `StoredMooRProgram`
             pub fork_max_scope_depths: ::core::option::Option<::planus::alloc::vec::Vec<u64>>,
+            /// The field `source_declarations` in the table `StoredMooRProgram`
+            pub source_declarations:
+                ::core::option::Option<::planus::alloc::boxed::Box<self::SourceDeclarations>>,
         }
 
         #[allow(clippy::derivable_impls)]
@@ -116929,6 +117890,7 @@ mod root {
                     fork_max_stacks: ::core::default::Default::default(),
                     main_max_scope_depth: 0,
                     fork_max_scope_depths: ::core::default::Default::default(),
+                    source_declarations: ::core::default::Default::default(),
                 }
             }
         }
@@ -116987,6 +117949,9 @@ mod root {
                 field_fork_max_stacks: impl ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
                 field_main_max_scope_depth: impl ::planus::WriteAsDefault<u64, u64>,
                 field_fork_max_scope_depths: impl ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                field_source_declarations: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<self::SourceDeclarations>,
+                >,
             ) -> ::planus::Offset<Self> {
                 let prepared_version = field_version.prepare(builder, &0);
                 let prepared_builtin_signature = field_builtin_signature.prepare(builder, &0);
@@ -117008,8 +117973,9 @@ mod root {
                 let prepared_fork_max_stacks = field_fork_max_stacks.prepare(builder);
                 let prepared_main_max_scope_depth = field_main_max_scope_depth.prepare(builder, &0);
                 let prepared_fork_max_scope_depths = field_fork_max_scope_depths.prepare(builder);
+                let prepared_source_declarations = field_source_declarations.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<44> =
+                let mut table_writer: ::planus::table_writer::TableWriter<46> =
                     ::core::default::Default::default();
                 if prepared_builtin_signature.is_some() {
                     table_writer.write_entry::<u64>(1);
@@ -117053,6 +118019,9 @@ mod root {
                 }
                 if prepared_fork_max_scope_depths.is_some() {
                     table_writer.write_entry::<::planus::Offset<[u64]>>(19);
+                }
+                if prepared_source_declarations.is_some() {
+                    table_writer.write_entry::<::planus::Offset<self::SourceDeclarations>>(20);
                 }
                 if prepared_version.is_some() {
                     table_writer.write_entry::<u16>(0);
@@ -117098,6 +118067,11 @@ mod root {
                             prepared_fork_max_scope_depths
                         {
                             object_writer.write::<_, _, 4>(&prepared_fork_max_scope_depths);
+                        }
+                        if let ::core::option::Option::Some(prepared_source_declarations) =
+                            prepared_source_declarations
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_source_declarations);
                         }
                         if let ::core::option::Option::Some(prepared_version) = prepared_version {
                             object_writer.write::<_, _, 2>(&prepared_version);
@@ -117160,6 +118134,7 @@ mod root {
                     &self.fork_max_stacks,
                     self.main_max_scope_depth,
                     &self.fork_max_scope_depths,
+                    &self.source_declarations,
                 )
             }
         }
@@ -117955,6 +118930,145 @@ mod root {
                 T19,
             )>
         {
+            /// Setter for the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn source_declarations<T20>(
+                self,
+                value: T20,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+            )>
+            where
+                T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, value,
+                ))
+            }
+
+            /// Sets the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn source_declarations_as_null(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                (),
+            )> {
+                self.source_declarations(())
+            }
+        }
+
+        impl<
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+            >
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+            )>
+        {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredMooRProgram].
             #[inline]
             pub fn finish(
@@ -117989,6 +119103,7 @@ mod root {
             T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
         > ::planus::WriteAs<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -118011,6 +119126,7 @@ mod root {
                 T17,
                 T18,
                 T19,
+                T20,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -118045,6 +119161,7 @@ mod root {
             T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
         > ::planus::WriteAsOptional<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -118067,6 +119184,7 @@ mod root {
                 T17,
                 T18,
                 T19,
+                T20,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -118101,6 +119219,7 @@ mod root {
             T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
         > ::planus::WriteAsOffset<StoredMooRProgram>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -118123,6 +119242,7 @@ mod root {
                 T17,
                 T18,
                 T19,
+                T20,
             )>
         {
             #[inline]
@@ -118151,10 +119271,11 @@ mod root {
                     v17,
                     v18,
                     v19,
+                    v20,
                 ) = &self.0;
                 StoredMooRProgram::create(
                     builder, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15,
-                    v16, v17, v18, v19,
+                    v16, v17, v18, v19, v20,
                 )
             }
         }
@@ -118360,6 +119481,16 @@ mod root {
                 self.0
                     .access(19, "StoredMooRProgram", "fork_max_scope_depths")
             }
+
+            /// Getter for the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations).
+            #[inline]
+            pub fn source_declarations(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<self::SourceDeclarationsRef<'a>>>
+            {
+                self.0
+                    .access(20, "StoredMooRProgram", "source_declarations")
+            }
         }
 
         impl<'a> ::core::fmt::Debug for StoredMooRProgramRef<'a> {
@@ -118392,6 +119523,11 @@ mod root {
                     self.fork_max_scope_depths().transpose()
                 {
                     f.field("fork_max_scope_depths", &field_fork_max_scope_depths);
+                }
+                if let ::core::option::Option::Some(field_source_declarations) =
+                    self.source_declarations().transpose()
+                {
+                    f.field("source_declarations", &field_source_declarations);
                 }
                 f.finish()
             }
@@ -118439,6 +119575,15 @@ mod root {
                     ) = value.fork_max_scope_depths()?
                     {
                         ::core::option::Option::Some(fork_max_scope_depths.to_vec()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    source_declarations: if let ::core::option::Option::Some(source_declarations) =
+                        value.source_declarations()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(source_declarations)?,
+                        ))
                     } else {
                         ::core::option::Option::None
                     },
@@ -118522,7 +119667,7 @@ mod root {
         /// The union `StoredProgramLanguage` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:246`
+        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:267`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum StoredProgramLanguage {
             /// The variant of type `StoredMooRProgram` in the union `StoredProgramLanguage`
@@ -118675,7 +119820,7 @@ mod root {
         /// The table `StoredProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredProgram` in the file `moor_program.fbs:252`
+        /// * Table `StoredProgram` in the file `moor_program.fbs:273`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredProgram {
             /// The field `language` in the table `StoredProgram`
@@ -118912,7 +120057,7 @@ mod root {
         /// The table `LineSpan` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `LineSpan` in the file `moor_program.fbs:256`
+        /// * Table `LineSpan` in the file `moor_program.fbs:277`
         #[derive(
             Clone,
             Debug,
@@ -119215,7 +120360,7 @@ mod root {
         /// The table `ForkLineSpans` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkLineSpans` in the file `moor_program.fbs:261`
+        /// * Table `ForkLineSpans` in the file `moor_program.fbs:282`
         #[derive(
             Clone,
             Debug,

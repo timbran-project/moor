@@ -543,7 +543,7 @@ end
       (scope bindings=2
         (stmts
           (expr
-            (scatter
+            (scatter Let
               (scatter-items
                 (item kind=required id=a@2
                 )

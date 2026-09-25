@@ -186,7 +186,17 @@ impl<'a> Unparse<'a> {
                 }
                 Ok(())
             }
-            Expr::Scatter(items, value) => {
+            Expr::Scatter(items, value, declaration) => {
+                if let Some(kind) = declaration {
+                    write!(
+                        writer,
+                        "{} ",
+                        match kind {
+                            moor_var::program::program::DeclarationKind::Let => "let",
+                            moor_var::program::program::DeclarationKind::Const => "const",
+                        }
+                    )?;
+                }
                 write!(writer, "{{")?;
                 self.write_scatter_items(items, writer)?;
                 write!(writer, "}} = ")?;
