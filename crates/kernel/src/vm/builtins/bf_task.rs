@@ -394,6 +394,20 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 v_list_iter(args.iter()),
                 argstr.clone(),
             ]),
+            TaskStart::StartScheduled {
+                schedule_id,
+                player,
+                vloc,
+                verb,
+                args,
+            } => v_list(&[
+                sym_or_str(Symbol::mk("scheduled")),
+                v_int(*schedule_id as i64),
+                v_obj(*player),
+                v_str(&vloc.to_string()),
+                sym_or_str(*verb),
+                v_list_iter(args.iter()),
+            ]),
             TaskStart::StartFork {
                 fork_request,
                 suspended: _,

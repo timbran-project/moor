@@ -58,7 +58,7 @@ use moor_common::{
     util::{BitEnum, Instant, parse_into_words},
 };
 use moor_var::{
-    E_EXEC, Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Variant, v_empty_str,
+    E_EXEC, Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, Variant, v_empty_str,
     v_err, v_int, v_obj, v_str, v_string,
 };
 
@@ -188,6 +188,14 @@ impl Task {
                 }
                 TaskStart::StartVerb { verb, vloc, .. } => {
                     trace_task_create_verb!(task_id, &player, &verb.as_string(), vloc);
+                }
+                TaskStart::StartScheduled { verb, .. } => {
+                    trace_task_create_verb!(
+                        task_id,
+                        &player,
+                        &verb.as_string(),
+                        &v_str("scheduled")
+                    );
                 }
                 TaskStart::StartFork { .. } => {
                     trace_task_create_fork!(task_id, &player);
@@ -471,6 +479,14 @@ impl Task {
             } => format!("do_command {command:?} by {player}"),
             TaskStart::StartVerb { vloc, verb, .. } => {
                 format!("verb {}:{verb}", to_literal(vloc))
+            }
+            TaskStart::StartScheduled {
+                schedule_id,
+                vloc,
+                verb,
+                ..
+            } => {
+                format!("scheduled {schedule_id} verb {vloc}:{verb}")
             }
             TaskStart::StartFork { fork_request, .. } => format!(
                 "fork {}:{} (parent {})",
@@ -1251,68 +1267,47 @@ impl Task {
                 let args_val = args.clone();
                 let argstr_val = argstr.clone();
                 let caller = v_obj(player);
+                if !self.setup_call_verb(tsc, this, player, verb_name, args_val, caller, argstr_val)
+                {
+                    return false;
+                }
+            }
+            TaskStart::StartScheduled {
+                player,
+                vloc,
+                verb,
+                args,
+                ..
+            } => {
+                let verb_name = *verb;
+                let player = *player;
+                let args_val = args.clone();
+                let argstr_val = v_str("");
+                let caller = v_obj(player);
 
-                // Find the callable verb ...
-                // Obj or flyweight?
-                let object_location = match &this.variant() {
-                    Variant::Flyweight(f) => *f.delegate(),
-                    Variant::Obj(o) => *o,
-                    _ => {
-                        tsc.verb_not_found(this, verb_name);
+                // vloc is an ObjectRef here (schedule entries are stored durably, so they can't
+                // hold a live Var), so it needs resolving against the current transaction first,
+                // same as a $do_command-style invocation would.
+                let resolved = with_current_transaction_mut(|world_state| {
+                    crate::tasks::world_state_executor::match_object_ref(
+                        &player,
+                        &player,
+                        vloc,
+                        world_state,
+                    )
+                });
+                let this = match resolved {
+                    Ok(obj) => v_obj(obj),
+                    Err(e) => {
+                        error!(task_id = ?self.task_id, vloc = ?vloc, verb = ?verb_name,
+                               "Could not resolve scheduled task object reference: {:?}", e);
                         return false;
                     }
                 };
-                match with_current_transaction(|world_state| {
-                    world_state.dispatch_verb(
-                        &self.task_permissions(),
-                        VerbDispatch::new(
-                            VerbLookup::method(&object_location, verb_name),
-                            DispatchFlagsSource::Permissions,
-                        ),
-                    )
-                }) {
-                    Ok(None) => {
-                        tsc.verb_not_found(this, verb_name);
-                        return false;
-                    }
-                    Err(WorldStateError::VerbNotFound(_, _)) => {
-                        panic!("dispatch_verb() should return Ok(None), not VerbNotFound");
-                    }
-                    Err(e) => {
-                        error!(task_id = ?self.task_id, this = ?this,
-                               verb = ?verb_name,
-                               "World state error while resolving verb: {:?}", e);
-                        panic!("Could not resolve verb: {e:?}");
-                    }
-                    Ok(Some(verb_result)) => {
-                        self.vm_host.start_call_method_verb(
-                            self.task_id,
-                            verb_result.verbdef,
-                            verb_name,
-                            this,
-                            player,
-                            args_val,
-                            caller,
-                            argstr_val,
-                            verb_result.permissions_flags,
-                            match with_current_transaction(|ws| {
-                                ws.retrieve_verb(
-                                    &self.task_permissions(),
-                                    &verb_result.program_key.verb_definer,
-                                    verb_result.program_key.verb_uuid,
-                                )
-                            }) {
-                                Ok((program, _)) => program,
-                                Err(e) => {
-                                    error!(
-                                        task_id = ?self.task_id,
-                                        "Error resolving startup verb program: {e:?}"
-                                    );
-                                    return false;
-                                }
-                            },
-                        );
-                    }
+
+                if !self.setup_call_verb(tsc, this, player, verb_name, args_val, caller, argstr_val)
+                {
+                    return false;
                 }
             }
             TaskStart::StartFork {
@@ -1470,6 +1465,86 @@ impl Task {
             }
         };
         true
+    }
+
+    /// Shared body of `StartVerb`/`StartScheduled` setup: resolve `verb` on `this` and hand it
+    /// to the VM host to start executing. Returns false (meaning: setup failed, task is done)
+    /// on any lookup failure, having already told the scheduler via `tsc`.
+    #[allow(clippy::too_many_arguments)]
+    fn setup_call_verb(
+        &mut self,
+        tsc: &TaskSchedulerClient,
+        this: Var,
+        player: Obj,
+        verb_name: Symbol,
+        args_val: List,
+        caller: Var,
+        argstr_val: Var,
+    ) -> bool {
+        // Find the callable verb ...
+        // Obj or flyweight?
+        let object_location = match &this.variant() {
+            Variant::Flyweight(f) => *f.delegate(),
+            Variant::Obj(o) => *o,
+            _ => {
+                tsc.verb_not_found(this, verb_name);
+                return false;
+            }
+        };
+        match with_current_transaction(|world_state| {
+            world_state.dispatch_verb(
+                &self.task_permissions(),
+                VerbDispatch::new(
+                    VerbLookup::method(&object_location, verb_name),
+                    DispatchFlagsSource::Permissions,
+                ),
+            )
+        }) {
+            Ok(None) => {
+                tsc.verb_not_found(this, verb_name);
+                false
+            }
+            Err(WorldStateError::VerbNotFound(_, _)) => {
+                panic!("dispatch_verb() should return Ok(None), not VerbNotFound");
+            }
+            Err(e) => {
+                error!(task_id = ?self.task_id, this = ?this,
+                       verb = ?verb_name,
+                       "World state error while resolving verb: {:?}", e);
+                panic!("Could not resolve verb: {e:?}");
+            }
+            Ok(Some(verb_result)) => {
+                let program = match with_current_transaction(|ws| {
+                    ws.retrieve_verb(
+                        &self.task_permissions(),
+                        &verb_result.program_key.verb_definer,
+                        verb_result.program_key.verb_uuid,
+                    )
+                }) {
+                    Ok((program, _)) => program,
+                    Err(e) => {
+                        error!(
+                            task_id = ?self.task_id,
+                            "Error resolving startup verb program: {e:?}"
+                        );
+                        return false;
+                    }
+                };
+                self.vm_host.start_call_method_verb(
+                    self.task_id,
+                    verb_result.verbdef,
+                    verb_name,
+                    this,
+                    player,
+                    args_val,
+                    caller,
+                    argstr_val,
+                    verb_result.permissions_flags,
+                    program,
+                );
+                true
+            }
+        }
     }
 
     fn start_command(
