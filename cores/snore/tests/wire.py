@@ -289,21 +289,85 @@ def run(daemon, host, core):
                     'notify(player, tostr("WIRE_ACCOUNT=", '
                     'typeof(account) == typeof(#2) && !match(tostr(account), "^#[0-9]+$") && is_player(account) && parent(account) == $player_class '
                     '&& argon2_verify(account.password, "wire-new-password")));', "WIRE_ACCOUNT=true")
+                # Hold the old departure across a complete reconnect and final departure.
+                # Its location callback must not run after the newer session has ended.
+                wizard.command(';; const a = $player_db:find_exact("WireNew"); '
+                    'add_property(a, "wire_old_disconnect", 0, {a, "r"}); '
+                    'add_property(a, "wire_new_disconnect", 0, {a, "r"}); '
+                    'add_property(a, "wire_connected_done", 0, {a, "r"}); '
+                    'add_property(#0, "wire_limbo_disconnects", 0, {#2, "rw"}); '
+                    'add_property(#0, "wire_callback_baseline", 0, {#2, "r"}); '
+                    'add_verb(a, {#2, "rxd", "disfunc"}, {"this", "none", "this"}); '
+                    'set_verb_code(a, "disfunc", '
+                    '{"if (!this.wire_old_disconnect)", '
+                    '"  this.wire_old_disconnect = task_id();", '
+                    '"  task_recv(60);", '
+                    '"else", '
+                    '"  this.wire_new_disconnect = task_id();", '
+                    '"endif", '
+                    '"return pass(@args);"}); '
+                    'add_verb(a, {#2, "rxd", "confunc"}, {"this", "none", "this"}); '
+                    'set_verb_code(a, "confunc", '
+                    '{"const result = pass(@args);", '
+                    '"this.wire_connected_done = 1;", '
+                    '"return result;"}); '
+                    'add_verb($limbo, {#2, "rxd", "disfunc"}, {"this", "none", "this"}); '
+                    'set_verb_code($limbo, "disfunc", '
+                    '{"#0.wire_limbo_disconnects = #0.wire_limbo_disconnects + 1;"}); '
+                    'notify(player, tostr("WIRE_EPOCH_OWNER=", '
+                    'property_info(a, "connection_hook_epoch")[1] == #2));',
+                    'WIRE_EPOCH_OWNER=true')
                 created.close()
+                wizard.command(';; const a = $player_db:find_exact("WireNew"); '
+                    'while (!a.wire_old_disconnect) suspend(0.1); endwhile '
+                    'notify(player, "WIRE_OLD_HOOK_PAUSED");', "WIRE_OLD_HOOK_PAUSED")
                 created_again = Client(port)
                 stack.callback(created_again.close)
                 created_again.command("connect WireNew", "Password: ")
                 created_again.command("wire-new-password", "*** Connected ***")
                 created_again.command("say wire new reconnect", 'You say, "wire new reconnect"')
                 created_again.command("@last-connection all", "Previous connections have been from the following sites:")
+                wizard.command(';; const a = $player_db:find_exact("WireNew"); '
+                    'while (!a.wire_connected_done) suspend(0.1); endwhile '
+                    'notify(player, "WIRE_NEW_HOOK_DONE");', "WIRE_NEW_HOOK_DONE")
                 created_again.close()
+                wizard.command(';; const a = $player_db:find_exact("WireNew"); '
+                    'while (!a.wire_new_disconnect) suspend(0.1); endwhile '
+                    'while ($code_utils:task_valid(a.wire_new_disconnect)) suspend(0.1); endwhile '
+                    '#0.wire_callback_baseline = #0.wire_limbo_disconnects; '
+                    'notify(player, tostr("WIRE_FINAL_DEPARTURE=", a.location == $limbo));',
+                    'WIRE_FINAL_DEPARTURE=true')
+                wizard.command(';; const a = $player_db:find_exact("WireNew"); '
+                    'task_send(a.wire_old_disconnect, true); '
+                    'while ($code_utils:task_valid(a.wire_old_disconnect)) suspend(0.1); endwhile '
+                    'notify(player, tostr("WIRE_STALE_DEPARTURE_SKIPPED=", '
+                    'a.location == $limbo && #0.wire_limbo_disconnects == #0.wire_callback_baseline));',
+                    'WIRE_STALE_DEPARTURE_SKIPPED=true')
+                wizard.command(';; delete_verb($limbo, "disfunc"); '
+                    'delete_property(#0, "wire_limbo_disconnects"); '
+                    'delete_property(#0, "wire_callback_baseline"); '
+                    'notify(player, "WIRE_RACE_CLEANED");', "WIRE_RACE_CLEANED")
 
                 guest = Client(port)
                 stack.callback(guest.close)
+                wizard.command(';; add_property($default_guest, "wire_disconnect_done", 0, {#2, "rw"}); '
+                    'set_verb_code(#0, "user_disconnected", '
+                    '{@verb_code(#0, "user_disconnected"), '
+                    '"args[1] == $default_guest && (args[1].wire_disconnect_done = 1);"}); '
+                    'notify(player, "WIRE_GUEST_HOOK_ARMED");', "WIRE_GUEST_HOOK_ARMED")
                 guest.command("connect Guest", "*** Connected ***")
                 guest.command("say wire guest", 'You say, "wire guest"')
                 guest.command("@uptime", "has been up for")
                 guest.close()
+                wizard.command(';; const g = $default_guest; const deadline = time() + 5; '
+                    'while (!g.wire_disconnect_done && time() < deadline) suspend(0.1); endwhile '
+                    'notify(player, tostr("WIRE_GUEST_DEPARTURE=", '
+                    'g.wire_disconnect_done && g.location == $limbo && g.free_to_use));',
+                    'WIRE_GUEST_DEPARTURE=true')
+                wizard.command(';; const code = verb_code(#0, "user_disconnected"); '
+                    'set_verb_code(#0, "user_disconnected", code[1..$ - 1]); '
+                    'delete_property($default_guest, "wire_disconnect_done"); '
+                    'notify(player, "WIRE_GUEST_HOOK_CLEANED");', "WIRE_GUEST_HOOK_CLEANED")
                 ordinary.close()
                 reconnected = Client(port)
                 stack.callback(reconnected.close)

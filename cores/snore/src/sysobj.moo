@@ -349,6 +349,7 @@ object SYSOBJ [
     "Copied from The System Object (#0):user_connected by Slartibartfast (#4242) Sun May 21 18:14:16 1995 PDT";
     callers() && return;
     const user = args[1];
+    user.connection_hook_epoch = user.connection_hook_epoch + 1;
     set_task_perms(user);
     try
       user.location:confunc(user);
@@ -370,10 +371,18 @@ object SYSOBJ [
       return;
     endif
     const user = args[1];
+    const epoch = user.connection_hook_epoch + 1;
+    user.connection_hook_epoch = epoch;
+    user in connected_players() && return;
     user.last_disconnect_time = time();
-    set_task_perms(user);
+    set_task_perms(user, {{"property_write", user, "connection_hook_epoch"}});
     const where = user.location;
     `user:disfunc() ! ANY => 0';
+    if (user.connection_hook_epoch != epoch || user in connected_players())
+      return;
+    endif
+    "The second write conflicts with a newer connection that commits during this phase.";
+    user.connection_hook_epoch = epoch + 1;
     if (user.location != where)
       `where.location:disfunc(user) ! ANY => 0';
     endif
@@ -509,6 +518,7 @@ object SYSOBJ [
     "Run guest relocation and player reconnect hooks. Server invocation only.";
     callers() && return;
     let user = args[1];
+    user.connection_hook_epoch = user.connection_hook_epoch + 1;
     if ($object_utils:isa(user, $guest))
       "from $guest:boot";
       const oldloc = user.location;

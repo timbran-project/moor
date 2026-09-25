@@ -9,6 +9,7 @@ object PLAYER [
 
   property all_connect_places (owner: #2, flags: "") = {};
   property brief (owner: #2, flags: "rc") = 0;
+  property connection_hook_epoch (owner: #2, flags: "r") = 0;
   property current_folder (owner: #2, flags: "c") = 1;
   property dict (owner: #2, flags: "rc") = {};
   property display_options (owner: #2, flags: "rc") = [];
