@@ -1,4 +1,4 @@
-// Speech and private delivery across two mock sessions.
+// Room speech across two mock sessions.
 // The fixture programmer shares the fixture room with the fixture player.
 
 // Room speech reaches the speaker and the observer.
@@ -10,13 +10,3 @@
 ; return 1;
 1
 =Test Player says, "hello there"
-
-// Private whispers reach the speaker and the target only.
-@nonprogrammer
-% whisper psst to testprog
-=You whisper, "psst" to Test Programmer.
-
-@programmer
-; return 1;
-1
-=Test Player whispers, "psst"

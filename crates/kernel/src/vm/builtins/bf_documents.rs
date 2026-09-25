@@ -953,67 +953,7 @@ pub(crate) fn register_bf_documents(builtins: &mut [BuiltinFunction]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_var::{v_objid, v_sym};
-
-    #[test]
-    fn test_tag_structure_basic() {
-        // Test the basic Tag enum structure
-        let start_tag = Tag::StartElement(
-            "div".to_string(),
-            vec![("class".to_string(), "test".to_string())],
-        );
-        let text_tag = Tag::Text("Hello World".to_string());
-        let end_tag = Tag::EndElement(());
-
-        match start_tag {
-            Tag::StartElement(name, attrs) => {
-                assert_eq!(name, "div");
-                assert_eq!(attrs[0], ("class".to_string(), "test".to_string()));
-            }
-            _ => panic!("Expected StartElement"),
-        }
-
-        match text_tag {
-            Tag::Text(text) => assert_eq!(text, "Hello World"),
-            _ => panic!("Expected Text"),
-        }
-
-        match end_tag {
-            Tag::EndElement(_) => {}
-            _ => panic!("Expected EndElement"),
-        }
-    }
-
-    #[test]
-    fn test_format_structures() {
-        // Test that we can create the expected list structures
-
-        // String-based format: {"tag", {"attr", "value"}, "content"}
-        let string_format = v_list(&[
-            v_str("div"),
-            v_list(&[v_str("class"), v_str("test")]),
-            v_str("Hello World"),
-        ]);
-
-        assert!(string_format.as_list().is_some());
-        let list = string_format.as_list().unwrap();
-        assert_eq!(list.len(), 3);
-
-        // Symbol-based format: {'tag, {'attr, "value"}, "content"}
-        let symbol_format = v_list(&[
-            v_sym("div"),
-            v_list(&[v_sym("class"), v_str("test")]),
-            v_str("Hello World"),
-        ]);
-
-        assert!(symbol_format.as_list().is_some());
-
-        // Map-based format: {'tag, ['attr -> "value"], "content"}
-        let map_attrs = v_map(&[(v_sym("class"), v_str("test"))]);
-        let map_format = v_list(&[v_sym("div"), map_attrs, v_str("Hello World")]);
-
-        assert!(map_format.as_list().is_some());
-    }
+    use moor_var::v_objid;
 
     #[test]
     fn test_nested_elements_with_empty_attributes() {
@@ -1095,46 +1035,6 @@ mod tests {
             v_str("Hello World"),
         ]);
 
-        // Simple tag resolver that processes lists without needing world state
-        let _tag_resolver = |value: &moor_var::Var| -> Result<Vec<Tag>, BfErr> {
-            match value.variant() {
-                Variant::List(list) => {
-                    // Simplified list processing for testing
-                    if list.is_empty() {
-                        return Err(BfErr::ErrValue(E_INVARG.msg("Empty list")));
-                    }
-
-                    let tag_name = list.index(0).unwrap().as_string().unwrap().to_string();
-                    let mut attributes = Vec::new();
-                    let mut contents = Vec::new();
-
-                    for i in 1..list.len() {
-                        let element = list.index(i).unwrap();
-                        match element.variant() {
-                            Variant::List(attr_list) if attr_list.len() == 2 => {
-                                let key_val = attr_list.index(0).unwrap();
-                                let value_val = attr_list.index(1).unwrap();
-                                let key = key_val.as_string().unwrap();
-                                let value = value_val.as_string().unwrap();
-                                attributes.push((key.to_string(), value.to_string()));
-                            }
-                            Variant::Str(s) => {
-                                contents.push(Tag::Text(s.as_str().to_string()));
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    let mut tags = Vec::new();
-                    tags.push(Tag::StartElement(tag_name, attributes));
-                    tags.extend(contents);
-                    tags.push(Tag::EndElement(()));
-                    Ok(tags)
-                }
-                _ => Err(BfErr::ErrValue(E_INVARG.msg("Expected list"))),
-            }
-        };
-
         // Test generating XML - first get tags then convert to XML
         let mut dummy_resolver =
             |_fl: &Flyweight| -> Result<String, BfErr> { Ok("mock".to_string()) };
@@ -1155,44 +1055,6 @@ mod tests {
             v_list(&[v_str("span"), v_list(&[]), v_str("World")]),
         ]);
 
-        // Recursive tag resolver for nested structures
-        let _tag_resolver = |value: &moor_var::Var| -> Result<Vec<Tag>, BfErr> {
-            fn process_value(value: &moor_var::Var) -> Result<Vec<Tag>, BfErr> {
-                match value.variant() {
-                    Variant::List(list) => {
-                        if list.is_empty() {
-                            return Ok(vec![]);
-                        }
-
-                        let tag_name = list.index(0).unwrap().as_string().unwrap().to_string();
-                        let mut contents = Vec::new();
-
-                        for i in 1..list.len() {
-                            let element = list.index(i).unwrap();
-                            match element.variant() {
-                                Variant::Str(s) => {
-                                    contents.push(Tag::Text(s.as_str().to_string()));
-                                }
-                                Variant::List(_) => {
-                                    let child_tags = process_value(&element)?;
-                                    contents.extend(child_tags);
-                                }
-                                _ => {}
-                            }
-                        }
-
-                        let mut tags = Vec::new();
-                        tags.push(Tag::StartElement(tag_name, vec![]));
-                        tags.extend(contents);
-                        tags.push(Tag::EndElement(()));
-                        Ok(tags)
-                    }
-                    _ => Err(BfErr::ErrValue(E_INVARG.msg("Expected list"))),
-                }
-            }
-            process_value(value)
-        };
-
         // Test generating XML - first get tags then convert to XML
         let mut dummy_resolver =
             |_fl: &Flyweight| -> Result<String, BfErr> { Ok("mock".to_string()) };
@@ -1200,24 +1062,7 @@ mod tests {
         let xml_result = generate_xml_from_tags(&tags).unwrap();
 
         // Should generate nested XML
-        assert!(xml_result.contains("<div>"));
-        assert!(xml_result.contains("Hello "));
-        assert!(xml_result.contains("<span>World</span>"));
-        assert!(xml_result.contains("</div>"));
-    }
-
-    #[test]
-    fn test_to_xml_accepts_lists_without_flyweights() {
-        // Test that to_xml works with list format even when flyweights might be disabled
-        let list_format = v_list(&[
-            v_str("div"),
-            v_list(&[v_str("class"), v_str("test")]),
-            v_str("Hello World"),
-        ]);
-
-        // This should work regardless of flyweight configuration
-        // The function should only check flyweight enablement when input is actually a flyweight
-        assert!(list_format.as_list().is_some());
+        assert_eq!(xml_result, "<div>Hello <span>World</span></div>");
     }
 
     #[test]

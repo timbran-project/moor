@@ -811,14 +811,6 @@ end"#; "complex scatter declaration with optional and rest")]
     }
 
     #[test]
-    fn regress_test() {
-        let program = r#"n + 10 in a;"#;
-        let stripped = unindent(program);
-        let result = parse_and_unparse(&stripped).unwrap();
-        assert_eq!(stripped.trim(), result.trim());
-    }
-
-    #[test]
     fn test_local_scatter() {
         let program = r#"begin
           let {things, ?nothingstr = "nothing", ?andstr = " and ", ?commastr = ", ", ?finalcommastr = ","} = args;

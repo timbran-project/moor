@@ -1,3 +1,25 @@
+// A foreign From header is rejected without changing the recipient mailbox.
+@wizard
+; add_property(#2, "mail_before_forgery", #102.messages, {#2, ""}); return 1;
+1
+@nonprogrammer
+>> From: Wizard (#2)
+>> To: Test Programmer (#102)
+>> Subject: Forgery
+>>
+>> Body
+>> .
+% @@sendmail
+=[Type lines of input; use `.' to end or `@abort' to abort the command.]
+=Sending...
+=E_PERM
+@wizard
+; return #102.messages == #2.mail_before_forgery;
+true
+; delete_property(#2, "mail_before_forgery"); return 1;
+1
+
+
 // Sticky subscriptions, reading markers, quick mail, and unsend.
 @wizard
 ; #109.readers = 1; #109.writers = {#101}; return $mail_agent:send_message(player, {#109}, "Folder subject", {"Folder body"});
@@ -28,14 +50,6 @@ true
 ; return player:get_current_message();
 {0, 0}
 
-// A foreign From header reports E_PERM rather than indexing an error value.
->> From: Wizard (#2)
->> To: Test Programmer (#102)
->> Subject: Forgery
->>
->> Body
->> .
-% @@sendmail
 
 @wizard
 ; #101.messages = {}; #102.messages = {}; #101.current_message = {0, 0}; #102.current_message = {0, 0}; return 1;

@@ -3,7 +3,7 @@
 @programmer
 // ftime as an int should be the same as regular time()
 // test_time
-; return toint(ftime()) == time();
+; before = time(); f = toint(ftime()); return before <= f && f <= time();
 1
 
 // The first call to ftime(1) stores the current (starting) monotonic time,

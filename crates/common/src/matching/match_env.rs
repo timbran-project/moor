@@ -235,29 +235,6 @@ mod tests {
     }
 
     #[test]
-    fn test_match_object_names_ambiguous() {
-        let mut match_data = MatchData {
-            exact: Vec::new(),
-            partial: Vec::new(),
-        };
-
-        let names = vec!["apple", "banana", "cherry", "bunch"];
-        let match_name = "b";
-
-        do_match_object_names(
-            Obj::mk_id(2),
-            &mut match_data,
-            names.into_iter().map(String::from).collect(),
-            match_name,
-        );
-
-        // Both "banana" and "bunch" match "b", so we expect both in the list
-        assert_eq!(match_data.exact.len(), 0);
-        assert_eq!(match_data.partial.len(), 1);
-        assert_eq!(match_data.partial[0], Obj::mk_id(2));
-    }
-
-    #[test]
     fn test_match_object_empty() {
         let env = setup_mock_environment();
         let menv = DefaultObjectNameMatcher {

@@ -183,6 +183,10 @@ mod tests {
     use std::{sync::Arc, time::Duration};
     use uuid::Uuid;
 
+    fn deadline_difference(a: Instant, b: Instant) -> Duration {
+        if a >= b { a - b } else { b - a }
+    }
+
     // Verify creation of an empty DB, including creation of tables.
     #[test]
     fn open_reopen() {
@@ -491,9 +495,6 @@ mod tests {
             }
         }
 
-        // Simulate time passing and reload
-        std::thread::sleep(Duration::from_millis(10));
-
         // Load and verify
         {
             let (db, is_fresh) = FjallTasksDB::open(path);
@@ -509,9 +510,11 @@ mod tests {
                     .unwrap_or_else(|| panic!("Could not find loaded task for {original_name}"));
 
                 match (&original_task.wake_condition, &loaded_task.wake_condition) {
-                    (WakeCondition::Time(_), WakeCondition::Time(_)) => {
-                        // Time conditions should be preserved (though exact instant may differ slightly)
-                        // This is expected due to the serialization round-trip
+                    (WakeCondition::Time(original), WakeCondition::Time(loaded)) => {
+                        assert!(
+                            deadline_difference(*original, *loaded) < Duration::from_secs(1),
+                            "Deadline changed for {original_name}: {original:?} -> {loaded:?}"
+                        );
                     }
                     (WakeCondition::Never, WakeCondition::Never) => {}
                     (WakeCondition::Input(uuid1), WakeCondition::Input(uuid2)) => {
@@ -596,19 +599,20 @@ mod tests {
                 .unwrap_or_else(|_| panic!("Failed to load edge case {i}"));
             assert_eq!(loaded_tasks.len(), 1);
 
-            // Should have correct wake condition type
+            // The conversion through wall-clock time should preserve the deadline.
             match &loaded_tasks[0].wake_condition {
-                WakeCondition::Time(_) => {
-                    // Success - time was preserved as a time condition
-                }
+                WakeCondition::Time(loaded) => assert!(
+                    deadline_difference(*wake_time, *loaded) < Duration::from_secs(1),
+                    "Deadline changed for edge case {i}: {wake_time:?} -> {loaded:?}"
+                ),
                 other => panic!("Edge case {i} changed wake condition type to {other:?}"),
             }
         }
     }
 
-    // Test robustness against system clock changes
+    // Test that reopening the database preserves a future deadline.
     #[test]
-    fn test_clock_robustness() {
+    fn test_future_deadline_after_reopen() {
         let tmpdir = tempfile::tempdir().expect("Unable to create temporary directory");
         let path = tmpdir.path();
 
@@ -657,21 +661,19 @@ mod tests {
             db.save_task(&suspended).unwrap();
         }
 
-        // Simulate some time passing (less than the wake time)
-        std::thread::sleep(Duration::from_millis(100));
-
-        // Load the task - should not panic even with time drift
+        // Load the task from the reopened database.
         {
             let (db, _) = FjallTasksDB::open(path);
             let loaded_tasks = db.load_tasks().unwrap();
             assert_eq!(loaded_tasks.len(), 1);
 
-            // Verify it's still a time-based wake condition
+            // Verify both the wake condition and the restored deadline.
             match &loaded_tasks[0].wake_condition {
-                WakeCondition::Time(_) => {
-                    // Success - even with potential clock drift, we got a valid time back
-                }
-                other => panic!("Clock robustness test failed: got {other:?}"),
+                WakeCondition::Time(loaded) => assert!(
+                    deadline_difference(wake_time, *loaded) < Duration::from_secs(1),
+                    "Future deadline changed: {wake_time:?} -> {loaded:?}"
+                ),
+                other => panic!("Expected a time wake condition, got {other:?}"),
             }
         }
     }

@@ -400,10 +400,7 @@ impl ByteSized for EntityMetadataKey {
 mod tests {
     use crate::model::{EntityMetadataKey, ObjAndUUIDHolder};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
-    use std::{
-        collections::BTreeSet,
-        hash::{Hash, Hasher},
-    };
+    use std::hash::{Hash, Hasher};
     use uuid::Uuid;
     use zerocopy::{FromBytes, IntoBytes};
 
@@ -424,18 +421,11 @@ mod tests {
         let oh = ObjAndUUIDHolder::new(&SYSTEM_OBJECT, u);
         let oh2 = ObjAndUUIDHolder::new(&SYSTEM_OBJECT, u);
 
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        oh.hash(&mut hasher);
-        oh2.hash(&mut hasher);
-        let h1 = hasher.finish();
-        let h2 = hasher.finish();
-        assert_eq!(h1, h2);
-    }
-
-    #[test]
-    fn test_ord_eq_obj_uuid_holder() {
-        let mut tree = BTreeSet::new();
-        tree.insert(ObjAndUUIDHolder::new(&SYSTEM_OBJECT, Uuid::new_v4()));
+        let mut first = std::collections::hash_map::DefaultHasher::new();
+        let mut second = std::collections::hash_map::DefaultHasher::new();
+        oh.hash(&mut first);
+        oh2.hash(&mut second);
+        assert_eq!(first.finish(), second.finish());
     }
 
     #[test]

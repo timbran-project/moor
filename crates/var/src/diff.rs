@@ -606,11 +606,39 @@ mod tests {
     fn list_diff_reports_insertions() {
         let left = Var::mk_list(&[v_int(1), v_int(3)]);
         let right = Var::mk_list(&[v_int(1), v_int(2), v_int(3)]);
-        let diff = value_diff(&left, &right, &ValueDiffOptions::default());
+        let diff = value_diff(
+            &left,
+            &right,
+            &ValueDiffOptions {
+                include_values: true,
+                ..ValueDiffOptions::default()
+            },
+        );
         let changes = diff
             .get(&v_str("changes"), crate::IndexMode::ZeroBased)
             .unwrap();
         assert_eq!(changes.len().unwrap(), 1);
+        let change = changes
+            .index(&v_int(0), crate::IndexMode::ZeroBased)
+            .unwrap();
+        assert_eq!(
+            change
+                .get(&v_str("op"), crate::IndexMode::ZeroBased)
+                .unwrap(),
+            v_str("add")
+        );
+        assert_eq!(
+            change
+                .get(&v_str("index"), crate::IndexMode::ZeroBased)
+                .unwrap(),
+            v_int(2)
+        );
+        assert_eq!(
+            change
+                .get(&v_str("value"), crate::IndexMode::ZeroBased)
+                .unwrap(),
+            v_int(2)
+        );
     }
 
     #[test]

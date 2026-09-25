@@ -28,17 +28,33 @@ describe("history batch deduplication", () => {
         expect(computeHistoryBatchSignature([])).toBeNull();
     });
 
-    it("signs batches by size, boundary ids, and timestamps", () => {
+    it("recognizes a repeated batch and accepts different boundaries", () => {
         const batch = [
             message({ id: "a", eventId: "evt-a", timestamp: 10 }),
             message({ id: "b", eventId: "evt-b", timestamp: 20 }),
         ];
-        expect(computeHistoryBatchSignature(batch)).toBe("2:evt-a:evt-b:10:20");
+        const signature = computeHistoryBatchSignature(batch);
+        const now = 1_000_000;
+        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([...batch]), signature, now - 1000, now)).toBe(true);
+        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([
+            batch[0], message({ id: "c", eventId: "evt-c", timestamp: 20 }),
+        ]), signature, now - 1000, now)).toBe(false);
+        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([
+            batch[0], message({ id: "b", eventId: "evt-b", timestamp: 21 }),
+        ]), signature, now - 1000, now)).toBe(false);
     });
 
-    it("falls back to message ids when event ids are missing", () => {
+    it("recognizes equal batches without event ids using message ids", () => {
         const batch = [message({ id: "only", timestamp: 5 })];
-        expect(computeHistoryBatchSignature(batch)).toBe("1:only:only:5:5");
+        const now = 1_000_000;
+        expect(isRedundantHistoryBatch(
+            computeHistoryBatchSignature([message({ id: "only", timestamp: 5 })]),
+            computeHistoryBatchSignature(batch), now - 1000, now,
+        )).toBe(true);
+        expect(isRedundantHistoryBatch(
+            computeHistoryBatchSignature([message({ id: "other", timestamp: 5 })]),
+            computeHistoryBatchSignature(batch), now - 1000, now,
+        )).toBe(false);
     });
 
     it("treats empty batches as never redundant", () => {
@@ -47,18 +63,22 @@ describe("history batch deduplication", () => {
 
     it("flags an identical repeated batch inside the dedup window", () => {
         const now = 1_000_000;
-        expect(isRedundantHistoryBatch("sig", "sig", now - 1000, now)).toBe(true);
+        const signature = computeHistoryBatchSignature([message()]);
+        expect(isRedundantHistoryBatch(signature, signature, now - 1000, now)).toBe(true);
     });
 
     it("allows an identical batch after the dedup window expires", () => {
         const now = 1_000_000;
+        const signature = computeHistoryBatchSignature([message()]);
         expect(
-            isRedundantHistoryBatch("sig", "sig", now - HISTORY_BATCH_DEDUP_WINDOW_MS - 1, now),
+            isRedundantHistoryBatch(signature, signature, now - HISTORY_BATCH_DEDUP_WINDOW_MS - 1, now),
         ).toBe(false);
     });
 
     it("does not flag different batches", () => {
         const now = 1_000_000;
-        expect(isRedundantHistoryBatch("sig-2", "sig-1", now - 1000, now)).toBe(false);
+        const previous = computeHistoryBatchSignature([message({ id: "before" })]);
+        const current = computeHistoryBatchSignature([message({ id: "after" })]);
+        expect(isRedundantHistoryBatch(current, previous, now - 1000, now)).toBe(false);
     });
 });

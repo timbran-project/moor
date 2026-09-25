@@ -65,13 +65,8 @@ object PROPERTY [
     metadata.name == 'aliases || raise(E_ASSERT("name does not match"));
     valid(metadata.owner) || raise(E_ASSERT("owner is not valid"));
     typeof(metadata.perms) == TYPE_STR || raise(E_ASSERT("Perms is not a string"));
-    "Check that is_clear is a boolean";
-    if (typeof(metadata.is_clear) != TYPE_OBJ && typeof(metadata.is_clear) != TYPE_INT)
-      "OBJ is false, INT is true in mooR's type system sometimes";
-      if (metadata.is_clear != true && metadata.is_clear != false)
-        raise(E_ASSERT("mismatching metadata"));
-      endif
-    endif
+    typeof(metadata.is_clear) == TYPE_BOOL || raise(E_ASSERT("is_clear should be a boolean"));
+    metadata.is_clear == false || raise(E_ASSERT("aliases should have a set value"));
     return true;
   endmethod
 endobject

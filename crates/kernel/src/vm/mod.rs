@@ -239,7 +239,7 @@ pub(crate) fn extract_anonymous_refs_from_vm_exec_state(
 #[cfg(test)]
 mod tests {
     use crate::vm::VMHostResponse;
-    use moor_vm::{Activation, BuiltinFrame, Frame, MooStackFrame};
+    use moor_vm::{Activation, BuiltinFrame, Frame};
     use std::mem::size_of;
 
     #[test]
@@ -250,50 +250,6 @@ mod tests {
             size_of::<VMHostResponse>() <= 24,
             "VMHostResponse is too big: {}",
             size_of::<VMHostResponse>()
-        );
-    }
-
-    #[test]
-    fn test_frame_sizes() {
-        println!("Size of MooStackFrame: {}", size_of::<MooStackFrame>());
-        println!("Size of BuiltinFrame: {}", size_of::<BuiltinFrame>());
-        println!("Size of Frame (unboxed): {}", size_of::<Frame>());
-        println!("Size of Activation: {}", size_of::<Activation>());
-
-        // Frame is an enum with MooStackFrame and BuiltinFrame (unboxed)
-        // Size should be max(MooStackFrame, BuiltinFrame) + discriminant
-        let expected_size = size_of::<MooStackFrame>().max(size_of::<BuiltinFrame>()) + 8;
-        println!("Expected Frame size: {expected_size}");
-        println!("Total activation size: {} bytes", size_of::<Activation>());
-    }
-
-    #[test]
-    fn test_list_box_overhead() {
-        use moor_var::{List, Var};
-
-        // List is defined as: List(Box<im::Vector<Var>>)
-        println!("Size of List (just the Box pointer): {}", size_of::<List>());
-        println!("Size of Var: {}", size_of::<Var>());
-        println!("Size of Box pointer: {}", size_of::<Box<()>>());
-
-        // Create a list and clone it
-        let list1 = List::mk_list(&[Var::mk_integer(1), Var::mk_integer(2), Var::mk_integer(3)]);
-        let _list2 = list1.clone();
-
-        // When we clone List(Box<im::Vector<Var>>):
-        // Box::clone() does:
-        //   1. Allocates new heap memory for Box wrapper (malloc)
-        //   2. Calls imbl::Vector::clone() on the interior
-        //   3. imbl::Vector::clone() bumps Arc refcount (cheap!)
-        //
-        // The Box wrapper adds malloc overhead to every List::clone()
-        // But imbl::Vector::clone() itself is still cheap (just Arc refcount)
-
-        println!("\nCloning behavior:");
-        println!("- Box::clone() allocates heap memory (malloc overhead)");
-        println!("- imbl::Vector::clone() bumps Arc refcount (nearly free)");
-        println!(
-            "\nSo List::clone has malloc overhead from Box, but structural sharing from imbl::Vector"
         );
     }
 

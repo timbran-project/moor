@@ -518,23 +518,19 @@ mod tests {
 
     #[test]
     fn test_uuobjid_generation() {
-        let obj = Obj::mk_uuobjid_generated();
-        let uuid = obj.uuobjid().unwrap();
-        let (autoincrement, rng, epoch_ms) = uuid.components();
-
-        // Should be a reasonable autoincrement value (starts at 1)
-        assert!(autoincrement >= 1);
-        assert!(rng <= 0x3F);
-
-        // Check that epoch_ms is reasonable (should be recent)
-        let now = SystemTime::now()
+        let before = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
+            .unwrap()
             .as_millis() as u64;
-        let now_truncated = now & 0x00FF_FFFF_FFFF;
-
-        // Allow for some time difference (within 1 second)
-        assert!(epoch_ms >= now_truncated - 1000 || epoch_ms <= now_truncated + 1000);
+        let obj = Obj::mk_uuobjid_generated();
+        let after = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let uuid = obj.uuobjid().unwrap();
+        let (_, _, epoch_ms) = uuid.components();
+        let mask = 0x00FF_FFFF_FFFF;
+        assert!((epoch_ms.wrapping_sub(before & mask) & mask) <= after - before);
     }
 
     #[test]
@@ -569,28 +565,11 @@ mod tests {
     }
 
     #[test]
-    fn test_autoincrement_wrapping() {
-        // Test that the atomic counter wraps properly
-        // Set counter near maximum
-        UUOBJID_SEQUENCE.store(65535, Ordering::Relaxed);
-
-        // Generate UUID at max value
-        let seq1 = UUOBJID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        assert_eq!(seq1, 65535);
-
-        // Next fetch should wrap to 0
-        let seq2 = UUOBJID_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        assert_eq!(seq2, 0);
-
-        // Verify the UUIDs are generated with correct autoincrement values
-        let uuid1 = UuObjid::generate(seq1);
-        let uuid2 = UuObjid::generate(seq2);
-
-        let (auto1, _, _) = uuid1.components();
-        let (auto2, _, _) = uuid2.components();
-
-        assert_eq!(auto1, 65535);
-        assert_eq!(auto2, 0);
+    fn test_autoincrement_boundary_encoding() {
+        let at_max = UuObjid::generate(u16::MAX);
+        let after_wrap = UuObjid::generate(u16::MAX.wrapping_add(1));
+        assert_eq!(at_max.components().0, u16::MAX);
+        assert_eq!(after_wrap.components().0, 0);
     }
 
     #[test]

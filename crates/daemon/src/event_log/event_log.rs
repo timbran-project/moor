@@ -1201,7 +1201,7 @@ impl EventLogOps for NoOpEventLog {
 mod tests {
     use super::*;
     use crate::event_log::logged_narrative_event_to_flatbuffer;
-    use moor_common::tasks::{Event, NarrativeEvent, Presentation};
+    use moor_common::tasks::{Event, NarrativeEvent};
     use moor_var::{Obj, v_str};
     use std::time::SystemTime;
     use uuid::Uuid;
@@ -1222,28 +1222,6 @@ mod tests {
                 no_newline: false,
                 metadata: None,
             },
-        };
-        logged_narrative_event_to_flatbuffer(player, Box::new(event), pubkey)
-            .expect("Failed to convert to FlatBuffer")
-            .0
-    }
-
-    fn create_present_event(player: Obj, id: &str, content: &str) -> LoggedNarrativeEvent {
-        // Generate a test key for encryption (all events must be encrypted)
-        let identity = age::x25519::Identity::generate();
-        let pubkey = identity.to_public().to_string();
-
-        let event = NarrativeEvent {
-            event_id: Uuid::now_v7(),
-            timestamp: SystemTime::now(),
-            author: v_str("test"),
-            event: Event::Present(Presentation {
-                id: id.to_string(),
-                content_type: "text/plain".to_string(),
-                content: content.to_string(),
-                target: "main".to_string(),
-                attributes: vec![],
-            }),
         };
         logged_narrative_event_to_flatbuffer(player, Box::new(event), pubkey)
             .expect("Failed to convert to FlatBuffer")
@@ -1330,29 +1308,6 @@ mod tests {
 
         let events_until_id3 = log.events_for_player_until(player, Some(id3));
         assert_eq!(events_until_id3.len(), 2, "Should get events before id3");
-    }
-
-    #[test]
-    fn test_presentation_management() {
-        let log = EventLog::new();
-        let player = Obj::mk_id(1);
-
-        // Initially no presentations
-        let presentations = log.current_presentations(player);
-        assert!(presentations.is_empty());
-
-        // Add a presentation (note: presentations aren't handled via append in the new API)
-        // We need to directly create a PlayerPresentations state
-        let present_event = create_present_event(player, "widget1", "Hello World");
-        log.append(present_event, None);
-
-        // Give persistence thread time to write
-        std::thread::sleep(std::time::Duration::from_millis(500));
-
-        // Note: In the new architecture, presentations need to be explicitly saved
-        // The append doesn't automatically update presentation state anymore
-        // This test demonstrates the API but won't pass until we implement
-        // presentation state updates separately from narrative events
     }
 
     #[test]

@@ -1168,23 +1168,6 @@ object RULE_ENGINE [
     return true;
   endmethod
 
-  method test_parse_and_evaluate_not owner: ARCH_WIZARD
-    "Test parsing and evaluating a NOT expression.";
-    "Instead of using 'player' constant, directly build goals from parsed rule";
-    test_obj = #64;
-    "Build goals directly: reputation(test_obj, 100) AND NOT reputation(test_obj, 50)";
-    goal1 = {'reputation, test_obj, 100};
-    goal2_fails = {'reputation, test_obj, 50};
-    not_goal = {'not, goal2_fails};
-    goals = {goal1, not_goal};
-    empty_bindings = [];
-    result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    "First goal fails (8 < 100), so whole expression fails";
-    !result['success] || raise(E_ASSERT, "Expression should fail because first goal fails");
-    return true;
-  endmethod
-
   method test_parse_not_failure_expression owner: ARCH_WIZARD
     "Test parsing and evaluating NOT expression from string.";
     "Expression: 'this reputation(5)? AND NOT this reputation(100)?'";

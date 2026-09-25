@@ -67,25 +67,3 @@ mod tests {
         assert!(BUILTIN_DOCS.get("notify").is_some()); // bf_server.rs
     }
 }
-#[test]
-fn print_sample_docs() {
-    use crate::vm::builtins::docs::BUILTIN_DOCS;
-
-    println!("\n=== Sample Documentation ===");
-
-    if let Some(docs) = BUILTIN_DOCS.get("abs") {
-        println!("\nfunction_help(\"abs\") returns:");
-        for line in docs {
-            println!("  {line}");
-        }
-    }
-
-    if let Some(docs) = BUILTIN_DOCS.get("min") {
-        println!("\nfunction_help(\"min\") returns:");
-        for line in docs {
-            println!("  {line}");
-        }
-    }
-
-    println!("\nTotal builtins documented: {}", BUILTIN_DOCS.len());
-}

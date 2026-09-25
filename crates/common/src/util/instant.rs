@@ -451,11 +451,8 @@ mod tests {
     #[test]
     fn as_nanos_consistent() {
         let a = Instant::now();
-        std::thread::sleep(Duration::from_millis(10));
-        let b = Instant::now();
+        let b = a + Duration::from_millis(10);
         let delta_nanos = b.as_nanos() - a.as_nanos();
-        // Should be roughly 10ms — allow 5-50ms range.
-        assert!(delta_nanos > 5_000_000, "delta too small: {delta_nanos}ns");
-        assert!(delta_nanos < 50_000_000, "delta too large: {delta_nanos}ns");
+        assert!(delta_nanos.abs_diff(10_000_000) <= 100);
     }
 }

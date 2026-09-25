@@ -145,34 +145,6 @@ test_telnet() {
     fi
 }
 
-# Test WebSocket connection
-# Usage: test_websocket <url>
-test_websocket() {
-    local url=$1
-
-    log_info "Testing WebSocket endpoint: $url"
-
-    # Try to connect with curl's WebSocket support (if available)
-    # Otherwise just test if the HTTP upgrade request is accepted
-    if curl --version | grep -q "WebSockets"; then
-        if curl -s --no-buffer -H "Connection: Upgrade" -H "Upgrade: websocket" "$url" > /dev/null 2>&1; then
-            log_info "WebSocket test passed"
-            return 0
-        fi
-    else
-        # Fallback: just check if the endpoint responds to upgrade request
-        local response
-        response=$(curl -s -i -H "Connection: Upgrade" -H "Upgrade: websocket" "$url" 2>&1 | head -1)
-        if echo "$response" | grep -qE "101|Switching Protocols|426"; then
-            log_info "WebSocket endpoint responding (got: $response)"
-            return 0
-        fi
-    fi
-
-    log_warn "WebSocket test inconclusive (curl may not support WebSocket testing)"
-    return 0  # Don't fail on this
-}
-
 # Clean up function
 cleanup() {
     log_info "Cleaning up..."

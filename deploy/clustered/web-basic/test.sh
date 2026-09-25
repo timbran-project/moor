@@ -50,21 +50,6 @@ log_info "Testing HTTP endpoints..."
 # Test frontend (should serve the web client)
 test_http "http://localhost:8080/" 200
 
-# Test web-host API health endpoint (if it exists)
-# Note: This might 404 if there's no health endpoint, which is fine
-if curl -s "http://localhost:8080/api/health" > /dev/null 2>&1; then
-    log_info "API health endpoint found"
-else
-    log_info "No API health endpoint (this is fine)"
-fi
-
-# Test that we can access the frontend assets
-if curl -s "http://localhost:8080/" | grep -qE "moor|<!DOCTYPE html>"; then
-    log_info "Frontend is serving HTML content"
-else
-    log_warn "Frontend response doesn't look like HTML"
-fi
-
 # Test the welcome message endpoint - this verifies MOO core is loaded and web-host can talk to daemon
 log_info "Testing MOO core via welcome message endpoint..."
 WELCOME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/fb/invoke_welcome_message")
@@ -73,17 +58,7 @@ if [ "$WELCOME_STATUS" = "200" ]; then
 else
     log_error "Welcome message endpoint returned status $WELCOME_STATUS (expected 200)"
     log_error "MOO core may not be loaded or web-host cannot connect to daemon"
-fi
-
-# Test WebSocket endpoint (if accessible)
-# The WebSocket is proxied through nginx to moor-web-host
-log_info "Testing WebSocket endpoint availability..."
-# WebSocket endpoint is typically at /ws or similar
-# Just verify the nginx proxy is configured
-if curl -s -I "http://localhost:8080/" | grep -qi "nginx"; then
-    log_info "nginx is responding"
-else
-    log_info "Proxy server responding (may not be nginx)"
+    exit 1
 fi
 
 # Check docker logs for errors

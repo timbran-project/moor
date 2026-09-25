@@ -606,13 +606,6 @@ object RLM_AGENT [
     return this;
   endverb
 
-  verb test_eval_this (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Test what 'this' refers to inside eval";
-    direct_this = this;
-    eval_result = eval("return this;");
-    return ['direct_this -> direct_this, 'eval_this -> eval_result[2]];
-  endverb
-
   verb load_external_tools (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Load tools from #0:external_agent_tools() into this agent.";
     "Optional filter list to load only specific tools.";

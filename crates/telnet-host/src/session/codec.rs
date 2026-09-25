@@ -149,12 +149,6 @@ impl ConnectionCodec {
         }
     }
 
-    /// Get current connection mode
-    #[cfg(test)]
-    pub fn mode(&self) -> &ConnectionMode {
-        &self.mode
-    }
-
     /// Set connection mode
     pub fn set_mode(&mut self, mode: ConnectionMode) {
         self.mode = mode;
@@ -389,16 +383,6 @@ mod tests {
     }
 
     #[test]
-    fn test_text_mode_line_parsing() {
-        let mut codec = ConnectionCodec::new();
-        let mut buf = BytesMut::from("hello\nworld\r\n");
-
-        let items = decode_all(&mut codec, &mut buf);
-        assert_eq!(items.len(), 2);
-        assert_eq!(expect_line(items.into_iter().next().unwrap()), "hello");
-    }
-
-    #[test]
     fn test_text_mode_line_parsing_both() {
         let mut codec = ConnectionCodec::new();
         let mut buf = BytesMut::from("hello\nworld\r\n");
@@ -506,37 +490,39 @@ mod tests {
     }
 
     #[test]
-    fn test_mode_switching() {
-        let mut codec = ConnectionCodec::new();
-        assert_eq!(codec.mode(), &ConnectionMode::Text);
-
-        codec.set_mode(ConnectionMode::Binary);
-        assert_eq!(codec.mode(), &ConnectionMode::Binary);
-    }
-
-    #[test]
     fn test_encoding_set_mode() {
         let mut codec = ConnectionCodec::new();
-        let mut buf = BytesMut::new();
+        let mut output = BytesMut::new();
+        let mut input = BytesMut::from(&b"hello\n"[..]);
+        assert_eq!(
+            expect_line(codec.decode(&mut input).unwrap().unwrap()),
+            "hello"
+        );
 
-        // Initially in text mode
-        assert_eq!(codec.mode(), &ConnectionMode::Text);
-
-        // Send SetMode frame to switch to binary
         codec
-            .encode(ConnectionFrame::SetMode(ConnectionMode::Binary), &mut buf)
+            .encode(
+                ConnectionFrame::SetMode(ConnectionMode::Binary),
+                &mut output,
+            )
             .unwrap();
+        assert!(output.is_empty());
+        let mut input = BytesMut::from(&b"hello\n"[..]);
+        let ConnectionItem::Bytes(bytes) = codec.decode(&mut input).unwrap().unwrap() else {
+            panic!("Expected binary bytes after mode switch");
+        };
+        assert_eq!(bytes.as_ref(), b"hello\n");
+        assert!(input.is_empty());
 
-        // Should switch mode but not write any data to buffer
-        assert_eq!(codec.mode(), &ConnectionMode::Binary);
-        assert!(buf.is_empty());
-
-        // Switch back to text mode
         codec
-            .encode(ConnectionFrame::SetMode(ConnectionMode::Text), &mut buf)
+            .encode(ConnectionFrame::SetMode(ConnectionMode::Text), &mut output)
             .unwrap();
-        assert_eq!(codec.mode(), &ConnectionMode::Text);
-        assert!(buf.is_empty());
+        assert!(output.is_empty());
+        let mut input = BytesMut::from(&b"hello\n"[..]);
+        assert_eq!(
+            expect_line(codec.decode(&mut input).unwrap().unwrap()),
+            "hello"
+        );
+        assert!(input.is_empty());
     }
 
     #[test]
@@ -634,9 +620,15 @@ mod tests {
         let mut buf = BytesMut::from(&b"line1\r\n\xFF\xF1line2\r\n"[..]);
 
         let items = decode_all(&mut codec, &mut buf);
-        assert_eq!(items.len(), 3); // line1, NOP command, line2
-
-        assert_eq!(expect_line(items.into_iter().next().unwrap()), "line1");
+        let mut items = items.into_iter();
+        assert_eq!(expect_line(items.next().unwrap()), "line1");
+        assert_eq!(
+            expect_telnet_cmd(items.next().unwrap()).as_ref(),
+            &[0xFF, 0xF1]
+        );
+        assert_eq!(expect_line(items.next().unwrap()), "line2");
+        assert!(items.next().is_none());
+        assert!(buf.is_empty());
     }
 
     #[test]
@@ -727,12 +719,18 @@ mod tests {
         let mut buf = BytesMut::from(&b"\xFF\xF1\xFF\xF1say hello\n"[..]);
 
         let items = decode_all(&mut codec, &mut buf);
-        assert_eq!(items.len(), 3); // NOP, NOP, line
-
+        let mut items = items.into_iter();
         assert_eq!(
-            expect_telnet_cmd(items.into_iter().next().unwrap()).as_ref(),
+            expect_telnet_cmd(items.next().unwrap()).as_ref(),
             &[0xFF, 0xF1]
         );
+        assert_eq!(
+            expect_telnet_cmd(items.next().unwrap()).as_ref(),
+            &[0xFF, 0xF1]
+        );
+        assert_eq!(expect_line(items.next().unwrap()), "say hello");
+        assert!(items.next().is_none());
+        assert!(buf.is_empty());
     }
 
     #[test]

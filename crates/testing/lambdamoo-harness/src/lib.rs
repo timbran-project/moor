@@ -490,22 +490,7 @@ impl Drop for Connection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_symbol_linkage() {
-        // Verify we can reference the C symbols (don't call them yet)
-        use crate::ffi::*;
-        use std::os::raw::{c_char, c_int};
-        let _db_init: unsafe extern "C" fn(*mut c_int, *mut *mut *mut c_char) -> c_int =
-            db_initialize;
-        let _notify: unsafe extern "C" fn(c_int, *const c_char) = notify;
-        let _harness_init: unsafe extern "C" fn() = harness_init;
-        let _harness_get_output: unsafe extern "C" fn(*mut usize) -> *const c_char =
-            harness_get_output;
-
-        // If this compiles and links, the symbols are available
-    }
-
-    #[test]
-    fn test_harness_basic() {
+    fn test_harness_initializes_empty_output() {
         use crate::ffi::*;
 
         unsafe {
@@ -514,11 +499,6 @@ mod tests {
 
             // Get output (should be empty initially)
             let mut len: usize = 0;
-            let _output = harness_get_output(&mut len);
-            assert_eq!(len, 0);
-
-            // Clear and verify
-            harness_clear_output();
             let _output = harness_get_output(&mut len);
             assert_eq!(len, 0);
 

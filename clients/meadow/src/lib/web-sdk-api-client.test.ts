@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { createMoorApiClient, MoorApiError, parseObjectCurie, stringToCurie, uuObjIdToString } from "@moor/web-sdk";
+import { createMoorApiClient, parseObjectCurie, stringToCurie, uuObjIdToString } from "@moor/web-sdk";
 import { describe, expect, it } from "vitest";
 
 describe("createMoorApiClient", () => {
@@ -61,11 +61,6 @@ describe("createMoorApiClient", () => {
         expect(seenUrl).toBe("http://localhost:3000/api/v1/features");
     });
 
-    it("exposes MoorApiError instance shape", () => {
-        const err = new MoorApiError("protocol", "bad reply", { context: "reply parsing" });
-        expect(err.kind).toBe("protocol");
-        expect(err.context).toBe("reply parsing");
-    });
 });
 
 describe("CURIE helpers", () => {
@@ -81,6 +76,6 @@ describe("CURIE helpers", () => {
 
     it("formats uuobjid packed value", () => {
         const packed = (1n << 46n) | (2n << 40n) | 0x123456789an;
-        expect(uuObjIdToString(packed)).toMatch(/^[0-9A-F]{6}-[0-9A-F]{10}$/);
+        expect(uuObjIdToString(packed)).toBe("000042-123456789A");
     });
 });

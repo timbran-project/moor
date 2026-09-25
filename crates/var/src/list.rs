@@ -568,17 +568,6 @@ mod tests {
     }
 
     #[test]
-    fn test_list_index() {
-        let l = Var::mk_list(&[Var::mk_integer(1), Var::mk_integer(2), Var::mk_integer(3)]);
-        let r = l.index(&Var::mk_integer(1), IndexMode::ZeroBased).unwrap();
-        let r = r.variant();
-        match r {
-            Variant::Int(i) => assert_eq!(i, 2),
-            _ => panic!("Expected integer, got {r:?}"),
-        }
-    }
-
-    #[test]
     fn test_list_index_set() {
         let l = Var::mk_list(&[Var::mk_integer(1), Var::mk_integer(2), Var::mk_integer(3)]);
         let r = l

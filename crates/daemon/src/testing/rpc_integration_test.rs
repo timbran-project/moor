@@ -22,16 +22,12 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use crate::{
-        event_log::{EventLogOps, logged_narrative_event_to_flatbuffer},
-        testing::{MockTransport, test_env},
-    };
+    use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
     use moor_runtime_api::{
-        AuthToken, ClientToken, RpcMessageError,
-        api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
-        mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
-        mk_detach_host_msg, mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
+        AuthToken, ClientToken, RpcMessageError, api::ClientEvent, mk_client_pong_msg,
+        mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg, mk_detach_host_msg,
+        mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
         mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
         mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg, mk_properties_msg,
         mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
@@ -776,95 +772,6 @@ mod tests {
             moor_runtime_api::RpcMessageError::NoConnection => {}
             other => panic!("Expected NoConnection error, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn test_event_log_integration() {
-        let env = setup_test_environment();
-
-        let player = Obj::mk_id(42);
-        let test_event = Box::new(moor_common::tasks::NarrativeEvent {
-            event_id: Uuid::now_v7(),
-            timestamp: SystemTime::now(),
-            author: moor_var::v_str("test_author"),
-            event: moor_common::tasks::Event::Notify {
-                value: moor_var::v_str("Test message"),
-                content_type: None,
-                no_flush: false,
-                no_newline: false,
-                metadata: None,
-            },
-        });
-
-        // Test event logging (generate test key - encryption is mandatory)
-        let identity = age::x25519::Identity::generate();
-        let pubkey = identity.to_public().to_string();
-        let logged_event = logged_narrative_event_to_flatbuffer(player, test_event, pubkey)
-            .unwrap()
-            .0;
-        let event_id = env.event_log.append(logged_event, None);
-        assert!(!event_id.is_nil(), "Should return valid event ID");
-
-        // Test event retrieval
-        let events = env.event_log.events_for_player_since(player, None);
-        assert_eq!(events.len(), 1, "Should have one event");
-        let event_player = obj_from_flatbuffer_struct(&events[0].player).unwrap();
-        assert_eq!(event_player, player, "Event should be for correct player");
-        let event_uuid_bytes = events[0].event_id.data.as_slice();
-        let mut uuid_bytes = [0u8; 16];
-        uuid_bytes.copy_from_slice(event_uuid_bytes);
-        let event_event_id = Uuid::from_bytes(uuid_bytes);
-        assert_eq!(event_event_id, event_id, "Event ID should match");
-    }
-
-    #[test]
-    fn test_presentation_management() {
-        let env = setup_test_environment();
-
-        let player = Obj::mk_id(42);
-        let presentation = moor_common::tasks::Presentation {
-            id: "test_widget".to_string(),
-            content_type: "text/plain".to_string(),
-            content: "Hello World".to_string(),
-            target: "main".to_string(),
-            attributes: vec![],
-        };
-
-        // Test presentation creation
-        let present_event = Box::new(moor_common::tasks::NarrativeEvent {
-            event_id: Uuid::now_v7(),
-            timestamp: SystemTime::now(),
-            author: moor_var::v_str("test_author"),
-            event: moor_common::tasks::Event::Present(presentation.clone()),
-        });
-
-        // Generate test key - encryption is mandatory
-        let identity = age::x25519::Identity::generate();
-        let pubkey = identity.to_public().to_string();
-        let (logged_event, presentation_action) =
-            logged_narrative_event_to_flatbuffer(player, present_event, pubkey).unwrap();
-        env.event_log.append(logged_event, presentation_action);
-
-        // Check current presentations
-        let presentations = env.event_log.current_presentations(player);
-        assert_eq!(presentations.len(), 1, "Should have one presentation");
-        let test_widget = presentations.iter().find(|p| p.id == "test_widget");
-        assert!(test_widget.is_some(), "Should contain test widget");
-        let presentation_ref =
-            <moor_schema::common::PresentationRef as ::planus::ReadAsRoot>::read_as_root(
-                &test_widget.unwrap().encrypted_content,
-            )
-            .unwrap();
-        assert_eq!(presentation_ref.content().unwrap(), "Hello World");
-
-        // Test presentation dismissal
-        env.event_log
-            .dismiss_presentation(player, "test_widget".to_string());
-        let presentations = env.event_log.current_presentations(player);
-        assert!(
-            presentations.is_empty(),
-            "Should have no presentations after dismissal"
-        );
     }
 
     /// The player a successful login reply authenticated as.
@@ -1666,166 +1573,6 @@ mod tests {
     }
 
     #[test]
-    fn test_narrative_event_propagation() {
-        let env = setup_test_environment();
-
-        // Step 1: Set up a client connection to receive narrative events
-        let client_id = Uuid::new_v4();
-        let (_client_token, connection_obj) =
-            establish_connection(&env, client_id, "127.0.0.1:12345", 12345);
-
-        // Step 2: Simulate narrative events being sent to the client
-        use moor_common::tasks::NarrativeEvent;
-
-        let narrative_events = vec![
-            NarrativeEvent::notify(
-                moor_var::v_obj(SYSTEM_OBJECT),
-                moor_var::v_str("Hello, world!"),
-                None,
-                false,
-                false,
-                None,
-            ),
-            NarrativeEvent::notify(
-                moor_var::v_obj(SYSTEM_OBJECT),
-                moor_var::v_str("System notification"),
-                Some(moor_var::Symbol::mk("text/plain")),
-                false,
-                false,
-                None,
-            ),
-            NarrativeEvent::notify(
-                moor_var::v_obj(connection_obj),
-                moor_var::v_str("Connection message"),
-                None,
-                false,
-                false,
-                None,
-            ),
-        ];
-
-        // Manually send narrative events through the transport
-        for event in &narrative_events {
-            env.transport
-                .send_narrative_event(connection_obj, event.clone());
-        }
-
-        // Step 3: Verify events were captured
-        let captured_narrative_events = env.transport.get_narrative_events();
-        assert_eq!(
-            captured_narrative_events.len(),
-            narrative_events.len(),
-            "Should have captured all narrative events"
-        );
-
-        for (obj, _event) in &captured_narrative_events {
-            assert_eq!(
-                *obj, connection_obj,
-                "Events should be for the connection object"
-            );
-        }
-
-        // Step 4: Test client event capture
-        let system_message_event = ClientEvent::SystemMessage {
-            player: connection_obj,
-            message: "System broadcast message".to_string(),
-        };
-        let disconnect_event = ClientEvent::Disconnect;
-
-        env.transport
-            .capture_client_event(client_id, system_message_event);
-        env.transport
-            .capture_client_event(client_id, disconnect_event);
-
-        let captured_client_events = env.transport.get_client_events();
-        assert_eq!(
-            captured_client_events.len(),
-            2,
-            "Should have captured 2 client events"
-        );
-
-        for (captured_client_id, _event) in &captured_client_events {
-            assert_eq!(
-                *captured_client_id, client_id,
-                "Events should be for the correct client"
-            );
-        }
-
-        // Step 5: Test host broadcast event capture
-        let listen_event = HostBroadcastEvent::Listen {
-            handler_object: SYSTEM_OBJECT,
-            host_type: moor_runtime_api::HostType::TCP,
-            port: 8080,
-            options: Vec::new(),
-        };
-        let unlisten_event = HostBroadcastEvent::Unlisten {
-            host_type: moor_runtime_api::HostType::TCP,
-            port: 8080,
-        };
-
-        env.transport.send_host_event(listen_event.clone());
-        env.transport.send_host_event(unlisten_event);
-
-        let captured_host_events = env.transport.get_host_events();
-        assert_eq!(
-            captured_host_events.len(),
-            2,
-            "Should have captured 2 host broadcast events"
-        );
-
-        // Step 6: Test client broadcast event capture
-        let ping_pong_event = BroadcastEvent::PingPong;
-
-        env.transport.send_client_broadcast_event(ping_pong_event);
-
-        let captured_client_broadcast_events = env.transport.get_client_broadcast_events();
-        assert_eq!(
-            captured_client_broadcast_events.len(),
-            1,
-            "Should have captured 1 client broadcast event"
-        );
-
-        // Step 7: Verify all counting methods work correctly
-        assert!(
-            env.transport.has_narrative_events(),
-            "Should have narrative events"
-        );
-        assert!(
-            env.transport.has_client_events(),
-            "Should have client events"
-        );
-        assert!(env.transport.has_host_events(), "Should have host events");
-        assert!(
-            env.transport.has_client_broadcast_events(),
-            "Should have client broadcast events"
-        );
-
-        assert_eq!(
-            env.transport.narrative_event_count(),
-            narrative_events.len()
-        );
-        assert_eq!(env.transport.client_event_count(), 2);
-        assert_eq!(env.transport.host_event_count(), 2);
-        assert_eq!(env.transport.client_broadcast_event_count(), 1);
-
-        // Step 8: Test event clearing
-        env.transport.clear_events();
-        assert!(
-            !env.transport.has_narrative_events(),
-            "Events should be cleared"
-        );
-        assert!(
-            !env.transport.has_client_events(),
-            "Events should be cleared"
-        );
-        assert!(!env.transport.has_host_events(), "Events should be cleared");
-        assert!(
-            !env.transport.has_client_broadcast_events(),
-            "Events should be cleared"
-        );
-    }
-
-    #[test]
     fn test_login_command_flow() {
         let env = setup_test_environment();
 
@@ -2401,6 +2148,20 @@ mod tests {
 
         let auth_token = login_wizard(&env, client_id, &client_token);
 
+        let create_property = mk_eval_msg(
+            &client_token,
+            &auth_token,
+            "add_property(#0, \"rpc_introspection_fixture\", 42, {player, \"rwc\"});".to_string(),
+        );
+        env.transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                create_property,
+            )
+            .expect("Fixture property creation should complete");
+
         // Test verb introspection
         let verbs_message = mk_verbs_msg(
             &auth_token,
@@ -2415,14 +2176,11 @@ mod tests {
             verbs_message,
         );
 
-        let verbs_processed = matches!(
-            verbs_result,
-            Ok(_) | Err(moor_runtime_api::RpcMessageError::EntityRetrievalError(_))
-        );
-        assert!(
-            verbs_processed,
-            "Verbs request should be processed (success or graceful failure): {verbs_result:?}"
-        );
+        let verbs_reply = verbs_result.expect("Wizard should retrieve system verbs");
+        let moor_rpc::DaemonToClientReplyUnion::VerbsReply(verbs) = verbs_reply.reply else {
+            panic!("Expected VerbsReply: {:?}", verbs_reply.reply);
+        };
+        assert!(!verbs.verbs.is_empty(), "System object should have verbs");
 
         // Test property introspection
         let props_message = mk_properties_msg(
@@ -2438,13 +2196,17 @@ mod tests {
             props_message,
         );
 
-        let props_processed = matches!(
-            props_result,
-            Ok(_) | Err(moor_runtime_api::RpcMessageError::EntityRetrievalError(_))
-        );
+        let props_reply = props_result.expect("Wizard should retrieve system properties");
+        let moor_rpc::DaemonToClientReplyUnion::PropertiesReply(properties) = props_reply.reply
+        else {
+            panic!("Expected PropertiesReply: {:?}", props_reply.reply);
+        };
         assert!(
-            props_processed,
-            "Properties request should be processed (success or graceful failure): {props_result:?}"
+            properties
+                .properties
+                .iter()
+                .any(|property| property.name.value == "rpc_introspection_fixture"),
+            "System object should expose the fixture property"
         );
     }
 
@@ -2487,126 +2249,106 @@ mod tests {
     #[test]
     fn test_request_input_round_trip() {
         let env = setup_test_environment();
-
-        // Step 1: Establish a client connection
         let client_id = Uuid::new_v4();
-        let (client_token, _connection_obj) =
-            establish_connection(&env, client_id, "127.0.0.1:12345", 12345);
-
-        // Step 1.5: Login as wizard to get auth token
-        let auth_token = login_wizard(&env, client_id, &client_token);
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+        program_verb(
+            &env,
+            client_id,
+            &client_token,
+            &auth_token,
+            player,
+            "read_round_trip",
+            "notify(player, read());",
+        );
         env.transport.clear_client_events();
+        let old_event_count = env.transport.narrative_event_count();
 
-        // Step 2: Simulate the daemon sending a RequestInput event to the client
-        let request_id = Uuid::new_v4();
+        let invoke = mk_invoke_verb_msg(
+            &client_token,
+            &auth_token,
+            &ObjectRef::Id(player),
+            &Symbol::mk("read_round_trip"),
+            vec![],
+        )
+        .expect("Failed to build invocation");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                invoke,
+            )
+            .expect("Read task should be submitted");
+        assert!(matches!(
+            reply.reply,
+            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
+        ));
 
-        let request_input_event = ClientEvent::RequestInput {
-            request_id,
-            metadata: Vec::new(),
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let request_id = loop {
+            let requests: Vec<_> = env
+                .transport
+                .get_client_events()
+                .into_iter()
+                .filter_map(|(recipient, event)| match event {
+                    ClientEvent::RequestInput { request_id, .. } if recipient == client_id => {
+                        Some(request_id)
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert!(requests.len() <= 1, "Unexpected multiple input requests");
+            if let Some(request_id) = requests.first() {
+                break *request_id;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "No input request emitted"
+            );
+            std::thread::sleep(Duration::from_millis(10));
         };
 
-        env.transport
-            .capture_client_event(client_id, request_input_event);
-
-        // Step 3: Simulate client responding with RequestedInput message
-        let input_response = "user typed response".to_string();
-        let response_message = mk_requested_input_msg(
+        let input = "user typed response";
+        let response = mk_requested_input_msg(
             &client_token,
             &auth_token,
             request_id,
-            &moor_var::v_str(&input_response),
+            &moor_var::v_str(input),
         )
-        .expect("Failed to create requested_input message");
+        .expect("Failed to create input response");
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                client_id,
+                response,
+            )
+            .expect("Input response should be accepted");
+        assert!(matches!(
+            reply.reply,
+            moor_rpc::DaemonToClientReplyUnion::InputThanks(_)
+        ));
 
-        let response_result = env.transport.process_client_message(
-            env.message_handler.as_ref(),
-            env.scheduler_client.clone(),
-            client_id,
-            response_message,
-        );
-
-        // Step 4: Verify the response was processed
-        // With a real scheduler, this may succeed with InputThanks or fail with InternalError
-        // if there is no pending read() request
-        let input_processed = matches!(
-            &response_result,
-            Ok(reply) if matches!(reply.reply, moor_rpc::DaemonToClientReplyUnion::InputThanks(_))
-        ) || matches!(
-            &response_result,
-            Err(moor_runtime_api::RpcMessageError::InternalError(_))
-        );
-        assert!(
-            input_processed,
-            "Input response should be processed or fail gracefully: {response_result:?}"
-        );
-
-        // Step 5: Verify the transport captured the events correctly
-        let client_events = env.transport.get_client_events();
-        let request_event_found = client_events.iter().any(|(captured_client_id, event)| {
-            *captured_client_id == client_id
-                && matches!(
-                    event,
-                    ClientEvent::RequestInput {
-                        request_id: captured_request_id,
-                        ..
-                    } if *captured_request_id == request_id
-                )
-        });
-        assert!(
-            request_event_found,
-            "Should have captured the request-input event for this client and request"
-        );
-
-        // Step 6: Verify replies were captured
-        let client_replies = env.transport.get_client_replies();
-        // We expect at least: NewConnection, welcome LoginResult, login LoginResult, RequestedInput reply
-        assert!(
-            client_replies.len() >= 3,
-            "Should have at least 3 client replies"
-        );
-
-        // Find the input response reply
-        let input_reply_found = client_replies.iter().any(|(_, msg_bytes, reply)| {
-            if let Ok(msg_ref) = moor_rpc::HostClientToDaemonMessageRef::read_as_root(msg_bytes)
-                && let Ok(moor_rpc::HostClientToDaemonMessageUnionRef::RequestedInput(req)) = msg_ref.message()
-                    && let Ok(request_id_data) = req.request_id()
-                        && let Ok(data_vec) = request_id_data.data()
-                            && let Ok(captured_id) = Uuid::from_slice(data_vec) {
-                                return captured_id == request_id && (matches!(reply, Ok(r) if matches!(r.reply, moor_rpc::DaemonToClientReplyUnion::InputThanks(_))) || reply.is_err());
-                            }
-            false
-        });
-        assert!(input_reply_found, "Should have found input response reply");
-
-        // Step 7: Verify request ID consistency
-        let mut request_ids_seen = std::collections::HashSet::new();
-
-        for (_, event) in &client_events {
-            if let ClientEvent::RequestInput { request_id, .. } = event {
-                request_ids_seen.insert(*request_id);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let events = env.transport.get_narrative_events();
+            if events[old_event_count..].iter().any(|(recipient, event)| {
+                *recipient == player
+                    && matches!(
+                        event.event(),
+                        moor_common::tasks::Event::Notify { value, .. }
+                            if value.as_string().is_some_and(|text| text == input)
+                    )
+            }) {
+                break;
             }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "Read task did not notify the input"
+            );
+            std::thread::sleep(Duration::from_millis(10));
         }
-
-        for (_, msg_bytes, _) in &client_replies {
-            if let Ok(msg_ref) = moor_rpc::HostClientToDaemonMessageRef::read_as_root(msg_bytes)
-                && let Ok(moor_rpc::HostClientToDaemonMessageUnionRef::RequestedInput(req)) =
-                    msg_ref.message()
-                && let Ok(request_id_data) = req.request_id()
-                && let Ok(data_vec) = request_id_data.data()
-                && let Ok(id) = Uuid::from_slice(data_vec)
-            {
-                request_ids_seen.insert(id);
-            }
-        }
-
-        assert_eq!(
-            request_ids_seen.len(),
-            1,
-            "Should have exactly one unique request ID"
-        );
-        assert!(
-            request_ids_seen.contains(&request_id),
-            "Should contain our test request ID"
-        );
     }
 }

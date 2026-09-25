@@ -1900,9 +1900,6 @@ mod tests {
         // Empty string after s
         assert!(perform_pcre_replace("hello", "s").is_err());
 
-        // Just 's'
-        assert!(perform_pcre_replace("hello", "s").is_err());
-
         // Wrong first character
         assert!(perform_pcre_replace("hello", "r/foo/bar/").is_err());
 

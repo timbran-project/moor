@@ -577,11 +577,19 @@ mod tests {
 
     #[tokio::test]
     async fn escape_is_rejected() {
-        let (_dir, sandbox) = setup();
+        let outer = tempfile::tempdir().unwrap();
+        let sandbox_root = outer.path().join("sandbox");
+        std::fs::create_dir(&sandbox_root).unwrap();
+        let outside = outer.path().join("outside.txt");
+        std::fs::write(&outside, b"outside secret").unwrap();
+        assert_eq!(std::fs::read(&outside).unwrap(), b"outside secret");
+        let sandbox = Arc::new(Sandbox::new(&sandbox_root).unwrap());
+
+        let error = run(&sandbox, vec![v_str("read"), v_str("../outside.txt")])
+            .await
+            .unwrap_err();
         assert!(
-            run(&sandbox, vec![v_str("read"), v_str("../etc/passwd")])
-                .await
-                .is_err()
+            matches!(error, WorkerError::RequestError(message) if message.contains("path escapes the sandbox root"))
         );
     }
 }

@@ -373,8 +373,10 @@ def run(daemon, host, core):
 
                 # Local delivery retains both gagging and anti-spoofing.
                 wizard.command(';; #101.gaglist = {#101}; notify(player, "WIRE_GAG_SET");', "WIRE_GAG_SET")
-                reconnected.command("wire-current", "WIRE_CURRENT_DONE")
-                reconnected.command("wire-world", "WIRE_WORLD_DONE")
+                gagged_output = reconnected.command("wire-current", "WIRE_CURRENT_DONE")
+                gagged_output += reconnected.command("wire-world", "WIRE_WORLD_DONE")
+                for forbidden in ("WIRE_CURRENT_ONLY", "WIRE_WORLD_ALL"):
+                    assert forbidden not in gagged_output, gagged_output
                 barrier(forbidden_a=("WIRE_CURRENT_ONLY", "WIRE_WORLD_ALL"),
                         forbidden_b=("WIRE_CURRENT_ONLY", "WIRE_WORLD_ALL"))
                 wizard.command(';; #101.gaglist = {}; #101.paranoid = 1; '

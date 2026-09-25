@@ -380,11 +380,9 @@ mod tests {
             VerbLookup::command(&target, Symbol::mk("look"), argspec),
         )?;
 
-        if let Some(verbdef) = verb_result {
-            // Should still be original owner (#1) and executable, not changed to #0 and non-executable
-            assert_eq!(verbdef.owner(), Obj::mk_id(1));
-            assert!(verbdef.flags().contains(VerbFlag::Exec));
-        }
+        let verbdef = verb_result.expect("look verb should remain in Skip mode");
+        assert_eq!(verbdef.owner(), Obj::mk_id(1));
+        assert!(verbdef.flags().contains(VerbFlag::Exec));
 
         Ok(())
     }
@@ -618,11 +616,9 @@ mod tests {
             VerbLookup::command(&target, Symbol::mk("look"), argspec),
         )?;
 
-        if let Some(verbdef) = verb_result {
-            // Should be changed to new owner (#0) and non-executable (flags "rw")
-            assert_eq!(verbdef.owner(), SYSTEM_OBJECT);
-            assert!(!verbdef.flags().contains(VerbFlag::Exec));
-        }
+        let verbdef = verb_result.expect("look verb should remain after clobber");
+        assert_eq!(verbdef.owner(), SYSTEM_OBJECT);
+        assert!(!verbdef.flags().contains(VerbFlag::Exec));
 
         Ok(())
     }

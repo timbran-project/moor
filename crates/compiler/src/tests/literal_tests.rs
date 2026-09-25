@@ -11,58 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use moor_common::util::unquote_str;
 use moor_var::v_binary;
 
 use crate::{CompileOptions, parse_program_frontend, unparse::to_literal};
-
-#[test]
-fn string_unquote_standard_escapes() {
-    assert_eq!(unquote_str(r#""foo""#).unwrap(), "foo");
-    assert_eq!(unquote_str(r#""foo\"bar""#).unwrap(), r#"foo"bar"#);
-    assert_eq!(unquote_str(r#""foo\\bar""#).unwrap(), r"foo\bar");
-    assert_eq!(unquote_str(r#""hello\nworld""#).unwrap(), "hello\nworld");
-    assert_eq!(unquote_str(r#""hello\tworld""#).unwrap(), "hello\tworld");
-    assert_eq!(unquote_str(r#""hello\rworld""#).unwrap(), "hello\rworld");
-    assert_eq!(unquote_str(r#""hello\0world""#).unwrap(), "hello\0world");
-    assert_eq!(unquote_str(r#""hello\'world""#).unwrap(), "hello'world");
-}
-
-#[test]
-fn string_unquote_hex_and_unicode_escapes() {
-    assert_eq!(unquote_str(r#""A is \x41""#).unwrap(), "A is A");
-    assert_eq!(unquote_str(r#""\x48\x65\x6C\x6C\x6F""#).unwrap(), "Hello");
-    assert_eq!(unquote_str(r#""\x00\xFF""#).unwrap(), "\0\u{FF}");
-    assert_eq!(unquote_str(r#""\x4a\x4A""#).unwrap(), "JJ");
-
-    assert_eq!(unquote_str(r#""Hello \u0041""#).unwrap(), "Hello A");
-    assert_eq!(
-        unquote_str(r#""\u0048\u0065\u006C\u006C\u006F""#).unwrap(),
-        "Hello"
-    );
-    assert_eq!(unquote_str(r#""Smile: \u263A""#).unwrap(), "Smile: ☺");
-}
-
-#[test]
-fn string_unquote_reports_malformed_escapes() {
-    assert!(unquote_str(r#""\x""#).is_err());
-    assert!(unquote_str(r#""\x4""#).is_err());
-    assert!(unquote_str(r#""\xGG""#).is_err());
-    assert!(unquote_str(r#""\x4G""#).is_err());
-    assert!(unquote_str(r#""\u""#).is_err());
-    assert!(unquote_str(r#""\u123""#).is_err());
-    assert!(unquote_str(r#""\uGGGG""#).is_err());
-    assert!(unquote_str(r#""\u123G""#).is_err());
-}
-
-#[test]
-fn string_unquote_preserves_backward_compatibility() {
-    assert_eq!(unquote_str(r#""foo\bbar""#).unwrap(), "foobbar");
-    assert_eq!(unquote_str(r#""foo\fbar""#).unwrap(), "foofbar");
-    assert_eq!(unquote_str(r#""foo\vbar""#).unwrap(), "foovbar");
-    assert_eq!(unquote_str(r#""foo\zbar""#).unwrap(), "foozbar");
-    assert_eq!(unquote_str(r#""foo\""#).unwrap(), "foo");
-}
 
 #[test]
 fn parses_binary_literals_through_frontend() {

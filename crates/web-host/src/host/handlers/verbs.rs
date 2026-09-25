@@ -367,11 +367,16 @@ mod tests {
         let moor_rpc::InvocationOutcome::InvocationSuccess(success) = encoded.outcome else {
             panic!("Expected a success response");
         };
+        assert_eq!(var_from_flatbuffer(*success.result).unwrap(), v_int(7));
         assert_eq!(encoded.output.len(), 1);
-        assert!(matches!(
-            success.result.variant,
-            moor_var_schema::VarUnion::VarInt(_)
-        ));
+        let moor_schema::common::EventUnion::NotifyEvent(notify) = &encoded.output[0].event.event
+        else {
+            panic!("Expected a notification");
+        };
+        assert_eq!(
+            var_from_flatbuffer(*notify.value.clone()).unwrap(),
+            v_str("said something")
+        );
     }
 
     #[test]
@@ -393,11 +398,22 @@ mod tests {
         };
 
         let encoded = invocation_response(reply).expect("Should encode the response");
+        let moor_rpc::InvocationOutcome::InvocationError(error) = encoded.outcome else {
+            panic!("Expected an invocation error");
+        };
         assert!(matches!(
-            encoded.outcome,
-            moor_rpc::InvocationOutcome::InvocationError(_)
+            error.error.error,
+            moor_rpc::SchedulerErrorUnion::TaskAbortedCancelled(_)
         ));
         assert_eq!(encoded.output.len(), 1);
+        let moor_schema::common::EventUnion::NotifyEvent(notify) = &encoded.output[0].event.event
+        else {
+            panic!("Expected a notification");
+        };
+        assert_eq!(
+            var_from_flatbuffer(*notify.value.clone()).unwrap(),
+            v_str("before failure")
+        );
     }
 
     #[test]

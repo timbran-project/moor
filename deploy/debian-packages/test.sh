@@ -211,13 +211,12 @@ if [ -n "$CONTAINER_IP" ]; then
     log_info "Container IP: $CONTAINER_IP"
     if timeout 5 bash -c "echo quit | telnet $CONTAINER_IP 7777" 2>&1 | grep -q "Connected"; then
         log_info "✓ Telnet accessible from host"
-        TELNET_VERIFIED=true
     else
         log_warn "Could not connect to telnet from host (may need network configuration)"
     fi
 fi
 
-# If host connection failed or no IP, test via exec
+# Verify MOO login inside the container, independently of the host TCP probe.
 if [ "$TELNET_VERIFIED" = false ]; then
     log_info "Testing telnet via exec inside container..."
     TEST_OUTPUT=$(incus exec "$CONTAINER_NAME" -- timeout 10 bash -c '
@@ -225,13 +224,13 @@ if [ "$TELNET_VERIFIED" = false ]; then
             sleep 2
             echo "connect wizard"
             sleep 3
-            echo "@who"
+            echo "; notify(player, \"DEPLOY_LOGIN_\" + \"OK\");"
             sleep 2
             echo "@quit"
             sleep 1
         } | telnet localhost 7777 2>&1' || true)
 
-    if echo "$TEST_OUTPUT" | grep -qE "Connected|Welcome|The First Room|Wizard"; then
+    if echo "$TEST_OUTPUT" | grep -qF "DEPLOY_LOGIN_OK"; then
         log_info "✓ Telnet connection test passed - MOO core is loaded"
         TELNET_VERIFIED=true
     else

@@ -72,20 +72,3 @@ pub fn signal_fatal_db_error(operation: &str, error_details: &str) -> bool {
 pub fn is_fatal_db_error_reported() -> bool {
     FATAL_DB_ERROR_REPORTED.load(Ordering::SeqCst)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Note: We can't easily test the SIGTERM behavior in unit tests,
-    // but we can test the atomic flag behavior
-    #[test]
-    fn test_fatal_error_reported_flag() {
-        // Reset for test (this is a bit hacky but ok for tests)
-        FATAL_DB_ERROR_REPORTED.store(false, Ordering::SeqCst);
-
-        assert!(!is_fatal_db_error_reported());
-
-        // Note: We don't call signal_fatal_db_error in tests because it sends SIGUSR1
-    }
-}

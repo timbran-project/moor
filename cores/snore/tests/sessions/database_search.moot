@@ -29,3 +29,7 @@ E_PERM
 "Total: 2 verbs."
 ; $code_utils:find_verb_lines_matching("UuidNeedleZZ", toint(max_object()) + 1); return player.test_search_output[$];
 "Total: 2 verbs."
+
+// Numeric audit bounds must not exclude UUID-owned objects.
+; #2.test_search_output = {}; $building_utils:do_audit(player, 0, toint(max_object()), ""); return ($building_utils:object_audit_string(#2.uuid_readable, false) in #2.test_search_output) > 0;
+true

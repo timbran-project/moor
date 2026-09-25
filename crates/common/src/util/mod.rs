@@ -580,12 +580,6 @@ mod tests {
     }
 
     #[test]
-    fn test_verb_match_basic_wildcard() {
-        // First test the basic case that should work
-        assert!(verbcasecmp("ps*c", "psc"), "ps*c should match psc");
-    }
-
-    #[test]
     fn test_verb_match_regressions() {
         // Regression test for pronoun verb patterns like "ps*c po*c pr*c pp*c pq*c"
         // These should match pronoun verbs like "psc", "Psc", "PSC", etc.

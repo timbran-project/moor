@@ -57,6 +57,7 @@ void main() {
         );
         await tester.pump();
 
+        expect(find.text('mooR'), findsOneWidget);
         expect(find.byTooltip('Reload welcome'), findsOneWidget);
         expect(find.text('Sign In'), findsWidgets);
         expect(find.text('Create Account'), findsOneWidget);
@@ -283,13 +284,13 @@ void main() {
           'Room HUD',
           'Timestamps',
           'Monospace output',
+          'Echo commands',
           'Verb palette',
-          'Light',
-          'Dark',
         ]) {
-          expect(find.text(label), findsOneWidget);
+          expect(find.widgetWithText(SwitchListTile, label), findsOneWidget);
         }
-        expect(find.byType(SwitchListTile), findsNWidgets(4));
+        expect(find.text('Light'), findsOneWidget);
+        expect(find.text('Dark'), findsOneWidget);
       } finally {
         handle.dispose();
       }

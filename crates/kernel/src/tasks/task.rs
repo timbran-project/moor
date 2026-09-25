@@ -2693,6 +2693,29 @@ mod tests {
             WorldStateResult::SystemProperty(v) => assert_eq!(*v, v_str("modified")),
             other => panic!("Expected SystemProperty, got {other:?}"),
         }
+        drop(sink);
+
+        let actions = vec![WorldStateAction::RequestSystemProperty {
+            player: SYSTEM_OBJECT,
+            obj: ObjectRef::Id(SYSTEM_OBJECT),
+            property: Symbol::mk("name"),
+        }];
+        let (handle, result_sink) = client
+            .submit_batch_world_state_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                actions,
+                false,
+                Arc::new(NoopClientSession::new()),
+            )
+            .unwrap();
+        wait_result(&handle).unwrap();
+        let sink = result_sink.lock().unwrap();
+        let results = sink.as_ref().unwrap().as_ref().unwrap();
+        assert!(matches!(
+            results.as_slice(),
+            [WorldStateResult::SystemProperty(value)] if *value == v_str("system")
+        ));
     }
 
     #[test]

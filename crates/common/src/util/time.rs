@@ -88,11 +88,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn timestamp_duration_since_is_non_negative() {
-        let t0 = Timestamp::now();
-        let t1 = Timestamp::now();
-        let delta = t1.duration_since(t0);
-        assert!(delta <= Duration::from_millis(5));
+    fn timestamp_duration_since_matches_instant_arithmetic() {
+        let start = Instant::now();
+        let duration = Duration::from_millis(10);
+        assert_eq!(
+            Timestamp(start + duration).duration_since(Timestamp(start)),
+            duration
+        );
     }
 
     #[test]

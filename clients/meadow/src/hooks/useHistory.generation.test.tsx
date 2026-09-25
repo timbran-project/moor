@@ -45,25 +45,32 @@ describe("useHistory request generations", () => {
 
     it("does not commit pagination state from a stale request", async () => {
         const request = deferred<Array<{ event_id: string; timestamp: number; narrative_event: unknown }>>();
-        vi.mocked(fetchHistoryFlatBuffer).mockReturnValue(request.promise);
+        vi.mocked(fetchHistoryFlatBuffer)
+            .mockResolvedValueOnce([{ event_id: "current-cursor", timestamp: 2, narrative_event: {} }])
+            .mockReturnValueOnce(request.promise)
+            .mockResolvedValueOnce([]);
 
         const { result } = renderHook(() => useHistory("history-token", "age-key"));
+        await act(async () => {
+            await result.current.fetchInitialHistory(() => true);
+        });
         let current = true;
-        let initialRequest!: ReturnType<typeof result.current.fetchInitialHistory>;
+        let staleRequest!: ReturnType<typeof result.current.fetchMoreHistory>;
 
         act(() => {
-            initialRequest = result.current.fetchInitialHistory(() => current);
+            staleRequest = result.current.fetchMoreHistory(() => current);
         });
         expect(result.current.isLoadingHistory).toBe(true);
+        expect(vi.mocked(fetchHistoryFlatBuffer).mock.calls[1][4]).toBe("current-cursor");
 
         current = false;
         request.resolve([{ event_id: "old-event", timestamp: 1, narrative_event: {} }]);
 
         await act(async () => {
-            expect(await initialRequest).toBeNull();
+            expect(await staleRequest).toBeNull();
         });
 
-        act(() => result.current.resetHistoryRequestState(true));
+        act(() => result.current.resetHistoryRequestState());
         expect(result.current.isLoadingHistory).toBe(false);
 
         let nextPage;
@@ -72,6 +79,7 @@ describe("useHistory request generations", () => {
         });
 
         expect(nextPage).toEqual({ messages: [], presentationActions: [] });
-        expect(fetchHistoryFlatBuffer).toHaveBeenCalledTimes(1);
+        expect(fetchHistoryFlatBuffer).toHaveBeenCalledTimes(3);
+        expect(vi.mocked(fetchHistoryFlatBuffer).mock.calls[2][4]).toBe("current-cursor");
     });
 });

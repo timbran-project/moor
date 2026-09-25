@@ -884,7 +884,7 @@ mod tests {
         // Should find second fuzzy match (with fuzzy enabled)
         let result = complex_match_strings_with_fuzzy_threshold("second lmop", &strings, 0.5);
         // "lmop" should fuzzy match multiple items, so "second" should pick the second one
-        assert!(matches!(result, ComplexMatchResult::Single(_)));
+        assert_eq!(result, ComplexMatchResult::Single(v_str("lump")));
     }
 
     #[test]
@@ -1123,17 +1123,6 @@ mod tests {
         // Same for all_tiers
         let result = complex_match_strings_all_tiers("all", &strings, 0.0);
         assert_eq!(result, vec![v_str("allover")]);
-    }
-
-    #[test]
-    fn test_star_dot_prefix() {
-        // "*.foo" should behave same as "all foo"
-        let strings = vec![v_str("foo"), v_str("foobar"), v_str("bofooer")];
-        let result = complex_match_strings_all_tiers("foo", &strings, 0.0);
-        assert_eq!(
-            result,
-            vec![v_str("foo"), v_str("foobar"), v_str("bofooer")]
-        );
     }
 
     #[test]

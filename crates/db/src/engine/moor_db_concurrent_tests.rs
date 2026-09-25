@@ -749,18 +749,11 @@ mod tests {
                                     // Simulate some work
                                     thread::yield_now();
 
-                                    // Start another transaction in parallel to check consistency.
-                                    // Note: We do NOT check that concurrent_value >= initial_value.
-                                    // Under SI (Snapshot Isolation), we guarantee that each transaction
-                                    // sees a consistent snapshot, but NOT that transactions see each
-                                    // other's uncommitted or even recently committed changes in real-time
-                                    // order (linearizability). A concurrent transaction may see an older
-                                    // snapshot than our initial read. This is expected behavior for SI
-                                    // and does not indicate a bug.
+                                    // A second transaction can observe a newer snapshot.
                                     let tx2 = db.start_transaction();
                                     let ws2 = DbWorldState { tx: tx2 };
 
-                                    let _concurrent_value = ws2
+                                    let concurrent_value = ws2
                                         .retrieve_property(
                                             &permissions(SYSTEM_OBJECT),
                                             &obj,
@@ -769,6 +762,17 @@ mod tests {
                                         .unwrap()
                                         .as_integer()
                                         .unwrap();
+                                    assert!(concurrent_value >= 100);
+                                    let repeated_value = ws1
+                                        .retrieve_property(
+                                            &permissions(SYSTEM_OBJECT),
+                                            &obj,
+                                            prop_name,
+                                        )
+                                        .unwrap()
+                                        .as_integer()
+                                        .unwrap();
+                                    assert_eq!(repeated_value, initial_value);
 
                                     // Try to update based on initial value
                                     let new_value = initial_value + thread_id as i64;
@@ -793,9 +797,7 @@ mod tests {
                                             // Expected - retry
                                             continue;
                                         }
-                                        Err(_) => {
-                                            continue;
-                                        }
+                                        Err(error) => panic!("Unexpected commit error: {error:?}"),
                                     }
                                 }
                             }
@@ -815,7 +817,7 @@ mod tests {
                 let final_value = ws
                     .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, prop_name)
                     .unwrap();
-                assert!(final_value.as_integer().unwrap() >= 100); // At least the initial value
+                assert_eq!(final_value, v_int(190));
             },
             10,
         );

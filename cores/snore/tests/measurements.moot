@@ -1,0 +1,6 @@
+// Explicit measurement workloads; timings are reported, not correctness thresholds.
+@wizard
+; return #100:measure_storage();
+true
+; return #100:measure_interaction();
+true

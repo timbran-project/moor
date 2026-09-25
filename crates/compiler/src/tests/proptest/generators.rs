@@ -1267,15 +1267,6 @@ mod tests {
     use proptest::test_runner::TestRunner;
 
     #[test]
-    fn test_literal_generates() {
-        let mut runner = TestRunner::default();
-        let strategy = arb_literal();
-        for _ in 0..50 {
-            let _ = strategy.new_tree(&mut runner).unwrap().current();
-        }
-    }
-
-    #[test]
     fn test_identifier_string_valid() {
         let mut runner = TestRunner::default();
         let strategy = arb_identifier_string();
@@ -1308,43 +1299,6 @@ mod tests {
     }
 
     #[test]
-    fn test_expr_layer2_generates_identifiers() {
-        let mut runner = TestRunner::default();
-        let strategy = arb_expr_layer2(0);
-        let mut found_id = false;
-        for _ in 0..100 {
-            let expr = strategy.new_tree(&mut runner).unwrap().current();
-            if matches!(expr, Expr::Id(_)) {
-                found_id = true;
-                break;
-            }
-        }
-        assert!(found_id, "Layer 2 at depth 0 should generate identifiers");
-    }
-
-    #[test]
-    fn test_expr_layer2_generates_lists_and_maps() {
-        let mut runner = TestRunner::default();
-        let strategy = arb_expr_layer2(2);
-        let mut found_list = false;
-        let mut found_map = false;
-        for _ in 0..200 {
-            let expr = strategy.new_tree(&mut runner).unwrap().current();
-            if matches!(expr, Expr::List(_)) {
-                found_list = true;
-            }
-            if matches!(expr, Expr::Map(_)) {
-                found_map = true;
-            }
-            if found_list && found_map {
-                break;
-            }
-        }
-        assert!(found_list, "Layer 2 should generate lists");
-        assert!(found_map, "Layer 2 should generate maps");
-    }
-
-    #[test]
     fn test_scope_with_decls_generates_unique_bindings() {
         let mut runner = TestRunner::default();
         let strategy = arb_stmt_scope_with_decls(arb_expr_layer2_complete(1), 3, 2);
@@ -1370,35 +1324,5 @@ mod tests {
                 "duplicate declaration names: {names:?}"
             );
         }
-    }
-
-    #[test]
-    fn test_expr_layer2b_generates_index_and_cond() {
-        let mut runner = TestRunner::default();
-        let strategy = arb_expr_layer2b(2);
-        let mut found_index = false;
-        let mut found_range = false;
-        let mut found_cond = false;
-        for _ in 0..300 {
-            let expr = strategy.new_tree(&mut runner).unwrap().current();
-            if matches!(expr, Expr::Index(_, _)) {
-                found_index = true;
-            }
-            if matches!(expr, Expr::Range { .. }) {
-                found_range = true;
-            }
-            if matches!(expr, Expr::Cond { .. }) {
-                found_cond = true;
-            }
-            if found_index && found_range && found_cond {
-                break;
-            }
-        }
-        assert!(found_index, "Layer 2b should generate index expressions");
-        assert!(found_range, "Layer 2b should generate range expressions");
-        assert!(
-            found_cond,
-            "Layer 2b should generate conditional expressions"
-        );
     }
 }

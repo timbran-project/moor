@@ -1076,24 +1076,6 @@ mod tests {
     use moor_var::{ErrorCode::*, Symbol, VarType::*};
 
     #[test]
-    fn test_simple_opcodes() {
-        let ops = vec![Op::Add, Op::Sub, Op::Mul, Op::Div, Op::Return];
-
-        let mut stream = OpStream::new();
-        for op in &ops {
-            stream.encode(op);
-        }
-
-        let mut pc = 0;
-        let mut decoded = Vec::new();
-        while pc < stream.len() {
-            decoded.push(stream.decode_at(&mut pc).unwrap());
-        }
-
-        assert_eq!(ops, decoded);
-    }
-
-    #[test]
     fn test_non_real_float_rejected() {
         // A corrupt program stream can name any f64 bit pattern.
         let ops = vec![Op::ImmFloat(f64::NAN), Op::Return];

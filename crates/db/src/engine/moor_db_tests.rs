@@ -787,7 +787,7 @@ mod tests {
             )
             .unwrap();
 
-        let _location1 = tx
+        let location1 = tx
             .create_object(
                 ObjectKind::NextObjid,
                 ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "loc1"),
@@ -801,19 +801,23 @@ mod tests {
             assert!(map.is_empty());
         }
 
-        // Move object to location1 - this should trigger last_move update
-        tx.set_last_move(&obj, NOTHING).unwrap();
+        tx.set_last_move(&obj, location1).unwrap();
 
         // Check that last_move is updated
         let last_move = tx.get_last_move(&obj).unwrap();
-        assert!(matches!(last_move.variant(), Variant::Map(_)));
+        let map = last_move.as_map().unwrap();
+        assert_eq!(map.get(&v_str("source")).unwrap(), Var::from(location1));
+        assert!(map.get(&v_str("time")).unwrap().as_integer().is_some());
 
         assert!(matches!(tx.commit(), Ok(CommitResult::Success { .. })));
 
         // Test persistence across transactions
         let tx = db.start_transaction();
         let last_move = tx.get_last_move(&obj).unwrap();
-        assert!(matches!(last_move.variant(), Variant::Map(_)));
+        assert_eq!(
+            last_move.as_map().unwrap().get(&v_str("source")).unwrap(),
+            Var::from(location1)
+        );
     }
 
     #[test]
@@ -845,7 +849,7 @@ mod tests {
         let last_move = ws
             .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
-        assert!(matches!(last_move.variant(), Variant::Map(_)));
+        assert!(last_move.as_map().unwrap().is_empty());
 
         // Move the object
         ws.move_object(&permissions(SYSTEM_OBJECT), &obj, &location)
@@ -855,7 +859,20 @@ mod tests {
         let last_move = ws
             .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
-        assert!(matches!(last_move.variant(), Variant::Map(_)));
+        assert_eq!(
+            last_move.as_map().unwrap().get(&v_str("source")).unwrap(),
+            Var::from(NOTHING)
+        );
+
+        ws.move_object(&permissions(SYSTEM_OBJECT), &obj, &NOTHING)
+            .unwrap();
+        let last_move = ws
+            .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
+            .unwrap();
+        assert_eq!(
+            last_move.as_map().unwrap().get(&v_str("source")).unwrap(),
+            Var::from(location)
+        );
 
         // Commit and test in new transaction
         let result = Box::new(ws).commit().unwrap();
@@ -866,7 +883,10 @@ mod tests {
         let last_move = ws
             .retrieve_property(&permissions(SYSTEM_OBJECT), &obj, Symbol::mk("last_move"))
             .unwrap();
-        assert!(matches!(last_move.variant(), Variant::Map(_)));
+        assert_eq!(
+            last_move.as_map().unwrap().get(&v_str("source")).unwrap(),
+            Var::from(location)
+        );
     }
 
     #[test]

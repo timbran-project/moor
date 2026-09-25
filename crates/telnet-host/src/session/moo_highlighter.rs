@@ -312,110 +312,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_highlight_basic_moo() {
+    fn highlights_token_classes_without_changing_source() {
         colored::control::set_override(true);
-        let code = r#"set_task_perms(caller_perms());
-return $look:mk(this, @this.contents);"#;
-
-        let highlighted = highlight_moo(code);
-
-        // Should contain ANSI escape sequences
-        assert!(highlighted.contains("\x1b["));
-        // Should still contain the original code text
-        assert!(highlighted.contains("set_task_perms"));
-        assert!(highlighted.contains("caller_perms"));
-        assert!(highlighted.contains("return"));
+        let cases = [
+            (
+                "return x;",
+                "return".bold().color(Color::Magenta).to_string(),
+            ),
+            (
+                r#"x = "hello";"#,
+                "\"hello\"".color(Color::Green).to_string(),
+            ),
+            ("#0.name", "#0".color(Color::Cyan).to_string()),
+            ("raise(E_PERM);", "E_PERM".color(Color::Red).to_string()),
+            (
+                "$string_utils:capitalize(s);",
+                "$string_utils".color(Color::BrightYellow).to_string(),
+            ),
+            ("x = 'foo;", "'foo".color(Color::Blue).to_string()),
+            ("typeof(x) == INT", "INT".color(Color::Cyan).to_string()),
+            ("// comment", "// comment".dimmed().to_string()),
+        ];
+        let ansi = regex::Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+        for (source, styled_token) in cases {
+            let output = highlight_moo(source);
+            assert_eq!(ansi.replace_all(&output, ""), source);
+            assert!(
+                output.contains(&styled_token),
+                "missing style for {source:?}: {output:?}"
+            );
+        }
     }
 
     #[test]
-    fn test_highlight_keywords() {
+    fn block_comment_stays_dimmed_across_lines() {
         colored::control::set_override(true);
-        let code = "if (x > 0)\n  return x;\nendif";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("if"));
-        assert!(highlighted.contains("return"));
-        assert!(highlighted.contains("endif"));
-    }
-
-    #[test]
-    fn test_highlight_strings() {
-        colored::control::set_override(true);
-        let code = r#"x = "hello world";"#;
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("hello world"));
-    }
-
-    #[test]
-    fn test_highlight_objects() {
-        colored::control::set_override(true);
-        let code = "#0.name = \"Root\";\nplayer = #-1;";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("#0"));
-        assert!(highlighted.contains("#-1"));
-    }
-
-    #[test]
-    fn test_highlight_comments() {
-        colored::control::set_override(true);
-        let code = "// This is a comment\nx = 5; /* inline */";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("This is a comment"));
-    }
-
-    #[test]
-    fn test_highlight_sysprop() {
-        colored::control::set_override(true);
-        let code = "$string_utils:capitalize(s);";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("$string_utils"));
-    }
-
-    #[test]
-    fn test_highlight_errors() {
-        colored::control::set_override(true);
-        let code = "raise(E_PERM);";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("E_PERM"));
-    }
-
-    #[test]
-    fn test_highlight_symbols() {
-        colored::control::set_override(true);
-        let code = "x = 'foo;";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("'foo"));
-    }
-
-    #[test]
-    fn test_highlight_type_constants() {
-        colored::control::set_override(true);
-        let code = "typeof(x) == INT";
-        let highlighted = highlight_moo(code);
-
-        assert!(highlighted.contains("\x1b["));
-        assert!(highlighted.contains("INT"));
-    }
-
-    #[test]
-    fn test_highlight_block_comment() {
-        let code = "x = 5; /* this is\na multi-line\ncomment */ y = 6;";
-        let highlighted = highlight_moo(code);
-
-        // The multi-line comment should all be styled the same
-        assert!(highlighted.contains("multi-line"));
+        let source = "x = 5; /* this is\na multi-line\ncomment */ y = 6;";
+        let output = highlight_moo(source);
+        let ansi = regex::Regex::new(r"\x1b\[[0-9;]*m").unwrap();
+        assert_eq!(ansi.replace_all(&output, ""), source);
+        for line in ["/* this is", "a multi-line", "comment */"] {
+            assert!(
+                output.contains(&line.dimmed().to_string()),
+                "comment line {line:?} lost its style: {output:?}"
+            );
+        }
     }
 }

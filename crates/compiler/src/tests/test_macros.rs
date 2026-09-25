@@ -67,25 +67,3 @@ macro_rules! assert_parse_error {
         }
     };
 }
-
-/// Assert that two pieces of code compile to the same bytecode
-#[macro_export]
-macro_rules! assert_compiles_same {
-    ($code1:expr, $code2:expr) => {
-        let result1 = $crate::compile($code1, $crate::CompileOptions::default());
-        let result2 = $crate::compile($code2, $crate::CompileOptions::default());
-        match (result1, result2) {
-            (Ok(prog1), Ok(prog2)) => {
-                assert_eq!(
-                    prog1.main_vector().to_vec(),
-                    prog2.main_vector().to_vec(),
-                    "Programs compiled differently:\nCode 1: {}\nCode 2: {}",
-                    $code1,
-                    $code2
-                );
-            }
-            (Err(e1), _) => panic!("First program failed to compile: {:?}", e1),
-            (_, Err(e2)) => panic!("Second program failed to compile: {:?}", e2),
-        }
-    };
-}

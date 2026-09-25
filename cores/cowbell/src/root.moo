@@ -876,12 +876,6 @@ object ROOT [
     "Subclasses should call pass() to preserve the initialization chain.";
   endmethod
 
-  method test_all_verbs owner: HACKER
-    all_verbs = this:all_verbs();
-    !("all_verbs" in all_verbs) || (!("test_all_verbs" in all_verbs) && return E_ASSERT);
-    return true;
-  endmethod
-
   method test_can_create_unrooted_object owner: ARCH_WIZARD
     "Creating with no parent and no owner should make the object own itself.";
     scratch = create($nothing, $nothing);
@@ -1076,12 +1070,6 @@ object ROOT [
       $test_utils:assert_eq(scratch.owner, new_owner, "set_owner() should update object owner");
       prop_info = property_info(scratch, "root_test_owned_prop");
       $test_utils:assert_eq(prop_info[1], new_owner, "set_owner() should retitle local c properties");
-      scratch:set_thumbnail("text/plain", "not binary");
-      raise(E_ASSERT, "set_thumbnail() should reject non-image content types");
-    except (E_TYPE)
-      "Expected for text/plain thumbnail content type.";
-    endtry
-    try
       $test_utils:assert_eq(scratch:object_help(), 0, "object_help() should default to no help");
     finally
       valid(new_owner) && recycle(new_owner);

@@ -2630,6 +2630,9 @@ mod tests {
             )
             .unwrap();
         let initial_uuid = initial_verbdef.uuid();
+        let (initial_program, _) = ws
+            .retrieve_verb(&system_permissions(), &Obj::mk_id(64), initial_uuid)
+            .unwrap();
 
         // Now load with verb returning "updated" in Skip mode
         let mut loader = db.loader_client().unwrap();
@@ -2677,6 +2680,13 @@ mod tests {
             final_verbdef.uuid(),
             initial_uuid,
             "Verb UUID should be unchanged in skip mode"
+        );
+        let (final_program, _) = ws
+            .retrieve_verb(&system_permissions(), &Obj::mk_id(64), final_verbdef.uuid())
+            .unwrap();
+        assert_eq!(
+            final_program, initial_program,
+            "Skip mode should preserve the verb program"
         );
     }
 

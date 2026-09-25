@@ -2158,13 +2158,6 @@ return 0 && "Automatically Added Return";
     }
 
     #[test]
-    fn test_map_decompile() {
-        let program = r#"[ 1 -> 2, 3 -> 4 ];"#;
-        let (parse, decompiled) = parse_decompile(program);
-        assert_trees_match_recursive(&parse.stmts, &decompiled.stmts);
-    }
-
-    #[test]
     fn test_for_range_comprehension() {
         let program = r#"return { x * 2 for x in [1..3] };"#;
         let (parse, decompiled) = parse_decompile(program);

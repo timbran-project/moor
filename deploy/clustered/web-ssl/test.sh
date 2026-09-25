@@ -57,33 +57,9 @@ wait_for_import "moor-daemon" 180
 # Wait for HTTP port to be available
 wait_for_port "localhost" 80 30
 
-# Test HTTP endpoint (nginx should be serving or redirecting)
-log_info "Testing HTTP endpoint..."
-# Note: Without real SSL certs, nginx might fail or return errors - that's expected
-if curl -s -I "http://localhost/" 2>&1 | grep -qiE "HTTP|nginx|302|301"; then
-    log_info "nginx is responding (may redirect to HTTPS if configured)"
-else
-    log_warn "nginx response unclear (expected without real SSL certificates)"
-fi
-
-# Check that we can reach the frontend
-log_info "Checking if frontend is accessible..."
-if curl -s -k "http://localhost/" 2>&1 | grep -qE "<!DOCTYPE html>|moor|nginx"; then
-    log_info "Frontend is serving content"
-else
-    log_warn "Frontend may not be fully configured (expected without real SSL)"
-fi
-
-# Test the welcome message endpoint if accessible via HTTP
-log_info "Testing MOO core via welcome message endpoint..."
-WELCOME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost/fb/invoke_welcome_message" 2>/dev/null || echo "failed")
-if [ "$WELCOME_STATUS" = "200" ]; then
-    log_info "✓ MOO core is loaded and responding via web API"
-elif [ "$WELCOME_STATUS" = "failed" ] || [ "$WELCOME_STATUS" = "000" ]; then
-    log_warn "Could not test welcome message endpoint (expected without SSL - nginx may be redirecting)"
-else
-    log_warn "Welcome message endpoint returned status $WELCOME_STATUS (may need HTTPS)"
-fi
+# This job checks startup without certificates. HTTPS routing and certificate
+# validation require a separate test with configured certificates.
+log_info "Service startup verified; HTTPS was not tested"
 
 # Check docker logs for errors
 log_info "Checking docker logs for critical errors..."
@@ -98,5 +74,5 @@ for service in moor-daemon moor-web-host moor-frontend; do
     fi
 done
 
-log_info "✓ Web-ssl deployment test completed successfully"
+log_info "✓ Web-ssl startup smoke completed successfully"
 log_info "Note: For full SSL validation, deploy on a server with a real domain and DNS"

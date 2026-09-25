@@ -146,20 +146,15 @@ object GRANT_UTILS [
   method test_parse_grant_errors owner: HACKER
     "Test parse_grant error handling.";
     "Missing dot separator";
-    caught = `this:parse_grant("#38area(test)") ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject missing dot");
+    $test_utils:assert_raises(E_INVARG, this, "parse_grant", {"#38area(test)"}, "Should reject missing dot");
     "Missing opening paren";
-    caught = `this:parse_grant("#38.area") ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject missing paren");
+    $test_utils:assert_raises(E_INVARG, this, "parse_grant", {"#38.area"}, "Should reject missing paren");
     "Missing closing paren";
-    caught = `this:parse_grant("#38.area(test") ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject missing close paren");
+    $test_utils:assert_raises(E_INVARG, this, "parse_grant", {"#38.area(test"}, "Should reject missing close paren");
     "Invalid object ID";
-    caught = `this:parse_grant("notanobject.area(test)") ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject invalid object");
+    $test_utils:assert_raises(E_INVARG, this, "parse_grant", {"notanobject.area(test)"}, "Should reject invalid object");
     "Empty string";
-    caught = `this:parse_grant("") ! E_INVARG => true';
-    caught || raise(E_ASSERT, "Should reject empty string");
+    $test_utils:assert_raises(E_INVARG, this, "parse_grant", {""}, "Should reject empty string");
   endmethod
 
   method test_format_denial owner: HACKER

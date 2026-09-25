@@ -59,19 +59,13 @@ void main() {
         isValueEditor: false,
       );
 
-      presenter
-        ..paneForSession(stale)
-        ..paneForSession(keep)
-        ..pruneSessions(<EditorSession>[keep]);
+      final stalePane = presenter.paneForSession(stale);
+      final keptPane = presenter.paneForSession(keep);
+      presenter.pruneSessions(<EditorSession>[keep]);
 
       expect(presenter.cachedPaneCount, equals(1));
-      expect(
-        identical(
-          presenter.paneForSession(keep),
-          presenter.paneForSession(keep),
-        ),
-        isTrue,
-      );
+      expect(identical(presenter.paneForSession(keep), keptPane), isTrue);
+      expect(identical(presenter.paneForSession(stale), stalePane), isFalse);
     });
   });
 }

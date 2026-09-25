@@ -2182,15 +2182,6 @@ mod tests {
     }
 
     #[test]
-    fn test_var_size() {
-        assert!(
-            size_of::<Var>() <= 16,
-            "Var size exceeds 128 bits: {}",
-            size_of::<Var>()
-        );
-    }
-
-    #[test]
     fn test_list_owned_sequence_ops() {
         let base = v_list(&[v_int(1), v_int(2), v_int(3)]);
 

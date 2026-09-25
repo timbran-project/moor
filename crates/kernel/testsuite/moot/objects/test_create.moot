@@ -12,7 +12,7 @@
 $nothing
 ; return parent($b);
 $a
-; return parent($c);
+; return parent($d);
 $b
 ; return parent($c);
 $b

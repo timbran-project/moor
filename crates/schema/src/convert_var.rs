@@ -712,14 +712,6 @@ mod tests {
     use planus::ReadAsRoot;
 
     #[test]
-    fn test_lambda_rejected() {
-        // TODO: Need to construct a lambda Var to test rejection
-        // let var = Var::mk_lambda(...);
-        // let result = var_to_flatbuffer(&var);
-        // assert!(matches!(result, Err(VarConversionError::LambdaNotTransmittable)));
-    }
-
-    #[test]
     fn test_non_real_float_rejected() {
         // A hostile or corrupt FlatBuffer can name any f64 bit pattern.
         for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {

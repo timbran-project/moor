@@ -139,59 +139,9 @@ impl MockTransport {
         self.client_events.lock().unwrap().clear();
     }
 
-    /// Get captured client broadcast events
-    pub fn get_client_broadcast_events(&self) -> Vec<BroadcastEvent> {
-        self.client_broadcast_events.lock().unwrap().clone()
-    }
-
-    /// Clear all captured events
-    pub fn clear_events(&self) {
-        self.narrative_events.lock().unwrap().clear();
-        self.host_events.lock().unwrap().clear();
-        self.client_events.lock().unwrap().clear();
-        self.client_broadcast_events.lock().unwrap().clear();
-        self.host_replies.lock().unwrap().clear();
-        self.client_replies.lock().unwrap().clear();
-    }
-
-    /// Check if any narrative events were captured
-    pub fn has_narrative_events(&self) -> bool {
-        !self.narrative_events.lock().unwrap().is_empty()
-    }
-
-    /// Check if any host events were captured
-    pub fn has_host_events(&self) -> bool {
-        !self.host_events.lock().unwrap().is_empty()
-    }
-
-    /// Check if any client events were captured
-    pub fn has_client_events(&self) -> bool {
-        !self.client_events.lock().unwrap().is_empty()
-    }
-
-    /// Check if any client broadcast events were captured
-    pub fn has_client_broadcast_events(&self) -> bool {
-        !self.client_broadcast_events.lock().unwrap().is_empty()
-    }
-
     /// Get count of narrative events
     pub fn narrative_event_count(&self) -> usize {
         self.narrative_events.lock().unwrap().len()
-    }
-
-    /// Get count of host events
-    pub fn host_event_count(&self) -> usize {
-        self.host_events.lock().unwrap().len()
-    }
-
-    /// Get count of client events
-    pub fn client_event_count(&self) -> usize {
-        self.client_events.lock().unwrap().len()
-    }
-
-    /// Get count of client broadcast events
-    pub fn client_broadcast_event_count(&self) -> usize {
-        self.client_broadcast_events.lock().unwrap().len()
     }
 
     /// Get captured host replies
@@ -233,26 +183,6 @@ impl MockTransport {
         self.client_replies.lock().unwrap().clear();
     }
 
-    /// Manually capture a client event (for testing scenarios)
-    pub fn capture_client_event(&self, client_id: Uuid, event: ClientEvent) {
-        self.client_events.lock().unwrap().push((client_id, event));
-    }
-
-    /// Convenience method to send a narrative event (for testing)
-    pub fn send_narrative_event(&self, player: Obj, event: NarrativeEvent) {
-        self.narrative_events.lock().unwrap().push((player, event));
-    }
-
-    /// Convenience method to send a host event (for testing)
-    pub fn send_host_event(&self, event: HostBroadcastEvent) {
-        self.host_events.lock().unwrap().push(event);
-    }
-
-    /// Convenience method to send a client broadcast event (for testing)
-    pub fn send_client_broadcast_event(&self, event: BroadcastEvent) {
-        self.client_broadcast_events.lock().unwrap().push(event);
-    }
-
     /// Wait for at least the specified number of narrative events to be captured
     /// Returns true if the condition is met within the timeout, false otherwise
     pub fn wait_for_narrative_events(&self, min_count: usize, timeout_ms: u64) -> bool {
@@ -261,22 +191,6 @@ impl MockTransport {
 
         while start.elapsed() < timeout {
             if self.narrative_event_count() >= min_count {
-                return true;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        false
-    }
-
-    /// Wait for at least the specified number of client events to be captured
-    /// Returns true if the condition is met within the timeout, false otherwise
-    #[allow(dead_code)]
-    pub fn wait_for_client_events(&self, min_count: usize, timeout_ms: u64) -> bool {
-        let start = std::time::Instant::now();
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-
-        while start.elapsed() < timeout {
-            if self.client_event_count() >= min_count {
                 return true;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));

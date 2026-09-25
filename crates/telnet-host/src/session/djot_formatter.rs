@@ -882,14 +882,18 @@ mod tests {
 
     #[test]
     fn test_strong_emphasis() {
+        colored::control::set_override(true);
         let output = djot_to_terminal("This is *strong* text", true);
-        assert!(output.contains("strong"));
+        assert!(output.contains(&"strong".bold().to_string()));
+        assert!(!output.contains("*strong*"));
     }
 
     #[test]
     fn test_emphasis() {
+        colored::control::set_override(true);
         let output = djot_to_terminal("This is _emphasized_ text", true);
-        assert!(output.contains("emphasized"));
+        assert!(output.contains(&"emphasized".italic().to_string()));
+        assert!(!output.contains("_emphasized_"));
     }
 
     #[test]
@@ -1012,12 +1016,26 @@ fn main() {
     fn test_nested_list() {
         let djot = r#"
 - Item one
+
   - Nested item
 - Item two
 "#;
         let output = djot_to_terminal(djot, true);
-        assert!(output.contains("Item one"));
-        assert!(output.contains("Nested item"));
+        let visible = regex::Regex::new(r"\x1b\[[0-9;]*m")
+            .unwrap()
+            .replace_all(&output, "")
+            .to_string();
+        assert!(visible.contains("• Item one"));
+        assert!(visible.contains("• Nested item"), "{visible:?}");
+        assert!(visible.find("Item one") < visible.find("Nested item"));
+        assert!(visible.find("Nested item") < visible.find("Item two"));
+        assert!(
+            visible
+                .lines()
+                .find(|line| line.contains("Nested item"))
+                .unwrap()
+                .starts_with("  •")
+        );
     }
 
     #[test]
@@ -1028,8 +1046,13 @@ fn main() {
 3. Third
 "#;
         let output = djot_to_terminal(djot, true);
-        assert!(output.contains("1."));
-        assert!(output.contains("First"));
+        let visible = regex::Regex::new(r"\x1b\[[0-9;]*m")
+            .unwrap()
+            .replace_all(&output, "")
+            .to_string();
+        assert!(visible.contains("1. First"));
+        assert!(visible.contains("2. Second"));
+        assert!(visible.contains("3. Third"));
     }
 
     #[test]
@@ -1041,17 +1064,22 @@ fn main() {
 
     #[test]
     fn test_insert_delete() {
+        colored::control::set_override(true);
         let djot = "{+inserted+} and {-deleted-}";
         let output = djot_to_terminal(djot, true);
-        assert!(output.contains("inserted"));
-        assert!(output.contains("deleted"));
+        assert!(output.contains(&"inserted".color(Color::Green).to_string()));
+        assert!(output.contains(&"deleted".strikethrough().dimmed().to_string()));
+        assert!(!output.contains("{+"));
+        assert!(!output.contains("{-"));
     }
 
     #[test]
     fn test_mark_highlight() {
+        colored::control::set_override(true);
         let djot = "{=highlighted text=}";
         let output = djot_to_terminal(djot, true);
-        assert!(output.contains("highlighted text"));
+        assert!(output.contains(&"highlighted text".on_yellow().black().to_string()));
+        assert!(!output.contains("{="));
     }
 
     #[test]

@@ -2983,10 +2983,10 @@ object PROG_FEATURES [
     stubbed_inform = false;
     added_inform_log = false;
     try
-      add_property(player, "prog_show_last_inform", false, {$arch_wizard, "r"});
+      add_property(player, "prog_show_last_inform", {}, {$arch_wizard, "r"});
       added_inform_log = true;
       add_verb(player, {$arch_wizard, "rxd", "inform_current"}, {"this", "none", "this"});
-      errors = set_verb_code(player, "inform_current", {"this.prog_show_last_inform = args;", "return true;"}, 2, 1);
+      errors = set_verb_code(player, "inform_current", {"this.prog_show_last_inform = {@this.prog_show_last_inform, args[1]};", "return true;"}, 2, 1);
       $test_utils:assert_false(errors, "temporary inform_current stub should compile");
       stubbed_inform = true;
       parent_fixture = create($root);
@@ -3013,7 +3013,15 @@ object PROG_FEATURES [
       this:_display_verb(fixture, "private_display_verb");
       this:_display_inherited_verb(fixture, "private_display_parent_verb");
       this:_display_all_verbs(fixture, true);
-      $test_utils:assert_true(true, "display helpers should complete for non-readable hacker-owned fixtures");
+      events = player.prog_show_last_inform;
+      $test_utils:assert_eq(length(events), 8, "each display helper should emit an event");
+      for event in (events)
+        $test_utils:assert_true(event:validate(), "display helper should emit a valid event");
+      endfor
+      $test_utils:assert_eq(flycontents(events[3])[1][2].rows[1][1], ".private_display_prop", "local property should be displayed");
+      $test_utils:assert_eq(flycontents(events[4])[1][2].rows[1][1], ".private_display_parent_prop", "inherited property should be displayed");
+      $test_utils:assert_eq(flycontents(events[6])[1][2].rows[1][1], tostr(fixture) + ":private_display_verb", "local verb should be displayed");
+      $test_utils:assert_eq(flycontents(events[7])[1][2].rows[1][1], tostr(parent_fixture) + ":private_display_parent_verb", "inherited verb should be displayed");
     finally
       stubbed_inform && `delete_verb(player, "inform_current") ! E_VERBNF => 0';
       added_inform_log && `delete_property(player, "prog_show_last_inform") ! E_PROPNF => 0';

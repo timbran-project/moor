@@ -63,9 +63,6 @@ TYPE_LIST
 ; return length(<#0, .name = "sword">);
 E_INVARG
 
-; return length(<#0, .name = "sword">);
-E_INVARG
-
 ; return <#0, .name = "sword">[1];
 E_TYPE
 

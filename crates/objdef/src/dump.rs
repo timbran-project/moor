@@ -1557,8 +1557,16 @@ mod tests {
         // Dump to objdef
         {
             let snapshot = db.create_snapshot().unwrap();
-            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
+            let stats = dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
+            assert_eq!(stats.objects, 3);
         }
+        for object_id in 0..=2 {
+            let path = tmpdir_path.join(format!("object_{object_id}.moo"));
+            let contents = std::fs::read_to_string(path).unwrap();
+            assert!(contents.contains(&format!("object #{object_id}")));
+        }
+        let system = std::fs::read_to_string(tmpdir_path.join("object_0.moo")).unwrap();
+        assert!(system.contains("property parent_ref (owner: #0, flags: \"rw\") = #1;"));
     }
 
     #[test]

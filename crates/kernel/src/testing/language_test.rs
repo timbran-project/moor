@@ -1460,9 +1460,6 @@ mod tests {
             }
         }
 
-        let mut _state = world_with_test_program(program);
-        let _session = Arc::new(NoopClientSession::new());
-
         let program2 = r#"x = 1;
         fork (0)
             y = 2;
@@ -1487,20 +1484,15 @@ mod tests {
             List::mk_list(&[]),
         );
 
-        if let Err(exception) = result
-            && exception.error == E_PERM
-        {
-            let last_stack = exception.stack.last().expect("Expected a stack frame");
-            let line_no = last_stack
-                .get(&v_int(6), IndexMode::OneBased)
-                .unwrap()
-                .as_integer()
-                .expect("Expected line number to be an integer");
-            assert_eq!(
-                line_no, 10,
-                "Expected line number in the second fork to be 10, but got {line_no}"
-            );
-        }
+        let exception = result.expect_err("Expected an exception from the second fork");
+        assert_eq!(exception.error, Error::from(E_PERM));
+        let last_stack = exception.stack.last().expect("Expected a stack frame");
+        let line_no = last_stack
+            .get(&v_int(6), IndexMode::OneBased)
+            .unwrap()
+            .as_integer()
+            .expect("Expected line number to be an integer");
+        assert_eq!(line_no, 10);
     }
 
     #[test]

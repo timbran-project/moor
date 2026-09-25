@@ -51,7 +51,7 @@ log_info "Testing telnet connection and MOO login..."
     sleep 3
     echo "look"
     sleep 2
-    echo "@who"
+    echo '; notify(player, "DEPLOY_LOGIN_" + "OK");'
     sleep 2
     echo "@quit"
     sleep 1
@@ -62,7 +62,7 @@ log_info "Telnet test output:"
 cat /tmp/telnet-test-output.txt
 
 # Verify we actually got logged in and can see the MOO
-if grep -qE "Connected|Welcome|The First Room|Wizard" /tmp/telnet-test-output.txt; then
+if grep -qF "DEPLOY_LOGIN_OK" /tmp/telnet-test-output.txt; then
     log_info "✓ Telnet login test passed - MOO core is loaded and responding"
 else
     log_error "✗ Telnet login test failed - MOO core may not be loaded properly"

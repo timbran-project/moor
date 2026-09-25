@@ -188,20 +188,12 @@ audit-style:
 check-style:
 	$(CARGO) run --manifest-path tools/style-audit/Cargo.toml -- src --strict
 
-# Storage and interaction measurements.
+# Measurements are explicit workloads, separate from test_ method discovery.
 measure: gen.testsrc
-	@$(MOORC) $(FEATURES) --src-objdef-dir gen.testsrc \
-		--run-tests true --test-wizard $(TEST_WIZARD) \
-		--test-programmer $(TEST_PROGRAMMER) --test-player $(TEST_PLAYER) \
-		--test-timeout 120 --test-filter '#$(TEST_HARNESS):test_storage_measurements' \
-		> $(TEST_LOG) 2>&1; status=$$?; \
-		grep -E 'MEASURE|passed|failed|Error' $(TEST_LOG); [ $$status -eq 0 ] || exit $$status; \
-		$(MOORC) $(FEATURES) --src-objdef-dir gen.testsrc \
-		--run-tests true --test-wizard $(TEST_WIZARD) \
-		--test-programmer $(TEST_PROGRAMMER) --test-player $(TEST_PLAYER) \
-		--test-timeout 120 --test-filter '#$(TEST_HARNESS):test_interaction_measurements' \
-		> $(TEST_LOG) 2>&1; status=$$?; \
-		grep -E 'MEASURE|passed|failed|Error' $(TEST_LOG); exit $$status
+	$(MOORC) $(FEATURES) --src-objdef-dir gen.testsrc \
+		--test-wizard $(TEST_WIZARD) --test-programmer $(TEST_PROGRAMMER) \
+		--test-player $(TEST_PLAYER) --test-timeout 120 \
+		--test-files tests/measurements.moot
 
 # Core identities must survive export and reimport unchanged.
 roundtrip: gen.objdir

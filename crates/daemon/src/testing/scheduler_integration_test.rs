@@ -29,11 +29,11 @@ mod tests {
     use moor_common::tasks::Event;
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
-        mk_connection_establish_msg, mk_login_command_msg, ws_list_objects,
-        ws_request_system_property, ws_resolve_object,
+        mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, ws_list_objects,
+        ws_request_system_property, ws_resolve_object, ws_update_property,
     };
-    use moor_schema::rpc as moor_rpc;
-    use moor_var::{Obj, SYSTEM_OBJECT};
+    use moor_schema::{convert::var_from_flatbuffer, rpc as moor_rpc};
+    use moor_var::{E_PERM, Obj, SYSTEM_OBJECT, Var, v_err, v_str};
 
     /// Wait for an event with content matching the given predicate
     ///
@@ -800,7 +800,7 @@ mod tests {
             "Scheduler should remain responsive after GC"
         );
 
-        // Wait for the GC cycle to complete (it runs asynchronously in the timer thread)
+        // Wait for the asynchronous GC cycle to start.
         let gc_start = Instant::now();
         loop {
             let stats = env
@@ -819,200 +819,33 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
 
-        // Test that non-wizard cannot call gc_collect()
-        // First create a regular player by connecting as a different user
-        let non_wizard_client_id = Uuid::new_v4();
-
-        let establish_message_2 = mk_connection_establish_msg(
-            "127.0.0.1:8081".to_string(),
-            7777,
-            8081,
-            Some(vec![moor_rpc::Symbol {
-                value: "text/plain".to_string(),
-            }]),
-            None,
+        // Run under a newly created ordinary object's permissions. This avoids
+        // relying on the donor database's guest login path.
+        let eval = mk_eval_msg(
+            &client_token,
+            &auth_token,
+            "o = create($nothing); set_task_perms(o); return `gc_collect() ! E_PERM';".to_string(),
         );
-
-        let establish_result_2 = env.transport.process_client_message(
-            env.message_handler.as_ref(),
-            env.scheduler_client.clone(),
-            non_wizard_client_id,
-            establish_message_2,
-        );
-
-        let (client_token_2, _connection_obj_2) = match establish_result_2.unwrap().reply {
-            moor_rpc::DaemonToClientReplyUnion::NewConnection(new_conn) => (
-                ClientToken(new_conn.client_token.token.clone()),
-                match &new_conn.connection_obj.obj {
-                    moor_rpc::ObjUnion::ObjId(obj_id) => Obj::mk_id(obj_id.id),
-                    _ => panic!("Unexpected obj variant"),
-                },
-            ),
-            other => panic!("Expected NewConnection, got {other:?}"),
-        };
-
-        // For non-wizard test, we'll connect as a guest (which should be non-wizard)
-        let welcome_message_2 =
-            mk_login_command_msg(&client_token_2, &SYSTEM_OBJECT, vec![], false, None);
-
-        let _welcome_result_2 = env.transport.process_client_message(
-            env.message_handler.as_ref(),
-            env.scheduler_client.clone(),
-            non_wizard_client_id,
-            welcome_message_2,
-        );
-
-        // Try to connect as guest
-        let login_message_2 = mk_login_command_msg(
-            &client_token_2,
-            &SYSTEM_OBJECT,
-            vec!["connect".to_string(), "guest".to_string()],
-            true,
-            None,
-        );
-
-        let login_result_2 = env.transport.process_client_message(
-            env.message_handler.as_ref(),
-            env.scheduler_client.clone(),
-            non_wizard_client_id,
-            login_message_2,
-        );
-
-        // If guest login succeeds, test that gc_collect() fails with permission error
-        if let Ok(reply) = login_result_2
-            && let moor_rpc::DaemonToClientReplyUnion::LoginResult(login_res) = reply.reply
-        {
-            if !login_res.success {
-                return;
-            }
-            let auth_token_2 = login_res
-                .auth_token
-                .as_ref()
-                .expect("Should have auth token");
-            let auth_token_2 = AuthToken(auth_token_2.token.clone());
-            let player_obj_2 = login_res
-                .player
-                .as_ref()
-                .expect("Should have player object");
-            let player_obj_2 = match &player_obj_2.obj {
-                moor_rpc::ObjUnion::ObjId(obj_id) => Obj::mk_id(obj_id.id),
-                _ => panic!("Unexpected obj variant"),
-            };
-            // Wait for guest connection to complete
-            std::thread::sleep(Duration::from_millis(500));
-
-            // Try gc_collect() as non-wizard - should get permission error
-            let message_2 = mk_command_msg(
-                &client_token_2,
-                &auth_token_2,
-                &player_obj_2,
-                ";gc_collect()".to_string(),
-            );
-
-            let _result_2 = env.transport.process_client_message(
+        let reply = env
+            .transport
+            .process_client_message(
                 env.message_handler.as_ref(),
                 env.scheduler_client.clone(),
-                non_wizard_client_id,
-                message_2,
+                client_id,
+                eval,
+            )
+            .expect("Non-wizard GC check should finish");
+        let moor_rpc::DaemonToClientReplyUnion::EvalResult(result) = reply.reply else {
+            panic!(
+                "Expected EvalResult for GC permission check: {:?}",
+                reply.reply
             );
-
-            // Wait for and verify permission error
-            wait_for_event_content(
-                &env.transport,
-                player_obj_2,
-                |event| {
-                    if let Event::Notify {
-                        value: content,
-                        content_type: _,
-                        no_flush: _,
-                        no_newline: _,
-                        metadata: _,
-                    } = event
-                    {
-                        if let Some(str) = content.as_string() {
-                            str.contains("Permission denied") || str.contains("E_PERM")
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                },
-                5,
-                "permission error for non-wizard gc_collect() call",
-            );
-        }
-
-        // Test direct GC calls via scheduler client to verify counter increments properly
-        let current_count = env
-            .scheduler_client
-            .get_gc_stats()
-            .expect("Should be able to get GC stats")
-            .cycle_count;
-
-        // Request another GC cycle directly via scheduler client
-        env.scheduler_client
-            .request_gc()
-            .expect("Direct GC request should succeed");
-
-        // Wait for GC cycle to complete
-        let gc_start = Instant::now();
-        loop {
-            let stats = env
-                .scheduler_client
-                .get_gc_stats()
-                .expect("Should be able to get GC stats after direct GC");
-            if stats.cycle_count > current_count {
-                break;
-            }
-            if gc_start.elapsed() > Duration::from_secs(10) {
-                panic!(
-                    "GC cycle count should have incremented after direct GC request: was {}, now {}",
-                    current_count, stats.cycle_count
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-
-        let count_after_direct = env
-            .scheduler_client
-            .get_gc_stats()
-            .expect("stats")
-            .cycle_count;
-
-        // Request one more GC to verify it keeps working
-        env.scheduler_client
-            .request_gc()
-            .expect("Second direct GC request should succeed");
-
-        // Wait for second GC cycle
-        let gc_start = Instant::now();
-        loop {
-            let stats = env
-                .scheduler_client
-                .get_gc_stats()
-                .expect("Should be able to get final GC stats");
-            if stats.cycle_count > count_after_direct {
-                break;
-            }
-            if gc_start.elapsed() > Duration::from_secs(10) {
-                panic!(
-                    "GC cycle count should have incremented after second GC request: was {}, now {}",
-                    count_after_direct, stats.cycle_count
-                );
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-
-        // Verify no unexpected tracebacks in the transport events (which are unencrypted)
-        let events = env.transport.get_narrative_events();
-        for (_player, narrative_event) in events {
-            if matches!(narrative_event.event(), Event::Traceback(_)) {
-                // For now, just ignore tracebacks - proper handling would require
-                // inspecting traceback details to filter out expected E_PERM errors
-                // TODO: Add proper traceback inspection and E_PERM filtering
-            }
-        }
+        };
+        assert_eq!(
+            var_from_flatbuffer(*result.result).unwrap(),
+            v_err(E_PERM),
+            "gc_collect() should raise E_PERM under non-wizard task permissions"
+        );
     }
 
     /// Helper: establish connection, login as wizard, return (client_id, client_token, auth_token, player_obj).
@@ -1288,33 +1121,80 @@ mod tests {
         let env = setup_test_environment_with_real_scheduler();
         wait_for_scheduler_ready(&env.scheduler_client);
         let (_client_id, _client_token, auth_token, _player_obj) = login_as_wizard(&env);
+        let object = ObjectRef::Id(SYSTEM_OBJECT);
+        let property = moor_var::Symbol::mk("name");
 
-        // Read-only batch with rollback=true should still succeed
-        let actions = vec![BatchAction {
-            id: "sys-name".to_string(),
-            action: ws_request_system_property(
-                &ObjectRef::Id(SYSTEM_OBJECT),
-                &moor_var::Symbol::mk("name"),
-            ),
-        }];
-
-        let message = mk_batch_world_state_msg(&auth_token, actions, true);
-        let result = env.transport.process_client_message(
-            env.message_handler.as_ref(),
-            env.scheduler_client.clone(),
-            Uuid::new_v4(),
-            message,
-        );
-
-        let reply = result.expect("Rollback batch should succeed");
-        let moor_rpc::DaemonToClientReplyUnion::BatchWorldStateReply(batch_reply) = reply.reply
-        else {
-            panic!("Expected BatchWorldStateReply");
+        let submit = |actions: Vec<BatchAction>, rollback| {
+            let message = mk_batch_world_state_msg(&auth_token, actions, rollback);
+            let reply = env
+                .transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    Uuid::new_v4(),
+                    message,
+                )
+                .expect("Batch should succeed");
+            let moor_rpc::DaemonToClientReplyUnion::BatchWorldStateReply(batch) = reply.reply
+            else {
+                panic!("Expected BatchWorldStateReply");
+            };
+            batch.results
         };
-        assert_eq!(batch_reply.results.len(), 1);
+        let read = || -> Var {
+            let results = submit(
+                vec![BatchAction {
+                    id: "read".to_string(),
+                    action: ws_request_system_property(&object, &property),
+                }],
+                false,
+            );
+            assert_eq!(results.len(), 1);
+            let moor_rpc::WorldStateResultUnion::WsSystemPropertyResult(value) = &results[0].result
+            else {
+                panic!("Expected system property result: {:?}", results[0].result);
+            };
+            var_from_flatbuffer(*value.value.clone()).unwrap()
+        };
+
+        let original = read();
+        let changed = v_str("rolled-back-name");
+        let results = submit(
+            vec![
+                BatchAction {
+                    id: "write".to_string(),
+                    action: ws_update_property(&object, &property, &changed).unwrap(),
+                },
+                BatchAction {
+                    id: "read".to_string(),
+                    action: ws_request_system_property(&object, &property),
+                },
+            ],
+            true,
+        );
+        assert_eq!(results.len(), 2);
         assert!(matches!(
-            batch_reply.results[0].result,
-            moor_rpc::WorldStateResultUnion::WsSystemPropertyResult(_)
+            results[0].result,
+            moor_rpc::WorldStateResultUnion::WsPropertyUpdatedResult(_)
         ));
+        let moor_rpc::WorldStateResultUnion::WsSystemPropertyResult(value) = &results[1].result
+        else {
+            panic!("Expected in-batch property read: {:?}", results[1].result);
+        };
+        assert_eq!(var_from_flatbuffer(*value.value.clone()).unwrap(), changed);
+        assert_eq!(read(), original, "Rollback batch persisted its write");
+
+        let results = submit(
+            vec![BatchAction {
+                id: "write".to_string(),
+                action: ws_update_property(&object, &property, &changed).unwrap(),
+            }],
+            false,
+        );
+        assert!(matches!(
+            results[0].result,
+            moor_rpc::WorldStateResultUnion::WsPropertyUpdatedResult(_)
+        ));
+        assert_eq!(read(), changed, "Committed batch lost its write");
     }
 }
