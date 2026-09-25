@@ -88,3 +88,7 @@ toaststunt/
 # Emacs temp files
 *#
 .#*
+
+# Local build-container caches (not committed)
+.docker-cargo/
+.docker-target/
