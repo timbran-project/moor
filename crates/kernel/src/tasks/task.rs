@@ -2537,6 +2537,36 @@ mod tests {
         assert!(matches!(err, SchedulerError::TaskAbortedCancelled));
     }
 
+    /// A schedule created in a task that then rolls back must never exist:
+    /// creation is buffered until commit, exactly like `task_send`.
+    #[test]
+    fn schedule_creation_is_discarded_on_rollback() {
+        let (client, scheduler) = setup_scheduler(&[]);
+        let session = Arc::new(NoopClientSession::new());
+        let handle = client
+            .submit_eval_task(
+                &SYSTEM_OBJECT,
+                &SYSTEM_OBJECT,
+                "add_verb(#0, {#0, \"rxd\", \"sched_probe\"}, {\"this\", \"none\", \"this\"}); \
+                 set_verb_code(#0, \"sched_probe\", {\"return 0;\"}); commit(); \
+                 id = schedule_at(#0, \"sched_probe\", time() + 3600); rollback(); return id;"
+                    .to_string(),
+                None,
+                session,
+                Arc::new(FeaturesConfig::default()),
+            )
+            .unwrap();
+        // rollback() ends the task without a normal result.
+        let _ = wait_result(&handle);
+        let lc = scheduler.client.scheduler_for_test().lifecycle.lock();
+        assert!(
+            lc.schedule_q.all_ids().is_empty(),
+            "rolled-back schedule_at must not leave an entry: {:?}",
+            lc.schedule_q.all_ids()
+        );
+        assert!(lc.pending_schedule_ops.is_empty());
+    }
+
     /// Trigger a MOO VM exception
     #[test]
     fn test_simple_run_exception() {

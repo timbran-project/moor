@@ -413,12 +413,13 @@ impl TaskQ {
 
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
     pub(super) fn send_task_result_direct(
-        &self,
+        &mut self,
         task_id: TaskId,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
         result: Result<Var, SchedulerError>,
     ) {
         self.live_tasks.remove(task_id);
+        self.settled_results.push((task_id, result.clone()));
         let Some(result_sender) = result_sender else {
             warn!(
                 task_id,
