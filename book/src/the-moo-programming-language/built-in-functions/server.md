@@ -1128,6 +1128,141 @@ resumes in a new one, respecting snapshot isolation.
   wakes when a message arrives or the timeout expires, and returns all accumulated messages (empty
   list if none arrived).
 
+## Scheduled Tasks
+
+The `schedule_*` builtins arrange for a verb to be called later — once or on a cadence — without a
+task suspended in between. The scheduler holds only a deadline and a `(object, verb, args)` triple,
+and starts a fresh background task for each firing. See [Scheduled Tasks](../../the-system/scheduled-tasks.md)
+for the model, the options and the recipes; this section is the argument-level reference.
+
+Creation and cancellation are buffered until the calling task commits, exactly like `task_send`: a
+schedule created in a task that rolls back never exists.
+
+### `schedule_at`
+
+**Description:** Runs `target:verb(@args)` once, as a new background task, at Unix time `when`. A
+`when` at or before now fires on the next scheduler tick.
+
+**Syntax:** `int schedule_at(obj target, str|sym verb, num when [, list args] [, map options])`
+
+**Arguments:**
+
+- `target`: The object whose verb to call
+- `verb`: The verb name
+- `when`: Unix epoch seconds, int or float (`ftime()` for sub-second precision)
+- `args`: Arguments to pass; default `{}`
+- `options`: See below
+
+**Returns:** A schedule id (its own id space; never a task id)
+
+**Options** (string or symbol keys; any other key is `E_INVARG`):
+
+| Key            | Type        | Default        | Meaning                                                                  |
+| -------------- | ----------- | -------------- | ------------------------------------------------------------------------ |
+| `adaptive`     | bool        | `1` for `at`, `0` for `every` | Positive numeric return re-arms in that many seconds; `0` retires; negative retires with a fault |
+| `catchup`      | `"skip"`, `"once"`, `"all"` | `"skip"` | Missed-deadline policy after a restart                             |
+| `overlap`      | `"skip"`, `"queue"`, `"concurrent"` | `"skip"` | Policy when the previous firing is still running           |
+| `jitter`       | num seconds | `0`            | Randomise each deadline by up to ± this much                             |
+| `max_faults`   | int         | `50`           | Consecutive faults before retirement; `0` = unlimited                    |
+| `pass_elapsed` | bool        | `1`            | Append real seconds since the previous firing (float) to the args        |
+| `state`        | any         | none           | Opaque value (≤ 4 KB serialised) appended to args before `elapsed`       |
+| `persist`      | bool        | `1`            | Survive a server restart                                                 |
+| `player`       | obj         | `target`       | The value of `player` inside the fired verb                              |
+
+**Permission Requirements:** The caller's current task permissions become the schedule's owner. The
+verb must resolve on `target` under those permissions at creation time.
+
+**Errors:**
+
+- `E_ARGS`: Wrong argument count
+- `E_TYPE`: Wrong argument type, or a wrongly typed option value
+- `E_INVARG`: `when` negative or not finite; `target` invalid or `verb` not callable on it; unknown
+  option key; unknown `catchup`/`overlap` value; `state` too large
+
+### `schedule_every`
+
+**Description:** Runs `target:verb(@args)` every `interval` seconds, each firing a new background
+task. Deadlines are computed from the previous deadline, so the cadence does not drift with the
+verb's running time. An interval shorter than the scheduler tick is clamped to one tick and reported
+as `interval_clamped` in `schedule_info`.
+
+**Syntax:** `int schedule_every(obj target, str|sym verb, num interval [, list args] [, map options])`
+
+**Arguments:** As `schedule_at`, with `interval` in seconds (int or float, `> 0`) in place of
+`when`. Same options; `adaptive` defaults to off.
+
+**Returns:** A schedule id
+
+**Errors:** As `schedule_at`; `E_INVARG` for `interval <= 0`.
+
+### `schedule_stop`
+
+**Description:** Cancels a schedule. Takes effect when the calling task commits. **Never raises for
+a stale id**: a schedule that already fired, retired or never existed is an ordinary race and
+returns `false`.
+
+**Syntax:** `bool schedule_stop(int schedule_id)`
+
+**Returns:** `true` if a live schedule (or one this task created and has not yet committed) was
+cancelled; `false` otherwise
+
+**Permission Requirements:** Owner of the schedule, or a wizard
+
+**Errors:**
+
+- `E_PERM`: The schedule is live and the caller is neither its owner nor a wizard
+
+### `schedule_valid`
+
+**Description:** Whether `schedule_id` refers to a schedule that will fire again, including one the
+calling task has created but not yet committed.
+
+**Syntax:** `bool schedule_valid(int schedule_id)`
+
+### `schedule_info`
+
+**Description:** Everything the scheduler knows about a schedule. Retired schedules remain
+inspectable until the scheduler purges them.
+
+**Syntax:** `map schedule_info(int schedule_id)`
+
+**Returns:** A string-keyed map: `id`, `target`, `verb`, `args`, `owner`, `authority`, `kind`
+(`"at"` or `"every"`), `interval` (float seconds, `0.0` for one-shots), `created_at`, `next_run`,
+`last_run` (float Unix seconds, `0.0` for never), `run_count`, `fault_count`,
+`consecutive_faults`, `last_fault`, `missed_count`, `overlap_count`, `last_duration_ns`,
+`mean_duration_ns`, `p99_duration_ns`, `running_task` (`0` if idle), `interval_clamped`,
+`retired`, `retire_reason` (`""` while live; otherwise `"one_shot_done"`, `"returned_zero"`,
+`"negative_return"`, `"max_faults"` or `"invalid_target"`), and the options `adaptive`, `catchup`,
+`overlap`, `jitter`, `max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
+
+**Permission Requirements:** Owner or wizard
+
+**Errors:**
+
+- `E_INVARG`: No such schedule
+- `E_PERM`: Not the owner and not a wizard
+
+### `schedules`
+
+**Description:** Live schedule ids visible to the caller.
+
+**Syntax:** `list schedules([obj owner])`
+
+**Returns:** With no argument, every live schedule for a wizard, or the caller's own otherwise. With
+`owner`, that owner's live schedules (wizard, or `owner` is the caller).
+
+**Errors:**
+
+- `E_PERM`: A non-wizard asked for someone else's schedules
+
+### `schedules_for`
+
+**Description:** Live schedule ids whose target is `target`, regardless of who created them. This
+is what a core's recycle and "unregister everything on this object" paths use, so it needs no
+special permission.
+
+**Syntax:** `list schedules_for(obj target)`
+
 ## Performance Monitoring
 
 ### `bf_counters`
