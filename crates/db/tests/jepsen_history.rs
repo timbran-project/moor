@@ -141,7 +141,7 @@ mod tests {
     use moor_db::{Error, Provider, Relation, RelationCodomain, RelationIndex, Timestamp, Tx};
     use moor_var::Symbol;
     use std::{
-        collections::HashMap,
+        collections::{HashMap, HashSet},
         path::Path,
         sync::{Arc, Mutex},
     };
@@ -328,6 +328,156 @@ mod tests {
         Ok(workload.len())
     }
 
+    /// The external SI fixture supplies requests and client-call timing. Its recorded
+    /// responses came from a different snapshot schedule, so this replay uses an
+    /// independent model for a fixed snapshot-at-invocation schedule.
+    fn replay_full_request_workload(workload: &[Entry]) -> Result<usize, eyre::Error> {
+        struct ModelTransaction {
+            values: HashMap<usize, Vec<i32>>,
+            base_versions: HashMap<usize, usize>,
+            writes: HashSet<usize>,
+            request: Vec<Operation>,
+        }
+
+        let provider = Arc::new(TestProvider {
+            data: Arc::new(Mutex::new(HashMap::new())),
+        });
+        let relation = Arc::new(Relation::new(Symbol::mk("full_history"), provider));
+        let root_index: Arc<ArcSwap<Box<dyn RelationIndex<TestDomain, TestCodomain>>>> =
+            Arc::new(ArcSwap::new(Arc::new(relation.seeded_index()?)));
+        let mut active = HashMap::new();
+        let mut values: HashMap<usize, Vec<i32>> = HashMap::new();
+        let mut versions: HashMap<usize, usize> = HashMap::new();
+        let mut timestamp = 0;
+        let mut commits = 0;
+        let mut conflicts = 0;
+        let mut reads = 0;
+
+        for (row, entry) in workload.iter().enumerate() {
+            ensure!(entry.index == row, "history index mismatch at row {row}");
+            match entry.r#type {
+                Type::Invoke => {
+                    timestamp += 1;
+                    let tx = Tx {
+                        ts: Timestamp(timestamp),
+                        visible_ts: Timestamp(timestamp),
+                        snapshot_version: 0,
+                    };
+                    let root = root_index.load();
+                    let mut cache = relation
+                        .clone()
+                        .start_from_index(&tx, root.as_ref().as_ref());
+                    let mut model = ModelTransaction {
+                        values: HashMap::new(),
+                        base_versions: HashMap::new(),
+                        writes: HashSet::new(),
+                        request: entry.operations.clone(),
+                    };
+                    for operation in &entry.operations {
+                        let key = match operation {
+                            Operation::Append(key, _) | Operation::Read(key, _) => *key,
+                        };
+                        if let std::collections::hash_map::Entry::Vacant(version) =
+                            model.base_versions.entry(key)
+                        {
+                            version.insert(*versions.get(&key).unwrap_or(&0));
+                            if let Some(value) = values.get(&key) {
+                                model.values.insert(key, value.clone());
+                            }
+                        }
+                        match operation {
+                            Operation::Read(_, _) => {
+                                reads += 1;
+                                let expected = model.values.get(&key).cloned();
+                                let actual = cache.get(&TestDomain(key))?.map(|v| v.0);
+                                ensure!(
+                                    actual == expected,
+                                    "modeled read mismatch at row {row}, key {key}: expected {expected:?}, got {actual:?}"
+                                );
+                            }
+                            Operation::Append(_, value) => {
+                                let mut actual = cache
+                                    .get(&TestDomain(key))?
+                                    .unwrap_or(TestCodomain(Vec::new()));
+                                actual.0.push(*value);
+                                cache.upsert(TestDomain(key), actual)?;
+                                model.values.entry(key).or_default().push(*value);
+                                model.writes.insert(key);
+                            }
+                        }
+                    }
+                    ensure!(
+                        active.insert(entry.process, (cache, model)).is_none(),
+                        "process {} already active at row {row}",
+                        entry.process
+                    );
+                }
+                Type::Ok | Type::Fail => {
+                    let (cache, model) = active
+                        .remove(&entry.process)
+                        .ok_or_else(|| eyre::eyre!("completion without invocation at row {row}"))?;
+                    ensure!(
+                        model.request.len() == entry.operations.len()
+                            && model.request.iter().zip(&entry.operations).all(
+                                |(invoked, completed)| match (invoked, completed) {
+                                    (Operation::Append(a, x), Operation::Append(b, y)) => {
+                                        a == b && x == y
+                                    }
+                                    (Operation::Read(a, _), Operation::Read(b, _)) => a == b,
+                                    _ => false,
+                                }
+                            ),
+                        "completion request differs from invocation at row {row}"
+                    );
+                    let should_conflict = model.writes.iter().any(|key| {
+                        versions.get(key).copied().unwrap_or(0)
+                            != model.base_versions.get(key).copied().unwrap_or(0)
+                    });
+                    let mut working_set = cache.working_set()?;
+                    let root = root_index.load();
+                    let mut checker = relation.begin_check_from_index(root.as_ref().as_ref());
+                    let check = checker.check(&mut working_set);
+                    if should_conflict {
+                        ensure!(
+                            matches!(check, Err(Error::Conflict(_))),
+                            "expected modeled write conflict at row {row}, got {check:?}"
+                        );
+                        conflicts += 1;
+                        continue;
+                    }
+                    check.map_err(|error| eyre::eyre!("check at row {row}: {error:?}"))?;
+                    checker.apply(working_set)?;
+                    checker.commit(&root_index);
+                    commits += 1;
+                    for key in model.writes {
+                        values.insert(key, model.values[&key].clone());
+                        versions.insert(key, commits);
+                    }
+                }
+            }
+        }
+
+        ensure!(active.is_empty(), "history ended with open transactions");
+        let root = root_index.load();
+        let tx = Tx {
+            ts: Timestamp(timestamp + 1),
+            visible_ts: Timestamp(timestamp + 1),
+            snapshot_version: 0,
+        };
+        let final_cache = relation.start_from_index(&tx, root.as_ref().as_ref());
+        let final_values: HashMap<_, _> = final_cache
+            .scan(&|_, _| true)?
+            .into_iter()
+            .map(|(key, value)| (key.0, value.0))
+            .collect();
+        ensure!(
+            final_values == values,
+            "final relation differs from modeled state"
+        );
+        ensure!(commits > 0 && conflicts > 0 && reads > 0);
+        Ok(workload.len())
+    }
+
     #[test]
     fn test_replay_relation_history_checks_every_completion() {
         let history = super::parse_edn(Path::new("tests/relation-list-history.edn"));
@@ -340,5 +490,21 @@ mod tests {
             error.to_string().contains("read mismatch at index 7"),
             "{error:?}"
         );
+    }
+
+    #[test]
+    fn test_full_simulated_request_workloads_against_relation_model() {
+        for fixture in [
+            "tests/si-list-append-dataset.edn",
+            "tests/ssi-list-append-dataset.edn",
+        ] {
+            let history = super::parse_edn(Path::new(fixture));
+            assert_eq!(history.len(), 20_000, "{fixture}");
+            assert_eq!(
+                replay_full_request_workload(&history).unwrap(),
+                history.len(),
+                "{fixture}"
+            );
+        }
     }
 }
