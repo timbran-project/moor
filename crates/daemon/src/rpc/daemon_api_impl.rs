@@ -411,29 +411,8 @@ impl RuntimeApi for RpcMessageHandler {
             } => {
                 let connection = self.client_auth(client_token, client_id)?;
                 if disconnected {
-                    if let Some(player) = self.connections.player_object_for_client(client_id) {
-                        let _ = self.connections.remove_client_connection(client_id);
-                        match self.connections.client_ids_for(player) {
-                            Ok(remaining) if remaining.is_empty() => {
-                                if let Err(e) = self.submit_disconnected_task(
-                                    &SYSTEM_OBJECT,
-                                    scheduler_client,
-                                    client_id,
-                                    &player,
-                                    &connection,
-                                ) {
-                                    error!(error = ?e, "Error submitting user_disconnected task");
-                                }
-                            }
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!(error = ?e, "Error checking remaining connections for player");
-                            }
-                        }
-                    } else {
-                        let _ = self.connections.remove_client_connection(client_id);
-                    }
-                    self.client_events.remove_client(client_id);
+                    self.remove_client(client_id, Some(&scheduler_client))
+                        .map_err(|error| RpcMessageError::InternalError(error.to_string()))?;
                 } else {
                     let _ = self
                         .connections

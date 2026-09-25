@@ -31,3 +31,6 @@ pub use mock_transport::MockTransport;
 
 #[cfg(test)]
 mod oauth_login_test;
+
+#[cfg(test)]
+mod disconnect_test;

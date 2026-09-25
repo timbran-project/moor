@@ -60,6 +60,14 @@ pub trait ConnectionStateSource: Send + Sync {
     fn connection_attributes(&self, obj: Obj) -> Result<Var, SessionError>;
 }
 
+/// Identity retained after removal, with a departure only for the player's final connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovedConnection {
+    pub client_id: Uuid,
+    pub connection: Obj,
+    pub disconnected_player: Option<Obj>,
+}
+
 pub trait ConnectionRegistry: ConnectionStateSource {
     /// Associate the given player object with the connection object.
     /// This is used when a player logs in.
@@ -89,8 +97,8 @@ pub trait ConnectionRegistry: ConnectionStateSource {
     fn notify_is_alive(&self, client_id: Uuid, connection: Obj) -> Result<(), eyre::Error>;
 
     /// Prune any connections that have not been active for longer than the required duration.
-    /// Remove timed-out clients and return their IDs.
-    fn ping_check(&self) -> Vec<Uuid>;
+    /// Remove timed-out clients and report final departures under the registry lock.
+    fn ping_check(&self) -> Vec<RemovedConnection>;
 
     fn last_activity_for(&self, connection: Obj) -> Result<SystemTime, SessionError>;
 
@@ -112,8 +120,12 @@ pub trait ConnectionRegistry: ConnectionStateSource {
     /// Retrieve the player whose persistent history owns events from this client.
     fn history_object_for_client(&self, client_id: Uuid) -> Option<Obj>;
 
-    /// Remove the given client from the connection database.
-    fn remove_client_connection(&self, client_id: Uuid) -> Result<(), eyre::Error>;
+    /// Remove a client and determine its final-connection transition under the registry lock.
+    /// Returns None if another removal already handled this client.
+    fn remove_client_connection(
+        &self,
+        client_id: Uuid,
+    ) -> Result<Option<RemovedConnection>, eyre::Error>;
 
     /// Get the acceptable content types for a connection.
     fn acceptable_content_types_for(&self, connection: Obj) -> Result<Vec<Symbol>, SessionError>;
@@ -160,6 +172,76 @@ impl ConnectionRegistryFactory {
 mod tests {
     use crate::connections::{NewConnectionParams, registry::ConnectionRegistryFactory};
     use uuid::Uuid;
+
+    #[test]
+    fn concurrent_removals_report_one_final_departure() {
+        let db = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let player = moor_var::Obj::mk_id(2);
+        let clients: Vec<_> = (0..16).map(|_| Uuid::new_v4()).collect();
+        for &client_id in &clients {
+            db.new_connection(NewConnectionParams {
+                client_id,
+                hostname: "test.host".into(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: Some(player),
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+        }
+        let barrier = std::sync::Barrier::new(clients.len());
+        let departures = std::thread::scope(|scope| {
+            let tasks: Vec<_> = clients
+                .iter()
+                .map(|&id| {
+                    let db = &db;
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        db.remove_client_connection(id).unwrap().unwrap()
+                    })
+                })
+                .collect();
+            tasks
+                .into_iter()
+                .map(|task| task.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            departures
+                .iter()
+                .filter(|r| r.disconnected_player == Some(player))
+                .count(),
+            1
+        );
+        assert!(db.connected_players(true).is_empty());
+        for id in clients {
+            assert_eq!(db.remove_client_connection(id).unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn removing_unattached_connection_does_not_report_player_departure() {
+        let db = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let client_id = Uuid::new_v4();
+        let connection = db
+            .new_connection(NewConnectionParams {
+                client_id,
+                hostname: "test.host".into(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: None,
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+        let removed = db.remove_client_connection(client_id).unwrap().unwrap();
+        assert_eq!(removed.client_id, client_id);
+        assert_eq!(removed.connection, connection);
+        assert_eq!(removed.disconnected_player, None);
+        assert_eq!(db.remove_client_connection(client_id).unwrap(), None);
+    }
 
     #[test]
     fn test_in_memory_only_factory() {

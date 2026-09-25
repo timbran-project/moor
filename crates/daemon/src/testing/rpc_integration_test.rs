@@ -1846,6 +1846,198 @@ mod tests {
         );
     }
 
+    /// Record driver callbacks independently of the core's room/player cleanup.
+    fn check_final_disconnect_hook(removal: &str) {
+        let env = setup_test_environment();
+        let first_id = Uuid::new_v4();
+        let (first_token, auth_token, wizard) = logged_in_wizard(&env, first_id);
+        let first_connection = env
+            .connections
+            .connection_object_for_client(first_id)
+            .unwrap();
+        let eval = |code: &str| {
+            let reply = env
+                .transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    Uuid::new_v4(),
+                    mk_eval_capture_msg(
+                        &auth_token,
+                        code.to_string(),
+                        Some(Duration::from_secs(5)),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            captured_success(&reply).0
+        };
+        eval("add_property(#0, \"disconnect_hook_targets\", {}, {player, \"\"});");
+        env.scheduler_client
+            .submit_verb_program(
+                &wizard,
+                &wizard,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                Symbol::mk("user_disconnected"),
+                vec!["#0.disconnect_hook_targets = {@#0.disconnect_hook_targets, args[1]};".into()],
+            )
+            .unwrap();
+
+        let detach = |id, token: &ClientToken, hard| {
+            env.transport.process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                id,
+                mk_detach_msg(token, hard),
+            )
+        };
+        let wait_removed = |id| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while env.connections.connection_object_for_client(id).is_some() {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Connection was not removed"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        let boot = |target| {
+            // Use a real connected session so the builtin's session effect reaches RPC.
+            env.transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    first_id,
+                    mk_eval_msg(&first_token, &auth_token, format!("boot_player({target});")),
+                )
+                .unwrap();
+        };
+
+        // A transport-only detach preserves the logical connection and must be quiet.
+        detach(first_id, &first_token, false).unwrap();
+        assert_eq!(
+            env.connections.connection_object_for_client(first_id),
+            Some(first_connection)
+        );
+
+        if removal == "backlog" {
+            for _ in 0..10_000 {
+                if env
+                    .connections
+                    .connection_object_for_client(first_id)
+                    .is_none()
+                {
+                    break;
+                }
+                env.message_handler
+                    .handle_session_event(
+                        &env.scheduler_client,
+                        crate::rpc::SessionActions::PublishTaskCompletion(
+                            first_id,
+                            ClientEvent::Disconnect,
+                        ),
+                    )
+                    .unwrap();
+            }
+        } else if removal == "timeout" {
+            // Exercise the real registry deadline, without a test-only clock or removal stub.
+            std::thread::sleep(Duration::from_secs(31));
+            env.message_handler.ping_pong().unwrap();
+        } else {
+            let second_id = Uuid::new_v4();
+            let (second_token, second_connection) =
+                establish_connection(&env, second_id, "127.0.0.1:8081", 8081);
+            env.connections
+                .associate_player_object(second_connection, wizard)
+                .unwrap();
+            if removal == "boot_player" {
+                boot(wizard);
+            } else if removal == "concurrent" {
+                std::thread::scope(|scope| {
+                    let first = scope.spawn(|| detach(first_id, &first_token, true));
+                    let second = scope.spawn(|| detach(second_id, &second_token, true));
+                    first.join().unwrap().unwrap();
+                    second.join().unwrap().unwrap();
+                });
+            } else {
+                if removal == "detach" {
+                    detach(second_id, &second_token, true).unwrap();
+                } else {
+                    boot(second_connection);
+                }
+                wait_removed(second_id);
+                assert_eq!(
+                    env.connections.client_ids_for(wizard).unwrap(),
+                    vec![first_id]
+                );
+                // Allow an erroneously submitted hook to run before checking partial closure.
+                std::thread::sleep(Duration::from_millis(200));
+                assert_eq!(
+                    eval("return #0.disconnect_hook_targets;"),
+                    moor_var::v_list(&[])
+                );
+                if removal == "detach" {
+                    detach(first_id, &first_token, true).unwrap();
+                } else {
+                    boot(first_connection);
+                }
+            }
+            wait_removed(second_id);
+        }
+        wait_removed(first_id);
+        assert!(env.connections.client_ids_for(wizard).unwrap().is_empty());
+
+        // Telnet sends a hard detach when its command loop ends, including after a boot.
+        // Verify whether this follow-up request can repair a missing callback.
+        let late_detach = detach(first_id, &first_token, true);
+        assert!(matches!(late_detach, Err(RpcMessageError::NoConnection)));
+        let expected = moor_var::v_list(&[moor_var::v_obj(wizard)]);
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        loop {
+            let actual = eval("return #0.disconnect_hook_targets;");
+            if actual == expected {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "{removal}: expected one final user_disconnected({wizard}), got {actual:?}"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(eval("return #0.disconnect_hook_targets;"), expected);
+    }
+
+    #[test]
+    fn disconnect_hook_after_final_detach() {
+        check_final_disconnect_hook("detach");
+    }
+
+    #[test]
+    fn disconnect_hook_after_final_connection_boot() {
+        check_final_disconnect_hook("boot_connection");
+    }
+
+    #[test]
+    fn disconnect_hook_after_player_boot() {
+        check_final_disconnect_hook("boot_player");
+    }
+
+    #[test]
+    fn disconnect_hook_after_concurrent_detaches() {
+        check_final_disconnect_hook("concurrent");
+    }
+
+    #[test]
+    fn disconnect_hook_after_event_backlog() {
+        check_final_disconnect_hook("backlog");
+    }
+
+    #[test]
+    fn disconnect_hook_after_ping_timeout() {
+        check_final_disconnect_hook("timeout");
+    }
+
     #[test]
     fn login_rejects_invalid_players_before_attachment() {
         let env = setup_test_environment();

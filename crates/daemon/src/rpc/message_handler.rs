@@ -33,7 +33,9 @@ use super::{
     transport::Transport,
 };
 use crate::{
-    connections::ConnectionRegistry, event_log::EventLogOps, tasks::task_monitor::TaskMonitor,
+    connections::{ConnectionRegistry, RemovedConnection},
+    event_log::EventLogOps,
+    tasks::task_monitor::TaskMonitor,
 };
 use moor_common::{
     tasks::{Event, NarrativeEvent, SessionError},
@@ -51,7 +53,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken, HostType, RpcMessageError,
     api::{BroadcastEvent, ClientEvent, HostBroadcastEvent},
 };
-use moor_var::{Obj, Symbol, Var};
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
 use rusty_paseto::prelude::Key;
 use tracing::{error, warn};
 
@@ -139,7 +141,11 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
     /// Trigger database compaction to reclaim space and reduce journal size.
     fn compact(&self);
 
-    fn handle_session_event(&self, session_event: SessionActions) -> Result<(), Error>;
+    fn handle_session_event(
+        &self,
+        scheduler_client: &SchedulerClient,
+        session_event: SessionActions,
+    ) -> Result<(), Error>;
 
     /// Switch the player for the given connection object to the new player.
     fn switch_player(
@@ -291,8 +297,10 @@ impl MessageHandler for RpcMessageHandler {
         self.transport
             .broadcast_client_event(client_event)
             .map_err(|_| SessionError::DeliveryError)?;
-        for client_id in self.connections.ping_check() {
-            self.client_events.remove_client(client_id);
+        for removed in self.connections.ping_check() {
+            if let Err(error) = self.finish_connection_removal(removed, None) {
+                error!(?error, "Unable to queue expired connection's departure");
+            }
         }
 
         // Send ping to all hosts
@@ -310,8 +318,23 @@ impl MessageHandler for RpcMessageHandler {
         self.connections.flush();
     }
 
-    fn handle_session_event(&self, session_event: SessionActions) -> Result<(), Error> {
+    fn handle_session_event(
+        &self,
+        scheduler_client: &SchedulerClient,
+        session_event: SessionActions,
+    ) -> Result<(), Error> {
         match session_event {
+            SessionActions::UserDisconnected(removed) => {
+                if let Some(player) = removed.disconnected_player {
+                    self.submit_disconnected_task(
+                        &SYSTEM_OBJECT,
+                        scheduler_client.clone(),
+                        removed.client_id,
+                        &player,
+                        &removed.connection,
+                    )?;
+                }
+            }
             SessionActions::PublishNarrativeEvents(events) => {
                 if let Err(e) = self.publish_narrative_events(&events) {
                     error!(error = ?e, "Unable to publish narrative events");
@@ -434,8 +457,7 @@ impl RpcMessageHandler {
             Ok(published) => published,
             Err(error @ ClientEventBufferError::BacklogExceeded { .. }) => {
                 error!(?client_id, %error, "Disconnecting client with an unacknowledged event backlog");
-                let _ = self.connections.remove_client_connection(client_id);
-                self.client_events.remove_client(client_id);
+                self.remove_client(client_id, None)?;
                 return Err(error.into());
             }
             Err(error) => return Err(error.into()),
@@ -458,12 +480,41 @@ impl RpcMessageHandler {
             }
 
             // Then remove the client connection
-            if let Err(e) = self.connections.remove_client_connection(*client_id) {
+            if let Err(e) = self.remove_client(*client_id, None) {
                 error!(error = ?e, "Unable to remove client connection for disconnect");
             }
-            self.client_events.remove_client(*client_id);
         }
 
+        Ok(())
+    }
+
+    /// Share removal and lifecycle delivery across detach, boot, and backlog eviction.
+    pub(crate) fn remove_client(
+        &self,
+        client_id: Uuid,
+        scheduler_client: Option<&SchedulerClient>,
+    ) -> Result<(), Error> {
+        if let Some(removed) = self.connections.remove_client_connection(client_id)? {
+            self.finish_connection_removal(removed, scheduler_client)?;
+        }
+        Ok(())
+    }
+
+    fn finish_connection_removal(
+        &self,
+        removed: RemovedConnection,
+        scheduler_client: Option<&SchedulerClient>,
+    ) -> Result<(), Error> {
+        self.client_events.remove_client(removed.client_id);
+        if removed.disconnected_player.is_some() {
+            let event = SessionActions::UserDisconnected(removed);
+            if let Some(scheduler_client) = scheduler_client {
+                // Hard detach submits its hook before replying; a subsequent attach can submit another.
+                self.handle_session_event(scheduler_client, event)?;
+            } else {
+                self.mailbox_sender.send(event)?;
+            }
+        }
         Ok(())
     }
 

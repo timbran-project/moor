@@ -21,7 +21,7 @@ use std::{
 };
 
 use crate::connections::{
-    ConnectionRecord, ConnectionsRecords, FIRST_CONNECTION_ID,
+    ConnectionRecord, ConnectionsRecords, FIRST_CONNECTION_ID, RemovedConnection,
     conversions::{connections_records_from_bytes, connections_records_to_bytes},
     registry::{ConnectionRegistry, ConnectionStateSource, NewConnectionParams},
 };
@@ -582,65 +582,115 @@ impl FjallConnectionRegistry {
         }
     }
 
-    fn remove_from_player_connections(inner: &FjallInner, client_uuid: Uuid, client_id: u128) {
-        let Ok(Some(bytes)) = inner
+    /// Remove registry entries and identify a final departure before releasing the registry lock.
+    fn remove_client_connection_locked(
+        &self,
+        inner: &FjallInner,
+        client_id: Uuid,
+    ) -> Result<Option<RemovedConnection>, Error> {
+        debug!(client_id = ?client_id, "remove_client_connection: removing");
+
+        // Get timestamps from cache before removal
+        let timestamps = self.timestamps.lock().unwrap().remove(&client_id);
+
+        // Get connection_obj and player_obj
+        let connection_obj = match inner
+            .client_connection_table
+            .get(client_id.as_u128().to_le_bytes())?
+        {
+            Some(bytes) => Obj::from_bytes(bytes.as_ref())?,
+            None => return Ok(None),
+        };
+
+        let player_obj = match inner
             .client_player_table
-            .get(client_uuid.as_u128().to_le_bytes())
-        else {
-            return;
+            .get(client_id.as_u128().to_le_bytes())?
+        {
+            Some(bytes) => Some(Obj::from_bytes(bytes.as_ref())?),
+            None => None,
         };
 
-        let Ok(player_obj) = Obj::from_bytes(bytes.as_ref()) else {
-            return;
-        };
+        // Remove client mappings
+        inner
+            .client_connection_table
+            .remove(client_id.as_u128().to_le_bytes())?;
+        inner
+            .client_player_table
+            .remove(client_id.as_u128().to_le_bytes())?;
+        inner
+            .client_history_table
+            .remove(client_id.as_u128().to_le_bytes())?;
 
-        let player_oid_bytes = player_obj.as_bytes();
+        // Remove from connection records (flush cached timestamps first)
+        let conn_oid_bytes = connection_obj.as_bytes();
+        if let Some(bytes) = inner.connection_records_table.get(conn_oid_bytes)? {
+            let mut connections_record = connections_records_from_bytes(&bytes)?;
 
-        let Ok(Some(bytes)) = inner.player_clients_table.get(player_oid_bytes) else {
-            return;
-        };
+            // Flush cached timestamps before removing
+            if let Some(ts) = &timestamps {
+                for cr in &mut connections_record.connections {
+                    if cr.client_id == client_id.as_u128() {
+                        cr.last_activity = ts.last_activity;
+                        cr.last_ping = ts.last_ping;
+                        break;
+                    }
+                }
+            }
 
-        let Ok(mut player_connections) = connections_records_from_bytes(&bytes) else {
-            return;
-        };
+            connections_record
+                .connections
+                .retain(|cr| cr.client_id != client_id.as_u128());
 
-        player_connections
-            .connections
-            .retain(|cr| cr.client_id != client_id);
-
-        if player_connections.connections.is_empty() {
-            let _ = inner.player_clients_table.remove(player_oid_bytes);
-        } else if let Ok(encoded) = connections_records_to_bytes(&player_connections) {
-            let _ = inner.player_clients_table.insert(player_oid_bytes, encoded);
+            if connections_record.connections.is_empty() {
+                inner.connection_records_table.remove(conn_oid_bytes)?;
+            } else {
+                let encoded = connections_records_to_bytes(&connections_record)?;
+                inner
+                    .connection_records_table
+                    .insert(conn_oid_bytes, encoded)?;
+            }
         }
 
-        let _ = inner
-            .client_player_table
-            .remove(client_uuid.as_u128().to_le_bytes());
-    }
+        let mut disconnected_player = None;
 
-    fn remove_from_connection_records(inner: &FjallInner, connection_id: Obj, client_id: u128) {
-        let conn_oid_bytes = connection_id.as_bytes();
+        // Remove from player connections if logged in (flush cached timestamps first)
+        if let Some(player_obj) = player_obj {
+            let player_oid_bytes = player_obj.as_bytes();
+            if let Some(bytes) = inner.player_clients_table.get(player_oid_bytes)? {
+                let mut connections_record = connections_records_from_bytes(&bytes)?;
 
-        let Ok(Some(bytes)) = inner.connection_records_table.get(conn_oid_bytes) else {
-            return;
-        };
+                // Flush cached timestamps before removing
+                if let Some(ts) = &timestamps {
+                    for cr in &mut connections_record.connections {
+                        if cr.client_id == client_id.as_u128() {
+                            cr.last_activity = ts.last_activity;
+                            cr.last_ping = ts.last_ping;
+                            break;
+                        }
+                    }
+                }
 
-        let Ok(mut connections_record) = connections_records_from_bytes(&bytes) else {
-            return;
-        };
+                connections_record
+                    .connections
+                    .retain(|cr| cr.client_id != client_id.as_u128());
 
-        connections_record
-            .connections
-            .retain(|cr| cr.client_id != client_id);
-
-        if connections_record.connections.is_empty() {
-            let _ = inner.connection_records_table.remove(conn_oid_bytes);
-        } else if let Ok(encoded) = connections_records_to_bytes(&connections_record) {
-            let _ = inner
-                .connection_records_table
-                .insert(conn_oid_bytes, encoded);
+                if connections_record.connections.is_empty() {
+                    inner.player_clients_table.remove(player_oid_bytes)?;
+                    disconnected_player = Some(player_obj);
+                } else {
+                    let encoded = connections_records_to_bytes(&connections_record)?;
+                    inner
+                        .player_clients_table
+                        .insert(player_oid_bytes, encoded)?;
+                }
+            }
         }
+
+        Ok(Some(RemovedConnection {
+            client_id,
+            connection: connection_obj,
+            disconnected_player,
+        }))
     }
 
     /// Get connection records for an object, checking both connection_records and player_clients tables.
@@ -1194,7 +1244,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Ok(())
     }
 
-    fn ping_check(&self) -> Vec<Uuid> {
+    fn ping_check(&self) -> Vec<RemovedConnection> {
         // Timeout for ping response - if a client hasn't responded to pings in this time,
         // it's considered dead. This is ~3 ping cycles.
         const PING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
@@ -1245,32 +1295,18 @@ impl ConnectionRegistry for FjallConnectionRegistry {
                     since_last_ping_secs = since_last_ping.as_secs(),
                     "Removing connection due to ping timeout"
                 );
-                to_remove.push((connection_id, client_uuid.as_u128()));
+                to_remove.push(client_uuid);
             }
         }
         drop(timestamps);
 
         let mut removed = Vec::with_capacity(to_remove.len());
-        for (connection_id, client_id) in to_remove {
-            let client_uuid = Uuid::from_u128(client_id);
-
-            // Remove client -> connection mapping
-            let _ = inner
-                .client_connection_table
-                .remove(client_uuid.as_u128().to_le_bytes());
-            let _ = inner
-                .client_history_table
-                .remove(client_uuid.as_u128().to_le_bytes());
-
-            // Remove from player connections if logged in
-            Self::remove_from_player_connections(&inner, client_uuid, client_id);
-
-            // Remove from connection records
-            Self::remove_from_connection_records(&inner, connection_id, client_id);
-
-            // Remove timestamp cache entry
-            let _ = self.timestamps.lock().unwrap().remove(&client_uuid);
-            removed.push(client_uuid);
+        for client_id in to_remove {
+            match self.remove_client_connection_locked(&inner, client_id) {
+                Ok(Some(connection)) => removed.push(connection),
+                Ok(None) => {}
+                Err(error) => warn!(?client_id, ?error, "Unable to remove expired connection"),
+            }
         }
 
         self.publish_connected_objects(&inner);
@@ -1392,105 +1428,14 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Obj::from_bytes(bytes.as_ref()).ok()
     }
 
-    fn remove_client_connection(&self, client_id: Uuid) -> Result<(), Error> {
-        debug!(client_id = ?client_id, "remove_client_connection: removing");
+    fn remove_client_connection(
+        &self,
+        client_id: Uuid,
+    ) -> Result<Option<RemovedConnection>, Error> {
         let inner = self.inner.lock().unwrap();
-
-        // Get timestamps from cache before removal
-        let timestamps = self.timestamps.lock().unwrap().remove(&client_id);
-
-        // Get connection_obj and player_obj
-        let connection_obj = match inner
-            .client_connection_table
-            .get(client_id.as_u128().to_le_bytes())?
-        {
-            Some(bytes) => Obj::from_bytes(bytes.as_ref())?,
-            None => bail!("No connection to prune found for {:?}", client_id),
-        };
-
-        let player_obj = match inner
-            .client_player_table
-            .get(client_id.as_u128().to_le_bytes())?
-        {
-            Some(bytes) => Some(Obj::from_bytes(bytes.as_ref())?),
-            None => None,
-        };
-
-        // Remove client mappings
-        inner
-            .client_connection_table
-            .remove(client_id.as_u128().to_le_bytes())?;
-        inner
-            .client_player_table
-            .remove(client_id.as_u128().to_le_bytes())?;
-        inner
-            .client_history_table
-            .remove(client_id.as_u128().to_le_bytes())?;
-
-        // Remove from connection records (flush cached timestamps first)
-        let conn_oid_bytes = connection_obj.as_bytes();
-        if let Some(bytes) = inner.connection_records_table.get(conn_oid_bytes)? {
-            let mut connections_record = connections_records_from_bytes(&bytes)?;
-
-            // Flush cached timestamps before removing
-            if let Some(ts) = &timestamps {
-                for cr in &mut connections_record.connections {
-                    if cr.client_id == client_id.as_u128() {
-                        cr.last_activity = ts.last_activity;
-                        cr.last_ping = ts.last_ping;
-                        break;
-                    }
-                }
-            }
-
-            connections_record
-                .connections
-                .retain(|cr| cr.client_id != client_id.as_u128());
-
-            if connections_record.connections.is_empty() {
-                inner.connection_records_table.remove(conn_oid_bytes)?;
-            } else {
-                let encoded = connections_records_to_bytes(&connections_record)?;
-                inner
-                    .connection_records_table
-                    .insert(conn_oid_bytes, encoded)?;
-            }
-        }
-
-        // Remove from player connections if logged in (flush cached timestamps first)
-        if let Some(player_obj) = player_obj {
-            let player_oid_bytes = player_obj.as_bytes();
-            if let Some(bytes) = inner.player_clients_table.get(player_oid_bytes)? {
-                let mut connections_record = connections_records_from_bytes(&bytes)?;
-
-                // Flush cached timestamps before removing
-                if let Some(ts) = &timestamps {
-                    for cr in &mut connections_record.connections {
-                        if cr.client_id == client_id.as_u128() {
-                            cr.last_activity = ts.last_activity;
-                            cr.last_ping = ts.last_ping;
-                            break;
-                        }
-                    }
-                }
-
-                connections_record
-                    .connections
-                    .retain(|cr| cr.client_id != client_id.as_u128());
-
-                if connections_record.connections.is_empty() {
-                    inner.player_clients_table.remove(player_oid_bytes)?;
-                } else {
-                    let encoded = connections_records_to_bytes(&connections_record)?;
-                    inner
-                        .player_clients_table
-                        .insert(player_oid_bytes, encoded)?;
-                }
-            }
-        }
-
+        let removed = self.remove_client_connection_locked(&inner, client_id)?;
         self.publish_connected_objects(&inner);
-        Ok(())
+        Ok(removed)
     }
 
     fn acceptable_content_types_for(&self, obj: Obj) -> Result<Vec<Symbol>, SessionError> {
@@ -1614,5 +1559,50 @@ impl ConnectionRegistry for FjallConnectionRegistry {
             .first()
             .map(|cr| cr.client_attributes.clone())
             .unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn expiry_reports_only_the_final_player_connection() {
+        let db = FjallConnectionRegistry::open(None).unwrap();
+        let player = Obj::mk_id(2);
+        let ids = [Uuid::new_v4(), Uuid::new_v4()];
+        for client_id in ids {
+            db.new_connection(NewConnectionParams {
+                client_id,
+                hostname: "test.host".into(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: Some(player),
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+        }
+        let expire = |id| {
+            db.timestamps
+                .lock()
+                .unwrap()
+                .get_mut(&id)
+                .unwrap()
+                .last_ping = SystemTime::now() - Duration::from_secs(31);
+        };
+        expire(ids[0]);
+        let first = db.ping_check();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].client_id, ids[0]);
+        assert_eq!(first[0].disconnected_player, None);
+        assert_eq!(db.client_ids_for(player).unwrap(), vec![ids[1]]);
+        expire(ids[1]);
+        let last = db.ping_check();
+        assert_eq!(last.len(), 1);
+        assert_eq!(last[0].disconnected_player, Some(player));
+        assert!(db.ping_check().is_empty());
+        assert!(db.connected_players(true).is_empty());
     }
 }

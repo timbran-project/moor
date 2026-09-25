@@ -49,6 +49,7 @@ pub enum SessionActions {
         system_message: String,
     },
     Disconnect(Uuid, Obj),
+    UserDisconnected(crate::connections::RemovedConnection),
     SetClientAttribute(Uuid, Obj, Symbol, Var),
     PublishTaskCompletion(Uuid, ClientEvent),
 }

@@ -26,6 +26,7 @@ pub const FIRST_CONNECTION_ID: i32 = -4;
 
 pub use registry::{
     ConnectionRegistry, ConnectionRegistryFactory, ConnectionStateSource, NewConnectionParams,
+    RemovedConnection,
 };
 
 /// In-memory representation of a connection record
