@@ -494,10 +494,12 @@ object LOGIN [
     return found;
   endmethod
 
-  method notify owner: #2
-    "Deliver a line to the connecting player using caller permissions.";
+  method "notify tell_current" owner: #2
+    "Deliver login output using caller permissions; tell_current targets only the initiating connection.";
+    const target = verb == "tell_current" ? connection() | player;
+    const text = verb == "tell_current" ? tostr(@args) | args[1];
     set_task_perms(caller_perms());
-    `notify(player, args[1]) ! ANY';
+    `notify(target, text) ! ANY';
   endmethod
 
   method tell owner: HACKER

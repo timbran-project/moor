@@ -94,17 +94,17 @@ object GENERIC_EDITOR [
     "Read for the current player, then revalidate the loaded buffer across read() commits.";
     caller != this && return E_PERM;
     let who = this:loaded(player);
-    !who && return player:tell(this:nothing_loaded_msg());
+    !who && return player:tell_current(this:nothing_loaded_msg());
     !maphaskey(this.input_versions, player) && this:_renew_input_version(who);
     const version = this.input_versions[player];
     const lines = $command_utils:read_lines();
-    typeof(lines) == TYPE_ERR && return player:notify(tostr(lines));
+    typeof(lines) == TYPE_ERR && return player:tell_current(tostr(lines));
     who = this:loaded(player);
     if (!who || player.location != this || !maphaskey(this.input_versions, player))
-      return player:tell("Input discarded: your editing session changed while waiting.");
+      return player:tell_current("Input discarded: your editing session changed while waiting.");
     endif
     if (this.input_versions[player] != version)
-      return player:tell("Input discarded: your editing session changed while waiting.");
+      return player:tell_current("Input discarded: your editing session changed while waiting.");
     endif
     return this:insert_line(who, lines, false);
   endmethod
@@ -129,19 +129,19 @@ object GENERIC_EDITOR [
         for session in [1..length(this.active)]
           this.readable[session] && (publishers = {@publishers, this.active[session]});
         endfor
-        !publishers && return player:tell("No one has published anything in this editor.");
-        return player:tell("Players having readable texts in this editor:  ", $string_utils:names_of(publishers));
+        !publishers && return player:tell_current("No one has published anything in this editor.");
+        return player:tell_current("Players having readable texts in this editor:  ", $string_utils:names_of(publishers));
       endif
       const target = $string_utils:match_player(args[1]);
       $command_utils:player_match_result(target, args[1])[1] && return;
       who = this:loaded(target);
       if (!who || !this:readable(who))
-        return player:tell(target.name, "(", target, ") has not published anything in this editor.");
+        return player:tell_current(target.name, "(", target, ") has not published anything in this editor.");
       endif
       range_args = listdelete(range_args, 1);
     else
       who = this:loaded(player);
-      !who && return player:tell(this:nothing_loaded_msg());
+      !who && return player:tell_current(this:nothing_loaded_msg());
     endif
     const count = length(this.texts[who]);
     const insertion = this.inserting[who];
@@ -151,14 +151,14 @@ object GENERIC_EDITOR [
       defaults = insertion <= window ? {tostr("1-", 2 * window)} | {tostr(window, "_-", window, "^"), tostr(2 * window, "$-$")};
     endif
     const range = this:parse_range(who, defaults, @range_args);
-    typeof(range) != TYPE_LIST && return player:tell(tostr(range));
+    typeof(range) != TYPE_LIST && return player:tell_current(tostr(range));
     const nonum = $string_utils:trim(range[3]) == "nonum";
-    range[3] && !nonum && return player:tell("Don't understand this:  ", range[3]);
-    nonum && return player:tell_lines(this.texts[who][range[1]..range[2]]);
+    range[3] && !nonum && return player:tell_current("Don't understand this:  ", range[3]);
+    nonum && return player:tell_current_lines(this.texts[who][range[1]..range[2]]);
     for line in [range[1]..range[2]]
       this:list_line(who, line);
     endfor
-    insertion > count && count == range[2] && player:tell("^^^^");
+    insertion > count && count == range[2] && player:tell_current("^^^^");
   endverb
 
   verb "ins*ert n*ext p*revious ." (any none none) owner: #96 flags: "rd"
@@ -587,7 +587,7 @@ object GENERIC_EDITOR [
     !this:ok(who) && return;
     const insertion = this.inserting[who];
     const marker = 1 + (line in {insertion - 1, insertion});
-    player:tell($string_utils:right(line, 3, " _^"[marker]), ":_^"[marker], " ", this.texts[who][line]);
+    player:tell_current($string_utils:right(line, 3, " _^"[marker]), ":_^"[marker], " ", this.texts[who][line]);
   endmethod
 
   method insert_line owner: #96

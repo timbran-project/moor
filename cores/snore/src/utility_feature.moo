@@ -44,7 +44,7 @@ object UTILITY_FEATURE [
     const plyrs = args ? listdelete($command_utils:player_match_result($string_utils:match_player(args), args), 1) | connected_players();
     !plyrs && return;
     if (length(plyrs) > 100)
-      player:tell("You have requested a listing of ", length(plyrs), " players.  Please either specify individual players you are interested in, to reduce the number of players in any single request, or else use the `@users' command instead.  The lag thanks you.");
+      player:tell_current("You have requested a listing of ", length(plyrs), " players.  Please either specify individual players you are interested in, to reduce the number of players in any single request, or else use the `@users' command instead.  The lag thanks you.");
       return;
     endif
     $code_utils:show_who_listing(plyrs, {}, player);
@@ -58,7 +58,7 @@ object UTILITY_FEATURE [
     if (args)
       $code_utils:show_who_listing($wiz_utils:all_wizards(), {}, player);
     else
-      $code_utils:show_who_listing($wiz_utils:connected_wizards(), {}, player) || player:tell("No wizards currently logged in.");
+      $code_utils:show_who_listing($wiz_utils:connected_wizards(), {}, player) || player:tell_current("No wizards currently logged in.");
     endif
   endverb
 
@@ -197,28 +197,28 @@ object UTILITY_FEATURE [
     const opts = {"all", "confunc"};
     let i = 0;
     if (length(args) > 1)
-      player:tell(tostr("Usage: ", verb, " [all]"));
+      player:tell_current(tostr("Usage: ", verb, " [all]"));
       return;
     endif
     i = args ? $string_utils:find_prefix(args[1], opts) | 0;
     if (args && !i)
-      player:tell(tostr("Usage:  ", verb, " [all]"));
+      player:tell_current(tostr("Usage:  ", verb, " [all]"));
       return;
     endif
     const opt_all = i && opts[i] == "all";
     const opt_confunc = i && opts[i] == "confunc";
     if (!prev)
-      player:tell("Something was broken when you logged in; tell a wizard.");
+      player:tell_current("Something was broken when you logged in; tell a wizard.");
     elseif (prev[1] == 0)
-      opt_confunc || player:tell("Your previous connection was before we started keeping track.");
+      opt_confunc || player:tell_current("Your previous connection was before we started keeping track.");
     elseif (prev[1] > time())
-      player:tell("This is your first time connected.");
+      player:tell_current("This is your first time connected.");
     else
-      player:tell(tostr("Last connected ", player:ctime(prev[1]), " from ", prev[2]));
+      player:tell_current(tostr("Last connected ", player:ctime(prev[1]), " from ", prev[2]));
       if (opt_all)
-        player:tell("Previous connections have been from the following sites:");
+        player:tell_current("Previous connections have been from the following sites:");
         for l in (places)
-          player:tell("   " + l);
+          player:tell_current("   " + l);
         endfor
       endif
     endif

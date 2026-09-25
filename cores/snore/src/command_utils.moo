@@ -139,11 +139,11 @@ object COMMAND_UTILS [
     const {?prompt = "a line of input"} = args;
     const c = callers();
     const p = c[$][5];
-    p:notify(tostr("[Type ", prompt, " or `@abort' to abort the command.]"));
+    p:tell_current(tostr("[Type ", prompt, " or `@abort' to abort the command.]"));
     try
       const ans = read();
       if ($string_utils:trim(ans) == "@abort")
-        p:notify(">> Command Aborted <<");
+        p:tell_current(">> Command Aborted <<");
         kill_task(task_id());
       endif
       return ans;
@@ -161,14 +161,14 @@ object COMMAND_UTILS [
     const {?max = 0} = args;
     const c = callers();
     const p = c[$][5];
-    p:notify(tostr("[Type", max ? tostr(" up to ", max) | "", " lines of input; use `.' to end or `@abort' to abort the command.]"));
+    p:tell_current(tostr("[Type", max ? tostr(" up to ", max) | "", " lines of input; use `.' to end or `@abort' to abort the command.]"));
     let ans = {};
     while (1)
       try
         const line = read();
         tail = line[1..min(6, $)] == "@abort" ? line[7..$] | "";
         if (line[1..min(6, $)] == "@abort" && tail == $string_utils:space(tail))
-          p:notify(">> Command Aborted <<");
+          p:tell_current(">> Command Aborted <<");
           kill_task(task_id());
         elseif (!line || line[1] != ".")
           ans = {@ans, line};
@@ -190,13 +190,13 @@ object COMMAND_UTILS [
     "Returns E_NONE if the player enters a blank line, E_INVARG, if the player enters something that isn't a prefix of \"yes\" or \"no\", and E_PERM if the current task is not a command task that has never called suspend().";
     const c = callers();
     const p = c[$][5];
-    p:notify(tostr(args ? args[1] + " " | "", "[Enter `yes' or `no']"));
+    p:tell_current(tostr(args ? args[1] + " " | "", "[Enter `yes' or `no']"));
     try
       let ans = read(@caller == p || $perm_utils:controls(caller_perms(), p) ? {p} | {});
       ans = $string_utils:trim(ans);
       if (ans)
         if (ans == "@abort")
-          p:notify(">> Command Aborted <<");
+          p:tell_current(">> Command Aborted <<");
           kill_task(task_id());
         endif
         return index("yes", ans) == 1 || (index("no", ans) != 1 && E_INVARG);
@@ -220,7 +220,7 @@ object COMMAND_UTILS [
     const c = callers();
     const p = c[$][5];
     escapes = {".", "@abort", @typeof(escapes) == TYPE_LIST ? escapes | {escapes}};
-    p:notify(tostr("[Type lines of input; `?' for help; end with `", $string_utils:english_list(escapes, "", "' or `", "', `", ""), "'.]"));
+    p:tell_current(tostr("[Type lines of input; `?' for help; end with `", $string_utils:english_list(escapes, "", "' or `", "', `", ""), "'.]"));
     let ans = {};
     escapes[1..0] = {"?"};
     "... set up the help text...";
@@ -235,10 +235,10 @@ object COMMAND_UTILS [
         if (trimline in escapes)
           trimline == "." && return {0, ans};
           if (trimline == "@abort")
-            p:notify(">> Command Aborted <<");
+            p:tell_current(">> Command Aborted <<");
             kill_task(task_id());
           elseif (trimline == "?")
-            p:notify_lines(help);
+            p:tell_current_lines(help);
           else
             return {trimline, ans};
           endif
@@ -382,7 +382,7 @@ object COMMAND_UTILS [
           endif
           const evs = $code_utils:explain_verb_syntax(x, verb, @verb_args(what, i));
           if (evs)
-            player:tell("Try this instead:  ", evs);
+            player:tell_current("Try this instead:  ", evs);
             return 1;
           endif
           i = i + 1;

@@ -12,6 +12,7 @@
 
 import argparse
 import contextlib
+import json
 import pathlib
 import os
 import socket
@@ -57,6 +58,18 @@ class Client:
                 continue
             assert data, f"Connection closed waiting for {texts!r}: {self.buffer!r}"
             self.buffer += data
+
+    def expect_closed(self, timeout=15):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                data = self.socket.recv(65536)
+            except socket.timeout:
+                continue
+            if not data:
+                return
+            self.buffer += data
+        raise AssertionError("Connection remained open after @quit")
 
     def command(self, command, expected):
         self.send(command)
@@ -296,6 +309,9 @@ def run(daemon, host, core):
                 stack.callback(reconnected.close)
                 reconnected.command("connect testplayer wire-test-password", "*** Connected ***")
                 reconnected.command("say wire reconnect", 'You say, "wire reconnect"')
+                wizard.command(';; add_property(#0, "wire_primary", connections(#101)[1][1], {#2, ""}); '
+                    'add_property(#0, "wire_wizard", connection(), {#2, "r"}); '
+                    'notify(player, "WIRE_CONNECTIONS_SAVED");', "WIRE_CONNECTIONS_SAVED")
                 additional = Client(port)
                 stack.callback(additional.close)
                 # Additional connections use the merged runtime's Connected hook.
@@ -304,6 +320,96 @@ def run(daemon, host, core):
                 reconnected.expect('You say, "wire simultaneous"')
                 wizard.command(';; notify(player, tostr("WIRE_RECONNECTS=", $wire_reconnects));',
                                "WIRE_RECONNECTS=0")
+                def install_command(name, source):
+                    code = "{" + ", ".join(json.dumps(line) for line in source) + "}"
+                    wizard.command(';; add_verb(#101, {#101, "rd", ' + json.dumps(name) + '}, '
+                        '{"none", "none", "none"}); set_verb_code(#101, ' + json.dumps(name) + ', '
+                        + code + '); notify(player, "WIRE_VERB_INSTALLED");', "WIRE_VERB_INSTALLED")
+
+                install_command("wire-current", ['this:tell_current("WIRE_CURRENT_ONLY");', 'notify(player, "WIRE_CURRENT_DONE");'])
+                install_command("wire-lines", ['this:tell_current_lines({"WIRE_LINE_ONE", "WIRE_LINE_TWO"});'])
+                install_command("wire-world", ['this:tell("WIRE_WORLD_ALL");', 'notify(player, "WIRE_WORLD_DONE");'])
+                install_command("wire-denials", [
+                    'const foreign = `this:tell_connection($wire_wizard, "WIRE_LEAK_FOREIGN") ! E_INVARG\';',
+                    'const denied = `#2:tell_connection(connection(), "WIRE_LEAK_DENIED") ! E_PERM\';',
+                    'const helper = `#2:_notify_connection(connection(), {"WIRE_LEAK_HELPER"}) ! E_PERM\';',
+                    'this:tell_current(tostr("WIRE_DENIALS=", foreign == E_INVARG && denied == E_PERM && helper == E_PERM));',
+                ])
+                install_command("wire-read", [
+                    'const line = $command_utils:read("wire input");',
+                    'this:tell_current("WIRE_READ_RESULT=", line);',
+                ])
+
+                marker = 0
+
+                def barrier(forbidden_a=(), forbidden_b=()):
+                    nonlocal marker
+                    marker += 1
+                    label = f"WIRE_BARRIER_{marker}_END"
+                    wizard.command(';; for c in (connections(#101)) notify(c[1], '
+                        + json.dumps(label) + '); endfor notify(player, "WIRE_BARRIER_SENT");',
+                        "WIRE_BARRIER_SENT")
+                    for client, forbidden in ((reconnected, forbidden_a), (additional, forbidden_b)):
+                        received = client.expect(label)
+                        for text in forbidden:
+                            assert text not in received, f"Output leaked to sibling connection: {text!r} in {received!r}"
+
+                barrier()
+                reconnected.command("wire-current", "WIRE_CURRENT_ONLY")
+                barrier(forbidden_b=("WIRE_CURRENT_ONLY",))
+                additional.command("wire-lines", "WIRE_LINE_ONE")
+                additional.expect("WIRE_LINE_TWO")
+                barrier(forbidden_a=("WIRE_LINE_ONE", "WIRE_LINE_TWO"))
+                wizard.command(';; #101:tell_connection($wire_primary, "WIRE_EXPLICIT_ONLY"); '
+                    '#101:tell_connection_lines($wire_primary, {"WIRE_EXPLICIT_LINE"}); '
+                    'notify(player, "WIRE_EXPLICIT_SENT");', "WIRE_EXPLICIT_SENT")
+                reconnected.expect("WIRE_EXPLICIT_ONLY")
+                reconnected.expect("WIRE_EXPLICIT_LINE")
+                barrier(forbidden_b=("WIRE_EXPLICIT_ONLY", "WIRE_EXPLICIT_LINE"))
+                reconnected.command("wire-world", "WIRE_WORLD_ALL")
+                additional.expect("WIRE_WORLD_ALL")
+                reconnected.command("wire-denials", "WIRE_DENIALS=true")
+                barrier(forbidden_a=("WIRE_LEAK_",), forbidden_b=("WIRE_LEAK_", "WIRE_DENIALS="))
+
+                # Local delivery retains both gagging and anti-spoofing.
+                wizard.command(';; #101.gaglist = {#101}; notify(player, "WIRE_GAG_SET");', "WIRE_GAG_SET")
+                reconnected.command("wire-current", "WIRE_CURRENT_DONE")
+                reconnected.command("wire-world", "WIRE_WORLD_DONE")
+                barrier(forbidden_a=("WIRE_CURRENT_ONLY", "WIRE_WORLD_ALL"),
+                        forbidden_b=("WIRE_CURRENT_ONLY", "WIRE_WORLD_ALL"))
+                wizard.command(';; #101.gaglist = {}; #101.paranoid = 1; '
+                    '$paranoid_db:erase_data(#101); notify(player, "WIRE_PARANOID_SET");', "WIRE_PARANOID_SET")
+                reconnected.command("wire-current", "WIRE_CURRENT_ONLY")
+                additional.command("wire-lines", "WIRE_LINE_ONE")
+                additional.expect("WIRE_LINE_TWO")
+                wizard.command(';; notify(player, tostr("WIRE_PARANOID_RECORDS=", '
+                    'length($paranoid_db:get_data(#101)))); #101.paranoid = 2;', "WIRE_PARANOID_RECORDS=2")
+                additional.command("wire-lines", "[start text by")
+                additional.expect("[end text by")
+                barrier(forbidden_a=("WIRE_LINE_ONE", "[start text by", "[end text by"))
+                wizard.command(';; #101.paranoid = 0; notify(player, "WIRE_PARANOID_CLEARED");', "WIRE_PARANOID_CLEARED")
+
+                reconnected.command("@who", "Total:")
+                barrier(forbidden_b=("Feature Name", "Total:"))
+                reconnected.command("help @who", "Syntax: @who")
+                barrier(forbidden_b=("Syntax: @who",))
+                reconnected.send("wire-read")
+                reconnected.expect("[Type wire input")
+                barrier(forbidden_b=("[Type wire input",))
+                additional.command("say WIRE_WHILE_READING", 'You say, "WIRE_WHILE_READING"')
+                reconnected.expect('You say, "WIRE_WHILE_READING"')
+                reconnected.send("WIRE_ANSWER")
+                reconnected.expect("WIRE_READ_RESULT=WIRE_ANSWER")
+                barrier(forbidden_b=("WIRE_READ_RESULT=",))
+
+                reconnected.send("@quit")
+                reconnected.expect_closed()
+                additional.command("say WIRE_STILL_CONNECTED", 'You say, "WIRE_STILL_CONNECTED"')
+                wizard.command(';; notify(player, tostr("WIRE_REMAINING=", length(connections(#101)))); '
+                    'const stale = `#101:tell_connection($wire_primary, "WIRE_STALE_LEAK") ! E_INVARG\'; '
+                    'notify(player, tostr("WIRE_STALE_REJECTED=", stale == E_INVARG));', "WIRE_REMAINING=1")
+                wizard.expect("WIRE_STALE_REJECTED=true")
+                print("PASS wire: local/world delivery, explicit destinations, permissions, gagging, attribution, prompts, single-connection quit")
                 assert all(process.poll() is None for process in processes), "A server exited"
                 print("PASS wire: password rejection/prompt, account creation/login, who listings, guest, reconnect, speech, private page, mail, editing, create/recycle")
             except Exception:

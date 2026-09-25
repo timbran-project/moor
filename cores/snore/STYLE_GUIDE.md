@@ -328,6 +328,38 @@ response time, transaction retries, and persistence costs where relevant.
 Use ordinary text output. Structured output is deferred. Do not bypass the core output interface in
 ways that circumvent gagging or private delivery.
 
+Choose the output destination explicitly:
+
+| Method                                            | Destination                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| `player:tell(@text)`                              | All of the player's connections, with player history when enabled |
+| `player:tell_lines(lines)`                        | The same destination, for a string or list of lines               |
+| `player:tell_current(@text)`                      | Only the connection associated with this task                     |
+| `player:tell_current_lines(lines)`                | The current connection, for a string or list of lines             |
+| `player:tell_connection(connection, @text)`       | One specified connection attached to this player                  |
+| `player:tell_connection_lines(connection, lines)` | The specified connection, for a string or list of lines           |
+
+Use `tell` for world events, speech, and received private messages. Use the connection methods for
+help, command listings, input prompts, and other output specific to one client. These methods accept
+unsolicited events as well as command responses. They preserve gagging and caller attribution. They
+do not add entries to the player's event history.
+
+Connection output requires the recipient to be the task player, the caller itself, or an object
+controlled by the caller's permissions. Otherwise it raises `E_PERM`. An explicit destination must
+appear in `connections(recipient)` or the call raises `E_INVARG`. Object-number ordering does not
+establish connection ownership.
+
+The current-connection methods return false when the task has no connection. They never fall back to
+broadcasting. A closed explicit destination raises `E_INVARG`. Successful delivery queues output and
+returns true. Gagged output returns false. The methods do not suspend.
+
+For delayed client output, capture the destination before suspension and use `tell_connection`
+afterwards. A failed delivery must not redirect output to the player's other connections. Custom
+output hooks can suspend, so the final delivery helper rechecks membership after those hooks.
+
+Connectionless captured API invocations also have no current connection. Their response routing
+needs a separate interface. Do not use a broadcast fallback to hide that distinction.
+
 Leave long-output paging and word wrapping to clients. Do not add core pager buffers, continuation
 prompts, page-length controls, or terminal-width wrapping. Preserve meaningful line breaks in
 paragraphs, lists, and preformatted text. The `page` private-message command is separate from output

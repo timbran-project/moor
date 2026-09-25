@@ -25,7 +25,7 @@ cargo test -p moor-daemon snore_oauth_boundary
 | `test-harness`              | Runner assertions, builtin map keys, eval errors, and rejection of command exceptions.                                          |
 | `roundtrip`                 | Fresh source import, export/reimport, and an exact export comparison.                                                           |
 | `test-collection-roundtrip` | Execute a saved captured closure after export and reimport.                                                                     |
-| `test-wire`                 | Real TCP login, guests, concurrent connections, reconnect, and authoring.                                                       |
+| `test-wire`                 | Real TCP login, guests, concurrent connections, output isolation, reconnect, and authoring.                                     |
 | `test-extraction`           | Isolated destructive extraction, recovery after restart, and exported-world reimport.                                           |
 | `measure`                   | Storage and interaction workload measurements; timing is environment-dependent.                                                 |
 
@@ -59,8 +59,10 @@ Their recorded failures are not accepted core-test results.
 
 `tools/session-runner` uses the merged runtime APIs. Its session implementation and extra directives
 live in this core directory. Pending output belongs to one transaction; committed output retains its
-recipient and accumulates until drained. Presence is shared across sessions and forks. The mock does
-not model real connection handles, attributes, or elapsed time.
+recipient and accumulates until drained. Presence is shared across sessions and forks. The mock
+assigns one synthetic connection per player and retains it across task forks. It does not model
+multiple connections per player, connection attributes, or elapsed time. TCP tests cover multiple
+simultaneous connections.
 
 | Directive                                  | Meaning                                                                             |
 | ------------------------------------------ | ----------------------------------------------------------------------------------- |
@@ -103,3 +105,18 @@ quota alternative remains unavailable because native quota accounting is missing
 supported byte-quota policy are not evidence for native object quotas.
 
 The [transaction notes](../docs/transactions.md) describe partial-operation and extension limits.
+
+## Connection output checks
+
+The method suite checks missing-session behavior and unauthorized explicit delivery. Session-runner
+unit tests check connection identity, output destinations, rollback, forks, and disconnects.
+
+The TCP suite uses two connections to the same player. It checks current and explicit destinations,
+line-list output, player-wide broadcasts, foreign and stale targets, gagging, caller attribution,
+help and who listings, input prompts, and connection-local quit. Delivery markers on both streams
+bound the output checked for leaks. These checks do not establish complete presence-hook coverage
+for timeout, boot, or web reattachment paths.
+
+The 2026-09-25 connection-output follow-up passed `make check` with 106 method tests, 42 default
+sessions, three game sessions, and eight runner unit tests. The extended TCP suite and runner Clippy
+also passed. The shipped style check reports 1,623 verb bodies and no findings.

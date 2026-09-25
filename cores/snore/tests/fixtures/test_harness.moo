@@ -2712,4 +2712,14 @@ object TEST_HARNESS [
     endtry
     return true;
   endmethod
+  method test_connection_output_without_session owner: #2
+    "Headless local output has no broadcast fallback; unrelated callers cannot choose a player's connection.";
+    const recipient = this.test_player;
+    recipient:tell_current("Do not broadcast a missing current connection.") == false || raise(E_INVARG);
+    recipient:tell_current_lines({"Nor a list of lines."}) == false || raise(E_INVARG);
+    set_task_perms(this.test_programmer);
+    const denied = `recipient:tell_connection(#-1000, "Do not deliver.") ! E_PERM';
+    denied == E_PERM || raise(E_INVARG, "Unauthorized connection output was accepted.");
+    return true;
+  endmethod
 endobject

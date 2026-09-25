@@ -42,6 +42,17 @@ The default listener is `127.0.0.1:8888`. Set `MOOR_TELNET_PORT`, `MOOR_TELNET_A
 `MOOR_PROFILE=release` as needed. `run-monolith.sh --help` lists the settings. The launcher works
 from any directory.
 
+## Multiple connections
+
+A player can connect from more than one client. Speech and received private messages reach all of
+that player's connections. Help, who listings, read prompts, and editor listings go to the client
+that requested them. `@quit` closes only the connection that issued it.
+
+Core authors can use `tell` for player-wide output, `tell_current` for the current connection, or
+`tell_connection` for an explicit destination. Each has a line-list form. See the
+[output conventions](STYLE_GUIDE.md#output-and-retained-features) for permissions and
+missing-connection behavior.
+
 ## Build and check
 
 ```sh

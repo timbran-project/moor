@@ -12,13 +12,16 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Test sessions with transaction-local output and one scenario-wide delivery/presence hub.
-//! Presence is explicit; connection handles, attributes, and elapsed time are not simulated.
+//! Each connected player has one synthetic connection. Attributes and elapsed time are not simulated.
 
 use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
-use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
+use moor_var::{Obj, Symbol, Var};
 use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
+    collections::HashMap,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicI32, Ordering},
+    },
 };
 use uuid::Uuid;
 
@@ -28,7 +31,8 @@ pub type InputRequest = (Obj, Uuid, Option<Vec<(Symbol, Var)>>);
 pub struct SessionHub {
     delivered: Mutex<Vec<(Obj, NarrativeEvent)>>,
     input: Mutex<Vec<InputRequest>>,
-    connected: Mutex<HashSet<Obj>>,
+    connected: Mutex<HashMap<Obj, Obj>>,
+    next_connection: AtomicI32,
     system: Mutex<Vec<String>>,
 }
 
@@ -36,10 +40,20 @@ impl SessionHub {
     pub fn set_connected(&self, player: Obj, connected: bool) {
         let mut players = self.connected.lock().unwrap();
         if connected {
-            players.insert(player);
+            players.entry(player).or_insert_with(|| {
+                Obj::mk_id(-1000 - self.next_connection.fetch_add(1, Ordering::Relaxed))
+            });
         } else {
             players.remove(&player);
         }
+    }
+    pub fn recipient_player(&self, target: Obj) -> Obj {
+        self.connected
+            .lock()
+            .unwrap()
+            .iter()
+            .find_map(|(player, connection)| (*connection == target).then_some(*player))
+            .unwrap_or(target)
     }
     pub fn take_input_requests(&self) -> Vec<InputRequest> {
         std::mem::take(&mut *self.input.lock().unwrap())
@@ -52,6 +66,7 @@ impl SessionHub {
 pub struct TestSession {
     pending: Mutex<Vec<(Obj, NarrativeEvent)>>,
     hub: Arc<SessionHub>,
+    connection: Option<Obj>,
 }
 
 impl TestSession {
@@ -59,6 +74,15 @@ impl TestSession {
         Self {
             pending: Mutex::default(),
             hub,
+            connection: None,
+        }
+    }
+
+    pub fn for_player(hub: Arc<SessionHub>, player: Obj) -> Self {
+        let connection = hub.connected.lock().unwrap().get(&player).copied();
+        Self {
+            connection,
+            ..Self::new(hub)
         }
     }
 }
@@ -76,7 +100,10 @@ impl Session for TestSession {
     }
 
     fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
-        Ok(Arc::new(TestSession::new(self.hub.clone())))
+        Ok(Arc::new(Self {
+            connection: self.connection,
+            ..Self::new(self.hub.clone())
+        }))
     }
 
     fn fork_retry(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
@@ -131,22 +158,28 @@ impl Session for TestSession {
     }
 
     fn disconnect(&self, player: Obj) -> Result<(), SessionError> {
-        self.hub.set_connected(player, false);
+        self.hub
+            .set_connected(self.hub.recipient_player(player), false);
         Ok(())
     }
 
-    fn connected_players(&self, _include_all: bool) -> Result<Vec<Obj>, SessionError> {
-        let mut players: Vec<_> = self.hub.connected.lock().unwrap().iter().copied().collect();
+    fn connected_players(&self, include_all: bool) -> Result<Vec<Obj>, SessionError> {
+        let connected = self.hub.connected.lock().unwrap();
+        let mut players: Vec<_> = connected.keys().copied().collect();
+        if include_all {
+            players.extend(connected.values().copied());
+        }
         players.sort();
         Ok(players)
     }
 
     fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError> {
+        let player = self.hub.recipient_player(player);
         self.hub
             .connected
             .lock()
             .unwrap()
-            .contains(&player)
+            .contains_key(&player)
             .then_some(0.0)
             .ok_or(SessionError::NoConnectionForPlayer(player))
     }
@@ -155,15 +188,31 @@ impl Session for TestSession {
         self.connected_seconds(player)
     }
 
-    fn connections(&self, _player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
-        Err(SessionError::NoConnectionForPlayer(SYSTEM_OBJECT))
+    fn connections(&self, player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
+        let connected = self.hub.connected.lock().unwrap();
+        let connection = match player {
+            Some(player) => connected.get(&player).copied(),
+            None => self
+                .connection
+                .filter(|current| connected.values().any(|c| c == current)),
+        };
+        Ok(connection.into_iter().collect())
     }
 
     fn connection_details(
         &self,
-        _player: Option<Obj>,
+        player: Option<Obj>,
     ) -> Result<Vec<ConnectionDetails>, SessionError> {
-        Err(SessionError::NoConnectionForPlayer(SYSTEM_OBJECT))
+        Ok(self
+            .connections(player)?
+            .into_iter()
+            .map(|connection_obj| ConnectionDetails {
+                connection_obj,
+                peer_addr: "session-test".into(),
+                idle_seconds: 0.0,
+                acceptable_content_types: vec![Symbol::mk("text/plain")],
+            })
+            .collect())
     }
 
     fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
@@ -185,7 +234,7 @@ impl Session for TestSession {
 mod tests {
     use super::*;
     use moor_common::tasks::Event;
-    use moor_var::{v_obj, v_str};
+    use moor_var::{SYSTEM_OBJECT, v_obj, v_str};
 
     fn event(text: &str) -> Box<NarrativeEvent> {
         Box::new(NarrativeEvent::notify(
@@ -265,6 +314,40 @@ mod tests {
         assert!(sibling.idle_seconds(player).is_err());
         hub.set_connected(player, true);
         assert_eq!(parent.connected_players(false).unwrap(), vec![player]);
+    }
+
+    #[test]
+    fn connection_targets_are_scoped_and_survive_forks() {
+        let hub = Arc::new(SessionHub::default());
+        let a = Obj::mk_id(11);
+        let b = Obj::mk_id(12);
+        hub.set_connected(a, true);
+        hub.set_connected(b, true);
+        let session = Arc::new(TestSession::for_player(hub.clone(), a));
+        let ac = session.connections(None).unwrap()[0];
+        let bc = session.connections(Some(b)).unwrap()[0];
+        assert_ne!(ac, bc);
+        assert!(!ac.is_positive());
+        let child = session.clone().fork().unwrap();
+        assert_eq!(child.connections(None).unwrap(), vec![ac]);
+        child.send_event(ac, event("local")).unwrap();
+        assert!(delivered(&hub).is_empty());
+        child.commit().unwrap();
+        assert_eq!(delivered(&hub), vec![(ac, "local".into())]);
+        assert_eq!(hub.recipient_player(ac), a);
+        assert!(
+            TestSession::new(hub.clone())
+                .connections(None)
+                .unwrap()
+                .is_empty()
+        );
+        session.disconnect(ac).unwrap();
+        assert!(child.connections(None).unwrap().is_empty());
+        assert_eq!(session.connections(Some(b)).unwrap(), vec![bc]);
+        hub.set_connected(a, true);
+        assert!(child.connections(None).unwrap().is_empty());
+        let replacement = TestSession::for_player(hub, a);
+        assert_ne!(replacement.connections(None).unwrap(), vec![ac]);
     }
 
     #[test]

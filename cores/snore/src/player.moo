@@ -236,6 +236,65 @@ object PLAYER [
     pass(@args);
   endmethod
 
+  method "tell_current tell_current_lines" owner: #2
+    "Send text or lines only to this player's current connection; return false when none exists.";
+    player == this || caller == this || $perm_utils:controls(caller_perms(), this) || raise(E_PERM);
+    const target = `connection() ! E_INVARG => $nothing';
+    target == $nothing && return false;
+    const delivery = verb == "tell_current_lines" ? "tell_connection_lines" | "tell_connection";
+    return this:(delivery)(target, @args);
+  endmethod
+
+  method "tell_connection tell_connection_lines" owner: #2
+    "Send text or lines to one of this player's connections, with gagging and caller attribution.";
+    "Require player/controller authority. Raise E_INVARG for a foreign or closed connection.";
+    const {target, @text} = args;
+    player == this || caller == this || $perm_utils:controls(caller_perms(), this) || raise(E_PERM);
+    const multiline = verb == "tell_connection_lines";
+    let lines;
+    if (multiline)
+      const {value} = text;
+      lines = typeof(value) == TYPE_LIST ? value | {value};
+    else
+      lines = {tostr(@text)};
+    endif
+    if (this.gaglist || this.paranoid)
+      this:gag_p() && return false;
+      const frames = {@callers(), {player, "<cmd-line>", player}};
+      if (this.paranoid == 1)
+        $paranoid_db:add_data(this, {frames, multiline ? lines | text});
+      elseif (this.paranoid == 2)
+        const source = this:whodunnit(frames, {this, $no_one}, {})[3];
+        if (multiline)
+          lines = {tostr("[start text by ", source.name, " (", source, ")]"), @lines,
+                   tostr("[end text by ", source.name, " (", source, ")]")};
+        else
+          lines = {tostr("(", source.name, " ", source, ") ", lines[1])};
+        endif
+      endif
+    endif
+    return this:_notify_connection(target, lines);
+  endmethod
+
+  method _notify_connection owner: #2
+    "Validate the destination after output hooks, then send without suspension; self calls only.";
+    const {target, lines} = args;
+    caller == this || raise(E_PERM);
+    typeof(target) == TYPE_OBJ || raise(E_INVARG, "Expected a connection object.");
+    let attached = false;
+    for entry in (connections(this))
+      if (entry[1] == target)
+        attached = true;
+        break;
+      endif
+    endfor
+    attached || raise(E_INVARG, "Connection is not attached to this player.");
+    for line in (lines)
+      notify(target, tostr(line));
+    endfor
+    return true;
+  endmethod
+
   method gag_p owner: #2
     "Return whether the player or a defining object in the caller chain is gagged.";
     const gagged = this.gaglist;
@@ -452,30 +511,30 @@ object PLAYER [
     const result = $code_utils:help_db_search(topic_name, databases);
     if (!result)
       $wiz_utils:missed_help(topic_name, result);
-      return player:notify(tostr("Sorry, but no help is available on `", topic_name, "'."));
+      return player:tell_current(tostr("Sorry, but no help is available on `", topic_name, "'."));
     endif
     if (result[1] == $ambiguous_match)
       $wiz_utils:missed_help(topic_name, result);
-      player:notify_lines(tostr("Sorry, but the topic-name `", topic_name, "' is ambiguous.  I don't know which of the following topics you mean:"));
+      player:tell_current_lines(tostr("Sorry, but the topic-name `", topic_name, "' is ambiguous.  I don't know which of the following topics you mean:"));
       for line in ($help:columnize(@$help:sort_topics(result[2])))
-        player:notify(tostr("   ", line));
+        player:tell_current(tostr("   ", line));
       endfor
       return;
     endif
     const {database, topic} = result;
     if (topic != topic_name)
-      player:notify(tostr("Showing help on `", topic, "':"));
-      player:notify("----");
+      player:tell_current(tostr("Showing help on `", topic, "':"));
+      player:tell_current("----");
     endif
     const remaining = databases[1 + (database in databases)..$];
     const text = database:get_topic(topic, remaining);
     text == 1 && return;
     if (!text)
-      player:notify(tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."));
-      return player:notify(tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard."));
+      player:tell_current(tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."));
+      return player:tell_current(tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard."));
     endif
     for line in (typeof(text) == TYPE_LIST ? text | {text})
-      player:notify(typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard.");
+      player:tell_current(typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard.");
       "Long help output may commit between complete lines; no world state is written here.";
       $command_utils:suspend_if_needed(0);
     endfor
@@ -680,8 +739,8 @@ object PLAYER [
   endmethod
 
   verb "@quit" (none none none) owner: #2 flags: "rd"
-    "Usage: @quit. Disconnect this session's player.";
-    boot_player(player);
+    "Usage: @quit. Disconnect only the connection issuing this command.";
+    boot_player(connection());
   endverb
 
   method examine_commands_ok owner: #2

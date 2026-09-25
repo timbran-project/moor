@@ -77,9 +77,11 @@ impl MockMootRunner {
 
     fn session(&mut self, player: &Obj) -> Arc<TestSession> {
         if !self.sessions.contains_key(player) {
-            self.sessions
-                .insert(*player, Arc::new(TestSession::new(self.hub.clone())));
             self.hub.set_connected(*player, true);
+            self.sessions.insert(
+                *player,
+                Arc::new(TestSession::for_player(self.hub.clone(), *player)),
+            );
         }
         self.sessions.get(player).expect("session").clone()
     }
@@ -158,7 +160,10 @@ impl MockMootRunner {
     fn harvest_all(&mut self) {
         for (recipient, event) in self.hub.take_committed_events() {
             if let Some(line) = render_event(&event) {
-                self.lines.entry(recipient).or_default().push_back(line);
+                self.lines
+                    .entry(self.hub.recipient_player(recipient))
+                    .or_default()
+                    .push_back(line);
             }
         }
     }
@@ -260,7 +265,8 @@ impl SessionRunner for MockMootRunner {
         let target = object.copied().unwrap_or(*player);
         // The target counts as connected while its connect/reconnect/disconnect hook runs.
         self.hub.set_connected(target, true);
-        let session = self.session(&target);
+        let session = Arc::new(TestSession::for_player(self.hub.clone(), target));
+        self.sessions.insert(target, session.clone());
         let handle = self
             .scheduler
             .submit_verb_task(

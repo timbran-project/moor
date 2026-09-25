@@ -1136,7 +1136,7 @@ object CODE_UTILS [
     argstr = dobjstr = (iobjstr = (prepstr = ""));
     for p in (more_plist)
       if (!valid(p))
-        recipient:notify(tostr(p, " <invalid>"));
+        recipient:tell_current(tostr(p, " <invalid>"));
       else
         t = `p.last_disconnect_time ! E_PROPNF';
         if (typeof(t) == TYPE_INT)
@@ -1145,16 +1145,16 @@ object CODE_UTILS [
             otimes = {@otimes, {-t, -t, p}};
           endif
         elseif (is_player(p))
-          recipient:notify(tostr(p.name, " (", p, ") ", t == E_PROPNF ? "is not a $player." | "has a garbled .last_disconnect_time."));
+          recipient:tell_current(tostr(p.name, " (", p, ") ", t == E_PROPNF ? "is not a $player." | "has a garbled .last_disconnect_time."));
         else
-          recipient:notify(tostr(p.name, " (", p, ") is not a player."));
+          recipient:tell_current(tostr(p.name, " (", p, ") is not a player."));
         endif
       endif
     endfor
     for p in (plist)
       if (p in offs)
       elseif (!valid(p))
-        recipient:notify(tostr(p, " <invalid>"));
+        recipient:tell_current(tostr(p, " <invalid>"));
       else
         i = `idle_seconds(p) ! ANY';
         if (typeof(i) != TYPE_ERR)
@@ -1168,9 +1168,9 @@ object CODE_UTILS [
             offs = {@offs, p};
             otimes = {@otimes, {-t, -t, p}};
           elseif (is_player(p))
-            recipient:notify(tostr(p.name, " (", p, ") not logged in.", t == E_PROPNF ? "  Not a $player." | "  Garbled .last_disconnect_time."));
+            recipient:tell_current(tostr(p.name, " (", p, ") not logged in.", t == E_PROPNF ? "  Not a $player." | "  Garbled .last_disconnect_time."));
           else
-            recipient:notify(tostr(p.name, " (", p, ") is not a player."));
+            recipient:tell_current(tostr(p.name, " (", p, ") is not a player."));
           endif
         endif
       endif
@@ -1208,8 +1208,8 @@ object CODE_UTILS [
       tell1 = su:left(tell1, before[j]) + headers[j];
       tell2 = su:left(tell2, before[j]) + su:space(headers[j], "-");
     endfor
-    recipient:notify(tell1);
-    recipient:notify(tell2);
+    recipient:tell_current(tell1);
+    recipient:tell_current(tell2);
     "...";
     "...print lines...";
     "...";
@@ -1227,24 +1227,24 @@ object CODE_UTILS [
         const ctime = `recipient:ctime(ldt) ! ANY => 0' || ctime(ldt);
         l = {names[i], lct <= time() ? ctime | "Never", "", locations[i]};
         if (i == ilen + 1 && idles)
-          recipient:notify(su:space(before[2]) + "------- Disconnected -------");
+          recipient:tell_current(su:space(before[2]) + "------- Disconnected -------");
         endif
       endif
       tell1 = l[1];
       for j in [2..4]
         tell1 = su:left(tell1, before[j]) + l[j];
       endfor
-      recipient:notify(tell1);
+      recipient:tell_current(tell1);
       if ($command_utils:running_out_of_time())
         if ($login:is_lagging())
           "Check lag two ways---global lag, but we might still fail due to individual lag of the queue this runs in, so check again later.";
-          recipient:notify(tostr("Plus ", total - i, " other players (", total, " total; out of time and lag is high)."));
+          recipient:tell_current(tostr("Plus ", total - i, " other players (", total, " total; out of time and lag is high)."));
           return;
         endif
         const now = time();
         suspend(0);
         if (time() - now > 10)
-          recipient:notify(tostr("Plus ", total - i, " other players (", total, " total; out of time and lag is high)."));
+          recipient:tell_current(tostr("Plus ", total - i, " other players (", total, " total; out of time and lag is high)."));
           return;
         endif
       endif
@@ -1252,7 +1252,7 @@ object CODE_UTILS [
     "...";
     "...epilogue...";
     "...";
-    recipient:notify("");
+    recipient:tell_current("");
     if (total == 1)
       active_str = ", who has" + (active == 1 ? "" | " not");
     else
@@ -1265,7 +1265,7 @@ object CODE_UTILS [
       endif
       active_str = tostr(active_str, " of whom ha", active == 1 ? "s" | "ve");
     endif
-    recipient:notify(tostr("Total: ", total, " player", active_str, " been active recently."));
+    recipient:tell_current(tostr("Total: ", total, " player", active_str, " been active recently."));
     return total;
   endmethod
 
