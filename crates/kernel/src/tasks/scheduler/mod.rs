@@ -307,6 +307,7 @@ impl Scheduler {
                     .expect("Restored task ID exhausted the task ID space");
                 lc.next_task_id = lc.next_task_id.max(next_restored_task_id);
             }
+            lc.load_schedules();
             lc.bg_session_factory = Some(bg_session_factory);
             lc.state = SchedulerState::Running;
         }
@@ -442,6 +443,7 @@ impl Scheduler {
         info!("Timer loop done; saving suspended tasks");
         let lc = self.lifecycle.lock();
         lc.task_q.suspended.save_tasks();
+        lc.save_schedules();
         info!("Saved.");
     }
 
@@ -600,6 +602,7 @@ impl Scheduler {
             // A recycled target or a vanished verb retires the schedule.
             if !self.schedule_target_is_valid(&entry) {
                 lc.schedule_q.retire(id, RetireReason::InvalidTarget);
+                lc.persist_schedule(id);
                 continue;
             }
 
@@ -640,6 +643,7 @@ impl Scheduler {
                     Outcome::Fault(v_str(&format!("{e:?}"))),
                     SystemTime::now(),
                 );
+                lc.persist_schedule(id);
             }
         }
     }

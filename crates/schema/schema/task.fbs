@@ -30,8 +30,9 @@ namespace MoorTask;
 // ============================================================================
 // Time Representation
 // ============================================================================
-// Use monotonic time as nanos since system boot for WakeCondition::Time
-// This matches Instant's serialization approach
+// WakeTime carries wall-clock nanoseconds since the Unix epoch. The in-memory
+// wake time is a monotonic Instant; convert_task.rs translates through the
+// current SystemTime/Instant pair on save and load.
 
 table WakeTime {
     nanos: uint64;
@@ -481,4 +482,48 @@ table SuspendedTask {
 
     wake_condition: WakeCondition (required);
     task: Task (required);
+}
+
+// ============================================================================
+// Native scheduled tasks (ScheduleQ entries), one record per schedule id.
+// Times are nanoseconds since the Unix epoch (wall clock: a schedule must
+// survive a restart, so monotonic time is useless here). 0 = None.
+// ============================================================================
+
+table Schedule {
+    version: uint16;
+
+    schedule_id: uint64;
+    target: MoorCommon.Obj (required);
+    verb: MoorCommon.Symbol (required);
+    args: [MoorVar.Var] (required);
+    authority_principal: MoorCommon.Obj (required);
+    owner: MoorCommon.Obj (required);
+
+    // "at" or "every"
+    kind: string (required);
+    interval_nanos: uint64;
+
+    // Options.
+    adaptive: bool;
+    catchup: string (required);
+    overlap: string (required);
+    jitter_nanos: uint64;
+    max_faults: uint32;          // 0 = unlimited
+    pass_elapsed: bool;
+    state: MoorVar.Var;          // optional
+    has_player: bool;
+    player: MoorCommon.Obj;      // optional
+
+    // Progress.
+    created_at_nanos: uint64;
+    next_run_nanos: uint64;
+    scheduled_deadline_nanos: uint64;
+    last_run_nanos: uint64;
+    run_count: uint64;
+    fault_count: uint64;
+    consecutive_faults: uint32;
+    missed_count: uint64;
+    overlap_count: uint64;
+    interval_clamped: bool;
 }

@@ -17,7 +17,11 @@ use moor_kernel::{
     SuspendedTask,
     tasks::{
         TasksDb, TasksDbError,
-        convert_task::{suspended_task_from_ref, suspended_task_to_flatbuffer},
+        convert_task::{
+            schedule_from_ref, schedule_to_flatbuffer, suspended_task_from_ref,
+            suspended_task_to_flatbuffer,
+        },
+        schedule_q::{ScheduleEntry, ScheduleId},
     },
 };
 use planus::{ReadAsRoot, WriteAsOffset};
@@ -42,6 +46,7 @@ fn handle_fjall_error(e: &fjall::Error, operation: &str) {
 pub struct FjallTasksDB {
     keyspace: Database,
     tasks_partition: Keyspace,
+    schedules_partition: Keyspace,
     /// Guard to prevent overlapping compaction runs
     compaction_in_progress: Arc<AtomicBool>,
 }
@@ -53,10 +58,14 @@ impl FjallTasksDB {
         let tasks_partition = keyspace
             .keyspace("tasks", KeyspaceCreateOptions::default)
             .unwrap();
+        let schedules_partition = keyspace
+            .keyspace("schedules", KeyspaceCreateOptions::default)
+            .unwrap();
         (
             Self {
                 keyspace,
                 tasks_partition,
+                schedules_partition,
                 compaction_in_progress: Arc::new(AtomicBool::new(false)),
             },
             fresh,
@@ -145,6 +154,73 @@ impl TasksDb for FjallTasksDB {
         Ok(())
     }
 
+    fn load_schedules(&self) -> Result<Vec<ScheduleEntry>, TasksDbError> {
+        let mut out = vec![];
+        for entry in self.schedules_partition.iter() {
+            let (key, value) = entry
+                .into_inner()
+                .map_err(|_| TasksDbError::CouldNotLoadSchedules)?;
+            let id = ScheduleId::from_le_bytes(key.as_ref().try_into().map_err(|e| {
+                error!("Failed to deserialize ScheduleId from record: {:?}", e);
+                TasksDbError::CouldNotLoadSchedules
+            })?);
+            let fb = moor_schema::task::ScheduleRef::read_as_root(value.as_ref()).map_err(|e| {
+                error!("Failed to read schedule FlatBuffer: {:?}", e);
+                TasksDbError::CouldNotLoadSchedules
+            })?;
+            let entry = schedule_from_ref(fb).map_err(|e| {
+                error!("Failed to convert FlatBuffer to ScheduleEntry: {:?}", e);
+                TasksDbError::CouldNotLoadSchedules
+            })?;
+            if id != entry.id {
+                error!("Schedule ID mismatch: {id} != {}", entry.id);
+                return Err(TasksDbError::CouldNotLoadSchedules);
+            }
+            out.push(entry);
+        }
+        Ok(out)
+    }
+
+    fn save_schedule(&self, entry: &ScheduleEntry) -> Result<(), TasksDbError> {
+        let fb = schedule_to_flatbuffer(entry).map_err(|e| {
+            error!("Failed to convert schedule to FlatBuffer: {:?}", e);
+            TasksDbError::CouldNotSaveSchedule
+        })?;
+        let mut builder = planus::Builder::new();
+        let offset = fb.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        self.schedules_partition
+            .insert(entry.id.to_le_bytes(), bytes)
+            .map_err(|e| {
+                handle_fjall_error(&e, "save_schedule insert");
+                TasksDbError::CouldNotSaveSchedule
+            })?;
+        Ok(())
+    }
+
+    fn delete_schedule(&self, schedule_id: ScheduleId) -> Result<(), TasksDbError> {
+        self.schedules_partition
+            .remove(schedule_id.to_le_bytes())
+            .map_err(|e| {
+                handle_fjall_error(&e, "delete_schedule");
+                TasksDbError::CouldNotDeleteSchedule
+            })?;
+        Ok(())
+    }
+
+    fn delete_all_schedules(&self) -> Result<(), TasksDbError> {
+        for entry in self.schedules_partition.iter() {
+            let (key, _) = entry
+                .into_inner()
+                .map_err(|_| TasksDbError::CouldNotDeleteSchedule)?;
+            self.schedules_partition.remove(key).map_err(|e| {
+                handle_fjall_error(&e, "delete_all_schedules");
+                TasksDbError::CouldNotDeleteSchedule
+            })?;
+        }
+        Ok(())
+    }
+
     fn compact(&self) {
         // Skip if previous compaction is still running
         if self.compaction_in_progress.swap(true, Ordering::SeqCst) {
@@ -171,6 +247,9 @@ mod tests {
         tasks::NoopClientSession,
         util::{Deadline, Instant, Timestamp},
     };
+    use moor_kernel::tasks::schedule_q::{
+        CatchupPolicy, OverlapPolicy, ScheduleEntry, ScheduleKind, ScheduleOptions,
+    };
     use moor_kernel::tasks::{
         DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_MAX_TASK_MAILBOX,
         DEFAULT_MAX_TASK_RETRIES,
@@ -179,8 +258,11 @@ mod tests {
         SuspendedTask, Task, TaskControl, WakeCondition,
         tasks::{ServerOptions, TaskStart, TasksDb},
     };
-    use moor_var::{SYSTEM_OBJECT, v_int};
-    use std::{sync::Arc, time::Duration};
+    use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
+    use std::{
+        sync::Arc,
+        time::{Duration, UNIX_EPOCH},
+    };
     use uuid::Uuid;
 
     // Verify creation of an empty DB, including creation of tables.
@@ -673,6 +755,94 @@ mod tests {
                 }
                 other => panic!("Clock robustness test failed: got {other:?}"),
             }
+        }
+    }
+
+    /// A schedule survives save/reopen/load with every persisted field
+    /// intact, including the id (K2: ids are stable across restart).
+    #[test]
+    fn schedule_round_trip() {
+        let tmpdir = tempfile::tempdir().expect("Unable to create temporary directory");
+        let path = tmpdir.path();
+        // Whole seconds so the nanos round-trip is exact.
+        let t0 = UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        let next = t0 + Duration::from_secs(90);
+        let last = t0 + Duration::from_secs(30);
+        let options = ScheduleOptions {
+            adaptive: true,
+            catchup: CatchupPolicy::Once,
+            overlap: OverlapPolicy::Queue,
+            jitter: Duration::from_millis(250),
+            max_faults: Some(7),
+            pass_elapsed: false,
+            state: Some(v_str("opaque")),
+            persist: true,
+            player: Some(Obj::mk_id(77)),
+        };
+        let entry = ScheduleEntry::from_persisted(
+            42,
+            Obj::mk_id(6),
+            Symbol::mk("drive"),
+            List::mk_list(&[v_int(1), v_str("two")]),
+            Obj::mk_id(36),
+            Obj::mk_id(36),
+            ScheduleKind::Every {
+                interval: Duration::from_secs(60),
+            },
+            options,
+            t0,
+            Some(next),
+            Some(next),
+            Some(last),
+            5,
+            2,
+            1,
+            3,
+            4,
+            false,
+        );
+
+        {
+            let (db, _) = FjallTasksDB::open(path);
+            db.save_schedule(&entry).unwrap();
+            assert_eq!(db.load_schedules().unwrap().len(), 1);
+        }
+        {
+            let (db, _) = FjallTasksDB::open(path);
+            let loaded = db.load_schedules().unwrap();
+            assert_eq!(loaded.len(), 1);
+            let l = &loaded[0];
+            assert_eq!(l.id, 42);
+            assert_eq!(l.target, Obj::mk_id(6));
+            assert_eq!(l.verb, Symbol::mk("drive"));
+            assert_eq!(l.args, List::mk_list(&[v_int(1), v_str("two")]));
+            assert_eq!(l.authority_principal, Obj::mk_id(36));
+            assert_eq!(l.owner, Obj::mk_id(36));
+            assert!(matches!(
+                l.kind,
+                ScheduleKind::Every { interval } if interval == Duration::from_secs(60)
+            ));
+            assert!(l.options.adaptive);
+            assert_eq!(l.options.catchup, CatchupPolicy::Once);
+            assert_eq!(l.options.overlap, OverlapPolicy::Queue);
+            assert_eq!(l.options.jitter, Duration::from_millis(250));
+            assert_eq!(l.options.max_faults, Some(7));
+            assert!(!l.options.pass_elapsed);
+            assert_eq!(l.options.state, Some(v_str("opaque")));
+            assert_eq!(l.options.player, Some(Obj::mk_id(77)));
+            assert_eq!(l.created_at, t0);
+            assert_eq!(l.next_run, Some(next));
+            assert_eq!(l.scheduled_deadline, Some(next));
+            assert_eq!(l.last_run, Some(last));
+            assert_eq!(l.run_count, 5);
+            assert_eq!(l.fault_count, 2);
+            assert_eq!(l.consecutive_faults, 1);
+            assert_eq!(l.missed_count, 3);
+            assert_eq!(l.overlap_count, 4);
+            assert!(l.running_task.is_none());
+
+            db.delete_schedule(42).unwrap();
+            assert!(db.load_schedules().unwrap().is_empty());
         }
     }
 }
