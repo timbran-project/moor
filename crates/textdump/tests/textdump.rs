@@ -229,9 +229,9 @@ mod test {
         );
     }
 
-    /// Test basic lambda database storage and retrieval
+    /// Test that an imported textdump database can store and retrieve a lambda body.
     #[test]
-    fn test_lambda_database_storage() {
+    fn lambda_storage_after_textdump_import_preserves_body() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let minimal_db = manifest_dir.join("tests/Minimal.db");
 
@@ -243,20 +243,19 @@ mod test {
             minimal_db.to_str().unwrap(),
         );
 
-        // Test lambda storage in database without textdump
+        let simple_program = compile("return x + 1;", CompileOptions::default()).unwrap();
+
         {
             let mut tx = db.new_world_state().unwrap();
             let wizard = Obj::mk_id(3);
             let system_obj = SYSTEM_OBJECT;
 
             // Create a simple lambda
-            let simple_source = "return x + 1;";
-            let simple_program = compile(simple_source, CompileOptions::default()).unwrap();
             let simple_params = ScatterArgs {
                 labels: vec![ScatterLabel::Required(Name(0, 0, 0))],
                 done: Label(0),
             };
-            let simple_lambda = Var::mk_lambda(simple_params, simple_program, vec![], None);
+            let simple_lambda = Var::mk_lambda(simple_params, simple_program.clone(), vec![], None);
 
             // Store the lambda
             tx.define_property(
@@ -283,27 +282,13 @@ mod test {
                 .retrieve_property(&permissions(wizard), &system_obj, Symbol::mk("test_lambda"))
                 .unwrap();
 
-            assert!(
-                retrieved.as_lambda().is_some(),
-                "Retrieved value should be a lambda"
-            );
-
-            if let Some(lambda) = retrieved.as_lambda() {
-                assert_eq!(
-                    lambda.0.params.labels.len(),
-                    1,
-                    "Lambda should have 1 parameter"
-                );
-                assert_eq!(
-                    lambda.0.captured_env.len(),
-                    0,
-                    "Lambda should have no captured environment"
-                );
-                assert!(
-                    lambda.0.self_var.is_none(),
-                    "Lambda should have no self-reference"
-                );
-            }
+            let lambda = retrieved
+                .as_lambda()
+                .expect("stored value should be a lambda");
+            assert_eq!(lambda.0.params.labels.len(), 1);
+            assert!(lambda.0.captured_env.is_empty());
+            assert!(lambda.0.self_var.is_none());
+            assert_eq!(lambda.0.body, simple_program);
         }
     }
 

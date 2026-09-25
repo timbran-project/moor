@@ -1523,24 +1523,35 @@ mod tests {
     fn parses_call_property_and_index_chain() {
         let (root, errors) = parse_to_syntax_node("foo(1).bar[2];");
         assert!(errors.is_empty(), "{errors:?}");
-        let kinds: Vec<_> = root.descendants().map(|node| node.kind()).collect();
-        assert!(kinds.contains(&SyntaxKind::CallExpr));
-        assert!(kinds.contains(&SyntaxKind::PropExpr));
-        assert!(kinds.contains(&SyntaxKind::IndexExpr));
+        let call = root
+            .descendants()
+            .find(|node| node.kind() == SyntaxKind::CallExpr)
+            .unwrap();
+        let property = call.parent().unwrap();
+        assert_eq!(property.kind(), SyntaxKind::PropExpr);
+        assert_eq!(property.parent().unwrap().kind(), SyntaxKind::IndexExpr);
     }
 
     #[test]
     fn parses_binary_precedence_and_unary() {
         let (root, errors) = parse_to_syntax_node("-a + b * c;");
         assert!(errors.is_empty(), "{errors:?}");
-        let kinds: Vec<_> = root.descendants().map(|node| node.kind()).collect();
-        assert!(kinds.contains(&SyntaxKind::UnaryExpr));
+        let add = root
+            .descendants()
+            .find(|node| node.kind() == SyntaxKind::BinExpr)
+            .unwrap();
         assert!(
-            kinds
-                .iter()
-                .filter(|kind| **kind == SyntaxKind::BinExpr)
-                .count()
-                >= 2
+            add.children_with_tokens()
+                .any(|elem| elem.kind() == SyntaxKind::Plus)
+        );
+        let children: Vec<_> = add.children().collect();
+        assert_eq!(children.len(), 2);
+        assert_eq!(children[0].kind(), SyntaxKind::UnaryExpr);
+        assert_eq!(children[1].kind(), SyntaxKind::BinExpr);
+        assert!(
+            children[1]
+                .children_with_tokens()
+                .any(|elem| elem.kind() == SyntaxKind::Star)
         );
     }
 

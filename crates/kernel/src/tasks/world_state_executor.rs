@@ -893,7 +893,7 @@ pub fn match_object_ref(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_common::model::{ObjFlag, ObjectKind, ObjectQuery, WorldStateSource};
+    use moor_common::model::{ObjFlag, ObjectKind, ObjectQuery, PropFlag, WorldStateSource};
     use moor_common::util::BitEnum;
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
@@ -1005,6 +1005,17 @@ mod tests {
     #[test]
     fn test_execute_request_properties() {
         let (_db, mut tx) = setup_test_db();
+        let property = Symbol::mk("fixture_property");
+        tx.define_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            property,
+            &SYSTEM_OBJECT,
+            BitEnum::new_with(PropFlag::Read),
+            Some(v_int(42)),
+        )
+        .unwrap();
         let config = Config::default();
         let actions = vec![WorldStateAction::RequestProperties {
             player: SYSTEM_OBJECT,
@@ -1015,8 +1026,10 @@ mod tests {
         let results = execute_world_state_actions(&mut *tx, &config, actions).unwrap();
         assert_eq!(results.len(), 1);
         match &results[0] {
-            WorldStateResult::Properties(_props) => {
-                // Successfully retrieved property list (may be empty for built-in system props)
+            WorldStateResult::Properties(props) => {
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].0.name(), property);
+                assert_eq!(props[0].0.definer(), SYSTEM_OBJECT);
             }
             other => panic!("Expected Properties, got {other:?}"),
         }
@@ -1097,26 +1110,11 @@ mod tests {
             player: SYSTEM_OBJECT,
             obj: ObjectRef::Match("nonexistent_object_xyz".to_string()),
         }];
-        // This should return a ResolvedObject with v_err or fail, depending on implementation
-        let results = execute_world_state_actions(&mut *tx, &config, actions);
-        // The resolve action returns an error var rather than failing the batch
-        match results {
-            Ok(results) => {
-                assert_eq!(results.len(), 1);
-                match &results[0] {
-                    WorldStateResult::ResolvedObject(v) => {
-                        // Should be an error value for not found
-                        assert!(
-                            matches!(v.variant(), moor_var::Variant::Err(_)),
-                            "Expected error variant, got {v:?}"
-                        );
-                    }
-                    other => panic!("Expected ResolvedObject, got {other:?}"),
-                }
-            }
-            Err(_) => {
-                // Also acceptable — the batch may fail on bad object match
-            }
+        let results = execute_world_state_actions(&mut *tx, &config, actions).unwrap();
+        assert_eq!(results.len(), 1);
+        match &results[0] {
+            WorldStateResult::ResolvedObject(value) => assert_eq!(*value, v_err(E_INVIND)),
+            other => panic!("Expected ResolvedObject, got {other:?}"),
         }
     }
 

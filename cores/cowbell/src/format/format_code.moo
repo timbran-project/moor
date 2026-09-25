@@ -81,14 +81,10 @@ object FORMAT_CODE [
   endmethod
 
   method test_code_block_djot_spacing owner: HACKER
-    "Test that code blocks have proper spacing for djot parsing";
+    "Test exact multiline djot output and its fence spacing.";
     code_fw = this:mk("line1\nline2\nline3");
     result = code_fw:compose($player, 'text_djot, {});
-    "Should start with newline and end with double newline";
-    result[1] == "\n" || raise(E_ASSERT("Code block should start with newline"));
-    result[$ - 1..$] == "\n\n" || raise(E_ASSERT("Code block should end with double newline, got: " + toliteral(result[$ - 1..$])));
-    "Should contain the fence markers";
-    "```" in result || raise(E_ASSERT("Code block should contain fence markers"));
+    result == "\n```\nline1\nline2\nline3\n```\n\n" || raise(E_ASSERT("Multiline Djot output wrong: " + toliteral(result)));
     return true;
   endmethod
 
@@ -107,20 +103,6 @@ object FORMAT_CODE [
     "Combined should have blank line between heading and fence";
     "Pattern should be: ## Title\n\n\n```";
     "## Test Title\n\n\n```" in combined || raise(E_ASSERT("Should have blank line between title and code fence, got: " + toliteral(combined)));
-    return true;
-  endmethod
-
-  method test_multiline_code_djot owner: HACKER
-    "Test multiline content preserves line breaks in djot output";
-    content = "line1\nline2\nline3";
-    code_fw = this:mk(content);
-    result = code_fw:compose($player, 'text_djot, {});
-    "Should contain all three lines";
-    "line1" in result || raise(E_ASSERT("Missing line1"));
-    "line2" in result || raise(E_ASSERT("Missing line2"));
-    "line3" in result || raise(E_ASSERT("Missing line3"));
-    "Lines should be separated by newlines within the fence";
-    "line1\nline2\nline3" in result || raise(E_ASSERT("Lines not properly separated, got: " + toliteral(result)));
     return true;
   endmethod
 

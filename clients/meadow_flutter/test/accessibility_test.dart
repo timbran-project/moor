@@ -203,6 +203,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final handle = tester.ensureSemantics();
+      var loggedOut = false;
       try {
         final profileController = AccountProfileController(
           api: MoorHttpApi(Uri(scheme: 'http', host: 'localhost')),
@@ -239,7 +240,7 @@ void main() {
               onForgetLocalKey: () {},
               onExportHistory: () {},
               onDeleteHistory: () {},
-              onLogout: () {},
+              onLogout: () => loggedOut = true,
             ),
           ),
         );
@@ -252,6 +253,11 @@ void main() {
         expect(find.text('Add Description'), findsOneWidget);
         expect(find.text('Set Up Encryption'), findsOneWidget);
         expect(find.text('Logout'), findsOneWidget);
+        final logout = find.widgetWithText(FilledButton, 'Logout');
+        _expectButtonSemantics(tester.getSemantics(logout), 'Logout');
+        await tester.ensureVisible(logout);
+        await tester.tap(logout);
+        expect(loggedOut, isTrue);
       } finally {
         handle.dispose();
       }
@@ -261,6 +267,7 @@ void main() {
       WidgetTester tester,
     ) async {
       final handle = tester.ensureSemantics();
+      SessionViewSettings? changedSettings;
       try {
         await tester.pumpWidget(
           _wrap(
@@ -274,7 +281,7 @@ void main() {
                 verbSuggestionsAvailable: true,
                 themeMode: ThemeMode.dark,
               ),
-              onSettingsChanged: (_) {},
+              onSettingsChanged: (settings) => changedSettings = settings,
               onThemeModeChanged: (_) {},
             ),
           ),
@@ -291,6 +298,10 @@ void main() {
         }
         expect(find.text('Light'), findsOneWidget);
         expect(find.text('Dark'), findsOneWidget);
+        final roomHud = find.widgetWithText(SwitchListTile, 'Room HUD');
+        expect(tester.getSemantics(roomHud).label, contains('Room HUD'));
+        await tester.tap(roomHud);
+        expect(changedSettings?.roomHudEnabled, isFalse);
       } finally {
         handle.dispose();
       }

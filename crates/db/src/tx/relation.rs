@@ -526,8 +526,8 @@ mod tests {
     }
 
     #[test]
-    fn test_phantom_read_protection() {
-        // Test that inserts are properly serialized to prevent phantom reads
+    fn test_disjoint_insert_after_scan() {
+        // A scan and a later disjoint insert do not create a key conflict
         let backing = HashMap::new();
         let data = Arc::new(Mutex::new(backing));
         let provider = Arc::new(TestProvider { data });

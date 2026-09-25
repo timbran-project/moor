@@ -482,8 +482,8 @@ mod tests {
     }
 
     #[test]
-    fn test_soft_detach_preserves_connection() {
-        // Soft detach should call record_client_activity, keeping the connection alive
+    fn test_record_activity_preserves_connection() {
+        // Recording client activity keeps the connection available
         let db = ConnectionRegistryFactory::in_memory_only().unwrap();
 
         let client_id = Uuid::new_v4();
@@ -499,7 +499,7 @@ mod tests {
             })
             .unwrap();
 
-        // Simulate soft detach by calling record_client_activity
+        // Record activity for the connected client
         db.record_client_activity(client_id, connection_obj)
             .unwrap();
 
@@ -544,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ping_timeout_removes_connection() {
+    fn test_fresh_ping_preserves_connection() {
         let db = ConnectionRegistryFactory::in_memory_only().unwrap();
 
         let client_id = Uuid::new_v4();

@@ -953,7 +953,31 @@ pub(crate) fn register_bf_documents(builtins: &mut [BuiltinFunction]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vm::vm_host::VmHost;
     use moor_var::v_objid;
+    use moor_vm::FeaturesConfig;
+    use std::time::Duration;
+
+    #[test]
+    fn test_to_xml_list_when_flyweights_disabled() {
+        let args = List::mk_list(&[v_list(&[v_str("p"), v_list(&[]), v_str("Hello")])]);
+        let config = FeaturesConfig {
+            flyweight_type: false,
+            ..FeaturesConfig::default()
+        };
+        let mut host = VmHost::new(0, 20, 1_000, Duration::from_secs(1));
+        let mut call = BfCallState {
+            name: Symbol::mk("to_xml"),
+            args: &args,
+            exec_state: host.vm_exec_state_mut(),
+            config: &config,
+        };
+
+        match bf_to_xml(&mut call) {
+            Ok(Ret(xml)) => assert_eq!(xml.as_string(), Some("<p>Hello</p>")),
+            _ => panic!("to_xml should serialize a list while flyweights are disabled"),
+        }
+    }
 
     #[test]
     fn test_nested_elements_with_empty_attributes() {

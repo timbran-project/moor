@@ -1788,21 +1788,6 @@ mod tests {
     }
 
     #[test]
-    fn test_lambda_double_recursive_call() {
-        assert_eq!(
-            run_moo(
-                r#"
-                fn test(x)
-                    return test(1) + test(2);
-                endfn
-                return 1;
-                "#
-            ),
-            Ok(v_int(1))
-        );
-    }
-
-    #[test]
     fn test_lambda_recursive_fibonacci() {
         assert_eq!(
             run_moo(
@@ -2147,37 +2132,6 @@ mod tests {
     }
 
     #[test]
-    fn test_lambda_line_numbers_simple() {
-        let program_text = "let f = fn(x) return x / 0; endfn; return f(1);";
-
-        let program = compile(program_text, CompileOptions::default()).unwrap();
-        let state_source = test_db_with_verb("test", &program);
-        let state = state_source.new_world_state().unwrap();
-        let session = Arc::new(NoopClientSession::new());
-
-        let result = call_verb(
-            state,
-            session,
-            BuiltinRegistry::new(),
-            "test",
-            List::mk_list(&[]),
-        );
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-
-        let has_lambda_frame = err.backtrace.iter().any(|frame| {
-            if let Some(frame_str) = frame.as_string() {
-                frame_str.contains("test.<fn>")
-            } else {
-                false
-            }
-        });
-
-        assert!(has_lambda_frame, "Should have lambda frame in stack trace");
-    }
-
-    #[test]
     fn test_lambda_line_numbers_multiline_traceback() {
         let program_text = "let f = fn(x)\n  y = x + 1;\n  return y / 0;\nendfn;\nreturn f(1);";
 
@@ -2298,64 +2252,19 @@ mod tests {
     }
 
     #[test]
-    fn test_lambda_capture_with_outer_variable() {
-        let program_text = r#"
-            let multiplier = 10;
-            let f = {x} => x * multiplier;
-            return f;
-        "#;
-
-        let program = compile(program_text, CompileOptions::default()).unwrap();
-        let state_source = test_db_with_verb("test", &program);
-        let state = state_source.new_world_state().unwrap();
-        let session = Arc::new(NoopClientSession::new());
-
-        let result = call_verb(
-            state,
-            session,
-            BuiltinRegistry::new(),
-            "test",
-            List::mk_list(&[]),
-        )
-        .unwrap();
-
-        let lambda = result.as_lambda().unwrap();
-
-        assert!(
-            !lambda.0.captured_env.is_empty(),
-            "Lambda should capture outer variable 'multiplier'"
-        );
-    }
-
-    #[test]
-    fn test_lambda_capture_multiple_variables() {
-        let program_text = r#"
-            let a = 5;
-            let b = 10;
-            let c = 15;
-            let f = {x} => x + a + b; // Only references a and b, not c
-            return f;
-        "#;
-
-        let program = compile(program_text, CompileOptions::default()).unwrap();
-        let state_source = test_db_with_verb("test", &program);
-        let state = state_source.new_world_state().unwrap();
-        let session = Arc::new(NoopClientSession::new());
-
-        let result = call_verb(
-            state,
-            session,
-            BuiltinRegistry::new(),
-            "test",
-            List::mk_list(&[]),
-        )
-        .unwrap();
-
-        let lambda = result.as_lambda().unwrap();
-
-        assert!(
-            !lambda.0.captured_env.is_empty(),
-            "Lambda should capture outer variables 'a' and 'b'"
+    fn test_lambda_captures_two_outer_values() {
+        assert_eq!(
+            run_moo(
+                r#"
+                let a = 5;
+                let b = 10;
+                let unrelated = 99;
+                let f = {x} => x + a + b;
+                unrelated = 1000;
+                return f(2);
+                "#
+            ),
+            Ok(v_int(17))
         );
     }
 

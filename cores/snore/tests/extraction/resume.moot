@@ -1,11 +1,11 @@
 // Destructive scenario: run only against a fresh disposable import with one connected wizard.
 @wizard
-; return {length($core_objects()), length(objects())};
-{95, 95}
+; add_property(#0, "extraction_initial_count", length(objects()), {#2, "r"}); return length(objects()) == length($core_objects());
+true
 ; const kept = create($root_class, #2); const child = create(kept, #2); add_property(#0, "extraction_probe", kept, {#2, "r"}); add_property(kept, "child", child, {#2, "r"}); add_property(kept, "peer", kept, {#2, "r"}); add_property(kept, "ready", false, {#2, "r"}); add_verb(kept, {#2, "rxd", "include_for_core"}, {"this", "none", "this"}); set_verb_code(kept, "include_for_core", {"return {\"child\", \"peer\"};"}); add_verb(kept, {#2, "rxd", "init_for_core"}, {"this", "none", "this"}); set_verb_code(kept, "init_for_core", {"caller_perms().wizard || raise(E_PERM);", "if (this != $extraction_probe)", "$extraction_probe.ready || raise(E_INVARG, \"child initialized before parent\");", "endif", "this.ready = true;"}); const rubbish = create($root_class, #2); set_player_flag(rubbish, 1); add_verb(rubbish, {#2, "rxd", "recycle exitfunc"}, {"this", "none", "this"}); set_verb_code(rubbish, "recycle", {"raise(E_INVARG, \"unsaved hook ran\");"}); const numbered = renumber(create($root_class, #2), #9000); add_property(#0, "extraction_rubbish", {rubbish, numbered}, {#2, ""}); return {is_uuobjid(kept), is_uuobjid(child), is_uuobjid(rubbish)};
 {true, true, true}
-; const selection = $core_object_info(); #2:_mcd_start({}, selection); return {length(selection[1]), length($wizard_feature.__mcd__state['unwanted])};
-{97, 2}
+; const selection = $core_object_info(); #2:_mcd_start({}, selection); return {length(selection[1]) + length($wizard_feature.__mcd__state['unwanted]) == length(objects()), length($wizard_feature.__mcd__state['unwanted])};
+{true, 2}
 // Commit a deletion checkpoint, then resume from a later task with no carried local arguments.
 ; while ($wizard_feature.__mcd__state['phase] != "delete") #2:_mcd_step(); suspend(0); endwhile #2:_mcd_step(); return $wizard_feature.__mcd__state['index];
 2
@@ -15,7 +15,7 @@
 true
 ; return {valid($extraction_probe), is_uuobjid($extraction_probe), is_uuobjid($extraction_probe.child), parent($extraction_probe.child) == $extraction_probe, $extraction_probe.peer == $extraction_probe, $extraction_probe.child.peer == $extraction_probe, $extraction_probe.ready, $extraction_probe.child.ready};
 {true, false, false, true, true, true, true, true}
-; return {length(objects()), {object for object in ($extraction_rubbish) if valid(object)}, $wiz, $default_player, $wizard_feature, $player_class};
-{97, {}, #57, #88, #123, #88}
+; return {length(objects()) == $extraction_initial_count + 2, {object for object in ($extraction_rubbish) if valid(object)}, $wiz, $default_player, $wizard_feature, $player_class};
+{true, {}, #57, #88, #123, #88}
 ; return {length(#2.owned_objects) == length(owned_objects(#2)), $server_options.protect_recycle, $server_options.bg_ticks, `property_info($server_options, "__mcd__savesopt") ! E_PROPNF'};
 {true, 1, 500000, E_PROPNF}

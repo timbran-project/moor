@@ -68,18 +68,25 @@ object HEADLESS_REACTION_SCENARIOS
     source = #-1;
     receiver = #-1;
     actor = #-1;
+    handler = #-1;
     try
       source = this:_fixture("headless reaction source");
       receiver = this:_fixture("headless reaction receiver");
       actor = this:_fixture("headless reaction actor");
+      handler = this:_fixture("headless reaction handler");
       add_property(receiver, "chain_count", 0, {this.owner, "r"});
       add_property(receiver, "chain_actor", #-1, {this.owner, "r"});
+      add_property(receiver, "chain_this", #-1, {this.owner, "r"});
+      add_verb(handler, {this.owner, "rxd", "action_record_context"}, {"this", "none", "this"});
+      set_verb_code(handler, "action_record_context", {"{target, context} = args;", "target.chain_actor = context['Actor];", "target.chain_this = context['This];", "return true;"});
       add_property(source, "source_trigger_reaction", $reaction:mk('on_first, 0, {{'trigger, receiver, 'on_second}}), {this.owner, "r"});
-      add_property(receiver, "receiver_trigger_reaction", $reaction:mk('on_second, 0, {{'increment, 'chain_count, 1}, {'set, 'chain_actor, actor}}), {this.owner, "r"});
+      add_property(receiver, "receiver_trigger_reaction", $reaction:mk('on_second, 0, {{'increment, 'chain_count, 1}, {'action, 'record_context, handler}}), {this.owner, "r"});
       source:fire_trigger('on_first, ['Actor -> actor]);
       $test_utils:assert_eq(receiver.chain_count, 1, "trigger effect should execute the receiver reaction");
       $test_utils:assert_eq(receiver.chain_actor, actor, "chained trigger should preserve actor context");
+      $test_utils:assert_eq(receiver.chain_this, receiver, "chained trigger should update receiver context");
     finally
+      valid(handler) && handler:destroy();
       valid(actor) && actor:destroy();
       valid(receiver) && receiver:destroy();
       valid(source) && source:destroy();

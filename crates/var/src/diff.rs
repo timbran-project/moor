@@ -600,6 +600,27 @@ mod tests {
         let diff_a = value_diff(&left, &right, &ValueDiffOptions::default());
         let diff_b = value_diff(&left, &right, &ValueDiffOptions::default());
         assert_eq!(diff_a, diff_b);
+        let changes = diff_a
+            .get(&v_str("changes"), crate::IndexMode::ZeroBased)
+            .unwrap();
+        assert_eq!(changes.len().unwrap(), 3);
+        for (index, operation, key) in [(0, "change", "a"), (1, "remove", "b"), (2, "add", "c")] {
+            let change = changes
+                .index(&v_int(index), crate::IndexMode::ZeroBased)
+                .unwrap();
+            assert_eq!(
+                change
+                    .get(&v_str("op"), crate::IndexMode::ZeroBased)
+                    .unwrap(),
+                v_str(operation)
+            );
+            assert_eq!(
+                change
+                    .get(&v_str("key"), crate::IndexMode::ZeroBased)
+                    .unwrap(),
+                v_str(key)
+            );
+        }
     }
 
     #[test]

@@ -663,23 +663,17 @@ object LLM_AGENT [
     return true;
   endverb
 
-  verb test_public_permissions (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Test public method permission patterns are consistent.";
+  verb test_public_method_wizard_access (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Wizard callers can read public task and todo state and reset tool failures.";
     agent = $llm_agent:create(true);
     agent.owner = $hacker;
-    "These methods should reject callers who are not self, owner-perms, or wizard-perms";
-    "Since test runs as wizard, we can't easily test rejection - but we CAN verify acceptance";
-    "Task methods should work for wizard";
     status = agent:get_task_status();
     typeof(status) != TYPE_LIST && raise(E_ASSERT, "get_task_status should return list");
-    "Todo methods should work for wizard";
     todos = agent:get_todos();
     typeof(todos) != TYPE_LIST && raise(E_ASSERT, "get_todos should return list");
-    "reset_tool_failures should work";
+    agent.consecutive_tool_failures = ["test_tool" -> 1];
     agent:reset_tool_failures();
-    "Verify the pattern is in place by checking a direct property of the methods";
-    "We've already tested internal methods reject non-self callers";
-    "The key is that the code uses consistent caller_perms() checks";
+    agent.consecutive_tool_failures == [] || raise(E_ASSERT, "reset_tool_failures should clear counts");
     return true;
   endverb
 endobject

@@ -707,7 +707,13 @@ fn var_from_flatbuffer_ref_internal(
 mod tests {
     use super::*;
     use moor_var::{
-        Obj, Symbol, v_binary, v_bool, v_float, v_int, v_list, v_map, v_none, v_obj, v_str, v_sym,
+        Obj, Symbol,
+        program::{
+            labels::Label,
+            opcode::{Op, ScatterArgs},
+            program::Program,
+        },
+        v_binary, v_bool, v_float, v_int, v_list, v_map, v_none, v_obj, v_str, v_sym,
     };
     use planus::ReadAsRoot;
 
@@ -769,5 +775,39 @@ mod tests {
         let encoded = var_to_flatbuffer(&expected).unwrap();
 
         assert_eq!(var_from_flatbuffer(encoded).unwrap(), expected);
+    }
+
+    #[test]
+    fn lambda_is_database_only() {
+        let mut body = Program::new();
+        triomphe::Arc::make_mut(&mut body.0)
+            .main_vector
+            .push(Op::Return0);
+        let lambda = Var::mk_lambda(
+            ScatterArgs {
+                labels: vec![],
+                done: Label(0),
+            },
+            body,
+            vec![],
+            None,
+        );
+
+        assert!(matches!(
+            var_to_flatbuffer(&lambda),
+            Err(VarConversionError::LambdaNotTransmittable)
+        ));
+
+        let encoded = var_to_db_flatbuffer(&lambda).unwrap();
+        assert!(matches!(
+            var_from_flatbuffer(encoded.clone()),
+            Err(VarConversionError::DecodingError(message))
+                if message.contains("Unexpected lambda in RPC context")
+        ));
+        let mut builder = Builder::new();
+        let bytes = builder.finish(&encoded, None);
+        let restored =
+            var_from_db_flatbuffer_ref(var::VarRef::read_as_root(bytes).unwrap()).unwrap();
+        assert!(restored.as_lambda().is_some());
     }
 }

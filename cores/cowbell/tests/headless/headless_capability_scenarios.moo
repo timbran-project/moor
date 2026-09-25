@@ -13,6 +13,36 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return "dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=";
   endverb
 
+  verb test_headless_llm_public_methods_deny_non_owner (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Public LLM-agent state methods reject a non-owner without wizard permissions.";
+    agent = #-1;
+    try
+      agent = $llm_agent:create(false);
+      agent.owner = $hacker;
+      $test_utils:assert_false($player.wizard, "fixture caller must not be a wizard");
+      $test_utils:assert_true(agent.owner != $player, "fixture caller must not own the agent");
+      for method in ({"get_task_status", "get_todos", "reset_tool_failures"})
+        denied = false;
+        try
+          this:_llm_public_call_as_player(agent, method);
+        except (E_PERM)
+          denied = true;
+        endtry
+        $test_utils:assert_true(denied, method + " should deny a non-owner caller");
+      endfor
+    finally
+      valid(agent) && agent:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb _llm_public_call_as_player (this none this) owner: PLAYER flags: "rxd"
+    caller == this && this == #90005 || raise(E_PERM);
+    {agent, method} = args;
+    method in {"get_task_status", "get_todos", "reset_tool_failures"} || raise(E_PERM);
+    return agent:(method)();
+  endverb
+
   verb test_headless_capability_issue_and_deny (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Runtime scenario: issued capabilities validate granted permissions and deny invalid requests.";
     key = this:_test_key();
@@ -648,6 +678,35 @@ object HEADLESS_CAPABILITY_SCENARIOS
     return true;
   endverb
 
+  verb test_headless_capability_set_thumbnail_rejects_invalid_content (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "A valid scoped grant reaches thumbnail validation and preserves the prior value on rejection.";
+    target = #-1;
+    try
+      target = create($thing);
+      cap = $root:issue_capability(target, {'set_thumbnail});
+      thumbnail = {"image/png", b"iVBORw0KGgo="};
+      this:_set_thumbnail_with_cap_as_player(cap, @thumbnail);
+      rejected_type = false;
+      try
+        this:_set_thumbnail_with_cap_as_player(cap, "text/plain", b"aGVsbG8=");
+      except (E_TYPE)
+        rejected_type = true;
+      endtry
+      $test_utils:assert_true(rejected_type, "non-image content type should be rejected after permission validation");
+      rejected_data = false;
+      try
+        this:_set_thumbnail_with_cap_as_player(cap, "image/png", "not binary");
+      except (E_TYPE)
+        rejected_data = true;
+      endtry
+      $test_utils:assert_true(rejected_data, "non-binary thumbnail content should be rejected after permission validation");
+      $test_utils:assert_eq(target.thumbnail, thumbnail, "rejected thumbnail update should preserve the prior value");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
   verb test_headless_capability_root_mutation_wrong_cap_denies (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Security challenge: an unrelated root mutation capability should not authorize another mutation.";
     target = #-1;
@@ -887,7 +946,6 @@ object HEADLESS_CAPABILITY_SCENARIOS
 
   verb test_headless_capability_revoke_denies_passage_area_grant (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Security challenge: revoked create_passage grants should deny copied tokens and passage creation.";
-    key = this:_test_key();
     test_area = #-1;
     room_a = #-1;
     room_b = #-1;
@@ -895,18 +953,22 @@ object HEADLESS_CAPABILITY_SCENARIOS
       test_area = create($area);
       room_a = test_area:make_room_in($room);
       room_b = test_area:make_room_in($room);
-      area_cap = $root:grant_capability(test_area, {'create_passage}, $player, 'area, key);
-      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room, key);
-      to_cap = $root:grant_capability(room_b, {'dig_into}, $player, 'room, key);
+      area_cap = $root:grant_capability(test_area, {'create_passage}, $player, 'area);
+      from_cap = $root:grant_capability(room_a, {'dig_from}, $player, 'room);
+      to_cap = $root:grant_capability(room_b, {'dig_into}, $player, 'room);
+      passage = $passage:mk(room_a, "north", {"north"}, "", true, room_b, "", {}, "", false, true);
+      created = this:_create_passage_with_caps_as_player(area_cap, from_cap, to_cap, passage);
+      $test_utils:assert_eq(created, passage, "valid server-key grant should allow passage creation before revocation");
+      $test_utils:assert_eq(test_area:passage_for(room_a, room_b), passage, "passage should be registered before revocation");
+      $test_utils:assert_true(test_area:remove_passage(room_a, room_b), "setup should remove the first passage");
       $test_utils:assert_true($root:revoke_capability(test_area, $player, 'area), "revoke should remove stored create_passage grant");
       denied = false;
       try
-        area_cap:challenge_for_with_key({'create_passage}, key);
+        area_cap:challenge_for({'create_passage});
       except (E_PERM)
         denied = true;
       endtry
       $test_utils:assert_true(denied, "revoked copied create_passage token should be denied");
-      passage = $passage:mk(room_a, "north", {"north"}, "", true, room_b, "", {}, "", false, true);
       denied = false;
       try
         this:_create_passage_with_caps_as_player(area_cap, from_cap, to_cap, passage);
@@ -916,6 +978,9 @@ object HEADLESS_CAPABILITY_SCENARIOS
       $test_utils:assert_true(denied, "revoked create_passage grant should deny passage creation");
       $test_utils:assert_false(test_area:passage_for(room_a, room_b), "revoked create_passage grant should not register passage");
     finally
+      valid(test_area) && $root:revoke_capability(test_area, $player, 'area);
+      valid(room_b) && $root:revoke_capability(room_b, $player, 'room);
+      valid(room_a) && $root:revoke_capability(room_a, $player, 'room);
       valid(room_b) && room_b:destroy();
       valid(room_a) && room_a:destroy();
       valid(test_area) && test_area:destroy();

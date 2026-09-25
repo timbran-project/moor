@@ -65,15 +65,17 @@ object RULE_TEST [
 
   method test_unification_parent owner: HACKER
     "Test unification in parent relationship.";
-    "Set up a simple family: this has a father";
-    this.father = $root;
-    "Query: is $root a parent of this?";
-    result = this:fact_parent(this, $root);
-    length(result) > 0 || raise(E_ASSERT, "$root should be parent");
-    $root in result || raise(E_ASSERT, "$root should be in result");
-    "Query: is #0 a parent of this?";
-    result = this:fact_parent(this, #0);
-    length(result) == 0 || raise(E_ASSERT, "#0 should not be parent");
+    original_father = this.father;
+    try
+      this.father = $root;
+      result = this:fact_parent(this, $root);
+      length(result) > 0 || raise(E_ASSERT, "$root should be parent");
+      $root in result || raise(E_ASSERT, "$root should be in result");
+      result = this:fact_parent(this, #0);
+      length(result) == 0 || raise(E_ASSERT, "#0 should not be parent");
+    finally
+      this.father = original_father;
+    endtry
     return true;
   endmethod
 endobject

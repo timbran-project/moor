@@ -145,34 +145,3 @@ E_INVIND
 "m"
 ; return $n.n;
 "n"
-
-; return children($b);
-E_INVARG
-; return children($m);
-{}
-; return children($n);
-{}
-
-; return $b.location;
-E_INVIND
-; return $m.location;
-$nothing
-; return $n.location;
-$nothing
-
-; return $b.contents;
-E_INVIND
-; return $m.contents;
-{}
-; return $n.contents;
-{}
-
-; return $m:m();
-"m"
-; return $n:n();
-"n"
-
-; return $m.m;
-"m"
-; return $n.n;
-"n"

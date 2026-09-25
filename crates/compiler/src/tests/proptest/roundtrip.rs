@@ -743,10 +743,6 @@ fn run_roundtrip(expr: &Expr) -> Result<(), TestCaseError> {
 
 /// Run a roundtrip test on the given statement.
 fn run_stmt_roundtrip(stmt: &Stmt) -> Result<(), TestCaseError> {
-    if should_skip_stmt_roundtrip(stmt) {
-        return Ok(());
-    }
-
     // 1. Format the statement to source code
     let source = format_stmt_to_source(stmt);
 
@@ -851,6 +847,15 @@ fn should_skip_stmt_roundtrip(stmt: &Stmt) -> bool {
     }
 }
 
+fn supported_stmt_strategy(strategy: BoxedStrategy<Stmt>) -> BoxedStrategy<Stmt> {
+    strategy
+        .prop_filter(
+            "scope and expression-map roundtrips are unsupported",
+            |stmt| !should_skip_stmt_roundtrip(stmt),
+        )
+        .boxed()
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
 
@@ -875,17 +880,17 @@ proptest! {
     }
 
     #[test]
-    fn roundtrip_stmt_layer3(stmt in arb_stmt_layer3(2)) {
+    fn roundtrip_stmt_layer3(stmt in supported_stmt_strategy(arb_stmt_layer3(2))) {
         run_stmt_roundtrip(&stmt)?;
     }
 
     #[test]
-    fn roundtrip_stmt_layer4(stmt in arb_stmt_layer4(1)) {
+    fn roundtrip_stmt_layer4(stmt in supported_stmt_strategy(arb_stmt_layer4(1))) {
         run_stmt_roundtrip(&stmt)?;
     }
 
     #[test]
-    fn roundtrip_stmt_layer5(stmt in arb_stmt_layer5(1)) {
+    fn roundtrip_stmt_layer5(stmt in supported_stmt_strategy(arb_stmt_layer5(1))) {
         run_stmt_roundtrip(&stmt)?;
     }
 }
@@ -1081,39 +1086,12 @@ mod manual_tests {
 
     #[test]
     fn test_scope_with_index_expr() {
-        // Test what works and what doesn't
-
-        // Works: just the index expression
-        let source1 = "(0[0]);";
-        let result1 = parse_program(source1, CompileOptions::default());
-        assert!(result1.is_ok(), "index expr should parse: {:?}", result1);
-
-        // Works: if/endif with parenthesized expression
-        let source_if = "if (1)\n(0);\nendif";
-        let result_if = parse_program(source_if, CompileOptions::default());
-        assert!(
-            result_if.is_ok(),
-            "if with paren should parse: {:?}",
-            result_if
-        );
-
-        // Works: while/endwhile with parenthesized expression
-        let source_while = "while (1)\n(0);\nendwhile";
-        let result_while = parse_program(source_while, CompileOptions::default());
-        assert!(
-            result_while.is_ok(),
-            "while with paren should parse: {:?}",
-            result_while
-        );
-
-        // Test: begin/end with simple expression
-        let source2 = "begin\n  0;\nend";
-        let result2 = parse_program(source2, CompileOptions::default());
-        assert!(
-            result2.is_ok(),
-            "simple begin/end should parse: {:?}",
-            result2
-        );
+        let parsed = parse_program("begin\n  x[1];\nend", CompileOptions::default()).unwrap();
+        let StmtNode::Scope { body, .. } = &parsed.stmts[0].node else {
+            panic!("expected scope statement: {:?}", parsed.stmts[0]);
+        };
+        assert_eq!(body.len(), 1);
+        assert!(matches!(body[0].node, StmtNode::Expr(Expr::Index(_, _))));
     }
 
     #[test]

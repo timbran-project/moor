@@ -404,175 +404,189 @@ object SCHEDULER [
 
   method test_schedule_after owner: HACKER
     "Test scheduling a task to run after a delay.";
-    "Clean up any leftover properties from previous test runs";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    "Schedule a test task";
-    start_time = time();
-    schedule_id = this:schedule_after(2, this, "scheduler_test_executed");
-    schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
-    "Verify task property exists";
-    prop_name = "scheduled_task_" + tostr(schedule_id);
+    fixture = this:create(false);
+    fixture.running = 0;
     try
-      task = this.(prop_name);
-    except (E_PROPNF)
-      raise(E_ASSERT, "Task property not found");
+      "Schedule a test task";
+      start_time = time();
+      schedule_id = fixture:schedule_after(2, fixture, "scheduler_test_executed");
+      schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
+      "Verify task property exists";
+      prop_name = "scheduled_task_" + tostr(schedule_id);
+      try
+        task = fixture.(prop_name);
+      except (E_PROPNF)
+        raise(E_ASSERT, "Task property not found");
+      endtry
+      task.target == fixture || raise(E_ASSERT, "Wrong target");
+      task.verb == "scheduler_test_executed" || raise(E_ASSERT, "Wrong verb");
+      task.recurring == false || raise(E_ASSERT, "Should not be recurring");
+      "Verify scheduler is running";
+      fixture.running || raise(E_ASSERT, "Scheduler should be running");
+      "Clean up";
+      fixture:cancel(schedule_id);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
     endtry
-    task.target == this || raise(E_ASSERT, "Wrong target");
-    task.verb == "scheduler_test_executed" || raise(E_ASSERT, "Wrong verb");
-    task.recurring == false || raise(E_ASSERT, "Should not be recurring");
-    "Verify scheduler is running";
-    this.running || raise(E_ASSERT, "Scheduler should be running");
-    "Clean up";
-    this:cancel(schedule_id);
+    return true;
   endmethod
 
   method test_schedule_at owner: HACKER
     "Test scheduling a task at a specific time.";
-    "Clean up any leftover properties from previous test runs";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    future_time = time() + 10;
-    schedule_id = this:schedule_at(future_time, this, "scheduler_test_executed");
-    schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
-    "Verify run time";
-    run_at = this:when_scheduled(schedule_id);
-    run_at == future_time || raise(E_ASSERT, "Wrong run time: " + tostr(run_at) + " vs " + tostr(future_time));
-    "Clean up";
-    this:cancel(schedule_id);
+    fixture = this:create(false);
+    fixture.running = 0;
+    try
+      future_time = time() + 10;
+      schedule_id = fixture:schedule_at(future_time, fixture, "scheduler_test_executed");
+      schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
+      "Verify run time";
+      run_at = fixture:when_scheduled(schedule_id);
+      run_at == future_time || raise(E_ASSERT, "Wrong run time: " + tostr(run_at) + " vs " + tostr(future_time));
+      "Clean up";
+      fixture:cancel(schedule_id);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
+    endtry
+    return true;
   endmethod
 
   method test_cancel owner: HACKER
     "Test cancelling scheduled tasks.";
-    "Clean up any leftover properties from previous test runs";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    schedule_id = this:schedule_after(10, this, "scheduler_test_executed");
-    schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
-    "Cancel should return true";
-    result = this:cancel(schedule_id);
-    result == true || raise(E_ASSERT, "Cancel should return true");
-    "Verify task property is gone";
-    prop_name = "scheduled_task_" + tostr(schedule_id);
+    fixture = this:create(false);
+    fixture.running = 0;
     try
-      this.(prop_name);
-      raise(E_ASSERT, "Task property should be removed");
-    except (E_PROPNF)
-      "Property correctly removed";
+      schedule_id = fixture:schedule_after(10, fixture, "scheduler_test_executed");
+      schedule_id > 0 || raise(E_ASSERT, "Failed to schedule task");
+      "Cancel should return true";
+      result = fixture:cancel(schedule_id);
+      result == true || raise(E_ASSERT, "Cancel should return true");
+      "Verify task property is gone";
+      prop_name = "scheduled_task_" + tostr(schedule_id);
+      try
+        fixture.(prop_name);
+        raise(E_ASSERT, "Task property should be removed");
+      except (E_PROPNF)
+        "Property correctly removed";
+      endtry
+      "Cancelling again should return false";
+      result = fixture:cancel(schedule_id);
+      result == false || raise(E_ASSERT, "Second cancel should return false");
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
     endtry
-    "Cancelling again should return false";
-    result = this:cancel(schedule_id);
-    result == false || raise(E_ASSERT, "Second cancel should return false");
+    return true;
   endmethod
 
   method test_is_scheduled owner: HACKER
     "Test checking if a verb is scheduled.";
-    "Clean up any leftover properties from previous test runs";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    "Should return 0 when not scheduled";
-    result = this:is_scheduled(this, "nonexistent_verb");
-    result == 0 || raise(E_ASSERT, "Should return 0 for unscheduled verb");
-    "Schedule a task";
-    schedule_id = this:schedule_after(10, this, "test_verb");
-    "Should return schedule ID when scheduled";
-    result = this:is_scheduled(this, "test_verb");
-    result == schedule_id || raise(E_ASSERT, "Should return schedule ID");
-    "Clean up";
-    this:cancel(schedule_id);
+    fixture = this:create(false);
+    fixture.running = 0;
+    try
+      "Should return 0 when not scheduled";
+      result = fixture:is_scheduled(fixture, "nonexistent_verb");
+      result == 0 || raise(E_ASSERT, "Should return 0 for unscheduled verb");
+      "Schedule a task";
+      schedule_id = fixture:schedule_after(10, fixture, "test_verb");
+      "Should return schedule ID when scheduled";
+      result = fixture:is_scheduled(fixture, "test_verb");
+      result == schedule_id || raise(E_ASSERT, "Should return schedule ID");
+      "Clean up";
+      fixture:cancel(schedule_id);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
+    endtry
+    return true;
   endmethod
 
   method test_sweep owner: HACKER
     "Test sweep verb for stale task ID detection.";
-    "Clean up any leftover properties from previous test runs";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    "Sweep should return 0 when there are no tasks";
-    result = this:sweep();
-    result == 0 || raise(E_ASSERT, "Sweep should return 0 with no tasks");
-    "Schedule a task and sweep again";
-    schedule_id = this:schedule_after(10, this, "scheduler_test_executed");
-    result = this:sweep();
-    result == 0 || raise(E_ASSERT, "Sweep should return 0 for scheduled tasks without task_ids");
-    "Clean up";
-    this:cancel(schedule_id);
+    fixture = this:create(false);
+    fixture.running = 0;
+    try
+      "Sweep should return 0 when there are no tasks";
+      result = fixture:sweep();
+      result == 0 || raise(E_ASSERT, "Sweep should return 0 with no tasks");
+      "Schedule a task and sweep again";
+      schedule_id = fixture:schedule_after(10, fixture, "scheduler_test_executed");
+      result = fixture:sweep();
+      result == 0 || raise(E_ASSERT, "Sweep should return 0 for scheduled tasks without task_ids");
+      "Clean up";
+      fixture:cancel(schedule_id);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
+    endtry
+    return true;
   endmethod
 
   method test_list_tasks owner: HACKER
     "Test listing scheduled tasks.";
-    "Start with clean slate - remove all scheduled_task_* properties";
-    for prop in (properties(this))
-      prop_str = tostr(prop);
-      if (prop_str:starts_with("scheduled_task_"))
-        delete_property(this, prop);
-      endif
-    endfor
-    "Schedule multiple tasks";
-    sched1 = this:schedule_after(10, this, "test_verb1");
-    sched2 = this:schedule_after(20, this, "test_verb2");
-    "List should contain both";
-    task_list = this:list_tasks();
-    length(task_list) == 2 || raise(E_ASSERT, "Should have 2 tasks, got " + tostr(length(task_list)));
-    "Verify task info is present";
-    found1 = false;
-    found2 = false;
-    for task in (task_list)
-      if (task.schedule_id == sched1)
-        found1 = true;
-        task.verb == "test_verb1" || raise(E_ASSERT, "Wrong verb for task1");
-      elseif (task.schedule_id == sched2)
-        found2 = true;
-        task.verb == "test_verb2" || raise(E_ASSERT, "Wrong verb for task2");
-      endif
-    endfor
-    found1 && found2 || raise(E_ASSERT, "Tasks not found in list");
-    "Clean up";
-    this:cancel(sched1);
-    this:cancel(sched2);
+    fixture = this:create(false);
+    fixture.running = 0;
+    try
+      "Schedule multiple tasks";
+      sched1 = fixture:schedule_after(10, fixture, "test_verb1");
+      sched2 = fixture:schedule_after(20, fixture, "test_verb2");
+      "List should contain both";
+      task_list = fixture:list_tasks();
+      length(task_list) == 2 || raise(E_ASSERT, "Should have 2 tasks, got " + tostr(length(task_list)));
+      "Verify task info is present";
+      found1 = false;
+      found2 = false;
+      for task in (task_list)
+        if (task.schedule_id == sched1)
+          found1 = true;
+          task.verb == "test_verb1" || raise(E_ASSERT, "Wrong verb for task1");
+        elseif (task.schedule_id == sched2)
+          found2 = true;
+          task.verb == "test_verb2" || raise(E_ASSERT, "Wrong verb for task2");
+        endif
+      endfor
+      found1 && found2 || raise(E_ASSERT, "Tasks not found in list");
+      "Clean up";
+      fixture:cancel(sched1);
+      fixture:cancel(sched2);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
+    endtry
+    return true;
   endmethod
 
   method test_validation owner: HACKER
     "Test input validation for schedule verbs.";
-    "Test invalid object rejection";
+    fixture = this:create(false);
+    fixture.running = 0;
     try
-      this:schedule_after(10, #-1, "test");
-      raise(E_ASSERT, "Should reject invalid object");
-    except (E_INVARG)
-      "Expected - invalid object rejected";
+      "Test invalid object rejection";
+      try
+        fixture:schedule_after(10, #-1, "test");
+        raise(E_ASSERT, "Should reject invalid object");
+      except (E_INVARG)
+        "Expected - invalid object rejected";
+      endtry
+      "Test symbol verb name acceptance";
+      schedule_id = fixture:schedule_after(10, fixture, 'scheduler_test_executed);
+      schedule_id > 0 || raise(E_ASSERT, "Should accept symbol verb name");
+      "Verify task was created with string verb name";
+      prop_name = "scheduled_task_" + tostr(schedule_id);
+      try
+        task = fixture.(prop_name);
+        typeof(task.verb) == TYPE_STR || raise(E_ASSERT, "Verb should be stored as string");
+      except (E_PROPNF)
+        raise(E_ASSERT, "Task property should exist");
+      endtry
+      "Clean up";
+      fixture:cancel(schedule_id);
+    finally
+      valid(fixture) && fixture.running && `kill_task(fixture.running) ! ANY';
+      valid(fixture) && fixture:destroy();
     endtry
-    "Test symbol verb name acceptance";
-    schedule_id = this:schedule_after(10, this, 'scheduler_test_executed);
-    schedule_id > 0 || raise(E_ASSERT, "Should accept symbol verb name");
-    "Verify task was created with string verb name";
-    prop_name = "scheduled_task_" + tostr(schedule_id);
-    try
-      task = this.(prop_name);
-      typeof(task.verb) == TYPE_STR || raise(E_ASSERT, "Verb should be stored as string");
-    except (E_PROPNF)
-      raise(E_ASSERT, "Task property should exist");
-    endtry
-    "Clean up";
-    this:cancel(schedule_id);
+    return true;
   endmethod
 
   method scheduler_test_executed owner: HACKER

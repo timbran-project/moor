@@ -94,7 +94,8 @@ services:
 
         try:
             start(1)
-            eval_check('const kept = create($root_class, #2); '
+            eval_check('add_property(#0, "extraction_initial_count", length(objects()), {#2, "r"}); '
+                'const kept = create($root_class, #2); '
                 'add_property(#0, "extraction_probe", kept, {#2, "r"}); '
                 'add_property(kept, "self_ref", kept, {#2, "r"}); '
                 'add_verb(kept, {#2, "rxd", "include_for_core"}, {"this", "none", "this"}); '
@@ -127,7 +128,7 @@ services:
             assert "Core database extraction is complete." in logs[-1].read_text()
 
             start(3)
-            eval_check('length(objects()) == 96 || raise(E_INVARG); '
+            eval_check('length(objects()) == $extraction_initial_count + 1 || raise(E_INVARG); '
                 'valid($extraction_probe) && !is_uuobjid($extraction_probe) || raise(E_INVARG); '
                 '$extraction_probe.self_ref == $extraction_probe || raise(E_INVARG); '
                 '{o for o in ($extraction_rubbish) if valid(o)} == {} || raise(E_INVARG); '

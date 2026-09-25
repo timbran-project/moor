@@ -755,21 +755,26 @@ object RULE_ENGINE [
 
   method test_simple_goal owner: ARCH_WIZARD
     "Test evaluating a simple goal.";
-    "Create a test object with a fact predicate";
-    test_obj = $root:create(true);
-    test_obj.name = "Test Object";
-    "Define a simple fact: fact_true() returns true";
-    "info: {owner, perms, names}";
-    "args: {dobj, prep, iobj}";
-    add_verb(test_obj, {#2, "rxd", "fact_true"}, {"this", "none", "none"});
-    set_verb_code(test_obj, "fact_true", {"return true;"});
-    "Evaluate a goal";
-    "Note: predicate name is 'true', not 'fact_true' - the fact_ prefix is added by _solve_goal";
-    empty_bindings = [];
-    goal = {'true, test_obj};
-    result = this:_solve_goal(goal, empty_bindings);
-    typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
-    length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
+    test_obj = #-1;
+    try
+      "Create a test object with a fact predicate";
+      test_obj = $root:create(false);
+      test_obj.name = "Test Object";
+      "Define a simple fact: fact_true() returns true";
+      "info: {owner, perms, names}";
+      "args: {dobj, prep, iobj}";
+      add_verb(test_obj, {#2, "rxd", "fact_true"}, {"this", "none", "none"});
+      set_verb_code(test_obj, "fact_true", {"return true;"});
+      "Evaluate a goal";
+      "Note: predicate name is 'true', not 'fact_true' - the fact_ prefix is added by _solve_goal";
+      empty_bindings = [];
+      goal = {'true, test_obj};
+      result = this:_solve_goal(goal, empty_bindings);
+      typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
+      length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
@@ -799,107 +804,134 @@ object RULE_ENGINE [
 
   method test_variable_binding owner: ARCH_WIZARD
     "Test variable unification in goals.";
-    "Query: what X satisfies parent(test_obj, X)?";
-    test_obj = #64;
-    "Set up parent relationship";
-    test_obj.father = $root;
-    "Create goal with variable X in second position";
-    goal = {'parent, test_obj, {'var, 'X}};
-    empty_bindings = [];
-    result = this:_solve_goal(goal, empty_bindings);
-    typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
-    length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
-    "First solution should bind 'X to $root";
-    first_solution = result[1];
-    typeof(first_solution) == TYPE_MAP || raise(E_ASSERT, "Solution should be map");
-    first_solution['X] == $root || raise(E_ASSERT, "'X should be bound to $root");
+    test_obj = #-1;
+    try
+      "Query: what X satisfies parent(test_obj, X)?";
+      test_obj = #64:create(false);
+      "Set up parent relationship";
+      test_obj.father = $root;
+      "Create goal with variable X in second position";
+      goal = {'parent, test_obj, {'var, 'X}};
+      empty_bindings = [];
+      result = this:_solve_goal(goal, empty_bindings);
+      typeof(result) == TYPE_LIST || raise(E_ASSERT, "Result should be list");
+      length(result) > 0 || raise(E_ASSERT, "Should have at least one solution");
+      "First solution should bind 'X to $root";
+      first_solution = result[1];
+      typeof(first_solution) == TYPE_MAP || raise(E_ASSERT, "Solution should be map");
+      first_solution['X] == $root || raise(E_ASSERT, "'X should be bound to $root");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_multiple_solutions owner: ARCH_WIZARD
     "Test goals that have multiple solutions via alternatives.";
-    "Create a test object with both father and mother";
-    test_obj = #64;
-    test_obj.father = $root;
-    test_obj.mother = $arch_wizard;
-    "Query: what X satisfies parent(test_obj, X)?";
-    goal = {'parent, test_obj, {'var, 'X}};
-    empty_bindings = [];
-    result = this:_prove_goals({goal}, empty_bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Goal should succeed");
-    "Check that we have alternatives (multiple solutions)";
-    alternatives = result['alternatives];
-    typeof(alternatives) == TYPE_LIST || raise(E_ASSERT, "Alternatives should be list");
-    length(alternatives) > 0 || raise(E_ASSERT, "Should have alternative solutions");
+    test_obj = #-1;
+    try
+      "Create a test object with both father and mother";
+      test_obj = #64:create(false);
+      test_obj.father = $root;
+      test_obj.mother = $arch_wizard;
+      "Query: what X satisfies parent(test_obj, X)?";
+      goal = {'parent, test_obj, {'var, 'X}};
+      empty_bindings = [];
+      result = this:_prove_goals({goal}, empty_bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Goal should succeed");
+      "Check that we have alternatives (multiple solutions)";
+      alternatives = result['alternatives];
+      typeof(alternatives) == TYPE_LIST || raise(E_ASSERT, "Alternatives should be list");
+      length(alternatives) > 0 || raise(E_ASSERT, "Should have alternative solutions");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_transitive_uncle owner: ARCH_WIZARD
     "Test transitive relationship: uncle = parent's parent.";
-    "Set up family: test_obj has mother, mother has father";
-    test_obj = #64;
-    "Create mother object (inherit from RULE_TEST to get father/mother properties)";
-    mother_obj = #64:create(true);
-    test_obj.mother = mother_obj;
-    "Set mother's father (test_obj's grandfather)";
-    mother_obj.father = $arch_wizard;
-    "Query: what X satisfies parent(test_obj, Y) AND parent(Y, X)?";
-    "This should find test_obj's grandparents";
-    goals = {{'parent, test_obj, {'var, 'Y}}, {'parent, {'var, 'Y}, {'var, 'X}}};
-    empty_bindings = [];
-    result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should find grandparent");
-    "Verify that X is bound to the grandfather";
-    first_binding = result['bindings];
-    typeof(first_binding) == TYPE_MAP || raise(E_ASSERT, "Binding should be map");
-    first_binding['X] == $arch_wizard || raise(E_ASSERT, "X should be $arch_wizard (grandfather)");
-    first_binding['Y] == mother_obj || raise(E_ASSERT, "Y should be mother_obj");
+    test_obj = #-1;
+    mother_obj = #-1;
+    try
+      "Set up family: test_obj has mother, mother has father";
+      test_obj = #64:create(false);
+      "Create mother object (inherit from RULE_TEST to get father/mother properties)";
+      mother_obj = #64:create(false);
+      test_obj.mother = mother_obj;
+      "Set mother's father (test_obj's grandfather)";
+      mother_obj.father = $arch_wizard;
+      "Query: what X satisfies parent(test_obj, Y) AND parent(Y, X)?";
+      "This should find test_obj's grandparents";
+      goals = {{'parent, test_obj, {'var, 'Y}}, {'parent, {'var, 'Y}, {'var, 'X}}};
+      empty_bindings = [];
+      result = this:_prove_goals(goals, empty_bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should find grandparent");
+      "Verify that X is bound to the grandfather";
+      first_binding = result['bindings];
+      typeof(first_binding) == TYPE_MAP || raise(E_ASSERT, "Binding should be map");
+      first_binding['X] == $arch_wizard || raise(E_ASSERT, "X should be $arch_wizard (grandfather)");
+      first_binding['Y] == mother_obj || raise(E_ASSERT, "Y should be mother_obj");
+    finally
+      valid(mother_obj) && mother_obj:destroy();
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_cousin_relationship owner: ARCH_WIZARD
     "Test cousin relationship: verify cousin shares grandparent.";
-    "Build family tree:";
-    "  $arch_wizard (grandparent)";
-    "    |";
-    "    +-- mother_obj (parent)";
-    "    |      |";
-    "    |      +-- test_obj (ego)";
-    "    |";
-    "    +-- sibling_obj (parent's sibling)";
-    "           |";
-    "           +-- cousin_obj (cousin)";
-    test_obj = #64;
-    "Reset test_obj's family (clear from previous tests)";
-    test_obj.father = #0;
-    test_obj.mother = #0;
-    "Create mother";
-    mother_obj = #64:create(true);
-    test_obj.mother = mother_obj;
-    mother_obj.father = $arch_wizard;
-    "Create sibling of mother";
-    sibling_obj = #64:create(true);
-    sibling_obj.father = $arch_wizard;
-    "Create cousin (sibling's child)";
-    cousin_obj = #64:create(true);
-    cousin_obj.father = sibling_obj;
-    "Query: cousin_obj and test_obj share a grandparent";
-    "Find: does cousin_obj's grandparent equal test_obj's grandparent?";
-    goals_test_obj = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'TestGrandparent}}};
-    result_test = this:_prove_goals(goals_test_obj, []);
-    typeof(result_test) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result_test['success] || raise(E_ASSERT, "Should find test_obj's grandparent");
-    test_grandparent = result_test['bindings]['TestGrandparent];
-    "Now check cousin_obj's grandparent";
-    goals_cousin = {{'parent, cousin_obj, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'CousinGrandparent}}};
-    result_cousin = this:_prove_goals(goals_cousin, []);
-    typeof(result_cousin) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result_cousin['success] || raise(E_ASSERT, "Should find cousin's grandparent");
-    cousin_grandparent = result_cousin['bindings]['CousinGrandparent];
-    "Verify they share the same grandparent";
-    test_grandparent == cousin_grandparent || raise(E_ASSERT, "Cousin and test_obj should share grandparent");
+    test_obj = #-1;
+    mother_obj = #-1;
+    sibling_obj = #-1;
+    cousin_obj = #-1;
+    try
+      "Build family tree:";
+      "  $arch_wizard (grandparent)";
+      "    |";
+      "    +-- mother_obj (parent)";
+      "    |      |";
+      "    |      +-- test_obj (ego)";
+      "    |";
+      "    +-- sibling_obj (parent's sibling)";
+      "           |";
+      "           +-- cousin_obj (cousin)";
+      test_obj = #64:create(false);
+      test_obj.father = #0;
+      test_obj.mother = #0;
+      "Create mother";
+      mother_obj = #64:create(false);
+      test_obj.mother = mother_obj;
+      mother_obj.father = $arch_wizard;
+      "Create sibling of mother";
+      sibling_obj = #64:create(false);
+      sibling_obj.father = $arch_wizard;
+      "Create cousin (sibling's child)";
+      cousin_obj = #64:create(false);
+      cousin_obj.father = sibling_obj;
+      "Query: cousin_obj and test_obj share a grandparent";
+      "Find: does cousin_obj's grandparent equal test_obj's grandparent?";
+      goals_test_obj = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'TestGrandparent}}};
+      result_test = this:_prove_goals(goals_test_obj, []);
+      typeof(result_test) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result_test['success] || raise(E_ASSERT, "Should find test_obj's grandparent");
+      test_grandparent = result_test['bindings]['TestGrandparent];
+      "Now check cousin_obj's grandparent";
+      goals_cousin = {{'parent, cousin_obj, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'CousinGrandparent}}};
+      result_cousin = this:_prove_goals(goals_cousin, []);
+      typeof(result_cousin) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result_cousin['success] || raise(E_ASSERT, "Should find cousin's grandparent");
+      cousin_grandparent = result_cousin['bindings]['CousinGrandparent];
+      "Verify they share the same grandparent";
+      test_grandparent == cousin_grandparent || raise(E_ASSERT, "Cousin and test_obj should share grandparent");
+    finally
+      valid(cousin_obj) && cousin_obj:destroy();
+      valid(sibling_obj) && sibling_obj:destroy();
+      valid(mother_obj) && mother_obj:destroy();
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
@@ -958,26 +990,33 @@ object RULE_ENGINE [
 
   method test_parse_and_evaluate_family owner: ARCH_WIZARD
     "Test parsing a family relationship expression and evaluating it.";
-    "Parse: 'Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?'";
-    expression = "Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?";
-    rule = this:parse_expression(expression, 'find_ancestors);
-    "Set up family: test_obj has mother, mother has father";
-    test_obj = #64;
-    test_obj.father = #0;
-    test_obj.mother = #0;
-    mother_obj = #64:create(true);
-    test_obj.mother = mother_obj;
-    mother_obj.father = $arch_wizard;
-    "Now evaluate the rule with bindings: Child=test_obj";
-    "This should find: Grandparent=mother_obj, GreatGrandparent=$arch_wizard";
-    bindings = ['Child -> test_obj];
-    result = this:evaluate(rule, bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should find ancestors");
-    "Check bindings";
-    result_bindings = result['bindings];
-    result_bindings['Grandparent] == mother_obj || raise(E_ASSERT, "Grandparent should be mother_obj");
-    result_bindings['GreatGrandparent] == $arch_wizard || raise(E_ASSERT, "GreatGrandparent should be $arch_wizard");
+    test_obj = #-1;
+    mother_obj = #-1;
+    try
+      "Parse: 'Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?'";
+      expression = "Child parent(Grandparent)? AND Grandparent parent(GreatGrandparent)?";
+      rule = this:parse_expression(expression, 'find_ancestors);
+      "Set up family: test_obj has mother, mother has father";
+      test_obj = #64:create(false);
+      test_obj.father = #0;
+      test_obj.mother = #0;
+      mother_obj = #64:create(false);
+      test_obj.mother = mother_obj;
+      mother_obj.father = $arch_wizard;
+      "Now evaluate the rule with bindings: Child=test_obj";
+      "This should find: Grandparent=mother_obj, GreatGrandparent=$arch_wizard";
+      bindings = ['Child -> test_obj];
+      result = this:evaluate(rule, bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should find ancestors");
+      "Check bindings";
+      result_bindings = result['bindings];
+      result_bindings['Grandparent] == mother_obj || raise(E_ASSERT, "Grandparent should be mother_obj");
+      result_bindings['GreatGrandparent] == $arch_wizard || raise(E_ASSERT, "GreatGrandparent should be $arch_wizard");
+    finally
+      valid(mother_obj) && mother_obj:destroy();
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
@@ -1004,104 +1043,137 @@ object RULE_ENGINE [
 
   method test_parse_and_evaluate_or owner: ARCH_WIZARD
     "Test parsing and evaluating OR expressions.";
-    "Parse: 'Player has_key? OR Player has_lockpick?'";
-    expression = "Player has_key? OR Player has_lockpick?";
-    rule = this:parse_expression(expression, 'key_or_pick);
-    test_obj = #64;
-    "Define fact_has_lockpick on test_obj (has_key will fail)";
-    add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
-    set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
-    "Evaluate rule with Player=test_obj";
-    bindings = ['Player -> test_obj];
-    result = this:evaluate(rule, bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should succeed (lockpick branch works)");
+    test_obj = #-1;
+    try
+      "Parse: 'Player has_key? OR Player has_lockpick?'";
+      expression = "Player has_key? OR Player has_lockpick?";
+      rule = this:parse_expression(expression, 'key_or_pick);
+      test_obj = #64:create(false);
+      "Define fact_has_lockpick on test_obj (has_key will fail)";
+      add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
+      set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
+      "Evaluate rule with Player=test_obj";
+      bindings = ['Player -> test_obj];
+      result = this:evaluate(rule, bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should succeed (lockpick branch works)");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_or_alternatives owner: ARCH_WIZARD
     "Test evaluating OR expressions with alternatives.";
-    "Query: (Player has_key?) OR (Player has_lockpick?)";
-    test_obj = #64;
-    "Branch 1: Player has_key (will fail)";
-    branch1 = {{'has_key, test_obj}};
-    "Branch 2: Player has_lockpick (will succeed)";
-    branch2 = {{'has_lockpick, test_obj}};
-    "Define fact_has_lockpick on test_obj";
-    add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
-    set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
-    "Prove alternatives: branch1 OR branch2";
-    alternatives = {branch1, branch2};
-    result = this:_prove_alternatives(alternatives, []);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should succeed (second branch succeeds)");
+    test_obj = #-1;
+    try
+      "Query: (Player has_key?) OR (Player has_lockpick?)";
+      test_obj = #64:create(false);
+      "Branch 1: Player has_key (will fail)";
+      branch1 = {{'has_key, test_obj}};
+      "Branch 2: Player has_lockpick (will succeed)";
+      branch2 = {{'has_lockpick, test_obj}};
+      "Define fact_has_lockpick on test_obj";
+      add_verb(test_obj, {#2, "rxd", "fact_has_lockpick"}, {"this", "none", "none"});
+      set_verb_code(test_obj, "fact_has_lockpick", {"return true;"});
+      "Prove alternatives: branch1 OR branch2";
+      alternatives = {branch1, branch2};
+      result = this:_prove_alternatives(alternatives, []);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should succeed (second branch succeeds)");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_parse_and_evaluate_cousin owner: ARCH_WIZARD
     "Test parsing cousin relationship: find shared grandparents.";
-    "Parse: 'Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?'";
-    expression = "Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?";
-    rule = this:parse_expression(expression, 'find_cousins);
-    "Build family tree:";
-    "  $arch_wizard (grandparent)";
-    "    |";
-    "    +-- mother1_obj (parent of person1)";
-    "    |      |";
-    "    |      +-- person1_obj (ego)";
-    "    |";
-    "    +-- mother2_obj (parent of person2)";
-    "           |";
-    "           +-- person2_obj (cousin)";
-    person1_obj = #64;
-    person1_obj.father = #0;
-    person1_obj.mother = #0;
-    mother1_obj = #64:create(true);
-    person1_obj.mother = mother1_obj;
-    mother1_obj.father = $arch_wizard;
-    mother2_obj = #64:create(true);
-    mother2_obj.father = $arch_wizard;
-    person2_obj = #64:create(true);
-    person2_obj.father = mother2_obj;
-    "Evaluate with: Person1=person1_obj, Person2=person2_obj";
-    "This should find: Parent1=mother1_obj, Parent2=mother2_obj, Grandparent=$arch_wizard";
-    bindings = ['Person1 -> person1_obj, 'Person2 -> person2_obj];
-    result = this:evaluate(rule, bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should find shared grandparent");
-    result_bindings = result['bindings];
-    result_bindings['Grandparent] == $arch_wizard || raise(E_ASSERT, "Grandparent should be $arch_wizard");
+    person1_obj = #-1;
+    mother1_obj = #-1;
+    mother2_obj = #-1;
+    person2_obj = #-1;
+    try
+      "Parse: 'Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?'";
+      expression = "Person1 parent(Parent1)? AND Parent1 parent(Grandparent)? AND Person2 parent(Parent2)? AND Parent2 parent(Grandparent)?";
+      rule = this:parse_expression(expression, 'find_cousins);
+      "Build family tree:";
+      "  $arch_wizard (grandparent)";
+      "    |";
+      "    +-- mother1_obj (parent of person1)";
+      "    |      |";
+      "    |      +-- person1_obj (ego)";
+      "    |";
+      "    +-- mother2_obj (parent of person2)";
+      "           |";
+      "           +-- person2_obj (cousin)";
+      person1_obj = #64:create(false);
+      person1_obj.father = #0;
+      person1_obj.mother = #0;
+      mother1_obj = #64:create(false);
+      person1_obj.mother = mother1_obj;
+      mother1_obj.father = $arch_wizard;
+      mother2_obj = #64:create(false);
+      mother2_obj.father = $arch_wizard;
+      person2_obj = #64:create(false);
+      person2_obj.father = mother2_obj;
+      "Evaluate with: Person1=person1_obj, Person2=person2_obj";
+      "This should find: Parent1=mother1_obj, Parent2=mother2_obj, Grandparent=$arch_wizard";
+      bindings = ['Person1 -> person1_obj, 'Person2 -> person2_obj];
+      result = this:evaluate(rule, bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should find shared grandparent");
+      result_bindings = result['bindings];
+      result_bindings['Grandparent] == $arch_wizard || raise(E_ASSERT, "Grandparent should be $arch_wizard");
+    finally
+      valid(person2_obj) && person2_obj:destroy();
+      valid(mother2_obj) && mother2_obj:destroy();
+      valid(mother1_obj) && mother1_obj:destroy();
+      valid(person1_obj) && person1_obj:destroy();
+    endtry
     return true;
   endmethod
 
   method test_ancestor_chain owner: ARCH_WIZARD
     "Test longer ancestor chain: 4-generation ancestor query.";
-    "Build 5-generation family to test 4-step chain";
-    test_obj = #64;
-    "Reset test_obj's family (clear from previous tests)";
-    test_obj.father = #0;
-    test_obj.mother = #0;
-    "Create mother (gen 2)";
-    mother_obj = #64:create(true);
-    test_obj.mother = mother_obj;
-    "Create maternal grandmother (gen 3)";
-    grandmother_obj = #64:create(true);
-    mother_obj.mother = grandmother_obj;
-    "Create maternal great-grandmother (gen 4)";
-    great_grandmother_obj = #64:create(true);
-    grandmother_obj.mother = great_grandmother_obj;
-    "Create maternal great-great-grandmother (gen 5)";
-    great_great_grandmother_obj = #64:create(true);
-    great_grandmother_obj.mother = great_great_grandmother_obj;
-    "Query: 4-goal chain to find great-great-grandmother";
-    "This tests: test_obj -> gen2 -> gen3 -> gen4 -> gen5";
-    goals = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'P3}}, {'parent, {'var, 'P3}, {'var, 'Result}}};
-    empty_bindings = [];
-    result = this:_prove_goals(goals, empty_bindings);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    result['success] || raise(E_ASSERT, "Should find 4-generation ancestor chain");
-    bindings = result['bindings];
-    bindings['Result] == great_great_grandmother_obj || raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
+    test_obj = #-1;
+    mother_obj = #-1;
+    grandmother_obj = #-1;
+    great_grandmother_obj = #-1;
+    great_great_grandmother_obj = #-1;
+    try
+      "Build 5-generation family to test 4-step chain";
+      test_obj = #64:create(false);
+      test_obj.father = #0;
+      test_obj.mother = #0;
+      "Create mother (gen 2)";
+      mother_obj = #64:create(false);
+      test_obj.mother = mother_obj;
+      "Create maternal grandmother (gen 3)";
+      grandmother_obj = #64:create(false);
+      mother_obj.mother = grandmother_obj;
+      "Create maternal great-grandmother (gen 4)";
+      great_grandmother_obj = #64:create(false);
+      grandmother_obj.mother = great_grandmother_obj;
+      "Create maternal great-great-grandmother (gen 5)";
+      great_great_grandmother_obj = #64:create(false);
+      great_grandmother_obj.mother = great_great_grandmother_obj;
+      "Query: 4-goal chain to find great-great-grandmother";
+      "This tests: test_obj -> gen2 -> gen3 -> gen4 -> gen5";
+      goals = {{'parent, test_obj, {'var, 'P1}}, {'parent, {'var, 'P1}, {'var, 'P2}}, {'parent, {'var, 'P2}, {'var, 'P3}}, {'parent, {'var, 'P3}, {'var, 'Result}}};
+      empty_bindings = [];
+      result = this:_prove_goals(goals, empty_bindings);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      result['success] || raise(E_ASSERT, "Should find 4-generation ancestor chain");
+      bindings = result['bindings];
+      bindings['Result] == great_great_grandmother_obj || raise(E_ASSERT, "Should find great-great-grandmother through 4-step chain");
+    finally
+      valid(great_great_grandmother_obj) && great_great_grandmother_obj:destroy();
+      valid(great_grandmother_obj) && great_grandmother_obj:destroy();
+      valid(grandmother_obj) && grandmother_obj:destroy();
+      valid(mother_obj) && mother_obj:destroy();
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 
@@ -1203,29 +1275,34 @@ object RULE_ENGINE [
 
   method test_negation_bounded_one_unbound owner: ARCH_WIZARD
     "Test that bounded negation (1 unbound var) is allowed.";
-    test_obj = #64;
-    "Create a rule: NOT parent(test_obj, Parent) where Parent is unbound";
-    "This is bounded negation - one unbound variable is OK";
-    "Set up test_obj to have a father";
-    test_obj.father = $root;
-    not_goal = {'not, {'parent, test_obj, {'var, 'Parent}}};
-    rule = <$rule, .name = 'test_bounded_not, .head = 'test_bounded_not, .body = {not_goal}, .variables = {'Parent}>;
-    "Evaluate with no bindings - should NOT have errors";
-    result = this:evaluate(rule, []);
-    typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
-    "Check for ERROR messages (warnings are OK, but errors mean 2+ unbound)";
-    has_error = false;
-    for warning in (result['warnings])
-      if (index(warning, "ERROR:") > 0)
-        has_error = true;
-        break;
-      endif
-    endfor
-    has_error && raise(E_ASSERT, "Should NOT have ERROR for 1 unbound variable");
-    "NOT parent(test_obj, Parent) checks if there exists any parent";
-    "Since test_obj has father = $root, fact_parent will return solutions";
-    "So NOT should fail";
-    !result['success] || raise(E_ASSERT, "NOT parent should fail (object has parents)");
+    test_obj = #-1;
+    try
+      test_obj = #64:create(false);
+      "Create a rule: NOT parent(test_obj, Parent) where Parent is unbound";
+      "This is bounded negation - one unbound variable is OK";
+      "Set up test_obj to have a father";
+      test_obj.father = $root;
+      not_goal = {'not, {'parent, test_obj, {'var, 'Parent}}};
+      rule = <$rule, .name = 'test_bounded_not, .head = 'test_bounded_not, .body = {not_goal}, .variables = {'Parent}>;
+      "Evaluate with no bindings - should NOT have errors";
+      result = this:evaluate(rule, []);
+      typeof(result) == TYPE_MAP || raise(E_ASSERT, "Result should be map");
+      "Check for ERROR messages (warnings are OK, but errors mean 2+ unbound)";
+      has_error = false;
+      for warning in (result['warnings])
+        if (index(warning, "ERROR:") > 0)
+          has_error = true;
+          break;
+        endif
+      endfor
+      has_error && raise(E_ASSERT, "Should NOT have ERROR for 1 unbound variable");
+      "NOT parent(test_obj, Parent) checks if there exists any parent";
+      "Since test_obj has father = $root, fact_parent will return solutions";
+      "So NOT should fail";
+      !result['success] || raise(E_ASSERT, "NOT parent should fail (object has parents)");
+    finally
+      valid(test_obj) && test_obj:destroy();
+    endtry
     return true;
   endmethod
 

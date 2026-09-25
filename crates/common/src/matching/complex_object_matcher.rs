@@ -275,14 +275,21 @@ mod tests {
             player: MOCK_PLAYER,
             fuzzy_threshold: 0.5,
         };
-        // This should find the first object matching "t" (partial match)
-        // In the mock environment, both thing1 and thing2 have aliases starting with "t"
-        let result = matcher.match_object("first t");
-        // Should return one of the things (the first match)
-        assert!(result.is_ok());
-        let match_result = result.unwrap();
-        let obj = match_result.result;
-        assert!(obj == Some(MOCK_THING1) || obj == Some(MOCK_THING2));
+        // The mock environment stores room contents in a HashSet. Ordinals follow
+        // its traversal order, so capture that order before matching.
+        let ordered: Vec<_> = matcher
+            .env
+            .get_surroundings(&MOCK_PLAYER)
+            .unwrap()
+            .iter()
+            .filter(|oid| *oid == MOCK_THING1 || *oid == MOCK_THING2)
+            .collect();
+        assert_eq!(ordered.len(), 2);
+        for (query, expected) in [("first t", ordered[0]), ("second t", ordered[1])] {
+            let result = matcher.match_object(query).unwrap();
+            assert_eq!(result.result, Some(expected));
+            assert!(result.candidates.is_empty());
+        }
     }
 
     #[test]
@@ -294,16 +301,11 @@ mod tests {
             fuzzy_threshold: 0.5,
         };
         // "hing" should match "thing1" and "thing2" as substring
-        let result = matcher.match_object("hing");
-        assert!(result.is_ok());
-        // Should be ambiguous or return one of them
-        let match_result = result.unwrap();
-        let obj = match_result.result;
-        assert!(obj == Some(MOCK_THING1) || obj == Some(MOCK_THING2) || obj == Some(AMBIGUOUS));
-        // If ambiguous, candidates should be populated
-        if obj == Some(AMBIGUOUS) {
-            assert!(!match_result.candidates.is_empty());
-        }
+        let result = matcher.match_object("hing").unwrap();
+        assert_eq!(result.result, Some(AMBIGUOUS));
+        let mut candidates = result.candidates;
+        candidates.sort_unstable();
+        assert_eq!(candidates, vec![MOCK_THING1, MOCK_THING2]);
     }
 
     #[test]

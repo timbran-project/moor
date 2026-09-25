@@ -1267,10 +1267,7 @@ mod tests {
         assert!(text.contains("object SUB_UTILS [\n  import_export_id -> \"sub_utils\",\n"));
     }
 
-    /// 1. Load from a classical textdump
-    /// 2. Dump to a objdef dump
-    /// 3. Load objdef dump
-    /// 4. Some basic verification
+    /// Restore a textdump through objdef and compare committed object state.
     #[test]
     fn load_textdump_dump_objdef_restore_objdef() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -1278,7 +1275,7 @@ mod tests {
 
         let tmpdir = tempfile::tempdir().unwrap();
         let tmpdir_path = tmpdir.path();
-        {
+        let (exported_count, original_verbs, original_properties, original_name, original_parent) = {
             let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
             let db = Arc::new(db);
             let mut loader_client = db.clone().loader_client().unwrap();
@@ -1296,10 +1293,32 @@ mod tests {
                 Ok(CommitResult::Success { .. })
             ));
 
-            // Make a tmpdir & dump objdefs into it
+            let world = db.new_world_state().unwrap();
+            let original_name = world
+                .name_of(&system_permissions(), &SYSTEM_OBJECT)
+                .unwrap();
+            let original_parent = world
+                .parent_of(&system_permissions(), &SYSTEM_OBJECT)
+                .unwrap();
             let snapshot = db.clone().create_snapshot().unwrap();
-            dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
-        }
+            let stats = dump_snapshot_object_definitions(snapshot.as_ref(), tmpdir_path).unwrap();
+            assert!(stats.objects > 0, "textdump export should contain objects");
+            assert!(
+                stats.verbs > 0,
+                "textdump export should contain verb bodies"
+            );
+            assert!(
+                stats.properties > 0,
+                "textdump export should contain properties"
+            );
+            (
+                stats.objects,
+                stats.verbs,
+                stats.properties,
+                original_name,
+                original_parent,
+            )
+        };
 
         let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
         let db = Arc::new(db);
@@ -1315,12 +1334,42 @@ mod tests {
             overrides: vec![],
             validate_parent_changes: false,
         };
-        defloader
+        let results = defloader
             .load_objdef_directory(CompileOptions::default(), tmpdir_path, options)
             .unwrap();
+        assert_eq!(results.loaded_objects.len(), exported_count);
+        assert_eq!(results.num_loaded_verbs, original_verbs);
+        assert_eq!(results.num_loaded_property_definitions, original_properties);
+        assert!(results.commit);
+        assert!(matches!(loader.commit(), Ok(CommitResult::Success { .. })));
 
-        // Round trip worked, so we'll just leave it at that for now. A more anal retentive test
-        // would go look at known objects and props etc and compare.
+        let restored = db.new_world_state().unwrap();
+        assert_eq!(
+            restored
+                .name_of(&system_permissions(), &SYSTEM_OBJECT)
+                .unwrap(),
+            original_name
+        );
+        assert_eq!(
+            restored
+                .parent_of(&system_permissions(), &SYSTEM_OBJECT)
+                .unwrap(),
+            original_parent
+        );
+
+        let restored_dir = tempfile::tempdir().unwrap();
+        let restored_snapshot = db.create_snapshot().unwrap();
+        let restored_stats =
+            dump_snapshot_object_definitions(restored_snapshot.as_ref(), restored_dir.path())
+                .unwrap();
+        assert_eq!(restored_stats.objects, exported_count);
+        assert_eq!(restored_stats.verbs, original_verbs);
+        assert_eq!(restored_stats.properties, original_properties);
+        assert_eq!(
+            read_directory_tree(restored_dir.path()),
+            read_directory_tree(tmpdir_path),
+            "committed objdef restore changed exported object definitions"
+        );
     }
 
     /// Test lambda objdef serialization by creating lambdas and doing a round-trip

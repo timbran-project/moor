@@ -61,17 +61,6 @@ E_PERM
 ; return $object.recycle_called;
 2
 
-// test_that_calling_recycle_when_recycling_an_object_fails
-; $object = create($nothing);
-; add_property($object, "recycle_called", 0, {player, ""});
-; add_verb($object, {player, "xd", "recycle"}, {"this", "none", "this"});
-; set_verb_code($object, "recycle", {
->    "typeof(this) == TYPE_OBJ || raise(E_INVARG);",
->    "$object.recycle_called = $object.recycle_called + 1;"
-> });
-; return $object.recycle_called;
-0
-
 // test_that_calling_recycle_on_a_recycled_object_fails
 @programmer
 ; $object = create($nothing);

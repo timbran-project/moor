@@ -11,10 +11,10 @@ E_INVARG
 % make-core-database
 ~~This destroys world data.
 =Core database extraction aborted.
-; return {length(objects()), `$wizard_feature.__mcd__state ! E_PROPNF'};
-{95, E_PROPNF}
+; add_property(#0, "extraction_initial_count", length(objects()), {#2, "r"}); return {length(objects()) == length($core_objects()), `$wizard_feature.__mcd__state ! E_PROPNF'};
+{true, E_PROPNF}
 // A malformed selection hook fails before extraction is recorded.
 ; const probe = create($root_class, #2); add_property(#0, "extraction_probe", probe, {#2, "r"}); add_verb(probe, {#2, "rxd", "include_for_core"}, {"this", "none", "this"}); set_verb_code(probe, "include_for_core", {"return false;"}); return `$core_object_info() ! E_TYPE';
 E_TYPE
-; return {length(objects()), `$wizard_feature.__mcd__state ! E_PROPNF'};
-{96, E_PROPNF}
+; return {length(objects()) == $extraction_initial_count + 1, valid($extraction_probe), `$wizard_feature.__mcd__state ! E_PROPNF'};
+{true, true, E_PROPNF}

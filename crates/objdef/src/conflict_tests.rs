@@ -18,13 +18,13 @@
 mod tests {
     use crate::{ConflictMode, Entity, ObjDefLoaderOptions, ObjectDefinitionLoader};
     use moor_common::model::{
-        ObjFlag, PrepSpec, TaskPermissions, VerbFlag, VerbLookup, WorldStateSource,
+        HasUuid, ObjFlag, PrepSpec, TaskPermissions, VerbFlag, VerbLookup, WorldStateSource,
         command_verb_argspec,
     };
     use moor_common::util::BitEnum;
-    use moor_compiler::CompileOptions;
+    use moor_compiler::{CompileOptions, compile};
     use moor_db::{Database, DatabaseConfig, TxDB};
-    use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
+    use moor_var::{NOTHING, Obj, SYSTEM_OBJECT, Symbol, program::ProgramType, v_int, v_str};
     use std::{path::Path, sync::Arc};
 
     fn test_db(path: &Path) -> Arc<TxDB> {
@@ -383,6 +383,15 @@ mod tests {
         let verbdef = verb_result.expect("look verb should remain in Skip mode");
         assert_eq!(verbdef.owner(), Obj::mk_id(1));
         assert!(verbdef.flags().contains(VerbFlag::Exec));
+        let (program, _) = ws.retrieve_verb(&system_permissions(), &target, verbdef.uuid())?;
+        assert_eq!(
+            program,
+            ProgramType::MooR(compile(
+                "return \"original look\";",
+                CompileOptions::default()
+            )?),
+            "Skip mode should preserve the original verb body"
+        );
 
         Ok(())
     }
@@ -619,6 +628,15 @@ mod tests {
         let verbdef = verb_result.expect("look verb should remain after clobber");
         assert_eq!(verbdef.owner(), SYSTEM_OBJECT);
         assert!(!verbdef.flags().contains(VerbFlag::Exec));
+        let (program, _) = ws.retrieve_verb(&system_permissions(), &target, verbdef.uuid())?;
+        assert_eq!(
+            program,
+            ProgramType::MooR(compile(
+                "return \"modified look\";",
+                CompileOptions::default()
+            )?),
+            "Clobber mode should install the incoming verb body"
+        );
 
         Ok(())
     }

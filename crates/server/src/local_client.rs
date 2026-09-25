@@ -85,7 +85,7 @@ impl RuntimeClient for LocalRuntimeClient {
 mod tests {
     use moor_kernel::SchedulerClient;
     use moor_runtime_api::{
-        HostType, RpcMessageError,
+        HostType, RpcError, RpcMessageError,
         api::{ClientRequest, HostReply, HostRequest},
     };
     use uuid::Uuid;
@@ -93,18 +93,28 @@ mod tests {
     use super::LocalRuntimeClient;
     use moor_daemon::RuntimeApi;
 
-    struct MockRuntimeApi;
+    struct MockRuntimeApi {
+        expected_host_id: Uuid,
+        reply: Result<HostReply, RpcMessageError>,
+    }
 
     impl RuntimeApi for MockRuntimeApi {
         fn handle_host_request(
             &self,
-            _host_id: Uuid,
+            host_id: Uuid,
             request: HostRequest,
         ) -> Result<HostReply, RpcMessageError> {
+            assert_eq!(host_id, self.expected_host_id);
             match request {
-                HostRequest::RegisterHost { host_type, .. } => {
+                HostRequest::RegisterHost {
+                    timestamp,
+                    host_type,
+                    listeners,
+                } => {
+                    assert_eq!(timestamp, 42);
                     assert_eq!(host_type, HostType::TCP);
-                    Ok(HostReply::Ack)
+                    assert!(listeners.is_empty());
+                    self.reply.clone()
                 }
                 _ => panic!("unexpected host request"),
             }
@@ -121,13 +131,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn local_runtime_client_calls_host_api_directly() {
-        let client = LocalRuntimeClient::host_only(std::sync::Arc::new(MockRuntimeApi));
+    async fn local_runtime_client_forwards_host_identity_reply_and_error() {
+        let host_id = Uuid::new_v4();
+        let client = LocalRuntimeClient::host_only(std::sync::Arc::new(MockRuntimeApi {
+            expected_host_id: host_id,
+            reply: Ok(HostReply::Ack),
+        }));
         let reply = moor_runtime_api::api::RuntimeClient::host_call(
             &client,
-            Uuid::new_v4(),
+            host_id,
             HostRequest::RegisterHost {
-                timestamp: 1,
+                timestamp: 42,
                 host_type: HostType::TCP,
                 listeners: Vec::new(),
             },
@@ -136,5 +150,25 @@ mod tests {
         .unwrap();
 
         assert!(matches!(reply, HostReply::Ack));
+
+        let client = LocalRuntimeClient::host_only(std::sync::Arc::new(MockRuntimeApi {
+            expected_host_id: host_id,
+            reply: Err(RpcMessageError::InvalidRequest("rejected host".to_string())),
+        }));
+        let error = moor_runtime_api::api::RuntimeClient::host_call(
+            &client,
+            host_id,
+            HostRequest::RegisterHost {
+                timestamp: 42,
+                host_type: HostType::TCP,
+                listeners: Vec::new(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            RpcError::Daemon(RpcMessageError::InvalidRequest(reason)) if reason == "rejected host"
+        ));
     }
 }

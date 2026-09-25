@@ -42,11 +42,13 @@ mod tests {
             request: ClientRequest,
         ) -> Result<ClientReply, String>;
         fn track_client(&self, _client_id: Uuid) {}
+        fn narrative_event_count(&self) -> usize;
         fn wait_for_narrative_event(
             &self,
             player: Option<Obj>,
             predicate: &mut dyn FnMut(&Event) -> bool,
             description: &str,
+            after: usize,
         );
     }
 
@@ -94,11 +96,16 @@ mod tests {
                 .map_err(|e| e.to_string())
         }
 
+        fn narrative_event_count(&self) -> usize {
+            self.env.transport.narrative_event_count()
+        }
+
         fn wait_for_narrative_event(
             &self,
             player: Option<Obj>,
             predicate: &mut dyn FnMut(&Event) -> bool,
             description: &str,
+            after: usize,
         ) {
             let start = Instant::now();
             loop {
@@ -110,7 +117,13 @@ mod tests {
                     );
                 }
 
-                for (event_player, event) in self.env.transport.get_narrative_events() {
+                for (event_player, event) in self
+                    .env
+                    .transport
+                    .get_narrative_events()
+                    .into_iter()
+                    .skip(after)
+                {
                     if player.is_some_and(|player| event_player != player) {
                         continue;
                     }
@@ -166,11 +179,16 @@ mod tests {
                 .map_err(|e| e.to_string())
         }
 
+        fn narrative_event_count(&self) -> usize {
+            self.env.transport.narrative_event_count()
+        }
+
         fn wait_for_narrative_event(
             &self,
             player: Option<Obj>,
             predicate: &mut dyn FnMut(&Event) -> bool,
             description: &str,
+            after: usize,
         ) {
             let start = Instant::now();
             loop {
@@ -182,7 +200,13 @@ mod tests {
                     );
                 }
 
-                for (event_player, event) in self.env.transport.get_narrative_events() {
+                for (event_player, event) in self
+                    .env
+                    .transport
+                    .get_narrative_events()
+                    .into_iter()
+                    .skip(after)
+                {
                     if player.is_some_and(|player| event_player != player) {
                         continue;
                     }
@@ -271,20 +295,22 @@ mod tests {
             backend.track_client(client_id);
             let (auth_token, player_obj) = login_wizard(backend, client_id, &client_token);
 
+            let after = backend.narrative_event_count();
+            let marker = format!("backend-parity-{client_id}");
             let reply = backend
                 .client_call(
                     client_id,
                     ClientRequest::Command {
                         auth_token,
                         handler_object: player_obj,
-                        command: "@who".to_string(),
+                        command: format!("; notify(player, \"{marker}\");"),
                         mode: InvocationMode::Connected { client_token },
                     },
                 )
                 .unwrap_or_else(|e| panic!("{} command failed: {e}", backend.name()));
             assert!(matches!(reply, ClientReply::TaskSubmitted { .. }));
 
-            wait_for_output(backend, player_obj, "Wizard", "command output");
+            wait_for_output(backend, player_obj, &marker, "command output", after);
         });
     }
 
@@ -376,13 +402,14 @@ mod tests {
             player,
             "This is all there is right now.",
             "post-login room description",
+            0,
         );
         (auth_token, player)
     }
 
     fn wait_for_any_output(backend: &dyn DaemonTestBackend, description: &str) {
         let mut predicate = |event: &Event| matches!(event, Event::Notify { .. });
-        backend.wait_for_narrative_event(None, &mut predicate, description);
+        backend.wait_for_narrative_event(None, &mut predicate, description, 0);
     }
 
     fn wait_for_output(
@@ -390,6 +417,7 @@ mod tests {
         player: Obj,
         text: &str,
         description: &str,
+        after: usize,
     ) {
         let mut predicate = |event: &Event| {
             let Event::Notify { value, .. } = event else {
@@ -397,7 +425,7 @@ mod tests {
             };
             value.as_string().is_some_and(|s| s.contains(text))
         };
-        backend.wait_for_narrative_event(Some(player), &mut predicate, description);
+        backend.wait_for_narrative_event(Some(player), &mut predicate, description, after);
     }
 
     fn describe_events(events: Vec<(Obj, moor_common::tasks::NarrativeEvent)>) -> String {

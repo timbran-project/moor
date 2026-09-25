@@ -35,13 +35,27 @@ describe("history batch deduplication", () => {
         ];
         const signature = computeHistoryBatchSignature(batch);
         const now = 1_000_000;
-        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([...batch]), signature, now - 1000, now)).toBe(true);
-        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([
-            batch[0], message({ id: "c", eventId: "evt-c", timestamp: 20 }),
-        ]), signature, now - 1000, now)).toBe(false);
-        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([
-            batch[0], message({ id: "b", eventId: "evt-b", timestamp: 21 }),
-        ]), signature, now - 1000, now)).toBe(false);
+        expect(isRedundantHistoryBatch(computeHistoryBatchSignature([...batch]), signature, now - 1000, now)).toBe(
+            true,
+        );
+        expect(isRedundantHistoryBatch(
+            computeHistoryBatchSignature([
+                batch[0],
+                message({ id: "c", eventId: "evt-c", timestamp: 20 }),
+            ]),
+            signature,
+            now - 1000,
+            now,
+        )).toBe(false);
+        expect(isRedundantHistoryBatch(
+            computeHistoryBatchSignature([
+                batch[0],
+                message({ id: "b", eventId: "evt-b", timestamp: 21 }),
+            ]),
+            signature,
+            now - 1000,
+            now,
+        )).toBe(false);
     });
 
     it("recognizes equal batches without event ids using message ids", () => {
@@ -49,11 +63,15 @@ describe("history batch deduplication", () => {
         const now = 1_000_000;
         expect(isRedundantHistoryBatch(
             computeHistoryBatchSignature([message({ id: "only", timestamp: 5 })]),
-            computeHistoryBatchSignature(batch), now - 1000, now,
+            computeHistoryBatchSignature(batch),
+            now - 1000,
+            now,
         )).toBe(true);
         expect(isRedundantHistoryBatch(
             computeHistoryBatchSignature([message({ id: "other", timestamp: 5 })]),
-            computeHistoryBatchSignature(batch), now - 1000, now,
+            computeHistoryBatchSignature(batch),
+            now - 1000,
+            now,
         )).toBe(false);
     });
 

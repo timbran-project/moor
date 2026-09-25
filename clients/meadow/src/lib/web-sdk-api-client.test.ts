@@ -60,7 +60,6 @@ describe("createMoorApiClient", () => {
         await api.getFlatBuffer("v1/features");
         expect(seenUrl).toBe("http://localhost:3000/api/v1/features");
     });
-
 });
 
 describe("CURIE helpers", () => {

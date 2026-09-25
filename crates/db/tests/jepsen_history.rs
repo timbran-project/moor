@@ -11,13 +11,12 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Loads an EDN file containing a history from the jepsen project `history.sim` tool, and run the
-//! history against our database implementation, and verify the right results come out.
+//! Replays an EDN list-append history against a list-valued relation entry per key.
 
 use edn_format::{Keyword, ParserOptions, Value};
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     /// Perform the operation in value (append, read, etc)
     Invoke,
@@ -27,13 +26,13 @@ pub enum Type {
     Fail,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operation {
     Append(usize, i32),
     Read(usize, Option<Vec<i32>>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Entry {
     index: usize,
     _time: i32,
@@ -135,9 +134,9 @@ pub fn parse_edn(path: &Path) -> Vec<Entry> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Operation, Type};
+    use crate::{Entry, Operation, Type};
     use arc_swap::ArcSwap;
-    use eyre::bail;
+    use eyre::{bail, ensure};
     use moor_common::model::WorldStateError;
     use moor_db::{Error, Provider, Relation, RelationCodomain, RelationIndex, Timestamp, Tx};
     use moor_var::Symbol;
@@ -146,12 +145,6 @@ mod tests {
         path::Path,
         sync::{Arc, Mutex},
     };
-
-    #[test]
-    fn test_parse_edn() {
-        let ops = super::parse_edn(Path::new("tests/si-list-append-dataset.edn"));
-        assert!(!ops.is_empty());
-    }
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct TestDomain(usize);
@@ -218,27 +211,27 @@ mod tests {
         }
     }
 
-    /// Given a workload, run it against our transaction implementation and verify the results.
-    fn run_workload_check(path: &Path) -> Result<(), eyre::Error> {
-        let mut workload = super::parse_edn(path);
+    /// Replay a history against one list-valued relation entry per key. The fixture's
+    /// expected reads and commit outcomes are specified independently of the relation.
+    fn run_workload_check(workload: &[Entry]) -> Result<usize, eyre::Error> {
         let backing = HashMap::new();
         let data = Arc::new(Mutex::new(backing));
         let provider = Arc::new(TestProvider { data });
-        let backing_store = Arc::new(Relation::new(Symbol::mk("test"), provider.clone()));
+        let backing_store = Arc::new(Relation::new(Symbol::mk("test"), provider));
         let root_index: Arc<ArcSwap<Box<dyn RelationIndex<TestDomain, TestCodomain>>>> =
             Arc::new(ArcSwap::new(Arc::new(
                 backing_store
                     .seeded_index()
                     .map_err(|e| eyre::eyre!("seeded_index failed: {e:?}"))?,
             )));
-
         let mut transactions = HashMap::new();
-
-        // workload *must* be sorted by index
-        workload.sort_by_key(|entry| entry.index);
-
         let mut tx_counter = 0;
-        for entry in &workload {
+
+        for (processed, entry) in workload.iter().enumerate() {
+            ensure!(
+                entry.index == processed,
+                "history index mismatch at row {processed}"
+            );
             match entry.r#type {
                 Type::Invoke => {
                     tx_counter += 1;
@@ -251,114 +244,101 @@ mod tests {
                     let transaction = backing_store
                         .clone()
                         .start_from_index(&tx, snapshot.as_ref().as_ref());
-
-                    if transactions
-                        .insert(entry.process, (tx, transaction))
-                        .is_some()
-                    {
-                        bail!("transaction already exists");
-                    }
+                    ensure!(
+                        transactions.insert(entry.process, transaction).is_none(),
+                        "process {} already has an open transaction at index {}",
+                        entry.process,
+                        entry.index
+                    );
                 }
-                Type::Ok => {
-                    // Get the working set for the transaction
-                    let (_tx, mut cache) = transactions.remove(&entry.process).unwrap();
-
-                    // Perform the operations.
-                    for ops in &entry.operations {
-                        match ops {
+                Type::Ok | Type::Fail => {
+                    let mut cache = transactions.remove(&entry.process).ok_or_else(|| {
+                        eyre::eyre!("completion without invocation at index {}", entry.index)
+                    })?;
+                    for op in &entry.operations {
+                        match op {
                             Operation::Append(key, value) => {
-                                // Read, append, set
                                 let key = TestDomain(*key);
-                                let mut codomain =
-                                    cache.get(&key).unwrap().unwrap_or(TestCodomain(vec![]));
-                                codomain.0.push(*value);
-                                cache
-                                    .upsert(key, codomain)
-                                    .map_err(|_| eyre::eyre!("append failed"))?;
+                                let mut current = cache
+                                    .get(&key)
+                                    .map_err(|e| {
+                                        eyre::eyre!("read at index {}: {e:?}", entry.index)
+                                    })?
+                                    .unwrap_or(TestCodomain(vec![]));
+                                current.0.push(*value);
+                                cache.upsert(key, current).map_err(|e| {
+                                    eyre::eyre!("append at index {}: {e:?}", entry.index)
+                                })?;
                             }
-                            Operation::Read(key, _) => {
-                                // Reads happen but we don't check them until the transaction is
-                                // committed. This is just to prime the cache and get the timestamps
-                                // doing the timestamping.
-                                let key = TestDomain(*key);
-                                cache.get(&key).map_err(|_| eyre::eyre!("read failed"))?;
+                            Operation::Read(key, expected) => {
+                                let actual = cache
+                                    .get(&TestDomain(*key))
+                                    .map_err(|e| {
+                                        eyre::eyre!("read at index {}: {e:?}", entry.index)
+                                    })?
+                                    .map(|value| value.0);
+                                ensure!(
+                                    actual == *expected,
+                                    "read mismatch at index {} for key {}: expected {:?}, got {:?}",
+                                    entry.index,
+                                    key,
+                                    expected,
+                                    actual
+                                );
                             }
                         }
                     }
-
-                    let mut ws = cache.working_set().expect("check failed in working set");
-
-                    {
-                        let snapshot = root_index.load();
-                        let mut cr =
-                            backing_store.begin_check_from_index(snapshot.as_ref().as_ref());
-                        cr.check(&mut ws).expect("check failed in begin");
-                        cr.apply(ws).expect("apply failed in begin");
-                        cr.commit(&root_index);
-                    }
-                }
-                Type::Fail => {
-                    let (_tx, cache) = transactions.remove(&entry.process).unwrap();
-
-                    // Returns "false" if our _expected_ failure did not happen
-                    let fail_check_fn = || {
-                        for ops in &entry.operations {
-                            match ops {
-                                Operation::Read(key, expected) => {
-                                    let key = TestDomain(*key);
-                                    let codomain = cache.get(&key).unwrap().map(|x| x.0);
-                                    if *expected != codomain {
-                                        return Ok(());
-                                    }
-                                }
-                                Operation::Append(key, value) => {
-                                    let key = TestDomain(*key);
-                                    let codomain =
-                                        cache.get(&key).unwrap().unwrap_or(TestCodomain(vec![]));
-                                    // The appended value should *not* be in there
-                                    if !codomain.0.contains(value) {
-                                        return Ok(());
-                                    }
-                                }
-                            }
+                    let mut ws = match cache.working_set() {
+                        Ok(ws) => ws,
+                        Err(WorldStateError::RollbackRetry)
+                            if matches!(entry.r#type, Type::Fail) =>
+                        {
+                            continue;
                         }
-                        let mut ws = match cache.working_set() {
-                            Ok(ws) => ws,
-                            Err(WorldStateError::RollbackRetry) => {
-                                return Ok(());
-                            }
-                            Err(e) => {
-                                panic!("unexpected error in working set: {e:?}");
-                            }
-                        };
-                        let snapshot = root_index.load();
-                        let mut cr =
-                            backing_store.begin_check_from_index(snapshot.as_ref().as_ref());
-
-                        match cr.check(&mut ws) {
-                            Ok(_) => Err(eyre::eyre!("Expected conflict, check succeeded")),
-                            Err(Error::Conflict(_)) => Ok(()),
-                            Err(e) => panic!("unexpected error: {e:?}"),
-                        }
-                        // Code after here is unreachable because we either return or panic above
+                        Err(e) => bail!("working set at index {}: {e:?}", entry.index),
                     };
-                    return fail_check_fn();
+                    let snapshot = root_index.load();
+                    let mut cr = backing_store.begin_check_from_index(snapshot.as_ref().as_ref());
+                    match (entry.r#type.clone(), cr.check(&mut ws)) {
+                        (Type::Ok, Ok(())) => {
+                            cr.apply(ws).map_err(|e| {
+                                eyre::eyre!("apply at index {}: {e:?}", entry.index)
+                            })?;
+                            cr.commit(&root_index);
+                        }
+                        (Type::Fail, Err(Error::Conflict(_))) => {}
+                        (Type::Fail, Ok(())) => {
+                            bail!(
+                                "expected conflict at index {}, but check succeeded",
+                                entry.index
+                            )
+                        }
+                        (_, Err(e)) => {
+                            bail!("unexpected check result at index {}: {e:?}", entry.index)
+                        }
+                        _ => unreachable!(),
+                    }
                 }
             }
         }
-        Ok(())
-    }
-    #[test]
-    fn test_run_serializable_workload() {
-        // This is our "serializable" list append workload, generated by `jepsen` `history.sim`
-        // Note that we also have a ssi- strict-serializable workload file that currently fails.
-        run_workload_check(Path::new("tests/si-list-append-dataset.edn")).unwrap();
+        ensure!(
+            transactions.is_empty(),
+            "history ended with open transactions"
+        );
+        Ok(workload.len())
     }
 
-    // This test is expected to fail, as we don't support strict-serializable transactions yet.
     #[test]
-    #[ignore]
-    fn test_run_strict_serializable_workload() {
-        run_workload_check(Path::new("tests/ssi-list-append-dataset.edn")).unwrap();
+    fn test_replay_relation_history_checks_every_completion() {
+        let history = super::parse_edn(Path::new("tests/relation-list-history.edn"));
+        assert_eq!(run_workload_check(&history).unwrap(), history.len());
+
+        let mut corrupted = history;
+        corrupted[7].operations[1] = Operation::Read(2, Some(vec![99]));
+        let error = run_workload_check(&corrupted).unwrap_err();
+        assert!(
+            error.to_string().contains("read mismatch at index 7"),
+            "{error:?}"
+        );
     }
 }
