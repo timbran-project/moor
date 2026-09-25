@@ -36,6 +36,8 @@ pub struct RpcSession {
 }
 
 pub enum SessionActions {
+    #[cfg(test)]
+    Barrier(Sender<()>),
     PublishNarrativeEvents(Vec<(Obj, Box<NarrativeEvent>)>),
     RequestClientInput {
         client_id: Uuid,

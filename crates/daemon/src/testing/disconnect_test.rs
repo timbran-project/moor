@@ -145,7 +145,8 @@ fn exercise(core: &str) {
         eval(&format!("#2.disconnect_count = 0; #2.{timestamp} = 0;"));
         let (first, first_token, connection) = connect();
         if mode == "timeout" {
-            std::thread::sleep(Duration::from_secs(31));
+            env.connections
+                .age_last_ping_for_test(first, Duration::from_secs(31));
             env.message_handler.ping_pong().unwrap();
         } else {
             let (second, second_token, second_connection) = connect();
@@ -158,7 +159,7 @@ fn exercise(core: &str) {
                     eval(&format!("boot_player({second_connection});"));
                 }
                 wait_removed(second);
-                std::thread::sleep(Duration::from_millis(200));
+                env.message_handler.wait_for_disconnect_tasks(0).unwrap();
                 assert_eq!(
                     eval("return #2.disconnect_count;"),
                     v_int(0),
@@ -174,16 +175,13 @@ fn exercise(core: &str) {
             wait_removed(second);
         }
         wait_removed(first);
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while eval("return #2.disconnect_count;") != v_int(1) {
-            assert!(
-                Instant::now() < deadline,
-                "{core}/{mode}: disfunc did not run once"
-            );
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        env.message_handler.wait_for_disconnect_tasks(1).unwrap();
+        assert_eq!(
+            eval("return #2.disconnect_count;"),
+            v_int(1),
+            "{core}/{mode}"
+        );
         assert_ne!(eval(&format!("return #2.{timestamp};")), v_int(0));
-        std::thread::sleep(Duration::from_millis(200));
         assert_eq!(
             eval("return #2.disconnect_count;"),
             v_int(1),

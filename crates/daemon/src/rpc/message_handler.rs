@@ -19,6 +19,8 @@ use flume::Sender;
 use moor_rpc::{DaemonToClientReply, DaemonToHostReply, HostClientToDaemonMessageRef};
 use moor_schema::rpc as moor_rpc;
 use papaya::HashMap as PapayaHashMap;
+#[cfg(test)]
+use std::sync::{Condvar, Mutex};
 use std::{
     hash::BuildHasherDefault,
     sync::{Arc, LazyLock, RwLock},
@@ -44,6 +46,8 @@ use moor_common::{
     },
 };
 use moor_db::db_counters;
+#[cfg(test)]
+use moor_kernel::tasks::{TaskHandle, TaskNotification};
 use moor_kernel::{
     SchedulerClient, config::Config, tasks::sched_counters, vm::builtins::bf_perf_counters,
 };
@@ -147,6 +151,9 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
         session_event: SessionActions,
     ) -> Result<(), Error>;
 
+    #[cfg(test)]
+    fn wait_for_disconnect_tasks(&self, expected: usize) -> Result<(), Error>;
+
     /// Switch the player for the given connection object to the new player.
     fn switch_player(
         &self,
@@ -173,6 +180,8 @@ pub struct RpcMessageHandler {
     pub(crate) client_token_cache: PapayaHashMap<ClientToken, Instant, BuildHasherDefault<AHasher>>,
 
     pub(crate) mailbox_sender: Sender<SessionActions>,
+    #[cfg(test)]
+    pub(crate) disconnect_tasks: (Mutex<Vec<TaskHandle>>, Condvar),
     pub(crate) event_log: Arc<dyn EventLogOps>,
     pub(crate) transport: Arc<dyn Transport>,
     pub(crate) client_events: ClientEventBuffer,
@@ -222,6 +231,8 @@ impl RpcMessageHandler {
             auth_token_cache: Default::default(),
             client_token_cache: Default::default(),
             mailbox_sender,
+            #[cfg(test)]
+            disconnect_tasks: (Mutex::new(Vec::new()), Condvar::new()),
             event_log,
             transport,
             client_events: ClientEventBuffer::new(),
@@ -324,6 +335,10 @@ impl MessageHandler for RpcMessageHandler {
         session_event: SessionActions,
     ) -> Result<(), Error> {
         match session_event {
+            #[cfg(test)]
+            SessionActions::Barrier(done) => {
+                done.send(())?;
+            }
             SessionActions::UserDisconnected(removed) => {
                 if let Some(player) = removed.disconnected_player {
                     self.submit_disconnected_task(
@@ -377,6 +392,64 @@ impl MessageHandler for RpcMessageHandler {
                 }
             }
         }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn wait_for_disconnect_tasks(&self, expected: usize) -> Result<(), Error> {
+        let barrier = || -> Result<(), Error> {
+            let (done, received) = flume::bounded(1);
+            self.mailbox_sender.send(SessionActions::Barrier(done))?;
+            received.recv_timeout(Duration::from_secs(5))?;
+            Ok(())
+        };
+        barrier()?;
+
+        let (pending, ready) = &self.disconnect_tasks;
+        let handles = pending
+            .lock()
+            .map_err(|_| eyre::eyre!("disconnect task handles poisoned"))?;
+        let (mut handles, timeout) = ready
+            .wait_timeout_while(handles, Duration::from_secs(5), |tasks| {
+                tasks.len() < expected
+            })
+            .map_err(|_| eyre::eyre!("disconnect task handles poisoned"))?;
+        eyre::ensure!(
+            !timeout.timed_out() || handles.len() >= expected,
+            "expected {expected} disconnect task(s), submitted {}",
+            handles.len()
+        );
+        eyre::ensure!(
+            handles.len() == expected,
+            "expected {expected} disconnect task(s), submitted {}",
+            handles.len()
+        );
+        let tasks = std::mem::take(&mut *handles);
+        drop(handles);
+        for task in tasks {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                let notification = task.receiver().recv_timeout(remaining).map_err(|_| {
+                    eyre::eyre!("disconnect hook task did not finish within 5 seconds")
+                })?;
+                match notification {
+                    (_, Ok(TaskNotification::Suspended)) => continue,
+                    (_, Ok(TaskNotification::Result(_))) => break,
+                    (_, Err(error)) => eyre::bail!("disconnect hook task failed: {error:?}"),
+                }
+            }
+        }
+
+        barrier()?;
+        let unexpected = pending
+            .lock()
+            .map_err(|_| eyre::eyre!("disconnect task handles poisoned"))?
+            .len();
+        eyre::ensure!(
+            unexpected == 0,
+            "{unexpected} extra disconnect task(s) submitted"
+        );
         Ok(())
     }
 

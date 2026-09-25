@@ -1687,8 +1687,8 @@ mod tests {
                     .unwrap();
             }
         } else if removal == "timeout" {
-            // Exercise the real registry deadline, without a test-only clock or removal stub.
-            std::thread::sleep(Duration::from_secs(31));
+            env.connections
+                .age_last_ping_for_test(first_id, Duration::from_secs(31));
             env.message_handler.ping_pong().unwrap();
         } else {
             let second_id = Uuid::new_v4();
@@ -1717,8 +1717,7 @@ mod tests {
                     env.connections.client_ids_for(wizard).unwrap(),
                     vec![first_id]
                 );
-                // Allow an erroneously submitted hook to run before checking partial closure.
-                std::thread::sleep(Duration::from_millis(200));
+                env.message_handler.wait_for_disconnect_tasks(0).unwrap();
                 assert_eq!(
                     eval("return #0.disconnect_hook_targets;"),
                     moor_var::v_list(&[])
@@ -1739,19 +1738,7 @@ mod tests {
         let late_detach = detach(first_id, &first_token, true);
         assert!(matches!(late_detach, Err(RpcMessageError::NoConnection)));
         let expected = moor_var::v_list(&[moor_var::v_obj(wizard)]);
-        let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        loop {
-            let actual = eval("return #0.disconnect_hook_targets;");
-            if actual == expected {
-                break;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{removal}: expected one final user_disconnected({wizard}), got {actual:?}"
-            );
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        std::thread::sleep(Duration::from_millis(200));
+        env.message_handler.wait_for_disconnect_tasks(1).unwrap();
         assert_eq!(eval("return #0.disconnect_hook_targets;"), expected);
     }
 

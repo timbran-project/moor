@@ -1313,6 +1313,16 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         removed
     }
 
+    #[cfg(test)]
+    fn age_last_ping_for_test(&self, client_id: Uuid, age: std::time::Duration) {
+        self.timestamps
+            .lock()
+            .unwrap()
+            .get_mut(&client_id)
+            .expect("test connection has no timestamp")
+            .last_ping = SystemTime::now() - age;
+    }
+
     fn flush(&self) {
         // Flush any dirty timestamps before compacting
         self.flush_dirty_timestamps();
@@ -1584,14 +1594,7 @@ mod tests {
             })
             .unwrap();
         }
-        let expire = |id| {
-            db.timestamps
-                .lock()
-                .unwrap()
-                .get_mut(&id)
-                .unwrap()
-                .last_ping = SystemTime::now() - Duration::from_secs(31);
-        };
+        let expire = |id| db.age_last_ping_for_test(id, Duration::from_secs(31));
         expire(ids[0]);
         let first = db.ping_check();
         assert_eq!(first.len(), 1);

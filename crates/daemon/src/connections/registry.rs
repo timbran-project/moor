@@ -100,6 +100,9 @@ pub trait ConnectionRegistry: ConnectionStateSource {
     /// Remove timed-out clients and report final departures under the registry lock.
     fn ping_check(&self) -> Vec<RemovedConnection>;
 
+    #[cfg(test)]
+    fn age_last_ping_for_test(&self, client_id: Uuid, age: std::time::Duration);
+
     fn last_activity_for(&self, connection: Obj) -> Result<SystemTime, SessionError>;
 
     fn connection_name_for(&self, player: Obj) -> Result<String, SessionError>;

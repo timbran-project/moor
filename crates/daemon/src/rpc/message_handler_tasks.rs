@@ -67,7 +67,7 @@ impl RpcMessageHandler {
     ) -> Result<(), Error> {
         let session = Arc::new(self.new_rpc_session(client_id, *connection, *player));
 
-        scheduler_client
+        let _submitted = scheduler_client
             .submit_verb_task(
                 player,
                 &ObjectRef::Id(*handler_object),
@@ -78,6 +78,15 @@ impl RpcMessageHandler {
                 session,
             )
             .with_context(|| "could not submit 'connected' task")?;
+        #[cfg(test)]
+        {
+            let (pending, ready) = &self.disconnect_tasks;
+            pending
+                .lock()
+                .map_err(|_| eyre::eyre!("disconnect task handles poisoned"))?
+                .push(_submitted);
+            ready.notify_all();
+        }
         Ok(())
     }
 }
