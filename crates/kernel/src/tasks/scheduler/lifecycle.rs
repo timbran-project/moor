@@ -98,11 +98,67 @@ impl TaskLifecycle {
             let now = std::time::SystemTime::now();
             for op in ops {
                 match op {
-                    PendingScheduleOp::Create(create) => self.schedule_q.add_pending(*create, now),
+                    PendingScheduleOp::Create(create) => {
+                        let id = create.id;
+                        self.schedule_q.add_pending(*create, now);
+                        self.persist_schedule(id);
+                    }
                     PendingScheduleOp::Stop(id) => {
                         self.schedule_q.stop(id);
+                        self.persist_schedule(id);
                     }
                 }
+            }
+        }
+    }
+
+    /// Write-through persistence for one schedule: a live, persistent entry
+    /// is saved; anything else (stopped, retired, non-persistent) is deleted.
+    /// Called after every mutation so the store mirrors the queue and a
+    /// restart needs no reconciliation pass.
+    pub(crate) fn persist_schedule(&mut self, id: crate::tasks::schedule_q::ScheduleId) {
+        let db = self.task_q.suspended.tasks_db();
+        match self.schedule_q.info(id) {
+            Some(e) if e.is_live() && e.options.persist => {
+                if let Err(err) = db.save_schedule(e) {
+                    tracing::error!(schedule_id = id, ?err, "Could not save schedule");
+                }
+            }
+            _ => {
+                if let Err(err) = db.delete_schedule(id) {
+                    tracing::error!(schedule_id = id, ?err, "Could not delete schedule");
+                }
+            }
+        }
+    }
+
+    /// Restore persisted schedules at startup. Past deadlines go through
+    /// each entry's catchup policy inside `ScheduleQ::load`.
+    pub(crate) fn load_schedules(&mut self) {
+        let entries = match self.task_q.suspended.tasks_db().load_schedules() {
+            Ok(v) => v,
+            Err(err) => {
+                tracing::error!(?err, "Could not load schedules from tasks database");
+                return;
+            }
+        };
+        let now = std::time::SystemTime::now();
+        let count = entries.len();
+        for e in entries {
+            self.schedule_q.load(e, now);
+        }
+        if count > 0 {
+            tracing::info!(count, "Loaded native schedules from tasks database");
+        }
+    }
+
+    /// Save every live persistent schedule. Called at shutdown as a
+    /// belt-and-braces pass over the write-through store.
+    pub(crate) fn save_schedules(&self) {
+        let db = self.task_q.suspended.tasks_db();
+        for e in self.schedule_q.persistable() {
+            if let Err(err) = db.save_schedule(e) {
+                tracing::error!(schedule_id = e.id, ?err, "Could not save schedule");
             }
         }
     }
@@ -137,6 +193,7 @@ impl TaskLifecycle {
                 }
             };
             self.schedule_q.complete(schedule_id, outcome, now);
+            self.persist_schedule(schedule_id);
         }
     }
 

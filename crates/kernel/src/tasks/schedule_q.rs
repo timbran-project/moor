@@ -239,6 +239,58 @@ pub struct ScheduleEntry {
 }
 
 impl ScheduleEntry {
+    /// Rebuild an entry from persisted fields. Runtime-only state
+    /// (`running_task`, `queued_firing`, duration samples, `last_fault`)
+    /// starts empty; `ScheduleQ::load` then applies the catchup policy.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_persisted(
+        id: ScheduleId,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        kind: ScheduleKind,
+        options: ScheduleOptions,
+        created_at: SystemTime,
+        next_run: Option<SystemTime>,
+        scheduled_deadline: Option<SystemTime>,
+        last_run: Option<SystemTime>,
+        run_count: u64,
+        fault_count: u64,
+        consecutive_faults: u32,
+        missed_count: u64,
+        overlap_count: u64,
+        interval_clamped: bool,
+    ) -> Self {
+        Self {
+            id,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            kind,
+            options,
+            created_at,
+            next_run,
+            scheduled_deadline,
+            last_run,
+            last_duration: None,
+            run_count,
+            fault_count,
+            consecutive_faults,
+            last_fault: None,
+            missed_count,
+            overlap_count,
+            running_task: None,
+            queued_firing: false,
+            interval_clamped,
+            retired: None,
+            durations: VecDeque::new(),
+        }
+    }
+
     pub fn is_live(&self) -> bool {
         self.next_run.is_some()
     }

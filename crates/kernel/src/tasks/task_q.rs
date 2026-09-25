@@ -952,6 +952,11 @@ impl SuspensionQ {
         task
     }
 
+    /// The backing store, shared with the native schedule queue.
+    pub(crate) fn tasks_db(&self) -> &dyn TasksDb {
+        self.tasks_database.as_ref()
+    }
+
     /// Synchronize the suspended tasks with the tasks database. Called on shutdown.
     pub(crate) fn save_tasks(&self) {
         for st in self.tasks.values() {
