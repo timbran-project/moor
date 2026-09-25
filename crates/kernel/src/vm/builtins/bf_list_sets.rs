@@ -908,77 +908,41 @@ fn bf_pcre_match(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(Var::from_list(result)))
 }
 
-fn substitute(template: &str, subs: &[(isize, isize)], source: &str) -> Result<String, Error> {
-    // textual patterns of form %<int> (e.g. %1, %9, %11) are replaced by the text matched by the
-    // offsets (1-indexed) into source given by the corresponding value in `subs`.
-
-    // We'll append to this result.
+fn substitute(
+    template: &str,
+    overall: (isize, isize),
+    subs: &[(isize, isize); 9],
+    source: &str,
+) -> Result<String, Error> {
     let mut result = String::new();
-
-    // Then char-by-char iterate through `source`; if we see a %, we'll start lexing a # until we
-    // see a non-digit, then we'll parse the number and look it up in `subs`.
     let mut chars = template.chars();
     while let Some(c) = chars.next() {
         if c != '%' {
-            // We've seen a non-%, so we'll just append it to `result`.
             result.push(c);
             continue;
         }
-
-        // We've seen a %, so we'll start lexing a number. But if the next char is a %, we'll
-        // just append a % to `result` and continue.
-        let mut number = String::new();
-        let mut last_c = None;
-        for c in chars.by_ref() {
-            if c.is_ascii_digit() {
-                number.push(c);
-            } else {
-                // We've seen a non-digit, so we'll stop lexing, but keep the character to append
-                // after our substitution.
-                last_c = Some(c);
-                break;
+        let (start, end) = match chars.next() {
+            Some('%') => {
+                result.push('%');
+                continue;
             }
-        }
-        // Now we'll parse the number.
-        let Ok(number) = number.parse::<usize>() else {
-            // If we can't parse the number, we'll raise an error.
-            return Err(E_INVARG.msg("Invalid number"));
+            Some('0') => overall,
+            Some(digit @ '1'..='9') => subs[(digit as u8 - b'1') as usize],
+            _ => return Err(E_INVARG.msg("Invalid substitution")),
         };
-
-        // If the number is out of range, we'll raise an E_INVARG. E_RANGE would be nice, but
-        // that's not what MOO does.
-        if number > subs.len() {
-            return Err(E_INVARG.msg("Number out of range"));
-        }
-
-        // Special case for 0
-        let (start, end) = if number == 0 {
-            (subs[0].0, subs[0].1)
-        } else {
-            // We're 1-indexed, so we'll subtract 1 from the number.
-            let number = number - 1;
-
-            // Look it up in matching `subs` pairs.
-            (subs[number].0, subs[number].1)
-        };
-
-        // Now validate the range in the source string, and if the range is invalid, we just skip,
-        // as this seems to be how LambdaMOO behaves.
-        let source_char_len = source.chars().count() as isize;
-        if start < 1 || start > end || end > source_char_len {
+        if start == 0 || end == start - 1 {
             continue;
         }
-
         let Some((start_byte, end_byte)) = char_range_to_byte_range(source, start, end) else {
-            continue;
+            return Err(E_INVARG.msg("Invalid match range"));
         };
-        // Now append the corresponding substring to `result`.
         result.push_str(&source[start_byte..end_byte]);
-        if let Some(last_c) = last_c {
-            result.push(last_c);
-        }
     }
     Ok(result)
+}
+
+fn valid_sub_range((start, end): (isize, isize), source_len: isize) -> bool {
+    (start == 0 && end == -1) || (start > 0 && end >= start - 1 && end <= source_len)
 }
 
 /// Usage: `str substitute(str template, list subs)`
@@ -994,22 +958,39 @@ fn bf_substitute(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         _ => return Err(BfErr::Code(E_TYPE)),
     };
 
-    // Subs is of form {<start>, <end>, <replacements>, <subject>}
-    // "replacement" and subject are what we're interested in.
     if subs.len() != 4 {
         return Err(BfErr::Code(E_INVARG));
     }
-
-    let (Ok(a), Ok(b)) = (subs.index(2), subs.index(3)) else {
+    let (Ok(overall_start), Ok(overall_end), Ok(a), Ok(b)) =
+        (subs.index(0), subs.index(1), subs.index(2), subs.index(3))
+    else {
         return Err(BfErr::Code(E_INVARG));
     };
-    let (Variant::List(subs), Variant::Str(source)) = (a.variant(), b.variant()) else {
+    let (Some(overall_start), Some(overall_end)) =
+        (overall_start.as_integer(), overall_end.as_integer())
+    else {
         return Err(BfErr::Code(E_INVARG));
     };
-
-    // Turn psubs into a Vec<(isize, isize)>. Raising errors on the way if they're not
-    let mut mysubs = Vec::new();
-    for sub in subs.iter() {
+    let (Variant::List(groups), Variant::Str(source)) = (a.variant(), b.variant()) else {
+        return Err(BfErr::Code(E_INVARG));
+    };
+    if groups.len() != 9 {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let Some(overall) = isize::try_from(overall_start)
+        .ok()
+        .zip(isize::try_from(overall_end).ok())
+    else {
+        return Err(BfErr::Code(E_INVARG));
+    };
+    let Ok(source_len) = isize::try_from(source.as_str().chars().count()) else {
+        return Err(BfErr::Code(E_INVARG));
+    };
+    if !valid_sub_range(overall, source_len) {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let mut ranges = [(0, -1); 9];
+    for (range, sub) in ranges.iter_mut().zip(groups.iter()) {
         let Some(sub) = sub.as_list() else {
             return Err(BfErr::Code(E_INVARG));
         };
@@ -1022,10 +1003,16 @@ fn bf_substitute(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         let (Some(start), Some(end)) = (start.as_integer(), end.as_integer()) else {
             return Err(BfErr::Code(E_INVARG));
         };
-        mysubs.push((start as isize, end as isize));
+        let (Ok(start), Ok(end)) = (isize::try_from(start), isize::try_from(end)) else {
+            return Err(BfErr::Code(E_INVARG));
+        };
+        if !valid_sub_range((start, end), source_len) {
+            return Err(BfErr::Code(E_INVARG));
+        }
+        *range = (start, end);
     }
 
-    match substitute(template.as_str(), &mysubs, source.as_str()) {
+    match substitute(template.as_str(), overall, &ranges, source.as_str()) {
         Ok(r) => Ok(Ret(v_string(r))),
         Err(e) => Err(BfErr::ErrValue(e)),
     }
@@ -1597,17 +1584,24 @@ mod tests {
                 (0, -1)
             ]
         );
-        let result = substitute("I thank you for your %1 here in %2.", &subs, source).unwrap();
+        let result = substitute(
+            "I thank you for your %1 here in %2.",
+            overall,
+            &subs.try_into().unwrap(),
+            source,
+        )
+        .unwrap();
         assert_eq!(result, "I thank you for your Welcome here in LambdaMOO.");
     }
 
     #[test]
     fn test_substitute_regression() {
         let source = "help @options";
-        let (_, subs) = perform_regex_match("^help %('%|[^ <][^ ]*%)$", source, false, false, 0)
-            .unwrap()
-            .unwrap();
-        let result = substitute("%1", &subs, source).unwrap();
+        let (overall, subs) =
+            perform_regex_match("^help %('%|[^ <][^ ]*%)$", source, false, false, 0)
+                .unwrap()
+                .unwrap();
+        let result = substitute("%1", overall, &subs.try_into().unwrap(), source).unwrap();
         assert_eq!(result, "@options");
     }
 
@@ -1638,7 +1632,7 @@ mod tests {
                 (0, -1),
             ]
         );
-        let result = substitute("%1", &subs, source).unwrap();
+        let result = substitute("%1", overall, &subs.try_into().unwrap(), source).unwrap();
         assert_eq!(result, "edit");
     }
 
@@ -1686,7 +1680,7 @@ mod tests {
             .unwrap();
         assert_eq!(overall, (2, 2));
         assert_eq!(subs[0], (2, 2));
-        let result = substitute("%1", &subs, source).unwrap();
+        let result = substitute("%1", overall, &subs.try_into().unwrap(), source).unwrap();
         assert_eq!(result, "é");
     }
 

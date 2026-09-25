@@ -124,6 +124,35 @@
 ; subs = match("*** Welcome to LambdaMOO!!!", "%(%w*%) to %(%w*%)"); return substitute("I thank you for your %1 here in %2.", subs);
 "I thank you for your Welcome here in LambdaMOO."
 
+; return substitute("%2%1", match("ab", "%(a%)%(b%)"));
+"ba"
+; return substitute("%0", match("ab", "a%(b%)"));
+"ab"
+; return substitute("%%", match("ab", "ab"));
+"%"
+; return substitute("%10", match("ab", "%(a%)b"));
+"a0"
+; return substitute("%3", match("ab", "%(a%)b"));
+""
+; return substitute("%9suffix", match("ab", "%(a%)b"));
+"suffix"
+; return substitute("%00", match("ab", "ab"));
+"ab0"
+; return substitute("%%1/%%%1", match("ab", "%(a%)b"));
+"%1/%a"
+; return substitute("%2%1/%0", match("é🙂", "%(é%)%(🙂%)"));
+"🙂é/é🙂"
+; return substitute("%1", {1, 0, {{1, 0}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}}, "ab"});
+""
+; return substitute("literal", {3, 3, {{0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}}, "ab"});
+E_INVARG
+; return substitute("literal", {1, 2, {{0, -1}}, "ab"});
+E_INVARG
+; return substitute("literal", {1, 2, {{0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {0, -1}, {-1, 0}}, "ab"});
+E_INVARG
+; return substitute("%", match("ab", "ab"));
+E_INVARG
+
 // crypt 
 ; return crypt("foobar", "J3");
 "J3fSFQfgkp26w"
