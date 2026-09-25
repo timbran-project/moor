@@ -183,6 +183,27 @@ pub enum Completion {
     Retired(RetireReason),
 }
 
+/// A schedule creation a task has requested but not yet committed. The id is
+/// allocated eagerly so the builtin can return it; the entry is inserted only
+/// when the creating task commits (see `ScheduleQ::add_pending`).
+#[derive(Debug, Clone)]
+pub struct PendingCreate {
+    pub id: ScheduleId,
+    pub kind: PendingKind,
+    pub target: Obj,
+    pub verb: Symbol,
+    pub args: List,
+    pub authority_principal: Obj,
+    pub owner: Obj,
+    pub options: ScheduleOptions,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PendingKind {
+    At(SystemTime),
+    Every(Duration),
+}
+
 #[derive(Debug, Clone)]
 pub struct ScheduleEntry {
     pub id: ScheduleId,
@@ -389,6 +410,59 @@ impl ScheduleQ {
 
     // ---- creation -------------------------------------------------------
 
+    /// Allocate an id without inserting anything. Used by the buffered
+    /// creation path: the builtin returns this id immediately, and the entry
+    /// is inserted by `add_pending` when the creating task commits. A rolled
+    /// back task simply never uses the id.
+    pub fn reserve_id(&mut self) -> ScheduleId {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    /// Insert a previously reserved creation. Errors here (interval, state
+    /// size) were validated when the builtin was called, so they are
+    /// logged and dropped rather than surfaced.
+    pub fn add_pending(&mut self, pending: PendingCreate, now: SystemTime) {
+        let PendingCreate {
+            id,
+            kind,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+        } = pending;
+        let result = match kind {
+            PendingKind::At(when) => self.insert_at(
+                id,
+                when,
+                target,
+                verb,
+                args,
+                authority_principal,
+                owner,
+                options,
+                now,
+            ),
+            PendingKind::Every(interval) => self.insert_every(
+                id,
+                interval,
+                target,
+                verb,
+                args,
+                authority_principal,
+                owner,
+                options,
+                now,
+            ),
+        };
+        if let Err(e) = result {
+            tracing::warn!(schedule_id = id, error = %e, "Dropping pending schedule at commit");
+        }
+    }
+
     /// One-shot at `when`. A `when` in the past fires on the next `expired()`.
     #[allow(clippy::too_many_arguments)]
     pub fn add_at(
@@ -403,8 +477,85 @@ impl ScheduleQ {
         now: SystemTime,
     ) -> Result<ScheduleId, ScheduleError> {
         Self::validate_state(&options)?;
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self.reserve_id();
+        self.insert_at(
+            id,
+            when,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+            now,
+        )?;
+        Ok(id)
+    }
+
+    /// Recurring every `interval`, first firing at `now + interval`.
+    /// `interval == 0` is an error; `interval < tick` is clamped and flagged.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_every(
+        &mut self,
+        interval: Duration,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: ScheduleOptions,
+        now: SystemTime,
+    ) -> Result<ScheduleId, ScheduleError> {
+        if interval == Duration::ZERO {
+            return Err(ScheduleError::InvalidInterval);
+        }
+        Self::validate_state(&options)?;
+        let id = self.reserve_id();
+        self.insert_every(
+            id,
+            interval,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+            now,
+        )?;
+        Ok(id)
+    }
+
+    /// Validate what a builtin can validate before buffering a creation.
+    pub fn validate_every(
+        &self,
+        interval: Duration,
+        options: &ScheduleOptions,
+    ) -> Result<(), ScheduleError> {
+        if interval == Duration::ZERO {
+            return Err(ScheduleError::InvalidInterval);
+        }
+        Self::validate_state(options)
+    }
+
+    /// Validate what a builtin can validate before buffering a one-shot.
+    pub fn validate_at(&self, options: &ScheduleOptions) -> Result<(), ScheduleError> {
+        Self::validate_state(options)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_at(
+        &mut self,
+        id: ScheduleId,
+        when: SystemTime,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: ScheduleOptions,
+        now: SystemTime,
+    ) -> Result<(), ScheduleError> {
+        Self::validate_state(&options)?;
         let entry = ScheduleEntry {
             id,
             target,
@@ -435,14 +586,13 @@ impl ScheduleQ {
         self.by_owner.entry(owner).or_default().insert(id);
         self.by_target.entry(target).or_default().insert(id);
         self.arm(id, when, now);
-        Ok(id)
+        Ok(())
     }
 
-    /// Recurring every `interval`, first firing at `now + interval`.
-    /// `interval == 0` is an error; `interval < tick` is clamped and flagged.
     #[allow(clippy::too_many_arguments)]
-    pub fn add_every(
+    fn insert_every(
         &mut self,
+        id: ScheduleId,
         interval: Duration,
         target: Obj,
         verb: Symbol,
@@ -451,7 +601,7 @@ impl ScheduleQ {
         owner: Obj,
         options: ScheduleOptions,
         now: SystemTime,
-    ) -> Result<ScheduleId, ScheduleError> {
+    ) -> Result<(), ScheduleError> {
         if interval == Duration::ZERO {
             return Err(ScheduleError::InvalidInterval);
         }
@@ -462,8 +612,6 @@ impl ScheduleQ {
             interval = self.tick;
             interval_clamped = true;
         }
-        let id = self.next_id;
-        self.next_id += 1;
         let first = now.checked_add(interval).unwrap_or(now);
         let jittered_first = self.jittered(first, options.jitter, now);
         let entry = ScheduleEntry {
@@ -496,7 +644,7 @@ impl ScheduleQ {
         self.by_owner.entry(owner).or_default().insert(id);
         self.by_target.entry(target).or_default().insert(id);
         self.arm(id, jittered_first, now);
-        Ok(id)
+        Ok(())
     }
 
     // ---- queries --------------------------------------------------------

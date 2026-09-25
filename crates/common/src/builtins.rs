@@ -303,6 +303,38 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("task_send", Q(2), Q(2), vec![Typed(TYPE_INT), Any], true),
         mk_builtin("task_recv", Q(0), Q(1), vec![AnyNum], true),
         mk_builtin("task_telemetry", Q(0), Q(1), vec![Typed(TYPE_INT)], true),
+        // Native scheduled tasks (bf_task.rs, ScheduleQ).
+        mk_builtin(
+            "schedule_at",
+            Q(3),
+            Q(5),
+            vec![
+                Typed(TYPE_OBJ),
+                Any,
+                AnyNum,
+                Typed(TYPE_LIST),
+                Typed(TYPE_MAP),
+            ],
+            true,
+        ),
+        mk_builtin(
+            "schedule_every",
+            Q(3),
+            Q(5),
+            vec![
+                Typed(TYPE_OBJ),
+                Any,
+                AnyNum,
+                Typed(TYPE_LIST),
+                Typed(TYPE_MAP),
+            ],
+            true,
+        ),
+        mk_builtin("schedule_stop", Q(1), Q(1), vec![Typed(TYPE_INT)], true),
+        mk_builtin("schedule_valid", Q(1), Q(1), vec![Typed(TYPE_INT)], true),
+        mk_builtin("schedule_info", Q(1), Q(1), vec![Typed(TYPE_INT)], true),
+        mk_builtin("schedules", Q(0), Q(1), vec![Typed(TYPE_OBJ)], true),
+        mk_builtin("schedules_for", Q(1), Q(1), vec![Typed(TYPE_OBJ)], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "task/scheduler");

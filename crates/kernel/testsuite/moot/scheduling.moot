@@ -1,0 +1,147 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Native scheduled tasks: schedule_at / schedule_every / schedule_stop /
+// schedule_valid / schedule_info / schedules / schedules_for.
+
+@wizard
+// Argument validation.
+; schedule_at(#1, "foo");
+E_ARGS
+; schedule_at("nope", "foo", time());
+E_TYPE
+; schedule_at(#1, "no_such_verb_anywhere", time());
+E_INVARG
+; schedule_every(#1, "foo", 0);
+E_INVARG
+
+// A schedule created and stopped inside one task never exists.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> id = schedule_at(target, "tick", time() + 3600);
+> a = schedule_valid(id);
+> b = schedule_stop(id);
+> c = schedule_valid(id);
+> d = schedule_stop(id);
+> recycle(target);
+> return {a, b, c, d};
+{true, true, false, false}
+
+// schedule_stop on nonsense ids is a quiet false.
+; return {schedule_stop(0), schedule_stop(-5), schedule_stop(2147483647), schedule_valid(2147483647)};
+{false, false, false, false}
+
+// Unknown option keys are caught at creation.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> try
+>   schedule_at(target, "tick", time() + 60, {}, ["typo" -> 1]);
+>   r = "no error";
+> except e (E_INVARG)
+>   r = "E_INVARG";
+> endtry
+> recycle(target);
+> return r;
+"E_INVARG"
+
+// Oversized state is rejected.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> big = "";
+> for i in [1..600] big = big + "0123456789"; endfor
+> try
+>   schedule_at(target, "tick", time() + 60, {}, ["state" -> big]);
+>   r = "no error";
+> except e (E_INVARG)
+>   r = "E_INVARG";
+> endtry
+> recycle(target);
+> return r;
+"E_INVARG"
+
+// A one-shot fires: the verb records its args (pass_elapsed appends a float),
+// and afterwards the schedule is retired but still inspectable.
+; target = create(#-1);
+> add_property(target, "hits", {}, {player, "rw"});
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"this.hits = {@this.hits, args}; return 0;"});
+> id = schedule_at(target, "tick", ftime(), {"a", 2});
+> commit();
+> suspend(0.5);
+> info = schedule_info(id);
+> hits = target.hits;
+> recycle(target);
+> return {length(hits), hits[1][1], hits[1][2], typeof(hits[1][3]), info["run_count"], info["retired"], info["retire_reason"], info["kind"], schedule_valid(id)};
+{1, "a", 2, TYPE_FLOAT, 1, true, "returned_zero", "at", false}
+
+// The adaptive protocol: a one-shot that returns a positive number re-arms.
+; target = create(#-1);
+> add_property(target, "n", 0, {player, "rw"});
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"this.n = this.n + 1; return this.n < 3 ? 0.05 | 0;"});
+> id = schedule_at(target, "tick", ftime(), {}, ["pass_elapsed" -> 0]);
+> commit();
+> suspend(1.0);
+> n = target.n;
+> info = schedule_info(id);
+> recycle(target);
+> return {n, info["run_count"], info["retired"]};
+{3, 3, true}
+
+// schedule_every fires repeatedly, passes elapsed, and stops on demand.
+; target = create(#-1);
+> add_property(target, "n", 0, {player, "rw"});
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"this.n = this.n + 1; return 0;"});
+> id = schedule_every(target, "tick", 0.1);
+> commit();
+> suspend(0.75);
+> before = target.n;
+> schedule_stop(id);
+> commit();
+> suspend(0.3);
+> after = target.n;
+> recycle(target);
+> return {before >= 3, after == before || after == before + 1, schedule_valid(id)};
+{1, 1, false}
+
+// A faulting verb does not kill the schedule; max_faults retires it.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 1 / 0;"});
+> id = schedule_every(target, "tick", 0.05, {}, ["max_faults" -> 2]);
+> commit();
+> suspend(0.6);
+> info = schedule_info(id);
+> recycle(target);
+> return {info["fault_count"] >= 2, info["consecutive_faults"] >= 2, info["retired"], info["retire_reason"]};
+{1, 1, true, "max_faults"}
+
+// schedules_for indexes by target; schedules() by owner; recycle leaves nothing behind.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> a = schedule_at(target, "tick", time() + 3600);
+> b = schedule_every(target, "tick", 3600);
+> commit();
+> mine = schedules();
+> forit = schedules_for(target);
+> info = schedule_info(b);
+> schedule_stop(a); schedule_stop(b);
+> commit();
+> left = schedules_for(target);
+> recycle(target);
+> return {(a in mine) && (b in mine) && 1, forit == {a, b}, info["target"] == target, info["interval"], info["owner"] == player, left};
+{1, 1, 1, 3600.0, 1, {}}
+
+// schedule_info on an unknown id.
+; schedule_info(2147483647);
+E_INVARG
+
+@programmer
+// A programmer sees only their own (none here).
+; return schedules();
+{}

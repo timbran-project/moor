@@ -62,6 +62,13 @@ impl SchedulerClient {
         Self { scheduler }
     }
 
+    /// Direct access to the scheduler for in-crate tests that need to
+    /// inspect state no builtin exposes.
+    #[cfg(test)]
+    pub(crate) fn scheduler_for_test(&self) -> &Scheduler {
+        &self.scheduler
+    }
+
     fn request_with_timeout<T>(
         &self,
         timeout: Duration,
