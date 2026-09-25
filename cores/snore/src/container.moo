@@ -124,12 +124,10 @@ object CONTAINER [
   endverb
 
   method tell_contents owner: #2
-    "List contents for the command player, or show the empty-container message.";
+    "Send contents as one multiline message, or show the empty-container message.";
     if (this.contents)
-      player:tell("Contents:");
-      for item in (this:contents())
-        player:tell("  ", item:title());
-      endfor
+      const lines = {tostr("  ", item:title()) for item in (this:contents())};
+      player:tell_lines({"Contents:", @lines});
       return;
     endif
     const message = this:empty_msg();

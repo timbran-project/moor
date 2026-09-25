@@ -120,15 +120,9 @@ object ROOT_CLASS [
   endmethod
 
   method tell_lines owner: #2
-    "Deliver a string or a list of lines without wrapping.";
-    const lines = args[1];
-    if (typeof(lines) == TYPE_LIST)
-      for line in (lines)
-        this:tell(line);
-      endfor
-    else
-      this:tell(lines);
-    endif
+    "Deliver a string or list of lines as one message without wrapping or suspension.";
+    const lines = typeof(args[1]) == TYPE_LIST ? args[1] | {args[1]};
+    lines && this:tell($string_utils:from_list(lines, "\n"));
   endmethod
 
   method accept owner: #2
@@ -430,16 +424,8 @@ object ROOT_CLASS [
   endmethod
 
   method tell_lines_suspended owner: #2
-    "Deliver complete lines, yielding between lines when the budget requires it.";
-    const lines = args[1];
-    if (typeof(lines) == TYPE_LIST)
-      for line in (lines)
-        this:tell(line);
-        $command_utils:suspend_if_needed(0);
-      endfor
-    else
-      this:tell(lines);
-    endif
+    "Deliver complete lines as one message without suspension.";
+    this:tell_lines(@args);
   endmethod
 
   method acceptable owner: #2

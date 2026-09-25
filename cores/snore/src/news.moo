@@ -138,17 +138,18 @@ object NEWS [
     "Display the given msg_seq as a collection of news items";
     set_task_perms(caller_perms());
     const desc = this:description();
-    player:notify(typeof(desc) == TYPE_LIST ? desc[1] | desc);
-    player:notify("");
+    let lines = {typeof(desc) == TYPE_LIST ? desc[1] | desc, ""};
     const msgs = this:messages_in_seq(args[1]);
     const n = length(msgs);
-    !n && return {0, 0};
+    if (!n)
+      player:notify_lines(lines);
+      return {0, 0};
+    endif
     for i in [1..n]
       const item = msgs[i];
-      player:notify_lines(this:to_text(@item[2]));
-      player:notify("");
+      lines = {@lines, @this:to_text(@item[2]), ""};
     endfor
-    player:notify("(end)");
+    player:notify_lines({@lines, "(end)"});
     return {msgs[n][1], msgs[n][2][1]};
   endmethod
 

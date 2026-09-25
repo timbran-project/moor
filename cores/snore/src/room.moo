@@ -95,24 +95,22 @@ object ROOM [
   endmethod
 
   method tell_contents owner: #2
-    "Show supplied contents using layout 0..3, unless this room is dark.";
+    "Send supplied contents in one message using layout 0..3, unless this room is dark.";
     const {contents, layout} = args;
-    this.dark || contents == {} && return;
+    (this.dark || contents == {}) && return;
+    let lines = {};
     if (layout == 0)
-      player:tell("Contents:");
-      for object in (contents)
-        player:tell("  ", object:title());
-      endfor
+      lines = {"Contents:", @{tostr("  ", object:title()) for object in (contents)}};
     elseif (layout == 1)
       for object in (contents)
         if (is_player(object))
-          player:tell($string_utils:pronoun_sub(tostr("%N ", $gender_utils:get_conj("is", object), " here."), object));
+          lines = {@lines, $string_utils:pronoun_sub(tostr("%N ", $gender_utils:get_conj("is", object), " here."), object)};
         else
-          player:tell("You see ", object:title(), " here.");
+          lines = {@lines, tostr("You see ", object:title(), " here.")};
         endif
       endfor
     elseif (layout == 2)
-      player:tell("You see ", $string_utils:title_list(contents), " here.");
+      lines = {tostr("You see ", $string_utils:title_list(contents), " here.")};
     elseif (layout == 3)
       let players = {};
       let things = {};
@@ -123,12 +121,13 @@ object ROOM [
           things = {@things, object};
         endif
       endfor
-      things && player:tell("You see ", $string_utils:title_list(things), " here.");
+      things && (lines = {tostr("You see ", $string_utils:title_list(things), " here.")});
       if (players)
         const conjugation = length(players) == 1 ? " " + $gender_utils:get_conj("is", players[1]) | " are";
-        player:tell($string_utils:title_listc(players), conjugation, " here.");
+        lines = {@lines, tostr($string_utils:title_listc(players), conjugation, " here.")};
       endif
     endif
+    lines && player:tell_lines(lines);
   endmethod
 
   method look_self owner: #2

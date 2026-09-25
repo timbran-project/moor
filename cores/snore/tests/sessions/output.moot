@@ -5,3 +5,30 @@ false
 =alpha
 =beta
 =gamma
+
+// Each multiline delivery reaches the notification hook once, including blank lines.
+; add_property(player, "output_batches", {}, {player, ""}); add_verb(player, {player, "rxd", "notify"}, {"this", "none", "this"}); set_verb_code(player, "notify", {"this.output_batches = {@this.output_batches, args[1]};"}); return 0;
+0
+; player:notify_lines({"", "alpha", "", 42, ""}); player:tell_lines({"beta", "gamma"}); player:notify_lines({}); return player.output_batches;
+{"\nalpha\n\n42\n", "beta\ngamma"}
+; player.output_batches = {}; player:notify_lines_suspended({"a", "b"}); player:tell_lines_suspended({"c", "d"}); return player.output_batches;
+{"a\nb", "c\nd"}
+
+// Every room layout preserves its text and sends the contents as one block.
+; player.output_batches = {}; for layout in [0..3] #103:tell_contents({#107, #101}, layout); endfor return player.output_batches;
+{"Contents:\n  baseline thing\n  Test Player", "You see baseline thing here.\nTest Player is here.", "You see baseline thing and Test Player here.", "You see baseline thing here.\nTest Player is here."}
+; player.output_batches = {}; #103.dark = true; #103:tell_contents({#107}, 0); #103.dark = false; #103:tell_contents({}, 0); return player.output_batches;
+{}
+
+// Inventory batches the heading with the carried-object titles.
+; move(#107, player); move(#111, player); player.output_batches = {}; return 0;
+0
+% inventory
+; return {length(player.output_batches), sort($string_utils:explode(player.output_batches[1], "\n"))};
+{1, {" baseline thing", " Test Box", "Carrying:"}}
+
+// Container look still invokes inherited description and the contents hook.
+; move(#107, #111); move(#114, #111); #111.description = {"A box.", "With a lid."}; add_verb(#111, {player, "rxd", "tell_contents"}, {"this", "none", "this"}); set_verb_code(#111, "tell_contents", {"pass(@args);", "player:tell(\"Contents hook ran.\");"}); #111:set_opened(true); player.output_batches = {}; #111:look_self(); return {length(player.output_batches), player.output_batches[1], sort($string_utils:explode(player.output_batches[2], "\n")), player.output_batches[3]};
+{3, "A box.\nWith a lid.", {"  baseline thing", "  bronze orb", "Contents:"}, "Contents hook ran."}
+; #111:set_opened(false); player.output_batches = {}; #111:look_self(); return player.output_batches;
+{"A box.\nWith a lid."}

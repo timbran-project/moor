@@ -192,13 +192,11 @@ object PLAYER [
   endmethod
 
   method tell_contents owner: #2
-    "List complete carried-object titles, one per line.";
+    "Send carried-object titles as one multiline message.";
     const {contents} = args;
     !contents && return;
-    player:tell("Carrying:");
-    for thing in (contents)
-      player:tell(" ", thing:title());
-    endfor
+    const lines = {tostr(" ", thing:title()) for thing in (contents)};
+    player:tell_lines({"Carrying:", @lines});
   endmethod
 
   method titlec owner: #2
@@ -207,20 +205,18 @@ object PLAYER [
   endmethod
 
   method notify owner: #2
-    "Deliver one line of output to this player. Returns 0 when disconnected.";
+    "Deliver output to this player. Returns 0 when disconnected.";
     this in connected_players() || return 0;
     caller == this || $perm_utils:controls(caller_perms(), this) || return E_PERM;
     pass(args[1]);
   endmethod
 
   method notify_lines owner: #2
-    "Deliver each line of a list (or one line) to this player.";
+    "Deliver a string or list of lines as one notification without suspension.";
     caller == this || caller_perms() == this || $perm_utils:controls(caller_perms(), this) || return E_PERM;
     set_task_perms(caller_perms());
     const lines = typeof(args[1]) == TYPE_LIST ? args[1] | {args[1]};
-    for line in (lines)
-      this:notify(tostr(line));
-    endfor
+    lines && this:notify($string_utils:from_list(lines, "\n"));
   endmethod
 
   method tell owner: #2
@@ -290,9 +286,7 @@ object PLAYER [
       endif
     endfor
     attached || raise(E_INVARG, "Connection is not attached to this player.");
-    for line in (lines)
-      notify(target, tostr(line));
-    endfor
+    lines && notify(target, $string_utils:from_list(lines, "\n"));
     return true;
   endmethod
 
@@ -516,29 +510,26 @@ object PLAYER [
     endif
     if (result[1] == $ambiguous_match)
       $wiz_utils:missed_help(topic_name, result);
-      player:tell_current_lines(tostr("Sorry, but the topic-name `", topic_name, "' is ambiguous.  I don't know which of the following topics you mean:"));
-      for line in ($help:columnize(@$help:sort_topics(result[2])))
-        player:tell_current(tostr("   ", line));
-      endfor
+      const topics = {tostr("   ", line) for line in ($help:columnize(@$help:sort_topics(result[2])))};
+      player:tell_current_lines({tostr("Sorry, but the topic-name `", topic_name, "' is ambiguous.  I don't know which of the following topics you mean:"), @topics});
       return;
     endif
     const {database, topic} = result;
-    if (topic != topic_name)
-      player:tell_current(tostr("Showing help on `", topic, "':"));
-      player:tell_current("----");
-    endif
+    const heading = topic != topic_name ? {tostr("Showing help on `", topic, "':"), "----"} | {};
     const remaining = databases[1 + (database in databases)..$];
     const text = database:get_topic(topic, remaining);
-    text == 1 && return;
-    if (!text)
-      player:tell_current(tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."));
-      return player:tell_current(tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard."));
+    if (text == 1)
+      heading && player:tell_current_lines(heading);
+      return;
     endif
-    for line in (typeof(text) == TYPE_LIST ? text | {text})
-      player:tell_current(typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard.");
-      "Long help output may commit between complete lines; no world state is written here.";
-      $command_utils:suspend_if_needed(0);
-    endfor
+    if (!text)
+      return player:tell_current_lines({@heading,
+        tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."),
+        tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard.")});
+    endif
+    const lines = {typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard."
+                   for line in (typeof(text) == TYPE_LIST ? text | {text})};
+    player:tell_current_lines({@heading, @lines});
   endverb
 
   method display_option owner: #2
@@ -902,14 +893,10 @@ object PLAYER [
   endmethod
 
   method notify_lines_suspended owner: #2
-    "Deliver complete lines with caller authority, committing between lines only when the budget is low.";
+    "Deliver complete lines with caller authority as one notification without suspension.";
     caller == this || caller_perms() == this || $perm_utils:controls(caller_perms(), this) || return E_PERM;
     set_task_perms(caller_perms());
-    const lines = typeof(args[1]) == TYPE_LIST ? args[1] | {args[1]};
-    for line in (lines)
-      $command_utils:suspend_if_needed(0);
-      this:notify(tostr(line));
-    endfor
+    this:notify_lines(@args);
   endmethod
 
   method _chparent owner: #2

@@ -159,11 +159,11 @@ impl MockMootRunner {
     /// Route all committed output, including output from background tasks, by recipient.
     fn harvest_all(&mut self) {
         for (recipient, event) in self.hub.take_committed_events() {
-            if let Some(line) = render_event(&event) {
+            if let Some(text) = render_event(&event) {
                 self.lines
                     .entry(self.hub.recipient_player(recipient))
                     .or_default()
-                    .push_back(line);
+                    .extend(text.split('\n').map(str::to_string));
             }
         }
     }
