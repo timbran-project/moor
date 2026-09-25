@@ -40,6 +40,7 @@ pub(crate) mod checkpoint;
 pub mod convert_task;
 pub(crate) mod gc_thread;
 pub(crate) mod maintenance;
+pub mod schedule_q;
 pub(crate) mod scheduler_client;
 pub(crate) mod storage_compaction;
 pub(crate) mod task;
