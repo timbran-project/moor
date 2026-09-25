@@ -9,8 +9,13 @@ Downstream uses:
 - Used manually to compare mooR behavior and performance with LambdaMOO after fetching external
   sources.
 
-This crate is **not built by default**. It requires fetching external LambdaMOO sources before it
-can be compiled.
+The embedded harness requires both the `embedded-lambdamoo` feature and the `LAMBDAMOO_SRC_DIR`
+environment variable. Without either, the Rust library has no harness API and does not compile or
+link LambdaMOO. Workspace builds, tests, and Clippy work without external C sources, including with
+`--all-features`.
+
+With the feature alone, the benchmark executable reports that LambdaMOO is disabled and exits with
+an error. With both settings, an invalid or unconfigured source path fails the build.
 
 ## Setup
 
@@ -28,8 +33,18 @@ can be compiled.
 2. Build the harness:
 
    ```bash
-   cargo build -p lambdamoo-harness
+   LAMBDAMOO_SRC_DIR="$PWD/lambdamoo" cargo build -p lambdamoo-harness --features embedded-lambdamoo
    ```
+
+`LAMBDAMOO_SRC_DIR` can name another prepared checkout. Relative paths start at the mooR workspace
+root. The directory must contain `server.c`, `config.h`, and `version_src.h`. The setup script
+prepares these files in `lambdamoo/`. An enabled build requires a C compiler and Bison.
+
+To check the enabled harness, run:
+
+```bash
+LAMBDAMOO_SRC_DIR="$PWD/lambdamoo" cargo test -p lambdamoo-harness --features embedded-lambdamoo
+```
 
 ## Usage
 
@@ -39,13 +54,15 @@ The `lambdamoo-load-test` binary measures verb dispatch performance:
 
 ```bash
 # Basic verb dispatch benchmark
-cargo run --release -p lambdamoo-harness --bin lambdamoo-load-test -- \
+LAMBDAMOO_SRC_DIR="$PWD/lambdamoo" cargo run --release -p lambdamoo-harness \
+    --features embedded-lambdamoo --bin lambdamoo-load-test -- \
     --db-path lambdamoo/Minimal.db \
     --num-invocations 100 \
     --num-verb-iterations 1000
 
 # Opcode throughput benchmark (raw interpreter speed)
-cargo run --release -p lambdamoo-harness --bin lambdamoo-load-test -- \
+LAMBDAMOO_SRC_DIR="$PWD/lambdamoo" cargo run --release -p lambdamoo-harness \
+    --features embedded-lambdamoo --bin lambdamoo-load-test -- \
     --db-path lambdamoo/Minimal.db \
     --opcode-mode \
     --loop-iterations 100000

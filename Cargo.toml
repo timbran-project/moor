@@ -233,6 +233,7 @@ zerocopy = { version = "0.8", features = ["derive"] }
 fast-telemetry = "0.9"
 
 # Testing & Development
+cc = "1.2"
 escargot = "0.5"
 glob = "0.3"
 md5 = "0.8"

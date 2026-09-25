@@ -13,11 +13,30 @@
 
 //! Build script for compiling LambdaMOO C sources into a static library.
 
+#[cfg(feature = "embedded-lambdamoo")]
 use std::env;
+#[cfg(feature = "embedded-lambdamoo")]
 use std::path::{Path, PathBuf};
+#[cfg(feature = "embedded-lambdamoo")]
 use std::process::Command;
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(lambdamoo_available)");
+    println!("cargo:rerun-if-env-changed=LAMBDAMOO_SRC_DIR");
+    println!("cargo:rerun-if-changed=build.rs");
+    #[cfg(feature = "embedded-lambdamoo")]
+    build_lambdamoo();
+}
+
+#[cfg(feature = "embedded-lambdamoo")]
+fn build_lambdamoo() {
+    let Some(source_dir) = env::var_os("LAMBDAMOO_SRC_DIR") else {
+        return;
+    };
+    assert!(
+        !source_dir.is_empty(),
+        "LAMBDAMOO_SRC_DIR must name a configured LambdaMOO source directory"
+    );
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -29,14 +48,13 @@ fn main() {
         .unwrap()
         .parent()
         .unwrap();
-    let lambdamoo_dir = workspace_root.join("lambdamoo");
+    let lambdamoo_dir = workspace_root.join(PathBuf::from(source_dir));
 
-    if !lambdamoo_dir.join("server.c").exists() {
-        panic!(
-            "\n\
-            LambdaMOO sources not found!\n\n\
-            Run the setup script first:\n\
-                ./crates/testing/lambdamoo-harness/setup-lambdamoo.sh\n"
+    for required in ["server.c", "config.h", "version_src.h"] {
+        assert!(
+            lambdamoo_dir.join(required).is_file(),
+            "LAMBDAMOO_SRC_DIR={} is missing {required}. Run crates/testing/lambdamoo-harness/setup-lambdamoo.sh to prepare sources.",
+            lambdamoo_dir.display()
         );
     }
 
@@ -138,4 +156,5 @@ fn main() {
 
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=crypt");
+    println!("cargo:rustc-cfg=lambdamoo_available");
 }

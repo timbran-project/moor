@@ -19,8 +19,12 @@ license.workspace = true
 repository.workspace = true
 description = "Test harness wrapping LambdaMOO for comparative testing"
 
+[features]
+default = []
+embedded-lambdamoo = ["dep:cc"]
+
 [build-dependencies]
-cc = "1.2"
+cc = { workspace = true, optional = true }
 
 [dependencies]
 clap.workspace = true
@@ -38,3 +42,4 @@ tempfile.workspace = true
 [[bin]]
 name = "lambdamoo-load-test"
 path = "src/lambdamoo-load-test.rs"
+required-features = ["embedded-lambdamoo"]

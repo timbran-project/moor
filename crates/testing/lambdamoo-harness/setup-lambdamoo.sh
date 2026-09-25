@@ -67,4 +67,5 @@ EOF
 
 echo ""
 echo "LambdaMOO setup complete!"
-echo "You can now build lambdamoo-harness with: cargo build -p lambdamoo-harness"
+echo "Build the harness with:"
+printf 'LAMBDAMOO_SRC_DIR="%s" cargo build -p lambdamoo-harness --features embedded-lambdamoo\n' "$LAMBDAMOO_DIR"

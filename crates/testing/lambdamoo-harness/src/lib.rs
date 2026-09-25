@@ -17,10 +17,16 @@
 //! direct command injection and output capture for correctness and
 //! performance comparisons.
 //!
-//! Before building, run the setup script to fetch and configure sources:
+//! The API is available only with the `embedded-lambdamoo` feature and a configured
+//! source directory in `LAMBDAMOO_SRC_DIR`. Workspace builds do not require C sources.
+//!
+//! To prepare and build the harness:
 //! ```text
 //! ./crates/testing/lambdamoo-harness/setup-lambdamoo.sh
+//! LAMBDAMOO_SRC_DIR="$PWD/lambdamoo" cargo build -p lambdamoo-harness --features embedded-lambdamoo
 //! ```
+
+#![cfg(lambdamoo_available)]
 
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_uint};

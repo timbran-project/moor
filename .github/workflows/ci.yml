@@ -39,13 +39,13 @@ jobs:
           rustup default 1.98.1
 
       - name: Build workspace
-        run: cargo build --workspace --exclude lambdamoo-harness --all-features --all-targets
+        run: cargo build --workspace --all-features --all-targets
 
       - name: Run workspace tests
-        run: cargo test --workspace --exclude lambdamoo-harness --all-features --lib --bins --tests
+        run: cargo test --workspace --all-features --lib --bins --tests
 
       - name: Run documentation tests
-        run: cargo test --workspace --exclude lambdamoo-harness --all-features --doc
+        run: cargo test --workspace --all-features --doc
 
   rust-quality:
     name: Rust formatting and Clippy
@@ -70,7 +70,7 @@ jobs:
         run: cargo +nightly fmt --all -- --check --config reorder_imports=true,imports_indent=Block,imports_layout=Mixed
 
       - name: Run Clippy
-        run: cargo clippy --workspace --exclude lambdamoo-harness --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   web:
     name: Web workspace
