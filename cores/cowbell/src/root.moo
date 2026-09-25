@@ -74,11 +74,24 @@ object ROOT [
   endmethod
 
   method set_owner owner: ARCH_WIZARD
-    "Set this object's owner and retitle any `c` properties on the object.";
+    "Validate ownership authority, then transfer the object and its `c` properties as wizard.";
     actor = caller_perms();
     {new_owner, ?suspendok = 0} = args;
     valid(new_owner) || raise(E_INVARG);
-    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_owner);
+    target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
+    if (!(valid(actor) && (actor.wizard || actor == target.owner)))
+      typeof(this) == TYPE_FLYWEIGHT || raise(E_PERM);
+      maphaskey(flyslots(this), 'token) || raise(E_PERM);
+      try
+        claims = paseto_verify_local(this.token);
+      except (E_INVARG)
+        raise(E_PERM);
+      endtry
+      claims["target"] == target || raise(E_PERM);
+      (!maphaskey(claims, "exp") || time() <= claims["exp"]) || raise(E_PERM);
+      !$root:_capability_is_revoked(claims) || raise(E_PERM);
+      'set_owner in claims["caps"] || raise(E_PERM);
+    endif
     chowned_props = {};
     for pname in (properties(target))
       info = property_info(target, pname);
@@ -86,14 +99,13 @@ object ROOT [
         perms_string = info[2];
         if (typeof(perms_string) == TYPE_STR && index(perms_string, "c"))
           chowned_props = {@chowned_props, {pname, perms_string}};
-          grants = {@grants, {"property_write", target, pname}};
         endif
       endif
     endfor
-    set_task_perms(perms, grants);
+    "Owner changes require wizard authority; delegated transfers cannot suspend after validation.";
     target.owner = new_owner;
     for prop in (chowned_props)
-      if (suspendok && (ticks_left() < 5000 || seconds_left() < 2))
+      if (suspendok && valid(actor) && actor.wizard && (ticks_left() < 5000 || seconds_left() < 2))
         suspend(0);
       endif
       set_property_info(target, prop[1], {new_owner, prop[2]});

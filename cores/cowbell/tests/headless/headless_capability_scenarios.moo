@@ -601,18 +601,96 @@ object HEADLESS_CAPABILITY_SCENARIOS
   endverb
 
   verb test_headless_capability_set_owner_allows_non_owner_object_mutation (this none this) owner: ARCH_WIZARD flags: "rxd"
-    "Runtime scenario: set_owner capability lets a non-owner update an object's owner through scoped grants.";
+    "Runtime scenario: a verified set_owner capability lets a non-owner transfer ownership.";
     target = #-1;
     try
       target = create($thing);
       original_owner = target.owner;
+      add_property(target, "set_owner_probe", 1, {original_owner, "rc"});
       $test_utils:assert_false($player.wizard, "fixture player should not be a wizard");
       $test_utils:assert_true(target.owner != $player, "fixture player should not own the target");
       cap = $root:issue_capability(target, {'set_owner});
       this:_set_owner_with_cap_as_player(cap, $player);
       $test_utils:assert_eq(target.owner, $player, "set_owner capability should update owner");
+      $test_utils:assert_eq(property_info(target, "set_owner_probe")[1], $player, "set_owner capability should retitle clobber properties");
       $test_utils:assert_true(original_owner != target.owner, "set_owner test fixture should actually change ownership");
       $test_utils:assert_false($player.wizard, "capability use should not make actor a wizard");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_owner_rejects_invalid_authority (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Changing ownership requires the target owner, wizard, or a valid target-bound capability.";
+    target = #-1;
+    other = #-1;
+    try
+      target = create($thing);
+      other = create($thing);
+      original_owner = target.owner;
+      add_property(target, "set_owner_probe", 1, {original_owner, "rc"});
+      wrong_cap = target:issue_capability(target, {'set_description});
+      expired_cap = target:issue_capability(target, {'set_owner}, time() - 1);
+      revoked_cap = target:issue_capability(target, {'set_owner});
+      $root:_revoke_capability_token(revoked_cap);
+      other_cap = other:issue_capability(other, {'set_owner});
+      rebound_cap = toflyweight(target, flyslots(other_cap), flycontents(other_cap));
+      for attempt in ({{target, "no capability"}, {wrong_cap, "wrong permission"}, {expired_cap, "expired"}, {revoked_cap, "revoked"}, {rebound_cap, "other target"}})
+        denied = false;
+        try
+          this:_set_owner_with_cap_as_player(attempt[1], $player);
+        except (E_PERM)
+          denied = true;
+        endtry
+        $test_utils:assert_true(denied, attempt[2] + " should not change owner");
+        $test_utils:assert_eq(target.owner, original_owner, attempt[2] + " changed target owner");
+        $test_utils:assert_eq(property_info(target, "set_owner_probe")[1], original_owner, attempt[2] + " changed property owner");
+      endfor
+      $test_utils:assert_eq(other.owner, original_owner, "other target grant should not change its own target");
+    finally
+      valid(other) && other:destroy();
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_owner_ignores_overridden_checker (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "An inherited wizard setter must not trust a child object's authorization override.";
+    target = #-1;
+    try
+      target = create($thing);
+      original_owner = target.owner;
+      add_property(target, "set_owner_probe", 1, {original_owner, "rc"});
+      add_verb(target, {$arch_wizard, "rxd", "check_permissions_as"}, {"this", "none", "this"});
+      set_verb_code(target, "check_permissions_as", {"return {this, $arch_wizard};"});
+      denied = false;
+      try
+        this:_set_owner_with_cap_as_player(target, $player);
+      except (E_PERM)
+        denied = true;
+      endtry
+      $test_utils:assert_true(denied, "hostile checker should not authorize ownership change");
+      $test_utils:assert_eq(target.owner, original_owner, "hostile checker changed target owner");
+      $test_utils:assert_eq(property_info(target, "set_owner_probe")[1], original_owner, "hostile checker changed property owner");
+    finally
+      valid(target) && target:destroy();
+    endtry
+    return true;
+  endverb
+
+  verb test_headless_capability_set_owner_preserves_owner_and_wizard_access (this none this) owner: ARCH_WIZARD flags: "rxd"
+    "Owner and wizard calls still transfer object and clobber-property ownership.";
+    target = #-1;
+    try
+      target = create($thing);
+      add_property(target, "set_owner_probe", 1, {target.owner, "rc"});
+      target:set_owner($player);
+      $test_utils:assert_eq(target.owner, $player, "wizard should change owner");
+      $test_utils:assert_eq(property_info(target, "set_owner_probe")[1], $player, "wizard should retitle property");
+      this:_set_owner_with_cap_as_player(target, $hacker);
+      $test_utils:assert_eq(target.owner, $hacker, "owner should change owner");
+      $test_utils:assert_eq(property_info(target, "set_owner_probe")[1], $hacker, "owner should retitle property");
     finally
       valid(target) && target:destroy();
     endtry
