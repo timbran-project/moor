@@ -8,6 +8,7 @@ object LOGIN [
   owner: ARCH_WIZARD
   readable: true
 
+  property oauth2_identity_version (owner: ARCH_WIZARD, flags: "") = 0;
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
   property connection_quiet_period (owner: ARCH_WIZARD, flags: "rc") = 7200;
@@ -164,7 +165,7 @@ object LOGIN [
     "$login:oauth2_check(provider, external_id)";
     " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
-    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
@@ -188,7 +189,7 @@ object LOGIN [
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
     " => 0 (for failed creation)";
     " => objnum (for successful creation)";
-    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
     if (!this.player_creation_enabled)
       notify(player, this.registration_string);
       return 0;
@@ -213,7 +214,9 @@ object LOGIN [
       notify(player, "Sorry, that name is not available.  Please choose another.");
       return 0;
     endif
-    new = this:_create_player(player_name, 0, email || "", {{provider, external_id}});
+    valid(this:find_by_oauth2(provider, external_id)) && return 0;
+    new = this:_create_player(player_name, 0, email || "", {});
+    this:_claim_oauth_identity(new, provider, external_id);
     this:_server_log(tostr("OAUTH2 CREATE: ", player_name, " (", new, ") via ", provider, ":", external_id));
     return new;
   endverb
@@ -222,7 +225,7 @@ object LOGIN [
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
     " => 0 (for failed connection)";
     " => objnum (for successful link)";
-    caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
     try
       {provider, external_id, email, name, username, existing_name, existing_password} = args;
       existing_name = strsub(existing_name, " ", "_");
@@ -238,7 +241,8 @@ object LOGIN [
     if (status == 'ok)
       "Password verified for linking.";
     elseif (status == 'external_only)
-      "Candidate has no password; allow linking without challenge.";
+      notify(player, "Set an account password before linking another login identity.");
+      return 0;
     elseif (status == 'missing)
       notify(player, "Invalid password for existing account.");
       return 0;
@@ -249,24 +253,7 @@ object LOGIN [
       notify(player, "Invalid password for existing account.");
       return 0;
     endif
-    try
-      identities = candidate.oauth2_identities;
-    except (E_PROPNF)
-      identities = {};
-    endtry
-    if (length(identities) > 0)
-      for identity in (identities)
-        if (typeof(identity) == TYPE_LIST && length(identity) == 2)
-          if (identity[1] == provider && identity[2] == external_id)
-            notify(player, "This OAuth2 identity is already linked to that account.");
-            return candidate;
-          endif
-        endif
-      endfor
-      candidate.oauth2_identities = {@identities, {provider, external_id}};
-    else
-      candidate.oauth2_identities = {{provider, external_id}};
-    endif
+    this:_claim_oauth_identity(candidate, provider, external_id);
     if (email)
       try
         current_email = candidate.email_address;
@@ -359,6 +346,8 @@ object LOGIN [
       return {@li, @args};
     endif
     !args && return {this.blank_command, @args};
+    args[1] in {"oauth2_check", "oauth2_create", "oauth2_connect", "do_oauth_login"} &&
+      return {this.bogus_command, @args};
     if ((verb = args[1]) && !verb:is_numeric())
       for i in ({this, @ancestors(this)})
         try
@@ -378,6 +367,7 @@ object LOGIN [
     "Search all players for matching oauth2_identities entry";
     caller == #0 || caller == this || caller_perms().wizard || raise(E_PERM);
     {provider, external_id} = args;
+    let found = $failed_match;
     for candidate in (players())
       if (is_player(candidate))
         try
@@ -386,13 +376,14 @@ object LOGIN [
           identities = {};
         endtry
         for identity in (identities)
-          if (typeof(identity) == TYPE_LIST && length(identity) == 2 && identity[1] == provider && identity[2] == external_id)
-            return candidate;
+          if (typeof(identity) == TYPE_LIST && length(identity) == 2 && strcmp(identity[1], provider) == 0 && strcmp(identity[2], external_id) == 0)
+            (valid(found) && found != candidate) && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
+          found = candidate;
           endif
         endfor
       endif
     endfor
-    return $failed_match;
+    return found;
   endmethod
 
   method _create_player owner: LOGIN
@@ -452,7 +443,7 @@ object LOGIN [
     return new_player;
   endmethod
 
-  method _server_log owner: LOGIN
+  method _server_log owner: ARCH_WIZARD
     "Write an internal login service message to the server log.";
     caller == this || caller_perms().wizard || raise(E_PERM);
     {message} = args;
@@ -598,7 +589,7 @@ object LOGIN [
               vname = vname[1..star - 1] + vname[star + 1..$];
             endif
             "Skip @ prefixed aliases";
-            if (vname[1] != "@")
+            if (vname[1] != "@" && !(vname in {"oauth2_check", "oauth2_create", "oauth2_connect"}))
               clist = {@clist, vname};
             endif
           endif
@@ -646,4 +637,18 @@ object LOGIN [
     endif
     return 1;
   endverb
+  method _claim_oauth_identity owner: ARCH_WIZARD
+    "Bind one verified identity to one account; only wizard-owned login methods may call this.";
+    "The shared revision makes concurrent claims conflict. This method does not suspend.";
+    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    const {account, provider, external_id} = args;
+    this.oauth2_identity_version = this.oauth2_identity_version + 1;
+    const linked = this:find_by_oauth2(provider, external_id);
+    (valid(linked) && linked != account) && raise(E_INVARG, "OAuth identity is already linked to another account.");
+    linked == account && return false;
+    const identities = `account.oauth2_identities ! E_PROPNF => {}';
+    account.oauth2_identities = {@identities, {provider, external_id}};
+    return true;
+  endmethod
+
 endobject

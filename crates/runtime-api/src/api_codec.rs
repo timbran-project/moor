@@ -762,6 +762,19 @@ pub fn decode_client_request(
                 property,
             })
         }
+        U::VerifiedOAuthLogin(login) => {
+            let client_token = login
+                .client_token()
+                .rpc_err()
+                .and_then(|r| client_token_from_ref(r).rpc_err())?;
+            Ok(ClientRequest::VerifiedOAuthLogin {
+                client_token,
+                connect_args: extract_string_list_rpc(&login, "connect_args", |l| {
+                    l.connect_args()
+                })?,
+                do_attach: extract_field_rpc(&login, "do_attach", |l| l.do_attach())?,
+            })
+        }
         U::LoginCommand(login) => {
             let client_token = login
                 .client_token()

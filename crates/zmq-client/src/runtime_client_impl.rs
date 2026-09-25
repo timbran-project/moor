@@ -191,6 +191,11 @@ fn encode_client_request(
             object,
             property,
         } => mk_request_sys_prop_msg(auth_token.as_ref(), &object, &property),
+        ClientRequest::VerifiedOAuthLogin {
+            client_token,
+            connect_args,
+            do_attach,
+        } => moor_runtime_api::mk_verified_oauth_login_msg(&client_token, connect_args, do_attach),
         ClientRequest::LoginCommand {
             client_token,
             handler_object,

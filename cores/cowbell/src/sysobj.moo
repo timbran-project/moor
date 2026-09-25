@@ -117,6 +117,15 @@ object SYSOBJ [
 
   override description = "System object containing global properties and core server event handlers.";
 
+  method do_oauth_login owner: ARCH_WIZARD flags: "rxd"
+    "Daemon entry for verified OAuth identities; require a root call for an unauthenticated connection.";
+    (!callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player) || raise(E_PERM);
+    connection_name(player);
+    const {operation, @parameters} = args;
+    operation in {"oauth2_check", "oauth2_create", "oauth2_connect"} || raise(E_INVARG);
+    return $login:(operation)(@parameters);
+  endmethod
+
   method do_login_command owner: ARCH_WIZARD
     "...This code should only be run as a server task, but we'll let wizards poke at it...";
     callers() && !caller_perms().wizard && return E_PERM;

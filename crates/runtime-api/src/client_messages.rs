@@ -28,6 +28,24 @@ use uuid::Uuid;
 /// number the daemon might refuse.
 pub const SERVER_DEFAULT_CAPTURE_TIMEOUT_MS: u64 = 0;
 
+/// Build a verified OAuth login request for the fixed system authentication hook.
+/// The host must obtain the identity arguments from provider verification, not client input.
+pub fn mk_verified_oauth_login_msg(
+    client_token: &ClientToken,
+    connect_args: Vec<String>,
+    do_attach: bool,
+) -> rpc::HostClientToDaemonMessage {
+    rpc::HostClientToDaemonMessage {
+        message: rpc::HostClientToDaemonMessageUnion::VerifiedOAuthLogin(Box::new(
+            rpc::VerifiedOAuthLogin {
+                client_token: client_token_fb(client_token),
+                connect_args,
+                do_attach,
+            },
+        )),
+    }
+}
+
 /// Build a LoginCommand message
 #[inline]
 pub fn mk_login_command_msg(

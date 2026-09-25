@@ -471,6 +471,13 @@ pub enum ClientRequest {
         object: ObjectRef,
         property: Symbol,
     },
+    /// OAuth identity arguments verified by a trusted host, never raw client login text.
+    /// Invokes the fixed `#0:do_oauth_login` hook.
+    VerifiedOAuthLogin {
+        client_token: ClientToken,
+        connect_args: Vec<String>,
+        do_attach: bool,
+    },
     LoginCommand {
         client_token: ClientToken,
         handler_object: Obj,

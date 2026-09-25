@@ -6,6 +6,7 @@ object LOGIN [
   owner: #2
   readable: true
 
+  property oauth2_identity_version (owner: #2, flags: "") = 0;
   property blacklist (owner: #2, flags: "") = {{}, {}};
   property blank_command (owner: #2, flags: "r") = "welcome";
   property bogus_command (owner: #2, flags: "r") = "?";
@@ -87,6 +88,9 @@ object LOGIN [
         for i in [1..length(verbs(j))]
           if (verb_args(j, i) == {"any", "none", "any"} && index((info = verb_info(j, i))[2], "x"))
             vname = $string_utils:explode(info[3])[1];
+            if (vname in {"oauth2_check", "oauth2_create", "oauth2_connect"})
+              continue;
+            endif
             star = index(vname + "*", "*");
             clist = {@clist, $string_utils:uppercase(vname[1..star - 1]) + strsub(vname[star..$], "*", "")};
           endif
@@ -195,6 +199,7 @@ object LOGIN [
           return 0;
         endif
       elseif (cp == 0)
+        `candidate.oauth2_identities ! E_PROPNF => {}' && raise(E_INVARG);
         "=== Candidate does not require a password";
       else
         "=== Candidate has a nonstandard password; something's wrong";
@@ -335,14 +340,14 @@ object LOGIN [
     "$login:oauth2_check(provider, external_id)";
     " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
-    caller == #0 || caller == this || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
       notify(player, "OAuth2 check failed: invalid arguments");
       return 0;
     endtry
-    if (valid(candidate = this:find_by_oauth2(provider, external_id)))
+    if (valid(candidate = this:find_by_oauth2(provider, external_id)) && this:_oauth_admitted(candidate))
       server_log(tostr("OAUTH2 CHECK SUCCESS: ", provider, ":", external_id, " -> ", candidate));
       this:record_connection(candidate);
       return candidate;
@@ -356,7 +361,11 @@ object LOGIN [
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
     " => 0 (for failed creation)";
     " => objnum (for successful creation)";
-    caller == #0 || caller == this || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    if ($no_connect_message)
+      notify(player, $no_connect_message);
+      return 0;
+    endif
     if (!this:player_creation_enabled(player))
       notify(player, this:registration_string());
       return 0;
@@ -383,6 +392,7 @@ object LOGIN [
       notify(player, "Sorry, that name is not available.  Please choose another.");
       return 0;
     endif
+    valid(this:find_by_oauth2(provider, external_id)) && return 0;
     new = $quota_utils:bi_create($player_class, $nothing);
     set_player_flag(new, 1);
     new.name = player_name;
@@ -390,7 +400,7 @@ object LOGIN [
     new.programmer = $player_class.programmer;
     new.password = 0;
     new.email_address = email;
-    new.oauth2_identities = {{provider, external_id}};
+    this:_claim_oauth_identity(new, provider, external_id);
     new.last_connect_time = $maxint;
     new.last_disconnect_time = time();
     $quota_utils:initialize_quota(new);
@@ -405,7 +415,7 @@ object LOGIN [
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
     " => 0 (for failed connection)";
     " => objnum (for successful link)";
-    caller == #0 || caller == this || raise(E_PERM);
+    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
     try
       {provider, external_id, email, name, username, existing_name, existing_password} = args;
       server_log(tostr("OAUTH2 CONNECT ATTEMPT: provider=", provider, " external_id=", external_id, " existing_name=", existing_name, " args_count=", length(args)));
@@ -429,28 +439,16 @@ object LOGIN [
       endif
       server_log(tostr("OAUTH2 CONNECT: password verified for ", existing_name));
     elseif (cp == 0)
-      "=== Candidate has no password set, allow linking";
-      server_log(tostr("OAUTH2 CONNECT: no password required for ", existing_name, " (", candidate, ")"));
+      notify(player, "Set an account password before linking another login identity.");
+      return 0;
     else
       "=== Candidate has nonstandard password";
       server_log(tostr("OAUTH2 CONNECT FAILED: nonstandard password type for ", existing_name, " (", candidate, ")"));
       notify(player, "Cannot link to that account.");
       return 0;
     endif
-    if ($object_utils:has_property(candidate, "oauth2_identities"))
-      for identity in (candidate.oauth2_identities)
-        if (typeof(identity) == TYPE_LIST && length(identity) == 2)
-          if (identity[1] == provider && identity[2] == external_id)
-            notify(player, "This OAuth2 identity is already linked to this account.");
-            this:record_connection(candidate);
-            return candidate;
-          endif
-        endif
-      endfor
-      candidate.oauth2_identities = {@candidate.oauth2_identities, {provider, external_id}};
-    else
-      candidate.oauth2_identities = {{provider, external_id}};
-    endif
+    this:_oauth_admitted(candidate) || return 0;
+    this:_claim_oauth_identity(candidate, provider, external_id);
     "=== Set email address if one was provided and the candidate doesn't have one";
     if (email && (!$object_utils:has_property(candidate, "email_address") || !candidate.email_address))
       candidate.email_address = email;
@@ -492,6 +490,9 @@ object LOGIN [
     endif
     if (!args)
       return {this.blank_command, @args};
+
+    elseif (args[1] in {"oauth2_check", "oauth2_create", "oauth2_connect", "do_oauth_login"})
+      return {this.bogus_command, @args};
     elseif ((verb = args[1]) && !$string_utils:is_numeric(verb))
       for i in ({this, @$object_utils:ancestors(this)})
         try
@@ -579,18 +580,20 @@ object LOGIN [
       return E_PERM;
     endif
     {provider, external_id} = args;
+    let found = $failed_match;
     for candidate in (players())
       if ($object_utils:has_property(candidate, "oauth2_identities"))
         for identity in (candidate.oauth2_identities)
           if (typeof(identity) == TYPE_LIST && length(identity) == 2)
-            if (identity[1] == provider && identity[2] == external_id)
-              return candidate;
+            if (strcmp(identity[1], provider) == 0 && strcmp(identity[2], external_id) == 0)
+              (valid(found) && found != candidate) && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
+              found = candidate;
             endif
           endif
         endfor
       endif
     endfor
-    return $failed_match;
+    return found;
   endmethod
 
   method notify owner: #2
@@ -1134,4 +1137,44 @@ object LOGIN [
       notify(player, "");
     endif
   endmethod
+  method _oauth_admitted owner: #2
+    "Apply account lockout and connection limits to a verified OAuth login without suspending.";
+    "Expired temporary newts are eligible; the password path retains its cleanup and audit mail.";
+    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    const {candidate} = args;
+    (is_player(candidate) && $object_utils:isa(candidate, $player) && !$object_utils:isa(candidate, $guest)) || return false;
+    is_clear_property(candidate, "password") && return false;
+    if ($no_connect_message && !candidate.wizard)
+      notify(player, $no_connect_message);
+      return false;
+    endif
+    if (candidate in this.newted)
+      const entry = $list_utils:assoc(candidate, this.temporary_newts);
+      if (!entry || this:uptime_since(entry[2]) <= entry[3])
+        notify(player, this:newt_registration_string());
+        return false;
+      endif
+    endif
+    const count = length(connected_players());
+    if (!candidate.wizard && !(candidate in this.lag_exemptions) && count >= this:max_connections() && !$object_utils:connected(candidate))
+      notify(player, "The connection limit has been reached. Please try again later.");
+      return false;
+    endif
+    return true;
+  endmethod
+
+  method _claim_oauth_identity owner: #2
+    "Bind one verified identity to one account; only wizard-owned login methods may call this.";
+    "The shared revision makes concurrent claims conflict. This method does not suspend.";
+    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    const {account, provider, external_id} = args;
+    this.oauth2_identity_version = this.oauth2_identity_version + 1;
+    const linked = this:find_by_oauth2(provider, external_id);
+    (valid(linked) && linked != account) && raise(E_INVARG, "OAuth identity is already linked to another account.");
+    linked == account && return false;
+    const identities = `account.oauth2_identities ! E_PROPNF => {}';
+    account.oauth2_identities = {@identities, {provider, external_id}};
+    return true;
+  endmethod
+
 endobject

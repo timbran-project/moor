@@ -709,7 +709,8 @@ union HostClientToDaemonMessageUnion {
     InvokeSystemHandler,
     InvokeWelcomeMessage,
     BatchWorldState,
-    ReplayClientEvents
+    ReplayClientEvents,
+    VerifiedOAuthLogin
 }
 
 table ConnectionEstablish {
@@ -734,6 +735,14 @@ table RequestSysProp {
     auth_token: AuthToken;
     object: MoorCommon.ObjectRef (required);
     property: MoorCommon.Symbol (required);
+}
+
+// Only trusted hosts that have verified the provider identity may send this request.
+// User-entered login commands must use LoginCommand.
+table VerifiedOAuthLogin {
+    client_token: ClientToken (required);
+    connect_args: [string] (required);
+    do_attach: bool;
 }
 
 table LoginCommand {

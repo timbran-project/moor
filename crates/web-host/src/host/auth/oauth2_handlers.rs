@@ -125,19 +125,16 @@ async fn call_oauth_login(
     rpc_client: &Arc<dyn RuntimeClient>,
     client_id: Uuid,
     client_token: &ClientToken,
-    web_host: &WebHost,
     args: Vec<String>,
     do_attach: bool,
 ) -> Result<ClientReply, moor_runtime_api::RpcError> {
     rpc_client
         .client_call(
             client_id,
-            ClientRequest::LoginCommand {
+            ClientRequest::VerifiedOAuthLogin {
                 client_token: client_token.clone(),
-                handler_object: web_host.handler_object,
                 connect_args: args,
                 do_attach,
-                registration_data: None,
             },
         )
         .await
@@ -400,22 +397,14 @@ pub async fn oauth2_callback_handler(
         user_info.external_id.clone(),
     ];
 
-    let reply = match call_oauth_login(
-        &rpc_client,
-        client_id,
-        &client_token,
-        &oauth2_state.web_host,
-        check_args,
-        false,
-    )
-    .await
-    {
-        Ok(reply) => reply,
-        Err(e) => {
-            error!("RPC call failed: {}", e);
-            return Redirect::to("/?error=internal_error").into_response();
-        }
-    };
+    let reply =
+        match call_oauth_login(&rpc_client, client_id, &client_token, check_args, false).await {
+            Ok(reply) => reply,
+            Err(e) => {
+                error!("RPC call failed: {}", e);
+                return Redirect::to("/?error=internal_error").into_response();
+            }
+        };
 
     if let Some(login) = match oauth_login_success(reply) {
         Ok(login) => login,
@@ -683,7 +672,7 @@ pub async fn oauth2_account_choice_handler(
         user_info.provider, user_info.external_id
     );
 
-    // Build arguments for LoginCommand based on mode, using server-verified identity fields
+    // Build verified-login arguments from the consumed server-side identity.
     let final_args = if choice.mode == "oauth2_create" {
         vec![
             choice.mode.clone(),
@@ -725,26 +714,18 @@ pub async fn oauth2_account_choice_handler(
         }
     };
 
-    let reply = match call_oauth_login(
-        &rpc_client,
-        client_id,
-        &client_token,
-        &oauth2_state.web_host,
-        final_args,
-        true,
-    )
-    .await
-    {
-        Ok(reply) => reply,
-        Err(e) => {
-            error!("RPC call failed: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "RPC call failed"})),
-            )
-                .into_response();
-        }
-    };
+    let reply =
+        match call_oauth_login(&rpc_client, client_id, &client_token, final_args, true).await {
+            Ok(reply) => reply,
+            Err(e) => {
+                error!("RPC call failed: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "RPC call failed"})),
+                )
+                    .into_response();
+            }
+        };
 
     let login = match oauth_login_success(reply) {
         Ok(Some(login)) => login,
@@ -884,26 +865,18 @@ pub async fn oauth2_app_account_choice_handler(
         }
     };
 
-    let reply = match call_oauth_login(
-        &rpc_client,
-        client_id,
-        &client_token,
-        &oauth2_state.web_host,
-        final_args,
-        true,
-    )
-    .await
-    {
-        Ok(reply) => reply,
-        Err(e) => {
-            error!("RPC call failed: {}", e);
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "RPC call failed"})),
-            )
-                .into_response();
-        }
-    };
+    let reply =
+        match call_oauth_login(&rpc_client, client_id, &client_token, final_args, true).await {
+            Ok(reply) => reply,
+            Err(e) => {
+                error!("RPC call failed: {}", e);
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "RPC call failed"})),
+                )
+                    .into_response();
+            }
+        };
 
     let login = match oauth_login_success(reply) {
         Ok(Some(login)) => login,
@@ -963,4 +936,160 @@ pub async fn oauth2_config_handler(State(oauth2_state): State<OAuth2State>) -> i
     };
 
     Json(OAuth2ConfigResponse { enabled, providers }).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::oauth2::{ExternalUserInfo, OAuth2Config};
+    use super::*;
+    use moor_runtime_api::{
+        RpcError,
+        api::{
+            ClientSubscriptions, ConnectType, HostEventSubscription, HostReply, HostRequest,
+            HostServices,
+        },
+    };
+    use std::sync::{Mutex, atomic::AtomicU64};
+
+    #[derive(Default)]
+    struct RecordingRuntime(Mutex<Vec<ClientRequest>>);
+    #[async_trait::async_trait]
+    impl RuntimeClient for RecordingRuntime {
+        async fn client_call(
+            &self,
+            _: Uuid,
+            request: ClientRequest,
+        ) -> Result<ClientReply, RpcError> {
+            let reply = match &request {
+                ClientRequest::ConnectionEstablish { .. } => ClientReply::NewConnection {
+                    client_token: ClientToken("fixture".into()),
+                    connection_obj: Obj::mk_id(-10),
+                },
+                ClientRequest::VerifiedOAuthLogin { .. } => ClientReply::LoginResult {
+                    success: false,
+                    auth_token: None,
+                    player: None,
+                    player_flags: 0,
+                    connect_type: ConnectType::Connected,
+                },
+                other => panic!("unexpected OAuth request: {other:?}"),
+            };
+            self.0.lock().unwrap().push(request);
+            Ok(reply)
+        }
+        async fn host_call(&self, _: Uuid, _: HostRequest) -> Result<HostReply, RpcError> {
+            panic!("unexpected host call")
+        }
+    }
+    struct Services(Arc<RecordingRuntime>);
+    impl HostServices for Services {
+        fn runtime_client(&self) -> Arc<dyn RuntimeClient> {
+            self.0.clone()
+        }
+        fn client_subscriptions(
+            &self,
+            _: Uuid,
+            _: ClientToken,
+        ) -> Result<ClientSubscriptions, RpcError> {
+            panic!("unexpected subscription")
+        }
+        fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError> {
+            panic!("unexpected subscription")
+        }
+    }
+    fn state(runtime: Arc<RecordingRuntime>) -> OAuth2State {
+        OAuth2State {
+            manager: Arc::new(
+                OAuth2Manager::new(OAuth2Config {
+                    enabled: true,
+                    ..Default::default()
+                })
+                .unwrap(),
+            ),
+            web_host: WebHost::new(
+                Obj::mk_id(99),
+                8080,
+                Uuid::new_v4(),
+                Arc::new(AtomicU64::new(0)),
+                Arc::new(Services(runtime)),
+                Arc::new(vec![]),
+                Arc::new(Default::default()),
+            ),
+            pending: Arc::new(PendingOAuth2Store::new()),
+        }
+    }
+    async fn choose(state: OAuth2State, code: &str, nonce: &str) -> StatusCode {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            format!("{OAUTH2_NONCE_COOKIE}={nonce}").parse().unwrap(),
+        );
+        oauth2_account_choice_handler(
+            State(state),
+            ConnectInfo("127.0.0.1:12345".parse().unwrap()),
+            headers,
+            Json(AccountChoiceRequest {
+                mode: "oauth2_create".into(),
+                oauth2_code: code.into(),
+                player_name: Some("TestPlayer".into()),
+                existing_email: None,
+                existing_password: None,
+            }),
+        )
+        .await
+        .into_response()
+        .status()
+    }
+    #[tokio::test]
+    async fn oauth_account_choice_requires_bound_one_time_identity() {
+        let runtime = Arc::new(RecordingRuntime::default());
+        let state = state(runtime.clone());
+        assert_eq!(
+            choose(state.clone(), "forged", "browser").await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert!(runtime.0.lock().unwrap().is_empty());
+        let identity = PendingOAuth2Code::Identity(ExternalUserInfo {
+            provider: "probe".into(),
+            external_id: "Verified-ID".into(),
+            email: None,
+            name: None,
+            username: None,
+        });
+        let binding = FlowBinding::Cookie {
+            browser_nonce: "browser".into(),
+        };
+        let wrong_browser = state
+            .pending
+            .store_pending_code(identity.clone(), binding.clone())
+            .unwrap();
+        assert_eq!(
+            choose(state.clone(), &wrong_browser, "attacker").await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert!(runtime.0.lock().unwrap().is_empty());
+        let code = state.pending.store_pending_code(identity, binding).unwrap();
+        // The mock rejects the account, but only after receiving the verified identity.
+        assert_eq!(
+            choose(state.clone(), &code, "browser").await,
+            StatusCode::UNAUTHORIZED
+        );
+        {
+            let calls = runtime.0.lock().unwrap();
+            assert_eq!(calls.len(), 2);
+            assert!(
+                matches!(&calls[1], ClientRequest::VerifiedOAuthLogin { connect_args, do_attach: true, .. }
+                if connect_args == &vec!["oauth2_create", "probe", "Verified-ID", "", "", "", "TestPlayer"])
+            );
+        }
+        assert_eq!(
+            choose(state.clone(), &code, "browser").await,
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            runtime.0.lock().unwrap().len(),
+            2,
+            "replayed identity must not reach the daemon"
+        );
+    }
 }

@@ -27,7 +27,7 @@ object PLAYER [
   property llm_token_budget (owner: ARCH_WIZARD, flags: "") = 20000000;
   property llm_tokens_used (owner: ARCH_WIZARD, flags: "") = 0;
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
-  property oauth2_identities (owner: ARCH_WIZARD, flags: "c") = {};
+  property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property object_gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property password (owner: ARCH_WIZARD, flags: "c");
   property profile_picture (owner: ARCH_WIZARD, flags: "rc") = false;
@@ -408,12 +408,23 @@ object PLAYER [
   endmethod
 
   method set_oauth2_identities owner: ARCH_WIZARD
-    "Set this player's OAuth2 identities. Permission: wizard, owner, or 'set_oauth2_identities capability.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_oauth2_identities);
-    set_task_perms(perms);
-    {identities} = args;
-    this.oauth2_identities = identities;
+    "Administrative identity repair requires a wizard or an explicit wizard-issued capability.";
+    "Verify claims here: a player-owned delegate can override capability-checking methods.";
+    let target = this;
+    if (typeof(this) == TYPE_FLYWEIGHT)
+      const claims = paseto_verify_local(this.token);
+      target = this.delegate;
+      (claims["target"] == target && 'set_oauth2_identities in claims["caps"]) || raise(E_PERM);
+      (maphaskey(claims, "exp") && time() > claims["exp"]) && raise(E_PERM);
+      $root:_capability_is_revoked(claims) && raise(E_PERM);
+      const issuer = claims["granted_by"];
+      const authority = `claims["run_as"] ! E_RANGE => $nothing';
+      (valid(issuer) && issuer.wizard && valid(authority) && authority.wizard) || raise(E_PERM);
+    else
+      caller_perms().wizard || raise(E_PERM);
+    endif
+    const {identities} = args;
+    target.oauth2_identities = identities;
   endmethod
 
   method look_self owner: ARCH_WIZARD

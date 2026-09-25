@@ -14,7 +14,7 @@
 //! Shared daemon integration-test environment.
 
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -144,6 +144,17 @@ pub fn setup_test_environment<T>(
 where
     T: Transport + 'static,
 {
+    setup_test_environment_with_core(transport, configure, None)
+}
+
+pub fn setup_test_environment_with_core<T>(
+    transport: Arc<T>,
+    configure: impl FnOnce(&mut Config),
+    core: Option<&Path>,
+) -> TestEnvironment<T>
+where
+    T: Transport + 'static,
+{
     setup_tracing();
 
     let (public_key, private_key) = create_test_keys();
@@ -152,7 +163,26 @@ where
     configure(&mut config);
     let config = Arc::new(config);
 
-    let (db, temp_dir) = setup_test_db_with_core();
+    let (db, temp_dir) = if let Some(core) = core {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let (db, _) = TxDB::try_open(
+            Some(&temp_dir.path().join("test.db")),
+            DatabaseConfig::default(),
+        )
+        .unwrap();
+        let mut loader = db.loader_client().unwrap();
+        moor_objdef::ObjectDefinitionLoader::new(loader.as_mut())
+            .load_objdef_directory(
+                config.features.compile_options(),
+                core,
+                moor_objdef::ObjDefLoaderOptions::default(),
+            )
+            .unwrap();
+        assert!(matches!(loader.commit(), Ok(CommitResult::Success { .. })));
+        (Box::new(db) as Box<dyn Database>, temp_dir)
+    } else {
+        setup_test_db_with_core()
+    };
     let kill_switch = Arc::new(AtomicBool::new(false));
     let connections = ConnectionRegistryFactory::in_memory_only().unwrap();
     let event_log = Arc::new(MockEventLog::new());

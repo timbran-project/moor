@@ -176,6 +176,15 @@ object SYSOBJ [
   override description = "The known universe.";
   override object_size = {23528, 1084848672};
 
+  method do_oauth_login owner: #2 flags: "rxd"
+    "Daemon entry for verified OAuth identities; require a root call for an unauthenticated connection.";
+    (!callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player) || raise(E_PERM);
+    connection_name(player);
+    const {operation, @parameters} = args;
+    operation in {"oauth2_check", "oauth2_create", "oauth2_connect"} || raise(E_INVARG);
+    return $login:(operation)(@parameters);
+  endmethod
+
   method do_login_command owner: #2
     "...This code should only be run as a server task...";
     if (callers())

@@ -270,6 +270,33 @@ impl RuntimeApi for RpcMessageHandler {
                 self.request_sys_prop_typed(scheduler_client, player, object, property)
             }
 
+            ClientRequest::VerifiedOAuthLogin {
+                client_token,
+                connect_args,
+                do_attach,
+            } => {
+                if !matches!(
+                    connect_args.first().map(String::as_str),
+                    Some("oauth2_check" | "oauth2_create" | "oauth2_connect")
+                ) {
+                    return Err(RpcMessageError::InvalidRequest(
+                        "invalid OAuth operation".to_string(),
+                    ));
+                }
+                let connection = self.client_auth(client_token, client_id)?;
+                self.perform_login_typed(
+                    &SYSTEM_OBJECT,
+                    scheduler_client,
+                    client_id,
+                    &connection,
+                    TypedLoginCommand {
+                        args: connect_args,
+                        attach: do_attach,
+                        hook: Symbol::mk("do_oauth_login"),
+                    },
+                )
+            }
+
             ClientRequest::LoginCommand {
                 client_token,
                 handler_object,
@@ -286,6 +313,7 @@ impl RuntimeApi for RpcMessageHandler {
                     TypedLoginCommand {
                         args: connect_args,
                         attach: do_attach,
+                        hook: *DO_LOGIN_COMMAND,
                     },
                 )
             }
@@ -876,6 +904,7 @@ impl RuntimeApi for RpcMessageHandler {
 struct TypedLoginCommand {
     args: Vec<String>,
     attach: bool,
+    hook: Symbol,
 }
 
 /// Decide the deadline for a captured invocation.
@@ -984,7 +1013,7 @@ impl RpcMessageHandler {
         let task_handle = match scheduler_client.submit_verb_task(
             connection,
             &ObjectRef::Id(*handler_object),
-            *DO_LOGIN_COMMAND,
+            command.hook,
             command.args.iter().map(|s| v_str(s)).collect(),
             v_string(command.args.join(" ")),
             &SYSTEM_OBJECT,

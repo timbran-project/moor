@@ -28,3 +28,6 @@ mod scheduler_integration_test;
 
 pub use mock_event_log::MockEventLog;
 pub use mock_transport::MockTransport;
+
+#[cfg(test)]
+mod oauth_login_test;
