@@ -490,20 +490,24 @@ impl Drop for Connection {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_harness_initializes_empty_output() {
-        use crate::ffi::*;
+    fn test_clear_output_discards_prior_notify_only() {
+        use std::{ffi::CString, path::PathBuf};
 
-        unsafe {
-            // Initialize the harness
-            harness_init();
+        let source = PathBuf::from(std::env::var_os("LAMBDAMOO_SRC_DIR").unwrap());
+        let harness = crate::LambdaMooHarness::new(&source.join("Minimal.db")).unwrap();
+        let _connection = harness.create_connection(0).unwrap();
+        harness.clear_output();
 
-            // Get output (should be empty initially)
-            let mut len: usize = 0;
-            let _output = harness_get_output(&mut len);
-            assert_eq!(len, 0);
+        // LambdaMOO assigns the first new connection NOTHING - 1 until login.
+        let first = CString::new("before clear").unwrap();
+        unsafe { crate::ffi::notify(-2, first.as_ptr()) };
+        assert_eq!(harness.get_output(), "before clear\n");
 
-            // Cleanup
-            harness_cleanup();
-        }
+        harness.clear_output();
+        assert_eq!(harness.get_output(), "");
+
+        let second = CString::new("after clear").unwrap();
+        unsafe { crate::ffi::notify(-2, second.as_ptr()) };
+        assert_eq!(harness.get_output(), "after clear\n");
     }
 }

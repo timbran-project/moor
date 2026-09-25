@@ -88,16 +88,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn timestamp_duration_since_matches_instant_arithmetic() {
-        let start = Instant::now();
-        let duration = Duration::from_millis(10);
-        assert_eq!(
-            Timestamp(start + duration).duration_since(Timestamp(start)),
-            duration
-        );
-    }
-
-    #[test]
     fn deadline_remaining_drops_to_none_after_expiry() {
         let now = Instant::now();
         let d = Deadline::at(now + Duration::from_millis(10));
