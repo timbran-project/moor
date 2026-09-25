@@ -85,7 +85,8 @@ union TaskStartUnion {
     StartDoCommand,
     StartVerb,
     StartFork,
-    StartEval
+    StartEval,
+    StartScheduled
 }
 
 table StartCommandVerb {
@@ -106,6 +107,14 @@ table StartVerb {
     verb: MoorCommon.Symbol (required);
     args: [MoorVar.Var] (required);
     argstr: string (required);
+}
+
+table StartScheduled {
+    schedule_id: uint64;
+    player: MoorCommon.Obj (required);
+    vloc: MoorCommon.ObjectRef (required);
+    verb: MoorCommon.Symbol (required);
+    args: [MoorVar.Var] (required);
 }
 
 table Fork {

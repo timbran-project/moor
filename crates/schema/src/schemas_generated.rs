@@ -121890,6 +121890,9 @@ mod root {
 
             /// The variant of type `StartEval` in the union `TaskStartUnion`
             StartEval(::planus::alloc::boxed::Box<self::StartEval>),
+
+            /// The variant of type `StartScheduled` in the union `TaskStartUnion`
+            StartScheduled(::planus::alloc::boxed::Box<self::StartScheduled>),
         }
 
         impl TaskStartUnion {
@@ -121938,6 +121941,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(5, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_start_scheduled(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::StartScheduled>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(6, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<TaskStartUnion> for TaskStartUnion {
@@ -121951,6 +121962,7 @@ mod root {
                     Self::StartVerb(value) => Self::create_start_verb(builder, value),
                     Self::StartFork(value) => Self::create_start_fork(builder, value),
                     Self::StartEval(value) => Self::create_start_eval(builder, value),
+                    Self::StartScheduled(value) => Self::create_start_scheduled(builder, value),
                 }
             }
         }
@@ -122029,6 +122041,18 @@ mod root {
             ) -> TaskStartUnionBuilder<::planus::Initialized<5, T>>
             where
                 T: ::planus::WriteAsOffset<self::StartEval>,
+            {
+                TaskStartUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`StartScheduled` variant](TaskStartUnion#variant.StartScheduled).
+            #[inline]
+            pub fn start_scheduled<T>(
+                self,
+                value: T,
+            ) -> TaskStartUnionBuilder<::planus::Initialized<6, T>>
+            where
+                T: ::planus::WriteAsOffset<self::StartScheduled>,
             {
                 TaskStartUnionBuilder(::planus::Initialized(value))
             }
@@ -122183,6 +122207,33 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<TaskStartUnion>
+            for TaskStartUnionBuilder<::planus::Initialized<6, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StartScheduled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskStartUnion> {
+                ::planus::UnionOffset::new(6, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<TaskStartUnion>
+            for TaskStartUnionBuilder<::planus::Initialized<6, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StartScheduled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<TaskStartUnion>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [TaskStartUnion].
         #[derive(Copy, Clone, Debug)]
@@ -122192,6 +122243,7 @@ mod root {
             StartVerb(self::StartVerbRef<'a>),
             StartFork(self::StartForkRef<'a>),
             StartEval(self::StartEvalRef<'a>),
+            StartScheduled(self::StartScheduledRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<TaskStartUnionRef<'a>> for TaskStartUnion {
@@ -122228,6 +122280,12 @@ mod root {
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
+
+                    TaskStartUnionRef::StartScheduled(value) => {
+                        Self::StartScheduled(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
                 })
             }
         }
@@ -122254,6 +122312,9 @@ mod root {
                     5 => ::core::result::Result::Ok(Self::StartEval(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    6 => ::core::result::Result::Ok(Self::StartScheduled(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -122270,7 +122331,7 @@ mod root {
         /// The table `StartCommandVerb` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `StartCommandVerb` in the file `task.fbs:91`
+        /// * Table `StartCommandVerb` in the file `task.fbs:92`
         #[derive(
             Clone,
             Debug,
@@ -122599,7 +122660,7 @@ mod root {
         /// The table `StartDoCommand` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `StartDoCommand` in the file `task.fbs:97`
+        /// * Table `StartDoCommand` in the file `task.fbs:98`
         #[derive(
             Clone,
             Debug,
@@ -122913,7 +122974,7 @@ mod root {
         /// The table `StartVerb` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `StartVerb` in the file `task.fbs:103`
+        /// * Table `StartVerb` in the file `task.fbs:104`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StartVerb {
             /// The field `player` in the table `StartVerb`
@@ -123288,10 +123349,407 @@ mod root {
             }
         }
 
+        /// The table `StartScheduled` in the namespace `MoorTask`
+        ///
+        /// Generated from these locations:
+        /// * Table `StartScheduled` in the file `task.fbs:112`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct StartScheduled {
+            /// The field `schedule_id` in the table `StartScheduled`
+            pub schedule_id: u64,
+            /// The field `player` in the table `StartScheduled`
+            pub player: ::planus::alloc::boxed::Box<super::moor_common::Obj>,
+            /// The field `vloc` in the table `StartScheduled`
+            pub vloc: ::planus::alloc::boxed::Box<super::moor_common::ObjectRef>,
+            /// The field `verb` in the table `StartScheduled`
+            pub verb: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
+            /// The field `args` in the table `StartScheduled`
+            pub args: ::planus::alloc::vec::Vec<super::moor_var::Var>,
+        }
+
+        impl StartScheduled {
+            /// Creates a [StartScheduledBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StartScheduledBuilder<()> {
+                StartScheduledBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_schedule_id: impl ::planus::WriteAsDefault<u64, u64>,
+                field_player: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+                field_vloc: impl ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+                field_verb: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+                field_args: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_schedule_id = field_schedule_id.prepare(builder, &0);
+                let prepared_player = field_player.prepare(builder);
+                let prepared_vloc = field_vloc.prepare(builder);
+                let prepared_verb = field_verb.prepare(builder);
+                let prepared_args = field_args.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                if prepared_schedule_id.is_some() {
+                    table_writer.write_entry::<u64>(0);
+                }
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(1);
+                table_writer.write_entry::<::planus::Offset<super::moor_common::ObjectRef>>(2);
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(3);
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>(4);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_schedule_id) =
+                            prepared_schedule_id
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_schedule_id);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_player);
+                        object_writer.write::<_, _, 4>(&prepared_vloc);
+                        object_writer.write::<_, _, 4>(&prepared_verb);
+                        object_writer.write::<_, _, 4>(&prepared_args);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StartScheduled>> for StartScheduled {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartScheduled> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StartScheduled>> for StartScheduled {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StartScheduled>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StartScheduled> for StartScheduled {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartScheduled> {
+                StartScheduled::create(
+                    builder,
+                    self.schedule_id,
+                    &self.player,
+                    &self.vloc,
+                    &self.verb,
+                    &self.args,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [StartScheduled] type.
+        ///
+        /// Can be created using the [StartScheduled::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StartScheduledBuilder<State>(State);
+
+        impl StartScheduledBuilder<()> {
+            /// Setter for the [`schedule_id` field](StartScheduled#structfield.schedule_id).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn schedule_id<T0>(self, value: T0) -> StartScheduledBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<u64, u64>,
+            {
+                StartScheduledBuilder((value,))
+            }
+
+            /// Sets the [`schedule_id` field](StartScheduled#structfield.schedule_id) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn schedule_id_as_default(
+                self,
+            ) -> StartScheduledBuilder<(::planus::DefaultValue,)> {
+                self.schedule_id(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> StartScheduledBuilder<(T0,)> {
+            /// Setter for the [`player` field](StartScheduled#structfield.player).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn player<T1>(self, value: T1) -> StartScheduledBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            {
+                let (v0,) = self.0;
+                StartScheduledBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> StartScheduledBuilder<(T0, T1)> {
+            /// Setter for the [`vloc` field](StartScheduled#structfield.vloc).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn vloc<T2>(self, value: T2) -> StartScheduledBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            {
+                let (v0, v1) = self.0;
+                StartScheduledBuilder((v0, v1, value))
+            }
+        }
+
+        impl<T0, T1, T2> StartScheduledBuilder<(T0, T1, T2)> {
+            /// Setter for the [`verb` field](StartScheduled#structfield.verb).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn verb<T3>(self, value: T3) -> StartScheduledBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            {
+                let (v0, v1, v2) = self.0;
+                StartScheduledBuilder((v0, v1, v2, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3> StartScheduledBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`args` field](StartScheduled#structfield.args).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn args<T4>(self, value: T4) -> StartScheduledBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                StartScheduledBuilder((v0, v1, v2, v3, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> StartScheduledBuilder<(T0, T1, T2, T3, T4)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StartScheduled].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartScheduled>
+            where
+                Self: ::planus::WriteAsOffset<StartScheduled>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<StartScheduled>>
+            for StartScheduledBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<StartScheduled>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartScheduled> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StartScheduled>>
+            for StartScheduledBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<StartScheduled>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StartScheduled>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_common::ObjectRef>>,
+            T3: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<StartScheduled> for StartScheduledBuilder<(T0, T1, T2, T3, T4)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StartScheduled> {
+                let (v0, v1, v2, v3, v4) = &self.0;
+                StartScheduled::create(builder, v0, v1, v2, v3, v4)
+            }
+        }
+
+        /// Reference to a deserialized [StartScheduled].
+        #[derive(Copy, Clone)]
+        pub struct StartScheduledRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> StartScheduledRef<'a> {
+            /// Getter for the [`schedule_id` field](StartScheduled#structfield.schedule_id).
+            #[inline]
+            pub fn schedule_id(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "StartScheduled", "schedule_id")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`player` field](StartScheduled#structfield.player).
+            #[inline]
+            pub fn player(&self) -> ::planus::Result<super::moor_common::ObjRef<'a>> {
+                self.0.access_required(1, "StartScheduled", "player")
+            }
+
+            /// Getter for the [`vloc` field](StartScheduled#structfield.vloc).
+            #[inline]
+            pub fn vloc(&self) -> ::planus::Result<super::moor_common::ObjectRefRef<'a>> {
+                self.0.access_required(2, "StartScheduled", "vloc")
+            }
+
+            /// Getter for the [`verb` field](StartScheduled#structfield.verb).
+            #[inline]
+            pub fn verb(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
+                self.0.access_required(3, "StartScheduled", "verb")
+            }
+
+            /// Getter for the [`args` field](StartScheduled#structfield.args).
+            #[inline]
+            pub fn args(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<super::moor_var::VarRef<'a>>>>
+            {
+                self.0.access_required(4, "StartScheduled", "args")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for StartScheduledRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StartScheduledRef");
+                f.field("schedule_id", &self.schedule_id());
+                f.field("player", &self.player());
+                f.field("vloc", &self.vloc());
+                f.field("verb", &self.verb());
+                f.field("args", &self.args());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StartScheduledRef<'a>> for StartScheduled {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: StartScheduledRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    schedule_id: ::core::convert::TryInto::try_into(value.schedule_id()?)?,
+                    player: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.player()?,
+                    )?),
+                    vloc: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.vloc()?,
+                    )?),
+                    verb: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.verb()?,
+                    )?),
+                    args: value.args()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StartScheduledRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StartScheduledRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StartScheduledRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StartScheduled>> for StartScheduled {
+            type Value = ::planus::Offset<StartScheduled>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StartScheduled>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StartScheduledRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[StartScheduledRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `Fork` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Fork` in the file `task.fbs:111`
+        /// * Table `Fork` in the file `task.fbs:120`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Fork {
             /// The field `player` in the table `Fork`
@@ -123845,7 +124303,7 @@ mod root {
         /// The table `StartFork` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `StartFork` in the file `task.fbs:122`
+        /// * Table `StartFork` in the file `task.fbs:131`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StartFork {
             /// The field `fork_request` in the table `StartFork`
@@ -124133,7 +124591,7 @@ mod root {
         /// The table `StartEval` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `StartEval` in the file `task.fbs:127`
+        /// * Table `StartEval` in the file `task.fbs:136`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StartEval {
             /// The field `player` in the table `StartEval`
@@ -124406,7 +124864,7 @@ mod root {
         /// The table `TaskStart` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `TaskStart` in the file `task.fbs:132`
+        /// * Table `TaskStart` in the file `task.fbs:141`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskStart {
             /// The field `start` in the table `TaskStart`
@@ -124642,7 +125100,7 @@ mod root {
         /// The union `TaskStateUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `TaskStateUnion` in the file `task.fbs:140`
+        /// * Union `TaskStateUnion` in the file `task.fbs:149`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum TaskStateUnion {
             /// The variant of type `TaskCreated` in the union `TaskStateUnion`
@@ -124854,7 +125312,7 @@ mod root {
         /// The table `TaskCreated` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `TaskCreated` in the file `task.fbs:145`
+        /// * Table `TaskCreated` in the file `task.fbs:154`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskCreated {
             /// The field `start` in the table `TaskCreated`
@@ -125090,7 +125548,7 @@ mod root {
         /// The table `TaskRunning` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `TaskRunning` in the file `task.fbs:149`
+        /// * Table `TaskRunning` in the file `task.fbs:158`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskRunning {
             /// The field `start` in the table `TaskRunning`
@@ -125326,7 +125784,7 @@ mod root {
         /// The table `TaskState` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `TaskState` in the file `task.fbs:153`
+        /// * Table `TaskState` in the file `task.fbs:162`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskState {
             /// The field `state` in the table `TaskState`
@@ -125562,7 +126020,7 @@ mod root {
         /// The union `AbortLimitReasonUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `AbortLimitReasonUnion` in the file `task.fbs:161`
+        /// * Union `AbortLimitReasonUnion` in the file `task.fbs:170`
         #[derive(
             Clone,
             Debug,
@@ -125784,7 +126242,7 @@ mod root {
         /// The table `AbortTicks` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `AbortTicks` in the file `task.fbs:166`
+        /// * Table `AbortTicks` in the file `task.fbs:175`
         #[derive(
             Clone,
             Debug,
@@ -126046,7 +126504,7 @@ mod root {
         /// The table `AbortTime` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `AbortTime` in the file `task.fbs:170`
+        /// * Table `AbortTime` in the file `task.fbs:179`
         #[derive(
             Clone,
             Debug,
@@ -126308,7 +126766,7 @@ mod root {
         /// The table `AbortLimitReason` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `AbortLimitReason` in the file `task.fbs:174`
+        /// * Table `AbortLimitReason` in the file `task.fbs:183`
         #[derive(
             Clone,
             Debug,
@@ -126572,7 +127030,7 @@ mod root {
         /// The table `PendingTimeout` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `PendingTimeout` in the file `task.fbs:178`
+        /// * Table `PendingTimeout` in the file `task.fbs:187`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct PendingTimeout {
             /// The field `reason` in the table `PendingTimeout`
@@ -126932,7 +127390,7 @@ mod root {
         /// The union `PcTypeUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `PcTypeUnion` in the file `task.fbs:190`
+        /// * Union `PcTypeUnion` in the file `task.fbs:199`
         #[derive(
             Clone,
             Debug,
@@ -127206,7 +127664,7 @@ mod root {
         /// The table `PcMain` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `PcMain` in the file `task.fbs:196`
+        /// * Table `PcMain` in the file `task.fbs:205`
         #[derive(
             Clone,
             Debug,
@@ -127413,7 +127871,7 @@ mod root {
         /// The table `PcForkVector` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `PcForkVector` in the file `task.fbs:198`
+        /// * Table `PcForkVector` in the file `task.fbs:207`
         #[derive(
             Clone,
             Debug,
@@ -127676,7 +128134,7 @@ mod root {
         /// The table `PcLambda` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `PcLambda` in the file `task.fbs:202`
+        /// * Table `PcLambda` in the file `task.fbs:211`
         #[derive(
             Clone,
             Debug,
@@ -127934,7 +128392,7 @@ mod root {
         /// The table `PcType` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `PcType` in the file `task.fbs:206`
+        /// * Table `PcType` in the file `task.fbs:215`
         #[derive(
             Clone,
             Debug,
@@ -128176,7 +128634,7 @@ mod root {
         /// The union `CatchTypeUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `CatchTypeUnion` in the file `task.fbs:211`
+        /// * Union `CatchTypeUnion` in the file `task.fbs:220`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum CatchTypeUnion {
             /// The variant of type `CatchAny` in the union `CatchTypeUnion`
@@ -128388,7 +128846,7 @@ mod root {
         /// The table `CatchAny` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CatchAny` in the file `task.fbs:216`
+        /// * Table `CatchAny` in the file `task.fbs:225`
         #[derive(
             Clone,
             Debug,
@@ -128595,7 +129053,7 @@ mod root {
         /// The table `CatchErrors` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CatchErrors` in the file `task.fbs:218`
+        /// * Table `CatchErrors` in the file `task.fbs:227`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct CatchErrors {
             /// The field `errors` in the table `CatchErrors`
@@ -128849,7 +129307,7 @@ mod root {
         /// The table `CatchType` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CatchType` in the file `task.fbs:222`
+        /// * Table `CatchType` in the file `task.fbs:231`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct CatchType {
             /// The field `catch_type` in the table `CatchType`
@@ -129085,7 +129543,7 @@ mod root {
         /// The table `CatchHandler` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CatchHandler` in the file `task.fbs:226`
+        /// * Table `CatchHandler` in the file `task.fbs:235`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct CatchHandler {
             /// The field `catch_type` in the table `CatchHandler`
@@ -129366,7 +129824,7 @@ mod root {
         /// The union `FinallyReasonUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `FinallyReasonUnion` in the file `task.fbs:232`
+        /// * Union `FinallyReasonUnion` in the file `task.fbs:241`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum FinallyReasonUnion {
             /// The variant of type `FinallyFallthrough` in the union `FinallyReasonUnion`
@@ -129763,7 +130221,7 @@ mod root {
         /// The table `FinallyFallthrough` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyFallthrough` in the file `task.fbs:240`
+        /// * Table `FinallyFallthrough` in the file `task.fbs:249`
         #[derive(
             Clone,
             Debug,
@@ -129991,7 +130449,7 @@ mod root {
         /// The table `FinallyRaise` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyRaise` in the file `task.fbs:242`
+        /// * Table `FinallyRaise` in the file `task.fbs:251`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct FinallyRaise {
             /// The field `exception` in the table `FinallyRaise`
@@ -130237,7 +130695,7 @@ mod root {
         /// The table `FinallyReturn` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyReturn` in the file `task.fbs:246`
+        /// * Table `FinallyReturn` in the file `task.fbs:255`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct FinallyReturn {
             /// The field `value` in the table `FinallyReturn`
@@ -130474,7 +130932,7 @@ mod root {
         /// The table `FinallyAbort` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyAbort` in the file `task.fbs:250`
+        /// * Table `FinallyAbort` in the file `task.fbs:259`
         #[derive(
             Clone,
             Debug,
@@ -130685,7 +131143,7 @@ mod root {
         /// The table `FinallyExit` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyExit` in the file `task.fbs:252`
+        /// * Table `FinallyExit` in the file `task.fbs:261`
         #[derive(
             Clone,
             Debug,
@@ -130986,7 +131444,7 @@ mod root {
         /// The table `FinallyReason` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `FinallyReason` in the file `task.fbs:257`
+        /// * Table `FinallyReason` in the file `task.fbs:266`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct FinallyReason {
             /// The field `reason` in the table `FinallyReason`
@@ -131223,7 +131681,7 @@ mod root {
         /// The union `ScopeTypeUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `ScopeTypeUnion` in the file `task.fbs:262`
+        /// * Union `ScopeTypeUnion` in the file `task.fbs:271`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ScopeTypeUnion {
             /// The variant of type `ScopeTryFinally` in the union `ScopeTypeUnion`
@@ -131924,7 +132382,7 @@ mod root {
         /// The table `ScopeTryFinally` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeTryFinally` in the file `task.fbs:275`
+        /// * Table `ScopeTryFinally` in the file `task.fbs:284`
         #[derive(
             Clone,
             Debug,
@@ -132204,7 +132662,7 @@ mod root {
         /// The table `ScopeTryCatch` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeTryCatch` in the file `task.fbs:279`
+        /// * Table `ScopeTryCatch` in the file `task.fbs:288`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ScopeTryCatch {
             /// The field `handlers` in the table `ScopeTryCatch`
@@ -132454,7 +132912,7 @@ mod root {
         /// The table `ScopeIf` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeIf` in the file `task.fbs:283`
+        /// * Table `ScopeIf` in the file `task.fbs:292`
         #[derive(
             Clone,
             Debug,
@@ -132661,7 +133119,7 @@ mod root {
         /// The table `ScopeEif` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeEif` in the file `task.fbs:284`
+        /// * Table `ScopeEif` in the file `task.fbs:293`
         #[derive(
             Clone,
             Debug,
@@ -132868,7 +133326,7 @@ mod root {
         /// The table `ScopeWhile` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeWhile` in the file `task.fbs:285`
+        /// * Table `ScopeWhile` in the file `task.fbs:294`
         #[derive(
             Clone,
             Debug,
@@ -133079,7 +133537,7 @@ mod root {
         /// The table `ScopeFor` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeFor` in the file `task.fbs:286`
+        /// * Table `ScopeFor` in the file `task.fbs:295`
         #[derive(
             Clone,
             Debug,
@@ -133286,7 +133744,7 @@ mod root {
         /// The table `ScopeForSequence` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeForSequence` in the file `task.fbs:288`
+        /// * Table `ScopeForSequence` in the file `task.fbs:297`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ScopeForSequence {
             /// The field `sequence` in the table `ScopeForSequence`
@@ -133802,7 +134260,7 @@ mod root {
         /// The table `ScopeForRange` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeForRange` in the file `task.fbs:297`
+        /// * Table `ScopeForRange` in the file `task.fbs:306`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ScopeForRange {
             /// The field `current_value` in the table `ScopeForRange`
@@ -134163,7 +134621,7 @@ mod root {
         /// The table `ScopeBlock` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeBlock` in the file `task.fbs:304`
+        /// * Table `ScopeBlock` in the file `task.fbs:313`
         #[derive(
             Clone,
             Debug,
@@ -134374,7 +134832,7 @@ mod root {
         /// The table `ScopeComprehension` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeComprehension` in the file `task.fbs:305`
+        /// * Table `ScopeComprehension` in the file `task.fbs:314`
         #[derive(
             Clone,
             Debug,
@@ -134602,7 +135060,7 @@ mod root {
         /// The table `ScopeType` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScopeType` in the file `task.fbs:307`
+        /// * Table `ScopeType` in the file `task.fbs:316`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ScopeType {
             /// The field `scope_type` in the table `ScopeType`
@@ -134838,7 +135296,7 @@ mod root {
         /// The table `Scope` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Scope` in the file `task.fbs:311`
+        /// * Table `Scope` in the file `task.fbs:320`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Scope {
             /// The field `scope_type` in the table `Scope`
@@ -135256,7 +135714,7 @@ mod root {
         /// The table `EnvironmentScope` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `EnvironmentScope` in the file `task.fbs:321`
+        /// * Table `EnvironmentScope` in the file `task.fbs:330`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EnvironmentScope {
             /// The field `vars` in the table `EnvironmentScope`
@@ -135522,7 +135980,7 @@ mod root {
         /// The table `CapturedVar` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CapturedVar` in the file `task.fbs:326`
+        /// * Table `CapturedVar` in the file `task.fbs:335`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct CapturedVar {
             /// The field `name` in the table `CapturedVar`
@@ -135794,7 +136252,7 @@ mod root {
         /// The table `BfFrame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `BfFrame` in the file `task.fbs:335`
+        /// * Table `BfFrame` in the file `task.fbs:344`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BfFrame {
             /// The field `bf_id` in the table `BfFrame`
@@ -136273,7 +136731,7 @@ mod root {
         /// The table `MooStackFrame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `MooStackFrame` in the file `task.fbs:343`
+        /// * Table `MooStackFrame` in the file `task.fbs:352`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MooStackFrame {
             /// The field `program` in the table `MooStackFrame`
@@ -136866,7 +137324,7 @@ mod root {
         /// The union `FrameUnion` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Union `FrameUnion` in the file `task.fbs:356`
+        /// * Union `FrameUnion` in the file `task.fbs:365`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum FrameUnion {
             /// The variant of type `MooFrame` in the union `FrameUnion`
@@ -137070,7 +137528,7 @@ mod root {
         /// The table `MooFrame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `MooFrame` in the file `task.fbs:361`
+        /// * Table `MooFrame` in the file `task.fbs:370`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MooFrame {
             /// The field `frame` in the table `MooFrame`
@@ -137302,7 +137760,7 @@ mod root {
         /// The table `BfFrameWrapper` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `BfFrameWrapper` in the file `task.fbs:365`
+        /// * Table `BfFrameWrapper` in the file `task.fbs:374`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BfFrameWrapper {
             /// The field `frame` in the table `BfFrameWrapper`
@@ -137548,7 +138006,7 @@ mod root {
         /// The table `Frame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Frame` in the file `task.fbs:369`
+        /// * Table `Frame` in the file `task.fbs:378`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Frame {
             /// The field `frame` in the table `Frame`
@@ -137780,7 +138238,7 @@ mod root {
         /// The enum `CapabilityGrantKind` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Enum `CapabilityGrantKind` in the file `task.fbs:380`
+        /// * Enum `CapabilityGrantKind` in the file `task.fbs:389`
         #[derive(
             Copy,
             Clone,
@@ -138027,7 +138485,7 @@ mod root {
         /// The table `CapabilityGrant` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CapabilityGrant` in the file `task.fbs:400`
+        /// * Table `CapabilityGrant` in the file `task.fbs:409`
         #[derive(
             Clone,
             Debug,
@@ -138545,7 +139003,7 @@ mod root {
         /// The table `Activation` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Activation` in the file `task.fbs:412`
+        /// * Table `Activation` in the file `task.fbs:421`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Activation {
             /// The field `frame` in the table `Activation`
@@ -139115,7 +139573,7 @@ mod root {
         /// The table `VMExecState` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VMExecState` in the file `task.fbs:428`
+        /// * Table `VMExecState` in the file `task.fbs:437`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmExecState {
             /// The field `activation_stack` in the table `VMExecState`
@@ -139471,7 +139929,7 @@ mod root {
         /// The table `VmHost` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VmHost` in the file `task.fbs:434`
+        /// * Table `VmHost` in the file `task.fbs:443`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmHost {
             /// The field `task_id` in the table `VmHost`
@@ -139900,7 +140358,7 @@ mod root {
         /// The table `Task` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Task` in the file `task.fbs:446`
+        /// * Table `Task` in the file `task.fbs:455`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Task {
             /// The field `version` in the table `Task`
@@ -140752,7 +141210,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:469`
+        /// * Table `SuspendedTask` in the file `task.fbs:478`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`

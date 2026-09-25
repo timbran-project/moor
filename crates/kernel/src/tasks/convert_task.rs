@@ -1811,6 +1811,26 @@ pub(crate) fn task_start_to_flatbuffer(
                 program: Box::new(fb_program),
             }))
         }
+        KernelTaskStart::StartScheduled {
+            schedule_id,
+            player,
+            vloc,
+            verb,
+            args,
+        } => {
+            let fb_args: Result<Vec<_>, _> =
+                args.iter().map(|v| var_to_db_flatbuffer(&v)).collect();
+            let fb_args = fb_args
+                .map_err(|e| TaskConversionError::VarError(format!("Error encoding args: {e}")))?;
+
+            TaskStartUnion::StartScheduled(Box::new(fb::StartScheduled {
+                schedule_id: *schedule_id,
+                player: Box::new(convert_schema::obj_to_flatbuffer_struct(player)),
+                vloc: Box::new(convert_schema::objectref_to_flatbuffer_struct(vloc)),
+                verb: Box::new(convert_schema::symbol_to_flatbuffer_struct(verb)),
+                args: fb_args,
+            }))
+        }
         KernelTaskStart::StartExceptionHandler { .. } => {
             // Exception handlers don't get suspended, so they shouldn't be serialized
             panic!("Attempted to serialize StartExceptionHandler task state");
@@ -1955,6 +1975,51 @@ pub(crate) fn task_start_from_ref_union(
                 player,
                 program,
                 initial_env: None,
+            })
+        }
+        TaskStartUnionRef::StartScheduled(ss) => {
+            let schedule_id = ss
+                .schedule_id()
+                .map_err(|e| TaskConversionError::DecodingError(format!("schedule_id: {e}")))?;
+
+            let player_ref = ss
+                .player()
+                .map_err(|e| TaskConversionError::DecodingError(format!("player: {e}")))?;
+            let player = convert_schema::obj_from_ref(player_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("player: {e}")))?;
+
+            let vloc_ref = ss
+                .vloc()
+                .map_err(|e| TaskConversionError::DecodingError(format!("vloc: {e}")))?;
+            let vloc = convert_schema::objectref_from_ref(vloc_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("vloc: {e}")))?;
+
+            let verb_ref = ss
+                .verb()
+                .map_err(|e| TaskConversionError::DecodingError(format!("verb: {e}")))?;
+            let verb = convert_schema::symbol_from_ref(verb_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("verb: {e}")))?;
+
+            let args_vec = ss
+                .args()
+                .map_err(|e| TaskConversionError::DecodingError(format!("args: {e}")))?;
+            let args: Result<Vec<_>, TaskConversionError> = args_vec
+                .iter()
+                .map(|v_result| {
+                    let v = v_result
+                        .map_err(|e| TaskConversionError::DecodingError(format!("arg: {e}")))?;
+                    var_from_db_flatbuffer_ref(v)
+                        .map_err(|e| TaskConversionError::VarError(format!("arg: {e}")))
+                })
+                .collect();
+            let args = moor_var::List::mk_list(&args?);
+
+            Ok(KernelTaskStart::StartScheduled {
+                schedule_id,
+                player,
+                vloc,
+                verb,
+                args,
             })
         }
     }
