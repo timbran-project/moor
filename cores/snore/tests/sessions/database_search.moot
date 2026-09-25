@@ -1,0 +1,31 @@
+// Explicit UUID searches respect verb-code permissions; global search needs enumeration authority.
+@wizard
+; add_property(#102, "test_search_output", {}, {#102, "r"}); v = add_verb(#102, {#102, "rxd", "notify"}, {"this", "none", "this"}); set_verb_code(#102, "notify", {"this.test_search_output = {@this.test_search_output, tostr(@args)};"}); return 0;
+0
+; add_property(#2, "test_search_output", {}, {#2, "r"}); v = add_verb(#2, {#2, "rxd", "notify"}, {"this", "none", "this"}); set_verb_code(#2, "notify", {"this.test_search_output = {@this.test_search_output, tostr(@args)};"}); return 0;
+0
+; add_property(#2, "uuid_readable", create($thing), {#2, "r"}); add_property(#2, "uuid_hidden", create($thing), {#2, "r"}); return 0;
+0
+; for o in ({#2.uuid_readable, #2.uuid_hidden}) o.r = 1; v = add_verb(o, {#2, o == #2.uuid_readable ? "rxd" | "xd", "uuid_search_probe"}, {"this", "none", "this"}); set_verb_code(o, "uuid_search_probe", {"return \"UuidNeedleZZ\";"}); endfor return 0;
+0
+
+@programmer
+% @grep UuidNeedleZZ in {#2.uuid_readable, #2.uuid_hidden}
+; return player.test_search_output[$];
+"Total: 1 verb."
+% @egrepall UuidNeedleZZ in {#2.uuid_readable, #2.uuid_hidden}
+; return player.test_search_output[$];
+"Total: 1 verb."
+; return `$code_utils:find_verbs_containing("UuidNeedleZZ") ! E_PERM';
+E_PERM
+
+@wizard
+; $code_utils:find_verbs_containing("UuidNeedleZZ"); return player.test_search_output[$];
+"Total: 2 verbs."
+// A numbered lower bound filters numbered objects; UUID objects remain included.
+; $code_utils:find_verbs_matching("UuidNeedleZZ", toint(max_object()) + 1); return player.test_search_output[$];
+"Total: 2 verbs."
+; $code_utils:find_verb_lines_containing("UuidNeedleZZ", toint(max_object()) + 1); return player.test_search_output[$];
+"Total: 2 verbs."
+; $code_utils:find_verb_lines_matching("UuidNeedleZZ", toint(max_object()) + 1); return player.test_search_output[$];
+"Total: 2 verbs."

@@ -1,0 +1,928 @@
+object BUILDER_FEATURE [
+  import_export_id -> "builder_feature"
+]
+  name: "Builder Feature"
+  parent: FEATURE
+  owner: #2
+  readable: true
+
+  override feature_verbs (owner: HACKER, flags: "r") = {
+    "@quota",
+    "@create",
+    "@recycle",
+    "@recreate",
+    "@dig",
+    "@audit",
+    "@count",
+    "@countDB",
+    "@sort-owned*-objects",
+    "@add-owned",
+    "@verify-owned",
+    "@unlock",
+    "@lock",
+    "@newmess*age",
+    "@unmess*age",
+    "@kids",
+    "@contents",
+    "@par*ents",
+    "@location*s",
+    "@cl*asses",
+    "@chparent",
+    "@check-chp*arent",
+    "@set*prop",
+    "@build-o*ptions",
+    "@buildo*ptions",
+    "@builder-o*ptions",
+    "@buildero*ptions",
+    "@meas*ure",
+    "@listedit",
+    "@pedit"
+  };
+  override help_msg (owner: #2, flags: "rc") = "Commands for $builder descendants. Installing this feature does not grant server permissions.";
+
+  verb "@quota" (any none none) owner: #2 flags: "rd"
+    "Show the object or byte quota for yourself or another player.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (dobjstr == "")
+      dobj = player;
+    else
+      dobj = $string_utils:match_player(dobjstr);
+    endif
+    if (!valid(dobj))
+      player:notify("Show whose quota?");
+      return;
+    endif
+    $quota_utils:display_quota(dobj);
+    try
+      if (dobj in $local.informed_quota_consumers.uninformed_quota_consumers)
+        player:notify(tostr("Note that quota is held in escrow -- `look ", $local.informed_quota_consumers, "' for more details."));
+      endif
+    except id (ANY)
+    endtry
+  endverb
+
+  verb "@create" (any any any) owner: #2 flags: "rd"
+    "Create a UUID object with the selected parent, name, and aliases.";
+    let parent;
+    let aka;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    const nargs = length(args);
+    let pos = "named" in args;
+    if (pos <= 1 || pos == nargs)
+      pos = "called" in args;
+    endif
+    if (pos <= 1 || pos == nargs)
+      player:notify("Usage:  @create <parent-class> named [name:]alias,...,alias");
+      player:notify("   or:  @create <parent-class> named name-and-alias,alias,...,alias");
+      player:notify("");
+      player:notify("where <parent-class> is one of the standard classes ($note, $letter, $thing, or $container) or an object number (e.g., #999), or the name of some object in the current room.");
+      player:notify("You can use \"called\" instead of \"named\", if you wish.");
+      return;
+    endif
+    const parentstr = $string_utils:from_list(args[1..pos - 1], " ");
+    const namestr = $string_utils:from_list(args[pos + 1..$], " ");
+    if (!namestr)
+      player:notify("You must provide a name.");
+      return;
+    endif
+    if (parentstr[1] == "$")
+      parent = $string_utils:literal_object(parentstr);
+      if (parent == $failed_match || typeof(parent) != TYPE_OBJ)
+        player:notify(tostr("\"", parentstr, "\" does not name an object."));
+        return;
+      endif
+    else
+      parent = player:my_match_object(parentstr);
+      $command_utils:object_match_failed(parent, parentstr) && return;
+    endif
+    let object = player:_create(parent);
+    if (typeof(object) == TYPE_ERR)
+      player:notify(tostr(object));
+      return;
+    endif
+    for f in ($string_utils:char_list(player:build_option("create_flags") || ""))
+      object.(f) = 1;
+    endfor
+    "move() shouldn't, but could bomb. Say if player has a stupid :accept";
+    `move(object, player) ! ANY';
+    $building_utils:set_names(object, namestr);
+    const other_names = setremove(object.aliases, object.name);
+    if (other_names != {})
+      aka = " (aka " + $string_utils:english_list(other_names) + ")";
+    else
+      aka = "";
+    endif
+    player:notify(tostr("You now have ", object.name, aka, " with object number ", object, " and parent ", parent.name, " (", parent, ")."));
+  endverb
+
+  verb "@recycle" (any none none) owner: #2 flags: "rd"
+    "Recycle an object you control and return its quota.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    dobj = player:my_match_object(dobjstr);
+    if (dobj == $nothing)
+      player:notify(tostr("Usage:  ", verb, " <object>"));
+    elseif ($command_utils:object_match_failed(dobj, dobjstr))
+      "...bogus object...";
+    elseif (player == dobj)
+      player:notify($wiz_utils.suicide_string);
+    elseif (!$perm_utils:controls(player, dobj))
+      player:notify(tostr(E_PERM));
+    else
+      const name = dobj.name;
+      const result = player:_recycle(dobj);
+      if (typeof(result) == TYPE_ERR)
+        player:notify(tostr(result));
+      else
+        player:notify(tostr(name, " (", dobj, ") recycled."));
+      endif
+    endif
+  endverb
+
+  verb "@recreate" (any as any) owner: #2 flags: "rd"
+    "@recreate <object> as <parent-class> named [name:]alias,alias,...";
+    "  effectively recycles and creates <object> all over again.";
+    let parent;
+    let aka;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    const as = prepstr in args;
+    let named = "named" in args;
+    if (named <= as + 1 || named == length(args))
+      named = "called" in args;
+    endif
+    if (named <= as + 1 || named == length(args))
+      player:notify_lines({tostr("Usage:  ", verb, " <object> as <parent-class> named [name:]alias,...,alias"), "", "where <parent-class> is one of the standard classes ($note, $letter, $thing, or $container) or an object number (e.g., #999), or the name of some object in the current room.  The [name:]alias... specification is as in @create.", "", "You can use \"called\" instead of \"named\", if you wish."});
+      return;
+    endif
+    dobj = player:my_match_object(dobjstr);
+    if ($command_utils:object_match_failed(dobj, dobjstr))
+      return;
+    elseif (is_player(dobj))
+      player:notify("You really *don't* want to do that!");
+      return;
+    endif
+    const parentstr = $string_utils:from_list(args[as + 1..named - 1], " ");
+    const namestr = $string_utils:from_list(args[named + 1..$], " ");
+    if (parentstr[1] == "$")
+      parent = $string_utils:literal_object(parentstr);
+      if (parent == $failed_match || typeof(parent) != TYPE_OBJ)
+        player:notify(tostr("\"", parentstr, "\" does not name an object."));
+        return;
+      endif
+    else
+      parent = player:my_match_object(parentstr);
+      $command_utils:object_match_failed(parent, parentstr) && return;
+    endif
+    const e = $building_utils:recreate(dobj, parent);
+    if (!e)
+      player:notify(tostr(e));
+      return;
+    endif
+    for f in ($string_utils:char_list(player:build_option("create_flags") || ""))
+      dobj.(f) = 1;
+    endfor
+    "move() shouldn't, but could, bomb. Say if player has a stupid :accept";
+    `move(dobj, player) ! ANY';
+    $building_utils:set_names(dobj, namestr);
+    const other_names = setremove(dobj.aliases, dobj.name);
+    if (other_names != {})
+      aka = " (aka " + $string_utils:english_list(other_names) + ")";
+    else
+      aka = "";
+    endif
+    player:notify(tostr("Object number ", dobj, " is now ", dobj.name, aka, " with parent ", parent.name, " (", parent, ")."));
+  endverb
+
+  verb "@dig" (any any any) owner: #2 flags: "rd"
+    "Create rooms and exits, with names and directions from the command arguments.";
+    let room;
+    let exit_spec;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    const nargs = length(args);
+    if (nargs == 1)
+      room = args[1];
+      exit_spec = "";
+    elseif (nargs >= 3 && args[2] == "to")
+      exit_spec = args[1];
+      room = $string_utils:from_list(args[3..$], " ");
+    elseif (argstr && !prepstr)
+      room = argstr;
+      exit_spec = "";
+    else
+      player:notify(tostr("Usage:  ", verb, " <new-room-name>"));
+      player:notify(tostr("    or  ", verb, " <exit-description> to <new-room-name-or-old-room-object-number>"));
+      return;
+    endif
+    let other_room = toobj(room);
+    if (room != tostr(other_room))
+      let room_kind = player:build_option("dig_room");
+      if (room_kind == 0)
+        room_kind = $room;
+      endif
+      other_room = player:_create(room_kind);
+      if (typeof(other_room) == TYPE_ERR)
+        player:notify(tostr("Cannot create new room as a child of ", $string_utils:nn(room_kind), ": ", other_room, ".  See `help @build-options' for information on how to specify the kind of room this command tries to create."));
+        return;
+      endif
+      for f in ($string_utils:char_list(player:build_option("create_flags") || ""))
+        other_room.(f) = 1;
+      endfor
+      other_room.name = room;
+      other_room.aliases = {room};
+      move(other_room, $nothing);
+      player:notify(tostr(other_room.name, " (", other_room, ") created."));
+    elseif (nargs == 1)
+      player:notify("You can't dig a room that already exists!");
+      return;
+    elseif (!valid(player.location) || !($room in $object_utils:ancestors(player.location)))
+      player:notify(tostr("You may only use the ", verb, " command from inside a room."));
+      return;
+    elseif (!valid(other_room) || !($room in $object_utils:ancestors(other_room)))
+      player:notify(tostr(other_room, " doesn't look like a room to me..."));
+      return;
+    endif
+    if (exit_spec)
+      let exit_kind = player:build_option("dig_exit");
+      if (exit_kind == 0)
+        exit_kind = $exit;
+      endif
+      const exits = $string_utils:explode(exit_spec, "|");
+      if (length(exits) < 1 || length(exits) > 2)
+        player:notify("The exit-description must have the form");
+        player:notify("     [name:]alias,...,alias");
+        player:notify("or   [name:]alias,...,alias|[name:]alias,...,alias");
+        return;
+      endif
+      const to_ok = $building_utils:make_exit(exits[1], player.location, other_room, exit_kind);
+      if (to_ok && length(exits) == 2)
+        $building_utils:make_exit(exits[2], other_room, player.location, exit_kind);
+      endif
+    endif
+  endverb
+
+  verb "@audit" (any any any) owner: #2 flags: "rd"
+    "Usage:  @audit [player] [from <start>] [to <end>] [for <matching string>]";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    dobj = $string_utils:match_player(dobjstr);
+    if (!dobjstr)
+      dobj = player;
+    elseif ($command_utils:player_match_result(dobj, dobjstr)[1])
+      return;
+    endif
+    const dobjwords = $string_utils:words(dobjstr);
+    if (args[1..length(dobjwords)] == dobjwords)
+      args = args[length(dobjwords) + 1..$];
+    endif
+    const parse_result = $code_utils:_parse_audit_args(@args);
+    if (!parse_result)
+      player:notify(tostr("Usage:  ", verb, " [player] [from <start>] [to <end>] [for <match>]"));
+      return;
+    endif
+    return $building_utils:do_audit(dobj, @parse_result);
+  endverb
+
+  verb "@count" (any none none) owner: #2 flags: "rd"
+    "Count the objects owned by the selected player.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (!dobjstr)
+      dobj = player;
+    else
+      dobj = $string_utils:match_player(dobjstr);
+      if ($command_utils:player_match_result(dobj, dobjstr)[1])
+        return;
+      endif
+    endif
+    set_task_perms(player);
+    if (typeof(dobj.owned_objects) == TYPE_LIST)
+      const count = length(dobj.owned_objects);
+      player:notify(tostr(dobj.name, " currently owns ", count, " object", count == 1 ? "." | "s."));
+      if ($quota_utils.byte_based)
+        player:notify(tostr("Total bytes consumed:  ", $string_utils:group_number($quota_utils:get_size_quota(dobj)[2]), "."));
+      endif
+    else
+      player:notify(tostr(dobj.name, " is not enrolled in the object ownership system.  Use @countDB instead."));
+    endif
+  endverb
+
+  verb "@countDB" (any none none) owner: #2 flags: "rd"
+    "Count all owned objects, including objects with UUID identifiers.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (!dobjstr)
+      dobj = player;
+    else
+      dobj = $string_utils:match_player(dobjstr);
+      if ($command_utils:player_match_result(dobj, dobjstr)[1])
+        return;
+      endif
+    endif
+    set_task_perms(player);
+    let count = 0;
+    for o in (owned_objects(dobj))
+      if (valid(o))
+        count = count + 1;
+      endif
+    endfor
+    player:notify(tostr(dobj.name, " currently owns ", count, " object", count == 1 ? "." | "s."));
+  endverb
+
+  verb "@sort-owned*-objects" (any none none) owner: #2 flags: "rd"
+    "$player:owned_objects -- sorts a players .owned_objects property in ascending";
+    "order so it looks nice on @audit.";
+    let ret;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (typeof(player.owned_objects) == TYPE_LIST)
+      if (!dobjstr || index("object", dobjstr) == 1)
+        ret = $list_utils:sort_suspended(0, player.owned_objects);
+      elseif (index("size", dobjstr) == 1)
+        ret = $list_utils:reverse_suspended($list_utils:sort_suspended(0, player.owned_objects, $list_utils:slice($list_utils:map_prop(player.owned_objects, "object_size"))));
+      endif
+      if (typeof(ret) == TYPE_LIST)
+        player.owned_objects = ret;
+        player:tell("Your .owned_objects list has been sorted.");
+        return 1;
+      else
+        player:tell("Something went wrong. .owned_objects not sorted.");
+        return 0;
+      endif
+    else
+      player:tell("You are not enrolled in .owned_objects scheme, sorry.");
+    endif
+  endverb
+
+  verb "@add-owned" (any none none) owner: #2 flags: "rd"
+    "Add an object you own to your ownership records.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (!valid(dobj))
+      player:tell("Don't understand `", dobjstr, "' as an object to add.");
+    elseif (dobj.owner != player)
+      player:tell("You don't own ", dobj.name, ".");
+    elseif (dobj in player.owned_objects)
+      player:tell(dobj.name, " is already recorded in your .owned_objects.");
+    else
+      player.owned_objects = setadd(player.owned_objects, dobj);
+      player:tell("Added ", dobj, " to your .owned_objects.");
+    endif
+  endverb
+
+  verb "@verify-owned" (none none none) owner: #2 flags: "rd"
+    "Remove invalid or incorrectly owned objects from your ownership records.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    for x in (player.owned_objects)
+      if (!valid(x) || x.owner != player)
+        player.owned_objects = setremove(player.owned_objects, x);
+        if (valid(x))
+          player:tell("Removing ", x.name, "(", x, "), owned by ", valid(x.owner) ? x.owner.name | "<recycled player>", " from your .owned_objects property.");
+        else
+          player:tell("Removing invalid object ", x, " from your .owned_objects property.");
+        endif
+      endif
+      $command_utils:suspend_if_needed(2, tostr("Suspending @verify-owned ... ", x));
+    endfor
+    player:tell(".owned_objects property verified.");
+  endverb
+
+  verb "@unlock" (any none none) owner: #2 flags: "rd"
+    "Remove the access key from an object you control.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    dobj = player:my_match_object(dobjstr);
+    $command_utils:object_match_failed(dobj, dobjstr) && return;
+    try
+      dobj.key = 0;
+      player:notify(tostr("Unlocked ", dobj.name, "."));
+    except error (ANY)
+      player:notify(error[2]);
+    endtry
+  endverb
+
+  verb "@lock" (any with any) owner: #2 flags: "rd"
+    "Set the access key of an object you control.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    dobj = player:my_match_object(dobjstr);
+    $command_utils:object_match_failed(dobj, dobjstr) && return;
+    const key = $lock_utils:parse_keyexp(iobjstr, player);
+    if (typeof(key) == TYPE_STR)
+      player:notify("That key expression is malformed:");
+      player:notify(tostr("  ", key));
+    else
+      try
+        dobj.key = key;
+        player:notify(tostr("Locked ", dobj.name, " to this key:"));
+        player:notify(tostr("  ", $lock_utils:unparse_key(key)));
+      except error (ANY)
+        player:notify(error[2]);
+      endtry
+    endif
+  endverb
+
+  verb "@newmess*age" (any any any) owner: #2 flags: "rd"
+    "Usage:  @newmessage <message-name> [<message>] [on <object>]";
+    "Add a message property to an object (default is player), and optionally";
+    "set its value.  For use by non-programmers, who aren't allowed to add";
+    "properties generally.";
+    "To undo the effects of this, use @unmessage.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    const dobjwords = $string_utils:words(dobjstr);
+    if (!dobjwords)
+      player:notify(tostr("Usage:  ", verb, " <message-name> [<message>] [on <object>]"));
+      return;
+    endif
+    const object = valid(iobj) ? iobj | player;
+    const name = player:_messagify(dobjwords[1]);
+    const value = dobjstr[length(dobjwords[1]) + 2..$];
+    const nickname = "@" + name[1..$ - 4];
+    const e = `add_property(object, name, value, {player, "rc"}) ! ANY';
+    if (typeof(e) != TYPE_ERR)
+      player:notify(tostr(nickname, " on ", object.name, " is now \"", object.(name), "\"."));
+    elseif (e != E_INVARG)
+      player:notify(tostr(e));
+    elseif ($object_utils:has_property(object, name))
+      "object already has property";
+      player:notify(tostr(object.name, " already has a ", nickname, " message."));
+    else
+      player:notify(tostr("Unable to add ", nickname, " message to ", object.name, ": ", e));
+    endif
+  endverb
+
+  verb "@unmess*age" (any any any) owner: #2 flags: "rd"
+    "Usage:  @unmessage <message-name> [from <object>]";
+    "Remove a message property from an object (default is player).";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    if (!dobjstr || length($string_utils:words(dobjstr)) > 1)
+      player:notify(tostr("Usage:  ", verb, " <message-name> [from <object>]"));
+      return;
+    endif
+    const object = valid(iobj) ? iobj | player;
+    const name = player:_messagify(dobjstr);
+    const nickname = "@" + name[1..$ - 4];
+    try
+      delete_property(object, name);
+      player:notify(tostr(nickname, " message removed from ", object.name, "."));
+    except (E_PROPNF)
+      player:notify(tostr("No ", nickname, " message found on ", object.name, "."));
+    except error (ANY)
+      player:notify(error[2]);
+    endtry
+  endverb
+
+  verb "@kids" (any none none) owner: #2 flags: "rd"
+    "'@kids <obj>' - List the children of an object. This is handy for seeing whether anybody's actually using your carefully-wrought public objects.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    const thing = player:my_match_object(dobjstr);
+    if (!$command_utils:object_match_failed(thing, dobjstr))
+      const kids = children(thing);
+      if (kids)
+        player:notify(tostr(thing:title(), "(", thing, ") has ", length(kids), " kid", length(kids) == 1 ? "" | "s", "."));
+        player:notify(tostr($string_utils:names_of(kids)));
+      else
+        player:notify(tostr(thing:title(), "(", thing, ") has no kids."));
+      endif
+    endif
+  endverb
+
+  verb "@contents" (any none none) owner: #2 flags: "rd"
+    "'@contents <obj> - list the contents of an object, with object numbers.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    if (!dobjstr)
+      dobj = player.location;
+    else
+      dobj = player:my_match_object(dobjstr);
+    endif
+    if ($command_utils:object_match_failed(dobj, dobjstr))
+    else
+      const contents = dobj.contents;
+      if (contents)
+        player:notify(tostr(dobj:title(), "(", dobj, ") contains:"));
+        player:notify(tostr($string_utils:names_of(contents)));
+      else
+        player:notify(tostr(dobj:title(), "(", dobj, ") contains nothing."));
+      endif
+    endif
+  endverb
+
+  verb "@par*ents" (any none none) owner: #2 flags: "rd"
+    "'@parents <thing>' - List <thing> and its ancestors, all the way back to the Root Class (#1).";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (!dobjstr)
+      player:notify(tostr("Usage:  ", verb, " <object>"));
+      return;
+    endif
+    set_task_perms(player);
+    const o = player:my_match_object(dobjstr);
+    if (!$command_utils:object_match_failed(o, dobjstr))
+      player:notify($string_utils:names_of({o, @$object_utils:ancestors(o)}));
+    endif
+  endverb
+
+  verb "@location*s" (any none none) owner: #2 flags: "rd"
+    "@locations <thing> - List <thing> and its containers, all the way back to the outermost one.";
+    let what;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    if (!dobjstr)
+      what = player;
+    else
+      what = player:my_match_object(dobjstr);
+      if (!valid(what))
+        what = $string_utils:match_player(dobjstr);
+      endif
+      if (!valid(what))
+        $command_utils:object_match_failed(dobj, dobjstr);
+        return;
+      endif
+    endif
+    player:notify($string_utils:names_of({what, @$object_utils:locations(what)}));
+  endverb
+
+  verb "@cl*asses" (any any any) owner: #2 flags: "rd"
+    "$class_registry is in the following format:";
+    "        { {name, description, members}, ... }";
+    "where `name' is the name of a particular class of objects, `description' is a one-sentence description of the membership of the class, and `members' is a list of object numbers, the members of the class.";
+    "";
+    let members;
+    let class;
+    let name;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (!$command_utils:yes_or_no("This command can be very spammy.  Are you certain you need this information?"))
+      return player:tell("OK, aborting.  The lag thanks you.");
+    endif
+    if (args)
+      members = {};
+      for name in (args)
+        class = $list_utils:assoc_prefix(name, $class_registry);
+        if (class)
+          for o in (class[3])
+            members = setadd(members, o);
+          endfor
+        else
+          player:tell("There is no defined class of objects named `", name, "'; type `@classes' to see a complete list of defined classes.");
+          return;
+        endif
+      endfor
+      let printed = {};
+      for o in (members)
+        let what = o;
+        while (valid(what))
+          printed = setadd(printed, what);
+          what = parent(what);
+        endwhile
+      endfor
+      player:tell("Members of the class", length(args) > 1 ? "es" | "", " named ", $string_utils:english_list(args), ":");
+      player:tell();
+      set_task_perms(player);
+      player:classes_2($root_class, "", members, printed);
+      player:tell();
+    else
+      "List all class names and descriptions";
+      player:tell("The following classes of objects have been defined:");
+      for class in ($class_registry)
+        name = class[1];
+        const description = class[2];
+        player:tell();
+        player:tell("-- ", name, ": ", description);
+      endfor
+      player:tell();
+      player:tell("Type `@classes <name>' to see the members of the class with the given <name>.");
+    endif
+  endverb
+
+  verb "@chparent" (any at any) owner: #2 flags: "rd"
+    "Change the parent of an object you control after checking inheritance constraints.";
+    let parent;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    let object = player:my_match_object(dobjstr);
+    if ($command_utils:object_match_failed(object, dobjstr))
+      "...bogus object...";
+    else
+      parent = player:my_match_object(iobjstr);
+      if ($command_utils:object_match_failed(parent, iobjstr))
+        "...bogus new parent...";
+      elseif (is_player(object) && !$object_utils:isa(parent, $player))
+        player:notify(tostr(object, " is a player and ", parent, " is not a player class."));
+        player:notify("You really *don't* want to do this.  Trust me.");
+      else
+        if ($object_utils:isa(object, $mail_recipient))
+          if (!$command_utils:yes_or_no("Chparenting a mailing list is usually a really bad idea.  Do you really want to do it?  (If you don't know why we're asking this question, please say 'no'.)"))
+            return player:tell("Aborted.");
+          endif
+        endif
+        try
+          const result = player:_chparent(object, parent);
+          player:notify("Parent changed.");
+        except (E_INVARG)
+          if (valid(object) && valid(parent))
+            player:notify(tostr("Some property existing on ", parent, " is defined on ", object, " or one of its descendants."));
+            player:notify(tostr("Try @check-chparent ", dobjstr, " to ", iobjstr));
+          else
+            player:notify("Either that is not a valid object or not a valid parent");
+          endif
+        except (E_PERM)
+          player:notify("Either you don't own the object, don't own the parent, or the parent is not fertile.");
+        except (E_RECMOVE)
+          player:notify("That parent object is a descendant of the object!");
+        endtry
+      endif
+    endif
+  endverb
+
+  verb "@check-chp*arent" (any at any) owner: #2 flags: "rd"
+    "Copied from generic programmer (#217):@check-chparent by ur-Rog (#6349) Sun Nov  8 22:13:53 1992 PST";
+    "@check-chparent object to newparent";
+    "checks for property name conflicts that would make @chparent bomb.";
+    let object;
+    let parent;
+    let result;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    if (!(dobjstr && iobjstr))
+      player:notify(tostr("Usage:  ", verb, " <object> to <newparent>"));
+    else
+      object = player:my_match_object(dobjstr);
+      if ($command_utils:object_match_failed(object, dobjstr))
+        "...bogus object...";
+      else
+        parent = player:my_match_object(iobjstr);
+        if ($command_utils:object_match_failed(parent, iobjstr))
+          "...bogus new parent...";
+        else
+          result = $object_utils:property_conflicts(object, parent);
+          if (typeof(result) == TYPE_ERR)
+            player:notify(tostr(result));
+          elseif (result)
+            const su = $string_utils;
+            player:notify("");
+            player:notify(su:left("Property", 30) + "Also Defined on");
+            player:notify(su:left("--------", 30) + "---------------");
+            for r in (result)
+              player:notify(su:left(tostr(parent, ".", r[1]), 30) + su:from_list(listdelete(r, 1), " "));
+              $command_utils:suspend_if_needed(0);
+            endfor
+          else
+            player:notify("No property conflicts found.");
+          endif
+        endif
+      endif
+    endif
+  endverb
+
+  verb "@set*prop" (any at any) owner: #2 flags: "rd"
+    "Syntax:  @set <object>.<prop-name> to <value>";
+    "";
+    "Changes the value of the specified object's property to the given value.";
+    "You must have permission to modify the property, either because you own the property or if it is writable.";
+    let val;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    const l = $code_utils:parse_propref(dobjstr);
+    if (l)
+      dobj = player:my_match_object(l[1], player.location);
+      $command_utils:object_match_failed(dobj, l[1]) && return;
+      const prop = l[2];
+      const to_i = "to" in args;
+      const at_i = "at" in args;
+      const i = to_i && at_i ? min(to_i, at_i) | to_i || at_i;
+      iobjstr = argstr[$string_utils:word_start(argstr)[i][2] + 1..$];
+      iobjstr = $string_utils:trim(iobjstr);
+      if (!iobjstr)
+        try
+          val = dobj.(prop) = "";
+        except e (ANY)
+          player:tell("Unable to set ", dobj, ".", prop, ": ", e[2]);
+          return;
+        endtry
+        iobjstr = "\"\"";
+        "elseif (iobjstr[1] == \"\\\"\")";
+        "val = dobj.(prop) = iobjstr;";
+        "iobjstr = \"\\\"\" + iobjstr + \"\\\"\";";
+      else
+        val = $string_utils:to_value(iobjstr);
+        if (!val[1])
+          player:tell("Could not parse: ", iobjstr);
+          return;
+        endif
+        if (!$object_utils:has_property(dobj, prop))
+          player:tell("That object does not define that property.");
+          return;
+        endif
+        try
+          val = dobj.(prop) = val[2];
+        except e (ANY)
+          player:tell("Unable to set ", dobj, ".", prop, ": ", e[2]);
+          return;
+        endtry
+      endif
+      player:tell("Property ", dobj, ".", prop, " set to ", $string_utils:print(val), ".");
+    else
+      player:tell("Property ", dobjstr, " not found.");
+    endif
+  endverb
+
+  verb "@build-o*ptions @buildo*ptions @builder-o*ptions @buildero*ptions" (any any any) owner: #2 flags: "rd"
+    "@<what>-option <option> [is] <value>   sets <option> to <value>";
+    "@<what>-option <option>=<value>        sets <option> to <value>";
+    "@<what>-option +<option>     sets <option>   (usually equiv. to <option>=1";
+    "@<what>-option -<option>     resets <option> (equiv. to <option>=0)";
+    "@<what>-option !<option>     resets <option> (equiv. to <option>=0)";
+    "@<what>-option <option>      displays value of <option>";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    set_task_perms(player);
+    const what = "build";
+    const options = what + "_options";
+    const option_pkg = #0.(options);
+    const set_option = "set_" + what + "_option";
+    if (!args)
+      player:notify_lines({"Current " + what + " options:", "", @option_pkg:show(player.(options), option_pkg.names)});
+      return;
+    endif
+    const presult = option_pkg:parse(args);
+    if (typeof(presult) == TYPE_STR)
+      player:notify(presult);
+      return;
+    else
+      if (length(presult) > 1)
+        const sresult = player:(set_option)(@presult);
+        if (typeof(sresult) == TYPE_STR)
+          player:notify(sresult);
+          return;
+        endif
+        if (!sresult)
+          player:notify("No change.");
+          return;
+        endif
+      endif
+      player:notify_lines(option_pkg:show(player.(options), presult[1]));
+    endif
+  endverb
+
+  verb "@meas*ure" (any any any) owner: #2 flags: "rd"
+    "Syntax:";
+    "  @measure object <object name>";
+    "  @measure summary [player]";
+    "  @measure new [player]";
+    "  @measure breakdown <object name>";
+    "  @measure recent [number of days] [player]";
+    let what;
+    let name;
+    let size;
+    let days;
+    let who;
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    if (length(args) < 1)
+      player:tell_lines($code_utils:verb_documentation());
+      return;
+    endif
+    if (index("object", args[1]) == 1)
+      "Object.";
+      what = player.location:match_object(name = $string_utils:from_list(args[2..$], " "));
+      const lag = $login:current_lag();
+      if (!valid(what))
+        player:tell("Sorry, I didn't understand `", name, "'");
+      elseif ($object_utils:has_property(what, "object_size") && what.object_size[1] > $byte_quota_utils.too_large && !player.wizard && player != $byte_quota_utils.owner && player != $hacker && player != what.owner && lag > 0)
+        player:tell($string_utils:nn(what), " when last measured was ", $string_utils:group_number(what.object_size[1]), " bytes.  To reduce lag induced by multiple players re-measuring large objects multiple times, you may not measure that object.");
+      elseif (lag > 0 && `what.object_size[2] ! ANY => 0' > time() - 86400 && !$command_utils:yes_or_no(tostr("That object was measured only ", $string_utils:from_seconds(time() - what.object_size[2]), " ago.  Please don't lag the MOO by remeasuring things frequently.  Are you sure you want to remeasure it?")))
+        return player:tell("Not measuring.  It was ", $string_utils:group_number(what.object_size[1]), " bytes when last measured.");
+      else
+        player:tell("Checking size of ", what.name, " (", what, ")...");
+        player:tell("Size of ", what.name, " (", what, ") is ", $string_utils:group_number($byte_quota_utils:object_bytes(what)), " bytes.");
+      endif
+    elseif (index("summary", args[1]) == 1)
+      "Summarize player.";
+      if (length(args) == 1)
+        what = player;
+      else
+        what = $string_utils:match_player(name = $string_utils:from_list(args[2..$], " "));
+      endif
+      if (!valid(what))
+        player:tell("Sorry, I don't know who you mean by `", name, "'");
+      else
+        $byte_quota_utils:do_summary(what);
+      endif
+    elseif (index("new", args[1]) == 1)
+      if (length(args) == 1)
+        what = player;
+      else
+        what = $string_utils:match_player(name = $string_utils:from_list(args[2..$], " "));
+        if (!valid(what))
+          return $command_utils:player_match_failed(what, name);
+        endif
+      endif
+      player:tell("Measuring the sizes of ", what.name, "'s recently created objects...");
+      let total = 0;
+      const unmeasured_index = 4;
+      const unmeasured_multiplier = 100;
+      let nunmeasured = 0;
+      if (typeof(what.owned_objects) == TYPE_LIST)
+        for x in (what.owned_objects)
+          if (!$object_utils:has_property(x, "object_size"))
+            nunmeasured = nunmeasured + 1;
+          elseif (!x.object_size[1])
+            player:tell("Measured ", $string_utils:nn(x), ":  ", size = $byte_quota_utils:object_bytes(x), " bytes.");
+            total = total + size;
+          endif
+          $command_utils:suspend_if_needed(5);
+        endfor
+        if (nunmeasured && what.size_quota[unmeasured_index] < unmeasured_multiplier * nunmeasured)
+          what.size_quota[unmeasured_index] = what.size_quota[unmeasured_index] % unmeasured_multiplier + nunmeasured * unmeasured_multiplier;
+        endif
+        player:tell("Total bytes used in new creations: ", total, ".", nunmeasured ? tostr("There were a total of ", nunmeasured, " object(s) found with no .object_size property.  This will prevent additional building.") | "");
+      else
+        player:tell("Sorry, ", what.name, " is not enrolled in the object measurement scheme.");
+      endif
+    elseif (index("recent", args[1]) == 1)
+      "@measure recent days player";
+      if (length(args) > 1)
+        days = $code_utils:toint(args[2]);
+      else
+        days = $byte_quota_utils.cycle_days;
+      endif
+      !days && return player:tell("Couldn't understand `", args[2], "' as a positive integer.");
+      if (length(args) > 2)
+        who = $string_utils:match_player(name = $string_utils:from_list(args[3..$], " "));
+        !valid(who) && return $command_utils:player_match_failed(who, name);
+      else
+        who = player;
+      endif
+      if (typeof(who.owned_objects) == TYPE_LIST)
+        player:tell("Re-measuring objects of ", $string_utils:nn(who), " which have not been measured in the past ", days, " days.");
+        const when = time() - days * 86400;
+        let which = {};
+        for x in (who.owned_objects)
+          if (x.object_size[2] < when)
+            $byte_quota_utils:object_size(x);
+            which = setadd(which, x);
+            $command_utils:suspend_if_needed(3, "...measuring");
+          endif
+        endfor
+        player:tell("Done, re-measured ", length(which), " objects.", length(which) > 0 ? "  Recommend you use @measure summary to update the display of @quota." | "");
+      else
+        player:tell("Sorry, ", who.name, " is not enrolled in the object measurement scheme.");
+      endif
+    elseif (index("breakdown", args[1]) == 1)
+      what = player.location:match_object(name = $string_utils:from_list(args[2..$], " "));
+      if (!valid(what))
+        player:tell("Sorry, I didn't understand `", name, "'");
+      elseif (!$byte_quota_utils:can_peek(player, what.owner))
+        return player:tell("Sorry, you don't control ", what.name, " (", what, ")");
+      else
+        const mail = $command_utils:yes_or_no("This might be kinda long.  Want me to mail you the result?");
+        if (mail)
+          player:tell("Result will be mailed.");
+        endif
+        const info = $byte_quota_utils:do_breakdown(what);
+        if (typeof(info) == TYPE_ERR)
+          player:tell(info);
+        endif
+        if (mail)
+          $mail_agent:send_message($byte_quota_utils.owner, {player}, tostr("Object breakdown of ", what.name, " (", what, ")"), info);
+        else
+          player:tell_lines_suspended(info);
+        endif
+      endif
+    else
+      player:tell("Not a sub-command of @measure: ", args[1]);
+      player:tell_lines($code_utils:verb_documentation());
+    endif
+  endverb
+
+  verb "@listedit @pedit" (any none none) owner: #2 flags: "rd"
+    "@listedit|@pedit object.prop -- invokes the list editor.";
+    "   if you are editing a list of strings, you're better off using @notedit.";
+    $builder_feature in player.features || raise(E_PERM);
+    set_task_perms(player);
+    $list_editor:invoke(dobjstr, verb);
+  endverb
+
+  method feature_ok owner: #2
+    "Require the player class that supplies this command pack's methods and state.";
+    const {who} = args;
+    return valid(who) && $object_utils:isa(who, $builder);
+  endmethod
+endobject

@@ -1,0 +1,39 @@
+// Object, property, and verb naming on a UUID object through default-player commands.
+@wizard
+; object = create($root_class, #102); object.name = "AuthorProbe"; object.aliases = {"AuthorProbe"}; move(object, #102); add_property(#100, "author_probe", object, {#2, "r"}); add_property(object, "payload", 7, {#102, "r"}); add_property(object, "note_msg", "cat", {#102, "r"}); add_verb(object, {#102, "rxd", "primary alternate"}, {"this", "none", "none"}); return true;
+true
+
+@programmer
+% @rename AuthorProbe to RenamedProbe
+~~changed to "RenamedProbe"
+% @addalias spare,extra to RenamedProbe
+~~added to
+~~Aliases for
+% @rmalias spare from RenamedProbe
+~~removed from
+~~Aliases for
+% @rename RenamedProbe:primary to renamed alternate
+=Verb name changed.
+% @addalias other to RenamedProbe:renamed
+~~added to verb
+~~Verbname is now
+% @rmalias alternate from RenamedProbe:renamed
+~~removed from verb
+~~Verbname is now
+% @rename RenamedProbe.payload to renamed_payload
+=Property name changed.
+% @describe RenamedProbe as A revised description.
+=Description set.
+% @messages RenamedProbe
+=@note RenamedProbe is "cat"
+
+% @examine RenamedProbe
+~~is owned by
+~~Aliases:
+=A revised description.
+
+@wizard
+; object = #100.author_probe; return {object.name, "extra" in object.aliases > 0, "spare" in object.aliases == 0, verb_info(object, "renamed")[3], object.renamed_payload, object.description};
+{"RenamedProbe", true, true, "renamed other", 7, "A revised description."}
+; recycle(#100.author_probe); delete_property(#100, "author_probe"); return true;
+true

@@ -1,0 +1,11 @@
+// Command-only features must dispatch with ordinary player permissions.
+@nonprogrammer
+% @uptime
+~~has been up for
+
+% @age
+~~Test Player
+
+% @version
+~~server
+~~database

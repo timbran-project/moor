@@ -1,0 +1,13 @@
+// A receive hook that commits and edits the draft must not make send discard new work.
+@wizard
+; add_verb(#109, {player, "rxd", "receive_message"}, {"this", "none", "this"}); set_verb_code(#109, "receive_message", {"suspend(0);", "$mail_editor:insert_line($mail_editor:loaded(#101), {\"added during send\"}, true);", "return pass(@args);"}); return 1;
+1
+@nonprogrammer
+% @send *testmailbox subject=Draft
+% say original body
+% send
+@wizard
+; return {#101.location == $mail_editor, $mail_editor:text($mail_editor:loaded(#101)), #109.messages[1][2][$]};
+{true, {"original body", "added during send"}, "original body"}
+@nonprogrammer
+% abort

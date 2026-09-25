@@ -1,0 +1,30 @@
+// Creating and programming a verb on a runtime UUID object.
+
+@wizard
+; thing = $recycler:_create($thing); thing.name = "ProgProbe"; move(thing, player); return 1;
+1
+
+% @verb ProgProbe:greet this none this
+=Verb added (1).
+
+>> return "hello from probe";
+>> .
+% @program ProgProbe:greet
+~~Now programming
+~~[Type
+~~0 errors.
+~~Verb programmed.
+; return $string_utils:match_object("ProgProbe", player):greet();
+"hello from probe"
+
+// Cancellation leaves the verb untouched.
+>> @abort
+% @program ProgProbe:greet
+~~Now programming
+~~[Type
+~~Command Aborted
+; return $string_utils:match_object("ProgProbe", player):greet();
+"hello from probe"
+
+; probe = $string_utils:match_object("ProgProbe", player); $recycler:_recycle(probe); return $recycler:valid(probe);
+false

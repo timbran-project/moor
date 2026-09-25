@@ -1,0 +1,27 @@
+// UUID objects contribute to database counts and wizard activity reports.
+@wizard
+; add_property(#102, "test_report_output", {}, {#102, "r"}); v = add_verb(#102, {#102, "rxd", "notify"}, {"this", "none", "this"}); set_verb_code(#102, "notify", {"this.test_report_output = {@this.test_report_output, tostr(@args)};"}); owner = create($thing); o = create(#-1, owner); return 0;
+0
+
+@programmer
+% @dbsize
+; return `objects() ! E_PERM';
+E_PERM
+
+@wizard
+; for line in (#102.test_report_output) if (index(line, "There are ") == 1) return toint($string_utils:explode(line)[3]) == length(objects()); endif endfor return false;
+true
+; add_property(#2, "test_report_output", {}, {#2, "r"}); v = add_verb(#2, {#2, "rxd", "notify"}, {"this", "none", "this"}); set_verb_code(#2, "notify", {"this.test_report_output = {@this.test_report_output, tostr(@args)};"}); return 0;
+0
+% @players with objects
+; for line in (#2.test_report_output) if (index(line, "Non-player owner:") == 1) fields = $string_utils:explode(line); return toint(fields[3]); endif endfor return {};
+1
+
+// Installing a role feature does not grant its role permission.
+; #101.features = {@#101.features, $programmer_feature, $wizard_feature}; return 0;
+0
+@nonprogrammer
+% @dbsize
+=Programmer permission required.
+% @players with objects
+=Wizard permission required.

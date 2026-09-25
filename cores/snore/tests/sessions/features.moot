@@ -1,0 +1,56 @@
+// Ordinary players install and remove features through the public commands.
+@nonprogrammer
+% @add-feature #113
+=#113 (Command Test Feature) added as a feature.
+% reject-probe
+=I don't understand that.
+% @add-feature #113
+=#113 is already one of your features.
+% @remove-feature #113
+=#113 (Command Test Feature) removed from your features list.
+% @remove-feature #113
+=#113 is not one of your features.
+
+@wizard
+; #113.feature_ok = false; return 1;
+1
+@nonprogrammer
+% @add-feature #113
+=You can't seem to add #113 (Command Test Feature) to your features list.
+
+// UUID identifiers need a separator before the feature name in the listing.
+@wizard
+; $player_db:insert(#101.name, #101); feature = create($feature); feature.name = "UUID Feature"; feature.aliases = {"uuid-feature"}; #101.features = {feature}; return 1;
+1
+@nonprogrammer
+% @features
+~~Feature
+~~----
+~~ UUID Feature
+~~----
+=1 feature found.
+% @features uuid-f
+~~Feature
+~~----
+~~ UUID Feature
+~~----
+=1 feature found matching "uuid-f".
+% @features for #101
+~~Feature
+~~----
+~~ UUID Feature
+~~----
+=1 feature found.
+
+% @features uuid-f for #101
+~~Feature
+~~----
+~~ UUID Feature
+~~----
+=1 feature found matching "uuid-f".
+% @features missing for #101
+=No features found on Test Player (#101) matching "missing".
+% @remove-feature uuid-feature
+~~removed from your features list.
+% @features for #101
+=No features found on Test Player (#101).

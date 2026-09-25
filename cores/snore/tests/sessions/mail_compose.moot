@@ -1,0 +1,53 @@
+// Composing and sending a message through the mail editor.
+@nonprogrammer
+>> probe subject
+% @send #102
+~~Subject:
+~~[Type a line
+~~Mail Room
+=
+~~Do a
+=
+~~Composing
+
+% say compose body line
+=Line 1 added.
+% publish
+=Your text is now globally readable.
+% print
+=Your message so far:
+=
+~~Date:
+~~From:
+~~To:
+~~Subject:
+=
+=compose body line
+=--------------------------
+% unpublish
+=Your text is read protected.
+% send
+~~Sending
+~~Mail actually sent
+
+@programmer
+; return 1;
+1
+~~flattens out
+~~You have new mail
+~~Type `help mail'
+~~fattens up
+
+% @mail
+~~probe subject
+~~----+
+
+% @read 1
+~~Message 1:
+~~Date:
+~~From:
+~~To:
+~~Subject:
+=
+~~compose body line
+~~---

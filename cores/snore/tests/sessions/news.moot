@@ -1,0 +1,53 @@
+// News publication, reading, subscriptions, and notices through mock sessions.
+// Subscription options are set by eval to isolate the news display scenarios.
+
+// Reset the seeded edition, deliver an article, and publish it.
+@wizard
+; $news:set_current_news({}); return 1;
+1
+; return $mail_agent:send_message(player, {$news}, "News subject", {"News body line."});
+{1, #61}
+% @addnews $ to #61
+~~new edition
+=Current newspaper set.
+~~News subject
+~~----+
+
+// A player reads the current edition.
+@nonprogrammer
+; return 1;
+~~new edition
+
+% news
+~~It's the current issue
+=
+~~, 20
+~~NEWS SUBJECT
+~~News body line.
+=
+~~(end)
+
+% news new
+=The news has no new messages.
+
+// Denied: a non-writer cannot publish.
+% @addnews $ to #61
+=You can't write the news.
+
+// The contents option lists headers only.
+@wizard
+; return #101.mail_options = ["news" -> "contents"];
+["news" -> "contents"]
+
+@nonprogrammer
+% news
+~~News subject
+~~----+
+
+// The unread-news notice follows the player's option.
+@programmer
+; return 1;
+~~new edition
+; $news:check(); return 1;
+1
+~~There is new news

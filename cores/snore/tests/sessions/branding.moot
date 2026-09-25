@@ -1,0 +1,18 @@
+// Fresh imports expose the same identity and news template through core APIs.
+@wizard
+; return $seq_utils:tolist($news.current_news) == {1} && length($news.messages) == 1;
+true
+; return $news.messages[1][2][4] == "Welcome to Snore Core" && $news.messages[1][2][6..$] == $wiz_utils.new_core_message;
+true
+; return $mail_agent.moo_name;
+"Snore Core"
+
+@nonprogrammer
+% @version
+~~server
+=The database uses Snore Core, a LambdaCore fork for mooR.
+
+% help introduction
+=Welcome to Snore Core -- just boring enough. This LambdaCore fork for mooR keeps familiar MOO commands and live programming.
+=
+=Explore rooms, talk to other players, try the objects they build, and create places and things of your own. Type help index for topics.

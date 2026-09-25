@@ -1,0 +1,33 @@
+// Feature commands must deliver listing output to the active player.
+@wizard
+% @who
+~~Player name
+~~---
+~~ (#
+~~ (#
+~~ (#
+=
+~~Total: 3 players
+
+% @wizards all
+~~Player name
+~~---
+~~Wizard (#2)
+=
+~~Total: 1 player
+
+@nonprogrammer
+% @who #101
+~~Player name
+~~---
+~~Test Player (#101)
+=
+~~Total: 1 player
+
+// An offline entry exercises the recipient's ctime override/fallback.
+% @who #36
+~~Player name
+~~---
+~~Hacker (#36)
+=
+~~Total: 1 player

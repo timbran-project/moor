@@ -1,0 +1,15 @@
+// Revoke dictionary trust at the input boundary. The resumed command must not remove a word.
+@wizard
+; add_property(#100, "saved_read", verb_code($command_utils, "read"), {#2, ""}); $spell.trusted = {#101}; $spell.submitted = {"snorependingword"}; return set_verb_code($command_utils, "read", {"$spell.trusted = {};", "suspend(0);", "return \"snorependingword\";"});
+0
+
+@nonprogrammer
+% @rmsubmitted
+=Which word do you want removed from the submission list?
+=Permissions error. Command cancelled.
+
+@wizard
+; return $spell.submitted;
+{"snorependingword"}
+; set_verb_code($command_utils, "read", #100.saved_read); delete_property(#100, "saved_read"); return true;
+true

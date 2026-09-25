@@ -1,0 +1,49 @@
+// Headless command scenarios: real command dispatch against the imported core.
+// Commands run as the non-programmer fixture (#101). `;` evals run as the wizard:
+// the core restricts eval to programmers, so non-programmer evals return E_PERM
+// and would mask assertion results.
+//
+// Command invocation permissions are covered by the merged runtime regressions.
+
+@wizard
+; return #101.location;
+#103
+
+// look executes the room look path for a normal player
+@nonprogrammer
+% look
+
+// movement through fixture exits
+% east
+@wizard
+; return #101.location;
+#104
+
+@nonprogrammer
+% west
+@wizard
+; return #101.location;
+#103
+
+// take and drop move the fixture thing
+; return #107.location;
+#103
+
+@nonprogrammer
+% take thing
+@wizard
+; return #107.location;
+#101
+
+@nonprogrammer
+% drop thing
+@wizard
+; return #107.location;
+#103
+
+// speech command path executes for a normal player
+@nonprogrammer
+% say hello
+@wizard
+; return 1;
+1

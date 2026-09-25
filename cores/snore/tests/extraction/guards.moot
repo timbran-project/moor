@@ -1,0 +1,20 @@
+@wizard
+// Privileged entry points reject callers whose effective principal is not a wizard.
+; set_task_perms($hacker); return `#2:_mcd_start({}, {{}, {}, {}, {}, {}}) ! E_PERM';
+E_PERM
+; return `$wizard_feature.__mcd__state ! E_PROPNF';
+E_PROPNF
+; return `#2:_mcd_start({}, {{#0}, {}, {}, {}, {}}) ! E_INVARG';
+E_INVARG
+// Cancellation through the command path leaves state and personal properties untouched.
+>> no
+% make-core-database
+~~This destroys world data.
+=Core database extraction aborted.
+; return {length(objects()), `$wizard_feature.__mcd__state ! E_PROPNF'};
+{95, E_PROPNF}
+// A malformed selection hook fails before extraction is recorded.
+; const probe = create($root_class, #2); add_property(#0, "extraction_probe", probe, {#2, "r"}); add_verb(probe, {#2, "rxd", "include_for_core"}, {"this", "none", "this"}); set_verb_code(probe, "include_for_core", {"return false;"}); return `$core_object_info() ! E_TYPE';
+E_TYPE
+; return {length(objects()), `$wizard_feature.__mcd__state ! E_PROPNF'};
+{96, E_PROPNF}

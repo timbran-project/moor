@@ -1,0 +1,58 @@
+// Role classes install their packs; command dispatch still checks server authority.
+@wizard
+; chparent(#101, $builder); $quota_utils:initialize_quota(#101); #101.owned_objects = {}; #101.description = "A builder testing role promotion."; return #101.features;
+{$pasting_feature, $stage_talk, $utility_feature, $builder_feature}
+
+@nonprogrammer
+% @create $thing called RoleBuildProbe
+~~You now have RoleBuildProbe
+% @verb RoleBuildProbe:probe this none this
+=I don't understand that.
+
+// Even an explicitly installed programmer pack cannot grant the programmer flag.
+@wizard
+; #101.features = setadd(#101.features, $programmer_feature); return #101.programmer != 0;
+false
+@nonprogrammer
+% @verb RoleBuildProbe:probe this none this
+=Programmer permission required.
+
+@wizard
+% @programmer #101
+~~is now a programmer.
+~~have been notified.
+; return {#101.programmer != 0, parent(#101), $wizard_feature in #101.features};
+{true, $prog, 0}
+
+@nonprogrammer
+; return 1;
+1
+=You are now a programmer.
+~~You have new mail
+~~Type `help mail
+% @verb RoleBuildProbe:probe this none this
+=Verb added (1).
+>> return "role dispatch works";
+>> .
+% @program RoleBuildProbe:probe
+~~Now programming
+~~[Type
+~~0 errors.
+~~Verb programmed.
+% @args RoleBuildProbe:probe any with any
+=Verb arguments changed.
+
+@wizard
+; probe = $string_utils:match_object("RoleBuildProbe", #101); return {probe:probe(), verb_args(probe, "probe")};
+{"role dispatch works", {"any", "with/using", "any"}}
+~~*New-Prog-Log
+% @log role dispatch check
+=One-line comment logged.
+% @make-player
+=Syntax:  @make-player name email-address comments....
+; return (#2 in $wiz_utils:all_wizards()) != 0;
+true
+
+@nonprogrammer
+% @recycle RoleBuildProbe
+~~recycled.

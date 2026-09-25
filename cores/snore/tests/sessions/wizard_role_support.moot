@@ -1,0 +1,19 @@
+// Wizard helpers accept calls from the separate pack with wizard authority.
+@wizard
+; return `#102:editor_access(player, "toad_cleanup", #101) ! ANY';
+E_PERM
+; return #102:editor_access(player, "check_site_entries", false, "blacklist", "example.invalid", false, {});
+E_PERM
+; result = $wiz_utils:make_player("RoleToadProbe", "role@example.invalid"); return is_player(result[1]) != 0;
+true
+% @toad RoleToadProbe role support test
+; return $player_db:find_exact("RoleToadProbe") == $failed_match;
+true
+
+% @blacklist role-pack.example.invalid role support test
+; return ("role-pack.example.invalid" in $login.blacklist[2]) != 0;
+true
+>> no
+% @unblacklist role-pack.example.invalid role support test
+; return ("role-pack.example.invalid" in $login.blacklist[2]) == 0;
+true

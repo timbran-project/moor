@@ -1,0 +1,10 @@
+@wizard
+// Repeated references share a proxy; an unsaved intermediate parent is removed.
+; const unwanted_parent = create($root_class, #2); const kept = create(unwanted_parent, #2); const original = create($root_class, #2); add_property(#0, "extraction_proxy", original, {#2, "r"}); add_property(#0, "extraction_alias", original, {#2, "r"}); add_property(#0, "extraction_target", kept, {#2, "r"}); add_property(#0, "extraction_old", {original, unwanted_parent}, {#2, ""}); add_property(#0, "extraction_calls", 0, {#2, ""}); add_verb(original, {#2, "rxd", "proxy_for_core"}, {"this", "none", "this"}); set_verb_code(original, "proxy_for_core", {"$extraction_calls = $extraction_calls + 1;", "return $extraction_target;"}); return true;
+true
+; const selection = $core_object_info(); #2:_mcd_start({}, selection); return {$extraction_calls, length(selection[4]), length(selection[3])};
+{1, 1, 1}
+; while (#2:_mcd_step()) suspend(0); endwhile return true;
+true
+; return {$extraction_proxy == $extraction_target, $extraction_alias == $extraction_target, !is_uuobjid($extraction_target), parent($extraction_target) == $root_class, {o for o in ($extraction_old) if valid(o)}, $extraction_calls};
+{true, true, true, true, {}, 1}

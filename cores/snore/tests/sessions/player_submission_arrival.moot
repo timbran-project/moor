@@ -1,0 +1,20 @@
+// New submissions arriving at the final confirmation survive clearing the reviewed batch.
+@wizard
+; add_property(#100, "saved_confirm", verb_code($command_utils, "yes_or_no"), {#2, ""}); add_property(#100, "confirm_count", 0, {#2, ""}); $spell.trusted = {#101}; $spell.submitted = {"snorereviewedword"}; return set_verb_code($command_utils, "yes_or_no", {"#100.confirm_count = #100.confirm_count + 1;", "if (#100.confirm_count == 4)", "$spell.submitted = setadd($spell.submitted, \"snorearrivedword\");", "suspend(0);", "return true;", "endif", "return false;"});
+0
+
+@nonprogrammer
+% @addsubmitted
+~~A total of 1 words
+=Word added: snorereviewedword
+=End of submissions.
+= 1 words added
+= 0 words errored
+=
+~~cleared.
+
+@wizard
+; return $spell.submitted;
+{"snorearrivedword"}
+; set_verb_code($command_utils, "yes_or_no", #100.saved_confirm); delete_property(#100, "saved_confirm"); delete_property(#100, "confirm_count"); return true;
+true

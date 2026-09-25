@@ -1,0 +1,11 @@
+// Guest lifecycle without the connection path: defer returns an unused guest
+// and the guest carries its player state. tests/wire.py covers guest login.
+@wizard
+; return #31:defer();
+#31
+
+; return $object_utils:isa(#31, $guest);
+true
+
+; return #31.free_to_use;
+true

@@ -1,0 +1,21 @@
+// Callback order, authority, empty inputs, and transactions through the public methods.
+@wizard
+; #100.tx_probe = {}; return true;
+true
+; const target = #100; fn key(item) target.tx_probe = {@target.tx_probe, item}; return item % 2; endfn return $list_utils:sort_by({3, 2, 1, 4}, key);
+{2, 4, 3, 1}
+; return #100.tx_probe;
+{3, 2, 1, 4}
+; #100.tx_probe = {}; const target = #100; fn callback(item) if (item == 2) raise(E_INVARG, "callback stopped"); endif target.tx_probe = {@target.tx_probe, item}; suspend(0); return item; endfn return `$list_utils:map({1, 2, 3}, callback) ! E_INVARG';
+E_INVARG
+; return #100.tx_probe;
+{1}
+; #100.tx_probe = 0; return true;
+true
+@programmer
+; return $list_utils:map({1}, {item} => {this, caller_perms(), player});
+{{$list_utils, #100.test_programmer, #100.test_programmer}}
+; const target = #100; return `$list_utils:map({1}, {item} => target.utility_private) ! E_PERM';
+E_PERM
+; return {$list_utils:map({}, {item} => 1 / 0), $list_utils:filter({}, {item} => 1 / 0), $list_utils:sort_by({}, {item} => 1 / 0)};
+{{}, {}, {}}

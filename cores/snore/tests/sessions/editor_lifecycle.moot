@@ -1,0 +1,55 @@
+// Pause and quit retain unsaved work; abort discards it; save persists it.
+@wizard
+; $quota_utils:initialize_quota(#102); #102.owned_objects = {}; return 1;
+1
+@programmer
+; note = $recycler:_create($thing); note.name = "LifecycleNote"; move(note, player); note.description = {"saved"}; return 1;
+1
+% @notedit LifecycleNote
+% say pending
+% pause
+; return player.location;
+#103
+% @notedit
+; return $note_editor:text($note_editor:loaded(player));
+{"saved", "pending"}
+% quit
+; return player.location;
+#103
+% @notedit
+% abort
+; return {$note_editor:loaded(player), $string_utils:match_object("LifecycleNote", player).description};
+{0, {"saved"}}
+% done
+; return player.location;
+#103
+% @notedit LifecycleNote
+% say final
+% save
+% done
+; return {$note_editor:loaded(player), $string_utils:match_object("LifecycleNote", player).description};
+{0, {"saved", "final"}}
+
+// Invalid and rejecting return rooms leave the player in the editor.
+% @notedit LifecycleNote
+@wizard
+; $note_editor:set_origin($note_editor:loaded(#102), $nothing); return 1;
+1
+@programmer
+% done
+; return player.location == $note_editor;
+true
+@wizard
+; room = $recycler:_create($room); add_property(#0, "lifecycle_reject_room", room, {player, "r"}); add_verb(room, {player, "rxd", "accept"}, {"this", "none", "this"}); set_verb_code(room, "accept", {"return false;"}); $note_editor:set_origin($note_editor:loaded(#102), room); return 1;
+1
+@programmer
+% done
+; return player.location == $note_editor;
+true
+@wizard
+; $note_editor:set_origin($note_editor:loaded(#102), #103); $recycler:_recycle($lifecycle_reject_room); delete_property(#0, "lifecycle_reject_room"); return 1;
+1
+@programmer
+% done
+; note = $string_utils:match_object("LifecycleNote", player); $recycler:_recycle(note); return player.location;
+#103

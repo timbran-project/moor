@@ -1,0 +1,127 @@
+// Buffer commands preserve the line and cursor rules in lambda-moor's editor help.
+@wizard
+; $quota_utils:initialize_quota(#102); #102.owned_objects = {}; return true;
+true
+
+@programmer
+; const note = $recycler:_create($thing); note.name = "BufferProbe"; move(note, player); note.description = {"one", "two", "three", "four", "five", "six"}; return true;
+true
+% @notedit BufferProbe
+~~Note Editor
+=
+~~Do a
+=
+~~Now editing
+
+// Copy at the cursor leaves the cursor after the inserted lines.
+% insert 3
+~~two
+~~three
+% copy 1-2 to .
+=Lines copied.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active), !!$note_editor:changed(player in $note_editor.active)};
+{{"one", "two", "one", "two", "three", "four", "five", "six"}, 5, true}
+; return typeof($note_editor:changed(player in $note_editor.active));
+TYPE_BOOL
+
+// Moving a range carries an interior cursor in either direction.
+; const who = player in $note_editor.active; $note_editor:load(who, {"one", "two", "three", "four", "five", "six"}); return true;
+true
+% insert 4
+~~three
+~~four
+% move 3-4 to 1
+=Lines moved.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"three", "four", "one", "two", "five", "six"}, 2}
+
+; const who = player in $note_editor.active; $note_editor:load(who, {"one", "two", "three", "four", "five", "six"}); return true;
+true
+% insert 2
+~~one
+~~two
+% move 1-2 to 7
+=Lines moved.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"three", "four", "five", "six", "one", "two"}, 6}
+; return typeof($note_editor:changed(player in $note_editor.active));
+TYPE_BOOL
+
+// Rejected edits preserve a clean buffer and its cursor.
+; const who = player in $note_editor.active; $note_editor:load(who, {"one", "two", "three"}); return true;
+true
+% insert 2
+~~one
+~~two
+% move 1-2 to 2
+=Destination lies inside range of lines to be moved.
+% copy 1 to 99
+=Destination (99) out of range.
+% copy 1
+=copy to where? 
+% copy from 1 to 2
+=Don't use that kind of range specification with this command.
+% copy 1 junk to 2
+=Junk before `to':  junk
+% delete 1 junk
+=Junk at end of cmd:  junk
+% insert 99
+=That would take you out of range (to line 99?).
+% next nope
+=Argument must be a number.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active), !!$note_editor:changed(player in $note_editor.active)};
+{{"one", "two", "three"}, 2, false}
+
+% next
+~~three
+% previous
+~~one
+; return {$note_editor:insertion(player in $note_editor.active), $note_editor:changed(player in $note_editor.active)};
+{2, false}
+
+// Deletion is the first edit after a load, so it must store a boolean change flag.
+% delete 3
+=three
+=---Line deleted.  Insertion point is before line 3.
+; return typeof($note_editor:changed(player in $note_editor.active));
+TYPE_BOOL
+; $note_editor:load(player in $note_editor.active, {"one", "two", "three"}); return true;
+true
+
+// An empty quoted string is an insertion, not just cursor motion.
+% insert 1 "
+=Line 1 added.
+% emote prefix
+=Appended to line 1.
+% say middle
+=Line 2 added.
+% delete 2-3
+=middle
+=one
+=---Lines deleted.  Insertion point is before line 2.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"prefix", "two", "three"}, 2}
+
+% joinliteral 1-2
+~~prefixtwo
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"prefixtwo", "three"}, 2}
+% join 1
+=Need at least two lines to join.
+% join 1-2 junk
+=Junk at end of cmd:  junk
+% join 1-2
+~~prefixtwo three
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"prefixtwo three "}, 2}
+
+% save
+~~Text written
+% done
+~~Test Chamber
+~~A bare room used by the automated tests.
+~~There is nothing here.
+~~baseline thing
+~~are here.
+; const note = $string_utils:match_object("BufferProbe", player); const text = note.description; $recycler:_recycle(note); return text;
+{"prefixtwo three "}

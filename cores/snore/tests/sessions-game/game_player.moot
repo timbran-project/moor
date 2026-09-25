@@ -1,0 +1,43 @@
+// The game branch shares mail/player services without default-class or ambient utilities.
+@nonprogrammer
+% say hi there
+=You say, "hi there"
+
+% @who
+=I don't understand that.
+
+% @go nowhere
+=I don't understand that.
+
+% @audit
+=I don't understand that.
+
+% @rename me to SomeoneElse
+=I don't understand that.
+% @examine me
+=I don't understand that.
+% examine thing
+=I don't understand that.
+% @edit me.description
+=I don't understand that.
+% @features
+=I don't understand that.
+% @eject thing
+=I don't understand that.
+% @exits
+=I don't understand that.
+% @opacity testbox is 1
+=I don't understand that.
+% @mail
+=You have no messages.
+% inventory
+=You are empty-handed.
+% east
+@wizard
+; return #108.location;
+#104
+@nonprogrammer
+% west
+@wizard
+; return #108.location;
+#103

@@ -1,0 +1,8 @@
+@wizard
+// Selected UUID owners retain object, verb, and property ownership after numbering.
+; const owner = create($prog, #2); set_player_flag(owner, 1); owner.programmer = true; owner.owner = owner; const child = create($root_class, owner); add_property(#0, "extraction_owner", owner, {#2, "r"}); add_property(owner, "child", child, {owner, "r"}); add_verb(owner, {#2, "rxd", "include_for_core"}, {"this", "none", "this"}); set_verb_code(owner, "include_for_core", {"return {\"child\"};"}); add_property(child, "payload", 42, {owner, "r"}); add_verb(child, {owner, "rxd", "probe"}, {"this", "none", "this"}); set_verb_code(child, "probe", {"return this.payload;"}); return true;
+true
+; #2:_mcd_start({}, $core_object_info()); while (#2:_mcd_step()) suspend(0); endwhile return true;
+true
+; const owner = $extraction_owner; const child = owner.child; return {is_uuobjid(owner), owner.owner == owner, child.owner == owner, property_info(child, "payload")[1] == owner, verb_info(child, "probe")[1] == owner, child:probe()};
+{false, true, true, true, true, 42}

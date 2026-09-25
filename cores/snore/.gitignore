@@ -1,0 +1,9 @@
+# Generated exports, disposable test worlds, and local running worlds.
+/gen.*
+/target/
+__pycache__/
+*.py[cod]
+
+# Override the repository-wide session-state exclusion for committed scenarios.
+!/tests/sessions/
+!/tests/sessions/**

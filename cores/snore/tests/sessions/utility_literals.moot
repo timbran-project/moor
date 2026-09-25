@@ -1,0 +1,26 @@
+// Authoring commands consume modern data literals with ordinary programmer permissions.
+@wizard
+; $quota_utils:initialize_quota(#102); #102.owned_objects = {}; return true;
+true
+
+@programmer
+% @create $thing called LiteralProbe
+~~You now have LiteralProbe
+
+% @property LiteralProbe.settings ['enabled -> true, 'labels -> {"one two", "three"}]
+~~Property added with value
+
+; const object = player:match("LiteralProbe"); return object.settings;
+['enabled -> true, 'labels -> {"one two", "three"}]
+
+% @set LiteralProbe.settings to ['enabled -> false, 'labels -> {}]
+~~set to
+
+; const object = player:match("LiteralProbe"); return object.settings;
+['enabled -> false, 'labels -> {}]
+
+; const object = player:match("LiteralProbe"); return $object_utils:connected(object);
+false
+
+% @recycle LiteralProbe
+~~recycled.

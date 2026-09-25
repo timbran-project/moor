@@ -16,6 +16,11 @@ the main mooR project.
 - **Original LambdaCore Location**: The original official LambdaCore releases previously at
   parcftp.xerox.com are now available at https://lambda.moo.mud.org/pub/MOO/
 
+### snore/
+
+Snore Core forks LambdaCore through the lambda-moor port. Its inherited attribution and licensing
+notes are in [snore/LICENSE.md](snore/LICENSE.md).
+
 ### JHCore-DEV-2.db
 
 - **Source**: JHCore development database (originally derived from LambdaCore)

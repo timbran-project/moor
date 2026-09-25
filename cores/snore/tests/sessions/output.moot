@@ -1,0 +1,8 @@
+// Multi-line output arrives complete, without pager prompts or wrapping.
+// The pager state and commands are covered by #100:test_pager_removed.
+@wizard
+; return #2:notify_lines({"alpha", "beta", "gamma"});
+false
+=alpha
+=beta
+=gamma

@@ -1,0 +1,45 @@
+// Exercise travel and object transfers through the ordinary player's command path.
+@nonprogrammer
+% go east west
+@wizard
+; return #101.location;
+#103
+
+@nonprogrammer
+% take thing
+@wizard
+; return #107.location;
+#101
+@nonprogrammer
+% give thing to #102
+@wizard
+; return #107.location;
+#102
+@programmer
+% drop thing
+@wizard
+; return #107.location;
+#103
+; #107.key = #101; return 1;
+1
+
+@nonprogrammer
+% take thing
+% give thing to #102
+@wizard
+; return #107.location;
+#101
+@nonprogrammer
+// An object key also permits a destination that contains the key holder.
+% drop thing
+@wizard
+; return #107.location;
+#103
+; #107.key = 0; return 1;
+1
+@nonprogrammer
+% take thing
+% drop thing
+@wizard
+; return #107.location;
+#103

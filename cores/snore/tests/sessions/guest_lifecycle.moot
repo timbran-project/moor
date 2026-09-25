@@ -1,0 +1,52 @@
+// Guest lifecycle through the daemon connect/disconnect/reconnect hooks. Each hook is
+// submitted as a root task on #0 under system authority, mirroring the connection host.
+
+@wizard
+// The shipped default guest is a player the login path can match.
+; return {is_player($default_guest), $player_db:find_exact("guest")};
+{true, #110}
+
+// Connect the guest. The hook runs confunc and reports the guest as connected.
+@@ user_connected #110
+; return {$object_utils:connected($default_guest), $default_guest.free_to_use, $default_guest.location};
+{true, true, $player_start}
+
+// Private state that must not survive guest reuse.
+; $default_guest.gaglist = {player}; $default_guest.description = {"Spun by a previous guest"}; $default_guest.mail_options = ["news" -> "all"]; $default_guest.messages = {{1, {"From", "on", "date"}}}; return 1;
+1
+; return {length($default_guest.messages), $default_guest.gaglist, $default_guest.mail_options, $default_guest.description};
+{1, {#2}, ["news" -> "all"], {"Spun by a previous guest"}}
+
+; $default_guest.refused_origins = {$nothing}; $default_guest.refused_actions = {{"page"}}; $default_guest.refused_until = {time() + 600}; $default_guest.refused_extra = {{0}}; $default_guest.messages_kept = {1}; return true;
+true
+
+// Disconnect resets the guest for the next visitor and parks it in limbo.
+@@ user_disconnected #110
+; return {length($default_guest.messages), $default_guest.gaglist, $default_guest.mail_options, $default_guest.description, $default_guest.free_to_use, $default_guest.location};
+{0, {}, [], {"By definition, guests appear nondescript."}, true, $limbo}
+
+; return {$default_guest.refused_origins, $default_guest.refused_actions, $default_guest.refused_until, $default_guest.refused_extra, $default_guest.messages_kept};
+{{}, {}, {}, {}, {}}
+
+// An unavailable guest must finish cleanup before being offered again.
+; $default_guest.free_to_use = false; return $default_guest:defer();
+#-1
+; $default_guest.free_to_use = true; return true;
+true
+
+// A disconnected, free guest is available again.
+; return $default_guest:defer();
+#110
+
+// A connected guest that is not free is not handed out.
+@@ user_connected #110
+; $default_guest.free_to_use = false; return $default_guest:defer();
+#-1
+
+// Reconnect resets and returns a guest to the starting room.
+@@ user_reconnected #110
+; return {$default_guest.location == $default_guest.home, length($default_guest.messages)};
+{true, 0}
+@@ user_disconnected #110
+; return $default_guest.free_to_use;
+true

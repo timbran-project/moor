@@ -1,0 +1,91 @@
+// Custom parsing through the real server do_command hook.
+@wizard
+; #101.features = {@#101.features, #113}; move(#114, #103); move(#115, #103); return 1;
+1
+
+@nonprogrammer
+% pp copper sphere with silver orb
+@wizard
+; return #101.command_trace;
+{#114, #115, "copper sphere", "silver orb", "with", "copper sphere with silver orb", {"copper", "sphere", "with", "silver", "orb"}, #-1}
+
+@nonprogrammer
+% pp bronze
+@wizard
+; return #101.command_trace[1];
+#114
+
+@nonprogrammer
+% pp bronse orb
+@wizard
+; return #101.command_trace[1];
+#114
+
+@nonprogrammer
+% activate orb
+@wizard
+; return #101.command_trace;
+{"activated", #114, #114}
+
+// Ordinals follow the supplied room scope, not object numbers or move order.
+@nonprogrammer
+% pp first orb
+@wizard
+; return #101.command_trace[1];
+(#114 in #103.contents) < (#115 in #103.contents) ? #114 | #115
+@nonprogrammer
+% pp second orb
+@wizard
+; return #101.command_trace[1];
+(#114 in #103.contents) < (#115 in #103.contents) ? #115 | #114
+@nonprogrammer
+% pp first orb
+@wizard
+; return #101.command_trace[1];
+(#114 in #103.contents) < (#115 in #103.contents) ? #114 | #115
+
+@nonprogrammer
+% player-first
+@wizard
+; return #101.command_trace;
+{"player"}
+@nonprogrammer
+% feature-first
+@wizard
+; return #101.command_trace;
+{"feature"}
+; #101.features = setremove(#101.features, #113); return 1;
+1
+@nonprogrammer
+% feature-first
+@wizard
+; return #101.command_trace;
+{"room"}
+; #101.features = {@#101.features, #113}; #103.extra_match_objects = {{#116, "ghost rune"}}; return 1;
+1
+@nonprogrammer
+% awaken ghost rune
+@wizard
+; return #101.command_trace;
+{"awakened", #116}
+; return 1;
+1
+
+// Feature hooks retain public-method redirects and command-only redirects.
+@nonprogrammer
+% redirect-method alpha beta
+@wizard
+; return #101.command_trace;
+{"redirect", {"alpha", "beta"}}
+@nonprogrammer
+% redirect-command #114 with #115
+@wizard
+; return #101.command_trace;
+{#114, #115, "#114", "#115", "with", "#114 with #115", {"#114", "with", "#115"}, #-1}
+; #101.command_trace = {}; return 1;
+1
+@nonprogrammer
+% reject-probe
+@wizard
+; return #101.command_trace;
+{}

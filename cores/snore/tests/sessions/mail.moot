@@ -1,0 +1,74 @@
+// Mail delivery, listing, reading, and removal through mock sessions.
+
+// Deliver two messages to the fixture player.
+@wizard
+; return $mail_agent:send_message(player, {#101}, "First session subject", {"First body line."});
+{1, #101}
+
+// The recipient is notified while mail is unread.
+@nonprogrammer
+; return 1;
+~~You have new mail (1)
+~~Type `help mail'
+
+@wizard
+; return $mail_agent:send_message(player, {#101}, "Second session subject", {"Second body line."});
+{1, #101}
+
+@nonprogrammer
+; return 1;
+~~You have new mail (2)
+~~Type `help mail'
+
+// @mail lists oldest first; @read shows one message in full.
+% @mail
+~~2 messages:
+~~First session subject
+~~Second session subject
+~~----+
+
+% @read 1
+~~Message 1:
+~~Date:
+~~From:
+~~To:
+~~Subject:
+=
+~~First body line.
+~~---
+
+// Removed messages leave the folder only after expunge.
+@wizard
+; return #101:rm_message_seq({1, 2});
+"1"
+; return #101:expunge_rmm();
+1
+
+@nonprogrammer
+% @read 2
+~~Message 2:
+~~Date:
+~~From:
+~~To:
+~~Subject:
+=
+~~Second body line.
+~~---
+
+// Denied: another player cannot read or remove from this mailbox.
+@programmer
+; return `#101:messages_in_seq({1, 2}) ! E_PERM';
+E_PERM
+; return `#101:rm_message_seq({1, 2}) ! E_PERM';
+E_PERM
+
+// The owner can clear the rest.
+@wizard
+; return #101:rm_message_seq({1, 2});
+"2"
+; return #101:expunge_rmm();
+1
+
+@nonprogrammer
+% @mail
+=You have no messages.

@@ -1,0 +1,52 @@
+// Sticky subscriptions, reading markers, quick mail, and unsend.
+@wizard
+; #109.readers = 1; #109.writers = {#101}; return $mail_agent:send_message(player, {#109}, "Folder subject", {"Folder body"});
+{1, #109}
+@nonprogrammer
+% @mail-option +sticky
+% @subscribe *testmailbox
+; return player:current_folder();
+#109
+% @read 1
+% @unread 1
+; return player:get_current_message(#109)[2] == #109:messages_in_seq(1)[2][1] - 1;
+true
+% @rmm 1 from *testmailbox
+% @unrmm on *testmailbox
+; return #109:length_all_msgs();
+1
+% @unsubscribe *testmailbox
+; return player:current_folder();
+#101
+
+// A refusal to update reading markers must survive successful notify().
+@wizard
+; #101.messages = {{1, {time(), "Wizard (#2)", "Test Player (#101)", "Unread subject", "", "Unread body"}}}; #101.current_message = {0, 0}; return 1;
+1
+@nonprogrammer
+% @ranm no
+; return player:get_current_message();
+{0, 0}
+
+// A foreign From header reports E_PERM rather than indexing an error value.
+>> From: Wizard (#2)
+>> To: Test Programmer (#102)
+>> Subject: Forgery
+>>
+>> Body
+>> .
+% @@sendmail
+
+@wizard
+; #101.messages = {}; #102.messages = {}; #101.current_message = {0, 0}; #102.current_message = {0, 0}; return 1;
+1
+% @qsend "#101 #102" subj=Unsend body
+% @unsend last:1 from #101
+; return {length(#101.messages), length(#102.messages)};
+{0, 0}
+% @qsend "#101 #102" subj=Keep body
+; #102.current_message[2] = #102.messages[1][2][1]; return 1;
+1
+% @unsend last:1 from #101
+; return {length(#101.messages), length(#102.messages)};
+{1, 1}

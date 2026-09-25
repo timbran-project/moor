@@ -1,0 +1,19 @@
+// Mixed property data includes mooR booleans/maps; only its strings are spellchecked.
+@wizard
+; object = create($root_class, #101); object.name = "SpellProbe"; object.aliases = {"SpellProbe"}; move(object, #101); add_property(object, "probe_msg", {true, ["tag" -> 1], "cat"}, {#101, "r"}); add_property(#100, "spell_probe", object, {#2, "r"}); return true;
+true
+
+@nonprogrammer
+% @spellmessages SpellProbe
+~~Done spellchecking
+% @addword snorepersonalword
+=Word added:  snorepersonalword
+=1 word added to personal dictionary.
+% @spell snorepersonalword
+=Found no misspelled words.
+% @rmword snorepersonalword
+=`snorepersonalword' removed from personal dictionary.
+
+@wizard
+; recycle(#100.spell_probe); delete_property(#100, "spell_probe"); return true;
+true

@@ -1,0 +1,2 @@
+# Raw output expectations can require a trailing space in a prompt or empty editor line.
+tests/**/*.moot whitespace=-blank-at-eol

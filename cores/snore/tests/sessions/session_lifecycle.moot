@@ -1,0 +1,33 @@
+// Player connect/disconnect hooks and runtime UUID characters through mock sessions.
+// Hook tasks are submitted as root tasks on #0 under system authority, as the
+// connection host does.
+
+// A runtime character is created, registered, and matched by name.
+@wizard
+; tester = $wiz_utils:make_player("SessionTester", "tester@example.invalid")[1]; return is_player(tester);
+true
+; tester = $player_db:find_exact("SessionTester"); return {is_player(tester), length(match(tostr(tester), "^#[0-9]+$")) == 0};
+{true, true}
+
+// A fixture player connects with prior mailbox, paranoid, and gag state.
+@@ user_connected #101
+; return $object_utils:connected(#101);
+true
+; #101:receive_message({time(), "From <a@example.invalid>", "To <101>", " ", "note", "", "body"}, player); return #101:rm_message_seq({1, 2});
+"1"
+; $paranoid_db:add_data(#101, {{{#2, "probe", #2, #2, 0}}, {"secret"}}); return length($paranoid_db:get_data(#101));
+1
+; victim = $recycler:_create($thing); #101.gaglist = {victim}; $recycler:_recycle(victim); return length(#101.gaglist);
+1
+
+// Disconnect expunges removed mail, erases paranoid history, and drops recycled gags.
+@@ user_disconnected #101
+; return {$object_utils:connected(#101), length(#101.messages_going), length($paranoid_db:get_data(#101)), #101.gaglist};
+{false, 0, 0, {}}
+; return typeof(#101.last_disconnect_time) == TYPE_INT;
+true
+
+// Reconnect attaches a new connection without resetting a non-guest player.
+@@ user_reconnected #101
+; return {$object_utils:connected(#101), #101.messages_going};
+{true, {}}

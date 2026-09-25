@@ -1,0 +1,30 @@
+// Automatic mail entry shares the generic editor's validated input path.
+@nonprogrammer
+% @mail-option +enter
+>> input subject
+>> entered body
+>> .
+% @send #102
+@wizard
+; return $mail_editor:text($mail_editor:loaded(#101));
+{"entered body"}
+@nonprogrammer
+% abort
+@wizard
+; return {#101.location, $mail_editor:loaded(#101)};
+{#103, 0}
+
+// Cancelling read() preserves the empty composition; abort then leaves the editor.
+@nonprogrammer
+>> cancelled input subject
+>> cancelled partial body
+>> @abort
+% @send #102
+@wizard
+; return $mail_editor:text($mail_editor:loaded(#101));
+{}
+@nonprogrammer
+% abort
+@wizard
+; return {#101.location, $mail_editor:loaded(#101)};
+{#103, 0}

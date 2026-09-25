@@ -1,0 +1,9 @@
+// Evaluation exceptions remain available to mooT assertions.
+@wizard
+; raise(E_INVARG, "expected evaluation exception");
+E_INVARG
+; return maphaskey(parse_command("look", {}), 'verb);
+true
+; add_verb(player, {player, "rxd", "harness-return-error"}, {"none", "none", "none"}); set_verb_code(player, "harness-return-error", {"return E_INVARG;"}); return 1;
+1
+% harness-return-error

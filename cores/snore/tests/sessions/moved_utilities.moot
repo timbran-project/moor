@@ -1,0 +1,30 @@
+// Relocated world utilities retain target selection and ownership checks.
+@nonprogrammer
+% @exits
+=Sorry, only the owner of a room may list its exits.
+% @opacity testbox is 1
+=Can't set opacity of something you don't own.
+% @eject thing
+=You are not the owner of this room.
+% @eject thing from here
+=You are not the owner of Test Chamber.
+
+@wizard
+; $wiz_utils:set_owner(#103, #101); $wiz_utils:set_owner(#111, #101); return 1;
+1
+@nonprogrammer
+% @exits
+~~east (#105) leads to Test Chamber Two (#104)
+% @opacity testbox is 1
+=Opacity changed:  Now opaque.
+@wizard
+; return #111.opaque;
+1
+@nonprogrammer
+% @opacity testbox is 0
+=Opacity changed:  Now transparent.
+% @unlock-for-open testbox
+=Unlocked Test Box for opening.
+@wizard
+; return #111.open_key;
+0

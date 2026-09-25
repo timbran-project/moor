@@ -1,0 +1,5 @@
+// This scenario must fail even though the command has no output assertion.
+@wizard
+; add_verb(player, {player, "rxd", "harness-throw"}, {"none", "none", "none"}); set_verb_code(player, "harness-throw", {"raise(E_INVARG, \"harness command exception\");"}); return 1;
+1
+% harness-throw

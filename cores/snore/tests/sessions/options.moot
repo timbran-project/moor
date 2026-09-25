@@ -1,0 +1,51 @@
+// Option commands keep numeric parameters and object values distinct from boolean flags.
+@wizard
+; chparent(#101, $builder); #101.display_options = []; #101.edit_options = []; #101.mail_options = []; #101.build_options = []; #102.prog_options = []; return 1;
+1
+
+@nonprogrammer
+% @display-option +shortprep
+~~+shortprep
+% @display-option +shortprep
+=No change.
+% @display-option -shortprep
+~~-shortprep
+
+% @edit-option -noisy_insert
+~~+quiet_insert
+~~noisy_insert is a synonym for -quiet_insert
+
+% @mail-option +include
+~~+include
+% @mail-option +noinclude
+~~-include
+~~noinclude is a synonym for -include
+% @mail-option manymsgs=20
+=Unknown option:  manymsgs
+% @mail-option rn_order=se
+~~send
+% @mail-option +expire
+~~Messages will not expire.
+% @mail-option expire=30
+~~30 seconds
+
+% @build-option +audit_bytes
+~~+audit_bytes
+% @build-option +bi_create
+=Unknown option:  bi_create
+
+@programmer
+% @prog-option @prop_flags=rw
+~~Default permissions for @property=`rw'.
+% @prog-option @prop_flags=x
+=Must be a string composed of the characters `rwc'.
+% @prog-option -list_numbers
+~~+list_no_numbers
+~~list_numbers is a synonym for -list_no_numbers
+% @prog-option +list_numbers
+~~-list_no_numbers
+~~list_numbers is a synonym for -list_no_numbers
+
+@wizard
+; return {typeof(#101.edit_options["quiet_insert"]), #101.mail_options["expire"], #102.prog_options["@prop_flags"]};
+{TYPE_BOOL, 30, "rw"}

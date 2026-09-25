@@ -1,0 +1,107 @@
+// Private messaging, pages, refusals, and gagging across mock sessions.
+
+// Whisper delivery reaches the target.
+@nonprogrammer
+% whisper hello there to #102
+=You whisper, "hello there" to Test Programmer.
+
+@programmer
+; return 1;
+1
+=Test Player whispers, "hello there"
+
+// Page delivery: the target hears the origin line and the page text.
+@nonprogrammer
+% page #102 with a private hello
+=Your message has been sent.
+
+@programmer
+; return 1;
+1
+=You sense that Test Player is looking for you in Test Chamber.
+=It pages, "a private hello"
+
+// Refused whispers and pages report the refusal to the sender.
+% @refuse whispers pages from #101 for 2 hours
+~~Refusal of Test Player
+; return #102.refused_actions;
+{{"whisper", "page"}}
+
+@nonprogrammer
+% whisper sneaking to #102
+=Test Programmer refuses your whisper.
+
+% page #102 with another hello
+=Test Programmer refuses your page.
+
+@programmer
+% @unrefuse whispers pages from #101
+=Refusals removed.
+; return #102.refused_origins;
+{}
+
+// Pages to a player with no connection report absence.
+@nonprogrammer
+% page #110 with anyone there
+=Guest is not currently logged in.
+
+// Gagging suppresses room speech from the gagged player.
+@programmer
+; return #102:set_gaglist(#101);
+{#101}
+
+@nonprogrammer
+% say you cannot hear me
+=You say, "you cannot hear me"
+
+@programmer
+% say checking the gag
+=You say, "checking the gag"
+
+@nonprogrammer
+; return 1;
+1
+=Test Programmer says, "checking the gag"
+
+// The gagged player's speech was not delivered: lifting the gag lets it through.
+@programmer
+; return #102:set_gaglist();
+{}
+
+@nonprogrammer
+% say now you can hear me
+=You say, "now you can hear me"
+
+@programmer
+; return 1;
+1
+=Test Player says, "now you can hear me"
+
+// Confirmation can preserve or clear every refusal without losing parallel state.
+@programmer
+% @refuse page for 2 hours
+~~Refusal of Everybody
+% @refusals
+~~Everybody:  page
+>> no
+% @unrefuse everything
+=Do you really want to erase all your refusals? [Enter `yes' or `no']
+=OK, no harm done.
+; return player.refused_origins;
+{#-1}
+>> yes
+% @unrefuse everything
+=Do you really want to erase all your refusals? [Enter `yes' or `no']
+=OK, they are gone.
+; return {player.refused_origins, player.refused_actions, player.refused_until, player.refused_extra};
+{{}, {}, {}, {}}
+
+// Spurn commands block acceptance until removed.
+% @spurn #105
+~~You are now spurning
+; return player:acceptable(#105);
+false
+% @spurn !#105
+~~You are no longer spurning
+; return player.spurned_objects;
+{}

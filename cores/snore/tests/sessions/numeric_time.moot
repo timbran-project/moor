@@ -1,0 +1,19 @@
+// Ordinary programmers can combine the numeric helpers with collection closures.
+@programmer
+; const samples = $list_utils:map({0, 1, 2}, {x} => x * x); return $math_utils:simpson({0, 2}, samples);
+{2, 66666}
+
+; return $convert_utils:convert("100 kg m/sec2", "newtons");
+100.0
+
+; return $time_utils:from_ctime("Thu Jan  1 00:00:00 1970 UTC");
+0
+
+; return $time_utils:from_day("Thursday", -1, 0);
+-576000
+
+; return $time_utils:english_time(12622780800, "Thu Jan  1 00:00:00 1970 UTC");
+"400 years"
+
+; return {$math_utils:AND(-1, 5), $math_utils:atan(-10000), $convert_utils:C_to_K(0)};
+{5, {-45, 0}, 273.15}

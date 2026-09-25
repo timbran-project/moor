@@ -1,0 +1,103 @@
+// Search and substitution through real editor command dispatch and shorthand hooks.
+@wizard
+; $quota_utils:initialize_quota(#102); #102.owned_objects = {}; return true;
+true
+@programmer
+; const note = $recycler:_create($thing); note.name = "SearchProbe"; move(note, player); note.description = {"Alpha alpha", "beta ALPHA", "tail"}; return true;
+true
+% @notedit SearchProbe
+~~Note Editor
+=
+~~Do a
+=
+~~Now editing
+
+// Callable shorthand verbs still reject external method calls.
+; return $note_editor:find();
+E_PERM
+; return $note_editor:subst();
+E_PERM
+
+% find /alpha/1
+~~Alpha alpha
+; return $note_editor:insertion(player in $note_editor.active);
+2
+% /alpha/c1
+~~Alpha alpha
+% find /alpha/c
+~~beta ALPHA
+; return $note_editor:insertion(player in $note_editor.active);
+3
+% find /absent/1
+=`absent' not found.
+; return {$note_editor:insertion(player in $note_editor.active), $note_editor:changed(player in $note_editor.active)};
+{3, false}
+% find /alpha/nope
+=Starting from where?  (can't parse nope)
+
+% subst /alpha/word/1
+~~Alpha word
+% s/alpha/word/c2
+~~beta word
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"Alpha word", "beta word", "tail"}, 3}
+% subst /word/word/g 1-2
+=No changes in lines 1-2.
+% subst /tail//3
+~~3^ 
+; return $note_editor:text();
+{"Alpha word", "beta word", ""}
+
+// Regex captures retain MOO syntax and support an empty replacement result.
+; $note_editor:load(player in $note_editor.active, {"red blue", "a", "untouched"}); return true;
+true
+% subst /%(red%) %(.+%)/%2 %1/r1
+~~blue red
+% subst /a//r2
+~~2: 
+; return {$note_editor:text(), typeof($note_editor:changed(player in $note_editor.active))};
+{{"blue red", "", "untouched"}, TYPE_BOOL}
+
+// Global regex replacements do not revisit inserted text; identical output stays clean.
+; $note_editor:load(player in $note_editor.active, {"a"}); return true;
+true
+% subst /a/a/gr1
+=No changes in line 1.
+; return $note_editor:changed(player in $note_editor.active);
+false
+% s/a/aa/gr1
+~~aa
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active)};
+{{"aa"}, 2}
+% subst /a//gr1
+~~1_ 
+; return $note_editor:text();
+{""}
+% subst /^/prefix/gr1
+~~prefix
+
+// Invalid input must not modify the buffer or change its clean flag.
+; $note_editor:load(player in $note_editor.active, {"a", "b"}); return true;
+true
+% subst /[/x/r1
+=Invalid regular expression or replacement.
+% subst /a/%x/r1
+=Invalid regular expression or replacement.
+% subst /a/b/1 junk
+=Junk at end of cmd:  junk
+% find /a/0
+=Starting from where?  (can't parse 0)
+% find /a/-4
+=Starting line (-1) out of range.
+; return {$note_editor:text(), $note_editor:insertion(player in $note_editor.active), $note_editor:changed(player in $note_editor.active)};
+{{"a", "b"}, 3, false}
+% save
+~~Text written
+% done
+~~Test Chamber
+~~A bare room used by the automated tests.
+~~There is nothing here.
+~~baseline thing
+~~are here.
+; const note = $string_utils:match_object("SearchProbe", player); const text = note.description; $recycler:_recycle(note); return text;
+{"a", "b"}

@@ -1,0 +1,14 @@
+// An owner without a programmer flag cannot edit verb aliases through player commands.
+@wizard
+; add_verb(#101, {#101, "rxd", "alias_guard spare"}, {"this", "none", "this"}); return !!#101.programmer;
+false
+
+@nonprogrammer
+% @rmalias spare from me:alias_guard
+=E_PERM
+
+@wizard
+; return verb_info(#101, "alias_guard")[3];
+"alias_guard spare"
+; delete_verb(#101, "alias_guard"); return true;
+true

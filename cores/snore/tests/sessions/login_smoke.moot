@@ -1,0 +1,10 @@
+// Mock-session smoke: command dispatch and output delivery for a connected
+// non-programmer fixture. tests/wire.py covers login over telnet.
+//
+// Only the deterministic look lines are asserted; fixture objects in the room
+// are listed in an unordered contents line that later scenarios cover by state.
+@nonprogrammer
+% look
+=Test Chamber
+=A bare room used by the automated tests.
+=There is nothing here.

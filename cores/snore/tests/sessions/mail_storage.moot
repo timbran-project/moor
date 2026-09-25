@@ -1,0 +1,34 @@
+// Mail storage and complete output through player sessions.
+@wizard
+; #109.description = {"This mailing list description deliberately exceeds seventy-six columns and must remain one complete client-visible line."}; return 1;
+1
+% look #109
+~~*testmailbox
+=    This mailing list description deliberately exceeds seventy-six columns and must remain one complete client-visible line.
+
+// Mail subjects remain complete without a server-wide display width.
+; return $mail_agent:send_message(player, {#101}, "This subject is longer than the server width and remains complete", {"Body."});
+{1, #101}
+@nonprogrammer
+; return 1;
+~~You have new mail
+~~Type `help mail'
+% @mail
+~~This subject is longer than the server width and remains complete
+~~----+
+
+// The real command uses the documented six-argument resend interface.
+% @resend 1 to *testmailbox
+~~resent
+@wizard
+; return #109.messages[$][2][4];
+"This subject is longer than the server width and remains complete"
+
+// An unrelated programmer cannot mutate folder storage through maintenance methods.
+@programmer
+; return #109:date_sort();
+E_PERM
+; return #109:__fix();
+E_PERM
+; return #109:_fix_last_msg_date();
+E_PERM

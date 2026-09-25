@@ -157,6 +157,14 @@ Once started, the services are available at:
 The system isolates runtime data for each core in its own directory (`run-cowbell/` or
 `run-lambda-moor/`), ensuring you can switch between them without database pollution.
 
+[Snore Core](cores/snore/README.md) is a LambdaCore fork for mooR, with familiar MOO behavior and
+updated internals: _just boring enough_. Its local Rust launcher serves telnet on `127.0.0.1:8888`
+and keeps state in `cores/snore/gen.monolith/`:
+
+```sh
+./cores/snore/run-monolith.sh
+```
+
 ---
 
 ## What the services are

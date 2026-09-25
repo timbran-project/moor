@@ -1,0 +1,52 @@
+object GENDERED_OBJECT [
+  import_export_id -> "gendered_object"
+]
+  name: "Generic Gendered Object"
+  parent: ROOT_CLASS
+  owner: #2
+  fertile: true
+  readable: true
+
+  property gender (owner: #2, flags: "rc") = "neuter";
+  property po (owner: #2, flags: "rc") = "it";
+  property poc (owner: #2, flags: "rc") = "It";
+  property pp (owner: #2, flags: "rc") = "its";
+  property ppc (owner: #2, flags: "rc") = "Its";
+  property pq (owner: #2, flags: "rc") = "its";
+  property pqc (owner: #2, flags: "rc") = "its";
+  property pr (owner: #2, flags: "rc") = "itself";
+  property prc (owner: #2, flags: "rc") = "Itself";
+  property ps (owner: #2, flags: "rc") = "it";
+  property psc (owner: #2, flags: "rc") = "It";
+
+  override aliases (owner: #2, flags: "rc") = {"Generic Gendered Object"};
+  override object_size (owner: HACKER, flags: "r") = {2378, 1084848672};
+
+  method set_gender owner: #2
+    "set_gender(newgender) attempts to change this.gender to newgender";
+    "  => E_PERM   if you don't own this or aren't its parent";
+    "  => Other return values as from $gender_utils:set.";
+    !($perm_utils:controls(caller_perms(), this) || this == caller) && return E_PERM;
+    const result = $gender_utils:set(this, args[1]);
+    this.gender = typeof(result) == TYPE_STR ? result | args[1];
+    return result;
+  endmethod
+
+  verb "@gen*der" (this is any) owner: #2 flags: "rd"
+    "Usage: @gender object is gender. Change pronouns when the player controls the object.";
+    if (player.wizard || player == this.owner)
+      player:tell(this:set_gender(iobjstr) ? "Gender and pronouns set." | "Gender set.");
+    else
+      player:tell("Permission denied.");
+    endif
+  endverb
+
+  method verb_sub owner: #2
+    "Copied from generic player (#6):verb_sub by ur-Rog (#6349) Fri Jan 22 11:20:11 1999 PST";
+    "This verb was copied by TheCat on 01/22/99, so that the generic gendered object will be able to do verb conjugation as well as pronoun substitution.";
+    const text = args[1];
+    const a = `$list_utils:assoc(text, this.verb_subs) ! ANY';
+    a && return a[2];
+    return $gender_utils:get_conj(text, this);
+  endmethod
+endobject

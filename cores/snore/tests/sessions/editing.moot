@@ -1,0 +1,63 @@
+// In-world editing through the note editor: input-driven inserts, save, abort, and cleanup.
+// Lines after `>>` answer the editor's read() requests.
+
+@wizard
+; $quota_utils:initialize_quota(#102); #102.owned_objects = {}; return 1;
+1
+
+@programmer
+; thing = $recycler:_create($thing); thing.name = "EditProbe"; move(thing, player); thing.description = {"original note"}; return 1;
+1
+
+% @notedit EditProbe
+~~Note Editor
+=
+~~Do a
+=
+~~Now editing
+>> entered line
+>> .
+% enter
+~~[Type
+~~Line 2 added.
+
+% say second line
+=Line 3 added.
+% insert ^2 "temporary before
+=Line 2 added.
+% insert _2 "temporary after
+=Line 3 added.
+% insert . "temporary current
+=Line 4 added.
+% delete 2-4
+=temporary before
+=temporary after
+=temporary current
+=---Lines deleted.  Insertion point is before line 2.
+% save
+~~Text written
+% done
+~~Test Chamber
+~~A bare room used by the automated tests.
+~~There is nothing here.
+~~baseline thing
+~~are here.
+; return $string_utils:match_object("EditProbe", player).description;
+{"original note", "entered line", "second line"}
+
+% @notedit EditProbe
+~~Note Editor
+=
+~~Do a
+=
+~~Now editing
+
+% say discarded line
+=Line 4 added.
+% abort
+~~Throwing away
+; return $string_utils:match_object("EditProbe", player).description;
+{"original note", "entered line", "second line"}
+
+; probe = $string_utils:match_object("EditProbe", player); $recycler:_recycle(probe); return $recycler:valid(probe);
+false

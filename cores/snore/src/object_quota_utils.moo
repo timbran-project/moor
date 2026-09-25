@@ -1,0 +1,132 @@
+object OBJECT_QUOTA_UTILS [
+  import_export_id -> "object_quota_utils"
+]
+  name: "Object Quota Utilities"
+  parent: GENERIC_UTILS
+  owner: HACKER
+  readable: true
+
+  property byte_based (owner: HACKER, flags: "rc") = 0;
+
+  override aliases (owner: HACKER, flags: "rc") = {"Object Quota Utilities"};
+  override description (owner: HACKER, flags: "rc") = {
+    "This is the Object Quota Utilities utility package.  See `help $object_quota_utils' for more details."
+  };
+  override help_msg (owner: HACKER, flags: "rc") = "This is the default package that interfaces to the $player/$prog quota manipulation verbs.";
+  override object_size (owner: HACKER, flags: "r") = {6728, 1084848672};
+
+  method initialize_quota owner: HACKER
+    "Set a new player's object allowance. Wizard callers only.";
+    !caller_perms().wizard && return E_PERM;
+    args[1].ownership_quota = $wiz_utils.default_player_quota;
+  endmethod
+
+  method init_for_core owner: #2
+    "Reset this object for an extracted core. Wizard callers only.";
+    !caller_perms().wizard && return E_PERM;
+    pass(@args);
+    "Uncomment this if you want to send the core out with object quota.";
+    "  $quota_utils = this";
+  endmethod
+
+  method adjust_quota_for_programmer owner: HACKER
+    "Apply the programmer allowance increase unless this is a registered secondary character.";
+    !caller_perms().wizard && return E_PERM;
+    const victim = args[1];
+    const oldquota = victim.ownership_quota;
+    if ($object_utils:has_property($local, "second_char_registry") && $local.second_char_registry:is_second_char(victim))
+      "don't increment quota for 2nd chars when programmering";
+      victim.ownership_quota = oldquota;
+    else
+      victim.ownership_quota = oldquota + ($wiz_utils.default_programmer_quota - $wiz_utils.default_player_quota);
+    endif
+  endmethod
+
+  method bi_create owner: #2
+    "Calls built-in create.";
+    set_task_perms(caller_perms());
+    return `create(@args) ! ANY';
+  endmethod
+
+  method creation_permitted owner: HACKER
+    "Return whether the owner has a positive native object allowance.";
+    $recycler:check_quota_scam(args[1]);
+    return args[1].ownership_quota > 0;
+  endmethod
+
+  method "verb_addition_permitted property_addition_permitted" owner: HACKER
+    "Allow metadata additions under object-count quota policy.";
+    return true;
+  endmethod
+
+  method display_quota owner: HACKER
+    "Print the object allowance when the caller controls the player.";
+    const who = args[1];
+    if (caller_perms() == who)
+      const q = who.ownership_quota;
+      const total = typeof(who.owned_objects) == TYPE_LIST ? length(setremove(who.owned_objects, who)) | 0;
+      if (q == 0)
+        player:tell(tostr("You can't create any more objects", total < 1 ? "." | tostr(" until you recycle some of the ", total, " you already own.")));
+      else
+        player:tell(tostr("You can create ", q, " new object", q == 1 ? "" | "s", total == 0 ? "." | tostr(" without recycling any of the ", total, " that you already own.")));
+      endif
+    else
+      if ($perm_utils:controls(caller_perms(), who))
+        player:tell(tostr(who.name, "'s quota is currently ", who.ownership_quota, "."));
+      else
+        player:tell("Permission denied.");
+      endif
+    endif
+  endmethod
+
+  method "get_quota quota_remaining" owner: HACKER
+    "Return a controlled player's object allowance, or E_PERM.";
+    $perm_utils:controls(caller_perms(), args[1]) || caller == this && return args[1].ownership_quota;
+    return E_PERM;
+  endmethod
+
+  method charge_quota owner: HACKER
+    "Charge args[1] for the quota required to own args[2]";
+    let {who, what} = args;
+    if (caller == this || caller_perms().wizard)
+      who.ownership_quota = who.ownership_quota - 1;
+    else
+      return E_PERM;
+    endif
+  endmethod
+
+  method reimburse_quota owner: HACKER
+    "Reimburse args[1] for the quota required to own args[2]";
+    let {who, what} = args;
+    if (caller == this || caller_perms().wizard)
+      who.ownership_quota = who.ownership_quota + 1;
+    else
+      return E_PERM;
+    endif
+  endmethod
+
+  method set_quota owner: HACKER
+    "Set args[1]'s quota to args[2]";
+    let {who, quota} = args;
+    caller_perms().wizard || caller == this && return who.ownership_quota = quota;
+    return E_PERM;
+  endmethod
+
+  method can_peek owner: HACKER
+    "Is args[1] permitted to examine args[2]'s quota information?";
+    return $perm_utils:controls(args[1], args[2]);
+  endmethod
+
+  method can_touch owner: HACKER
+    "Is args[1] permitted to examine args[2]'s quota information?";
+    return args[1].wizard;
+  endmethod
+
+  method reimburse_recycled_object owner: #2
+    "Refund one object after successful recycling. System recycle hook only.";
+    caller == #0 || raise(E_PERM);
+    const {owner, size} = args;
+    owner.ownership_quota = owner.ownership_quota + 1;
+    return true;
+  endmethod
+endobject

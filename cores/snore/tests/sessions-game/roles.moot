@@ -1,0 +1,50 @@
+// Programmer promotion enters the role hierarchy; explicit feature choices survive.
+@wizard
+; return #108:add_feature($builder_feature);
+E_PERM
+
+// Bypass eligibility deliberately to check that packs still enforce server flags.
+; #108.features = {@#108.features, $builder_feature, $programmer_feature, $wizard_feature}; $quota_utils:initialize_quota(#108); #108.owned_objects = {}; return parent(#108);
+#112
+
+@nonprogrammer
+% @verb me:role_probe this none this
+=Programmer permission required.
+% @make-player Unauthorized unauthorized@example.invalid
+=Wizard permission required.
+
+@wizard
+; return $wiz_utils:set_programmer(#108);
+true
+; return parent(#108);
+$prog
+
+@nonprogrammer
+; return 1;
+1
+~~You have new mail
+~~Type `help mail
+
+% @create $thing called GameBuildProbe
+~~You now have GameBuildProbe
+% @verb GameBuildProbe:probe this none this
+=Verb added (1).
+>> return "game authoring works";
+>> .
+% @program GameBuildProbe:probe
+~~Now programming
+~~[Type
+~~0 errors.
+~~Verb programmed.
+
+@wizard
+; return $string_utils:match_object("GameBuildProbe", #108):probe();
+"game authoring works"
+
+@nonprogrammer
+% @who
+=I don't understand that.
+% @go nowhere
+=I don't understand that.
+% @recycle GameBuildProbe
+~~recycled.

@@ -1,0 +1,36 @@
+// Container access: closed state, opening, putting, taking, and locking out players.
+
+@nonprogrammer
+% put thing in testbox
+=Test Box is closed.
+
+% open testbox
+=You open Test Box.
+
+% put thing in testbox
+=You put baseline thing in Test Box.
+
+@wizard
+; return {#107.location, #111.opened};
+{#111, true}
+; return #111:acceptable(#101);
+false
+
+@nonprogrammer
+% get thing from testbox
+=You remove baseline thing from Test Box.
+
+@wizard
+; return #107.location;
+#101
+
+@nonprogrammer
+% close testbox
+=You close Test Box.
+
+% get thing from testbox
+=Test Box is not open.
+
+@wizard
+; return {#107.location, #111.opened};
+{#101, false}

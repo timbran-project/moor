@@ -501,3 +501,8 @@ fn cowbell_oauth_boundary() {
 fn lambda_moor_oauth_boundary() {
     exercise("lambda-moor");
 }
+
+#[test]
+fn snore_oauth_boundary() {
+    exercise("snore");
+}

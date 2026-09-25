@@ -1,0 +1,14 @@
+// Building and recycling a runtime object through builder commands.
+
+@wizard
+% @create $thing called BuildProbe
+~~You now have BuildProbe
+
+; probe = $string_utils:match_object("BuildProbe", player); return {valid(probe), $object_utils:isa(probe, $thing), length(match(tostr(probe), "^#[0-9]+$")) == 0};
+{true, true, true}
+
+% @recycle BuildProbe
+~~recycled.
+
+; return $string_utils:match_object("BuildProbe", player);
+$failed_match

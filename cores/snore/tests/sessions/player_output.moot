@@ -1,0 +1,39 @@
+// Immediate caller attribution and recorded caller history through actual player commands.
+@nonprogrammer
+% @paranoid immediate
+=Anti-spoofer now in immediate mode.
+
+@programmer
+% whisper player trace to testplayer
+~~You whisper
+
+@nonprogrammer
+; return true;
+true
+~~player trace
+
+% @paranoid 10
+=Anti-spoofer on and keeping 10 lines.
+
+@programmer
+% whisper recorded trace to testplayer
+~~You whisper
+
+@nonprogrammer
+; return true;
+true
+=Test Programmer whispers, "recorded trace"
+% @check-full 1
+=Traceback for:
+=Test Programmer whispers, "recorded trace"
+
+// Reset captured output after inspecting the full stack above.
+@wizard
+; #101.paranoid = 0; return true;
+true
+
+@programmer
+% @mode brief
+=Brief mode set.
+% @mode verbose
+=Verbose mode set.

@@ -1,0 +1,57 @@
+// Shared mail and social services work without the default player class.
+@nonprogrammer
+% whisper hello there to #102
+=You whisper, "hello there" to Test Programmer.
+@programmer
+; return 1;
+1
+=Test Game Player whispers, "hello there"
+
+@nonprogrammer
+% page #102 with a private hello
+=Your message has been sent.
+@programmer
+; return 1;
+1
+=You sense that Test Game Player is looking for you in Test Chamber.
+=It pages, "a private hello"
+
+@wizard
+; return $mail_agent:send_message(player, {#108}, "Game mail", {"Shared mail works."});
+{1, #108}
+@nonprogrammer
+; return 1;
+~~You have new mail
+~~Type `help mail'
+% @read 1
+~~Message 1:
+~~Date:
+~~From:
+~~To:
+~~Subject:  Game mail
+=
+=Shared mail works.
+~~---
+
+% @gag #102
+~~gagging
+@programmer
+% say hidden speech
+=You say, "hidden speech"
+@nonprogrammer
+% say my own speech
+=You say, "my own speech"
+% @ungag #102
+~~removed from gag list.
+~~gagging
+
+% @refuse page whisper
+~~Refusal of
+@programmer
+; return 1;
+1
+=Test Game Player says, "my own speech"
+% page #108 with should be refused
+=Test Game Player refuses your page.
+% whisper should be refused to #108
+=Test Game Player refuses your whisper.
