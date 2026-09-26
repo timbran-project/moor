@@ -1234,7 +1234,7 @@ impl Scheduler {
             PendingKind::At(_) => lc.schedule_q.validate_at(&options)?,
             PendingKind::Every(interval) => lc.schedule_q.validate_every(interval, &options)?,
         }
-        let id = lc.schedule_q.reserve_id();
+        let id = lc.reserve_schedule_id();
         lc.pending_schedule_ops.entry(task_id).or_default().push(
             super::lifecycle::PendingScheduleOp::Create(Box::new(PendingCreate {
                 id,

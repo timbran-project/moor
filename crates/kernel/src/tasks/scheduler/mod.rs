@@ -1131,6 +1131,75 @@ mod tests {
             .expect("all scheduler-owned threads should stop");
     }
 
+    /// Tasks DB double holding only a schedule id high-water mark.
+    struct ScheduleIdTasksDb(Mutex<Option<ScheduleId>>);
+
+    impl TasksDb for ScheduleIdTasksDb {
+        fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
+            Ok(vec![])
+        }
+
+        fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn load_next_schedule_id(&self) -> Result<Option<ScheduleId>, TasksDbError> {
+            Ok(*self.0.lock())
+        }
+
+        fn save_next_schedule_id(&self, next_id: ScheduleId) -> Result<(), TasksDbError> {
+            *self.0.lock() = Some(next_id);
+            Ok(())
+        }
+
+        fn compact(&self) {}
+    }
+
+    #[test]
+    fn restored_schedule_id_mark_advances_allocator() {
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(ScheduleIdTasksDb(Mutex::new(Some(42)))),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        {
+            let mut lifecycle = scheduler.lifecycle.lock();
+            // No schedule records survived, yet allocation continues from
+            // the persisted mark, and the new mark is written back.
+            assert!(lifecycle.schedule_q.all_ids().is_empty());
+            assert_eq!(lifecycle.reserve_schedule_id(), 42);
+            let saved = lifecycle
+                .task_q
+                .suspended
+                .tasks_db()
+                .load_next_schedule_id()
+                .unwrap();
+            assert_eq!(saved, Some(43));
+        }
+
+        scheduler.stop(None).expect("scheduler should stop");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
     fn insert_active_task(
         scheduler: &Scheduler,
         task_id: TaskId,

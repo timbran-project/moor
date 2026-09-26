@@ -20,15 +20,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `schedule_every(obj, verb, interval [, args] [, options])` arrange for a verb to run later, once
   or on a drift-free cadence, with each firing a fresh background task and no task suspended in
   between. Schedules are persisted in the tasks database (a new `schedules` keyspace; ids are stable
-  across restart), are GC roots for anonymous objects, and are created/cancelled on the calling
-  task's commit like `task_send`. The verb must be executable by the creator, checked at creation
-  and again at each firing. Options: `adaptive` return-value protocol, `catchup`
-  (`skip`/`once`/`all`), `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`,
-  `pass_elapsed`, `state`, `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`,
-  never raises, for a stale id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`,
-  `schedules_for(target)`. The fired verb sees the schedule's creator as `caller` and
-  `caller_perms()`; its `player` (the target, or the `player` option) must be an object the creator
-  controls. Book chapter: _Scheduled Tasks_.
+  across restart and never reused, the allocator's high-water mark being kept in a `tasks_meta`
+  keyspace), are GC roots for anonymous objects, and are created/cancelled on the calling task's
+  commit like `task_send`. The verb must be executable by the creator, checked at creation and again
+  at each firing. Options: `adaptive` return-value protocol, `catchup` (`skip`/`once`/`all`),
+  `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`, `pass_elapsed`, `state`,
+  `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`, never raises, for a stale
+  id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`, `schedules_for(target)`. The
+  fired verb sees the schedule's creator as `caller` and `caller_perms()`; its `player` (the target,
+  or the `player` option) must be an object the creator controls. Book chapter: _Scheduled Tasks_.
 - A task's transaction-retry counter is reset after every successful transaction boundary
   (`suspend`, `commit`, `read`, `task_recv`, fork dispatch). Previously it only ever incremented, so
   a long-lived loop that hit an occasional conflict would eventually abort with "Task retry limit

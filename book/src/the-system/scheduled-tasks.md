@@ -75,7 +75,9 @@ finished, so a 60-second schedule fires at `t`, `t+60`, `t+120`, … regardless 
 ## Schedule ids and transactions
 
 A schedule id is an integer from its own id space; it is never a task id, so `kill_task` on one is
-`E_INVARG` and `schedule_stop` on a task id is a quiet `false`.
+`E_INVARG` and `schedule_stop` on a task id is a quiet `false`. Ids are never reused, across
+restarts included: the tasks database records the highest id handed out, so an id kept in a property
+after its schedule stopped or retired cannot come to name a different schedule.
 
 Creation and cancellation are **buffered until your task commits**, with exactly the semantics of
 `task_send()`:
