@@ -127,8 +127,11 @@ impl Scheduler {
             })?;
         }
 
-        // Collect VM references before spawning thread
-        let vm_refs = lc.task_q.collect_anonymous_object_references();
+        // Collect VM references before spawning thread. Native schedules are
+        // roots too: their target, args, state and last fault may be anonymous.
+        let mut vm_refs = lc.task_q.collect_anonymous_object_references();
+        lc.schedule_q
+            .collect_anonymous_object_references(&mut vm_refs);
         let mutation_timestamp_before_mark = lc.last_mutation_timestamp;
 
         // Create GC transaction for the background thread

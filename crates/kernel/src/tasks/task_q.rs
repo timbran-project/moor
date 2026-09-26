@@ -111,6 +111,10 @@ pub struct TaskQ {
         HashMap<TaskId, VecDeque<(Timestamp, Var)>, BuildHasherDefault<AHasher>>,
     /// Task membership shared with lock-free scheduler readers.
     pub(crate) live_tasks: LiveTaskRegistry,
+    /// Terminal results delivered since the last drain, for the scheduler to
+    /// settle native-schedule firings against. Every terminal path funnels
+    /// through `send_task_result_direct`, so recording there catches them all.
+    pub(crate) settled_results: Vec<(TaskId, Result<Var, SchedulerError>)>,
 }
 
 /// Scheduler-side phase for a task which still occupies the active-task slot.
@@ -240,6 +244,7 @@ impl TaskQ {
                 thread_pool,
                 task_message_queues: HashMap::default(),
                 live_tasks,
+                settled_results: Vec::new(),
             };
         } else {
             info!(
@@ -257,6 +262,7 @@ impl TaskQ {
             thread_pool,
             task_message_queues: HashMap::default(),
             live_tasks,
+            settled_results: Vec::new(),
         }
     }
 
@@ -944,6 +950,11 @@ impl SuspensionQ {
             self.enqueue_dependents_for(task_id);
         }
         task
+    }
+
+    /// The backing store, shared with the native schedule queue.
+    pub(crate) fn tasks_db(&self) -> &dyn TasksDb {
+        self.tasks_database.as_ref()
     }
 
     /// Synchronize the suspended tasks with the tasks database. Called on shutdown.

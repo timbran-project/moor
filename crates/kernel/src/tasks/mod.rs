@@ -18,6 +18,7 @@ use std::{
 };
 
 use flume::Receiver;
+use moor_common::model::ObjectRef;
 use moor_compiler::{Program, to_literal};
 use moor_var::{List, Obj, Symbol, Var};
 
@@ -39,6 +40,7 @@ pub(crate) mod checkpoint;
 pub mod convert_task;
 pub(crate) mod gc_thread;
 pub(crate) mod maintenance;
+pub mod schedule_q;
 pub(crate) mod scheduler_client;
 pub(crate) mod storage_compaction;
 pub(crate) mod task;
@@ -284,6 +286,14 @@ pub enum TaskStart {
         args: List,
         argstr: Var,
     },
+    /// A firing of a native schedule; see schedule_q. Behaves as StartVerb with argstr empty.
+    StartScheduled {
+        schedule_id: u64,
+        player: Obj,
+        vloc: ObjectRef,
+        verb: Symbol,
+        args: List,
+    },
     /// The scheduler is telling the task to run a task that was forked from another task.
     /// ForkRequest contains the information on the fork vector and other information needed to
     /// set up execution.
@@ -321,7 +331,10 @@ pub enum TaskStart {
 
 impl TaskStart {
     pub fn is_background(&self) -> bool {
-        matches!(self, TaskStart::StartFork { .. })
+        matches!(
+            self,
+            TaskStart::StartFork { .. } | TaskStart::StartScheduled { .. }
+        )
     }
 
     pub fn diagnostic(&self) -> String {
@@ -344,6 +357,18 @@ impl TaskStart {
                     player,
                     verb,
                     to_literal(vloc)
+                )
+            }
+            TaskStart::StartScheduled {
+                schedule_id,
+                player,
+                vloc,
+                verb,
+                ..
+            } => {
+                format!(
+                    "Scheduled(schedule_id: {}, player: {}, verb: {}, vloc: {})",
+                    schedule_id, player, verb, vloc
                 )
             }
             TaskStart::StartFork {

@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tasks::schedule_q::{ScheduleEntry, ScheduleId};
 use crate::tasks::task_q::SuspendedTask;
 use moor_common::tasks::TaskId;
 
@@ -24,6 +25,12 @@ pub enum TasksDbError {
     CouldNotDeleteTask,
     #[error("Task not found: {0}")]
     TaskNotFound(TaskId),
+    #[error("Could not load schedules")]
+    CouldNotLoadSchedules,
+    #[error("Could not save schedule")]
+    CouldNotSaveSchedule,
+    #[error("Could not delete schedule")]
+    CouldNotDeleteSchedule,
 }
 
 pub trait TasksDb: Send {
@@ -31,6 +38,23 @@ pub trait TasksDb: Send {
     fn save_task(&self, task: &SuspendedTask) -> Result<(), TasksDbError>;
     fn delete_task(&self, task_id: TaskId) -> Result<(), TasksDbError>;
     fn delete_all_tasks(&self) -> Result<(), TasksDbError>;
+
+    /// Native schedules (`ScheduleQ` entries with `persist` set). Stored
+    /// separately from suspended tasks: a schedule has no VM state, only a
+    /// deadline and a verb to call. Defaults are no-ops so test doubles that
+    /// only care about tasks need not implement them.
+    fn load_schedules(&self) -> Result<Vec<ScheduleEntry>, TasksDbError> {
+        Ok(vec![])
+    }
+    fn save_schedule(&self, _entry: &ScheduleEntry) -> Result<(), TasksDbError> {
+        Ok(())
+    }
+    fn delete_schedule(&self, _schedule_id: ScheduleId) -> Result<(), TasksDbError> {
+        Ok(())
+    }
+    fn delete_all_schedules(&self) -> Result<(), TasksDbError> {
+        Ok(())
+    }
 
     /// Trigger database compaction to reclaim space and reduce journal size.
     /// Should be called periodically (e.g., every few minutes).

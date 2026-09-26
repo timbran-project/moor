@@ -66,13 +66,15 @@ impl Scheduler {
             if let Some(task) = lc.task_q.active.get_mut(&task_id) {
                 task.terminal_result = Some(Err(TaskAbortedError));
             }
-            return lc.task_q.send_reserved_task_result(task_id);
+            lc.task_q.send_reserved_task_result(task_id);
+            return lc.settle_schedule_firings();
         }
 
         let mut lc = self.lifecycle.lock();
         lc.flush_pending_sends(task_id);
         lc.task_q.remove_message_queue(task_id);
-        lc.task_q.send_reserved_task_result(task_id)
+        lc.task_q.send_reserved_task_result(task_id);
+        lc.settle_schedule_firings();
     }
 
     pub fn handle_task_conflict_retry(
@@ -499,6 +501,7 @@ impl Scheduler {
             task_id,
             Err(TaskAbortedException(exception.as_ref().clone())),
         );
+        lc.settle_schedule_firings();
     }
 
     pub fn handle_task_commit_rejected(&self, task_id: TaskId, exception: Box<Exception>) {
@@ -1207,6 +1210,147 @@ impl Scheduler {
             .push((target_task_id, value));
 
         v_int(0)
+    }
+
+    // ---- native scheduled tasks ----------------------------------------
+
+    /// Buffer a schedule creation for `task_id`; applied when it commits.
+    /// Returns the eagerly allocated schedule id.
+    #[allow(clippy::too_many_arguments)]
+    pub fn handle_schedule_create(
+        &self,
+        task_id: TaskId,
+        kind: crate::tasks::schedule_q::PendingKind,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: crate::tasks::schedule_q::ScheduleOptions,
+    ) -> Result<crate::tasks::schedule_q::ScheduleId, crate::tasks::schedule_q::ScheduleError> {
+        use crate::tasks::schedule_q::{PendingCreate, PendingKind};
+        let mut lc = self.lifecycle.lock();
+        match kind {
+            PendingKind::At(_) => lc.schedule_q.validate_at(&options)?,
+            PendingKind::Every(interval) => lc.schedule_q.validate_every(interval, &options)?,
+        }
+        let id = lc.schedule_q.reserve_id();
+        lc.pending_schedule_ops.entry(task_id).or_default().push(
+            super::lifecycle::PendingScheduleOp::Create(Box::new(PendingCreate {
+                id,
+                kind,
+                target,
+                verb,
+                args,
+                authority_principal,
+                owner,
+                options,
+            })),
+        );
+        Ok(id)
+    }
+
+    /// Buffer a schedule stop for `task_id`; applied when it commits. Returns
+    /// whether the id currently refers to a live schedule (or one this task
+    /// created and has not yet committed). Never raises: a stale id is an
+    /// ordinary race, not an error.
+    pub fn handle_schedule_stop(
+        &self,
+        task_id: TaskId,
+        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<bool, moor_var::Error> {
+        let mut lc = self.lifecycle.lock();
+        let pending_created = lc.pending_schedule_ops.get(&task_id).is_some_and(|ops| {
+            ops.iter().any(|op| {
+                matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
+            })
+        });
+        if pending_created {
+            // Cancel before it was ever inserted: drop the pending create.
+            if let Some(ops) = lc.pending_schedule_ops.get_mut(&task_id) {
+                ops.retain(|op| {
+                    !matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
+                });
+            }
+            return Ok(true);
+        }
+        let Some(entry) = lc.schedule_q.info(schedule_id) else {
+            return Ok(false);
+        };
+        if !entry.is_live() {
+            return Ok(false);
+        }
+        if !authority.is_wizard() && authority.principal() != entry.owner {
+            return Err(E_PERM.msg("schedule_stop: not the owner of this schedule"));
+        }
+        lc.pending_schedule_ops
+            .entry(task_id)
+            .or_default()
+            .push(super::lifecycle::PendingScheduleOp::Stop(schedule_id));
+        Ok(true)
+    }
+
+    pub fn handle_schedule_valid(
+        &self,
+        task_id: TaskId,
+        schedule_id: crate::tasks::schedule_q::ScheduleId,
+    ) -> bool {
+        let lc = self.lifecycle.lock();
+        if lc.schedule_q.is_valid(schedule_id) {
+            return true;
+        }
+        lc.pending_schedule_ops.get(&task_id).is_some_and(|ops| {
+            ops.iter().any(|op| {
+                matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
+            })
+        })
+    }
+
+    pub fn handle_schedule_info(
+        &self,
+        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<Var, moor_var::Error> {
+        let lc = self.lifecycle.lock();
+        let Some(entry) = lc.schedule_q.info(schedule_id) else {
+            return Err(E_INVARG.msg("schedule_info: no such schedule"));
+        };
+        if !authority.is_wizard() && authority.principal() != entry.owner {
+            return Err(E_PERM.msg("schedule_info: not the owner of this schedule"));
+        }
+        Ok(entry.to_info_map())
+    }
+
+    /// Ids visible to the caller: all for a wizard, own for anyone else;
+    /// optionally filtered to one owner.
+    pub fn handle_schedules(&self, owner: Option<Obj>, authority: &TaskPermissions) -> Vec<i64> {
+        let lc = self.lifecycle.lock();
+        let ids = match owner {
+            Some(o) => lc.schedule_q.for_owner(&o),
+            None if authority.is_wizard() => lc.schedule_q.all_ids(),
+            None => lc.schedule_q.for_owner(&authority.principal()),
+        };
+        ids.into_iter()
+            .filter(|id| {
+                lc.schedule_q.info(*id).is_some_and(|e| {
+                    e.is_live() && (authority.is_wizard() || e.owner == authority.principal())
+                })
+            })
+            .map(|id| id as i64)
+            .collect()
+    }
+
+    /// Live schedule ids targeting `target`. Anyone may ask: recycle and
+    /// unregister paths need it regardless of who created the schedule.
+    pub fn handle_schedules_for(&self, target: Obj) -> Vec<i64> {
+        let lc = self.lifecycle.lock();
+        lc.schedule_q
+            .for_target(&target)
+            .into_iter()
+            .filter(|id| lc.schedule_q.is_valid(*id))
+            .map(|id| id as i64)
+            .collect()
     }
 
     pub fn handle_task_recv(&self, task_id: TaskId) -> Vec<Var> {

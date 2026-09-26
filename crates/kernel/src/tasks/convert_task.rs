@@ -16,6 +16,7 @@
 use crate::{
     tasks::{
         TaskStart as KernelTaskStart,
+        schedule_q::{CatchupPolicy, OverlapPolicy, ScheduleEntry, ScheduleKind, ScheduleOptions},
         task::Task as KernelTask,
         task::TaskState as KernelTaskState,
         task_program_cache::TaskProgramCache,
@@ -1811,6 +1812,26 @@ pub(crate) fn task_start_to_flatbuffer(
                 program: Box::new(fb_program),
             }))
         }
+        KernelTaskStart::StartScheduled {
+            schedule_id,
+            player,
+            vloc,
+            verb,
+            args,
+        } => {
+            let fb_args: Result<Vec<_>, _> =
+                args.iter().map(|v| var_to_db_flatbuffer(&v)).collect();
+            let fb_args = fb_args
+                .map_err(|e| TaskConversionError::VarError(format!("Error encoding args: {e}")))?;
+
+            TaskStartUnion::StartScheduled(Box::new(fb::StartScheduled {
+                schedule_id: *schedule_id,
+                player: Box::new(convert_schema::obj_to_flatbuffer_struct(player)),
+                vloc: Box::new(convert_schema::objectref_to_flatbuffer_struct(vloc)),
+                verb: Box::new(convert_schema::symbol_to_flatbuffer_struct(verb)),
+                args: fb_args,
+            }))
+        }
         KernelTaskStart::StartExceptionHandler { .. } => {
             // Exception handlers don't get suspended, so they shouldn't be serialized
             panic!("Attempted to serialize StartExceptionHandler task state");
@@ -1955,6 +1976,51 @@ pub(crate) fn task_start_from_ref_union(
                 player,
                 program,
                 initial_env: None,
+            })
+        }
+        TaskStartUnionRef::StartScheduled(ss) => {
+            let schedule_id = ss
+                .schedule_id()
+                .map_err(|e| TaskConversionError::DecodingError(format!("schedule_id: {e}")))?;
+
+            let player_ref = ss
+                .player()
+                .map_err(|e| TaskConversionError::DecodingError(format!("player: {e}")))?;
+            let player = convert_schema::obj_from_ref(player_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("player: {e}")))?;
+
+            let vloc_ref = ss
+                .vloc()
+                .map_err(|e| TaskConversionError::DecodingError(format!("vloc: {e}")))?;
+            let vloc = convert_schema::objectref_from_ref(vloc_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("vloc: {e}")))?;
+
+            let verb_ref = ss
+                .verb()
+                .map_err(|e| TaskConversionError::DecodingError(format!("verb: {e}")))?;
+            let verb = convert_schema::symbol_from_ref(verb_ref)
+                .map_err(|e| TaskConversionError::DecodingError(format!("verb: {e}")))?;
+
+            let args_vec = ss
+                .args()
+                .map_err(|e| TaskConversionError::DecodingError(format!("args: {e}")))?;
+            let args: Result<Vec<_>, TaskConversionError> = args_vec
+                .iter()
+                .map(|v_result| {
+                    let v = v_result
+                        .map_err(|e| TaskConversionError::DecodingError(format!("arg: {e}")))?;
+                    var_from_db_flatbuffer_ref(v)
+                        .map_err(|e| TaskConversionError::VarError(format!("arg: {e}")))
+                })
+                .collect();
+            let args = moor_var::List::mk_list(&args?);
+
+            Ok(KernelTaskStart::StartScheduled {
+                schedule_id,
+                player,
+                vloc,
+                verb,
+                args,
             })
         }
     }
@@ -2231,6 +2297,207 @@ pub fn suspended_task_from_ref(
         result_sender: None,
         timer_generation: 0,
     })
+}
+
+// ============================================================================
+// Native schedules (ScheduleQ entries)
+// ============================================================================
+
+fn epoch_nanos(t: Option<SystemTime>) -> u64 {
+    t.and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0)
+}
+
+fn from_epoch_nanos(n: u64) -> Option<SystemTime> {
+    if n == 0 {
+        None
+    } else {
+        Some(UNIX_EPOCH + Duration::from_nanos(n))
+    }
+}
+
+/// Encode a live schedule entry for the tasks database.
+pub fn schedule_to_flatbuffer(e: &ScheduleEntry) -> Result<fb::Schedule, TaskConversionError> {
+    let args: Result<Vec<_>, _> = e.args.iter().map(|v| var_to_db_flatbuffer(&v)).collect();
+    let args = args
+        .map_err(|e| TaskConversionError::VarError(format!("Error encoding schedule args: {e}")))?;
+    let state = match &e.options.state {
+        Some(v) => Some(Box::new(var_to_db_flatbuffer(v).map_err(|e| {
+            TaskConversionError::VarError(format!("Error encoding schedule state: {e}"))
+        })?)),
+        None => None,
+    };
+    let (kind, interval_nanos) = match e.kind {
+        ScheduleKind::At => ("at", 0),
+        ScheduleKind::Every { interval } => ("every", interval.as_nanos() as u64),
+    };
+    let catchup = match e.options.catchup {
+        CatchupPolicy::Skip => "skip",
+        CatchupPolicy::Once => "once",
+        CatchupPolicy::All => "all",
+    };
+    let overlap = match e.options.overlap {
+        OverlapPolicy::Skip => "skip",
+        OverlapPolicy::Queue => "queue",
+        OverlapPolicy::Concurrent => "concurrent",
+    };
+    Ok(fb::Schedule {
+        version: 1,
+        schedule_id: e.id,
+        target: Box::new(convert_schema::obj_to_flatbuffer_struct(&e.target)),
+        verb: Box::new(convert_schema::symbol_to_flatbuffer_struct(&e.verb)),
+        args,
+        authority_principal: Box::new(convert_schema::obj_to_flatbuffer_struct(
+            &e.authority_principal,
+        )),
+        owner: Box::new(convert_schema::obj_to_flatbuffer_struct(&e.owner)),
+        kind: kind.to_string(),
+        interval_nanos,
+        adaptive: e.options.adaptive,
+        catchup: catchup.to_string(),
+        overlap: overlap.to_string(),
+        jitter_nanos: e.options.jitter.as_nanos() as u64,
+        max_faults: e.options.max_faults.unwrap_or(0),
+        pass_elapsed: e.options.pass_elapsed,
+        state,
+        has_player: e.options.player.is_some(),
+        player: e
+            .options
+            .player
+            .as_ref()
+            .map(|p| Box::new(convert_schema::obj_to_flatbuffer_struct(p))),
+        created_at_nanos: epoch_nanos(Some(e.created_at)),
+        next_run_nanos: epoch_nanos(e.next_run),
+        scheduled_deadline_nanos: epoch_nanos(e.scheduled_deadline),
+        last_run_nanos: epoch_nanos(e.last_run),
+        run_count: e.run_count,
+        fault_count: e.fault_count,
+        consecutive_faults: e.consecutive_faults,
+        missed_count: e.missed_count,
+        overlap_count: e.overlap_count,
+        interval_clamped: e.interval_clamped,
+    })
+}
+
+/// Decode a persisted schedule. The result still needs `ScheduleQ::load`.
+pub fn schedule_from_ref(s: fb::ScheduleRef<'_>) -> Result<ScheduleEntry, TaskConversionError> {
+    fn dec<T, E: std::fmt::Display>(r: Result<T, E>, what: &str) -> Result<T, TaskConversionError> {
+        r.map_err(|e| TaskConversionError::DecodingError(format!("schedule {what}: {e}")))
+    }
+    fn obj<E: std::fmt::Display>(
+        r: Result<fb_common::ObjRef<'_>, E>,
+        what: &str,
+    ) -> Result<Obj, TaskConversionError> {
+        let r = dec(r, what)?;
+        convert_schema::obj_from_ref(r)
+            .map_err(|e| TaskConversionError::DecodingError(format!("schedule {what}: {e}")))
+    }
+
+    let id = dec(s.schedule_id(), "schedule_id")?;
+    let target = obj(s.target(), "target")?;
+    let verb = convert_schema::symbol_from_ref(dec(s.verb(), "verb")?)
+        .map_err(|e| TaskConversionError::DecodingError(format!("schedule verb: {e}")))?;
+    let args_vec = dec(s.args(), "args")?;
+    let args: Result<Vec<_>, TaskConversionError> = args_vec
+        .iter()
+        .map(|v| {
+            let v = dec(v, "arg")?;
+            var_from_db_flatbuffer_ref(v)
+                .map_err(|e| TaskConversionError::VarError(format!("schedule arg: {e}")))
+        })
+        .collect();
+    let args = moor_var::List::mk_list(&args?);
+    let authority_principal = obj(s.authority_principal(), "authority_principal")?;
+    let owner = obj(s.owner(), "owner")?;
+
+    let kind = match dec(s.kind(), "kind")? {
+        "at" => ScheduleKind::At,
+        "every" => ScheduleKind::Every {
+            interval: Duration::from_nanos(dec(s.interval_nanos(), "interval_nanos")?),
+        },
+        other => {
+            return Err(TaskConversionError::DecodingError(format!(
+                "schedule kind: unknown {other:?}"
+            )));
+        }
+    };
+    let catchup = match dec(s.catchup(), "catchup")? {
+        "skip" => CatchupPolicy::Skip,
+        "once" => CatchupPolicy::Once,
+        "all" => CatchupPolicy::All,
+        other => {
+            return Err(TaskConversionError::DecodingError(format!(
+                "schedule catchup: unknown {other:?}"
+            )));
+        }
+    };
+    let overlap = match dec(s.overlap(), "overlap")? {
+        "skip" => OverlapPolicy::Skip,
+        "queue" => OverlapPolicy::Queue,
+        "concurrent" => OverlapPolicy::Concurrent,
+        other => {
+            return Err(TaskConversionError::DecodingError(format!(
+                "schedule overlap: unknown {other:?}"
+            )));
+        }
+    };
+    let state = match dec(s.state(), "state")? {
+        Some(v) => Some(
+            var_from_db_flatbuffer_ref(v)
+                .map_err(|e| TaskConversionError::VarError(format!("schedule state: {e}")))?,
+        ),
+        None => None,
+    };
+    let player = if dec(s.has_player(), "has_player")? {
+        match dec(s.player(), "player")? {
+            Some(p) => Some(convert_schema::obj_from_ref(p).map_err(|e| {
+                TaskConversionError::DecodingError(format!("schedule player: {e}"))
+            })?),
+            None => None,
+        }
+    } else {
+        None
+    };
+    let max_faults = match dec(s.max_faults(), "max_faults")? {
+        0 => None,
+        n => Some(n),
+    };
+    let options = ScheduleOptions {
+        adaptive: dec(s.adaptive(), "adaptive")?,
+        catchup,
+        overlap,
+        jitter: Duration::from_nanos(dec(s.jitter_nanos(), "jitter_nanos")?),
+        max_faults,
+        pass_elapsed: dec(s.pass_elapsed(), "pass_elapsed")?,
+        state,
+        persist: true,
+        player,
+    };
+
+    Ok(ScheduleEntry::from_persisted(
+        id,
+        target,
+        verb,
+        args,
+        authority_principal,
+        owner,
+        kind,
+        options,
+        from_epoch_nanos(dec(s.created_at_nanos(), "created_at_nanos")?).unwrap_or(UNIX_EPOCH),
+        from_epoch_nanos(dec(s.next_run_nanos(), "next_run_nanos")?),
+        from_epoch_nanos(dec(
+            s.scheduled_deadline_nanos(),
+            "scheduled_deadline_nanos",
+        )?),
+        from_epoch_nanos(dec(s.last_run_nanos(), "last_run_nanos")?),
+        dec(s.run_count(), "run_count")?,
+        dec(s.fault_count(), "fault_count")?,
+        dec(s.consecutive_faults(), "consecutive_faults")?,
+        dec(s.missed_count(), "missed_count")?,
+        dec(s.overlap_count(), "overlap_count")?,
+        dec(s.interval_clamped(), "interval_clamped")?,
+    ))
 }
 
 #[cfg(test)]

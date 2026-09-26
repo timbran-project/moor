@@ -27,7 +27,7 @@ use moor_common::{
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
-use moor_var::{Error, Obj, Symbol, Var};
+use moor_var::{Error, List, Obj, Symbol, Var};
 
 use crate::tasks::scheduler::Scheduler;
 
@@ -307,6 +307,59 @@ impl TaskSchedulerClient {
     ) -> Var {
         self.scheduler
             .handle_task_send(self.task_id, target_task_id, value, sender_authority)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn schedule_create(
+        &self,
+        kind: crate::tasks::schedule_q::PendingKind,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: crate::tasks::schedule_q::ScheduleOptions,
+    ) -> Result<crate::tasks::schedule_q::ScheduleId, crate::tasks::schedule_q::ScheduleError> {
+        self.scheduler.handle_schedule_create(
+            self.task_id,
+            kind,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+        )
+    }
+
+    pub fn schedule_stop(
+        &self,
+        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<bool, moor_var::Error> {
+        self.scheduler
+            .handle_schedule_stop(self.task_id, schedule_id, authority)
+    }
+
+    pub fn schedule_valid(&self, schedule_id: crate::tasks::schedule_q::ScheduleId) -> bool {
+        self.scheduler
+            .handle_schedule_valid(self.task_id, schedule_id)
+    }
+
+    pub fn schedule_info(
+        &self,
+        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<Var, moor_var::Error> {
+        self.scheduler.handle_schedule_info(schedule_id, authority)
+    }
+
+    pub fn schedules(&self, owner: Option<Obj>, authority: &TaskPermissions) -> Vec<i64> {
+        self.scheduler.handle_schedules(owner, authority)
+    }
+
+    pub fn schedules_for(&self, target: Obj) -> Vec<i64> {
+        self.scheduler.handle_schedules_for(target)
     }
 
     pub fn task_recv(&self) -> Vec<Var> {

@@ -14,6 +14,10 @@
 use crate::task_context::{current_task_scheduler_client, with_current_transaction};
 use crate::tasks::{
     TaskStart,
+    schedule_q::{
+        CatchupPolicy, OverlapPolicy, PendingKind, ScheduleError, ScheduleId, ScheduleKind,
+        ScheduleOptions,
+    },
     task_telemetry::{ActiveTaskPhase, TaskTelemetry},
 };
 use crate::vm::TaskInputRequest;
@@ -25,8 +29,8 @@ use crate::vm::{FinallyReason, TaskSuspend};
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_PERM, E_TYPE, Symbol, Var, Variant, v_arc_str, v_float, v_int, v_list,
-    v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_PERM, E_TYPE, List, Obj, Symbol, Var, Variant, v_arc_str, v_bool, v_float,
+    v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
 };
 use std::time::{Duration, SystemTime};
 
@@ -393,6 +397,20 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 sym_or_str(*verb),
                 v_list_iter(args.iter()),
                 argstr.clone(),
+            ]),
+            TaskStart::StartScheduled {
+                schedule_id,
+                player,
+                vloc,
+                verb,
+                args,
+            } => v_list(&[
+                sym_or_str(Symbol::mk("scheduled")),
+                v_int(*schedule_id as i64),
+                v_obj(*player),
+                v_str(&vloc.to_string()),
+                sym_or_str(*verb),
+                v_list_iter(args.iter()),
             ]),
             TaskStart::StartFork {
                 fork_request,
@@ -848,6 +866,343 @@ fn bf_task_recv(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     )))
 }
 
+// ---- native scheduled tasks ------------------------------------------------
+
+fn schedule_err(e: ScheduleError) -> BfErr {
+    ErrValue(E_INVARG.msg(e.to_string()))
+}
+
+/// Parse the optional `options` map for `schedule_at`/`schedule_every`.
+/// Keys are strings or symbols; an unknown key is `E_INVARG` so a typo is
+/// caught at creation rather than silently ignored.
+fn parse_schedule_options(
+    kind: &ScheduleKind,
+    options: Option<&Var>,
+) -> Result<ScheduleOptions, BfErr> {
+    let mut opts = ScheduleOptions::for_kind(kind);
+    let Some(options) = options else {
+        return Ok(opts);
+    };
+    let Variant::Map(map) = options.variant() else {
+        return Err(ErrValue(E_TYPE.msg("schedule options must be a map")));
+    };
+    fn sym_of(v: &Var, what: &str) -> Result<String, BfErr> {
+        v.as_symbol()
+            .map(|s| s.as_string().to_lowercase())
+            .map_err(|_| {
+                ErrValue(E_TYPE.msg(format!("schedule option {what} must be a string or symbol")))
+            })
+    }
+    fn dur_of(v: &Var, what: &str) -> Result<Duration, BfErr> {
+        let secs = v.as_float_numeric().ok_or_else(|| {
+            ErrValue(E_TYPE.msg(format!("schedule option {what} must be a number")))
+        })?;
+        if !secs.is_finite() || secs < 0.0 {
+            return Err(ErrValue(
+                E_INVARG.msg(format!("schedule option {what} must be >= 0")),
+            ));
+        }
+        Ok(Duration::from_secs_f64(secs))
+    }
+    for (k, v) in map.iter_ref() {
+        let key = sym_of(k, "key")?;
+        match key.as_str() {
+            "adaptive" => opts.adaptive = v.is_true(),
+            "catchup" => {
+                opts.catchup = match sym_of(v, "catchup")?.as_str() {
+                    "skip" => CatchupPolicy::Skip,
+                    "once" => CatchupPolicy::Once,
+                    "all" => CatchupPolicy::All,
+                    other => {
+                        return Err(ErrValue(
+                            E_INVARG.msg(format!("unknown catchup policy {other:?}")),
+                        ));
+                    }
+                }
+            }
+            "overlap" => {
+                opts.overlap = match sym_of(v, "overlap")?.as_str() {
+                    "skip" => OverlapPolicy::Skip,
+                    "queue" => OverlapPolicy::Queue,
+                    "concurrent" => OverlapPolicy::Concurrent,
+                    other => {
+                        return Err(ErrValue(
+                            E_INVARG.msg(format!("unknown overlap policy {other:?}")),
+                        ));
+                    }
+                }
+            }
+            "jitter" => opts.jitter = dur_of(v, "jitter")?,
+            "max_faults" => {
+                let n = v.as_integer().ok_or_else(|| {
+                    ErrValue(E_TYPE.msg("schedule option max_faults must be an integer"))
+                })?;
+                opts.max_faults = if n <= 0 { None } else { Some(n as u32) };
+            }
+            "pass_elapsed" => opts.pass_elapsed = v.is_true(),
+            "state" => opts.state = Some(v.clone()),
+            "persist" => opts.persist = v.is_true(),
+            "player" => {
+                let Variant::Obj(o) = v.variant() else {
+                    return Err(ErrValue(
+                        E_TYPE.msg("schedule option player must be an object"),
+                    ));
+                };
+                opts.player = Some(o);
+            }
+            other => {
+                return Err(ErrValue(
+                    E_INVARG.msg(format!("unknown schedule option {other:?}")),
+                ));
+            }
+        }
+    }
+    Ok(opts)
+}
+
+/// Shared argument handling for `schedule_at` and `schedule_every`:
+/// `(obj target, str|sym verb, num when_or_interval [, list args] [, map options])`.
+fn parse_schedule_call(
+    bf_args: &mut BfCallState<'_>,
+    name: &str,
+) -> Result<(Obj, Symbol, f64, List, Option<Var>), BfErr> {
+    if bf_args.args.len() < 3 || bf_args.args.len() > 5 {
+        return Err(ErrValue(
+            E_ARGS.msg(format!("{name}() takes 3 to 5 arguments")),
+        ));
+    }
+    let Variant::Obj(target) = bf_args.args[0].variant() else {
+        return Err(ErrValue(
+            E_TYPE.msg(format!("{name}(): target must be an object")),
+        ));
+    };
+    let verb = bf_args.args[1]
+        .as_symbol()
+        .map_err(|_| ErrValue(E_TYPE.msg(format!("{name}(): verb must be a string or symbol"))))?;
+    let num = bf_args.args[2]
+        .as_float_numeric()
+        .ok_or_else(|| ErrValue(E_TYPE.msg(format!("{name}(): time must be a number"))))?;
+    if !num.is_finite() {
+        return Err(ErrValue(
+            E_INVARG.msg(format!("{name}(): time must be finite")),
+        ));
+    }
+    let args = if bf_args.args.len() > 3 {
+        match bf_args.args[3].variant() {
+            Variant::List(l) => l.clone(),
+            _ => {
+                return Err(ErrValue(
+                    E_TYPE.msg(format!("{name}(): args must be a list")),
+                ));
+            }
+        }
+    } else {
+        List::mk_list(&[])
+    };
+    let options = if bf_args.args.len() > 4 {
+        Some(bf_args.args[4].clone())
+    } else {
+        None
+    };
+
+    // The caller must be able to call the verb now: the same check a verb
+    // call would make. Loud at the call site instead of quiet at 3am.
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let found = with_current_transaction(|ws| {
+        ws.valid(&target).unwrap_or(false)
+            && matches!(
+                ws.lookup_verb(
+                    &perms,
+                    moor_common::model::VerbLookup::method(&target, verb)
+                ),
+                Ok(Some(_))
+            )
+    });
+    if !found {
+        return Err(ErrValue(
+            E_INVARG.msg(format!("{name}(): {target}:{verb} is not a callable verb")),
+        ));
+    }
+    Ok((target, verb, num, args, options))
+}
+
+/// Usage: `int schedule_at(obj target, str verb, num when [, list args] [, map options])`
+/// Arrange for `target:verb(@args)` to run once, as a fresh background task,
+/// at Unix epoch time `when` (seconds, int or float). A `when` in the past
+/// fires on the next scheduler tick. Returns a schedule id from its own id
+/// space (never a task id). The schedule is created when this task commits and
+/// discarded if it rolls back or is retried.
+///
+/// Options (string or symbol keys; unknown keys are E_INVARG):
+///   adaptive (default 1): a positive numeric return re-arms the schedule that
+///     many seconds later; 0 ends it; negative retires it with a fault.
+///   catchup: "skip" | "once" | "all" -- missed-firing policy after a restart.
+///   overlap: "skip" | "queue" | "concurrent" -- when the previous firing is
+///     still running.
+///   jitter (seconds): randomise each deadline by up to +/- this much.
+///   max_faults (int): consecutive faults before retirement; 0 = unlimited.
+///   pass_elapsed (default 1): append real seconds since the previous firing.
+///   state: an opaque value (<= 4 KB) appended to args before elapsed.
+///   persist (default 1): survive a server restart.
+///   player: the value of `player` inside the fired verb (default: target).
+fn bf_schedule_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    let (target, verb, when, args, options) = parse_schedule_call(bf_args, "schedule_at")?;
+    if when < 0.0 {
+        return Err(ErrValue(E_INVARG.msg("schedule_at(): time must be >= 0")));
+    }
+    let when = SystemTime::UNIX_EPOCH + Duration::from_secs_f64(when);
+    let options = parse_schedule_options(&ScheduleKind::At, options.as_ref())?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let id = current_task_scheduler_client()
+        .schedule_create(
+            PendingKind::At(when),
+            target,
+            verb,
+            args,
+            perms.principal(),
+            perms.principal(),
+            options,
+        )
+        .map_err(schedule_err)?;
+    Ok(Ret(v_int(id as i64)))
+}
+
+/// Usage: `int schedule_every(obj target, str verb, num interval [, list args] [, map options])`
+/// Arrange for `target:verb(@args)` to run every `interval` seconds (> 0),
+/// each firing a fresh background task, with deadlines computed from the
+/// previous deadline so the cadence does not drift. An interval below the
+/// scheduler tick is clamped to one tick and reported in `schedule_info()`.
+/// Returns a schedule id. Same options as `schedule_at()`; `adaptive` is off
+/// by default. Created when this task commits; discarded on rollback/retry.
+fn bf_schedule_every(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    let (target, verb, interval, args, options) = parse_schedule_call(bf_args, "schedule_every")?;
+    if interval <= 0.0 {
+        return Err(ErrValue(
+            E_INVARG.msg("schedule_every(): interval must be > 0"),
+        ));
+    }
+    let interval = Duration::from_secs_f64(interval);
+    let kind = ScheduleKind::Every { interval };
+    let options = parse_schedule_options(&kind, options.as_ref())?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let id = current_task_scheduler_client()
+        .schedule_create(
+            PendingKind::Every(interval),
+            target,
+            verb,
+            args,
+            perms.principal(),
+            perms.principal(),
+            options,
+        )
+        .map_err(schedule_err)?;
+    Ok(Ret(v_int(id as i64)))
+}
+
+fn schedule_id_arg(bf_args: &BfCallState<'_>, name: &str) -> Result<ScheduleId, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(ErrValue(
+            E_ARGS.msg(format!("{name}() requires 1 argument")),
+        ));
+    }
+    let Some(id) = bf_args.args[0].as_integer() else {
+        return Err(ErrValue(
+            E_TYPE.msg(format!("{name}() requires an integer schedule id")),
+        ));
+    };
+    Ok(if id < 0 { 0 } else { id as ScheduleId })
+}
+
+/// Usage: `bool schedule_stop(int schedule_id)`
+/// Cancel a schedule. Returns true if a live schedule (or one created by this
+/// task and not yet committed) was cancelled, false for an unknown, already
+/// fired, or already retired id. Never raises for a stale id: cancelling a
+/// schedule that already ran is an ordinary race, not an error. Requires
+/// ownership of the schedule or wizard permissions. Takes effect when this
+/// task commits.
+fn bf_schedule_stop(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    let id = schedule_id_arg(bf_args, "schedule_stop")?;
+    if id == 0 {
+        return Ok(Ret(v_bool(false)));
+    }
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let stopped = current_task_scheduler_client()
+        .schedule_stop(id, &perms)
+        .map_err(ErrValue)?;
+    Ok(Ret(v_bool(stopped)))
+}
+
+/// Usage: `bool schedule_valid(int schedule_id)`
+/// Whether `schedule_id` refers to a live schedule (one that will fire again),
+/// including one this task created and has not yet committed.
+fn bf_schedule_valid(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    let id = schedule_id_arg(bf_args, "schedule_valid")?;
+    if id == 0 {
+        return Ok(Ret(v_bool(false)));
+    }
+    Ok(Ret(v_bool(
+        current_task_scheduler_client().schedule_valid(id),
+    )))
+}
+
+/// Usage: `map schedule_info(int schedule_id)`
+/// Everything the scheduler knows about a schedule: target, verb, args,
+/// owner, kind, interval, next_run (0 if retired), last_run, run/fault
+/// counts, missed/overlap counts, duration statistics, state, running_task,
+/// retired/retire_reason, and the options it was created with. Retired
+/// schedules remain visible until purged. E_INVARG for an unknown id; E_PERM
+/// unless owner or wizard.
+fn bf_schedule_info(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    let id = schedule_id_arg(bf_args, "schedule_info")?;
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let info = current_task_scheduler_client()
+        .schedule_info(id, &perms)
+        .map_err(ErrValue)?;
+    Ok(Ret(info))
+}
+
+/// Usage: `list schedules([obj owner])`
+/// Live schedule ids visible to the caller: all of them for a wizard, the
+/// caller's own otherwise. With `owner`, only that owner's (wizard, or self).
+fn bf_schedules(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() > 1 {
+        return Err(ErrValue(E_ARGS.msg("schedules() takes 0 or 1 arguments")));
+    }
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    let owner = if bf_args.args.is_empty() {
+        None
+    } else {
+        match bf_args.args[0].variant() {
+            Variant::Obj(o) => {
+                if !perms.is_wizard() && o != perms.principal() {
+                    return Err(ErrValue(E_PERM.msg("schedules(): not a wizard")));
+                }
+                Some(o)
+            }
+            _ => return Err(ErrValue(E_TYPE.msg("schedules(): owner must be an object"))),
+        }
+    };
+    let ids = current_task_scheduler_client().schedules(owner, &perms);
+    Ok(Ret(v_list_iter(ids.into_iter().map(v_int))))
+}
+
+/// Usage: `list schedules_for(obj target)`
+/// Live schedule ids whose target is `target`, regardless of who created
+/// them. This is what recycling and "unregister everything on this object"
+/// paths use, so it needs no special permission.
+fn bf_schedules_for(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(ErrValue(E_ARGS.msg("schedules_for() requires 1 argument")));
+    }
+    let Variant::Obj(target) = bf_args.args[0].variant() else {
+        return Err(ErrValue(
+            E_TYPE.msg("schedules_for(): target must be an object"),
+        ));
+    };
+    let ids = current_task_scheduler_client().schedules_for(target);
+    Ok(Ret(v_list_iter(ids.into_iter().map(v_int))))
+}
+
 pub(crate) fn register_bf_task(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("suspend")] = bf_suspend;
     builtins[offset_for_builtin("suspend_if_needed")] = bf_suspend_if_needed;
@@ -868,4 +1223,11 @@ pub(crate) fn register_bf_task(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("task_send")] = bf_task_send;
     builtins[offset_for_builtin("task_recv")] = bf_task_recv;
     builtins[offset_for_builtin("task_telemetry")] = bf_task_telemetry;
+    builtins[offset_for_builtin("schedule_at")] = bf_schedule_at;
+    builtins[offset_for_builtin("schedule_every")] = bf_schedule_every;
+    builtins[offset_for_builtin("schedule_stop")] = bf_schedule_stop;
+    builtins[offset_for_builtin("schedule_valid")] = bf_schedule_valid;
+    builtins[offset_for_builtin("schedule_info")] = bf_schedule_info;
+    builtins[offset_for_builtin("schedules")] = bf_schedules;
+    builtins[offset_for_builtin("schedules_for")] = bf_schedules_for;
 }

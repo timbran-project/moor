@@ -51,6 +51,7 @@ use crate::{
         gc_thread::spawn_gc_mark_phase,
         maintenance::MaintenanceCoordinator,
         sched_counters,
+        schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId, ScheduleQ},
         storage_compaction::{
             StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
             prepare_storage_compaction,
@@ -92,7 +93,8 @@ use moor_common::{
 use moor_objdef::{collect_index_names, collect_object, dump_object};
 use moor_var::{
     E_EXEC, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, ErrorCode, List, NOTHING, Obj,
-    SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_str, v_err, v_error, v_int, v_obj, v_str,
+    SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_str, v_err, v_error, v_float, v_int, v_obj,
+    v_str,
 };
 use std::collections::HashMap;
 
@@ -255,6 +257,14 @@ impl Scheduler {
             last_mutation_timestamp: None,
             state: SchedulerState::Created,
             last_compact_time: std::time::Instant::now(),
+            schedule_q: ScheduleQ::new(
+                config
+                    .runtime
+                    .scheduler_tick_duration
+                    .unwrap_or(Duration::from_millis(10)),
+            ),
+            pending_schedule_ops: HashMap::new(),
+            bg_session_factory: None,
         };
 
         let s = Self {
@@ -289,12 +299,16 @@ impl Scheduler {
             if lc.state != SchedulerState::Created {
                 return Err(SchedulerError::SchedulerNotResponding);
             }
-            if let Some(max_restored_task_id) = lc.task_q.suspended.load_tasks(bg_session_factory) {
+            if let Some(max_restored_task_id) =
+                lc.task_q.suspended.load_tasks(bg_session_factory.clone())
+            {
                 let next_restored_task_id = max_restored_task_id
                     .checked_add(1)
                     .expect("Restored task ID exhausted the task ID space");
                 lc.next_task_id = lc.next_task_id.max(next_restored_task_id);
             }
+            lc.load_schedules();
+            lc.bg_session_factory = Some(bg_session_factory);
             lc.state = SchedulerState::Running;
         }
 
@@ -405,6 +419,13 @@ impl Scheduler {
             // Collect timer-based wakes
             self.collect_and_wake_expired_tasks();
 
+            // Settle finished firings and fire due native schedules
+            {
+                let mut lc = self.lifecycle.lock();
+                lc.settle_schedule_firings();
+            }
+            self.collect_and_fire_schedules();
+
             // Sleep until next timer expiry or notification
             let tick_duration = self
                 .config
@@ -422,6 +443,7 @@ impl Scheduler {
         info!("Timer loop done; saving suspended tasks");
         let lc = self.lifecycle.lock();
         lc.task_q.suspended.save_tasks();
+        lc.save_schedules();
         info!("Saved.");
     }
 
@@ -533,6 +555,124 @@ impl Scheduler {
     }
 
     /// Submit a new task and wake it immediately if needed.
+    #[allow(clippy::too_many_arguments)]
+    /// Fire every native schedule whose deadline has passed. Expired entries
+    /// are collected under one lock acquisition; each firing is then
+    /// submitted as an ordinary background task with
+    /// `TaskStart::StartScheduled`, and the schedule is marked running so the
+    /// completion callbacks can find it again.
+    fn collect_and_fire_schedules(&self) {
+        let now_sys = SystemTime::now();
+        let now = std::time::Instant::now();
+        let to_fire: Vec<(ScheduleId, ScheduleEntry)> = {
+            let mut lc = self.lifecycle.lock();
+            if lc.state != SchedulerState::Running {
+                return;
+            }
+            let ids = lc.schedule_q.expired(now, now_sys);
+            ids.into_iter()
+                .filter_map(|id| lc.schedule_q.info(id).cloned().map(|e| (id, e)))
+                .collect()
+        };
+        if to_fire.is_empty() {
+            return;
+        }
+
+        for (id, entry) in to_fire {
+            let mut lc = self.lifecycle.lock();
+            // Re-check: the schedule may have been stopped between collection
+            // and now.
+            if !lc.schedule_q.is_valid(id) {
+                continue;
+            }
+            let Some(factory) = lc.bg_session_factory.clone() else {
+                warn!(schedule_id = id, "No session factory; cannot fire schedule");
+                continue;
+            };
+            let player = entry.options.player.unwrap_or(entry.target);
+            let session = match factory.mk_background_session(&player) {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!(schedule_id = id, error = ?e, "Could not make session for schedule firing");
+                    continue;
+                }
+            };
+
+            // Revalidate the target and the verb before spending a task on it.
+            // A recycled target or a vanished verb retires the schedule.
+            if !self.schedule_target_is_valid(&entry) {
+                lc.schedule_q.retire(id, RetireReason::InvalidTarget);
+                lc.persist_schedule(id);
+                continue;
+            }
+
+            let mut args: Var = entry.args.clone().into();
+            if let Some(state) = &entry.options.state {
+                args = args.push(state).unwrap_or(args);
+            }
+            let task_id = lc.next_task_id;
+            lc.next_task_id += 1;
+            let elapsed = lc.schedule_q.mark_fired(id, task_id, now_sys);
+            if entry.options.pass_elapsed {
+                let secs = elapsed.map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                args = args.push(&v_float(secs)).unwrap_or(args);
+            }
+            let args = match args.variant() {
+                moor_var::Variant::List(l) => l.clone(),
+                _ => entry.args.clone(),
+            };
+            let task_start = TaskStart::StartScheduled {
+                schedule_id: id,
+                player,
+                vloc: moor_common::model::ObjectRef::Id(entry.target),
+                verb: entry.verb,
+                args,
+            };
+            if let Err(e) = self.submit_task(
+                &mut lc,
+                task_id,
+                &player,
+                &entry.authority_principal,
+                task_start,
+                None,
+                session,
+            ) {
+                warn!(schedule_id = id, error = ?e, "Could not submit schedule firing");
+                lc.schedule_q.complete(
+                    id,
+                    Outcome::Fault(v_str(&format!("{e:?}"))),
+                    SystemTime::now(),
+                );
+                lc.persist_schedule(id);
+            }
+        }
+    }
+
+    /// Whether a schedule's target still exists and its verb still resolves.
+    fn schedule_target_is_valid(&self, entry: &ScheduleEntry) -> bool {
+        let Ok(tx) = self.database.new_world_state() else {
+            return true; // cannot check; let the firing find out
+        };
+        let valid = tx.valid(&entry.target).unwrap_or(false);
+        if !valid {
+            let _ = tx.rollback();
+            return false;
+        }
+        let perms = moor_common::model::TaskPermissions::new(
+            entry.authority_principal,
+            tx.flags_of(&entry.authority_principal).unwrap_or_default(),
+        );
+        let found = matches!(
+            tx.lookup_verb(
+                &perms,
+                moor_common::model::VerbLookup::method(&entry.target, entry.verb),
+            ),
+            Ok(Some(_))
+        );
+        let _ = tx.rollback();
+        found
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn submit_task(
         &self,

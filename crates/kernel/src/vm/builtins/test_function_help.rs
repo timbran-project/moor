@@ -48,6 +48,26 @@ mod tests {
     }
 
     #[test]
+    fn test_schedule_builtins_have_docs() {
+        for name in [
+            "schedule_at",
+            "schedule_every",
+            "schedule_stop",
+            "schedule_valid",
+            "schedule_info",
+            "schedules",
+            "schedules_for",
+        ] {
+            let docs = BUILTIN_DOCS.get(name);
+            assert!(docs.is_some(), "{name} builtin should have documentation");
+            assert!(
+                docs.unwrap()[0].contains(name),
+                "{name}: first doc line should carry the signature"
+            );
+        }
+    }
+
+    #[test]
     fn test_nonexistent_builtin() {
         let docs = BUILTIN_DOCS.get("this_builtin_does_not_exist");
         assert!(docs.is_none(), "Non-existent builtin should return None");

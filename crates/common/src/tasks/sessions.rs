@@ -259,7 +259,7 @@ pub trait SystemControl: Send + Sync {
 }
 
 /// A factory for creating background sessions, usually on task resumption on server restart.
-pub trait SessionFactory {
+pub trait SessionFactory: Send + Sync {
     fn mk_background_session(
         self: Arc<Self>,
         player: &Obj,
