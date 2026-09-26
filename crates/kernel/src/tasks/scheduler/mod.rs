@@ -601,7 +601,8 @@ impl Scheduler {
             // Revalidate the target and the verb before spending a task on it.
             // A recycled target or a vanished verb retires the schedule.
             if !self.schedule_target_is_valid(&entry) {
-                lc.schedule_q.retire(id, RetireReason::InvalidTarget);
+                lc.schedule_q
+                    .retire(id, RetireReason::InvalidTarget, now_sys);
                 lc.persist_schedule(id);
                 continue;
             }

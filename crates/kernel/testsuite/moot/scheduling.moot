@@ -77,6 +77,27 @@ E_INVARG
 > return {length(hits), hits[1][1], hits[1][2], typeof(hits[1][3]), info["run_count"], info["retired"], info["retire_reason"], info["kind"], schedule_valid(id)};
 {1, "a", 2, TYPE_FLOAT, 1, true, "returned_zero", "at", false}
 
+// Stopping a retired schedule is a stale-id false, and releases its
+// diagnostics: schedule_info then fails like any unknown id.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> id = schedule_at(target, "tick", ftime());
+> commit();
+> suspend(0.5);
+> was_retired = schedule_info(id)["retired"];
+> stopped = schedule_stop(id);
+> commit();
+> try
+>   schedule_info(id);
+>   after = "still there";
+> except e (E_INVARG)
+>   after = "E_INVARG";
+> endtry
+> recycle(target);
+> return {was_retired, stopped, after};
+{true, false, "E_INVARG"}
+
 // The adaptive protocol: a one-shot that returns a positive number re-arms.
 ; target = create(#-1);
 > add_property(target, "n", 0, {player, "rw"});

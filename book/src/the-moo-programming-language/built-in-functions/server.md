@@ -1206,7 +1206,8 @@ as `interval_clamped` in `schedule_info`.
 
 **Description:** Cancels a schedule. Takes effect when the calling task commits. **Never raises for
 a stale id**: a schedule that already fired, retired or never existed is an ordinary race and
-returns `false`.
+returns `false`. Stopping a retired schedule you own also discards its retained diagnostics, so
+`schedule_info()` on it then raises `E_INVARG`.
 
 **Syntax:** `bool schedule_stop(int schedule_id)`
 
@@ -1228,8 +1229,9 @@ calling task has created but not yet committed.
 
 ### `schedule_info`
 
-**Description:** Everything the scheduler knows about a schedule. Retired schedules remain
-inspectable until the scheduler purges them.
+**Description:** Everything the scheduler knows about a schedule. A retired schedule remains
+inspectable for 60 seconds after it retires, or until `schedule_stop()` is called on it; after that
+its id is unknown and `schedule_info()` raises `E_INVARG`.
 
 **Syntax:** `map schedule_info(int schedule_id)`
 

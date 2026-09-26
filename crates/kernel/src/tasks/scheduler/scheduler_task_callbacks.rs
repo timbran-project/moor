@@ -1278,17 +1278,21 @@ impl Scheduler {
         let Some(entry) = lc.schedule_q.info(schedule_id) else {
             return Ok(false);
         };
-        if !entry.is_live() {
+        let authorized = authority.is_wizard() || authority.principal() == entry.owner;
+        // A retired id is stale: `false`, never an error. Its owner (or a
+        // wizard) stopping it releases the retained diagnostics on commit.
+        let live = entry.is_live();
+        if !live && !authorized {
             return Ok(false);
         }
-        if !authority.is_wizard() && authority.principal() != entry.owner {
+        if !authorized {
             return Err(E_PERM.msg("schedule_stop: not the owner of this schedule"));
         }
         lc.pending_schedule_ops
             .entry(task_id)
             .or_default()
             .push(super::lifecycle::PendingScheduleOp::Stop(schedule_id));
-        Ok(true)
+        Ok(live)
     }
 
     pub fn handle_schedule_valid(

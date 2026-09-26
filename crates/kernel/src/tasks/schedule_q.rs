@@ -440,9 +440,20 @@ pub struct ScheduleQ {
     /// The scheduler tick. Intervals below it are clamped to it and flagged.
     tick: Duration,
     last_advance: Option<Instant>,
+    /// Retired entries in retirement order, with the time each retired.
+    /// `purge_retired` pops from the front once `RETIRED_RETENTION` has
+    /// passed, so the cost per tick is proportional to what expires.
+    retired_queue: VecDeque<(SystemTime, ScheduleId)>,
 }
 
 impl ScheduleQ {
+    /// How long a retired entry stays inspectable through `info()` before it
+    /// is dropped. Long enough for the code that created or watches a
+    /// schedule to read why it ended; short enough that a steady stream of
+    /// one-shots holds at most a minute's worth of entries (and the args,
+    /// state and fault values they root for GC).
+    pub const RETIRED_RETENTION: Duration = Duration::from_secs(60);
+
     pub fn new(tick: Duration) -> Self {
         Self {
             entries: HashMap::new(),
@@ -456,6 +467,7 @@ impl ScheduleQ {
             by_task: HashMap::new(),
             tick,
             last_advance: None,
+            retired_queue: VecDeque::new(),
         }
     }
 
@@ -763,9 +775,15 @@ impl ScheduleQ {
     // ---- lifecycle ------------------------------------------------------
 
     /// Cancel and forget. `false` for an unknown or already-retired id: a
-    /// stale id is an ordinary race, not an error.
+    /// stale id is an ordinary race, not an error. A retired entry is
+    /// dropped immediately rather than waiting out `RETIRED_RETENTION`.
     pub fn stop(&mut self, id: ScheduleId) -> bool {
-        if !self.is_valid(id) {
+        let Some(entry) = self.entries.get(&id) else {
+            return false;
+        };
+        if !entry.is_live() {
+            // Retirement already cleared the indexes and timers.
+            self.entries.remove(&id);
             return false;
         }
         let Some(entry) = self.entries.remove(&id) else {
@@ -791,11 +809,16 @@ impl ScheduleQ {
         true
     }
 
-    /// Stop scheduling but keep the entry so `info()` shows why.
-    pub fn retire(&mut self, id: ScheduleId, reason: RetireReason) {
+    /// Stop scheduling but keep the entry so `info()` shows why, until
+    /// `RETIRED_RETENTION` after `now`.
+    pub fn retire(&mut self, id: ScheduleId, reason: RetireReason, now: SystemTime) {
         let Some(entry) = self.entries.get_mut(&id) else {
             return;
         };
+        if entry.retired.is_some() {
+            return;
+        }
+        self.retired_queue.push_back((now, id));
         entry.next_run = None;
         entry.retired = Some(reason);
         let running_task = entry.running_task.take();
@@ -821,14 +844,33 @@ impl ScheduleQ {
         self.immediate.retain(|&i| i != id);
     }
 
-    /// Drop every retired entry.
-    pub fn purge_retired(&mut self) {
-        self.entries.retain(|_, e| e.is_live());
+    /// Drop retired entries whose retention has passed at `now`. Called
+    /// from `expired()` on every tick and before a GC root scan.
+    ///
+    /// The queue is in retirement order; if the wall clock steps backwards
+    /// a later entry may wait behind an earlier one, never longer than the
+    /// front entry's own retention.
+    pub fn purge_retired(&mut self, now: SystemTime) {
+        while let Some(&(retired_at, id)) = self.retired_queue.front() {
+            let due = retired_at
+                .checked_add(Self::RETIRED_RETENTION)
+                .unwrap_or(retired_at);
+            if due > now {
+                break;
+            }
+            self.retired_queue.pop_front();
+            // Already gone if `stop()` released it early.
+            if self.entries.get(&id).is_some_and(|e| e.retired.is_some()) {
+                self.entries.remove(&id);
+            }
+        }
     }
 
     /// Advance the wheel to `now` and return the schedules to fire, after
     /// dropping stale generations and applying each entry's overlap policy.
+    /// Also purges retired entries past their retention.
     pub fn expired(&mut self, now: Instant, now_sys: SystemTime) -> Vec<ScheduleId> {
+        self.purge_retired(now_sys);
         let mut ids: Vec<ScheduleId> = std::mem::take(&mut self.immediate);
         for e in self.advance_wheel(now) {
             if self.generations.get(&e.id) == Some(&e.generation) {
@@ -939,7 +981,7 @@ impl ScheduleQ {
                 entry.consecutive_faults += 1;
                 entry.last_fault = Some(v.clone());
                 if entry.options.max_faults == Some(entry.consecutive_faults) {
-                    self.retire(id, RetireReason::MaxFaults);
+                    self.retire(id, RetireReason::MaxFaults, finished_at);
                     return Some(Completion::Retired(RetireReason::MaxFaults));
                 }
             }
@@ -974,7 +1016,7 @@ impl ScheduleQ {
             } else if n == 0.0 {
                 match kind {
                     ScheduleKind::At => {
-                        self.retire(id, RetireReason::ReturnedZero);
+                        self.retire(id, RetireReason::ReturnedZero, finished_at);
                         return Some(Completion::Retired(RetireReason::ReturnedZero));
                     }
                     ScheduleKind::Every { .. } => {
@@ -984,14 +1026,14 @@ impl ScheduleQ {
             } else {
                 let entry = self.entries.get_mut(&id).unwrap();
                 entry.fault_count += 1;
-                self.retire(id, RetireReason::NegativeReturn);
+                self.retire(id, RetireReason::NegativeReturn, finished_at);
                 return Some(Completion::Retired(RetireReason::NegativeReturn));
             }
         }
 
         match kind {
             ScheduleKind::At => {
-                self.retire(id, RetireReason::OneShotDone);
+                self.retire(id, RetireReason::OneShotDone, finished_at);
                 Some(Completion::Retired(RetireReason::OneShotDone))
             }
             ScheduleKind::Every { interval } => {
@@ -1031,21 +1073,20 @@ impl ScheduleQ {
     }
 
     /// Restore an entry from persistence. Past deadlines go through the
-    /// catchup policy; the id counter is floored above the loaded id.
+    /// catchup policy; the id counter is floored above the loaded id. Only
+    /// live entries are persisted, so anything else is dropped here.
     pub fn load(&mut self, mut entry: ScheduleEntry, now: SystemTime) {
         if entry.id >= self.next_id {
             self.next_id = entry.id + 1;
+        }
+        if entry.retired.is_some() || entry.next_run.is_none() {
+            return;
         }
         let id = entry.id;
         self.by_owner.entry(entry.owner).or_default().insert(id);
         self.by_target.entry(entry.target).or_default().insert(id);
         entry.running_task = None;
         entry.queued_firing = false;
-
-        if entry.retired.is_some() || entry.next_run.is_none() {
-            self.entries.insert(id, entry);
-            return;
-        }
 
         let deadline = entry.next_run.unwrap();
         let deadline = if deadline <= now {
@@ -1070,7 +1111,9 @@ impl ScheduleQ {
     }
 
     /// Schedules are GC roots for anonymous objects: target, args, state,
-    /// and the last fault value.
+    /// and the last fault value. Retired entries count until purged, since
+    /// `info()` can still hand those values out; callers should
+    /// `purge_retired` first.
     pub fn collect_anonymous_object_references(&self, refs: &mut HashSet<Obj>) {
         for e in self.entries.values() {
             if e.target.is_anonymous() {
@@ -1818,7 +1861,7 @@ mod tests {
                 t0,
             )
             .unwrap();
-        q.retire(id, RetireReason::InvalidTarget);
+        q.retire(id, RetireReason::InvalidTarget, t0);
         assert!(!q.is_valid(id));
         let info = q.info(id).unwrap();
         assert_eq!(info.retired, Some(RetireReason::InvalidTarget));
@@ -1830,6 +1873,95 @@ mod tests {
             .map(|(_, v)| v)
             .unwrap();
         assert_eq!(retired_val.as_bool(), Some(true));
+    }
+
+    // ---- 9b: bounded retention of retired entries ---------------------
+
+    /// Fire a one-shot at `t0 + 1s` and let it complete, returning its id.
+    fn completed_one_shot(
+        q: &mut ScheduleQ,
+        i0: Instant,
+        t0: SystemTime,
+        args: List,
+    ) -> ScheduleId {
+        q.expired(i0, t0);
+        let id = q
+            .add_at(
+                t0 + Duration::from_secs(1),
+                target(),
+                verb(),
+                args,
+                owner(),
+                owner(),
+                at_opts(),
+                t0,
+            )
+            .unwrap();
+        let fire_t = t0 + Duration::from_secs(1);
+        let ids = q.expired(i0 + Duration::from_secs(1), fire_t);
+        assert_eq!(ids, vec![id]);
+        q.mark_fired(id, 7, fire_t);
+        q.complete(id, Outcome::Success(v_int(0)), fire_t);
+        assert!(q.info(id).unwrap().retired.is_some());
+        id
+    }
+
+    #[test]
+    fn retired_entry_purged_after_retention() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let i0 = Instant::now();
+        let id = completed_one_shot(&mut q, i0, t0, args());
+        let retired_at = t0 + Duration::from_secs(1);
+
+        // Still inspectable just inside the retention window.
+        let just_before = ScheduleQ::RETIRED_RETENTION - Duration::from_millis(10);
+        q.expired(
+            i0 + Duration::from_secs(1) + just_before,
+            retired_at + just_before,
+        );
+        assert!(q.info(id).is_some());
+
+        // Gone once the window has passed.
+        q.expired(
+            i0 + Duration::from_secs(1) + ScheduleQ::RETIRED_RETENTION,
+            retired_at + ScheduleQ::RETIRED_RETENTION,
+        );
+        assert!(q.info(id).is_none());
+        assert!(q.all_ids().is_empty());
+        assert!(q.schedule_for_task(7).is_none());
+    }
+
+    #[test]
+    fn stop_releases_retired_entry() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let id = completed_one_shot(&mut q, Instant::now(), t0(), args());
+        // A stale id is still `false`, but the diagnostics are dropped.
+        assert!(!q.stop(id));
+        assert!(q.info(id).is_none());
+        assert!(q.all_ids().is_empty());
+    }
+
+    #[test]
+    fn purged_entry_is_not_a_gc_root() {
+        let anon = Obj::mk_anonymous_generated();
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let i0 = Instant::now();
+        let id = completed_one_shot(&mut q, i0, t0, List::mk_list(&[Var::from(anon)]));
+
+        // During retention the entry is a root: `schedule_info` may still
+        // hand out its args, which must not dangle.
+        let mut refs = HashSet::new();
+        q.collect_anonymous_object_references(&mut refs);
+        assert!(refs.contains(&anon));
+
+        let later = Duration::from_secs(1) + ScheduleQ::RETIRED_RETENTION;
+        q.expired(i0 + later, t0 + later);
+        assert!(q.info(id).is_none());
+        let mut refs = HashSet::new();
+        q.collect_anonymous_object_references(&mut refs);
+        assert!(refs.is_empty());
     }
 
     // ---- 10: clamp and validation errors -------------------------------

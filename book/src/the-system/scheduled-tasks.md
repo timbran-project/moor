@@ -100,11 +100,20 @@ is an ordinary race, and the calling code should not need a `try` around it.
 
 It does raise `E_PERM` if the schedule exists, is live, and you are neither its owner nor a wizard.
 
+Stopping a retired schedule (see below) also returns `false`, but if you are its owner or a wizard
+it discards the retained entry when your task commits, so `schedule_info()` on that id then raises
+`E_INVARG`.
+
 ## Retirement
 
-A schedule that will not fire again is _retired_. It keeps its entry (so `schedule_info()` can tell
-you why) until the scheduler purges it, but `schedule_valid()` is `false` and it no longer appears
-in `schedules()`/`schedules_for()`. The reasons, as reported in `retire_reason`:
+A schedule that will not fire again is _retired_. It keeps its entry for 60 seconds, so
+`schedule_info()` can tell you why it ended (`retire_reason`, `last_fault`, the run counters).
+During that time `schedule_valid()` is `false` and the id no longer appears in
+`schedules()`/`schedules_for()`. After 60 seconds, or sooner if you `schedule_stop()` it, the entry
+is dropped: `schedule_info()` raises `E_INVARG` as for any unknown id, and the entry's args, state
+and fault value stop counting as references to anonymous objects. Retired entries are not saved in
+the tasks database, so a restart drops them as well. If you need the outcome for longer, record it
+from the verb itself. The reasons, as reported in `retire_reason`:
 
 | `retire_reason`     | Meaning                                                                        |
 | ------------------- | ------------------------------------------------------------------------------ |
