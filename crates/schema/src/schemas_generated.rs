@@ -141156,6 +141156,9 @@ mod root {
             pub tick_count: u64,
             /// The field `start_time_nanos` in the table `VMExecState`
             pub start_time_nanos: u64,
+            /// The field `root_caller_perms` in the table `VMExecState`
+            pub root_caller_perms:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Obj>>,
         }
 
         #[allow(clippy::derivable_impls)]
@@ -141165,6 +141168,7 @@ mod root {
                     activation_stack: ::core::default::Default::default(),
                     tick_count: 0,
                     start_time_nanos: 0,
+                    root_caller_perms: ::core::default::Default::default(),
                 }
             }
         }
@@ -141184,12 +141188,16 @@ mod root {
                 >,
                 field_tick_count: impl ::planus::WriteAsDefault<u64, u64>,
                 field_start_time_nanos: impl ::planus::WriteAsDefault<u64, u64>,
+                field_root_caller_perms: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<super::moor_common::Obj>,
+                >,
             ) -> ::planus::Offset<Self> {
                 let prepared_activation_stack = field_activation_stack.prepare(builder);
                 let prepared_tick_count = field_tick_count.prepare(builder, &0);
                 let prepared_start_time_nanos = field_start_time_nanos.prepare(builder, &0);
+                let prepared_root_caller_perms = field_root_caller_perms.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                let mut table_writer: ::planus::table_writer::TableWriter<12> =
                     ::core::default::Default::default();
                 if prepared_tick_count.is_some() {
                     table_writer.write_entry::<u64>(1);
@@ -141199,6 +141207,9 @@ mod root {
                 }
                 table_writer
                     .write_entry::<::planus::Offset<[::planus::Offset<self::Activation>]>>(0);
+                if prepared_root_caller_perms.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(3);
+                }
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
@@ -141213,6 +141224,11 @@ mod root {
                             object_writer.write::<_, _, 8>(&prepared_start_time_nanos);
                         }
                         object_writer.write::<_, _, 4>(&prepared_activation_stack);
+                        if let ::core::option::Option::Some(prepared_root_caller_perms) =
+                            prepared_root_caller_perms
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_root_caller_perms);
+                        }
                     });
                 }
                 builder.current_offset()
@@ -141248,6 +141264,7 @@ mod root {
                     &self.activation_stack,
                     self.tick_count,
                     self.start_time_nanos,
+                    &self.root_caller_perms,
                 )
             }
         }
@@ -141314,6 +141331,26 @@ mod root {
         }
 
         impl<T0, T1, T2> VmExecStateBuilder<(T0, T1, T2)> {
+            /// Setter for the [`root_caller_perms` field](VmExecState#structfield.root_caller_perms).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn root_caller_perms<T3>(self, value: T3) -> VmExecStateBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            {
+                let (v0, v1, v2) = self.0;
+                VmExecStateBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`root_caller_perms` field](VmExecState#structfield.root_caller_perms) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn root_caller_perms_as_null(self) -> VmExecStateBuilder<(T0, T1, T2, ())> {
+                self.root_caller_perms(())
+            }
+        }
+
+        impl<T0, T1, T2, T3> VmExecStateBuilder<(T0, T1, T2, T3)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VmExecState].
             #[inline]
             pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmExecState>
@@ -141328,7 +141365,9 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
-        > ::planus::WriteAs<::planus::Offset<VmExecState>> for VmExecStateBuilder<(T0, T1, T2)>
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+        > ::planus::WriteAs<::planus::Offset<VmExecState>>
+            for VmExecStateBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
 
@@ -141342,8 +141381,9 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
         > ::planus::WriteAsOptional<::planus::Offset<VmExecState>>
-            for VmExecStateBuilder<(T0, T1, T2)>
+            for VmExecStateBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
 
@@ -141360,12 +141400,13 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Activation>]>>,
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
-        > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2)>
+            T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+        > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmExecState> {
-                let (v0, v1, v2) = &self.0;
-                VmExecState::create(builder, v0, v1, v2)
+                let (v0, v1, v2, v3) = &self.0;
+                VmExecState::create(builder, v0, v1, v2, v3)
             }
         }
 
@@ -141400,6 +141441,15 @@ mod root {
                         .unwrap_or(0),
                 )
             }
+
+            /// Getter for the [`root_caller_perms` field](VmExecState#structfield.root_caller_perms).
+            #[inline]
+            pub fn root_caller_perms(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::ObjRef<'a>>>
+            {
+                self.0.access(3, "VmExecState", "root_caller_perms")
+            }
         }
 
         impl<'a> ::core::fmt::Debug for VmExecStateRef<'a> {
@@ -141408,6 +141458,11 @@ mod root {
                 f.field("activation_stack", &self.activation_stack());
                 f.field("tick_count", &self.tick_count());
                 f.field("start_time_nanos", &self.start_time_nanos());
+                if let ::core::option::Option::Some(field_root_caller_perms) =
+                    self.root_caller_perms().transpose()
+                {
+                    f.field("root_caller_perms", &field_root_caller_perms);
+                }
                 f.finish()
             }
         }
@@ -141423,6 +141478,15 @@ mod root {
                     start_time_nanos: ::core::convert::TryInto::try_into(
                         value.start_time_nanos()?,
                     )?,
+                    root_caller_perms: if let ::core::option::Option::Some(root_caller_perms) =
+                        value.root_caller_perms()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(root_caller_perms)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
                 })
             }
         }
@@ -141503,7 +141567,7 @@ mod root {
         /// The table `VmHost` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VmHost` in the file `task.fbs:444`
+        /// * Table `VmHost` in the file `task.fbs:447`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmHost {
             /// The field `task_id` in the table `VmHost`
@@ -141932,7 +141996,7 @@ mod root {
         /// The table `Task` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Task` in the file `task.fbs:456`
+        /// * Table `Task` in the file `task.fbs:459`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Task {
             /// The field `version` in the table `Task`
@@ -142784,7 +142848,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:479`
+        /// * Table `SuspendedTask` in the file `task.fbs:482`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`
@@ -143100,7 +143164,7 @@ mod root {
         /// The table `Schedule` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Schedule` in the file `task.fbs:493`
+        /// * Table `Schedule` in the file `task.fbs:496`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Schedule {
             /// The field `version` in the table `Schedule`

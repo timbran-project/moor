@@ -439,6 +439,9 @@ table VMExecState {
     activation_stack: [Activation] (required);
     tick_count: uint64;
     start_time_nanos: uint64;
+    // What caller_perms() reports when no MOO activation is below the current one.
+    // Absent means #-1.
+    root_caller_perms: MoorCommon.Obj;
 }
 
 table VmHost {

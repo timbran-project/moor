@@ -26,7 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`skip`/`once`/`all`), `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`,
   `pass_elapsed`, `state`, `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`,
   never raises, for a stale id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`,
-  `schedules_for(target)`. Book chapter: _Scheduled Tasks_.
+  `schedules_for(target)`. The fired verb sees the schedule's creator as `caller` and
+  `caller_perms()`; its `player` (the target, or the `player` option) must be an object the creator
+  controls. Book chapter: _Scheduled Tasks_.
 - A task's transaction-retry counter is reset after every successful transaction boundary
   (`suspend`, `commit`, `read`, `task_recv`, fork dispatch). Previously it only ever incremented, so
   a long-lived loop that hit an occasional conflict would eventually abort with "Task retry limit

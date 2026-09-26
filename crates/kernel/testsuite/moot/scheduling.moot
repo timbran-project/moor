@@ -141,6 +141,13 @@ E_INVARG
 ; schedule_info(2147483647);
 E_INVARG
 
+// A wizard-owned object with a method guarded by `caller == this`, for the
+// programmer-side tests below.
+; add_property($system, "sched_guarded", create($nothing), {player, "rwc"});
+; add_property($sched_guarded, "poked", 0, {player, "rw"});
+; add_verb($sched_guarded, {player, "rxd", "poke"}, {"this", "none", "this"});
+; set_verb_code($sched_guarded, "poke", {"caller == this || raise(E_PERM); this.poked = 1; return 0;"});
+
 @programmer
 // A programmer sees only their own (none here).
 ; return schedules();
@@ -183,3 +190,34 @@ E_INVARG
 @wizard
 ; recycle($sched_perm);
 ; delete_property(#0, "sched_perm");
+
+@programmer
+// The fired verb sees the creator as `caller` and `caller_perms()`, and the
+// target as `player`.
+; target = create($nothing);
+> add_property(target, "seen", 0, {player, "rw"});
+> add_verb(target, {player, "rxd", "probe"}, {"this", "none", "this"});
+> set_verb_code(target, "probe", {"this.seen = {caller, caller_perms(), player}; return 0;"});
+> schedule_at(target, "probe", ftime(), {}, ["pass_elapsed" -> 0]);
+> commit();
+> suspend(0.5);
+> seen = target.seen;
+> recycle(target);
+> return seen == {player, player, target};
+1
+
+// A programmer cannot make `player` an object they do not control, either
+// explicitly or through the target default.
+; schedule_at($sched_guarded, "poke", ftime());
+E_PERM
+; schedule_at($sched_guarded, "poke", ftime(), {}, ["player" -> $wizard_player]);
+E_PERM
+
+// With `player` set to themselves, the call goes through but `caller` is the
+// creator, so a `caller == this` guard still refuses it.
+; id = schedule_at($sched_guarded, "poke", ftime(), {}, ["player" -> player, "pass_elapsed" -> 0]);
+> commit();
+> suspend(0.5);
+> info = schedule_info(id);
+> return {$sched_guarded.poked, info["fault_count"], info["player"] == player};
+{0, 1, 1}
