@@ -1083,10 +1083,19 @@ impl ScheduleQ {
         }
     }
 
-    /// Restore an entry from persistence. Past deadlines go through the
-    /// catchup policy; the id counter is floored above the loaded id. Only
-    /// live entries are persisted, so anything else is dropped here.
-    pub fn load(&mut self, mut entry: ScheduleEntry, now: SystemTime) {
+    /// Restore an entry from persistence. The id counter is floored above
+    /// the loaded id. Only live entries are persisted, so anything else is
+    /// dropped here.
+    ///
+    /// `restored_tasks` are the suspended tasks restored from the tasks
+    /// database that are firings of this schedule. When there are any, the
+    /// schedule is still mid-firing: they are re-linked so that overlap
+    /// applies to them and their results settle the schedule. The persisted
+    /// `next_run` is the deadline those tasks are serving, so a one-shot is
+    /// left unarmed and a recurring schedule is armed for the cadence point
+    /// after it, as `mark_fired` would have done. With no restored task, a
+    /// past deadline goes through the catchup policy here.
+    pub fn load(&mut self, mut entry: ScheduleEntry, restored_tasks: &[TaskId], now: SystemTime) {
         if entry.id >= self.next_id {
             self.next_id = entry.id + 1;
         }
@@ -1098,6 +1107,26 @@ impl ScheduleQ {
         self.by_target.entry(entry.target).or_default().insert(id);
         entry.running.clear();
         entry.queued_firing = false;
+
+        if !restored_tasks.is_empty() {
+            let deadline = entry.next_run.unwrap();
+            let started_at = entry.last_run.unwrap_or(deadline);
+            for &task in restored_tasks {
+                self.by_task.insert(task, id);
+                entry.running.push(RunningFiring {
+                    task,
+                    deadline,
+                    started_at,
+                });
+            }
+            entry.scheduled_deadline = Some(deadline);
+            let kind = entry.kind;
+            self.entries.insert(id, entry);
+            if let ScheduleKind::Every { interval } = kind {
+                self.arm_after(id, deadline, interval, now);
+            }
+            return;
+        }
 
         let deadline = entry.next_run.unwrap();
         let deadline = if deadline <= now {
@@ -2277,7 +2306,7 @@ mod tests {
             retired: None,
             durations: VecDeque::new(),
         };
-        q.load(entry, t0);
+        q.load(entry, &[], t0);
         let loaded = q.info(loaded_id).unwrap();
         assert_eq!(loaded.missed_count, 4);
         assert!(loaded.next_run.unwrap() > t0);
@@ -2455,7 +2484,7 @@ mod tests {
                 false,
             );
             entry.options.catchup = CatchupPolicy::Skip;
-            q.load(entry, t0);
+            q.load(entry, &[], t0);
             q.info(7).cloned().unwrap()
         });
         assert!(!entry.is_live());
@@ -2491,6 +2520,125 @@ mod tests {
         assert!(next > fired_at);
         assert!(next.duration_since(fired_at).unwrap() <= Duration::from_millis(10));
         assert_eq!(entry.missed_count, 10 * 365 * 86_400 * 100);
+    }
+
+    fn persisted(id: ScheduleId, kind: ScheduleKind, deadline: SystemTime) -> ScheduleEntry {
+        let mut options = ScheduleOptions::for_kind(&kind);
+        options.overlap = OverlapPolicy::Skip;
+        ScheduleEntry::from_persisted(
+            id,
+            target(),
+            verb(),
+            args(),
+            owner(),
+            owner(),
+            kind,
+            options,
+            deadline,
+            Some(deadline),
+            Some(deadline),
+            Some(deadline),
+            0,
+            0,
+            0,
+            0,
+            0,
+            false,
+        )
+    }
+
+    #[test]
+    fn load_relinks_restored_one_shot_firing() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let i0 = Instant::now();
+        q.expired(i0, t0);
+        let fired_at = t0 - Duration::from_secs(60);
+        q.load(persisted(7, ScheduleKind::At, fired_at), &[12], t0);
+
+        assert_eq!(q.schedule_for_task(12), Some(7));
+        assert_eq!(
+            q.info(7)
+                .unwrap()
+                .running
+                .iter()
+                .map(|r| r.task)
+                .collect::<Vec<_>>(),
+            vec![12]
+        );
+        // The overdue deadline is the one task 12 is serving: no second firing.
+        let ids = q.expired(i0 + Duration::from_secs(1), t0 + Duration::from_secs(1));
+        assert!(!ids.contains(&7), "{ids:?}");
+        assert_eq!(q.info(7).unwrap().overlap_count, 0);
+
+        q.complete(
+            7,
+            12,
+            Outcome::Success(v_str("done")),
+            t0 + Duration::from_secs(2),
+        );
+        let entry = q.info(7).unwrap();
+        assert_eq!(entry.retired, Some(RetireReason::OneShotDone));
+        assert_eq!(entry.run_count, 1);
+        assert_eq!(q.schedule_for_task(12), None);
+    }
+
+    #[test]
+    fn load_relinks_restored_recurring_firing() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let i0 = Instant::now();
+        q.expired(i0, t0);
+        let interval = Duration::from_secs(10);
+        // Fired 25s ago; the next two deadlines passed while the server was down.
+        let fired_at = t0 - Duration::from_secs(25);
+        q.load(
+            persisted(8, ScheduleKind::Every { interval }, fired_at),
+            &[12],
+            t0,
+        );
+        assert_eq!(
+            q.info(8)
+                .unwrap()
+                .running
+                .iter()
+                .map(|r| r.task)
+                .collect::<Vec<_>>(),
+            vec![12]
+        );
+        // Loading armed the cadence point after the one being served,
+        // applying catchup (skip) over the two that passed while down.
+        let entry = q.info(8).unwrap();
+        assert_eq!(entry.missed_count, 2);
+        assert_eq!(entry.scheduled_deadline, Some(t0 + Duration::from_secs(5)));
+        assert!(
+            q.expired(i0 + Duration::from_secs(1), t0 + Duration::from_secs(1))
+                .is_empty()
+        );
+
+        let done = t0 + Duration::from_secs(1);
+        q.complete(8, 12, Outcome::Success(v_int(0)), done);
+        let entry = q.info(8).unwrap();
+        assert!(entry.running.is_empty());
+        assert_eq!(entry.run_count, 1);
+        assert_eq!(entry.scheduled_deadline, Some(t0 + Duration::from_secs(5)));
+        assert_eq!(q.schedule_for_task(12), None);
+    }
+
+    #[test]
+    fn load_without_restored_firing_fires_overdue_one_shot() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let i0 = Instant::now();
+        q.expired(i0, t0);
+        q.load(
+            persisted(9, ScheduleKind::At, t0 - Duration::from_secs(60)),
+            &[],
+            t0,
+        );
+        assert!(q.info(9).unwrap().running.is_empty());
+        let ids = q.expired(i0 + Duration::from_millis(20), t0);
+        assert_eq!(ids, vec![9]);
     }
 
     // ---- 12: to_info_map completeness --------------------------------
