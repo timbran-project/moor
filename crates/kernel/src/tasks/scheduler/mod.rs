@@ -1202,6 +1202,144 @@ mod tests {
             .expect("all scheduler-owned threads should stop");
     }
 
+    /// A tasks database holding one restored suspended task and the
+    /// persisted schedules.
+    struct RestoredScheduleDb {
+        tasks: Mutex<Option<Vec<SuspendedTask>>>,
+        schedules: Vec<ScheduleEntry>,
+    }
+
+    impl TasksDb for RestoredScheduleDb {
+        fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
+            Ok(self.tasks.lock().take().unwrap())
+        }
+
+        fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
+            Ok(())
+        }
+
+        fn load_schedules(&self) -> Result<Vec<ScheduleEntry>, TasksDbError> {
+            Ok(self.schedules.clone())
+        }
+
+        fn compact(&self) {}
+    }
+
+    /// A one-shot that fired as task 12 and called `suspend()` before the
+    /// restart: its persisted deadline is overdue.
+    fn restored_firing_scheduler(schedule_id: ScheduleId, task_id: TaskId) -> Scheduler {
+        use crate::tasks::schedule_q::{ScheduleKind, ScheduleOptions};
+        let now = SystemTime::now();
+        let fired_at = now - Duration::from_secs(60);
+        let entry = ScheduleEntry::from_persisted(
+            schedule_id,
+            SYSTEM_OBJECT,
+            Symbol::mk("tick"),
+            List::mk_list(&[]),
+            SYSTEM_OBJECT,
+            SYSTEM_OBJECT,
+            ScheduleKind::At,
+            ScheduleOptions::for_kind(&ScheduleKind::At),
+            fired_at,
+            Some(fired_at),
+            Some(fired_at),
+            Some(fired_at),
+            0,
+            0,
+            0,
+            0,
+            0,
+            false,
+        );
+        let mut task = suspended_task(task_id);
+        task.task = Task::new(
+            task_id,
+            SYSTEM_OBJECT,
+            SYSTEM_OBJECT,
+            TaskStart::StartScheduled {
+                schedule_id,
+                player: SYSTEM_OBJECT,
+                vloc: moor_common::model::ObjectRef::Id(SYSTEM_OBJECT),
+                verb: Symbol::mk("tick"),
+                args: List::mk_list(&[]),
+            },
+            &ServerOptions {
+                bg_seconds: 0.0,
+                bg_ticks: 0,
+                fg_seconds: 0.0,
+                fg_ticks: 0,
+                max_stack_depth: 0,
+                dump_interval: None,
+                gc_interval: None,
+                max_task_retries: DEFAULT_MAX_TASK_RETRIES,
+                max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+                db_commit_queue_warn: DEFAULT_DB_COMMIT_QUEUE_WARN,
+                db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
+                rollback_on_task_limit: false,
+            },
+            Arc::new(TaskControl::new()),
+        );
+        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(database),
+            Box::new(RestoredScheduleDb {
+                tasks: Mutex::new(Some(vec![task])),
+                schedules: vec![entry],
+            }),
+            Arc::new(Config::default()),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        )
+    }
+
+    #[test]
+    fn restored_firing_is_relinked_to_its_schedule() {
+        let schedule_id: ScheduleId = 3;
+        let task_id: TaskId = 12;
+        let scheduler = restored_firing_scheduler(schedule_id, task_id);
+        let threads = scheduler
+            .start(Arc::new(NoopSessionFactory))
+            .expect("scheduler should start");
+        // Give the timer loop several ticks in which it could fire the
+        // overdue deadline a second time.
+        std::thread::sleep(Duration::from_millis(100));
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            assert_eq!(lc.schedule_q.schedule_for_task(task_id), Some(schedule_id));
+            let entry = lc.schedule_q.info(schedule_id).unwrap();
+            assert_eq!(
+                entry.running.iter().map(|r| r.task).collect::<Vec<_>>(),
+                vec![task_id]
+            );
+            assert!(entry.retired.is_none(), "{:?}", entry.retired);
+            assert!(lc.schedule_q.is_valid(schedule_id));
+            assert_eq!(lc.next_task_id, task_id + 1, "no second firing was started");
+
+            // The restored task's result settles the one-shot.
+            lc.task_q.settled_results.push((task_id, Ok(v_str("done"))));
+            lc.settle_schedule_firings();
+            let entry = lc.schedule_q.info(schedule_id).unwrap();
+            assert_eq!(entry.retired, Some(RetireReason::OneShotDone));
+            assert_eq!(entry.run_count, 1);
+            assert!(entry.running.is_empty());
+            assert_eq!(lc.schedule_q.schedule_for_task(task_id), None);
+        }
+        scheduler.stop(None).expect("scheduler should stop");
+        threads
+            .join()
+            .expect("all scheduler-owned threads should stop");
+    }
+
     fn insert_active_task(
         scheduler: &Scheduler,
         task_id: TaskId,

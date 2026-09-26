@@ -228,6 +228,14 @@ Default **on**: the schedule is saved to the tasks database and restored after a
 `["persist" -> 0]` for something that only makes sense within this server run (a debounce timer, a
 one-off retry).
 
+A firing that was suspended (in `suspend()`, `read()`, a worker call) when the server went down is
+restored with the other suspended tasks and still counts as the running firing of its schedule. The
+deadline it was serving is not fired again, `overlap` applies to it as before, and its result
+settles the schedule as usual: a one-shot then retires. A recurring schedule is armed at load for
+the cadence point after the one being served, with `catchup` applied to the points that passed while
+the server was down, just as if the firing had started normally. If the schedule was stopped, or was
+not persistent, the restored task still runs to completion, and its result is ignored.
+
 ### `player`
 
 The value of `player` inside the fired verb. Default: the target object. Set it when the verb

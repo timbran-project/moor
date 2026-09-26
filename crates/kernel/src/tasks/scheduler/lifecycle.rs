@@ -20,6 +20,7 @@ use std::sync::Arc;
 use moor_common::tasks::{SessionFactory, TaskId};
 use moor_var::Var;
 
+use crate::tasks::TaskStart;
 use crate::tasks::schedule_q::{ScheduleId, ScheduleQ};
 use crate::tasks::task_q::TaskQ;
 
@@ -148,10 +149,18 @@ impl TaskLifecycle {
         id
     }
 
-    /// Restore persisted schedules at startup. Past deadlines go through
-    /// each entry's catchup policy inside `ScheduleQ::load`. The id counter
-    /// resumes at the larger of the persisted high-water mark and one past
-    /// the highest surviving id.
+    /// Restore persisted schedules at startup. Must run after the suspended
+    /// tasks are restored: a restored `StartScheduled` task is a firing still
+    /// in progress, and is re-linked to its schedule here so that the
+    /// schedule is not fired a second time for the same deadline and the
+    /// task's result settles it. Schedules with no restored firing go through
+    /// their catchup policy inside `ScheduleQ::load`.
+    ///
+    /// A restored firing whose schedule was not restored (stopped, retired,
+    /// or `persist: 0`) runs to completion and its result is ignored, the
+    /// same as a firing whose schedule is stopped while it runs.
+    /// The id counter resumes at the larger of the persisted high-water
+    /// mark and one past the highest surviving id.
     pub(crate) fn load_schedules(&mut self) {
         match self.task_q.suspended.tasks_db().load_next_schedule_id() {
             Ok(Some(next_id)) => self.schedule_q.restore_next_id(next_id),
@@ -167,20 +176,40 @@ impl TaskLifecycle {
                 return;
             }
         };
+        let mut firings = self.restored_schedule_firings();
         let now = std::time::SystemTime::now();
         let count = entries.len();
         for e in entries {
             let id = e.id;
-            self.schedule_q.load(e, now);
+            let tasks = firings.remove(&id).unwrap_or_default();
+            self.schedule_q.load(e, &tasks, now);
             // Loading can retire an entry whose cadence has run out of range;
             // drop it from the store so it is not loaded again.
             if !self.schedule_q.is_valid(id) {
                 self.persist_schedule(id);
             }
         }
+        for (schedule_id, tasks) in firings {
+            tracing::info!(
+                schedule_id,
+                ?tasks,
+                "Restored scheduled firing has no schedule; it will run unlinked"
+            );
+        }
         if count > 0 {
             tracing::info!(count, "Loaded native schedules from tasks database");
         }
+    }
+
+    /// Restored suspended tasks that are schedule firings, by schedule id.
+    fn restored_schedule_firings(&self) -> HashMap<ScheduleId, Vec<TaskId>> {
+        let mut firings: HashMap<ScheduleId, Vec<TaskId>> = HashMap::new();
+        for (task_id, st) in &self.task_q.suspended.tasks {
+            if let TaskStart::StartScheduled { schedule_id, .. } = st.task.state.task_start() {
+                firings.entry(*schedule_id).or_default().push(*task_id);
+            }
+        }
+        firings
     }
 
     /// Save every live persistent schedule. Called at shutdown as a
