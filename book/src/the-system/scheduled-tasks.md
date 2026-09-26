@@ -115,15 +115,22 @@ and fault value stop counting as references to anonymous objects. Retired entrie
 the tasks database, so a restart drops them as well. If you need the outcome for longer, record it
 from the verb itself. The reasons, as reported in `retire_reason`:
 
-| `retire_reason`     | Meaning                                                                        |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `"one_shot_done"`   | A `schedule_at` fired and did not re-arm.                                      |
-| `"returned_zero"`   | Under the adaptive protocol, the verb returned `0`.                            |
-| `"negative_return"` | Under the adaptive protocol, the verb returned a negative number.              |
-| `"max_faults"`      | The verb faulted `max_faults` times in a row.                                  |
-| `"invalid_target"`  | The target was recycled or the verb no longer resolves when the deadline came. |
+| `retire_reason`           | Meaning                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `"one_shot_done"`         | A `schedule_at` fired and did not re-arm.                                      |
+| `"returned_zero"`         | Under the adaptive protocol, the verb returned `0`.                            |
+| `"negative_return"`       | Under the adaptive protocol, the verb returned a negative number.              |
+| `"max_faults"`            | The verb faulted `max_faults` times in a row.                                  |
+| `"invalid_target"`        | The target was recycled or the verb no longer resolves when the deadline came. |
+| `"deadline_out_of_range"` | The next deadline would be later than the latest one a schedule can hold.      |
 
 `schedule_stop()` does not retire; it removes the entry outright.
+
+Deadlines are stored as nanoseconds since the Unix epoch in 64 bits, so the latest deadline a
+schedule can hold is `18446744073` (July 2554). `schedule_at` with a later `when`, or
+`schedule_every` with an interval that reaches past it, is `E_INVARG`. A schedule whose _next_
+deadline would pass it — an adaptive verb returning an enormous delay, or a recurring schedule whose
+cadence runs off the end — retires with `"deadline_out_of_range"`, counted as a fault.
 
 ## Options
 

@@ -1231,8 +1231,11 @@ impl Scheduler {
         use crate::tasks::schedule_q::{PendingCreate, PendingKind};
         let mut lc = self.lifecycle.lock();
         match kind {
-            PendingKind::At(_) => lc.schedule_q.validate_at(&options)?,
-            PendingKind::Every(interval) => lc.schedule_q.validate_every(interval, &options)?,
+            PendingKind::At(when) => lc.schedule_q.validate_at(when, &options)?,
+            PendingKind::Every(interval) => {
+                lc.schedule_q
+                    .validate_every(interval, &options, SystemTime::now())?
+            }
         }
         let id = lc.reserve_schedule_id();
         lc.pending_schedule_ops.entry(task_id).or_default().push(

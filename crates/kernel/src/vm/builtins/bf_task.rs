@@ -897,12 +897,13 @@ fn parse_schedule_options(
         let secs = v.as_float_numeric().ok_or_else(|| {
             ErrValue(E_TYPE.msg(format!("schedule option {what} must be a number")))
         })?;
-        if !secs.is_finite() || secs < 0.0 {
+        if secs < 0.0 {
             return Err(ErrValue(
                 E_INVARG.msg(format!("schedule option {what} must be >= 0")),
             ));
         }
-        Ok(Duration::from_secs_f64(secs))
+        Duration::try_from_secs_f64(secs)
+            .map_err(|_| ErrValue(E_INVARG.msg(format!("schedule option {what} is out of range"))))
     }
     for (k, v) in map.iter_ref() {
         let key = sym_of(k, "key")?;
@@ -1082,7 +1083,10 @@ fn bf_schedule_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if when < 0.0 {
         return Err(ErrValue(E_INVARG.msg("schedule_at(): time must be >= 0")));
     }
-    let when = SystemTime::UNIX_EPOCH + Duration::from_secs_f64(when);
+    let when = Duration::try_from_secs_f64(when)
+        .ok()
+        .and_then(|d| SystemTime::UNIX_EPOCH.checked_add(d))
+        .ok_or_else(|| schedule_err(ScheduleError::InvalidWhen))?;
     let options = parse_schedule_options(&ScheduleKind::At, options.as_ref())?;
     check_schedule_player(bf_args, "schedule_at", target, &options)?;
     let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
@@ -1114,7 +1118,8 @@ fn bf_schedule_every(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             E_INVARG.msg("schedule_every(): interval must be > 0"),
         ));
     }
-    let interval = Duration::from_secs_f64(interval);
+    let interval = Duration::try_from_secs_f64(interval)
+        .map_err(|_| schedule_err(ScheduleError::InvalidWhen))?;
     let kind = ScheduleKind::Every { interval };
     let options = parse_schedule_options(&kind, options.as_ref())?;
     check_schedule_player(bf_args, "schedule_every", target, &options)?;
