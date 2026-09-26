@@ -648,7 +648,8 @@ impl Scheduler {
         }
     }
 
-    /// Whether a schedule's target still exists and its verb still resolves.
+    /// Whether a schedule's target still exists and its verb is still callable by the
+    /// schedule's authority principal, by the same rule a method call uses.
     fn schedule_target_is_valid(&self, entry: &ScheduleEntry) -> bool {
         let Ok(tx) = self.database.new_world_state() else {
             return true; // cannot check; let the firing find out
@@ -663,9 +664,12 @@ impl Scheduler {
             tx.flags_of(&entry.authority_principal).unwrap_or_default(),
         );
         let found = matches!(
-            tx.lookup_verb(
+            tx.dispatch_verb(
                 &perms,
-                moor_common::model::VerbLookup::method(&entry.target, entry.verb),
+                moor_common::model::VerbDispatch::new(
+                    moor_common::model::VerbLookup::method(&entry.target, entry.verb),
+                    moor_common::model::DispatchFlagsSource::Permissions,
+                ),
             ),
             Ok(Some(_))
         );

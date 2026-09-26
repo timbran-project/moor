@@ -1171,7 +1171,8 @@ schedule created in a task that rolls back never exists.
 | `player`       | obj                                 | `target`                      | The value of `player` inside the fired verb                                                      |
 
 **Permission Requirements:** The caller's current task permissions become the schedule's owner. The
-verb must resolve on `target` under those permissions at creation time.
+verb must be found on `target` or an ancestor and be executable under those permissions at creation
+time, as for an ordinary `target:verb()` call: the `x` flag, not the `r` flag, decides.
 
 **Errors:**
 

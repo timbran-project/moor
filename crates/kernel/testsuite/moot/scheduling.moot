@@ -145,3 +145,41 @@ E_INVARG
 // A programmer sees only their own (none here).
 ; return schedules();
 {}
+
+// Scheduling authorizes like a method call: the verb must be executable by the
+// caller, not readable. A wizard-owned verb with "x" but no "r" can be scheduled
+// by a programmer and fires; one with "r" but no "x" cannot be scheduled.
+// Clearing "x" after creation retires the schedule at firing time.
+@wizard
+; add_property(#0, "sched_perm", create(#-1), {player, "r"});
+; add_property($sched_perm, "n", 0, {player, "r"});
+; add_verb($sched_perm, {player, "x", "tick"}, {"this", "none", "this"});
+; set_verb_code($sched_perm, "tick", {"this.n = this.n + 1; return 0;"});
+; add_verb($sched_perm, {player, "r", "peek"}, {"this", "none", "this"});
+; set_verb_code($sched_perm, "peek", {"return 0;"});
+; add_verb($sched_perm, {player, "x", "later"}, {"this", "none", "this"});
+; set_verb_code($sched_perm, "later", {"this.n = this.n + 100; return 0;"});
+@programmer
+; return $sched_perm:tick() == 0 && $sched_perm.n;
+1
+; schedule_at($sched_perm, "peek", time() + 60, {}, ["player" -> player]);
+E_INVARG
+; add_property(player, "sched_later", 0, {player, "rw"});
+; id = schedule_at($sched_perm, "tick", ftime(), {}, ["player" -> player]);
+> player.sched_later = schedule_at($sched_perm, "later", ftime() + 1.0, {}, ["player" -> player]);
+> commit();
+> suspend(0.3);
+> info = schedule_info(id);
+> return {$sched_perm.n, info["run_count"], info["retire_reason"]};
+{2, 1, "returned_zero"}
+@wizard
+; set_verb_info($sched_perm, "later", {player, "r", "later"});
+@programmer
+; suspend(1.2);
+> info = schedule_info(player.sched_later);
+> return {$sched_perm.n, info["run_count"], info["retire_reason"]};
+{2, 0, "invalid_target"}
+; delete_property(player, "sched_later");
+@wizard
+; recycle($sched_perm);
+; delete_property(#0, "sched_perm");
