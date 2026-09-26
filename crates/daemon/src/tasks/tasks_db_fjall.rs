@@ -874,7 +874,7 @@ mod tests {
             assert_eq!(l.consecutive_faults, 1);
             assert_eq!(l.missed_count, 3);
             assert_eq!(l.overlap_count, 4);
-            assert!(l.running_task.is_none());
+            assert!(l.running.is_empty());
 
             db.delete_schedule(42).unwrap();
             assert!(db.load_schedules().unwrap().is_empty());

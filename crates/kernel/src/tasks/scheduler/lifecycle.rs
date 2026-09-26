@@ -223,7 +223,7 @@ impl TaskLifecycle {
                     crate::tasks::schedule_q::Outcome::Fault(moor_var::v_str(&format!("{e:?}")))
                 }
             };
-            self.schedule_q.complete(schedule_id, outcome, now);
+            self.schedule_q.complete(schedule_id, task_id, outcome, now);
             self.persist_schedule(schedule_id);
         }
     }

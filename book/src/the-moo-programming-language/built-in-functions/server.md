@@ -1161,7 +1161,7 @@ schedule created in a task that rolls back never exists.
 | Key            | Type                                | Default                       | Meaning                                                                                          |
 | -------------- | ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
 | `adaptive`     | bool                                | `1` for `at`, `0` for `every` | Positive numeric return re-arms in that many seconds; `0` retires; negative retires with a fault |
-| `catchup`      | `"skip"`, `"once"`, `"all"`         | `"skip"`                      | Missed-deadline policy after a restart                                                           |
+| `catchup`      | `"skip"`, `"once"`, `"all"`         | `"skip"`                      | Missed-deadline policy after a restart or a late firing                                          |
 | `overlap`      | `"skip"`, `"queue"`, `"concurrent"` | `"skip"`                      | Policy when the previous firing is still running                                                 |
 | `jitter`       | num seconds                         | `0`                           | Randomise each deadline by up to ± this much                                                     |
 | `max_faults`   | int                                 | `50`                          | Consecutive faults before retirement; `0` = unlimited                                            |
@@ -1241,10 +1241,11 @@ its id is unknown and `schedule_info()` raises `E_INVARG`.
 (`"at"` or `"every"`), `interval` (float seconds, `0.0` for one-shots), `created_at`, `next_run`,
 `last_run` (float Unix seconds, `0.0` for never), `run_count`, `fault_count`, `consecutive_faults`,
 `last_fault`, `missed_count`, `overlap_count`, `last_duration_ns`, `mean_duration_ns`,
-`p99_duration_ns`, `running_task` (`0` if idle), `interval_clamped`, `retired`, `retire_reason`
-(`""` while live; otherwise `"one_shot_done"`, `"returned_zero"`, `"negative_return"`,
-`"max_faults"`, `"invalid_target"` or `"deadline_out_of_range"`), and the options `adaptive`,
-`catchup`, `overlap`, `jitter`, `max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
+`p99_duration_ns`, `running_task` (`0` if idle; the oldest firing's task under `"concurrent"`),
+`interval_clamped`, `retired`, `retire_reason` (`""` while live; otherwise `"one_shot_done"`,
+`"returned_zero"`, `"negative_return"`, `"max_faults"`, `"invalid_target"` or
+`"deadline_out_of_range"`), and the options `adaptive`, `catchup`, `overlap`, `jitter`,
+`max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
 
 **Permission Requirements:** Owner or wizard
 
