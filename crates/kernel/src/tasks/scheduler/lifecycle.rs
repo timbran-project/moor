@@ -116,7 +116,7 @@ impl TaskLifecycle {
     /// is saved; anything else (stopped, retired, non-persistent) is deleted.
     /// Called after every mutation so the store mirrors the queue and a
     /// restart needs no reconciliation pass.
-    pub(crate) fn persist_schedule(&mut self, id: crate::tasks::schedule_q::ScheduleId) {
+    pub(crate) fn persist_schedule(&mut self, id: ScheduleId) {
         let db = self.task_q.suspended.tasks_db();
         match self.schedule_q.info(id) {
             Some(e) if e.is_live() && e.options.persist => {
@@ -132,9 +132,34 @@ impl TaskLifecycle {
         }
     }
 
+    /// Allocate a schedule id and persist the new high-water mark before the
+    /// id is returned to MOO code, so no restart can hand it out again.
+    pub(crate) fn reserve_schedule_id(&mut self) -> ScheduleId {
+        let id = self.schedule_q.reserve_id();
+        let next_id = self.schedule_q.next_id();
+        if let Err(err) = self
+            .task_q
+            .suspended
+            .tasks_db()
+            .save_next_schedule_id(next_id)
+        {
+            tracing::error!(next_id, ?err, "Could not save schedule id high-water mark");
+        }
+        id
+    }
+
     /// Restore persisted schedules at startup. Past deadlines go through
-    /// each entry's catchup policy inside `ScheduleQ::load`.
+    /// each entry's catchup policy inside `ScheduleQ::load`. The id counter
+    /// resumes at the larger of the persisted high-water mark and one past
+    /// the highest surviving id.
     pub(crate) fn load_schedules(&mut self) {
+        match self.task_q.suspended.tasks_db().load_next_schedule_id() {
+            Ok(Some(next_id)) => self.schedule_q.restore_next_id(next_id),
+            Ok(None) => {}
+            Err(err) => {
+                tracing::error!(?err, "Could not load schedule id high-water mark");
+            }
+        }
         let entries = match self.task_q.suspended.tasks_db().load_schedules() {
             Ok(v) => v,
             Err(err) => {

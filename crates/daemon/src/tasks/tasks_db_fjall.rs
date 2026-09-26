@@ -43,10 +43,16 @@ fn handle_fjall_error(e: &fjall::Error, operation: &str) {
     }
 }
 
+/// Key in the meta keyspace for the next schedule id to allocate.
+const NEXT_SCHEDULE_ID_KEY: &[u8] = b"next_schedule_id";
+
 pub struct FjallTasksDB {
     keyspace: Database,
     tasks_partition: Keyspace,
     schedules_partition: Keyspace,
+    /// Small scheduler bookkeeping values that are not per-record, keyed by
+    /// name. Holds the schedule id high-water mark.
+    meta_partition: Keyspace,
     /// Guard to prevent overlapping compaction runs
     compaction_in_progress: Arc<AtomicBool>,
 }
@@ -61,11 +67,15 @@ impl FjallTasksDB {
         let schedules_partition = keyspace
             .keyspace("schedules", KeyspaceCreateOptions::default)
             .unwrap();
+        let meta_partition = keyspace
+            .keyspace("tasks_meta", KeyspaceCreateOptions::default)
+            .unwrap();
         (
             Self {
                 keyspace,
                 tasks_partition,
                 schedules_partition,
+                meta_partition,
                 compaction_in_progress: Arc::new(AtomicBool::new(false)),
             },
             fresh,
@@ -218,6 +228,31 @@ impl TasksDb for FjallTasksDB {
                 TasksDbError::CouldNotDeleteSchedule
             })?;
         }
+        Ok(())
+    }
+
+    fn load_next_schedule_id(&self) -> Result<Option<ScheduleId>, TasksDbError> {
+        let value = self.meta_partition.get(NEXT_SCHEDULE_ID_KEY).map_err(|e| {
+            handle_fjall_error(&e, "load_next_schedule_id");
+            TasksDbError::CouldNotLoadSchedules
+        })?;
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        let bytes = value.as_ref().try_into().map_err(|e| {
+            error!("Failed to deserialize schedule id high-water mark: {:?}", e);
+            TasksDbError::CouldNotLoadSchedules
+        })?;
+        Ok(Some(ScheduleId::from_le_bytes(bytes)))
+    }
+
+    fn save_next_schedule_id(&self, next_id: ScheduleId) -> Result<(), TasksDbError> {
+        self.meta_partition
+            .insert(NEXT_SCHEDULE_ID_KEY, next_id.to_le_bytes())
+            .map_err(|e| {
+                handle_fjall_error(&e, "save_next_schedule_id");
+                TasksDbError::CouldNotSaveSchedule
+            })?;
         Ok(())
     }
 
@@ -843,6 +878,25 @@ mod tests {
 
             db.delete_schedule(42).unwrap();
             assert!(db.load_schedules().unwrap().is_empty());
+        }
+    }
+
+    // The id high-water mark survives a reopen even with no schedule records.
+    #[test]
+    fn next_schedule_id_round_trip() {
+        let tmpdir = tempfile::tempdir().expect("Unable to create temporary directory");
+        let path = tmpdir.path();
+        {
+            let (db, _) = FjallTasksDB::open(path);
+            assert_eq!(db.load_next_schedule_id().unwrap(), None);
+            db.save_next_schedule_id(7).unwrap();
+            db.save_next_schedule_id(1234).unwrap();
+        }
+        {
+            let (db, is_fresh) = FjallTasksDB::open(path);
+            assert!(!is_fresh);
+            assert!(db.load_schedules().unwrap().is_empty());
+            assert_eq!(db.load_next_schedule_id().unwrap(), Some(1234));
         }
     }
 }

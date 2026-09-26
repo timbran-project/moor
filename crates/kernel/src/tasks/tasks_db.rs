@@ -56,6 +56,17 @@ pub trait TasksDb: Send {
         Ok(())
     }
 
+    /// The schedule id allocator's high-water mark: the next id `ScheduleQ`
+    /// will hand out. Stored apart from the schedule records because stopped
+    /// and retired schedules are deleted, and ids must not be reused after a
+    /// restart while MOO code may still hold them. `None` if never saved.
+    fn load_next_schedule_id(&self) -> Result<Option<ScheduleId>, TasksDbError> {
+        Ok(None)
+    }
+    fn save_next_schedule_id(&self, _next_id: ScheduleId) -> Result<(), TasksDbError> {
+        Ok(())
+    }
+
     /// Trigger database compaction to reclaim space and reduce journal size.
     /// Should be called periodically (e.g., every few minutes).
     fn compact(&self);

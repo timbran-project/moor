@@ -471,6 +471,19 @@ impl ScheduleQ {
         id
     }
 
+    /// The id the next `reserve_id` will return. Every id below it has been
+    /// handed out at some point; persisting it lets a restart continue past
+    /// ids whose schedules have since stopped or retired.
+    pub fn next_id(&self) -> ScheduleId {
+        self.next_id
+    }
+
+    /// Raise the id counter to at least `next_id`. Never lowers it, so it
+    /// may be called before or after `load` restores the live entries.
+    pub fn restore_next_id(&mut self, next_id: ScheduleId) {
+        self.next_id = self.next_id.max(next_id);
+    }
+
     /// Insert a previously reserved creation. Errors here (interval, state
     /// size) were validated when the builtin was called, so they are
     /// logged and dropped rather than surfaced.
@@ -2058,5 +2071,20 @@ mod tests {
         q.stop(id1);
         assert_eq!(q.for_owner(&own), vec![id2]);
         assert_eq!(q.for_target(&tgt), vec![id2]);
+    }
+
+    // ---- 15: id high-water mark ------------------------------------------
+
+    #[test]
+    fn restore_next_id_continues_past_finished_schedules() {
+        // Nothing live survived the restart, but ids up to 41 were handed out.
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        q.restore_next_id(42);
+        assert_eq!(q.reserve_id(), 42);
+        assert_eq!(q.next_id(), 43);
+
+        // A lower persisted mark never moves the counter backwards.
+        q.restore_next_id(5);
+        assert_eq!(q.reserve_id(), 43);
     }
 }
