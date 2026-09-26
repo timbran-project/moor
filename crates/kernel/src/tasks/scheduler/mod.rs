@@ -641,6 +641,7 @@ impl Scheduler {
                 warn!(schedule_id = id, error = ?e, "Could not submit schedule firing");
                 lc.schedule_q.complete(
                     id,
+                    task_id,
                     Outcome::Fault(v_str(&format!("{e:?}"))),
                     SystemTime::now(),
                 );

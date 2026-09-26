@@ -164,6 +164,63 @@ E_INVARG
 > return {info["fault_count"] >= 2, info["consecutive_faults"] >= 2, info["retired"], info["retire_reason"]};
 {1, 1, true, "max_faults"}
 
+// Overlap policies, with a verb that runs longer than its interval. `live`
+// counts firings in progress and `peak` is its high-water mark.
+// skip: later deadlines are dropped while one firing runs.
+; target = create(#-1);
+> add_property(target, "live", 0, {player, "rw"});
+> add_property(target, "peak", 0, {player, "rw"});
+> add_verb(target, {player, "rxd", "slow"}, {"this", "none", "this"});
+> set_verb_code(target, "slow", {"this.live = this.live + 1; this.peak = max(this.peak, this.live); suspend(0.5); this.live = this.live - 1;"});
+> id = schedule_every(target, "slow", 0.2, {}, ["pass_elapsed" -> 0]);
+> commit();
+> suspend(1.0);
+> schedule_stop(id);
+> info = schedule_info(id);
+> commit();
+> suspend(0.6);
+> peak = target.peak;
+> recycle(target);
+> return {peak, info["overlap_count"] >= 2};
+{1, 1}
+
+// concurrent: a deadline that arrives mid-firing starts another task.
+; target = create(#-1);
+> add_property(target, "live", 0, {player, "rw"});
+> add_property(target, "peak", 0, {player, "rw"});
+> add_verb(target, {player, "rxd", "slow"}, {"this", "none", "this"});
+> set_verb_code(target, "slow", {"this.live = this.live + 1; this.peak = max(this.peak, this.live); suspend(0.5); this.live = this.live - 1;"});
+> id = schedule_every(target, "slow", 0.2, {}, ["pass_elapsed" -> 0, "overlap" -> "concurrent"]);
+> commit();
+> suspend(1.0);
+> schedule_stop(id);
+> info = schedule_info(id);
+> commit();
+> suspend(0.6);
+> peak = target.peak;
+> recycle(target);
+> return {peak >= 2, info["overlap_count"]};
+{1, 0}
+
+// queue: a deadline that arrives mid-firing runs as soon as that firing
+// ends, not at the next cadence point. The first firing (at 0.4s) runs
+// for 0.5s across the 0.8s deadline; the queued firing starts at ~0.9s
+// rather than 1.2s.
+; target = create(#-1);
+> add_property(target, "log", {}, {player, "rw"});
+> add_verb(target, {player, "rxd", "slow"}, {"this", "none", "this"});
+> set_verb_code(target, "slow", {"this.log = {@this.log, ftime()}; if (length(this.log) == 1) suspend(0.5); this.log = {@this.log, ftime()}; endif"});
+> id = schedule_every(target, "slow", 0.4, {}, ["pass_elapsed" -> 0, "overlap" -> "queue"]);
+> commit();
+> suspend(1.05);
+> schedule_stop(id);
+> info = schedule_info(id);
+> commit();
+> log = target.log;
+> recycle(target);
+> return {length(log) >= 3, length(log) >= 3 && log[3] - log[2] < 0.15, info["overlap_count"]};
+{1, 1, 0}
+
 // schedules_for indexes by target; schedules() by owner; recycle leaves nothing behind.
 ; target = create(#-1);
 > add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});

@@ -70,7 +70,8 @@ this.upkeep_schedule = schedule_every(this, "upkeep", 60);
 
 Recurring deadlines are computed from the _previous deadline_, not from when the previous firing
 finished, so a 60-second schedule fires at `t`, `t+60`, `t+120`, … regardless of how long each
-`upkeep` took or whether it faulted.
+`upkeep` took or whether it faulted. The next deadline is armed as soon as a firing starts; if it
+arrives while that firing is still running, the [overlap](#overlap) policy decides what happens.
 
 ## Schedule ids and transactions
 
@@ -165,7 +166,8 @@ after that firing the cadence resumes.
 
 ### `catchup`
 
-What to do at restart when a deadline was missed while the server was down.
+What to do when deadlines passed with nothing running to account for them: the server was down, or
+the scheduler was stalled and fired a deadline late.
 
 | Value    | Behaviour                                                                                        |
 | -------- | ------------------------------------------------------------------------------------------------ |
@@ -173,18 +175,24 @@ What to do at restart when a deadline was missed while the server was down.
 | `"once"` | Fire once immediately, then resume the cadence.                                                  |
 | `"all"`  | Fire once per missed interval. Use with care: a week of downtime is a lot of firings.            |
 
-A one-shot with a past deadline always fires once (there is no cadence to skip along).
+A one-shot with a past deadline always fires once (there is no cadence to skip along). Deadlines
+that pass while a firing is running are governed by `overlap`, not `catchup`.
 
 ### `overlap`
 
 What to do when a deadline arrives while the _previous_ firing of the same schedule is still
 running.
 
-| Value          | Behaviour                                                 |
-| -------------- | --------------------------------------------------------- |
-| `"skip"`       | Drop this firing; increment `overlap_count`. **Default.** |
-| `"queue"`      | Run it as soon as the current firing finishes.            |
-| `"concurrent"` | Start it anyway; two tasks now run the verb at once.      |
+| Value          | Behaviour                                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `"skip"`       | Drop this firing and arm the next deadline; each dropped deadline adds one to `overlap_count`. **Default.** |
+| `"queue"`      | Run it as soon as the current firing finishes. One firing is queued; further deadlines count as `"skip"`.   |
+| `"concurrent"` | Start it anyway; two tasks now run the verb at once.                                                        |
+
+Under `"skip"` and `"queue"` the cadence stays in phase. A 1-second schedule whose firing runs from
+`t` to `t+2.5` sees the `t+1` and `t+2` deadlines arrive mid-firing. Under `"skip"` both are dropped
+and the next firing is at `t+3`. Under `"queue"` one firing starts at `t+2.5`, the other deadline
+adds one to `overlap_count`, and the firing after that is at `t+3`.
 
 ### `jitter`
 
@@ -259,7 +267,7 @@ id, target, verb, args, owner, authority, kind ("at"|"every"), interval,
 created_at, next_run, last_run,
 run_count, fault_count, consecutive_faults, last_fault, missed_count, overlap_count,
 last_duration_ns, mean_duration_ns, p99_duration_ns,
-running_task (0 if idle), interval_clamped,
+running_task (0 if idle; the oldest under "concurrent"), interval_clamped,
 retired (bool), retire_reason (string, "" while live),
 adaptive, catchup, overlap, jitter, max_faults (0 = unlimited), pass_elapsed, persist,
 player, state
