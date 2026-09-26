@@ -85,6 +85,10 @@ pub struct ExecState {
     pub start_instant: Option<Instant>,
     /// The amount of time the task is allowed to run.
     pub maximum_time: Option<Duration>,
+    /// What `caller_perms()` reports when there is no MOO activation below the current one.
+    /// `NOTHING` for ordinary top-level tasks; a scheduled firing seeds it with the schedule's
+    /// captured authority principal.
+    pub root_caller_perms: Obj,
     /// Pending error to raise when execution resumes
     pub pending_raise_error: Option<moor_var::Error>,
     /// Program-cache stats for the currently running task.
@@ -117,6 +121,7 @@ impl ExecState {
             max_ticks,
             tick_slice: 0,
             maximum_time: None,
+            root_caller_perms: NOTHING,
             pending_raise_error: None,
             program_cache_stats: ProgramCacheLocalSnapshot::default(),
             program_cache_total_slots: 0,
@@ -187,7 +192,8 @@ impl ExecState {
     ///
     /// Builtin frames are skipped so this reports the previous non-builtin activation's
     /// authority principal. Builtin frames may provide an explicit override for special cases
-    /// that need `caller_perms()` to return `#-1`.
+    /// that need `caller_perms()` to return `#-1`. With no MOO caller on the stack, this is
+    /// `root_caller_perms`.
     pub fn caller_perms(&self) -> Obj {
         // Walk the stack backwards, skipping builtin frames (checking them for overrides)
         // and skipping the first non-builtin frame (current), returning the second non-builtin
@@ -217,8 +223,8 @@ impl ExecState {
             return activation.authority_principal();
         }
 
-        // No caller found
-        NOTHING
+        // No caller on the stack: whoever started the task, if anyone.
+        self.root_caller_perms
     }
 
     /// Return the object whose authority the current task is running under.
@@ -757,6 +763,7 @@ impl Clone for ExecState {
             start_time: self.start_time,
             start_instant: self.start_instant,
             maximum_time: self.maximum_time,
+            root_caller_perms: self.root_caller_perms,
             pending_raise_error: self.pending_raise_error.clone(),
             program_cache_stats: self.program_cache_stats,
             program_cache_total_slots: self.program_cache_total_slots,

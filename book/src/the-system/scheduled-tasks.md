@@ -60,8 +60,8 @@ this.bell_schedule = schedule_at(this, "ring", next_hour);
 At `next_hour`, the scheduler starts a background task and calls `this:ring(elapsed)`. That trailing
 argument is the number of real seconds since the schedule was last fired (a float; `0.0` the first
 time) — see [pass_elapsed](#pass_elapsed) below. Inside `ring`, `player` is `this` (the target)
-unless you said otherwise, `caller` is `player`, and the verb runs with its owner's permissions like
-any other verb.
+unless you said otherwise, `caller` and `caller_perms()` are whoever created the schedule, and the
+verb runs with its owner's permissions like any other verb.
 
 ```moo
 // Every minute, forever (or until stopped).
@@ -206,7 +206,8 @@ one-off retry).
 
 The value of `player` inside the fired verb. Default: the target object. Set it when the verb
 notifies `player` and the target is not a player — e.g. a room's ambient message that should reach a
-particular character.
+particular character. Whichever object ends up as `player`, the creator must control it (see
+[Permissions](#permissions)).
 
 ## Permissions
 
@@ -215,8 +216,15 @@ particular character.
   permissions — found on the target or an ancestor, and executable (`x`) by them, the same check an
   ordinary method call makes — or creation is `E_INVARG`: better a loud failure at the call site
   than a quiet `"invalid_target"` retirement at three in the morning.
-- The fired verb runs as its own owner, as every verb does. The authority principal governs only
-  verb lookup at firing time and what `caller_perms()` reports inside the verb.
+- The fired verb runs as its own owner, as every verb does. The authority principal governs verb
+  lookup at firing time, and inside the verb it is both `caller` and `caller_perms()`: the call
+  looks as if the creator had made it directly. A `caller == this` guard therefore refuses a
+  schedule made by anyone other than the object itself, and `set_task_perms(caller_perms())` drops
+  to the creator's permissions.
+- `player` in the fired verb — the target, or the `player` option — must be an object the creator
+  controls: a wizard may name anything; anyone else must be that object or own it, or creation is
+  `E_PERM`. Verbs authorize on `player`, so letting a programmer choose it freely would let them act
+  as any player.
 - `schedule_stop`, `schedule_info`: owner or wizard.
 - `schedules()`: a wizard sees every live schedule; anyone else sees their own. With an `owner`
   argument, wizard or self only.

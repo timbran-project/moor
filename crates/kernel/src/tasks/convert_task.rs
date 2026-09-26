@@ -36,7 +36,7 @@ use moor_schema::{
     program as fb_program, task as fb,
 };
 use moor_var::{
-    Obj, Var,
+    NOTHING, Obj, Var,
     program::names::{GlobalName, Name},
     v_float, v_int, v_obj, v_str,
 };
@@ -1601,10 +1601,17 @@ pub(crate) fn vm_exec_state_to_flatbuffer(
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0);
 
+    let root_caller_perms = (!state.root_caller_perms.is_nothing()).then(|| {
+        Box::new(convert_schema::obj_to_flatbuffer_struct(
+            &state.root_caller_perms,
+        ))
+    });
+
     Ok(fb::VmExecState {
         activation_stack: fb_activation_stack,
         tick_count: state.tick_count as u64,
         start_time_nanos,
+        root_caller_perms,
     })
 }
 
@@ -1637,6 +1644,15 @@ pub(crate) fn vm_exec_state_from_ref(
         None
     };
 
+    let root_caller_perms = match fb
+        .root_caller_perms()
+        .map_err(|e| TaskConversionError::DecodingError(format!("root_caller_perms: {e}")))?
+    {
+        Some(obj_ref) => convert_schema::obj_from_ref(obj_ref)
+            .map_err(|e| TaskConversionError::DecodingError(format!("root_caller_perms: {e}")))?,
+        None => NOTHING,
+    };
+
     Ok(KernelExecState {
         task_id: 0, // Will be set by caller
         stack,
@@ -1646,6 +1662,7 @@ pub(crate) fn vm_exec_state_from_ref(
         start_time,
         start_instant: None,
         maximum_time: None, // Will be set by caller
+        root_caller_perms,
         pending_raise_error: None,
         program_cache_stats: Default::default(),
         program_cache_total_slots: 0,
@@ -2604,6 +2621,27 @@ mod tests {
             let restored = capability_grant_from_ref(grant_ref).unwrap();
             assert_eq!(restored, expected);
         }
+    }
+
+    fn roundtrip_exec_state(state: &KernelExecState) -> KernelExecState {
+        use planus::{ReadAsRoot, WriteAsOffset};
+        let fb_state = vm_exec_state_to_flatbuffer(state).unwrap();
+        let mut builder = planus::Builder::new();
+        let offset = fb_state.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let fb_ref = fb::VmExecStateRef::read_as_root(bytes).unwrap();
+        vm_exec_state_from_ref(fb_ref).unwrap()
+    }
+
+    #[test]
+    fn root_caller_perms_survives_flatbuffer_roundtrip() {
+        let mut state = KernelExecState::new(1, 1000);
+        assert_eq!(roundtrip_exec_state(&state).root_caller_perms, NOTHING);
+        state.root_caller_perms = Obj::mk_id(42);
+        assert_eq!(
+            roundtrip_exec_state(&state).root_caller_perms,
+            Obj::mk_id(42)
+        );
     }
 
     #[test]

@@ -960,6 +960,30 @@ fn parse_schedule_options(
     Ok(opts)
 }
 
+/// The fired verb's `player` is the `player` option or, by default, the target. Verbs authorize
+/// on `player` (and wizard-owned verbs `set_task_perms(player)`), so the creator must control
+/// that object: be a wizard, be it, or own it.
+fn check_schedule_player(
+    bf_args: &mut BfCallState<'_>,
+    name: &str,
+    target: Obj,
+    options: &ScheduleOptions,
+) -> Result<(), BfErr> {
+    let player = options.player.unwrap_or(target);
+    let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
+    if perms.is_wizard() || perms.principal() == player {
+        return Ok(());
+    }
+    let controls = with_current_transaction(|ws| ws.controls(&perms.principal(), &player))
+        .map_err(world_state_bf_err)?;
+    if !controls {
+        return Err(ErrValue(E_PERM.msg(format!(
+            "{name}(): player {player} must be an object the caller controls"
+        ))));
+    }
+    Ok(())
+}
+
 /// Shared argument handling for `schedule_at` and `schedule_every`:
 /// `(obj target, str|sym verb, num when_or_interval [, list args] [, map options])`.
 fn parse_schedule_call(
@@ -1049,6 +1073,10 @@ fn parse_schedule_call(
 ///   state: an opaque value (<= 4 KB) appended to args before elapsed.
 ///   persist (default 1): survive a server restart.
 ///   player: the value of `player` inside the fired verb (default: target).
+///     The caller must control it (wizard, the object itself, or its owner).
+///
+/// The fired verb sees the creator's task permissions as both `caller` and
+/// `caller_perms()`.
 fn bf_schedule_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let (target, verb, when, args, options) = parse_schedule_call(bf_args, "schedule_at")?;
     if when < 0.0 {
@@ -1056,6 +1084,7 @@ fn bf_schedule_at(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
     let when = SystemTime::UNIX_EPOCH + Duration::from_secs_f64(when);
     let options = parse_schedule_options(&ScheduleKind::At, options.as_ref())?;
+    check_schedule_player(bf_args, "schedule_at", target, &options)?;
     let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let id = current_task_scheduler_client()
         .schedule_create(
@@ -1088,6 +1117,7 @@ fn bf_schedule_every(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let interval = Duration::from_secs_f64(interval);
     let kind = ScheduleKind::Every { interval };
     let options = parse_schedule_options(&kind, options.as_ref())?;
+    check_schedule_player(bf_args, "schedule_every", target, &options)?;
     let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let id = current_task_scheduler_client()
         .schedule_create(

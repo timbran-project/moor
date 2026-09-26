@@ -1168,11 +1168,14 @@ schedule created in a task that rolls back never exists.
 | `pass_elapsed` | bool                                | `1`                           | Append real seconds since the previous firing (float) to the args                                |
 | `state`        | any                                 | none                          | Opaque value (≤ 4 KB serialised) appended to args before `elapsed`                               |
 | `persist`      | bool                                | `1`                           | Survive a server restart                                                                         |
-| `player`       | obj                                 | `target`                      | The value of `player` inside the fired verb                                                      |
+| `player`       | obj                                 | `target`                      | The value of `player` inside the fired verb; the caller must control it                          |
 
 **Permission Requirements:** The caller's current task permissions become the schedule's owner. The
 verb must be found on `target` or an ancestor and be executable under those permissions at creation
-time, as for an ordinary `target:verb()` call: the `x` flag, not the `r` flag, decides.
+time, as for an ordinary `target:verb()` call: the `x` flag, not the `r` flag, decides. The fired
+verb's `player` (`target`, or the `player` option) must be an object the caller controls: wizards
+may name any object; anyone else must be it or own it. Inside the fired verb, `caller` and
+`caller_perms()` are the schedule's owner.
 
 **Errors:**
 
@@ -1180,6 +1183,7 @@ time, as for an ordinary `target:verb()` call: the `x` flag, not the `r` flag, d
 - `E_TYPE`: Wrong argument type, or a wrongly typed option value
 - `E_INVARG`: `when` negative or not finite; `target` invalid or `verb` not callable on it; unknown
   option key; unknown `catchup`/`overlap` value; `state` too large
+- `E_PERM`: The caller does not control the fired verb's `player`
 
 ### `schedule_every`
 

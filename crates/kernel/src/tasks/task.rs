@@ -1283,7 +1283,12 @@ impl Task {
                 let player = *player;
                 let args_val = args.clone();
                 let argstr_val = v_str("");
-                let caller = v_obj(player);
+                // The schedule's creator is the caller: `caller` and `caller_perms()` report the
+                // authority principal captured at creation, never the target or `player`, so
+                // `caller == this` and `caller_perms()` checks inside the verb see who arranged
+                // the call.
+                let principal = self.authority_principal;
+                let caller = v_obj(principal);
 
                 // vloc is an ObjectRef here (schedule entries are stored durably, so they can't
                 // hold a live Var), so it needs resolving against the current transaction first,
@@ -1309,6 +1314,7 @@ impl Task {
                 {
                     return false;
                 }
+                self.vm_host.vm_exec_state_mut().root_caller_perms = principal;
             }
             TaskStart::StartFork {
                 fork_request,
