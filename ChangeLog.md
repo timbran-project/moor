@@ -21,7 +21,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or on a drift-free cadence, with each firing a fresh background task and no task suspended in
   between. Schedules are persisted in the tasks database (a new `schedules` keyspace; ids are stable
   across restart), are GC roots for anonymous objects, and are created/cancelled on the calling
-  task's commit like `task_send`. Options: `adaptive` return-value protocol, `catchup`
+  task's commit like `task_send`. The verb must be executable by the creator, checked at creation
+  and again at each firing. Options: `adaptive` return-value protocol, `catchup`
   (`skip`/`once`/`all`), `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`,
   `pass_elapsed`, `state`, `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`,
   never raises, for a stale id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`,

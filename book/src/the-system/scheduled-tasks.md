@@ -211,9 +211,10 @@ particular character.
 ## Permissions
 
 - The creating task's permissions (as seen by `task_perms()` at the moment of the call) become the
-  schedule's **owner** and its **authority principal**. The verb must resolve _now_ under those
-  permissions or creation is `E_INVARG`: better a loud failure at the call site than a quiet
-  `"invalid_target"` retirement at three in the morning.
+  schedule's **owner** and its **authority principal**. The verb must be callable _now_ under those
+  permissions — found on the target or an ancestor, and executable (`x`) by them, the same check an
+  ordinary method call makes — or creation is `E_INVARG`: better a loud failure at the call site
+  than a quiet `"invalid_target"` retirement at three in the morning.
 - The fired verb runs as its own owner, as every verb does. The authority principal governs only
   verb lookup at firing time and what `caller_perms()` reports inside the verb.
 - `schedule_stop`, `schedule_info`: owner or wizard.

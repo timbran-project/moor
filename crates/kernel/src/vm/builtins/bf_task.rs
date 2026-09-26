@@ -1005,15 +1005,19 @@ fn parse_schedule_call(
         None
     };
 
-    // The caller must be able to call the verb now: the same check a verb
-    // call would make. Loud at the call site instead of quiet at 3am.
+    // The caller must be able to call the verb now: the same resolution and
+    // execute-permission check a method call makes. Loud at the call site
+    // instead of quiet at 3am.
     let perms = bf_args.task_authority().map_err(world_state_bf_err)?;
     let found = with_current_transaction(|ws| {
         ws.valid(&target).unwrap_or(false)
             && matches!(
-                ws.lookup_verb(
+                ws.dispatch_verb(
                     &perms,
-                    moor_common::model::VerbLookup::method(&target, verb)
+                    moor_common::model::VerbDispatch::new(
+                        moor_common::model::VerbLookup::method(&target, verb),
+                        moor_common::model::DispatchFlagsSource::Permissions,
+                    )
                 ),
                 Ok(Some(_))
             )

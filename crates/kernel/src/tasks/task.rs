@@ -1514,9 +1514,12 @@ impl Task {
                 panic!("Could not resolve verb: {e:?}");
             }
             Ok(Some(verb_result)) => {
+                // Dispatch has already authorized the call on `x`; fetching the program to run
+                // it is execution, not a source read, so it must not also demand `r`.
                 let program = match with_current_transaction(|ws| {
-                    ws.retrieve_verb(
+                    ws.retrieve_verb_for_execution(
                         &self.task_permissions(),
+                        &object_location,
                         &verb_result.program_key.verb_definer,
                         verb_result.program_key.verb_uuid,
                     )
