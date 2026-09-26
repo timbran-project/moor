@@ -1,7 +1,7 @@
 # Scheduled Tasks
 
 mooR can run a verb for you later, once or on a cadence, without a task sitting in `suspend()`
-between firings. These *native schedules* live in the kernel's scheduler beside the suspended-task
+between firings. These _native schedules_ live in the kernel's scheduler beside the suspended-task
 queue, survive a server restart, and cost nothing while idle: a schedule that fires once an hour
 consumes no task, no transaction and no memory beyond its own entry for the other 59 minutes and 59
 seconds.
@@ -22,29 +22,29 @@ fork (0)
 endfork
 ```
 
-That works, but every suspended task carries its entire VM state in the tasks database, every
-wake is a transaction whether or not there is anything to do, and one such loop calling a hundred
+That works, but every suspended task carries its entire VM state in the tasks database, every wake
+is a transaction whether or not there is anything to do, and one such loop calling a hundred
 consumers puts all hundred in one transaction: one conflict retries everything, one traceback aborts
 everything, and the tick budget is shared. When the loop dies — a wizard `kill_task`s the wrong id,
 or the retry limit is exhausted — nothing restarts it.
 
 A native schedule inverts this. The kernel holds a deadline and a `(object, verb, args)` triple.
-When the deadline passes, it starts a *fresh* background task that calls the verb, exactly as
-`fork` would have. Each firing is its own task with its own transaction and its own tick budget; a
-fault in one leaves the others alone. The schedule is data, not a task, so it is restored from the
-tasks database after a restart with its id and its deadline intact.
+When the deadline passes, it starts a _fresh_ background task that calls the verb, exactly as `fork`
+would have. Each firing is its own task with its own transaction and its own tick budget; a fault in
+one leaves the others alone. The schedule is data, not a task, so it is restored from the tasks
+database after a restart with its id and its deadline intact.
 
 ## The builtins
 
-| Function                                                        | Purpose                                                           |
-| --------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `schedule_at(obj, verb, when [, args] [, options])`             | Run `obj:verb(@args)` once at Unix time `when`. Returns an id.   |
-| `schedule_every(obj, verb, interval [, args] [, options])`      | Run `obj:verb(@args)` every `interval` seconds. Returns an id.   |
-| `schedule_stop(id)`                                             | Cancel. Returns `true` if something was cancelled, else `false`. |
-| `schedule_valid(id)`                                            | Whether the id refers to a schedule that will fire again.        |
-| `schedule_info(id)`                                             | A map describing the schedule and its run history.               |
-| `schedules([owner])`                                            | Live schedule ids the caller may see.                            |
-| `schedules_for(obj)`                                            | Live schedule ids whose target is `obj`.                         |
+| Function                                                   | Purpose                                                          |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- |
+| `schedule_at(obj, verb, when [, args] [, options])`        | Run `obj:verb(@args)` once at Unix time `when`. Returns an id.   |
+| `schedule_every(obj, verb, interval [, args] [, options])` | Run `obj:verb(@args)` every `interval` seconds. Returns an id.   |
+| `schedule_stop(id)`                                        | Cancel. Returns `true` if something was cancelled, else `false`. |
+| `schedule_valid(id)`                                       | Whether the id refers to a schedule that will fire again.        |
+| `schedule_info(id)`                                        | A map describing the schedule and its run history.               |
+| `schedules([owner])`                                       | Live schedule ids the caller may see.                            |
+| `schedules_for(obj)`                                       | Live schedule ids whose target is `obj`.                         |
 
 The full argument-by-argument reference is in
 [Built-in Functions: Server](../the-moo-programming-language/built-in-functions/server.md#schedule_at).
@@ -68,7 +68,7 @@ any other verb.
 this.upkeep_schedule = schedule_every(this, "upkeep", 60);
 ```
 
-Recurring deadlines are computed from the *previous deadline*, not from when the previous firing
+Recurring deadlines are computed from the _previous deadline_, not from when the previous firing
 finished, so a 60-second schedule fires at `t`, `t+60`, `t+120`, … regardless of how long each
 `upkeep` took or whether it faulted.
 
@@ -100,17 +100,17 @@ It does raise `E_PERM` if the schedule exists, is live, and you are neither its 
 
 ## Retirement
 
-A schedule that will not fire again is *retired*. It keeps its entry (so `schedule_info()` can
-tell you why) until the scheduler purges it, but `schedule_valid()` is `false` and it no longer
-appears in `schedules()`/`schedules_for()`. The reasons, as reported in `retire_reason`:
+A schedule that will not fire again is _retired_. It keeps its entry (so `schedule_info()` can tell
+you why) until the scheduler purges it, but `schedule_valid()` is `false` and it no longer appears
+in `schedules()`/`schedules_for()`. The reasons, as reported in `retire_reason`:
 
-| `retire_reason`     | Meaning                                                                      |
-| ------------------- | ---------------------------------------------------------------------------- |
-| `"one_shot_done"`   | A `schedule_at` fired and did not re-arm.                                     |
-| `"returned_zero"`   | Under the adaptive protocol, the verb returned `0`.                           |
-| `"negative_return"` | Under the adaptive protocol, the verb returned a negative number.             |
-| `"max_faults"`      | The verb faulted `max_faults` times in a row.                                 |
-| `"invalid_target"`  | The target was recycled or the verb no longer resolves when the deadline came.|
+| `retire_reason`     | Meaning                                                                        |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `"one_shot_done"`   | A `schedule_at` fired and did not re-arm.                                      |
+| `"returned_zero"`   | Under the adaptive protocol, the verb returned `0`.                            |
+| `"negative_return"` | Under the adaptive protocol, the verb returned a negative number.              |
+| `"max_faults"`      | The verb faulted `max_faults` times in a row.                                  |
+| `"invalid_target"`  | The target was recycled or the verb no longer resolves when the deadline came. |
 
 `schedule_stop()` does not retire; it removes the entry outright.
 
@@ -121,14 +121,14 @@ at creation, so a typo cannot be silently ignored.
 
 ### `adaptive`
 
-Enables the *return-value protocol*: the fired verb's return value sets the next delay.
+Enables the _return-value protocol_: the fired verb's return value sets the next delay.
 
-| Verb returns        | Effect                                                  |
-| ------------------- | ------------------------------------------------------- |
-| positive number `n` | Fire again in `n` seconds (int or float).               |
-| `0`                 | Retire (`"returned_zero"`).                              |
-| negative number     | Retire (`"negative_return"`).                            |
-| anything else       | One-shot: retire. Recurring: keep the cadence.           |
+| Verb returns        | Effect                                         |
+| ------------------- | ---------------------------------------------- |
+| positive number `n` | Fire again in `n` seconds (int or float).      |
+| `0`                 | Retire (`"returned_zero"`).                    |
+| negative number     | Retire (`"negative_return"`).                  |
+| anything else       | One-shot: retire. Recurring: keep the cadence. |
 
 Default: **on** for `schedule_at`, **off** for `schedule_every`. A one-shot that returns `0.5` is
 therefore a self-rescheduling chain with no loop and no task between links:
@@ -149,24 +149,24 @@ after that firing the cadence resumes.
 
 What to do at restart when a deadline was missed while the server was down.
 
-| Value      | Behaviour                                                                          |
-| ---------- | ---------------------------------------------------------------------------------- |
-| `"skip"`   | Advance to the next future deadline on cadence; count the misses in `missed_count`. **Default.** |
-| `"once"`   | Fire once immediately, then resume the cadence.                                    |
-| `"all"`    | Fire once per missed interval. Use with care: a week of downtime is a lot of firings. |
+| Value    | Behaviour                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------------ |
+| `"skip"` | Advance to the next future deadline on cadence; count the misses in `missed_count`. **Default.** |
+| `"once"` | Fire once immediately, then resume the cadence.                                                  |
+| `"all"`  | Fire once per missed interval. Use with care: a week of downtime is a lot of firings.            |
 
 A one-shot with a past deadline always fires once (there is no cadence to skip along).
 
 ### `overlap`
 
-What to do when a deadline arrives while the *previous* firing of the same schedule is still
+What to do when a deadline arrives while the _previous_ firing of the same schedule is still
 running.
 
-| Value          | Behaviour                                                      |
-| -------------- | -------------------------------------------------------------- |
-| `"skip"`       | Drop this firing; increment `overlap_count`. **Default.**      |
-| `"queue"`      | Run it as soon as the current firing finishes.                 |
-| `"concurrent"` | Start it anyway; two tasks now run the verb at once.           |
+| Value          | Behaviour                                                 |
+| -------------- | --------------------------------------------------------- |
+| `"skip"`       | Drop this firing; increment `overlap_count`. **Default.** |
+| `"queue"`      | Run it as soon as the current firing finishes.            |
+| `"concurrent"` | Start it anyway; two tasks now run the verb at once.      |
 
 ### `jitter`
 
@@ -193,14 +193,14 @@ unexpected argument is harmless to most verbs but confusing to read.
 ### `state`
 
 An opaque MOO value appended to `args` on every firing (before `elapsed`). Limited to 4 KB
-serialised; larger is `E_INVARG`. It is constant for the life of the schedule — this is for a
-cursor or a key, not a mutable accumulator. Mutable state belongs on the target object.
+serialised; larger is `E_INVARG`. It is constant for the life of the schedule — this is for a cursor
+or a key, not a mutable accumulator. Mutable state belongs on the target object.
 
 ### `persist`
 
 Default **on**: the schedule is saved to the tasks database and restored after a restart. Pass
-`["persist" -> 0]` for something that only makes sense within this server run (a debounce timer,
-a one-off retry).
+`["persist" -> 0]` for something that only makes sense within this server run (a debounce timer, a
+one-off retry).
 
 ### `player`
 
@@ -211,7 +211,7 @@ particular character.
 ## Permissions
 
 - The creating task's permissions (as seen by `task_perms()` at the moment of the call) become the
-  schedule's **owner** and its **authority principal**. The verb must resolve *now* under those
+  schedule's **owner** and its **authority principal**. The verb must resolve _now_ under those
   permissions or creation is `E_INVARG`: better a loud failure at the call site than a quiet
   `"invalid_target"` retirement at three in the morning.
 - The fired verb runs as its own owner, as every verb does. The authority principal governs only
@@ -256,13 +256,13 @@ endfor
   core wants a stricter floor — and for anything a player-facing verb can trigger, it should — put
   it in the core's wrapper, not here.
 - **Firings are ordinary background tasks.** They get `bg_ticks`/`bg_seconds`, they appear in
-  `queued_tasks()` while running, they can be `kill_task`ed (the schedule counts it as a fault),
-  and their output goes to a background session for `player`.
+  `queued_tasks()` while running, they can be `kill_task`ed (the schedule counts it as a fault), and
+  their output goes to a background session for `player`.
 - **A conflict retry is not a fault.** If the firing's transaction conflicts and is retried, the
   schedule sees one firing, not two, and `fault_count` is untouched.
 - **Recycling the target** does not cancel schedules by itself: the next firing finds the target
-  gone and retires with `"invalid_target"`. A core's `recycle` path should call
-  `schedules_for(obj)` and `schedule_stop` each id so the retirement never has to happen.
+  gone and retires with `"invalid_target"`. A core's `recycle` path should call `schedules_for(obj)`
+  and `schedule_stop` each id so the retirement never has to happen.
 - **Anonymous objects** referenced by a schedule's target, args or state are kept alive by the
   schedule (it is a GC root).
 
@@ -294,7 +294,7 @@ if (!schedule_valid(this.drive_id))
 endif
 ```
 
-**Replacing a heartbeat registry.** Rather than one schedule per consumer, give each *class* of
+**Replacing a heartbeat registry.** Rather than one schedule per consumer, give each _class_ of
 consumer a batch verb on one recurring schedule, and have that verb iterate its live instances with
 `suspend_if_needed()` between them. One schedule, one entry in `schedules()`, and a faulting
 instance can be caught per-iteration without losing the batch.

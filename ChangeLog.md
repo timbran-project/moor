@@ -17,19 +17,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 `kernel`:
 
 - Native scheduled tasks: `schedule_at(obj, verb, when [, args] [, options])` and
-  `schedule_every(obj, verb, interval [, args] [, options])` arrange for a verb to run later, once or
-  on a drift-free cadence, with each firing a fresh background task and no task suspended in between.
-  Schedules are persisted in the tasks database (a new `schedules` keyspace; ids are stable across
-  restart), are GC roots for anonymous objects, and are created/cancelled on the calling task's
-  commit like `task_send`. Options: `adaptive` return-value protocol, `catchup` (`skip`/`once`/`all`),
-  `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`, `pass_elapsed`, `state`,
-  `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`, never raises, for a stale
-  id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`, `schedules_for(target)`.
-  Book chapter: *Scheduled Tasks*.
+  `schedule_every(obj, verb, interval [, args] [, options])` arrange for a verb to run later, once
+  or on a drift-free cadence, with each firing a fresh background task and no task suspended in
+  between. Schedules are persisted in the tasks database (a new `schedules` keyspace; ids are stable
+  across restart), are GC roots for anonymous objects, and are created/cancelled on the calling
+  task's commit like `task_send`. Options: `adaptive` return-value protocol, `catchup`
+  (`skip`/`once`/`all`), `overlap` (`skip`/`queue`/`concurrent`), `jitter`, `max_faults`,
+  `pass_elapsed`, `state`, `persist`, `player`. Companions: `schedule_stop(id)` (returns `false`,
+  never raises, for a stale id), `schedule_valid(id)`, `schedule_info(id)`, `schedules([owner])`,
+  `schedules_for(target)`. Book chapter: _Scheduled Tasks_.
 - A task's transaction-retry counter is reset after every successful transaction boundary
   (`suspend`, `commit`, `read`, `task_recv`, fork dispatch). Previously it only ever incremented, so
-  a long-lived loop that hit an occasional conflict would eventually abort with
-  "Task retry limit exhausted" no matter how many boundaries it had committed in between.
+  a long-lived loop that hit an occasional conflict would eventually abort with "Task retry limit
+  exhausted" no matter how many boundaries it had committed in between.
 - New algorithm builtins in `bf_algorithms.rs` for bounded searches over caller-supplied MOO values:
   - `grid_astar(width, height, start_x, start_y, goal_x, goal_y, tile_map, solid_tiles [, options])`
     performs server-side A* pathfinding over a flat tile map, with options for 4- or 8-directional
