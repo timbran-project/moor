@@ -1132,8 +1132,9 @@ resumes in a new one, respecting snapshot isolation.
 
 The `schedule_*` builtins arrange for a verb to be called later — once or on a cadence — without a
 task suspended in between. The scheduler holds only a deadline and a `(object, verb, args)` triple,
-and starts a fresh background task for each firing. See [Scheduled Tasks](../../the-system/scheduled-tasks.md)
-for the model, the options and the recipes; this section is the argument-level reference.
+and starts a fresh background task for each firing. See
+[Scheduled Tasks](../../the-system/scheduled-tasks.md) for the model, the options and the recipes;
+this section is the argument-level reference.
 
 Creation and cancellation are buffered until the calling task commits, exactly like `task_send`: a
 schedule created in a task that rolls back never exists.
@@ -1157,17 +1158,17 @@ schedule created in a task that rolls back never exists.
 
 **Options** (string or symbol keys; any other key is `E_INVARG`):
 
-| Key            | Type        | Default        | Meaning                                                                  |
-| -------------- | ----------- | -------------- | ------------------------------------------------------------------------ |
-| `adaptive`     | bool        | `1` for `at`, `0` for `every` | Positive numeric return re-arms in that many seconds; `0` retires; negative retires with a fault |
-| `catchup`      | `"skip"`, `"once"`, `"all"` | `"skip"` | Missed-deadline policy after a restart                             |
-| `overlap`      | `"skip"`, `"queue"`, `"concurrent"` | `"skip"` | Policy when the previous firing is still running           |
-| `jitter`       | num seconds | `0`            | Randomise each deadline by up to ± this much                             |
-| `max_faults`   | int         | `50`           | Consecutive faults before retirement; `0` = unlimited                    |
-| `pass_elapsed` | bool        | `1`            | Append real seconds since the previous firing (float) to the args        |
-| `state`        | any         | none           | Opaque value (≤ 4 KB serialised) appended to args before `elapsed`       |
-| `persist`      | bool        | `1`            | Survive a server restart                                                 |
-| `player`       | obj         | `target`       | The value of `player` inside the fired verb                              |
+| Key            | Type                                | Default                       | Meaning                                                                                          |
+| -------------- | ----------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `adaptive`     | bool                                | `1` for `at`, `0` for `every` | Positive numeric return re-arms in that many seconds; `0` retires; negative retires with a fault |
+| `catchup`      | `"skip"`, `"once"`, `"all"`         | `"skip"`                      | Missed-deadline policy after a restart                                                           |
+| `overlap`      | `"skip"`, `"queue"`, `"concurrent"` | `"skip"`                      | Policy when the previous firing is still running                                                 |
+| `jitter`       | num seconds                         | `0`                           | Randomise each deadline by up to ± this much                                                     |
+| `max_faults`   | int                                 | `50`                          | Consecutive faults before retirement; `0` = unlimited                                            |
+| `pass_elapsed` | bool                                | `1`                           | Append real seconds since the previous firing (float) to the args                                |
+| `state`        | any                                 | none                          | Opaque value (≤ 4 KB serialised) appended to args before `elapsed`                               |
+| `persist`      | bool                                | `1`                           | Survive a server restart                                                                         |
+| `player`       | obj                                 | `target`                      | The value of `player` inside the fired verb                                                      |
 
 **Permission Requirements:** The caller's current task permissions become the schedule's owner. The
 verb must resolve on `target` under those permissions at creation time.
@@ -1186,7 +1187,8 @@ task. Deadlines are computed from the previous deadline, so the cadence does not
 verb's running time. An interval shorter than the scheduler tick is clamped to one tick and reported
 as `interval_clamped` in `schedule_info`.
 
-**Syntax:** `int schedule_every(obj target, str|sym verb, num interval [, list args] [, map options])`
+**Syntax:**
+`int schedule_every(obj target, str|sym verb, num interval [, list args] [, map options])`
 
 **Arguments:** As `schedule_at`, with `interval` in seconds (int or float, `> 0`) in place of
 `when`. Same options; `adaptive` defaults to off.
@@ -1228,12 +1230,12 @@ inspectable until the scheduler purges them.
 
 **Returns:** A string-keyed map: `id`, `target`, `verb`, `args`, `owner`, `authority`, `kind`
 (`"at"` or `"every"`), `interval` (float seconds, `0.0` for one-shots), `created_at`, `next_run`,
-`last_run` (float Unix seconds, `0.0` for never), `run_count`, `fault_count`,
-`consecutive_faults`, `last_fault`, `missed_count`, `overlap_count`, `last_duration_ns`,
-`mean_duration_ns`, `p99_duration_ns`, `running_task` (`0` if idle), `interval_clamped`,
-`retired`, `retire_reason` (`""` while live; otherwise `"one_shot_done"`, `"returned_zero"`,
-`"negative_return"`, `"max_faults"` or `"invalid_target"`), and the options `adaptive`, `catchup`,
-`overlap`, `jitter`, `max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
+`last_run` (float Unix seconds, `0.0` for never), `run_count`, `fault_count`, `consecutive_faults`,
+`last_fault`, `missed_count`, `overlap_count`, `last_duration_ns`, `mean_duration_ns`,
+`p99_duration_ns`, `running_task` (`0` if idle), `interval_clamped`, `retired`, `retire_reason`
+(`""` while live; otherwise `"one_shot_done"`, `"returned_zero"`, `"negative_return"`,
+`"max_faults"` or `"invalid_target"`), and the options `adaptive`, `catchup`, `overlap`, `jitter`,
+`max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
 
 **Permission Requirements:** Owner or wizard
 
@@ -1257,9 +1259,9 @@ inspectable until the scheduler purges them.
 
 ### `schedules_for`
 
-**Description:** Live schedule ids whose target is `target`, regardless of who created them. This
-is what a core's recycle and "unregister everything on this object" paths use, so it needs no
-special permission.
+**Description:** Live schedule ids whose target is `target`, regardless of who created them. This is
+what a core's recycle and "unregister everything on this object" paths use, so it needs no special
+permission.
 
 **Syntax:** `list schedules_for(obj target)`
 
