@@ -1181,8 +1181,9 @@ may name any object; anyone else must be it or own it. Inside the fired verb, `c
 
 - `E_ARGS`: Wrong argument count
 - `E_TYPE`: Wrong argument type, or a wrongly typed option value
-- `E_INVARG`: `when` negative or not finite; `target` invalid or `verb` not callable on it; unknown
-  option key; unknown `catchup`/`overlap` value; `state` too large
+- `E_INVARG`: `when` negative, not finite, or later than `18446744073` (the latest deadline a
+  schedule can hold, in July 2554); `target` invalid or `verb` not callable on it; unknown option
+  key; unknown `catchup`/`overlap` value; `jitter` too large to be a duration; `state` too large
 - `E_PERM`: The caller does not control the fired verb's `player`
 
 ### `schedule_every`
@@ -1200,7 +1201,8 @@ as `interval_clamped` in `schedule_info`.
 
 **Returns:** A schedule id
 
-**Errors:** As `schedule_at`; `E_INVARG` for `interval <= 0`.
+**Errors:** As `schedule_at`; `E_INVARG` for `interval <= 0`, or for an interval whose first
+deadline (now + `interval`) would be later than `18446744073` Unix seconds.
 
 ### `schedule_stop`
 
@@ -1241,8 +1243,8 @@ its id is unknown and `schedule_info()` raises `E_INVARG`.
 `last_fault`, `missed_count`, `overlap_count`, `last_duration_ns`, `mean_duration_ns`,
 `p99_duration_ns`, `running_task` (`0` if idle), `interval_clamped`, `retired`, `retire_reason`
 (`""` while live; otherwise `"one_shot_done"`, `"returned_zero"`, `"negative_return"`,
-`"max_faults"` or `"invalid_target"`), and the options `adaptive`, `catchup`, `overlap`, `jitter`,
-`max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
+`"max_faults"`, `"invalid_target"` or `"deadline_out_of_range"`), and the options `adaptive`,
+`catchup`, `overlap`, `jitter`, `max_faults`, `pass_elapsed`, `persist`, `player`, `state`.
 
 **Permission Requirements:** Owner or wizard
 

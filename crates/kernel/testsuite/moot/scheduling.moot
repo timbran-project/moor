@@ -62,6 +62,29 @@ E_INVARG
 > return r;
 "E_INVARG"
 
+// Deadlines past the representable limit are rejected at creation, not
+// armed: a huge interval, a huge absolute time, and a jitter too large for a
+// duration. None of these may panic or reach the scheduler.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "tick"}, {"this", "none", "this"});
+> set_verb_code(target, "tick", {"return 0;"});
+> r = {};
+> for c in ({{"every", 1e19, []}, {"every", 1e300, []}, {"at", 1e19, []}, {"at", 1e300, []}, {"every", 60, ["jitter" -> 1e300]}})
+>   try
+>     if (c[1] == "every")
+>       schedule_every(target, "tick", c[2], {}, c[3]);
+>     else
+>       schedule_at(target, "tick", c[2], {}, c[3]);
+>     endif
+>     r = {@r, "no error"};
+>   except e (E_INVARG)
+>     r = {@r, "E_INVARG"};
+>   endtry
+> endfor
+> recycle(target);
+> return r;
+{"E_INVARG", "E_INVARG", "E_INVARG", "E_INVARG", "E_INVARG"}
+
 // A one-shot fires: the verb records its args (pass_elapsed appends a float),
 // and afterwards the schedule is retired but still inspectable.
 ; target = create(#-1);

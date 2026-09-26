@@ -170,7 +170,13 @@ impl TaskLifecycle {
         let now = std::time::SystemTime::now();
         let count = entries.len();
         for e in entries {
+            let id = e.id;
             self.schedule_q.load(e, now);
+            // Loading can retire an entry whose cadence has run out of range;
+            // drop it from the store so it is not loaded again.
+            if !self.schedule_q.is_valid(id) {
+                self.persist_schedule(id);
+            }
         }
         if count > 0 {
             tracing::info!(count, "Loaded native schedules from tasks database");

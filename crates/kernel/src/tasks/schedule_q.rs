@@ -44,6 +44,14 @@ pub type ScheduleId = u64;
 /// unbounded slot would recreate the hot-property problem in scheduler memory.
 pub const MAX_STATE_BYTES: usize = 4096;
 
+/// The latest deadline a schedule may have, in seconds after the Unix epoch
+/// (a little past the year 2554). The tasks database stores deadlines,
+/// intervals and jitter as `u64` nanoseconds, so this is the largest instant
+/// that survives a restart unchanged. Creation past it is `InvalidWhen`; a
+/// firing whose next deadline would pass it retires with
+/// `RetireReason::DeadlineOutOfRange`.
+pub const MAX_DEADLINE_SECS: u64 = u64::MAX / 1_000_000_000;
+
 /// How many firing durations to keep for `mean_duration`/`p99_duration`.
 const DURATION_SAMPLES: usize = 32;
 
@@ -132,7 +140,10 @@ impl fmt::Display for ScheduleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ScheduleError::InvalidInterval => write!(f, "schedule interval must be > 0"),
-            ScheduleError::InvalidWhen => write!(f, "schedule deadline is not representable"),
+            ScheduleError::InvalidWhen => write!(
+                f,
+                "schedule deadline is out of range (latest is {MAX_DEADLINE_SECS} Unix seconds)"
+            ),
             ScheduleError::StateTooLarge(n) => {
                 write!(f, "schedule state is {n} bytes; limit is {MAX_STATE_BYTES}")
             }
@@ -152,6 +163,8 @@ pub enum RetireReason {
     NegativeReturn,
     /// `max_faults` consecutive faults.
     MaxFaults,
+    /// The next deadline would fall after `MAX_DEADLINE_SECS`.
+    DeadlineOutOfRange,
     /// Target recycled, verb gone, or principal invalid at firing time.
     InvalidTarget,
 }
@@ -163,6 +176,7 @@ impl RetireReason {
             RetireReason::ReturnedZero => "returned_zero",
             RetireReason::NegativeReturn => "negative_return",
             RetireReason::MaxFaults => "max_faults",
+            RetireReason::DeadlineOutOfRange => "deadline_out_of_range",
             RetireReason::InvalidTarget => "invalid_target",
         }
     }
@@ -606,15 +620,26 @@ impl ScheduleQ {
         &self,
         interval: Duration,
         options: &ScheduleOptions,
+        now: SystemTime,
     ) -> Result<(), ScheduleError> {
         if interval == Duration::ZERO {
             return Err(ScheduleError::InvalidInterval);
+        }
+        if deadline_after(now, interval.max(self.tick)).is_none() {
+            return Err(ScheduleError::InvalidWhen);
         }
         Self::validate_state(options)
     }
 
     /// Validate what a builtin can validate before buffering a one-shot.
-    pub fn validate_at(&self, options: &ScheduleOptions) -> Result<(), ScheduleError> {
+    pub fn validate_at(
+        &self,
+        when: SystemTime,
+        options: &ScheduleOptions,
+    ) -> Result<(), ScheduleError> {
+        if when > max_deadline() {
+            return Err(ScheduleError::InvalidWhen);
+        }
         Self::validate_state(options)
     }
 
@@ -631,6 +656,9 @@ impl ScheduleQ {
         options: ScheduleOptions,
         now: SystemTime,
     ) -> Result<(), ScheduleError> {
+        if when > max_deadline() {
+            return Err(ScheduleError::InvalidWhen);
+        }
         Self::validate_state(&options)?;
         let entry = ScheduleEntry {
             id,
@@ -688,7 +716,9 @@ impl ScheduleQ {
             interval = self.tick;
             interval_clamped = true;
         }
-        let first = now.checked_add(interval).unwrap_or(now);
+        let Some(first) = deadline_after(now, interval) else {
+            return Err(ScheduleError::InvalidWhen);
+        };
         let jittered_first = self.jittered(first, options.jitter, now);
         let entry = ScheduleEntry {
             id,
@@ -897,10 +927,13 @@ impl ScheduleQ {
                         if let ScheduleKind::Every { interval } = entry.kind {
                             let base = entry.scheduled_deadline.unwrap_or(now_sys);
                             let jitter = entry.options.jitter;
-                            let mut next = base.checked_add(interval).unwrap_or(base);
-                            while next <= now_sys {
-                                next = next.checked_add(interval).unwrap_or(next);
-                            }
+                            let next = deadline_after(base, interval)
+                                .and_then(|next| next_cadence_after(next, interval, now_sys));
+                            let Some((next, _)) = next else {
+                                entry.fault_count += 1;
+                                self.retire(id, RetireReason::DeadlineOutOfRange);
+                                continue;
+                            };
                             entry.scheduled_deadline = Some(next);
                             let jittered = self.jittered(next, jitter, now_sys);
                             self.arm(id, jittered, now_sys);
@@ -1006,8 +1039,12 @@ impl ScheduleQ {
             && let Some(n) = v.as_float_numeric()
         {
             if n > 0.0 {
-                let delta = Duration::from_secs_f64(if n.is_finite() { n } else { 0.0 });
-                let next = base.checked_add(delta).unwrap_or(base);
+                let next = Duration::try_from_secs_f64(n)
+                    .ok()
+                    .and_then(|delta| deadline_after(base, delta));
+                let Some(next) = next else {
+                    return Some(self.retire_out_of_range(id));
+                };
                 let entry = self.entries.get_mut(&id).unwrap();
                 entry.scheduled_deadline = Some(next);
                 let jittered = self.jittered(next, jitter, finished_at);
@@ -1037,29 +1074,28 @@ impl ScheduleQ {
                 Some(Completion::Retired(RetireReason::OneShotDone))
             }
             ScheduleKind::Every { interval } => {
-                let mut next = base.checked_add(interval).unwrap_or(base);
+                let Some(mut next) = deadline_after(base, interval) else {
+                    return Some(self.retire_out_of_range(id));
+                };
                 if queued_firing {
                     let entry = self.entries.get_mut(&id).unwrap();
                     entry.queued_firing = false;
                     next = finished_at;
-                } else {
+                } else if next <= finished_at {
                     let catchup = self.entries.get(&id).unwrap().options.catchup;
-                    loop {
-                        if next > finished_at {
-                            break;
+                    match catchup {
+                        CatchupPolicy::Skip => {
+                            let Some((skipped_to, missed)) =
+                                next_cadence_after(next, interval, finished_at)
+                            else {
+                                return Some(self.retire_out_of_range(id));
+                            };
+                            next = skipped_to;
+                            let entry = self.entries.get_mut(&id).unwrap();
+                            entry.missed_count += missed;
                         }
-                        match catchup {
-                            CatchupPolicy::Skip => {
-                                next = next.checked_add(interval).unwrap_or(next);
-                                let entry = self.entries.get_mut(&id).unwrap();
-                                entry.missed_count += 1;
-                            }
-                            CatchupPolicy::Once => {
-                                next = finished_at;
-                                break;
-                            }
-                            CatchupPolicy::All => break,
-                        }
+                        CatchupPolicy::Once => next = finished_at,
+                        CatchupPolicy::All => {}
                     }
                 }
                 let entry = self.entries.get_mut(&id).unwrap();
@@ -1092,11 +1128,13 @@ impl ScheduleQ {
         let deadline = if deadline <= now {
             match (entry.kind, entry.options.catchup) {
                 (ScheduleKind::Every { interval }, CatchupPolicy::Skip) => {
-                    let mut d = deadline;
-                    while d <= now {
-                        d = d.checked_add(interval).unwrap_or(d);
-                        entry.missed_count += 1;
-                    }
+                    let Some((d, missed)) = next_cadence_after(deadline, interval, now) else {
+                        entry.fault_count += 1;
+                        self.entries.insert(id, entry);
+                        self.retire(id, RetireReason::DeadlineOutOfRange);
+                        return;
+                    };
+                    entry.missed_count += missed;
                     d
                 }
                 (_, CatchupPolicy::Once) | (ScheduleKind::At, _) => now,
@@ -1132,6 +1170,17 @@ impl ScheduleQ {
     }
 
     // ---- internals ------------------------------------------------------
+
+    /// Retire a schedule whose next deadline cannot be represented. Counted
+    /// as a fault, like a negative adaptive return: the verb or its creator
+    /// asked for something the scheduler cannot do.
+    fn retire_out_of_range(&mut self, id: ScheduleId) -> Completion {
+        if let Some(entry) = self.entries.get_mut(&id) {
+            entry.fault_count += 1;
+        }
+        self.retire(id, RetireReason::DeadlineOutOfRange);
+        Completion::Retired(RetireReason::DeadlineOutOfRange)
+    }
 
     fn validate_state(options: &ScheduleOptions) -> Result<(), ScheduleError> {
         if let Some(s) = &options.state {
@@ -1179,14 +1228,11 @@ impl ScheduleQ {
         let jitter_secs = jitter.as_secs_f64();
         let mut rng = rand::rng();
         let offset_secs = rng.random_range(-jitter_secs..=jitter_secs);
+        let offset = Duration::try_from_secs_f64(offset_secs.abs()).unwrap_or(Duration::ZERO);
         let result = if offset_secs >= 0.0 {
-            deadline
-                .checked_add(Duration::from_secs_f64(offset_secs))
-                .unwrap_or(deadline)
+            deadline_after(deadline, offset).unwrap_or(deadline)
         } else {
-            deadline
-                .checked_sub(Duration::from_secs_f64(-offset_secs))
-                .unwrap_or(deadline)
+            deadline.checked_sub(offset).unwrap_or(deadline)
         };
         let min = floor.checked_add(self.tick).unwrap_or(floor);
         if result < min { min } else { result }
@@ -1222,6 +1268,39 @@ impl ScheduleQ {
         self.last_advance = Some(last + Duration::from_millis(elapsed_millis as u64));
         expired
     }
+}
+
+fn max_deadline() -> SystemTime {
+    UNIX_EPOCH + Duration::from_secs(MAX_DEADLINE_SECS)
+}
+
+/// `base + delta`, or `None` if that is past `MAX_DEADLINE_SECS`.
+fn deadline_after(base: SystemTime, delta: Duration) -> Option<SystemTime> {
+    base.checked_add(delta).filter(|t| *t <= max_deadline())
+}
+
+/// The first point of the cadence `from, from + interval, ...` that is
+/// strictly after `now`, and how many points were stepped over to reach it.
+/// Computed directly rather than by stepping, so a long gap at a short
+/// interval costs nothing. `None` if that point is past `MAX_DEADLINE_SECS`.
+fn next_cadence_after(
+    from: SystemTime,
+    interval: Duration,
+    now: SystemTime,
+) -> Option<(SystemTime, u64)> {
+    let Ok(gap) = now.duration_since(from) else {
+        return Some((from, 0));
+    };
+    let step = interval.as_nanos();
+    if step == 0 {
+        return None;
+    }
+    let steps = gap.as_nanos() / step + 1;
+    let advance = steps.checked_mul(step)?;
+    let secs = u64::try_from(advance / 1_000_000_000).ok()?;
+    let nanos = (advance % 1_000_000_000) as u32;
+    let next = deadline_after(from, Duration::new(secs, nanos))?;
+    Some((next, u64::try_from(steps).ok()?))
 }
 
 #[cfg(test)]
@@ -2067,6 +2146,202 @@ mod tests {
             )
             .unwrap();
         assert_eq!(new_id, loaded_id + 1);
+    }
+
+    // ---- 11b: unrepresentable deadlines ------------------------------------
+
+    /// Run `f` on another thread and fail the test if it does not return
+    /// within ten seconds, so a non-terminating loop shows up as a failure
+    /// instead of a stuck test run.
+    fn within_deadline<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(Duration::from_secs(10))
+            .expect("did not finish within 10s (hung or panicked)")
+    }
+
+    #[test]
+    fn every_with_unrepresentable_first_deadline_is_rejected() {
+        let result = within_deadline(|| {
+            let mut q = ScheduleQ::new(Duration::from_millis(10));
+            let t0 = t0();
+            let interval = Duration::from_secs(10_000_000_000_000_000_000);
+            let r = q.add_every(
+                interval,
+                target(),
+                verb(),
+                args(),
+                owner(),
+                owner(),
+                every_opts(interval),
+                t0,
+            );
+            // Drive a firing the way the scheduler would if it was accepted.
+            if let Ok(id) = r {
+                q.mark_fired(id, 1, t0);
+                q.complete(id, Outcome::Success(v_int(0)), t0);
+            }
+            r
+        });
+        assert_eq!(result, Err(ScheduleError::InvalidWhen));
+    }
+
+    #[test]
+    fn at_past_deadline_limit_is_rejected() {
+        let mut q = ScheduleQ::new(Duration::from_millis(10));
+        let t0 = t0();
+        let too_late = UNIX_EPOCH + Duration::from_secs(MAX_DEADLINE_SECS + 1);
+        let err = q.add_at(
+            too_late,
+            target(),
+            verb(),
+            args(),
+            owner(),
+            owner(),
+            at_opts(),
+            t0,
+        );
+        assert_eq!(err, Err(ScheduleError::InvalidWhen));
+        let at_limit = UNIX_EPOCH + Duration::from_secs(MAX_DEADLINE_SECS);
+        assert!(
+            q.add_at(
+                at_limit,
+                target(),
+                verb(),
+                args(),
+                owner(),
+                owner(),
+                at_opts(),
+                t0
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn complete_retires_when_next_deadline_unrepresentable() {
+        let (completion, entry) = within_deadline(|| {
+            let mut q = ScheduleQ::new(Duration::from_millis(10));
+            let t0 = t0();
+            // First deadline fits under the limit; the one after does not.
+            let interval = Duration::from_secs(9_000_000_000);
+            let id = q
+                .add_every(
+                    interval,
+                    target(),
+                    verb(),
+                    args(),
+                    owner(),
+                    owner(),
+                    every_opts(interval),
+                    t0,
+                )
+                .unwrap();
+            let deadline = t0 + interval;
+            q.mark_fired(id, 1, deadline);
+            let c = q.complete(id, Outcome::Success(v_int(0)), deadline);
+            (c, q.info(id).cloned().unwrap())
+        });
+        assert_eq!(
+            completion,
+            Some(Completion::Retired(RetireReason::DeadlineOutOfRange))
+        );
+        assert!(!entry.is_live());
+        assert_eq!(entry.fault_count, 1);
+    }
+
+    #[test]
+    fn adaptive_return_past_limit_retires() {
+        let completion = within_deadline(|| {
+            let mut q = ScheduleQ::new(Duration::from_millis(10));
+            let t0 = t0();
+            let id = q
+                .add_at(
+                    t0 + Duration::from_secs(1),
+                    target(),
+                    verb(),
+                    args(),
+                    owner(),
+                    owner(),
+                    at_opts(),
+                    t0,
+                )
+                .unwrap();
+            let deadline = t0 + Duration::from_secs(1);
+            q.mark_fired(id, 1, deadline);
+            q.complete(id, Outcome::Success(v_float(1e30)), deadline)
+        });
+        assert_eq!(
+            completion,
+            Some(Completion::Retired(RetireReason::DeadlineOutOfRange))
+        );
+    }
+
+    #[test]
+    fn load_retires_unrepresentable_cadence() {
+        let entry = within_deadline(|| {
+            let mut q = ScheduleQ::new(Duration::from_millis(10));
+            let t0 = t0();
+            let interval = Duration::from_secs(10_000_000_000_000_000_000);
+            let mut entry = ScheduleEntry::from_persisted(
+                7,
+                target(),
+                verb(),
+                args(),
+                owner(),
+                owner(),
+                ScheduleKind::Every { interval },
+                every_opts(interval),
+                t0 - Duration::from_secs(10),
+                Some(t0 - Duration::from_secs(5)),
+                Some(t0 - Duration::from_secs(5)),
+                None,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+            );
+            entry.options.catchup = CatchupPolicy::Skip;
+            q.load(entry, t0);
+            q.info(7).cloned().unwrap()
+        });
+        assert!(!entry.is_live());
+        assert_eq!(entry.retired, Some(RetireReason::DeadlineOutOfRange));
+    }
+
+    #[test]
+    fn catchup_skip_over_a_long_gap_is_arithmetic() {
+        let (entry, finished) = within_deadline(|| {
+            let tick = Duration::from_millis(10);
+            let mut q = ScheduleQ::new(tick);
+            let t0 = t0();
+            let id = q
+                .add_every(
+                    tick,
+                    target(),
+                    verb(),
+                    args(),
+                    owner(),
+                    owner(),
+                    every_opts(tick),
+                    t0,
+                )
+                .unwrap();
+            let deadline = t0 + tick;
+            q.mark_fired(id, 1, deadline);
+            // Ten years of 10 ms cadence points: 3.15e10 of them.
+            let finished = deadline + Duration::from_secs(10 * 365 * 86_400) + tick / 2;
+            q.complete(id, Outcome::Success(v_int(0)), finished);
+            (q.info(id).cloned().unwrap(), finished)
+        });
+        let next = entry.scheduled_deadline.unwrap();
+        assert!(next > finished);
+        assert!(next.duration_since(finished).unwrap() <= Duration::from_millis(10));
+        assert_eq!(entry.missed_count, 10 * 365 * 86_400 * 100);
     }
 
     // ---- 12: to_info_map completeness --------------------------------
