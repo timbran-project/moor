@@ -51,7 +51,7 @@ use crate::{
         gc_thread::spawn_gc_mark_phase,
         maintenance::MaintenanceCoordinator,
         sched_counters,
-        schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId, ScheduleQ},
+        schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleExpiry, ScheduleQ},
         storage_compaction::{
             StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
             prepare_storage_compaction,
@@ -564,27 +564,31 @@ impl Scheduler {
     fn collect_and_fire_schedules(&self) {
         let now_sys = SystemTime::now();
         let now = std::time::Instant::now();
-        let to_fire: Vec<(ScheduleId, ScheduleEntry)> = {
+        let to_fire: Vec<(ScheduleExpiry, ScheduleEntry)> = {
             let mut lc = self.lifecycle.lock();
             if lc.state != SchedulerState::Running {
                 return;
             }
             let ids = lc.schedule_q.expired(now, now_sys);
             ids.into_iter()
-                .filter_map(|id| lc.schedule_q.info(id).cloned().map(|e| (id, e)))
+                .filter_map(|id| Some((lc.schedule_q.expiry(id)?, lc.schedule_q.info(id)?.clone())))
                 .collect()
         };
-        if to_fire.is_empty() {
-            return;
-        }
+        self.fire_collected_schedules(to_fire, now_sys);
+    }
 
-        for (id, entry) in to_fire {
+    fn fire_collected_schedules(
+        &self,
+        to_fire: Vec<(ScheduleExpiry, ScheduleEntry)>,
+        now_sys: SystemTime,
+    ) {
+        for (expiry, entry) in to_fire {
             let mut lc = self.lifecycle.lock();
-            // Re-check: the schedule may have been stopped between collection
-            // and now.
-            if !lc.schedule_q.is_valid(id) {
+            // Completion may have replaced the arm while the lock was released.
+            if !lc.schedule_q.is_current_expiry(expiry) {
                 continue;
             }
+            let id = expiry.id;
             let Some(factory) = lc.bg_session_factory.clone() else {
                 warn!(schedule_id = id, "No session factory; cannot fire schedule");
                 continue;
@@ -614,6 +618,7 @@ impl Scheduler {
             let task_id = lc.next_task_id;
             lc.next_task_id += 1;
             let elapsed = lc.schedule_q.mark_fired(id, task_id, now_sys);
+            lc.persist_schedule(id);
             if entry.options.pass_elapsed {
                 let secs = elapsed.map(|d| d.as_secs_f64()).unwrap_or(0.0);
                 args = args.push(&v_float(secs)).unwrap_or(args);
@@ -752,6 +757,7 @@ impl Scheduler {
 mod tests {
     use super::*;
     use crate::tasks::TasksDbError;
+    use crate::tasks::schedule_q::ScheduleId;
     use moor_common::tasks::{
         ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
     };
@@ -776,6 +782,69 @@ mod tests {
     }
 
     struct LoadedTasksDb(Mutex<Option<Vec<SuspendedTask>>>);
+
+    #[test]
+    fn adaptive_return_invalidates_collected_expiry() {
+        use crate::tasks::schedule_q::{OverlapPolicy, ScheduleKind, ScheduleOptions};
+
+        struct UnexpectedSessionFactory;
+        impl SessionFactory for UnexpectedSessionFactory {
+            fn mk_background_session(
+                self: Arc<Self>,
+                _player: &Obj,
+            ) -> Result<Arc<dyn Session>, SessionError> {
+                panic!("a replaced expiry must not start a session");
+            }
+        }
+
+        let scheduler = scheduler_with_system_control(Arc::new(NoopSystemControl::default()));
+        let t0 = SystemTime::now();
+        let i0 = std::time::Instant::now();
+        let interval = Duration::from_secs(1);
+        let (id, to_fire) = {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.state = SchedulerState::Running;
+            lc.bg_session_factory = Some(Arc::new(UnexpectedSessionFactory));
+            let mut opts = ScheduleOptions::for_kind(&ScheduleKind::Every { interval });
+            opts.adaptive = true;
+            opts.overlap = OverlapPolicy::Concurrent;
+            let q = &mut lc.schedule_q;
+            q.expired(i0, t0);
+            let id = q
+                .add_every(
+                    interval,
+                    SYSTEM_OBJECT,
+                    Symbol::mk("tick"),
+                    List::mk_list(&[]),
+                    SYSTEM_OBJECT,
+                    SYSTEM_OBJECT,
+                    opts,
+                    t0,
+                )
+                .unwrap();
+            assert_eq!(q.expired(i0 + interval, t0 + interval), vec![id]);
+            q.mark_fired(id, 1, t0 + interval);
+            let due = q.expired(i0 + interval * 2, t0 + interval * 2);
+            assert_eq!(due, vec![id]);
+            let to_fire = due
+                .into_iter()
+                .map(|id| (q.expiry(id).unwrap(), q.info(id).unwrap().clone()))
+                .collect();
+            (id, to_fire)
+        };
+        // A worker finishes while the timer has released the collection lock.
+        scheduler.lifecycle.lock().schedule_q.complete(
+            id,
+            1,
+            Outcome::Success(v_int(60)),
+            t0 + interval * 2,
+        );
+        scheduler.fire_collected_schedules(to_fire, t0 + interval * 2);
+        let lc = scheduler.lifecycle.lock();
+        let entry = lc.schedule_q.info(id).unwrap();
+        assert!(entry.running.is_empty());
+        assert_eq!(entry.next_run, Some(t0 + Duration::from_secs(61)));
+    }
 
     impl TasksDb for LoadedTasksDb {
         fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
@@ -1239,7 +1308,7 @@ mod tests {
         use crate::tasks::schedule_q::{ScheduleKind, ScheduleOptions};
         let now = SystemTime::now();
         let fired_at = now - Duration::from_secs(60);
-        let entry = ScheduleEntry::from_persisted(
+        let mut entry = ScheduleEntry::from_persisted(
             schedule_id,
             SYSTEM_OBJECT,
             Symbol::mk("tick"),
@@ -1259,6 +1328,11 @@ mod tests {
             0,
             false,
         );
+        entry.running.push(crate::tasks::schedule_q::RunningFiring {
+            task: task_id,
+            deadline: fired_at,
+            started_at: fired_at,
+        });
         let mut task = suspended_task(task_id);
         task.task = Task::new(
             task_id,

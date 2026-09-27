@@ -265,9 +265,9 @@ pub struct ScheduleEntry {
 }
 
 impl ScheduleEntry {
-    /// Rebuild an entry from persisted fields. Runtime-only state
-    /// (`running`, `queued_firing`, duration samples, `last_fault`)
-    /// starts empty; `ScheduleQ::load` then applies the catchup policy.
+    /// Rebuild an entry from persisted fields. The decoder then restores
+    /// running firings and queue state before `ScheduleQ::load` reconciles
+    /// them with the suspended tasks. Duration samples and `last_fault` start empty.
     #[allow(clippy::too_many_arguments)]
     pub fn from_persisted(
         id: ScheduleId,
@@ -450,6 +450,13 @@ impl TimerEntryWithDelay for ScheduleTimerEntry {
     }
 }
 
+/// Identifies one arm across expiry collection and dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ScheduleExpiry {
+    pub(crate) id: ScheduleId,
+    generation: u64,
+}
+
 pub struct ScheduleQ {
     entries: HashMap<ScheduleId, ScheduleEntry>,
     wheel: QuadWheelWithOverflow<ScheduleTimerEntry>,
@@ -459,7 +466,7 @@ pub struct ScheduleQ {
     next_generation: u64,
     /// Schedules whose deadline was already past when armed: fire on the
     /// next `expired()` without going through the wheel.
-    immediate: Vec<ScheduleId>,
+    immediate: Vec<ScheduleExpiry>,
     next_id: ScheduleId,
     by_owner: HashMap<Obj, HashSet<ScheduleId>>,
     by_target: HashMap<Obj, HashSet<ScheduleId>>,
@@ -808,6 +815,18 @@ impl ScheduleQ {
         self.by_task.get(&task).copied()
     }
 
+    /// Capture the current arm while holding the scheduler lifecycle lock.
+    pub(crate) fn expiry(&self, id: ScheduleId) -> Option<ScheduleExpiry> {
+        self.generations
+            .get(&id)
+            .map(|&generation| ScheduleExpiry { id, generation })
+    }
+
+    /// Recheck a collected expiry before dispatch under the same lock as `mark_fired`.
+    pub(crate) fn is_current_expiry(&self, expiry: ScheduleExpiry) -> bool {
+        self.generations.get(&expiry.id) == Some(&expiry.generation) && self.is_valid(expiry.id)
+    }
+
     /// Live, persistable entries (for the tasks database).
     pub fn persistable(&self) -> impl Iterator<Item = &ScheduleEntry> {
         self.entries
@@ -848,7 +867,7 @@ impl ScheduleQ {
         for r in &entry.running {
             self.by_task.remove(&r.task);
         }
-        self.immediate.retain(|&i| i != id);
+        self.immediate.retain(|e| e.id != id);
         true
     }
 
@@ -884,7 +903,7 @@ impl ScheduleQ {
         for r in running {
             self.by_task.remove(&r.task);
         }
-        self.immediate.retain(|&i| i != id);
+        self.immediate.retain(|e| e.id != id);
     }
 
     /// Drop retired entries whose retention has passed at `now`. Called
@@ -914,7 +933,11 @@ impl ScheduleQ {
     /// Also purges retired entries past their retention.
     pub fn expired(&mut self, now: Instant, now_sys: SystemTime) -> Vec<ScheduleId> {
         self.purge_retired(now_sys);
-        let mut ids: Vec<ScheduleId> = std::mem::take(&mut self.immediate);
+        let mut ids: Vec<ScheduleId> = std::mem::take(&mut self.immediate)
+            .into_iter()
+            .filter(|expiry| self.is_current_expiry(*expiry))
+            .map(|expiry| expiry.id)
+            .collect();
         for e in self.advance_wheel(now) {
             if self.generations.get(&e.id) == Some(&e.generation) {
                 ids.push(e.id);
@@ -973,6 +996,7 @@ impl ScheduleQ {
         entry.last_run = Some(fired_at);
         let kind = entry.kind;
         self.by_task.insert(task, id);
+        self.generations.remove(&id);
         if let ScheduleKind::Every { interval } = kind {
             self.arm_after(id, deadline, interval, fired_at);
         }
@@ -1090,11 +1114,10 @@ impl ScheduleQ {
     /// `restored_tasks` are the suspended tasks restored from the tasks
     /// database that are firings of this schedule. When there are any, the
     /// schedule is still mid-firing: they are re-linked so that overlap
-    /// applies to them and their results settle the schedule. The persisted
-    /// `next_run` is the deadline those tasks are serving, so a one-shot is
-    /// left unarmed and a recurring schedule is armed for the cadence point
-    /// after it, as `mark_fired` would have done. With no restored task, a
-    /// past deadline goes through the catchup policy here.
+    /// applies to them and their results settle the schedule. Running firing
+    /// deadlines are independent of the pending arm in `next_run`. A running
+    /// one-shot or a queued recurring firing stays unarmed until completion.
+    /// Other past deadlines go through the catchup policy here.
     pub fn load(&mut self, mut entry: ScheduleEntry, restored_tasks: &[TaskId], now: SystemTime) {
         if entry.id >= self.next_id {
             self.next_id = entry.id + 1;
@@ -1105,26 +1128,25 @@ impl ScheduleQ {
         let id = entry.id;
         self.by_owner.entry(entry.owner).or_default().insert(id);
         self.by_target.entry(entry.target).or_default().insert(id);
-        entry.running.clear();
-        entry.queued_firing = false;
+        entry
+            .running
+            .retain(|firing| restored_tasks.contains(&firing.task));
+        for firing in &entry.running {
+            self.by_task.insert(firing.task, id);
+        }
 
-        if !restored_tasks.is_empty() {
-            let deadline = entry.next_run.unwrap();
-            let started_at = entry.last_run.unwrap_or(deadline);
-            for &task in restored_tasks {
-                self.by_task.insert(task, id);
-                entry.running.push(RunningFiring {
-                    task,
-                    deadline,
-                    started_at,
-                });
-            }
-            entry.scheduled_deadline = Some(deadline);
-            let kind = entry.kind;
+        if !entry.running.is_empty()
+            && (matches!(entry.kind, ScheduleKind::At) || entry.queued_firing)
+        {
             self.entries.insert(id, entry);
-            if let ScheduleKind::Every { interval } = kind {
-                self.arm_after(id, deadline, interval, now);
-            }
+            return;
+        }
+
+        if entry.queued_firing
+            && let ScheduleKind::Every { interval } = entry.kind
+        {
+            self.entries.insert(id, entry);
+            self.fire_queued(id, interval, now);
             return;
         }
 
@@ -1132,14 +1154,16 @@ impl ScheduleQ {
         let deadline = if deadline <= now {
             match (entry.kind, entry.options.catchup) {
                 (ScheduleKind::Every { interval }, CatchupPolicy::Skip) => {
-                    let Some((d, missed)) = next_cadence_after(deadline, interval, now) else {
+                    let base = entry.scheduled_deadline.unwrap_or(deadline);
+                    let Some((d, missed)) = next_cadence_after(base, interval, now) else {
                         entry.fault_count += 1;
                         self.entries.insert(id, entry);
                         self.retire(id, RetireReason::DeadlineOutOfRange, now);
                         return;
                     };
                     entry.missed_count += missed;
-                    d
+                    entry.scheduled_deadline = Some(d);
+                    self.jittered(d, entry.options.jitter, now)
                 }
                 (_, CatchupPolicy::Once) | (ScheduleKind::At, _) => now,
                 (ScheduleKind::Every { .. }, CatchupPolicy::All) => deadline,
@@ -1147,7 +1171,6 @@ impl ScheduleQ {
         } else {
             deadline
         };
-        entry.scheduled_deadline = Some(deadline);
         self.entries.insert(id, entry);
         self.arm(id, deadline, now);
     }
@@ -1292,7 +1315,7 @@ impl ScheduleQ {
         let generation = self.next_generation;
         self.generations.insert(id, generation);
         if deadline <= now {
-            self.immediate.push(id);
+            self.immediate.push(ScheduleExpiry { id, generation });
         } else {
             let delay = deadline.duration_since(now).unwrap_or(Duration::ZERO);
             let timer_entry = ScheduleTimerEntry {
@@ -1305,7 +1328,7 @@ impl ScheduleQ {
                     "ScheduleQ: failed to arm schedule {id} (delay {delay:?}): {e:?}; \
                      firing immediately as a fallback"
                 );
-                self.immediate.push(id);
+                self.immediate.push(ScheduleExpiry { id, generation });
             }
         }
         if let Some(entry) = self.entries.get_mut(&id) {
@@ -1489,6 +1512,131 @@ mod tests {
             (i0 + d, t0 + d)
         };
         (q, id, at)
+    }
+
+    fn roundtrip_schedule(entry: &ScheduleEntry) -> ScheduleEntry {
+        use crate::tasks::convert_task::{schedule_from_ref, schedule_to_flatbuffer};
+        use planus::{ReadAsRoot, WriteAsOffset};
+
+        let mut builder = planus::Builder::new();
+        let offset = schedule_to_flatbuffer(entry).unwrap().prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        schedule_from_ref(moor_schema::task::ScheduleRef::read_as_root(bytes).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn restart_preserves_pending_deadline_and_running_firing() {
+        let t0 = t0();
+        let i0 = Instant::now();
+        let mut before = ScheduleQ::new(Duration::from_millis(10));
+        before.expired(i0, t0);
+        let interval = Duration::from_secs(60);
+        let id = before
+            .add_every(
+                interval,
+                target(),
+                verb(),
+                args(),
+                owner(),
+                owner(),
+                every_opts(interval),
+                t0,
+            )
+            .unwrap();
+        let fired_at = t0 + interval;
+        assert_eq!(before.expired(i0 + interval, fired_at), vec![id]);
+        before.mark_fired(id, 12, fired_at);
+        let stored = roundtrip_schedule(before.info(id).unwrap());
+
+        let mut restored = ScheduleQ::new(Duration::from_millis(10));
+        let restart = Duration::from_secs(80);
+        restored.expired(i0 + restart, t0 + restart);
+        restored.load(stored, &[12], t0 + restart);
+        restored.complete(
+            id,
+            12,
+            Outcome::Success(v_int(0)),
+            t0 + Duration::from_secs(100),
+        );
+        let next = Duration::from_secs(120);
+        assert_eq!(restored.expired(i0 + next, t0 + next), vec![id]);
+        assert_eq!(
+            restored.info(id).unwrap().last_duration,
+            Some(Duration::from_secs(40))
+        );
+    }
+
+    #[test]
+    fn adaptive_return_replaces_immediate_catchup() {
+        let mut opts = every_opts(Duration::from_secs(1));
+        opts.catchup = CatchupPolicy::All;
+        opts.adaptive = true;
+        let (mut q, id, at) = every_1s(opts);
+        let (i, t) = at(4500);
+        assert_eq!(q.expired(i, t), vec![id]);
+        q.mark_fired(id, 1, t);
+        q.complete(id, 1, Outcome::Success(v_int(60)), t);
+        assert_eq!(q.info(id).unwrap().next_run, Some(secs(61)));
+        let (i, t) = at(4510);
+        assert!(q.expired(i, t).is_empty());
+        let (i, t) = at(61_000);
+        assert_eq!(q.expired(i, t), vec![id]);
+    }
+
+    #[test]
+    fn restart_preserves_each_adaptive_firing_deadline() {
+        let mut opts = every_opts(Duration::from_secs(1));
+        opts.overlap = OverlapPolicy::Concurrent;
+        opts.adaptive = true;
+        let (mut before, id, at) = every_1s(opts);
+        for (task, ms) in [(1, 1000), (2, 2000)] {
+            let (i, t) = at(ms);
+            assert_eq!(before.expired(i, t), vec![id]);
+            before.mark_fired(id, task, t);
+        }
+        let stored = roundtrip_schedule(before.info(id).unwrap());
+        let mut restored = ScheduleQ::new(Duration::from_millis(10));
+        let (i, t) = at(2500);
+        restored.expired(i, t);
+        restored.load(stored, &[2, 1], t);
+        assert_eq!(restored.info(id).unwrap().next_run, Some(secs(3)));
+        restored.complete(id, 1, Outcome::Success(v_int(10)), t);
+        assert_eq!(restored.info(id).unwrap().next_run, Some(secs(11)));
+        assert_eq!(
+            restored.info(id).unwrap().last_duration,
+            Some(Duration::from_millis(1500))
+        );
+        restored.complete(id, 2, Outcome::Success(v_int(20)), t);
+        assert_eq!(restored.info(id).unwrap().next_run, Some(secs(22)));
+        assert_eq!(
+            restored.info(id).unwrap().last_duration,
+            Some(Duration::from_millis(500))
+        );
+    }
+
+    #[test]
+    fn restart_preserves_queued_firing() {
+        let mut opts = every_opts(Duration::from_secs(1));
+        opts.overlap = OverlapPolicy::Queue;
+        let (mut before, id, at) = every_1s(opts);
+        let (i, t) = at(1000);
+        assert_eq!(before.expired(i, t), vec![id]);
+        before.mark_fired(id, 1, t);
+        let (i, t) = at(2000);
+        assert!(before.expired(i, t).is_empty());
+        let stored = roundtrip_schedule(before.info(id).unwrap());
+
+        let mut restored = ScheduleQ::new(Duration::from_millis(10));
+        let (i, t) = at(2500);
+        restored.expired(i, t);
+        restored.load(stored, &[1], t);
+        assert!(restored.info(id).unwrap().queued_firing);
+        let (i, t) = at(3500);
+        assert!(restored.expired(i, t).is_empty());
+        restored.complete(id, 1, Outcome::Success(v_int(0)), t);
+        assert_eq!(restored.expired(i, t), vec![id]);
+        restored.mark_fired(id, 2, t);
+        assert_eq!(restored.info(id).unwrap().next_run, Some(secs(4)));
     }
 
     fn secs(n: u64) -> SystemTime {
@@ -2525,7 +2673,7 @@ mod tests {
     fn persisted(id: ScheduleId, kind: ScheduleKind, deadline: SystemTime) -> ScheduleEntry {
         let mut options = ScheduleOptions::for_kind(&kind);
         options.overlap = OverlapPolicy::Skip;
-        ScheduleEntry::from_persisted(
+        let mut entry = ScheduleEntry::from_persisted(
             id,
             target(),
             verb(),
@@ -2544,7 +2692,13 @@ mod tests {
             0,
             0,
             false,
-        )
+        );
+        entry.running.push(RunningFiring {
+            task: 12,
+            deadline,
+            started_at: deadline,
+        });
+        entry
     }
 
     #[test]
@@ -2592,11 +2746,10 @@ mod tests {
         let interval = Duration::from_secs(10);
         // Fired 25s ago; the next two deadlines passed while the server was down.
         let fired_at = t0 - Duration::from_secs(25);
-        q.load(
-            persisted(8, ScheduleKind::Every { interval }, fired_at),
-            &[12],
-            t0,
-        );
+        let mut entry = persisted(8, ScheduleKind::Every { interval }, fired_at);
+        entry.next_run = Some(fired_at + interval);
+        entry.scheduled_deadline = entry.next_run;
+        q.load(entry, &[12], t0);
         assert_eq!(
             q.info(8)
                 .unwrap()

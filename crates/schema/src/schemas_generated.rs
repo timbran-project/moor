@@ -143161,10 +143161,388 @@ mod root {
             }
         }
 
+        /// The table `ScheduleFiring` in the namespace `MoorTask`
+        ///
+        /// Generated from these locations:
+        /// * Table `ScheduleFiring` in the file `task.fbs:496`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct ScheduleFiring {
+            /// The field `task_id` in the table `ScheduleFiring`
+            pub task_id: u64,
+            /// The field `deadline_nanos` in the table `ScheduleFiring`
+            pub deadline_nanos: u64,
+            /// The field `started_at_nanos` in the table `ScheduleFiring`
+            pub started_at_nanos: u64,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for ScheduleFiring {
+            fn default() -> Self {
+                Self {
+                    task_id: 0,
+                    deadline_nanos: 0,
+                    started_at_nanos: 0,
+                }
+            }
+        }
+
+        impl ScheduleFiring {
+            /// Creates a [ScheduleFiringBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> ScheduleFiringBuilder<()> {
+                ScheduleFiringBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_task_id: impl ::planus::WriteAsDefault<u64, u64>,
+                field_deadline_nanos: impl ::planus::WriteAsDefault<u64, u64>,
+                field_started_at_nanos: impl ::planus::WriteAsDefault<u64, u64>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_task_id = field_task_id.prepare(builder, &0);
+                let prepared_deadline_nanos = field_deadline_nanos.prepare(builder, &0);
+                let prepared_started_at_nanos = field_started_at_nanos.prepare(builder, &0);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                    ::core::default::Default::default();
+                if prepared_task_id.is_some() {
+                    table_writer.write_entry::<u64>(0);
+                }
+                if prepared_deadline_nanos.is_some() {
+                    table_writer.write_entry::<u64>(1);
+                }
+                if prepared_started_at_nanos.is_some() {
+                    table_writer.write_entry::<u64>(2);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_task_id) = prepared_task_id {
+                            object_writer.write::<_, _, 8>(&prepared_task_id);
+                        }
+                        if let ::core::option::Option::Some(prepared_deadline_nanos) =
+                            prepared_deadline_nanos
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_deadline_nanos);
+                        }
+                        if let ::core::option::Option::Some(prepared_started_at_nanos) =
+                            prepared_started_at_nanos
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_started_at_nanos);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<ScheduleFiring>> for ScheduleFiring {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScheduleFiring> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<ScheduleFiring>> for ScheduleFiring {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<ScheduleFiring>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<ScheduleFiring> for ScheduleFiring {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScheduleFiring> {
+                ScheduleFiring::create(
+                    builder,
+                    self.task_id,
+                    self.deadline_nanos,
+                    self.started_at_nanos,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [ScheduleFiring] type.
+        ///
+        /// Can be created using the [ScheduleFiring::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct ScheduleFiringBuilder<State>(State);
+
+        impl ScheduleFiringBuilder<()> {
+            /// Setter for the [`task_id` field](ScheduleFiring#structfield.task_id).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn task_id<T0>(self, value: T0) -> ScheduleFiringBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<u64, u64>,
+            {
+                ScheduleFiringBuilder((value,))
+            }
+
+            /// Sets the [`task_id` field](ScheduleFiring#structfield.task_id) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn task_id_as_default(self) -> ScheduleFiringBuilder<(::planus::DefaultValue,)> {
+                self.task_id(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> ScheduleFiringBuilder<(T0,)> {
+            /// Setter for the [`deadline_nanos` field](ScheduleFiring#structfield.deadline_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn deadline_nanos<T1>(self, value: T1) -> ScheduleFiringBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0,) = self.0;
+                ScheduleFiringBuilder((v0, value))
+            }
+
+            /// Sets the [`deadline_nanos` field](ScheduleFiring#structfield.deadline_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn deadline_nanos_as_default(
+                self,
+            ) -> ScheduleFiringBuilder<(T0, ::planus::DefaultValue)> {
+                self.deadline_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1> ScheduleFiringBuilder<(T0, T1)> {
+            /// Setter for the [`started_at_nanos` field](ScheduleFiring#structfield.started_at_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn started_at_nanos<T2>(self, value: T2) -> ScheduleFiringBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1) = self.0;
+                ScheduleFiringBuilder((v0, v1, value))
+            }
+
+            /// Sets the [`started_at_nanos` field](ScheduleFiring#structfield.started_at_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn started_at_nanos_as_default(
+                self,
+            ) -> ScheduleFiringBuilder<(T0, T1, ::planus::DefaultValue)> {
+                self.started_at_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2> ScheduleFiringBuilder<(T0, T1, T2)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [ScheduleFiring].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScheduleFiring>
+            where
+                Self: ::planus::WriteAsOffset<ScheduleFiring>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAs<::planus::Offset<ScheduleFiring>>
+            for ScheduleFiringBuilder<(T0, T1, T2)>
+        {
+            type Prepared = ::planus::Offset<ScheduleFiring>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScheduleFiring> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOptional<::planus::Offset<ScheduleFiring>>
+            for ScheduleFiringBuilder<(T0, T1, T2)>
+        {
+            type Prepared = ::planus::Offset<ScheduleFiring>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<ScheduleFiring>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+        > ::planus::WriteAsOffset<ScheduleFiring> for ScheduleFiringBuilder<(T0, T1, T2)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<ScheduleFiring> {
+                let (v0, v1, v2) = &self.0;
+                ScheduleFiring::create(builder, v0, v1, v2)
+            }
+        }
+
+        /// Reference to a deserialized [ScheduleFiring].
+        #[derive(Copy, Clone)]
+        pub struct ScheduleFiringRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> ScheduleFiringRef<'a> {
+            /// Getter for the [`task_id` field](ScheduleFiring#structfield.task_id).
+            #[inline]
+            pub fn task_id(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0.access(0, "ScheduleFiring", "task_id")?.unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`deadline_nanos` field](ScheduleFiring#structfield.deadline_nanos).
+            #[inline]
+            pub fn deadline_nanos(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(1, "ScheduleFiring", "deadline_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`started_at_nanos` field](ScheduleFiring#structfield.started_at_nanos).
+            #[inline]
+            pub fn started_at_nanos(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(2, "ScheduleFiring", "started_at_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for ScheduleFiringRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("ScheduleFiringRef");
+                f.field("task_id", &self.task_id());
+                f.field("deadline_nanos", &self.deadline_nanos());
+                f.field("started_at_nanos", &self.started_at_nanos());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<ScheduleFiringRef<'a>> for ScheduleFiring {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: ScheduleFiringRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    task_id: ::core::convert::TryInto::try_into(value.task_id()?)?,
+                    deadline_nanos: ::core::convert::TryInto::try_into(value.deadline_nanos()?)?,
+                    started_at_nanos: ::core::convert::TryInto::try_into(
+                        value.started_at_nanos()?,
+                    )?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for ScheduleFiringRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for ScheduleFiringRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[ScheduleFiringRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<ScheduleFiring>> for ScheduleFiring {
+            type Value = ::planus::Offset<ScheduleFiring>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<ScheduleFiring>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for ScheduleFiringRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[ScheduleFiringRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `Schedule` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Schedule` in the file `task.fbs:496`
+        /// * Table `Schedule` in the file `task.fbs:502`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Schedule {
             /// The field `version` in the table `Schedule`
@@ -143224,6 +143602,10 @@ mod root {
             pub overlap_count: u64,
             /// The field `interval_clamped` in the table `Schedule`
             pub interval_clamped: bool,
+            /// The field `running` in the table `Schedule`
+            pub running: ::core::option::Option<::planus::alloc::vec::Vec<self::ScheduleFiring>>,
+            /// The field `queued_firing` in the table `Schedule`
+            pub queued_firing: bool,
         }
 
         impl Schedule {
@@ -143268,6 +143650,10 @@ mod root {
                 field_missed_count: impl ::planus::WriteAsDefault<u64, u64>,
                 field_overlap_count: impl ::planus::WriteAsDefault<u64, u64>,
                 field_interval_clamped: impl ::planus::WriteAsDefault<bool, bool>,
+                field_running: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>,
+                >,
+                field_queued_firing: impl ::planus::WriteAsDefault<bool, bool>,
             ) -> ::planus::Offset<Self> {
                 let prepared_version = field_version.prepare(builder, &0);
                 let prepared_schedule_id = field_schedule_id.prepare(builder, &0);
@@ -143298,8 +143684,10 @@ mod root {
                 let prepared_missed_count = field_missed_count.prepare(builder, &0);
                 let prepared_overlap_count = field_overlap_count.prepare(builder, &0);
                 let prepared_interval_clamped = field_interval_clamped.prepare(builder, &false);
+                let prepared_running = field_running.prepare(builder);
+                let prepared_queued_firing = field_queued_firing.prepare(builder, &false);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<60> =
+                let mut table_writer: ::planus::table_writer::TableWriter<64> =
                     ::core::default::Default::default();
                 if prepared_schedule_id.is_some() {
                     table_writer.write_entry::<u64>(1);
@@ -143355,6 +143743,12 @@ mod root {
                 if prepared_consecutive_faults.is_some() {
                     table_writer.write_entry::<u32>(24);
                 }
+                if prepared_running.is_some() {
+                    table_writer
+                        .write_entry::<::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>>(
+                            28,
+                        );
+                }
                 if prepared_version.is_some() {
                     table_writer.write_entry::<u16>(0);
                 }
@@ -143369,6 +143763,9 @@ mod root {
                 }
                 if prepared_interval_clamped.is_some() {
                     table_writer.write_entry::<bool>(27);
+                }
+                if prepared_queued_firing.is_some() {
+                    table_writer.write_entry::<bool>(29);
                 }
 
                 unsafe {
@@ -143451,6 +143848,9 @@ mod root {
                         {
                             object_writer.write::<_, _, 4>(&prepared_consecutive_faults);
                         }
+                        if let ::core::option::Option::Some(prepared_running) = prepared_running {
+                            object_writer.write::<_, _, 4>(&prepared_running);
+                        }
                         if let ::core::option::Option::Some(prepared_version) = prepared_version {
                             object_writer.write::<_, _, 2>(&prepared_version);
                         }
@@ -143471,6 +143871,11 @@ mod root {
                             prepared_interval_clamped
                         {
                             object_writer.write::<_, _, 1>(&prepared_interval_clamped);
+                        }
+                        if let ::core::option::Option::Some(prepared_queued_firing) =
+                            prepared_queued_firing
+                        {
+                            object_writer.write::<_, _, 1>(&prepared_queued_firing);
                         }
                     });
                 }
@@ -143532,6 +143937,8 @@ mod root {
                     self.missed_count,
                     self.overlap_count,
                     self.interval_clamped,
+                    &self.running,
+                    self.queued_firing,
                 )
             }
         }
@@ -145660,6 +146067,371 @@ mod root {
                 T27,
             )>
         {
+            /// Setter for the [`running` field](Schedule#structfield.running).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn running<T28>(
+                self,
+                value: T28,
+            ) -> ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                T28,
+            )>
+            where
+                T28: ::planus::WriteAsOptional<
+                        ::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>,
+                    >,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                    v20,
+                    v21,
+                    v22,
+                    v23,
+                    v24,
+                    v25,
+                    v26,
+                    v27,
+                ) = self.0;
+                ScheduleBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, value,
+                ))
+            }
+
+            /// Sets the [`running` field](Schedule#structfield.running) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn running_as_null(
+                self,
+            ) -> ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                (),
+            )> {
+                self.running(())
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+            T20,
+            T21,
+            T22,
+            T23,
+            T24,
+            T25,
+            T26,
+            T27,
+            T28,
+        >
+            ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                T28,
+            )>
+        {
+            /// Setter for the [`queued_firing` field](Schedule#structfield.queued_firing).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn queued_firing<T29>(
+                self,
+                value: T29,
+            ) -> ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                T28,
+                T29,
+            )>
+            where
+                T29: ::planus::WriteAsDefault<bool, bool>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                    v20,
+                    v21,
+                    v22,
+                    v23,
+                    v24,
+                    v25,
+                    v26,
+                    v27,
+                    v28,
+                ) = self.0;
+                ScheduleBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, value,
+                ))
+            }
+
+            /// Sets the [`queued_firing` field](Schedule#structfield.queued_firing) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn queued_firing_as_default(
+                self,
+            ) -> ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                T28,
+                ::planus::DefaultValue,
+            )> {
+                self.queued_firing(::planus::DefaultValue)
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+            T20,
+            T21,
+            T22,
+            T23,
+            T24,
+            T25,
+            T26,
+            T27,
+            T28,
+            T29,
+        >
+            ScheduleBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+                T22,
+                T23,
+                T24,
+                T25,
+                T26,
+                T27,
+                T28,
+                T29,
+            )>
+        {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [Schedule].
             #[inline]
             pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<Schedule>
@@ -145699,6 +146471,8 @@ mod root {
             T25: ::planus::WriteAsDefault<u64, u64>,
             T26: ::planus::WriteAsDefault<u64, u64>,
             T27: ::planus::WriteAsDefault<bool, bool>,
+            T28: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>>,
+            T29: ::planus::WriteAsDefault<bool, bool>,
         > ::planus::WriteAs<::planus::Offset<Schedule>>
             for ScheduleBuilder<(
                 T0,
@@ -145729,6 +146503,8 @@ mod root {
                 T25,
                 T26,
                 T27,
+                T28,
+                T29,
             )>
         {
             type Prepared = ::planus::Offset<Schedule>;
@@ -145768,6 +146544,8 @@ mod root {
             T25: ::planus::WriteAsDefault<u64, u64>,
             T26: ::planus::WriteAsDefault<u64, u64>,
             T27: ::planus::WriteAsDefault<bool, bool>,
+            T28: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>>,
+            T29: ::planus::WriteAsDefault<bool, bool>,
         > ::planus::WriteAsOptional<::planus::Offset<Schedule>>
             for ScheduleBuilder<(
                 T0,
@@ -145798,6 +146576,8 @@ mod root {
                 T25,
                 T26,
                 T27,
+                T28,
+                T29,
             )>
         {
             type Prepared = ::planus::Offset<Schedule>;
@@ -145840,6 +146620,8 @@ mod root {
             T25: ::planus::WriteAsDefault<u64, u64>,
             T26: ::planus::WriteAsDefault<u64, u64>,
             T27: ::planus::WriteAsDefault<bool, bool>,
+            T28: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<self::ScheduleFiring>]>>,
+            T29: ::planus::WriteAsDefault<bool, bool>,
         > ::planus::WriteAsOffset<Schedule>
             for ScheduleBuilder<(
                 T0,
@@ -145870,6 +146652,8 @@ mod root {
                 T25,
                 T26,
                 T27,
+                T28,
+                T29,
             )>
         {
             #[inline]
@@ -145903,10 +146687,12 @@ mod root {
                     v25,
                     v26,
                     v27,
+                    v28,
+                    v29,
                 ) = &self.0;
                 Schedule::create(
                     builder, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15,
-                    v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27,
+                    v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29,
                 )
             }
         }
@@ -146139,6 +146925,28 @@ mod root {
                         .unwrap_or(false),
                 )
             }
+
+            /// Getter for the [`running` field](Schedule#structfield.running).
+            #[inline]
+            pub fn running(
+                &self,
+            ) -> ::planus::Result<
+                ::core::option::Option<
+                    ::planus::Vector<'a, ::planus::Result<self::ScheduleFiringRef<'a>>>,
+                >,
+            > {
+                self.0.access(28, "Schedule", "running")
+            }
+
+            /// Getter for the [`queued_firing` field](Schedule#structfield.queued_firing).
+            #[inline]
+            pub fn queued_firing(&self) -> ::planus::Result<bool> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(29, "Schedule", "queued_firing")?
+                        .unwrap_or(false),
+                )
+            }
         }
 
         impl<'a> ::core::fmt::Debug for ScheduleRef<'a> {
@@ -146176,6 +146984,10 @@ mod root {
                 f.field("missed_count", &self.missed_count());
                 f.field("overlap_count", &self.overlap_count());
                 f.field("interval_clamped", &self.interval_clamped());
+                if let ::core::option::Option::Some(field_running) = self.running().transpose() {
+                    f.field("running", &field_running);
+                }
+                f.field("queued_firing", &self.queued_firing());
                 f.finish()
             }
         }
@@ -146242,6 +147054,12 @@ mod root {
                     interval_clamped: ::core::convert::TryInto::try_into(
                         value.interval_clamped()?,
                     )?,
+                    running: if let ::core::option::Option::Some(running) = value.running()? {
+                        ::core::option::Option::Some(running.to_vec_result()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    queued_firing: ::core::convert::TryInto::try_into(value.queued_firing()?)?,
                 })
             }
         }

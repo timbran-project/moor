@@ -16,7 +16,10 @@
 use crate::{
     tasks::{
         TaskStart as KernelTaskStart,
-        schedule_q::{CatchupPolicy, OverlapPolicy, ScheduleEntry, ScheduleKind, ScheduleOptions},
+        schedule_q::{
+            CatchupPolicy, OverlapPolicy, RunningFiring, ScheduleEntry, ScheduleKind,
+            ScheduleOptions,
+        },
         task::Task as KernelTask,
         task::TaskState as KernelTaskState,
         task_program_cache::TaskProgramCache,
@@ -2394,6 +2397,17 @@ pub fn schedule_to_flatbuffer(e: &ScheduleEntry) -> Result<fb::Schedule, TaskCon
         missed_count: e.missed_count,
         overlap_count: e.overlap_count,
         interval_clamped: e.interval_clamped,
+        running: Some(
+            e.running
+                .iter()
+                .map(|firing| fb::ScheduleFiring {
+                    task_id: firing.task as u64,
+                    deadline_nanos: epoch_nanos(Some(firing.deadline)),
+                    started_at_nanos: epoch_nanos(Some(firing.started_at)),
+                })
+                .collect(),
+        ),
+        queued_firing: e.queued_firing,
     })
 }
 
@@ -2492,7 +2506,7 @@ pub fn schedule_from_ref(s: fb::ScheduleRef<'_>) -> Result<ScheduleEntry, TaskCo
         player,
     };
 
-    Ok(ScheduleEntry::from_persisted(
+    let mut entry = ScheduleEntry::from_persisted(
         id,
         target,
         verb,
@@ -2514,7 +2528,21 @@ pub fn schedule_from_ref(s: fb::ScheduleRef<'_>) -> Result<ScheduleEntry, TaskCo
         dec(s.missed_count(), "missed_count")?,
         dec(s.overlap_count(), "overlap_count")?,
         dec(s.interval_clamped(), "interval_clamped")?,
-    ))
+    );
+    if let Some(running) = dec(s.running(), "running")? {
+        for firing in running {
+            let firing = dec(firing, "firing")?;
+            entry.running.push(RunningFiring {
+                task: dec(firing.task_id(), "firing task_id")? as usize,
+                deadline: UNIX_EPOCH
+                    + Duration::from_nanos(dec(firing.deadline_nanos(), "firing deadline")?),
+                started_at: UNIX_EPOCH
+                    + Duration::from_nanos(dec(firing.started_at_nanos(), "firing started_at")?),
+            });
+        }
+    }
+    entry.queued_firing = dec(s.queued_firing(), "queued_firing")?;
+    Ok(entry)
 }
 
 #[cfg(test)]

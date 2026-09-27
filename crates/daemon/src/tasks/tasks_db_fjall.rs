@@ -816,7 +816,7 @@ mod tests {
             persist: true,
             player: Some(Obj::mk_id(77)),
         };
-        let entry = ScheduleEntry::from_persisted(
+        let mut entry = ScheduleEntry::from_persisted(
             42,
             Obj::mk_id(6),
             Symbol::mk("drive"),
@@ -838,6 +838,15 @@ mod tests {
             4,
             false,
         );
+
+        entry
+            .running
+            .push(moor_kernel::tasks::schedule_q::RunningFiring {
+                task: 12,
+                deadline: last,
+                started_at: last + Duration::from_millis(5),
+            });
+        entry.queued_firing = true;
 
         {
             let (db, _) = FjallTasksDB::open(path);
@@ -876,7 +885,8 @@ mod tests {
             assert_eq!(l.consecutive_faults, 1);
             assert_eq!(l.missed_count, 3);
             assert_eq!(l.overlap_count, 4);
-            assert!(l.running.is_empty());
+            assert_eq!(l.running, entry.running);
+            assert!(l.queued_firing);
 
             db.delete_schedule(42).unwrap();
             assert!(db.load_schedules().unwrap().is_empty());
