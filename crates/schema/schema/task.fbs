@@ -493,6 +493,12 @@ table SuspendedTask {
 // survive a restart, so monotonic time is useless here). 0 = None.
 // ============================================================================
 
+table ScheduleFiring {
+    task_id: uint64;
+    deadline_nanos: uint64;
+    started_at_nanos: uint64;
+}
+
 table Schedule {
     version: uint16;
 
@@ -529,4 +535,6 @@ table Schedule {
     missed_count: uint64;
     overlap_count: uint64;
     interval_clamped: bool;
+    running: [ScheduleFiring];
+    queued_firing: bool;
 }
