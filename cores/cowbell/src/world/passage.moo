@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object PASSAGE [
   import_export_id -> "passage",
   import_export_hierarchy -> {"world"}
@@ -302,16 +304,17 @@ object PASSAGE [
   endmethod
 
   method travel_from owner: ARCH_WIZARD
-    "Handle passage traversal using movement context and passage messages";
-    const {traveler, from_room, parsed} = args;
+    "Traverse a passage. Return command-handled status, or movement success for a bound exit.";
+    const {traveler, from_room, parsed, ?link_id = ""} = args;
     const actor = caller_perms();
     valid(traveler) && valid(actor) || raise(E_INVARG);
     actor == traveler || actor == traveler.owner || actor.wizard || raise(E_PERM);
     valid(traveler) || return false;
     valid(from_room) || return false;
     traveler.location == from_room || return false;
-    this:_value("is_open", true) || return this:_notify_blocked(traveler, from_room);
-    this:check_unlock(traveler, from_room) || return this:_notify_locked(traveler, from_room);
+    this:_value("is_open", true) || return link_id == "" ? this:_notify_blocked(traveler, from_room) | false;
+    const access_state = link_id == "" ? {} | {this.is_locked, this.unlock_rule, traveler.contents};
+    this:check_unlock(traveler, from_room) || return link_id == "" ? this:_notify_locked(traveler, from_room) | false;
     const to_room = this:other_room(from_room);
     valid(to_room) || return false;
     "Get passage metadata";
@@ -324,6 +327,11 @@ object PASSAGE [
     "Actually move the traveler before any expensive presentation work.";
     "Pre-exit callbacks may suspend or change the actor's location.";
     traveler.location == from_room || return false;
+    if (link_id != "")
+      "Policy and pre-exit callbacks can yield; revalidate the bound exit before moving.";
+      $room:exit_link_matches(from_room, to_room, link_id, this) || return false;
+      this.is_open && {this.is_locked, this.unlock_rule, traveler.contents} == access_state || return false;
+    endif
     set_task_perms(actor);
     this:_move_actor(traveler, to_room);
     "Render and announce movement asynchronously after the move commits.";

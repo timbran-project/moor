@@ -12,8 +12,8 @@
 //
 
 import { virtual } from "@guidepup/virtual-screen-reader";
-import { act, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { OutputWindow } from "./OutputWindow";
 import { ToastProvider } from "./Toast";
 
@@ -272,5 +272,37 @@ describe("OutputWindow screen reader announcements", () => {
         expect(announcedText).toContain("alpha");
         expect(announcedText).toContain("beta");
         expect(announcedText).toContain("gamma");
+    });
+});
+
+describe("OutputWindow exit links", () => {
+    it("preserves the pending promise for an exit in history without expiring its message", async () => {
+        let resolve!: () => void;
+        const pending = new Promise<void>(done => {
+            resolve = done;
+        });
+        const onLinkClick = vi.fn(() => pending);
+        const onMessageLinkClicked = vi.fn();
+        const message = {
+            ...createMessage("old-room", "<a href=\"moo://exit/oid:10/oid:20/id\">East</a>", {
+                contentType: "text/html",
+            }),
+            isHistorical: true,
+        };
+        const { container } = render(
+            <OutputWindow messages={[message]} onLinkClick={onLinkClick} onMessageLinkClicked={onMessageLinkClicked} />,
+            { wrapper: ToastProvider },
+        );
+        const link = container.querySelector<HTMLElement>("[data-url]")!;
+        fireEvent.click(link);
+        expect(onLinkClick).toHaveBeenCalledTimes(1);
+        expect(link.getAttribute("aria-busy")).toBe("true");
+        expect(onMessageLinkClicked).not.toHaveBeenCalled();
+        await act(async () => {
+            resolve();
+            await pending;
+        });
+        expect(link.getAttribute("aria-busy")).toBeNull();
+        expect(link.tabIndex).toBe(0);
     });
 });

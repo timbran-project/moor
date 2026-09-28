@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderDjot, renderHtmlContent, renderPlainText } from "../lib/djot-renderer";
 import { useToast } from "./Toast";
 
@@ -30,7 +30,7 @@ interface ContentRendererProps {
         url: string,
         position?: { x: number; y: number },
         metadata?: { actorName?: string; verb?: string },
-    ) => void;
+    ) => void | Promise<void>;
     onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
     onLinkHoldEnd?: () => void;
     isStale?: boolean;
@@ -46,7 +46,8 @@ const isAllowedLinkUrl = (url: string) => isExternalLink(url) || url.startsWith(
 // Object references fetch current data; only context-dependent commands expire.
 const isLinkAvailable = (url: string, isStale: boolean) =>
     isAllowedLinkUrl(url)
-    && (!isStale || isExternalLink(url) || url.startsWith("moo://inspect/") || url.startsWith("moo://help/"));
+    && (!isStale || isExternalLink(url) || url.startsWith("moo://inspect/") || url.startsWith("moo://help/")
+        || url.startsWith("moo://exit/"));
 
 export function normalizeEmbeddedUri(uri: string, baseUrl: string = window.location.href): string | null {
     try {
@@ -81,6 +82,28 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         } | null
     >(null);
 
+    const pendingLinksRef = useRef(new Set<string>());
+    const [pendingLinks, setPendingLinks] = useState<Set<string>>(new Set());
+    const activateLink = useCallback(async (url: string, position: { x: number; y: number }) => {
+        if (!onLinkClick || pendingLinksRef.current.has(url)) return;
+        const isExit = url.startsWith("moo://exit/");
+        if (isExit) {
+            pendingLinksRef.current.add(url);
+            setPendingLinks(new Set(pendingLinksRef.current));
+        }
+        try {
+            await onLinkClick(url, position, {
+                actorName: eventMetadata?.actorName,
+                verb: eventMetadata?.verb,
+            });
+        } finally {
+            if (isExit) {
+                pendingLinksRef.current.delete(url);
+                setPendingLinks(new Set(pendingLinksRef.current));
+            }
+        }
+    }, [onLinkClick, eventMetadata]);
+
     // Ref to container for updating tabindex on stale change
     const containerRef = useRef<HTMLSpanElement>(null);
 
@@ -89,7 +112,11 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         if (!containerRef.current) return;
         const links = containerRef.current.querySelectorAll("[data-url]");
         links.forEach((link) => {
-            const available = isLinkAvailable(link.getAttribute("data-url") ?? "", isStale);
+            const url = link.getAttribute("data-url") ?? "";
+            const pending = pendingLinks.has(url);
+            const available = isLinkAvailable(url, isStale) && !pending;
+            if (pending) link.setAttribute("aria-busy", "true");
+            else link.removeAttribute("aria-busy");
             (link as HTMLElement).tabIndex = available ? 0 : -1;
             if (available) {
                 link.removeAttribute("aria-disabled");
@@ -97,7 +124,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
                 link.setAttribute("aria-disabled", "true");
             }
         });
-    }, [isStale, content]);
+    }, [isStale, content, contentType, pendingLinks]);
 
     // Handle content that might be an array or string
     const getContentString = useCallback((joinWith: string = "\n") => {
@@ -149,11 +176,8 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
         e.preventDefault();
         // Pass click position and event metadata for context
-        onLinkClick(url, { x: e.clientX, y: e.clientY }, {
-            actorName: eventMetadata?.actorName,
-            verb: eventMetadata?.verb,
-        });
-    }, [onLinkClick, isStale, eventMetadata, showToast]);
+        void activateLink(url, { x: e.clientX, y: e.clientY });
+    }, [onLinkClick, isStale, activateLink, showToast]);
 
     // Keyboard handler for Enter/Space on focused links
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -195,11 +219,8 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         e.preventDefault();
         // Use element position for popovers since there's no mouse position
         const rect = target.getBoundingClientRect();
-        onLinkClick(url, { x: rect.left + rect.width / 2, y: rect.bottom }, {
-            actorName: eventMetadata?.actorName,
-            verb: eventMetadata?.verb,
-        });
-    }, [onLinkClick, isStale, eventMetadata, showToast]);
+        void activateLink(url, { x: rect.left + rect.width / 2, y: rect.bottom });
+    }, [onLinkClick, isStale, activateLink, showToast]);
 
     // Touch start: begin tracking for hold detection on inspect links
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -281,7 +302,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     const wrapWithLinkHint = useCallback((contentElement: React.ReactElement, html: string) => {
         // Check if the HTML contains interactive links (data-url attributes)
         const hasLinks = isStale
-            ? /data-url=["'](?:https?:\/\/|moo:\/\/(?:inspect|help)\/)/.test(html)
+            ? /data-url=["'](?:https?:\/\/|moo:\/\/(?:inspect|help|exit)\/)/.test(html)
             : html.includes("data-url=");
         if (!hasLinks) {
             return contentElement;

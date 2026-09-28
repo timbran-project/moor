@@ -2500,7 +2500,7 @@
   pointer-events: none;
 }
 
-.content-stale .moo-link-cmd {
+.content-stale .moo-link-cmd[aria-disabled="true"] {
   background-color: var(--color-bg-tertiary);
   color: var(--color-text-muted);
 }
@@ -2510,6 +2510,13 @@
   opacity: 0.85;
   cursor: pointer;
   pointer-events: auto;
+}
+
+/* Pending exit actions remain visible while the server checks and traverses them. */
+.content-renderer [data-url][aria-busy="true"] {
+  opacity: 0.6;
+  cursor: progress;
+  pointer-events: none;
 }
 
 /* ====== INSPECT POPOVER STYLES ====== */

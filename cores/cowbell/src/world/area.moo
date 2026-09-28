@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object AREA [
   import_export_id -> "area",
   import_export_hierarchy -> {"world"}
@@ -8,6 +10,7 @@ object AREA [
   fertile: true
   readable: true
 
+  property passage_link_ids (owner: HACKER, flags: "r") = [];
   property passages_rel (owner: HACKER, flags: "r") = 0;
 
   override description (owner: HACKER, flags: "rc") = "Area container that manages passages between rooms using a relation.";
@@ -66,6 +69,20 @@ object AREA [
       endif
     endfor
     return false;
+  endmethod
+
+  method passage_link_key owner: HACKER
+    "Return the canonical key for a room pair's exit-link identity.";
+    const {room_a, room_b} = args;
+    typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
+    return room_a < room_b ? tostr(room_a) + "/" + tostr(room_b) | tostr(room_b) + "/" + tostr(room_a);
+  endmethod
+
+  method passage_link_id owner: HACKER
+    "Return a registered passage's stable link identity, or an empty string.";
+    const {room_a, room_b} = args;
+    const key = $area:passage_link_key(room_a, room_b);
+    return maphaskey(this.passage_link_ids, key) ? this.passage_link_ids[key] | "";
   endmethod
 
   method set_passage owner: ARCH_WIZARD
@@ -341,11 +358,13 @@ object AREA [
     "Mutate a checked area's relation only from an actual wizard activation on that area.";
     const actor = caller_perms();
     caller == this || (typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this) && valid(actor) && actor.wizard || raise(E_PERM);
-    const {room_a, room_b, passage} = args;
+    const {room_a, room_b, passage, ?link_id = ""} = args;
     this:_ensure_passages_relation();
     this:_do_remove_passage(room_a, room_b);
     const tuple = $area:_canonical_tuple(room_a, room_b, passage);
     this.passages_rel:assert(tuple);
+    const key = $area:passage_link_key(room_a, room_b);
+    this.passage_link_ids[key] = link_id == "" ? uuid() | link_id;
     return passage;
   endmethod
 
@@ -378,7 +397,8 @@ object AREA [
       endif
     endfor
     exists || raise(E_INVARG, "No existing passage between those rooms.");
-    return area:_do_create_passage(actual_source, actual_dest, new_passage);
+    const link_id = area:passage_link_id(actual_source, actual_dest);
+    return area:_do_create_passage(actual_source, actual_dest, new_passage, link_id);
   endmethod
 
   method remove_passage owner: ARCH_WIZARD
@@ -397,6 +417,10 @@ object AREA [
     const actor = caller_perms();
     caller == this || (typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this) && valid(actor) && actor.wizard || raise(E_PERM);
     const {room_a, room_b} = args;
+    const key = $area:passage_link_key(room_a, room_b);
+    if (maphaskey(this.passage_link_ids, key))
+      this.passage_link_ids = mapdelete(this.passage_link_ids, key);
+    endif
     if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return false;
     endif
@@ -421,7 +445,7 @@ object AREA [
     endif
     const tuples = this.passages_rel:select_containing(room);
     for tuple in (tuples)
-      this.passages_rel:retract(tuple);
+      this:_do_remove_passage(tuple[1], tuple[2]);
     endfor
   endmethod
 

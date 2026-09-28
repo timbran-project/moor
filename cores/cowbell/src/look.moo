@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object LOOK [
   import_export_id -> "look"
 ]
@@ -97,7 +99,7 @@ object LOOK [
         if (prose_style == 'sentence)
           "Complete sentence - linkify direction if label provided";
           if (label)
-            formatted = $format.link:linkify_direction(description, label);
+            formatted = $format.link:linkify_direction(description, label, this.what);
             "Capitalize the result";
             if (typeof(formatted) == TYPE_STR)
               formatted = formatted:capitalize();
@@ -121,7 +123,7 @@ object LOOK [
           endif
           "Linkify with lowercase if label provided, collect for 'You see X' treatment";
           if (label)
-            linkified = $format.link:linkify_direction(description, label, true);
+            linkified = $format.link:linkify_direction(description, label, this.what, true);
             fragment_passages = {@fragment_passages, linkified};
           else
             fragment_passages = {@fragment_passages, description:initial_lowercase()};
@@ -194,10 +196,10 @@ object LOOK [
     typeof(exits) == TYPE_LIST || raise(E_TYPE, "Exits must be a list");
     length(exits) == 0 && return "";
     "Build parts list with links separated by commas";
-    "Use 'go <direction>' as command so non-standard exit names work";
+    "Exit links retain the originating room and registered passage.";
     parts = {};
     if (length(exits) == 1)
-      parts = {"An exit leads out ", $format.link:cmd("go " + exits[1], exits[1]), "."};
+      parts = {"An exit leads out ", $format.link:exit(this.what, exits[1]), "."};
     else
       parts = {"Exits lead out "};
       for i in [1..length(exits)]
@@ -206,7 +208,7 @@ object LOOK [
         elseif (i > 1)
           parts = {@parts, ", "};
         endif
-        parts = {@parts, $format.link:cmd("go " + exits[i], exits[i])};
+        parts = {@parts, $format.link:exit(this.what, exits[i])};
       endfor
       parts = {@parts, "."};
     endif

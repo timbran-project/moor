@@ -103,3 +103,40 @@ describe("ContentRenderer historical links", () => {
         }
     });
 });
+
+describe("ContentRenderer bound exits", () => {
+    it("keeps old exits usable and disables only the pending action for mouse and keyboard", async () => {
+        let resolve!: () => void;
+        const pending = new Promise<void>(done => {
+            resolve = done;
+        });
+        const onLinkClick = vi.fn(() => pending);
+        const { container } = render(
+            <ContentRenderer
+                content='<a href="moo://exit/oid:10/oid:20/id">East</a> <a href="moo://inspect/oid:42">Key</a>'
+                contentType="text/html"
+                isStale
+                onLinkClick={onLinkClick}
+            />,
+        );
+        const [exit, inspect] = [...container.querySelectorAll<HTMLElement>("[data-url]")];
+        expect(exit.tabIndex).toBe(0);
+        fireEvent.click(exit);
+        expect(exit.getAttribute("aria-busy")).toBe("true");
+        expect(exit.tabIndex).toBe(-1);
+        expect(inspect.tabIndex).toBe(0);
+        fireEvent.keyDown(exit, { key: "Enter" });
+        expect(onLinkClick).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            resolve();
+            await pending;
+        });
+        expect(exit.getAttribute("aria-busy")).toBeNull();
+        expect(exit.tabIndex).toBe(0);
+        fireEvent.keyDown(exit, { key: "Enter" });
+        await act(async () => {
+            await pending;
+        });
+        expect(onLinkClick).toHaveBeenCalledTimes(2);
+    });
+});

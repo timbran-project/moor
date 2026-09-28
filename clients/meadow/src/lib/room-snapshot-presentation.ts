@@ -44,8 +44,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
     const snapshot = payload as Record<string, unknown>;
     const title = coerceText(snapshot.title) || "Room";
     const description = coerceText(snapshot.description);
-    const exits = Array.isArray(snapshot.exits) ? snapshot.exits.map(coerceText).filter(Boolean) : [];
-    const ambientPassages = Array.isArray(snapshot.ambient_passages) ? snapshot.ambient_passages : [];
+    const exitLinks = Array.isArray(snapshot.exit_links) ? snapshot.exit_links : [];
     const actions = Array.isArray(snapshot.actions) ? snapshot.actions : [];
 
     const actorButtons = Array.isArray(snapshot.actors)
@@ -86,20 +85,13 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
             .filter(Boolean)
         : [];
 
-    const ambientExitLabels = ambientPassages
-        .map((entry) => {
-            if (Array.isArray(entry) && entry.length >= 3) {
-                return coerceText(entry[2]);
-            }
-            return "";
-        })
-        .filter(Boolean);
-
-    const allExitLabels = Array.from(new Set([...exits, ...ambientExitLabels]));
-    const exitButtons = allExitLabels.map((exit) => {
-        const command = `go ${exit}`;
-        const href = `moo://cmd/${encodeURIComponent(command)}`;
-        return `<a href="${href}">${escapeHtml(exit)}</a>`;
+    const exitButtons = exitLinks.flatMap(entry => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+        const exit = entry as Record<string, unknown>;
+        const label = coerceText(exit.label);
+        const url = coerceText(exit.url);
+        if (!label || !url.startsWith("moo://exit/")) return [];
+        return [`<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`];
     });
 
     const actionButtons = actions

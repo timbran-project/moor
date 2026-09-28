@@ -154,7 +154,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                 onMessageLinkClicked?.(messageId);
             }
             // Call the original handler with metadata
-            onLinkClick?.(url, position, {
+            return onLinkClick?.(url, position, {
                 actorName: eventMetadata?.actorName,
                 verb: eventMetadata?.verb,
             });

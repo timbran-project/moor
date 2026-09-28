@@ -547,3 +547,25 @@ The goal is to build a toolkit that enables:
 - The web client competes with Discord, Slack, and Instagram for interaction quality
 - Mobile users have a first-class experience
 - Everyone can participate regardless of ability
+
+### Exit links
+
+Room descriptions, ambient passage text, `exits`, and room snapshots use
+`moo://exit/<source-curie>/<destination-curie>/<passage-id>` links. Meadow invokes
+`source:follow_exit(destination, passage_id)` as the authenticated player. The result is a map
+with `"moved"` and `"message"` keys. Successful movement refreshes the narrative through the
+current connection's `look` command.
+
+An exit link refers to a registered passage, so repeated looks do not expire it. It can be used
+again after returning to the source room. Traversal checks the player's location, the passage's
+registration, and its current door/access state. A second click cannot reinterpret the direction
+in the destination room. The client keeps the action pending until the invocation completes.
+
+Areas assign a new identity when `create_passage` or `set_passage` registers a passage.
+`update_passage` preserves that identity for edits such as opening, closing, or locking a door.
+Removing a passage discards its identity; recreating the same room pair does not revive old links.
+The registration and relevant access state are checked again after pre-exit callbacks.
+
+Structured room snapshots include `exit_links`, a list of maps with `"label"` and `"url"` keys, alongside
+`exits` and `ambient_passages`. Clients should use the supplied URLs rather than manufacture
+unqualified direction commands from the labels.

@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_LINK [
   import_export_id -> "format_link",
   import_export_hierarchy -> {"format"}
@@ -7,7 +9,7 @@ object FORMAT_LINK [
   owner: HACKER
   readable: true
 
-  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), room-bound exits (moo://exit/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
 
   method cmd owner: HACKER
     "Create a command link that executes as if typed.";
@@ -16,6 +18,13 @@ object FORMAT_LINK [
     typeof(command) == TYPE_STR || raise(E_TYPE, "Command must be a string");
     label = label ? label | command;
     return <this, .link_type = 'cmd, .command = command, .label = label>;
+  endmethod
+
+  method exit owner: HACKER
+    "Create a persistent exit reference bound to a room and its registered passage.";
+    const {room, direction, ?label = direction} = args;
+    const url = room:exit_link(direction);
+    return <this, .link_type = 'exit, .url = url, .label = label>;
   endmethod
 
   method inspect owner: HACKER
@@ -65,6 +74,9 @@ object FORMAT_LINK [
     if (this.link_type == 'cmd)
       url = "moo://cmd/" + urlencode(this.command);
       return "[" + this.label + "](" + url + "){.cmd}";
+    elseif (this.link_type == 'exit)
+      this.url != "" || return this.label;
+      return "[" + this.label + "](" + this.url + "){.cmd}";
     elseif (this.link_type == 'inspect)
       oref = $url_utils:to_curie_str(this.target);
       url = "moo://inspect/" + oref;
@@ -83,6 +95,9 @@ object FORMAT_LINK [
     if (this.link_type == 'cmd)
       url = "moo://cmd/" + urlencode(this.command);
       return <$html, {"a", {"href", url, "class", "cmd"}, {this.label}}>;
+    elseif (this.link_type == 'exit)
+      this.url != "" || return this.label;
+      return <$html, {"a", {"href", this.url, "class", "cmd"}, {this.label}}>;
     elseif (this.link_type == 'inspect)
       oref = $url_utils:to_curie_str(this.target);
       url = "moo://inspect/" + oref;
@@ -134,31 +149,31 @@ object FORMAT_LINK [
   endmethod
 
   method ambient_passage owner: HACKER
-    "Create an ambient passage description with the direction as a command link.";
-    "Args: {description, direction} - description text containing direction word, direction is the command.";
-    {description, direction} = args;
+    "Create an ambient passage description with a room-bound exit link.";
+    "Args: {description, direction, room}. The link retains its originating room.";
+    const {description, direction, room} = args;
     typeof(description) == TYPE_STR || raise(E_TYPE, "Description must be a string");
     typeof(direction) == TYPE_STR || raise(E_TYPE, "Direction must be a string");
     "Find the direction in the description";
     idx = index(description, direction);
     if (idx == 0)
       "Direction not found in description - append link at end";
-      parts = {description, " (", this:cmd(direction), ")"};
+      parts = {description, " (", this:exit(room, direction), ")"};
     else
       "Split description around direction and insert link";
       before = description[1..idx - 1];
       "Get the actual text that matched (preserve original case)";
       matched = description[idx..idx + length(direction) - 1];
       after = description[idx + length(direction)..length(description)];
-      parts = {before, this:cmd(direction, matched), after};
+      parts = {before, this:exit(room, direction, matched), after};
     endif
     return <this, .link_type = 'inline, {@parts}>;
   endmethod
 
   verb linkify_direction (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Replace a direction word in a description with a command link.";
-    "Args: (description, direction, ?lowercase=false) - returns inline flyweight or original string if not found.";
-    {description, direction, ?lowercase = false} = args;
+    "Replace a direction word in a description with a room-bound exit link.";
+    "Args: (description, direction, room, ?lowercase=false) - returns inline flyweight or original string.";
+    const {description, direction, room, ?lowercase = false} = args;
     typeof(description) == TYPE_STR || return description;
     typeof(direction) == TYPE_STR || return description;
     "Find the direction word in the description (case-insensitive)";
@@ -170,8 +185,8 @@ object FORMAT_LINK [
       before = before:initial_lowercase();
     endif
     after = pos + length(direction) <= length(description) ? description[pos + length(direction)..length(description)] | "";
-    "Use 'go <direction>' as command so non-standard exit names work";
-    link = this:cmd("go " + direction, direction);
+    "Bind the link to the passage rather than resolving a direction at click time.";
+    link = this:exit(room, direction);
     return this:inline({before, link, after});
   endverb
 endobject

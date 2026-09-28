@@ -410,7 +410,7 @@ function processTextNodesForObjIds(node: Node): void {
  * Returns the appropriate moo-link-* class for styling.
  */
 export function getLinkClass(url: string): string {
-    if (url.startsWith("moo://cmd/")) {
+    if (url.startsWith("moo://cmd/") || url.startsWith("moo://exit/")) {
         return "moo-link-cmd";
     }
     if (url.startsWith("moo://inspect/")) {
