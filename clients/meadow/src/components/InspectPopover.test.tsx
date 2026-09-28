@@ -12,30 +12,83 @@
 //
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { ActionOutputEvent, InspectPopover } from "./InspectPopover";
+import { expect, it, vi } from "vitest";
+import { inspectionCommand, InspectPopover } from "./InspectPopover";
 
-describe("InspectPopover action lifecycle", () => {
-    it("does not dismiss a newer inspection when an old action finishes", async () => {
-        let resolve!: (output: ActionOutputEvent[]) => void;
-        const pending = new Promise<ActionOutputEvent[]>(done => {
-            resolve = done;
-        });
-        const onClose = vi.fn();
-        const { unmount } = render(
-            <InspectPopover
-                data={{ title: "Key", description: "", actions: [{ label: "Take", verb: "get", target: "oid:42" }] }}
-                position={{ x: 0, y: 0 }}
-                onClose={onClose}
-                onAction={() => pending}
-            />,
-        );
-        fireEvent.click(screen.getByText("Take"));
-        unmount();
-        await act(async () => {
-            resolve([]);
-            await pending;
-        });
-        expect(onClose).not.toHaveBeenCalled();
-    });
+const take = { id: "transfer", label: "Take", command: "get #42" };
+const put = {
+    id: "put",
+    label: "Put inside",
+    command: "put {input} in #66",
+    input: { label: "Which item?", placeholder: "Item name" },
+};
+const data = { title: "Cupboard", description: "A wooden cupboard.", state: ["Open"], actions: [take, put] };
+const position = { x: 20, y: 20 };
+
+it("shows the exact command and submits one command for a double-click", () => {
+    const onCommand = vi.fn(() => true);
+    render(<InspectPopover data={data} position={position} onClose={vi.fn()} onCommand={onCommand} />);
+    expect(screen.getByText("get #42")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Take" }), { detail: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Take" }), { detail: 2 });
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith("get #42");
+    expect(screen.getByRole("status").textContent).toBe("Sent: get #42");
+});
+
+it("collects input inline, preserves it across state refreshes, and submits through the parser", () => {
+    const onCommand = vi.fn(() => true);
+    const props = { position, onClose: vi.fn(), onCommand };
+    const { rerender } = render(<InspectPopover {...props} data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Put inside" }));
+    const input = screen.getByLabelText("Which item?");
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: "brass key" } });
+    rerender(<InspectPopover {...props} data={{ ...data, state: ["Carrying", "Open"] }} />);
+    expect((screen.getByLabelText("Which item?") as HTMLInputElement).value).toBe("brass key");
+    fireEvent.submit(input.closest("form")!);
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith("put brass key in #66");
+});
+
+it("keeps the card and input available when disconnected", () => {
+    render(<InspectPopover data={data} position={position} onClose={vi.fn()} onCommand={() => false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Take" }));
+    expect(screen.getByRole("alert").textContent).toContain("not sent");
+    expect(screen.getByRole("dialog")).toBeDefined();
+});
+
+it("rejects multiple command lines", () => {
+    expect(() => inspectionCommand(put, "key\ndrop all")).toThrow("single-line");
+    expect(() => inspectionCommand({ ...take, command: "get #42\ndrop #42" })).toThrow("single-line");
+});
+
+it("stays open and returns keyboard focus on Escape", () => {
+    vi.useFakeTimers();
+    const origin = document.createElement("button");
+    document.body.append(origin);
+    origin.focus();
+    const onClose = vi.fn();
+    const { unmount } = render(
+        <InspectPopover
+            data={data}
+            position={position}
+            returnFocusTo={origin}
+            onClose={onClose}
+            onCommand={() => true}
+        />,
+    );
+    expect(document.activeElement).toBe(screen.getByRole("dialog"));
+    act(() => vi.advanceTimersByTime(30000));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(origin);
+    unmount();
+    origin.remove();
+    vi.useRealTimers();
+});
+
+it("keeps held previews noninteractive", () => {
+    render(<InspectPopover data={data} position={position} isPreview onClose={vi.fn()} onCommand={() => true} />);
+    expect(screen.getByRole("tooltip")).toBeDefined();
+    expect(screen.queryByRole("button")).toBeNull();
 });

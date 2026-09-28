@@ -1,0 +1,51 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+@wizard
+; const data = #90112:inspection(#90102); return {data["state"], data["actions"][2]["command"]};
+{{"Carrying"}, "drop #90112"}
+@nonprogrammer
+% drop #90112
+~~dropped
+@wizard
+; const data = #90112:inspection(#90102); return {data["state"], data["actions"][2]["command"]};
+{{"Nearby"}, "get #90112"}
+@nonprogrammer
+% get #90112
+~~picked up
+% put #90112 in #90111
+~~put
+% close #90111
+~~close
+@wizard
+; const data = #90111:inspection(#90102); return {data["state"], {a["id"] for a in (data["actions"])}};
+{{"Nearby", "Closed"}, {"examine", "transfer", "lock", "open"}}
+@nonprogrammer
+% get #90112 from #90111
+~~closed
+% open #90111
+~~open
+% get #90112 from #90111
+~~take
+@wizard
+; return #90112.location == #90102;
+true
+@wizard
+; return #90100:inspection(#90102)["actions"][2]["command"];
+"dm #90100 {input}"
+@wizard
+; add_verb(#90112, {#90100, "rd", "drop"}, {"this", "none", "none"}); set_verb_code(#90112, "drop", {"player:inform_current($event:mk_info(player, \"Custom drop handled.\"));"}); return true;
+true
+@nonprogrammer
+@wizard
+; return #90112:inspection(#90102)["actions"][2]["command"];
+"drop #90112"
+@nonprogrammer
+% drop #90112
+~~Custom drop handled.
+@wizard
+; return #90112.location == #90102;
+true
+@nonprogrammer
+% examine #90112
+~~Runtime World Item

@@ -82,6 +82,33 @@ top of the event and behaviour systems without requiring framework changes.
 - `$sittable` for furniture with seat limits and occupancy tracking (inspired by the one in JHCore)
 - `$note` for readable/writable text objects
 
+**Object inspection:**
+
+`object:inspection(viewer)` returns a description and command suggestions for Meadow. Opening an
+inspector is a read-only request. Choosing an action submits its command through the player's
+existing connection, with the same parser, permissions, messages, and input history as typing it.
+
+The response has `title`, `description`, `state` (a list of short labels), and `actions`. Each action
+has a stable `id`, a display `label`, and a single-line `command`. An optional `input` supplies a
+`label` and `placeholder`; Meadow substitutes the entered text for `{input}` in the command:
+
+```moo
+["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + tostr(this),
+  "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Item name or #reference"]]
+```
+
+Override `inspection_state(viewer)` for observable state and `inspection_commands(viewer)` for
+object-specific commands; use `pass(viewer)` to extend the inherited suggestions. The root discovers
+simple public command signatures. Things add Take or Drop according to custody and reach, containers
+select commands for their opening/lock state, and players offer a direct message command. Commands
+bind the inspected object by reference so duplicate names do not change the target.
+
+Suggestions are advisory. Keep these queries side-effect-free; do not execute mutation policies to
+decide what to display. The command remains responsible for validating current reach, custody, and
+authorization when it runs. Results appear in the normal transcript or presentation destination.
+Meadow refreshes an open inspector after command completion and room-state events, preserving input
+drafts by action ID. An action must not return a second, inspector-specific result format.
+
 **Systems:**
 
 - Authentication with argon2 password hashing (`password.moo`, `login.moo`)

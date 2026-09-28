@@ -65,7 +65,7 @@ export interface NarrativeMessage {
 interface NarrativeProps {
     visible: boolean;
     connectionStatus: "disconnected" | "connecting" | "connected" | "error";
-    onSendMessage: (message: string | Uint8Array | ArrayBuffer) => void;
+    onSendMessage: (message: string | Uint8Array | ArrayBuffer) => boolean;
     onLoadMoreHistory?: () => void;
     isLoadingHistory?: boolean;
     onLinkClick?: (url: string, position?: { x: number; y: number }) => void;
@@ -85,6 +85,7 @@ interface NarrativeProps {
 }
 
 export interface NarrativeRef {
+    submitCommand: (command: string) => boolean;
     addNarrativeContent: (
         content: string | string[],
         contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback",
@@ -440,13 +441,13 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
     // Handle sending messages
     const handleSendMessage = useCallback((message: string | Uint8Array | ArrayBuffer) => {
+        if (!onSendMessage(message)) return false;
         // Echo the input to the narrative if setting is enabled (only for text)
         if (typeof message === "string" && getCommandEchoEnabled()) {
             addMessage(message, "input_echo");
         }
 
-        // Send to server
-        onSendMessage(message);
+        return true;
     }, [addMessage, onSendMessage]);
 
     // Add to command history
@@ -471,6 +472,12 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             return cappedHistory;
         });
     }, []);
+
+    const submitCommand = useCallback((command: string) => {
+        if (!handleSendMessage(command)) return false;
+        addToHistory(command);
+        return true;
+    }, [handleSendMessage, addToHistory]);
 
     // Add a method to add narrative content from WebSocket messages
     const addNarrativeContent = useCallback(
@@ -699,6 +706,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
+        submitCommand,
         addNarrativeContent,
         addSystemMessage,
         addErrorMessage,
@@ -709,6 +717,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         getLastMessageTimestamp: () => lastDisconnectMessageTimestampRef.current,
         markMessageStale,
     }), [
+        submitCommand,
         addNarrativeContent,
         addSystemMessage,
         addErrorMessage,

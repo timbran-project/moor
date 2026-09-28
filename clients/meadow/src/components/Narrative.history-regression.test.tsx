@@ -101,7 +101,7 @@ describe("Narrative history merge regressions", () => {
                     ref={narrativeRef}
                     visible={true}
                     connectionStatus="connected"
-                    onSendMessage={() => {}}
+                    onSendMessage={() => true}
                 />,
             );
 
@@ -154,7 +154,7 @@ describe("Narrative history merge regressions", () => {
                 ref={narrativeRef}
                 visible={true}
                 connectionStatus="connected"
-                onSendMessage={() => {}}
+                onSendMessage={() => true}
             />,
         );
 
@@ -231,7 +231,7 @@ describe("Narrative history merge regressions", () => {
                 ref={narrativeRef}
                 visible={true}
                 connectionStatus="connected"
-                onSendMessage={() => {}}
+                onSendMessage={() => true}
             />,
         );
 

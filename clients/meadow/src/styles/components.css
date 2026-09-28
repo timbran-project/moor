@@ -2521,111 +2521,205 @@
 
 /* ====== INSPECT POPOVER STYLES ====== */
 .inspect-popover {
-  background: color-mix(in srgb, var(--color-bg-primary) 92%, var(--color-bg-base));
-  border: 1px solid color-mix(in srgb, var(--color-border-medium) 64%, transparent);
-  border-radius: var(--radius-md);
-  box-shadow: 0 14px 36px color-mix(in srgb, var(--color-shadow) 55%, transparent);
-  max-width: 280px;
-  min-width: 180px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-medium);
+  border-radius: 16px;
+  box-shadow: 0 16px 56px var(--color-shadow);
   font-family: var(--font-ui);
-  font-size: 0.85rem;
-  overflow: hidden;
+  font-size: 0.9rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
 }
 
 .inspect-popover-header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  padding: 0.6em 0.9em;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-light) 56%, transparent);
-  background: color-mix(in srgb, var(--color-bg-secondary) 76%, var(--color-bg-base));
+  gap: 12px;
+  padding: 20px 16px 0 20px;
+}
+
+.inspect-popover:not(.inspect-popover--preview) .inspect-popover-header {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.inspect-popover .inspect-popover-header[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.inspect-popover-eyebrow,
+.inspect-popover-section-label {
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .inspect-popover-title {
-  font-weight: 600;
-  color: var(--color-text-primary);
+  margin-top: 5px;
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.3;
 }
 
 .inspect-popover-close {
-  background: none;
-  border: none;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
   color: var(--color-text-secondary);
-  font-family: var(--font-ui);
-  font-size: 1.2em;
+  font-size: 1.4rem;
   cursor: pointer;
-  padding: 0 0.25em;
-  line-height: 1;
 }
 
 .inspect-popover-close:hover {
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+.inspect-popover-summary {
+  padding: 14px 20px 20px;
+}
+
+.inspect-popover-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.inspect-popover-state span {
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-text-accent) 12%, var(--color-bg-secondary));
+  color: var(--color-text-primary);
+  font-size: 0.75rem;
 }
 
 .inspect-popover-description {
-  padding: 0.9em;
-  color: var(--color-text-primary);
-  line-height: 1.5;
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  white-space: pre-line;
 }
 
-.inspect-popover-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  padding: 0.6em 0.9em 0.9em;
-  border-top: 1px solid color-mix(in srgb, var(--color-border-light) 52%, transparent);
-}
-
-/* Use same pill style as command links */
-.inspect-popover-action {
-  display: inline-block;
-  background-color: color-mix(in srgb, var(--color-bg-tertiary) 70%, var(--color-bg-base));
-  color: var(--color-text-primary);
-  border: 1px solid color-mix(in srgb, var(--color-border-medium) 60%, transparent);
-  padding: 0.2em 0.6em;
-  border-radius: 0.75em;
-  font-family: var(--font-ui);
-  font-size: 0.9em;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.inspect-popover-action:hover {
-  background-color: color-mix(in srgb, var(--color-bg-hover) 74%, var(--color-bg-header));
-  border-color: color-mix(in srgb, var(--color-border-dark) 58%, transparent);
-}
-
-.inspect-popover-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.inspect-popover-feedback {
-  margin: 8px;
-  margin-top: 0;
-  padding: 8px;
-  background: var(--color-bg-tertiary);
-  border-radius: 4px;
-  font-size: 0.85em;
-  max-height: 100px;
-  overflow-y: auto;
-  opacity: 1;
-  transition: opacity 0.5s ease-out;
-  color: var(--color-text-primary);
-}
-
-.inspect-popover-feedback.fading {
-  opacity: 0;
-}
-
-.inspect-popover-feedback-message {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.inspect-popover-feedback-message + .inspect-popover-feedback-message {
-  margin-top: 4px;
-  padding-top: 4px;
+.inspect-popover-commands {
+  padding: 16px 12px 12px;
   border-top: 1px solid var(--color-border-light);
+  background: color-mix(in srgb, var(--color-bg-secondary) 45%, var(--color-bg-primary));
+}
+
+.inspect-popover-section-label {
+  margin: 0 8px 8px;
+}
+
+.inspect-popover-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.inspect-popover-action:hover,
+.inspect-popover-action[aria-expanded="true"] {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-light);
+}
+
+.inspect-popover-action-label {
+  display: block;
+  font-weight: 600;
+}
+
+.inspect-popover-action code {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  white-space: normal;
+  background: none;
+  padding: 0;
+  border: 0;
+}
+
+.inspect-popover-action-arrow {
+  color: var(--color-text-secondary);
+  font-size: 1.1rem;
+}
+
+.inspect-popover-input {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.inspect-popover-input label {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.inspect-popover-input input {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 7px;
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.inspect-popover-input button {
+  justify-self: end;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 7px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inspect-popover :is(button, input):focus-visible {
+  outline: 2px solid var(--color-text-accent);
+  outline-offset: 2px;
+}
+
+.inspect-popover-footer {
+  padding: 12px 8px 2px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.inspect-popover-footer [role="alert"] {
+  color: var(--color-text-primary);
+}
+
+@media (pointer: coarse) {
+  .inspect-popover-close { width: 44px; height: 44px; }
+  .inspect-popover-input button { min-height: 44px; }
 }
 
 /* ====== DEFINITION LIST STYLES ====== */
@@ -3929,3 +4023,6 @@ button:disabled {
   /* Uses moo-link-external styling by default */
   /* Could add subtle border-bottom or different underline style if desired */
 }
+
+
+/* Pending inspection actions keep their label and dimensions to avoid moving the card. */

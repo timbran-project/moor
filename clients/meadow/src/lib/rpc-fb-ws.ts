@@ -159,6 +159,7 @@ function handleTaskError(
 }
 
 export interface ClientEventHandlers {
+    onTaskComplete?: () => void;
     onSystemMessage?: (message: string, duration?: number) => void;
     onNarrativeMessage?: NarrativeMessageHandler;
     onPresentMessage?: (presentData: PresentationData) => void;
@@ -339,6 +340,7 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                 }
             },
             onTaskErrorEvent: (taskError) => {
+                handlers.onTaskComplete?.();
                 const error = taskError.error();
                 if (!error) {
                     console.error("[WS] Missing scheduler error");
@@ -346,8 +348,8 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                 }
                 handleTaskError(error, onNarrativeMessage);
             },
-            onTaskSuccessEvent: (_taskSuccess) => {
-                // Task completed successfully - these now come via HTTP response for verb invocations
+            onTaskSuccessEvent: () => {
+                handlers.onTaskComplete?.();
             },
             onCredentialsUpdatedEvent: (credentials) => {
                 const update = decodeCredentialsUpdatedEvent(credentials);

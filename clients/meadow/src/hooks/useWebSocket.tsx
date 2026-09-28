@@ -64,6 +64,7 @@ export const useWebSocket = (
         connectionStatus: "disconnected",
     });
 
+    const [stateRevision, setStateRevision] = useState(0);
     const [inputMetadata, setInputMetadata] = useState<InputMetadata | null>(null);
 
     const socketRef = useRef<WebSocket | null>(null);
@@ -130,7 +131,13 @@ export const useWebSocket = (
                         onNarrativeMessage,
                         onPresentMessage,
                         onUnpresentMessage,
-                        onDataMessage,
+                        onDataMessage: event => {
+                            onDataMessage?.(event);
+                            if (event.namespace === "state" && event.eventKind === "room_snapshot") {
+                                setStateRevision(value => value + 1);
+                            }
+                        },
+                        onTaskComplete: () => setStateRevision(value => value + 1),
                         onPlayerSwitched,
                         onCredentialsUpdated,
                         lastEventTimestampRef,
@@ -515,6 +522,7 @@ export const useWebSocket = (
     }, [player]);
 
     return {
+        stateRevision,
         wsState,
         connect,
         disconnect,

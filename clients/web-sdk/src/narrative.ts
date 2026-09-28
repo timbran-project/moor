@@ -13,6 +13,8 @@
 
 import { EventUnion, unionToEventUnion } from "@moor/schema/generated/moor-common/event-union";
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
+import { PresentEvent } from "@moor/schema/generated/moor-common/present-event";
+import { ParsedPresentation, parsePresentationValue } from "./presentations.js";
 
 export type NarrativeNotifyContentType = "text/plain" | "text/djot" | "text/html" | "text/x-uri";
 
@@ -27,12 +29,7 @@ export type ParsedNarrativeEvent =
     | {
         eventType: "PresentEvent";
         event: {
-            presentation: {
-                id: string | null;
-                contentType: string | null;
-                content: string | null;
-                target: string | null;
-            } | null;
+            presentation: ParsedPresentation | null;
         };
     }
     | {
@@ -113,20 +110,10 @@ export function parseNarrativeEvent(
             };
         }
         case EventUnion.PresentEvent: {
-            const presentEvent = eventUnion as any;
-            const presentation = presentEvent.presentation();
+            const presentEvent = eventUnion as PresentEvent;
             return {
                 eventType: "PresentEvent",
-                event: {
-                    presentation: presentation
-                        ? {
-                            id: presentation.id(),
-                            contentType: presentation.contentType(),
-                            content: presentation.content(),
-                            target: presentation.target(),
-                        }
-                        : null,
-                },
+                event: { presentation: parsePresentationValue(presentEvent.presentation()) },
             };
         }
         case EventUnion.UnpresentEvent: {

@@ -421,6 +421,37 @@ object CONTAINER [
     return <$look, .what = this, .title = this:name(), .description = description>;
   endmethod
 
+  method inspection_state owner: ARCH_WIZARD
+    "Describe the container's observable custody, opening, and lock state.";
+    const {?who = player} = args;
+    const state = pass(who);
+    this.location != who && !$thing:take_reachable(this, who) && return state;
+    return this.locked ? {@state, "Closed", "Locked"} | {@state, this.open ? "Open" | "Closed"};
+  endmethod
+
+  method inspection_commands owner: ARCH_WIZARD
+    "Choose commands for the container's current state without executing its policies.";
+    const {?who = player} = args;
+    let actions = {};
+    for action in (pass(who))
+      const id = action["id"];
+      if ((id == "open" && (this.open || this.locked)) || (id == "close" && !this.open)
+        || (id == "lock" && (this.open || this.locked)) || (id == "unlock" && !this.locked))
+        continue;
+      endif
+      actions = {@actions, action};
+    endfor
+    if (this.open)
+      const ref = tostr(this);
+      actions = {@actions,
+        ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + ref,
+          "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Carried item name or #reference"]],
+        ["id" -> "take_from", "label" -> "Take from", "command" -> "get {input} from " + ref,
+          "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Item name or #reference"]]};
+    endif
+    return actions;
+  endmethod
+
   verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd"
     "Take an object from this container";
     const actor = caller_perms();

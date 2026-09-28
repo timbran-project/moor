@@ -11,260 +11,265 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ContentRenderer } from "./ContentRenderer";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export interface InspectAction {
+    id: string;
     label: string;
-    verb?: string;
-    target?: string; // CURIE like "oid:123"
-    args?: string[]; // Optional args (object refs and/or plain strings)
-    kind?: "invoke" | "command";
-    command?: string;
-    inputType?: "text";
-    inputPrompt?: string;
-    inputPlaceholder?: string;
-    resultMode?: "popover" | "narrative" | "panel";
-    panelTarget?:
-        | "left"
-        | "right"
-        | "top"
-        | "bottom"
-        | "tools"
-        | "status"
-        | "inventory"
-        | "navigation"
-        | "communication";
-    panelId?: string;
-    panelTitle?: string;
+    command: string;
+    input?: { label: string; placeholder: string };
 }
 
 export interface InspectData {
     title: string;
     description: string;
-    actions?: InspectAction[];
+    state?: string[];
+    actions: InspectAction[];
 }
 
-/** Output event from verb invocation */
-export interface ActionOutputEvent {
-    eventType: string;
-    event: any;
+/** Build exactly one command, preserving the core-authored parser syntax. */
+export function inspectionCommand(action: InspectAction, input = ""): string {
+    if (/[\r\n]/.test(input) || /[\r\n]/.test(action.command)) {
+        throw new Error("Enter a single-line command.");
+    }
+    if (action.input && !input.trim()) throw new Error(action.input.label);
+    const command = action.input ? action.command.split("{input}").join(input.trim()) : action.command;
+    if (!command.trim()) throw new Error("This command is empty.");
+    return command;
 }
 
 interface InspectPopoverProps {
     data: InspectData;
     position: { x: number; y: number };
     onClose: () => void;
-    onAction: (action: InspectAction, inputValue?: string) => Promise<ActionOutputEvent[]>;
-    autoCloseMs?: number;
+    onCommand: (command: string) => boolean;
+    returnFocusTo?: HTMLElement | null;
     isPreview?: boolean;
 }
 
-const DEFAULT_AUTO_CLOSE_MS = 5000;
+/** Keep the card inside the visible viewport, including when the mobile keyboard opens. */
+function placeInspector(card: HTMLDivElement, x: number, y: number, preferAbove = false) {
+    const viewport = window.visualViewport;
+    const left = (viewport?.offsetLeft ?? 0) + 16;
+    const top = (viewport?.offsetTop ?? 0) + 16;
+    const width = viewport?.width ?? window.innerWidth;
+    const height = viewport?.height ?? window.innerHeight;
+    card.style.maxWidth = `${Math.max(0, Math.min(360, width - 32))}px`;
+    card.style.maxHeight = `${Math.max(0, height - 32)}px`;
+    const rect = card.getBoundingClientRect();
+    if (preferAbove && y + rect.height > top + height - 32) y -= rect.height + 8;
+    card.style.left = `${Math.max(left, Math.min(x, left + width - 32 - rect.width))}px`;
+    card.style.top = `${Math.max(top, Math.min(y, top + height - 32 - rect.height))}px`;
+}
 
 export const InspectPopover: React.FC<InspectPopoverProps> = ({
     data,
     position,
     onClose,
-    onAction,
-    autoCloseMs = DEFAULT_AUTO_CLOSE_MS,
+    onCommand,
+    returnFocusTo,
     isPreview = false,
 }) => {
     const popoverRef = useRef<HTMLDivElement>(null);
-    const mountedRef = useRef(false);
-    useEffect(() => {
-        mountedRef.current = true;
-        return () => {
-            mountedRef.current = false;
-        };
-    }, []);
-    const autoCloseTimerRef = useRef<number | null>(null);
+    const drag = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const titleId = useId();
+    const dismiss = useCallback(() => {
+        if (returnFocusTo?.isConnected) returnFocusTo.focus({ preventScroll: true });
+        onClose();
+    }, [onClose, returnFocusTo]);
 
-    // Reset auto-close timer
-    const resetAutoClose = useCallback(() => {
-        if (autoCloseTimerRef.current) {
-            clearTimeout(autoCloseTimerRef.current);
-        }
-        autoCloseTimerRef.current = window.setTimeout(() => {
-            onClose();
-        }, autoCloseMs);
-    }, [autoCloseMs, onClose]);
-
-    // Auto-close after inactivity (only for non-preview mode)
     useEffect(() => {
         if (isPreview) return;
-
-        resetAutoClose();
+        popoverRef.current?.focus({ preventScroll: true });
+        const outside = (event: PointerEvent) => {
+            if (!popoverRef.current?.contains(event.target as Node)) dismiss();
+        };
+        const escape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            dismiss();
+        };
+        document.addEventListener("pointerdown", outside);
+        document.addEventListener("keydown", escape, true);
         return () => {
-            if (autoCloseTimerRef.current) {
-                clearTimeout(autoCloseTimerRef.current);
-            }
+            document.removeEventListener("pointerdown", outside);
+            document.removeEventListener("keydown", escape, true);
         };
-    }, [isPreview, resetAutoClose]);
+    }, [dismiss, isPreview]);
 
-    // Close on click outside (only for non-preview mode)
-    useEffect(() => {
-        if (isPreview) return;
-
-        const handleClickOutside = (e: MouseEvent) => {
-            if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-                onClose();
-            }
+    // Feedback and refreshed descriptions can change the card's size after opening.
+    useLayoutEffect(() => {
+        const card = popoverRef.current;
+        if (!card) return;
+        let placed = false;
+        const place = () => {
+            const rect = card.getBoundingClientRect();
+            placeInspector(card, placed ? rect.left : position.x, placed ? rect.top : position.y, !placed);
+            placed = true;
         };
-
-        // Close on escape key
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                onClose();
-            }
-        };
-
-        // Delay adding listener to avoid immediate close from the click that opened it
-        const timer = setTimeout(() => {
-            document.addEventListener("mousedown", handleClickOutside);
-            document.addEventListener("keydown", handleKeyDown);
-        }, 10);
-
+        place();
+        const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+        observer?.observe(card);
+        window.addEventListener("resize", place);
+        window.visualViewport?.addEventListener("resize", place);
+        window.visualViewport?.addEventListener("scroll", place);
         return () => {
-            clearTimeout(timer);
-            document.removeEventListener("mousedown", handleClickOutside);
-            document.removeEventListener("keydown", handleKeyDown);
+            observer?.disconnect();
+            window.removeEventListener("resize", place);
+            window.visualViewport?.removeEventListener("resize", place);
+            window.visualViewport?.removeEventListener("scroll", place);
         };
-    }, [onClose, isPreview]);
-
-    // Adjust position to stay within viewport
-    useEffect(() => {
-        if (!popoverRef.current) return;
-
-        const rect = popoverRef.current.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        let adjustedX = position.x;
-        let adjustedY = position.y;
-
-        // Prevent overflow on right
-        if (adjustedX + rect.width > viewportWidth - 16) {
-            adjustedX = viewportWidth - rect.width - 16;
-        }
-
-        // Prevent overflow on bottom - show above click point if needed
-        if (adjustedY + rect.height > viewportHeight - 16) {
-            adjustedY = position.y - rect.height - 8;
-        }
-
-        // Prevent overflow on left/top
-        adjustedX = Math.max(16, adjustedX);
-        adjustedY = Math.max(16, adjustedY);
-
-        popoverRef.current.style.left = `${adjustedX}px`;
-        popoverRef.current.style.top = `${adjustedY}px`;
     }, [position]);
 
-    // State for feedback messages
-    const [feedback, setFeedback] = useState<string[]>([]);
-    const [actionsDisabled, setActionsDisabled] = useState(false);
+    const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (isPreview || event.button !== 0 || drag.current || (event.target as Element).closest("button")) return;
+        const card = popoverRef.current;
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = {
+            pointerId: event.pointerId,
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+        };
+        setIsDragging(true);
+        event.preventDefault();
+    };
 
-    const handleActionClick = useCallback(async (action: InspectAction) => {
-        // Disable immediately to prevent double-clicks
-        if (actionsDisabled) return;
-        setActionsDisabled(true);
-        setFeedback([]);
+    const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+        const current = drag.current;
+        const card = popoverRef.current;
+        if (!current || current.pointerId !== event.pointerId || !card) return;
+        placeInspector(card, event.clientX - current.offsetX, event.clientY - current.offsetY);
+    };
 
-        try {
-            let inputValue: string | undefined;
-            if (action.inputType === "text") {
-                const response = window.prompt(action.inputPrompt ?? action.label, "");
-                if (response === null) {
-                    setActionsDisabled(false);
-                    return;
-                }
-                inputValue = response.trim();
-                if (!inputValue) {
-                    setFeedback(["No input provided."]);
-                    setActionsDisabled(false);
-                    return;
-                }
-            }
-
-            const output = await onAction(action, inputValue);
-            // An action from a dismissed popover must not close a newer inspection.
-            if (!mountedRef.current) return;
-
-            // Extract text content from NotifyEvents
-            const messages: string[] = [];
-            for (const event of output) {
-                if (event.eventType === "NotifyEvent" && event.event?.value) {
-                    const value = event.event.value;
-                    if (typeof value === "string") {
-                        messages.push(value);
-                    } else if (Array.isArray(value)) {
-                        messages.push(value.join("\n"));
-                    }
-                } else if (event.eventType === "TracebackEvent" && event.event?.backtrace) {
-                    messages.push(event.event.backtrace.join("\n"));
-                }
-            }
-
-            if (messages.length > 0) {
-                setFeedback(messages);
-                setActionsDisabled(false);
-            } else {
-                onClose();
-            }
-        } catch (error) {
-            setFeedback([`Error: ${error instanceof Error ? error.message : String(error)}`]);
-            setActionsDisabled(false);
+    const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (drag.current?.pointerId !== event.pointerId) return;
+        drag.current = null;
+        setIsDragging(false);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
         }
-    }, [actionsDisabled, onAction, onClose]);
+    };
+
+    const [activeInput, setActiveInput] = useState<string | null>(null);
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const [notice, setNotice] = useState("");
+    const [error, setError] = useState("");
+    const fieldId = useId();
+    const inputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (activeInput) inputRef.current?.focus({ preventScroll: true });
+    }, [activeInput]);
+
+    const send = (action: InspectAction) => {
+        setError("");
+        try {
+            const command = inspectionCommand(action, drafts[action.id]);
+            if (!onCommand(command)) throw new Error("Not connected. Your command was not sent.");
+            setNotice(`Sent: ${command}`);
+            setActiveInput(null);
+            setDrafts(current => ({ ...current, [action.id]: "" }));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not send the command.");
+        }
+    };
 
     return (
         <div
             ref={popoverRef}
+            role={isPreview ? "tooltip" : "dialog"}
+            aria-labelledby={titleId}
+            tabIndex={isPreview ? undefined : -1}
             className={`inspect-popover${isPreview ? " inspect-popover--preview" : ""}`}
-            style={{
-                position: "fixed",
-                left: position.x,
-                top: position.y,
-                zIndex: 10000,
-            }}
+            style={{ position: "fixed", left: position.x, top: position.y, zIndex: 10000 }}
         >
-            <div className="inspect-popover-header">
-                <span className="inspect-popover-title">{data.title}</span>
+            <div
+                className="inspect-popover-header"
+                title={isPreview ? undefined : "Drag to move"}
+                data-dragging={isDragging || undefined}
+                onPointerDown={startDrag}
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onLostPointerCapture={endDrag}
+            >
+                <div>
+                    <div className="inspect-popover-eyebrow">Inspect</div>
+                    <div id={titleId} className="inspect-popover-title">{data.title}</div>
+                </div>
                 {!isPreview && (
-                    <button
-                        className="inspect-popover-close"
-                        onClick={onClose}
-                        aria-label="Close"
-                    >
-                        ×
-                    </button>
+                    <button className="inspect-popover-close" onClick={dismiss} aria-label="Close inspection">×</button>
                 )}
             </div>
-            <div className="inspect-popover-description">
-                {data.description}
+            <div className="inspect-popover-summary">
+                {data.state && data.state.length > 0 && (
+                    <div className="inspect-popover-state">
+                        {data.state.map(state => <span key={state}>{state}</span>)}
+                    </div>
+                )}
+                <p className="inspect-popover-description">{data.description}</p>
             </div>
-            {!isPreview && data.actions && data.actions.length > 0 && (
-                <div className="inspect-popover-actions">
-                    {data.actions.map((action, index) => (
-                        <button
-                            key={index}
-                            className="inspect-popover-action"
-                            onClick={() => handleActionClick(action)}
-                            disabled={actionsDisabled}
-                        >
-                            {action.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-            {feedback.length > 0 && (
-                <div className="inspect-popover-feedback">
-                    {feedback.map((msg, index) => (
-                        <div key={index} className="inspect-popover-feedback-message">
-                            <ContentRenderer content={msg} contentType="text/plain" />
-                        </div>
-                    ))}
+            {!isPreview && (
+                <div className="inspect-popover-commands">
+                    <div className="inspect-popover-section-label">Commands</div>
+                    {data.actions.length === 0 && <p>No commands available here.</p>}
+                    {data.actions.map(action => {
+                        const expanded = activeInput === action.id;
+                        const preview = action.command.split("{input}").join(drafts[action.id] || "…");
+                        return (
+                            <div className="inspect-popover-command" key={action.id}>
+                                <button
+                                    className="inspect-popover-action"
+                                    aria-label={action.label}
+                                    aria-expanded={action.input ? expanded : undefined}
+                                    onClick={event => {
+                                        if (event.detail > 1) return;
+                                        if (action.input) setActiveInput(expanded ? null : action.id);
+                                        else send(action);
+                                    }}
+                                >
+                                    <span>
+                                        <span className="inspect-popover-action-label">{action.label}</span>
+                                        <code>{preview}</code>
+                                    </span>
+                                    <span className="inspect-popover-action-arrow" aria-hidden="true">
+                                        {action.input ? "+" : "↵"}
+                                    </span>
+                                </button>
+                                {expanded && action.input && (
+                                    <form
+                                        className="inspect-popover-input"
+                                        onSubmit={event => {
+                                            event.preventDefault();
+                                            send(action);
+                                        }}
+                                    >
+                                        <label htmlFor={fieldId}>{action.input.label}</label>
+                                        <input
+                                            ref={inputRef}
+                                            id={fieldId}
+                                            value={drafts[action.id] || ""}
+                                            placeholder={action.input.placeholder}
+                                            autoComplete="off"
+                                            onChange={event =>
+                                                setDrafts(current => ({ ...current, [action.id]: event.target.value }))}
+                                        />
+                                        <button type="submit">
+                                            {action.label} <span aria-hidden="true">↵</span>
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
+                        );
+                    })}
+                    <div className="inspect-popover-footer">
+                        {error
+                            ? <span role="alert">{error}</span>
+                            : <span role="status">{notice || "Results appear in the transcript."}</span>}
+                    </div>
                 </div>
             )}
         </div>

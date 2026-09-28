@@ -150,3 +150,13 @@ world/area.moo:_do_create_passage
 world/area.moo:update_passage
 world/area.moo:remove_passage
 world/area.moo:_do_remove_passage
+
+root.moo:inspection
+root.moo:inspection_state
+root.moo:inspection_actions
+root.moo:inspection_commands
+items/thing.moo:inspection_state
+items/thing.moo:inspection_actions
+items/container.moo:inspection_state
+items/container.moo:inspection_commands
+player.moo:inspection_actions

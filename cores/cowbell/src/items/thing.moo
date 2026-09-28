@@ -392,126 +392,22 @@ object THING [
     return;
   endverb
 
-  method inspection owner: ARCH_WIZARD
-    "Return structured data for client inspection popover.";
-    {?who = player} = args;
-    item_name = `this:name() ! E_VERBNF => this.name';
-    desc = this:description();
-    actions = this:inspection_actions(who);
-    return ["title" -> item_name, "description" -> desc, "actions" -> actions];
+  method inspection_state owner: ARCH_WIZARD
+    "Describe custody and reach without running transfer policy callbacks.";
+    const {?who = player} = args;
+    this.location == who && return {"Carrying"};
+    return $thing:take_reachable(this, who) ? {"Nearby"} | {"Out of reach"};
   endmethod
 
   method inspection_actions owner: ARCH_WIZARD
-    "Return quick inspection actions for things (transfer + examine + obvious verbs).";
-    {?who = player} = args;
-    actions = {};
-    seen = {};
-    this_ref = $url_utils:to_curie_str(this);
-    who_ref = $url_utils:to_curie_str(who);
-    if (who_ref)
-      actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
-      seen = {"do_examine"};
-    endif
-    if (this.location != who && !$thing:take_reachable(this, who))
-      return actions;
-    endif
-    transfer_verb = this.location == who ? "drop" | "get";
-    transfer_label = transfer_verb == "drop" ? "Drop" | "Take";
-    transfer_invoke = 0;
-    transfer_info = `verb_info(this, transfer_verb) ! E_VERBNF => 0';
-    if (typeof(transfer_info) == TYPE_LIST && length(transfer_info) >= 2 && typeof(transfer_info[2]) == TYPE_STR)
-      transfer_perms = transfer_info[2];
-      if ("x" in transfer_perms > 0)
-        transfer_invoke = 1;
-      endif
-    endif
-    if (transfer_invoke)
-      actions = {@actions, ["label" -> transfer_label, "verb" -> transfer_verb, "target" -> this_ref]};
-    else
-      actions = {@actions, ["label" -> transfer_label, "kind" -> "command", "command" -> transfer_verb + " " + tostr(this)]};
-    endif
-    seen = {@seen, transfer_verb};
-    exam = this:examination();
-    if (typeof(exam) != TYPE_FLYWEIGHT)
-      return actions;
-    endif
-    verb_specs = exam.verbs;
-    if (typeof(verb_specs) != TYPE_LIST)
-      return actions;
-    endif
-    for spec in (verb_specs)
-      if (typeof(spec) != TYPE_LIST || length(spec) < 5)
-        continue;
-      endif
-      names = spec[1];
-      definer = spec[2];
-      dobj_spec = spec[3];
-      prep_spec = spec[4];
-      iobj_spec = spec[5];
-      if (typeof(names) != TYPE_STR)
-        continue;
-      endif
-      mode = "";
-      if (dobj_spec == "this" && iobj_spec == "none")
-        mode = "direct";
-      elseif (iobj_spec == "this" && (dobj_spec == "none" || dobj_spec == "any"))
-        mode = "indirect";
-      else
-        continue;
-      endif
-      space_at = index(names, " ");
-      candidate = space_at > 0 ? names[1..space_at - 1] | names;
-      candidate = strsub(candidate, "*", "");
-      if (!candidate)
-        continue;
-      endif
-      if (candidate == "inspect" || candidate == "inspection" || candidate == "examine" || candidate == "do_examine" || candidate == "look" || candidate == "get" || candidate == "drop")
-        continue;
-      endif
-      already_seen = 0;
-      for existing in (seen)
-        if (existing == candidate)
-          already_seen = 1;
-          break;
-        endif
-      endfor
-      if (already_seen)
-        continue;
-      endif
-      seen = {@seen, candidate};
-      if (mode == "direct")
-        can_invoke = 0;
-        info = verb_info(definer, candidate);
-        if (typeof(info) == TYPE_LIST && length(info) >= 2 && typeof(info[2]) == TYPE_STR)
-          perms = info[2];
-          if ("x" in perms > 0)
-            can_invoke = 1;
-          endif
-        endif
-        if (can_invoke)
-          actions = {@actions, ["label" -> candidate, "verb" -> candidate, "target" -> this_ref]};
-        else
-          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " " + tostr(this)]};
-        endif
-      else
-        prep = "on";
-        if (typeof(prep_spec) == TYPE_STR && prep_spec && prep_spec != "any" && prep_spec != "none")
-          slash_at = index(prep_spec, "/");
-          prep = slash_at > 0 ? prep_spec[1..slash_at - 1] | prep_spec;
-        endif
-        if (dobj_spec == "none")
-          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " " + prep + " " + tostr(this)]};
-        else
-          prompt = "Value for " + candidate + ":";
-          placeholder = "What?";
-          actions = {@actions, ["label" -> candidate, "kind" -> "command", "command" -> candidate + " {input} " + prep + " " + tostr(this), "inputType" -> "text", "inputPrompt" -> prompt, "inputPlaceholder" -> placeholder]};
-        endif
-      endif
-      if (length(actions) >= 5)
-        break;
-      endif
-    endfor
-    return actions;
+    "Suggest the current transfer and object commands; the parser checks policy when submitted.";
+    const {?who = player} = args;
+    const actions = pass(who);
+    this.location != who && !$thing:take_reachable(this, who) && return {actions[1]};
+    const carrying = this.location == who;
+    const transfer = ["id" -> "transfer", "label" -> carrying ? "Drop" | "Take",
+      "command" -> (carrying ? "drop " | "get ") + tostr(this)];
+    return carrying || this.portable ? {actions[1], transfer, @actions[2..$]} | actions;
   endmethod
 
   method fact_is_portable owner: ARCH_WIZARD

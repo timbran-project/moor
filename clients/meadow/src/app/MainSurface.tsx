@@ -74,7 +74,8 @@ export const MainSurface: React.FC = () => {
     const { welcomeMessage, contentType, isServerReady } = useWelcomeMessage();
     const { authState, establishSession } = useAuthContext();
     const { encryptionState, getKeyForHistoryRequest } = useEncryptionContext();
-    const { wsState, disconnect: disconnectWS, sendMessage, inputMetadata, clearInputMetadata } = useWebSocketContext();
+    const { stateRevision, wsState, disconnect: disconnectWS, sendMessage, inputMetadata, clearInputMetadata } =
+        useWebSocketContext();
     const { narrativeRef, narrativeCallbackRef } = useNarrativePipelineContext();
 
     const systemTitle = useTitle();
@@ -93,9 +94,8 @@ export const MainSurface: React.FC = () => {
     const canUseObjectBrowser = Boolean(isConnected && hasProgrammerAccess);
     const hasPlayer = Boolean(player);
 
-    // Presentation getters used directly by the dock layout and popover actions
+    // Presentation getters used directly by the dock layout
     const {
-        addPresentation,
         dismissPresentation,
         getLeftDockPresentations,
         getRightDockPresentations,
@@ -241,7 +241,11 @@ export const MainSurface: React.FC = () => {
     });
 
     // Inspection popover + link routing
-    const inspect = useInspectPopover({ authToken, showMessage, sendMessage, addPresentation });
+    const inspect = useInspectPopover({ authToken, showMessage, refreshKey: stateRevision });
+    const submitInspectionCommand = useCallback((command: string) => {
+        if (inputMetadata) throw new Error("Finish the current prompt before running a command.");
+        return narrativeRef.current?.submitCommand(command) ?? false;
+    }, [inputMetadata, narrativeRef]);
     const { closeInspectPopover } = inspect;
     const { handleLinkClick } = useNarrativeLinks({
         authToken,
@@ -803,10 +807,12 @@ export const MainSurface: React.FC = () => {
             {/* Inspect popover for object info */}
             {inspect.inspectPopover && (
                 <InspectPopover
+                    key={inspect.inspectPopover.requestId}
+                    returnFocusTo={inspect.inspectPopover.returnFocusTo}
                     data={inspect.inspectPopover.data}
                     position={inspect.inspectPopover.position}
                     onClose={inspect.closeInspectPopover}
-                    onAction={inspect.executeInspectAction}
+                    onCommand={submitInspectionCommand}
                     isPreview={inspect.inspectPopover.isPreview}
                 />
             )}

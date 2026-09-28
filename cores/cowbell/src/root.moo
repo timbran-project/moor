@@ -684,6 +684,68 @@ object ROOT [
     return `property_info(this, prop_name) ! ANY => false' ? true | false;
   endmethod
 
+  method inspection owner: ARCH_WIZARD
+    "Describe an object and its command suggestions for a viewer. Availability is advisory.";
+    const {?who = player} = args;
+    return ["title" -> this:name(), "description" -> this:description(),
+      "state" -> this:inspection_state(who), "actions" -> this:inspection_actions(who)];
+  endmethod
+
+  method inspection_state owner: ARCH_WIZARD
+    "Return short, observable state labels for the inspector.";
+    return {};
+  endmethod
+
+  method inspection_actions owner: ARCH_WIZARD
+    "Return labelled commands; command parsing and execution remain authoritative.";
+    const {?who = player} = args;
+    return {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + tostr(this)],
+      @this:inspection_commands(who)};
+  endmethod
+
+  method inspection_commands owner: ARCH_WIZARD
+    "Suggest simple public command signatures, retaining names and prepositions from the verbs.";
+    const {?who = player} = args;
+    let actions = {};
+    let seen = {"examine", "look", "inspect", "inspection", "get", "take", "drop"};
+    const ref = tostr(this);
+    for spec in (this:usable_verbs())
+      const {names, definer, direct, prep_spec, indirect} = spec;
+      const name = strsub(names:words()[1], "*", "");
+      if (name in seen)
+        continue;
+      endif
+      const prep = prep_spec == "none" ? "" | prep_spec:split("/")[1];
+      "An unconstrained preposition needs an authored command rather than a guess.";
+      if (prep_spec == "any")
+        continue;
+      endif
+      let command = "";
+      let input_label = "";
+      if (direct == "this" && prep_spec == "none" && indirect == "none")
+        command = name + " " + ref;
+      elseif (direct == "this" && indirect == "any" && prep)
+        command = name + " " + ref + " " + prep + " {input}";
+        input_label = "With what?";
+      elseif (indirect == "this" && direct == "any" && prep)
+        command = name + " {input} " + prep + " " + ref;
+        input_label = "Which item?";
+      elseif (indirect == "this" && direct == "none" && prep)
+        command = name + " " + prep + " " + ref;
+      endif
+      if (!command)
+        continue;
+      endif
+      seen = {@seen, name};
+      let action = ["id" -> name, "label" -> name:capitalize(), "command" -> command];
+      if (input_label)
+        action["input"] = ["label" -> input_label, "placeholder" -> "Item name or #reference"];
+      endif
+      actions = {@actions, action};
+    endfor
+    return actions;
+  endmethod
+
   method usable_verbs owner: ARCH_WIZARD
     "Get verbs that can use this object as a target (dobj or iobj).";
     "Returns list of {verb_name, definer_object, dobj, prep, iobj} for verbs that accept 'any' or 'this'.";

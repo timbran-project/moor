@@ -243,7 +243,7 @@ function processTextNodesForUrls(node: Node): void {
                     span.setAttribute("data-url", url);
                     span.setAttribute("tabindex", "0");
                     span.setAttribute("role", "link");
-                    span.title = url;
+                    if (!url.startsWith("moo://")) span.title = url;
                     span.textContent = url;
                     fragment.appendChild(span);
 
@@ -570,7 +570,7 @@ function convertLinksAndTables(container: HTMLElement): void {
         span.setAttribute("data-url", href);
         span.setAttribute("tabindex", "0");
         span.setAttribute("role", "link");
-        span.title = href;
+        if (!href.startsWith("moo://")) span.title = href;
         span.textContent = linkText;
 
         link.parentNode?.replaceChild(span, link);
@@ -734,7 +734,9 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
 
             // tabindex="0" + role="link" makes it keyboard-focusable and recognized by screen readers
             // for link navigation commands (next/previous link)
-            return `<span class="${linkClass}" ${linkHandler.dataAttribute}="${href}" title="${href}" tabindex="0" role="link">${linkText}</span>`;
+            return `<span class="${linkClass}" ${linkHandler.dataAttribute}="${href}"${
+                href.startsWith("moo://") ? "" : ` title="${href}"`
+            } tabindex="0" role="link">${linkText}</span>`;
         };
     }
 

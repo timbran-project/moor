@@ -140,3 +140,12 @@ describe("ContentRenderer bound exits", () => {
         expect(onLinkClick).toHaveBeenCalledTimes(2);
     });
 });
+
+it.each(["text/html", "text/djot"] as const)("omits internal URL tooltips in %s", contentType => {
+    const content = contentType === "text/html"
+        ? "<a href=\"moo://inspect/oid:42\">Key</a><a href=\"https://example.com\">Website</a>"
+        : "[Key](moo://inspect/oid:42) [Website](https://example.com)";
+    render(<ContentRenderer content={content} contentType={contentType} />);
+    expect(screen.getByText("Key").getAttribute("title")).toBeNull();
+    expect(screen.getByText("Website").getAttribute("title")).toBe("https://example.com");
+});

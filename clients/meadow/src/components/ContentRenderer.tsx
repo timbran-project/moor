@@ -175,6 +175,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         if (!isLinkAvailable(url, isStale)) return;
 
         e.preventDefault();
+        target.focus({ preventScroll: true });
         // Pass click position and event metadata for context
         void activateLink(url, { x: e.clientX, y: e.clientY });
     }, [onLinkClick, isStale, activateLink, showToast]);

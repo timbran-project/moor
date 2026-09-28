@@ -29,13 +29,12 @@ const deferredInspection = () => {
 const args = () => ({
     authToken: "token",
     showMessage: vi.fn(),
-    sendMessage: vi.fn(() => true),
-    addPresentation: vi.fn(),
+    refreshKey: 0,
 });
 
-describe("inspection request lifecycle", () => {
-    beforeEach(() => vi.clearAllMocks());
+beforeEach(() => vi.clearAllMocks());
 
+describe("inspection request lifecycle", () => {
     it("keeps the latest selected object when requests finish out of order", async () => {
         const first = deferredInspection();
         const second = deferredInspection();
@@ -84,30 +83,54 @@ describe("inspection request lifecycle", () => {
         expect(result.current.inspectPopover).toBeNull();
     });
 
-    it("refreshes available actions after a transfer", async () => {
-        const take = { label: "Take", target: "oid:42", verb: "get" };
-        const drop = { label: "Drop", target: "oid:42", verb: "drop" };
+    it("refreshes the same card after a connection state event", async () => {
+        vi.useFakeTimers();
+        const take = { id: "transfer", label: "Take", command: "get #42" };
+        const drop = { id: "transfer", label: "Drop", command: "drop #42" };
         vi.mocked(invokeVerbFlatBuffer)
-            .mockResolvedValueOnce({ result: { title: "Key", description: "", actions: [take] }, output: [] } as never)
-            .mockResolvedValueOnce({ result: null, output: [] } as never)
-            .mockResolvedValueOnce({ result: { title: "Key", description: "", actions: [drop] }, output: [] } as never);
+            .mockResolvedValueOnce({ result: { title: "Key", description: "", actions: [take] }, output: [] })
+            .mockResolvedValueOnce({ result: { title: "Key", description: "", actions: [drop] }, output: [] });
         const options = args();
-        const { result } = renderHook(() => useInspectPopover(options));
-        await act(async () => {
-            await result.current.inspectObject("oid%3A42");
+        const { result, rerender } = renderHook(({ refreshKey }) => useInspectPopover({ ...options, refreshKey }), {
+            initialProps: { refreshKey: 0 },
         });
         await act(async () => {
-            await result.current.executeInspectAction(take);
+            await result.current.inspectObject("oid:42");
+        });
+        const id = result.current.inspectPopover?.requestId;
+        rerender({ refreshKey: 1 });
+        rerender({ refreshKey: 2 });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(100);
         });
         expect(result.current.inspectPopover?.data.actions).toEqual([drop]);
+        expect(result.current.inspectPopover?.requestId).toBe(id);
+        expect(invokeVerbFlatBuffer).toHaveBeenCalledTimes(2);
         expect(invokeVerbFlatBuffer).toHaveBeenLastCalledWith("token", "oid:42", "inspection");
+        vi.useRealTimers();
     });
 
-    it("reports failed command delivery so the action can be retried", async () => {
-        const options = args();
-        options.sendMessage.mockReturnValue(false);
-        const { result } = renderHook(() => useInspectPopover(options));
-        await expect(result.current.executeInspectAction({ label: "Take", command: "get #42" }))
-            .rejects.toThrow("Not connected");
+    it("does not replace a new inspection with a late refresh", async () => {
+        const pending = deferredInspection();
+        vi.mocked(invokeVerbFlatBuffer)
+            .mockResolvedValueOnce({ result: { title: "Key", description: "", actions: [] }, output: [] })
+            .mockReturnValueOnce(pending.promise as never)
+            .mockResolvedValueOnce({ result: { title: "Box", description: "", actions: [] }, output: [] });
+        const { result } = renderHook(() => useInspectPopover(args()));
+        await act(async () => {
+            await result.current.inspectObject("oid:42");
+        });
+        let refresh!: Promise<void>;
+        act(() => {
+            refresh = result.current.refreshInspection();
+        });
+        await act(async () => {
+            await result.current.inspectObject("oid:66");
+        });
+        await act(async () => {
+            pending.resolve("Old key");
+            await refresh;
+        });
+        expect(result.current.inspectPopover?.data.title).toBe("Box");
     });
 });

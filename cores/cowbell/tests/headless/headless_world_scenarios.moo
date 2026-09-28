@@ -274,6 +274,8 @@ object HEADLESS_WORLD_SCENARIOS
       move(item, room);
       const nearby = item:inspection(who);
       $test_utils:assert_eq(nearby["actions"][2]["label"], "Take", "nearby item offers Take");
+      $test_utils:assert_eq(nearby["actions"][2]["command"], "get " + tostr(item),
+        "Take names a stable object through the command parser");
       move(item, remote);
       this:call_as_test_player(item, "get");
       $test_utils:assert_eq(item.location, remote, "stale Take cannot fetch a remote item");
@@ -284,9 +286,14 @@ object HEADLESS_WORLD_SCENARIOS
       $test_utils:assert_eq(item.location, who, "nearby Take succeeds");
       const held = item:inspection(who);
       $test_utils:assert_eq(held["actions"][2]["label"], "Drop", "fresh inspection reflects custody");
+      $test_utils:assert_eq(held["actions"][2]["command"], "drop " + tostr(item),
+        "Drop is an ordinary command");
       this:call_as_test_player(item, "drop");
       $test_utils:assert_eq(item.location, room, "held Drop succeeds");
       move(box, room);
+      const container_actions = box:inspection(who);
+      $test_utils:assert_eq(container_actions["actions"][2]["command"], "get " + tostr(box),
+        "taking the container is distinct from taking something out of it");
       move(item, box);
       box.open = false;
       this:call_as_test_player(item, "get");
@@ -298,6 +305,11 @@ object HEADLESS_WORLD_SCENARIOS
       box.take_rule = 0;
       this:call_as_test_player(item, "get");
       $test_utils:assert_eq(item.location, who, "open public nearby container permits Take");
+      $test_utils:assert_eq(held["state"], {"Carrying"}, "inspection reflects custody");
+      for action in (container_actions["actions"])
+        $test_utils:assert_type(action["command"], TYPE_STR, "all actions are commands");
+        $test_utils:assert_false(maphaskey(action, "verb"), "actions do not invoke methods");
+      endfor
     finally
       move(who, prior_location);
       recycle(item);

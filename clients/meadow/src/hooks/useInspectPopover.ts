@@ -12,13 +12,13 @@
 //
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { InspectAction, InspectData } from "../components/InspectPopover";
-import { MoorVar } from "../lib/MoorVar";
+import { InspectData } from "../components/InspectPopover";
 import { invokeVerbFlatBuffer } from "../lib/rpc-fb";
-import { PresentationData } from "../types/presentation";
 
 interface InspectPopoverState {
     oref: string;
+    requestId: number;
+    returnFocusTo: HTMLElement | null;
     data: InspectData;
     position: { x: number; y: number };
     isPreview?: boolean;
@@ -27,46 +27,11 @@ interface InspectPopoverState {
 interface UseInspectPopoverArgs {
     authToken: string | null;
     showMessage: (message: string, duration?: number) => void;
-    sendMessage: (message: string) => boolean;
-    addPresentation: (data: PresentationData) => void;
+    refreshKey: number;
 }
 
-interface VerbOutputEvent {
-    eventType: string;
-    event: unknown;
-}
-
-const extractOutputMessages = (output: VerbOutputEvent[]): string[] => {
-    const messages: string[] = [];
-    for (const evt of output) {
-        const event = evt.event as { value?: unknown; backtrace?: string[] } | undefined;
-        if (evt.eventType === "NotifyEvent" && event?.value) {
-            const value = event.value;
-            if (typeof value === "string") {
-                messages.push(value);
-            } else if (Array.isArray(value)) {
-                const text = value
-                    .map((item) => (typeof item === "string" ? item : String(item)))
-                    .join("\n");
-                messages.push(text);
-            } else {
-                messages.push(String(value));
-            }
-            continue;
-        }
-        if (evt.eventType === "TracebackEvent" && Array.isArray(event?.backtrace)) {
-            messages.push(event.backtrace.join("\n"));
-        }
-    }
-    return messages;
-};
-
-/**
- * Owns the object-inspection popover lifecycle: fetching inspection data for
- * `moo://inspect/` links (including mobile hold-to-preview), and executing
- * popover actions such as sending commands or invoking verbs into panels.
- */
-export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPresentation }: UseInspectPopoverArgs) => {
+/** Fetches read-only inspection data; actions are ordinary connection commands. */
+export const useInspectPopover = ({ authToken, showMessage, refreshKey }: UseInspectPopoverArgs) => {
     const [inspectPopover, setInspectPopover] = useState<InspectPopoverState | null>(null);
     const requestGeneration = useRef(0);
     const pendingPreview = useRef(false);
@@ -94,6 +59,7 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
             return;
         }
 
+        const returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         const generation = ++requestGeneration.current;
         pendingPreview.current = isPreview === true;
         setInspectPopover(null);
@@ -106,6 +72,8 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
                 const data = result as InspectData;
                 setInspectPopover({
                     oref: objectRef,
+                    requestId: generation,
+                    returnFocusTo,
                     data,
                     position: position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
                     ...(isPreview ? { isPreview } : {}),
@@ -144,80 +112,37 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
         });
     }, []);
 
-    const executeInspectAction = useCallback(async (
-        action: InspectAction,
-        inputValue?: string,
-    ): Promise<Array<{ eventType: string; event: any }>> => {
-        if (!authToken) return [];
-        if (action.kind === "command" || action.command) {
-            let command = action.command ?? "";
-            if (inputValue) {
-                command = command.includes("{input}")
-                    ? command.split("{input}").join(inputValue)
-                    : `${command} ${inputValue}`.trim();
-            }
-            if (!command) {
-                return [];
-            }
-            if (!sendMessage(command)) {
-                throw new Error("Not connected. Please try again after reconnecting.");
-            }
-            return [];
-        }
-
-        if (!action.verb || !action.target) {
-            return [];
-        }
-
-        const invokeArgs = action.args ? [...action.args] : [];
-        if (inputValue) {
-            invokeArgs.push(inputValue);
-        }
-
-        const argsBytes = invokeArgs.length > 0 ? MoorVar.buildInvokeArgs(invokeArgs) : undefined;
+    const refreshGeneration = useRef(0);
+    const refreshInspection = useCallback(async () => {
+        if (!authToken || !inspectPopover) return;
         const generation = requestGeneration.current;
-        const { output } = await invokeVerbFlatBuffer(authToken, action.target, action.verb, argsBytes);
-
-        // A completed transfer can change Take to Drop, or remove a now-unavailable action.
-        if (inspectPopover && generation === requestGeneration.current && action.resultMode !== "panel") {
-            try {
-                const { result } = await invokeVerbFlatBuffer(authToken, inspectPopover.oref, "inspection");
-                if (generation === requestGeneration.current) {
-                    setInspectPopover(current =>
-                        current && result ? { ...current, data: result as InspectData } : null
-                    );
-                }
-            } catch {
-                if (generation === requestGeneration.current) closeInspectPopover();
+        const refresh = ++refreshGeneration.current;
+        try {
+            const { result } = await invokeVerbFlatBuffer(authToken, inspectPopover.oref, "inspection");
+            if (generation !== requestGeneration.current || refresh !== refreshGeneration.current) return;
+            setInspectPopover(current =>
+                current && ({
+                    ...current,
+                    data: result as InspectData || { ...current.data, state: ["Unavailable"], actions: [] },
+                })
+            );
+        } catch {
+            if (generation === requestGeneration.current && refresh === refreshGeneration.current) {
+                showMessage("Could not refresh the inspection. Try opening it again.", 3);
             }
         }
+    }, [authToken, inspectPopover, showMessage]);
 
-        if (generation !== requestGeneration.current) return [];
-
-        if (action.resultMode === "panel") {
-            const messages = extractOutputMessages(output);
-            if (messages.length > 0) {
-                const presentationId = action.panelId
-                    || `inspect-action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-                const panelTarget = action.panelTarget ?? "tools";
-                const panelTitle = action.panelTitle ?? action.label;
-                addPresentation({
-                    id: presentationId,
-                    target: panelTarget,
-                    content_type: "text/plain",
-                    content: messages.join("\n"),
-                    attributes: [
-                        ["title", panelTitle],
-                        ["kind", "action_output"],
-                        ["source", "inspect_action"],
-                    ],
-                });
-            }
-            return [];
-        }
-
-        return output;
-    }, [addPresentation, authToken, closeInspectPopover, inspectPopover, sendMessage]);
+    const lastRefreshKey = useRef(refreshKey);
+    useEffect(() => {
+        if (lastRefreshKey.current === refreshKey) return;
+        // Coalesce completion and room-state events from the same command.
+        const timer = window.setTimeout(() => {
+            lastRefreshKey.current = refreshKey;
+            void refreshInspection();
+        }, 80);
+        return () => window.clearTimeout(timer);
+    }, [refreshKey, refreshInspection]);
 
     return {
         inspectPopover,
@@ -225,7 +150,7 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
         inspectObject,
         handleLinkHoldStart,
         handleLinkHoldEnd,
-        executeInspectAction,
+        refreshInspection,
     };
 };
 

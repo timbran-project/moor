@@ -21,6 +21,7 @@ import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 
 interface WebSocketContextType {
+    stateRevision: number;
     wsState: WebSocketState;
     connect: (mode: "connect" | "create") => Promise<void>;
     disconnect: (reason?: string) => void;

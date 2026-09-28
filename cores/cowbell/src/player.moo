@@ -1830,67 +1830,6 @@ object PLAYER [
     endif
   endverb
 
-  method _format_examination owner: ARCH_WIZARD
-    "Format examination data for display.";
-    "Args: {target}";
-    "Returns: [title -> str, html -> str, object_ref -> obj]";
-    {target} = args;
-    "Get the examination flyweight";
-    exam = target:examination();
-    typeof(exam) != TYPE_FLYWEIGHT && raise(E_INVARG, "Could not examine that object.");
-    "Build the display output";
-    lines = {};
-    "Header with object name, aliases, and number";
-    header_parts = {exam.name};
-    if (exam.aliases && length(exam.aliases) > 0)
-      header_parts = {@header_parts, "aka " + exam.aliases:join(" and ")};
-    endif
-    header_parts = {@header_parts, "and", tostr(exam.object_ref)};
-    header = header_parts:join(" ");
-    lines = {@lines, $format.title:mk(header)};
-    "Ownership";
-    if (valid(exam.owner))
-      owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
-      lines = {@lines, "Owned by " + owner_name + "."};
-    else
-      lines = {@lines, "(Unowned)"};
-    endif
-    "Description";
-    if (exam.description && exam.description != "")
-      lines = {@lines, exam.description};
-    else
-      lines = {@lines, "(No description set.)"};
-    endif
-    "Obvious verbs if any";
-    if (exam.verbs && length(exam.verbs) > 0)
-      lines = {@lines, ""};
-      verb_sigs = $obj_utils:format_verb_signatures(exam.verbs, exam.name);
-      verb_list = $format.list:mk(verb_sigs);
-      verb_title = $format.title:mk("Obvious verbs");
-      lines = {@lines, verb_title, verb_list};
-    endif
-    "Create formatted block and compose to HTML";
-    content = $format.block:mk(@lines);
-    html_fw = content:compose(this, 'text_html, $event:mk_info(this, ""));
-    html_str = html_fw:render('text_html);
-    return ["title" -> exam.name, "html" -> html_str, "object_ref" -> exam.object_ref];
-  endmethod
-
-  method do_examine owner: ARCH_WIZARD
-    "RPC entry point for examination - displays in tools panel.";
-    "Args: {target_object}";
-    set_task_perms(this);
-    {target} = args;
-    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
-    valid(target) || raise(E_INVARG, "Target is not a valid object");
-    "Format the examination";
-    result = this:_format_examination(target);
-    "Present in tools panel";
-    panel_id = "exam-" + tostr(target);
-    attrs = {{"title", result["title"]}, {"object", $url_utils:to_curie_str(target)}};
-    this:_present(this, panel_id, "text/html", "tools", result["html"], attrs);
-  endmethod
-
   verb suggest_command_alternatives (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Queue command context and offer explicit assist link instead of auto-running LLM.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
@@ -3527,83 +3466,13 @@ object PLAYER [
   endverb
 
   method inspection_actions owner: ARCH_WIZARD
-    "Return quick inspection actions for players (examine + direct message).";
-    {?who = player} = args;
-    actions = {};
-    this_ref = $url_utils:to_curie_str(this);
-    who_ref = $url_utils:to_curie_str(who);
-    if (who_ref)
-      actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
-    endif
-    if (!valid(who) || !is_player(who) || who == this || !this_ref)
-      return actions;
-    endif
-    actions = {@actions, ["label" -> "DM", "verb" -> "do_send_dm_to", "target" -> this_ref, "inputType" -> "text", "inputPrompt" -> "Message to " + this:name() + ":", "inputPlaceholder" -> "Type your direct message..."]};
-    return actions;
-  endmethod
-
-  method do_dm owner: ARCH_WIZARD
-    "Method-style DM helper for invoke-based clients.";
-    "Args: target_player, ?message";
-    caller == this || caller == #0 || raise(E_PERM);
-    set_task_perms(this);
-    {target, ?message = ""} = args;
-    typeof(target) == TYPE_OBJ && valid(target) && is_player(target) || raise(E_INVARG, "Target must be a player");
-    target == this && return this:inform_current($event:mk_error(this, "Talking to yourself?"):with_audience('utility));
-    if (typeof(message) != TYPE_STR || !message:trim())
-      prompt = "Message to " + target:name() + ":";
-      placeholder = "Type your direct message...";
-      message = `this:prompt(prompt, placeholder) ! ANY => false';
-    endif
-    if (message == false || typeof(message) != TYPE_STR)
-      return;
-    endif
-    message = message:trim();
-    if (!message)
-      return this:inform_current($event:mk_error(this, "No message provided."):with_audience('utility));
-    endif
-    dm_obj = $dm:mk(this, target, message);
-    try
-      delivered = target:receive_dm(dm_obj);
-    except e (ANY)
-      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + ": " + toliteral(e[2])):with_audience('utility));
-    endtry
-    if (typeof(delivered) == TYPE_ERR || !delivered)
-      return this:inform_current($event:mk_error(this, "Couldn't deliver your message to " + target:name() + "."):with_audience('utility));
-    endif
-    this:inform_current(dm_obj:sender_echo_event());
-  endmethod
-
-  method do_send_dm_to owner: ARCH_WIZARD
-    "Invoke-safe DM helper: sends a DM to this player, prompting for text when needed.";
-    "Args: ?message";
-    caller == player || caller == #0 || raise(E_PERM);
-    set_task_perms(player);
-    is_player(this) || raise(E_INVARG, "DM target must be a player");
-    this == player && return player:inform_current($event:mk_error(player, "Talking to yourself?"):with_audience('utility));
-    {?message = ""} = args;
-    if (typeof(message) != TYPE_STR || !message:trim())
-      prompt = "Message to " + this:name() + ":";
-      placeholder = "Type your direct message...";
-      message = `player:prompt(prompt, placeholder) ! ANY => false';
-    endif
-    if (message == false || typeof(message) != TYPE_STR)
-      return;
-    endif
-    message = message:trim();
-    if (!message)
-      return player:inform_current($event:mk_error(player, "No message provided."):with_audience('utility));
-    endif
-    dm_obj = $dm:mk(player, this, message);
-    try
-      delivered = this:receive_dm(dm_obj);
-    except e (ANY)
-      return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + ": " + toliteral(e[2])):with_audience('utility));
-    endtry
-    if (typeof(delivered) == TYPE_ERR || !delivered)
-      return player:inform_current($event:mk_error(player, "Couldn't deliver your message to " + this:name() + "."):with_audience('utility));
-    endif
-    player:inform_current(dm_obj:sender_echo_event());
+    "Suggest examination and a direct message through the ordinary command parser.";
+    const {?who = player} = args;
+    const ref = tostr(this);
+    const actions = {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + ref]};
+    who == this && return actions;
+    return {@actions, ["id" -> "message", "label" -> "Send message", "command" -> "dm " + ref + " {input}",
+      "input" -> ["label" -> "Message", "placeholder" -> "Write a private message"]]};
   endmethod
 
   method test_help_environment_includes_global_player_and_features owner: HACKER
