@@ -32,6 +32,7 @@ export interface Suggestion {
     label: string;
     value: string;
     detail: string;
+    objectKind?: string;
 }
 
 const NO_SUGGESTIONS: Suggestion[] = [];

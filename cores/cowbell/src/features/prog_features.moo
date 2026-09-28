@@ -61,7 +61,9 @@ object PROG_FEATURES [
     return true;
   endmethod
 
-  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Edit"]
+  ]
     "HINT: <object>:<verb> or <object>.<property> -- Edit a verb or property.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -148,7 +150,9 @@ object PROG_FEATURES [
     endif
   endverb
 
-  verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Browse"]
+  ]
     "HINT: <object> -- Browse an object in the object browser.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -252,7 +256,9 @@ object PROG_FEATURES [
     return verb_args(target_obj, verb_name);
   endmethod
 
-  verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@list" (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "List code", "prefix" -> "List code for"]
+  ]
     "HINT: <object>:<verb> -- List verb code.";
     this:_challenge_command_perms();
     set_task_perms(player);

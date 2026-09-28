@@ -11,7 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { ActionHint } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import { SemanticIcon } from "./SemanticIcon";
 
 import { useFloatingCard } from "../hooks/useFloatingCard";
 import { SuggestionSource } from "../hooks/useSuggestions";
@@ -21,12 +23,14 @@ export interface InspectAction {
     id: string;
     label: string;
     command: string;
+    action?: ActionHint;
     input?: { label: string; placeholder: string; suggestions?: SuggestionSource };
 }
 
 export interface InspectData {
     title: string;
     description: string;
+    objectKind?: string;
     state?: string[];
     actions: InspectAction[];
 }
@@ -160,7 +164,10 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                 <div>
                     <div className="inspect-popover-eyebrow">Inspect</div>
                     <div className="inspect-popover-title-row">
-                        <div id={titleId} className="inspect-popover-title">{data.title}</div>
+                        <div id={titleId} className="inspect-popover-title">
+                            <SemanticIcon kind={data.objectKind} />
+                            {data.title}
+                        </div>
                         {reference && !isPreview && (
                             <div className="inspect-popover-copy-control">
                                 <button
@@ -222,7 +229,10 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                                     }}
                                 >
                                     <span>
-                                        <span className="inspect-popover-action-label">{action.label}</span>
+                                        <span className="inspect-popover-action-label">
+                                            <SemanticIcon kind={action.action?.icon} />
+                                            {action.label}
+                                        </span>
                                         <code>{preview}</code>
                                     </span>
                                     <span className="inspect-popover-action-arrow" aria-hidden="true">
@@ -256,6 +266,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                                                 }))}
                                         />
                                         <button type="submit">
+                                            <SemanticIcon kind={action.action?.icon} />
                                             {action.label} <span aria-hidden="true">↵</span>
                                         </button>
                                     </form>

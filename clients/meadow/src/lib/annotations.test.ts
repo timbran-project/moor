@@ -77,3 +77,65 @@ describe("semantic annotation boundary", () => {
         );
     });
 });
+
+// Semantic decoration does not change labels or invent meaning for unknown actions.
+it("keeps prose objects undecorated and only renders authored command icons", () => {
+    const html = renderHtmlContent(
+        "<span data-moor-annotation=\"person\">Pat</span><span data-moor-annotation=\"action\">hand it over</span><span data-moor-annotation=\"custom\">frobnicate</span>",
+        false,
+        decodeAnnotations({
+            person: { kind: "object", ref: "oid:45", objectKind: "person" },
+            action: { kind: "command", command: "hand #47 at #45", action: { icon: "give", label: "Give" } },
+            custom: {
+                kind: "command",
+                command: "frobnicate",
+                action: { icon: "unrecognised-action", label: "Frobnicate" },
+            },
+        }),
+    );
+    const element = document.createElement("div");
+    element.innerHTML = html;
+    expect(element.querySelector("[data-moor-annotation=\"person\"] svg")).toBeNull();
+    expect(element.querySelector("[data-moor-annotation=\"action\"] svg")).toBeTruthy();
+    expect(element.querySelector("[data-moor-annotation=\"custom\"] svg")).toBeNull();
+    expect(element.textContent).toBe("Pathand it overfrobnicate");
+    expect(element.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+});
+
+it("identifies people in structured room lists", () => {
+    const html = renderHtmlContent(
+        "<div class=\"room_snapshot_chip_row\"><span data-moor-annotation=\"person\">Pat</span></div>",
+        false,
+        decodeAnnotations({ person: { kind: "object", ref: "oid:45", objectKind: "person" } }),
+    );
+    const element = document.createElement("div");
+    element.innerHTML = html;
+    expect(element.querySelector(".semantic-person svg")).toBeTruthy();
+    expect(element.textContent).toBe("Pat");
+});
+
+it("retains the documentation icon on help-topic links", () => {
+    const html = renderDjot("[Movement]{annotation=topic}", {
+        annotations: decodeAnnotations({ topic: { kind: "help", provider: "oid:9", topic: "movement" } }),
+    });
+    const element = document.createElement("div");
+    element.innerHTML = html;
+    expect(element.querySelector("[aria-label=\"Read help: Movement\"] svg")).toBeTruthy();
+});
+
+it("uses a command glyph in command lists and lets an authored icon override it", () => {
+    const annotations = decodeAnnotations({
+        plain: { kind: "command", command: "say hello" },
+        authored: { kind: "command", command: "offer", action: { label: "Offer", icon: "give" } },
+    });
+    const element = document.createElement("div");
+    element.innerHTML = renderDjot("{.reference-columns}\n* [say]{annotation=plain}\n* [offer]{annotation=authored}", {
+        annotations,
+    });
+    const plain = element.querySelector("[data-moor-annotation=\"plain\"] svg path");
+    const authored = element.querySelector("[data-moor-annotation=\"authored\"] svg path");
+    expect(plain).toBeTruthy();
+    expect(authored).toBeTruthy();
+    expect(plain?.getAttribute("d")).not.toEqual(authored?.getAttribute("d"));
+    expect(renderDjot("[say]{annotation=plain}", { annotations })).not.toContain("<svg");
+});

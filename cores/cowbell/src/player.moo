@@ -37,7 +37,9 @@ object PLAYER [
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "You see a player who should get around to describing themself.";
 
-  verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["prefix" -> "Look at", "arguments" -> ["dobj" -> "Object"]]
+  ]
     "Look at an object or passage direction.";
     caller == this || raise(E_PERM);
     set_task_perms(this);
@@ -718,7 +720,9 @@ object PLAYER [
     return $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'set_home, 'move}, 0, perms, key);
   endmethod
 
-  verb "exam*ine x" (any none none) owner: ARCH_WIZARD flags: "rxd"
+  verb "exam*ine x" (any none none) owner: ARCH_WIZARD flags: "rxd" [
+    ui -> ["arguments" -> ["dobj" -> "Object"]]
+  ]
     "Display detailed information about an object.";
     "Syntax: examine <object>";
     "";
@@ -790,7 +794,9 @@ object PLAYER [
     this:inform_current(event);
   endverb
 
-  verb "help what" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "help what" (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["prefix" -> "Help with", "arguments" -> ["dobj" -> "Topic"]]
+  ]
     "Tell the player where they are and what's around.";
     "Display available commands and actions. If a target object is specified, show help for that object.";
     "If a topic name is given, search for help on that topic.";
@@ -1573,7 +1579,7 @@ object PLAYER [
             endif
           else
             hint = this:_make_verb_hint(definer, verb_name, dobj, prep, iobj);
-            all_verbs[verb_name] = ['verb -> verb_name, 'dobj -> dobj, 'prep -> prep, 'iobj -> iobj, 'objects -> {o}, 'hint -> hint];
+            all_verbs[verb_name] = ['verb -> verb_name, 'dobj -> dobj, 'prep -> prep, 'iobj -> iobj, 'objects -> {o}, 'hint -> hint, 'action -> definer:command_action(verb_name)];
           endif
         endfor
       endfor
@@ -1637,7 +1643,9 @@ object PLAYER [
     return parts:join(" ");
   endmethod
 
-  verb "dm pm tell page" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "dm pm tell page" (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Send message", "prefix" -> "Message"]
+  ]
     "Send a direct message to another player.";
     "Usage: dm <player> <message>";
     caller == this || raise(E_PERM);
@@ -1708,7 +1716,9 @@ object PLAYER [
     return true;
   endmethod
 
-  verb reply (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb reply (any any any) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["prefix" -> "Reply to"]
+  ]
     "Reply to the last person who DM'd you.";
     "Usage: reply <message>";
     caller == this || raise(E_PERM);
@@ -1739,7 +1749,9 @@ object PLAYER [
     this:inform_current(dm_obj:sender_echo_event());
   endverb
 
-  verb "dms messages msgs mail" (none none none) owner: ARCH_WIZARD flags: "rd"
+  verb "dms messages msgs mail" (none none none) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Messages"]
+  ]
     "Show all messages (DMs and mail) in unified view.";
     caller == this || raise(E_PERM);
     const actor = caller_perms();
@@ -2447,7 +2459,9 @@ object PLAYER [
     return {exact, near};
   endmethod
 
-  verb "walk go_to goto" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "walk go_to goto" (any any any) owner: ARCH_WIZARD flags: "rxd" [
+    ui -> ["label" -> "Go", "prefix" -> "Go to", "arguments" -> ["dobj" -> "Destination"]]
+  ]
     "Walk automatically to a destination room.";
     "Usage: walk [to] <destination> | walk stop";
     set_task_perms(player);
@@ -3503,9 +3517,10 @@ object PLAYER [
     "Suggest examination and a direct message through the ordinary command parser.";
     const {?who = player} = args;
     const ref = tostr(this);
-    const actions = {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + ref]};
+    const actions = {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + ref, "action" -> $player:command_action("examine", this:name())]};
     who == this && return actions;
     return {@actions, ["id" -> "message", "label" -> "Send message", "command" -> "dm " + ref + " {input}",
+      "action" -> $player:command_action("dm", this:name()),
       "input" -> ["label" -> "Message", "placeholder" -> "Write a private message"]]};
   endmethod
 

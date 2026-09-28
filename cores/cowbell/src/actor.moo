@@ -16,6 +16,11 @@ object ACTOR [
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
 
+  method reference_kind owner: HACKER
+    "Identify players and other actors as people in client references.";
+    return "person";
+  endmethod
+
   method is_actor owner: HACKER
     "Actors can perform actions in the world.";
     return true;
@@ -32,7 +37,9 @@ object ACTOR [
     player:inform_current(event);
   endverb
 
-  verb "give hand" (any at this) owner: ARCH_WIZARD flags: "rd"
+  verb "give hand" (any at this) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["prefix" -> "Give to", "arguments" -> ["dobj" -> "Item"]]
+  ]
     "Give a carried object to a nearby actor through the command parser.";
     const actor = caller_perms();
     actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);

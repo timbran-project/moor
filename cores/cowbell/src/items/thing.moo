@@ -267,7 +267,9 @@ object THING [
     return true;
   endmethod
 
-  verb get (this none none) owner: ARCH_WIZARD flags: "rxd"
+  verb get (this none none) owner: ARCH_WIZARD flags: "rxd" [
+    ui -> ["label" -> "Take"]
+  ]
     "Get/take an object - command handler";
     set_task_perms(caller_perms());
     if (this.location == player)
@@ -406,7 +408,8 @@ object THING [
     this.location != who && !$thing:take_reachable(this, who) && return {actions[1]};
     const carrying = this.location == who;
     const transfer = ["id" -> "transfer", "label" -> carrying ? "Drop" | "Take",
-      "command" -> (carrying ? "drop " | "get ") + tostr(this)];
+      "command" -> (carrying ? "drop " | "get ") + tostr(this),
+      "action" -> $thing:command_action(carrying ? "drop" | "get", this:name())];
     return carrying || this.portable ? {actions[1], transfer, @actions[2..$]} | actions;
   endmethod
 

@@ -18,11 +18,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { checkReferences } from "../context/ArgumentContext";
 import { useFloatingCard } from "../hooks/useFloatingCard";
 import { Suggestion } from "../hooks/useSuggestions";
+import { SemanticIcon } from "./SemanticIcon";
 import { SuggestionInput } from "./SuggestionInput";
 
 type CommandAnnotation = Extract<SemanticAnnotation, { kind: "command" }>;
 interface Props {
     annotation: CommandAnnotation;
+    position: { x: number; y: number };
     authToken?: string | null;
     revision?: number;
     onSubmit: (command: string) => boolean;
@@ -47,10 +49,14 @@ export function annotationCommand(annotation: CommandAnnotation, drafts: Record<
 }
 
 /** Argument collection remains nonmodal so existing output can supply a reference. */
-export function AnnotationCommandReview({ annotation, authToken = null, revision = 0, onSubmit, onClose }: Props) {
+export function AnnotationCommandReview(
+    { annotation, position, authToken = null, revision = 0, onSubmit, onClose }: Props,
+) {
     const id = useId();
-    const [position] = useState(() => ({ x: window.innerWidth - 376, y: 88 }));
-    const { cardRef, isDragging, dragHandlers } = useFloatingCard(position);
+    const actionLabel = annotation.action?.label ?? (annotation.exit ? "Go" : "Run command");
+    const actionTitle = annotation.action?.title ?? actionLabel;
+    const actionIcon = annotation.action?.icon;
+    const { cardRef, isDragging, dragHandlers } = useFloatingCard(position, true, true);
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
         cardRef.current?.focus({ preventScroll: true });
@@ -161,10 +167,18 @@ export function AnnotationCommandReview({ annotation, authToken = null, revision
             }}
         >
             <div className="command-card-header" data-dragging={isDragging || undefined} {...dragHandlers}>
-                <h2 id={id}>Run command</h2>
+                <h2 id={id}>
+                    <SemanticIcon kind={actionIcon} />
+                    {actionTitle}
+                </h2>
                 <button type="button" aria-label="Close command" title="Close" onClick={onClose}>×</button>
             </div>
-            <pre className="annotation-command-preview">{command}</pre>
+            <details className="command-card-syntax">
+                <summary>
+                    Command <code>{command}</code>
+                </summary>
+                <pre className="annotation-command-preview">{command}</pre>
+            </details>
             <div className="command-card-content">
                 {fields.map(([slot, field]) => (
                     <div className="annotation-command-field" key={slot}>
@@ -199,7 +213,11 @@ export function AnnotationCommandReview({ annotation, authToken = null, revision
                 {error && <p role="alert">{error}</p>}
             </div>
             <div className="command-card-footer">
-                <small>{fields.length ? "Choose arguments, then run." : "Runs in your current surroundings."}</small>
+                <small>
+                    {fields.some(([, field]) => field.expectedKind === "object" && field.suggestions)
+                        ? "Choose from suggestions or the transcript."
+                        : "Results appear in the transcript."}
+                </small>
                 <button
                     type="button"
                     disabled={!complete || sending || Object.keys(invalid).length > 0}
@@ -209,7 +227,8 @@ export function AnnotationCommandReview({ annotation, authToken = null, revision
                     }}
                     onClick={() => void submit()}
                 >
-                    Run command ↵
+                    <SemanticIcon kind={actionIcon} />
+                    {actionLabel} <span aria-hidden="true">↵</span>
                 </button>
             </div>
         </div>

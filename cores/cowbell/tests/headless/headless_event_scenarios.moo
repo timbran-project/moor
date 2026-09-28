@@ -158,6 +158,9 @@ object HEADLESS_EVENT_SCENARIOS
         $test_utils:assert_true(maphaskey(ref, "definer"), "inherited verb includes its definer");
       endif
     endfor
+    const speech = $help_utils:command_usage("say <message>", player, {"any", "any", "any"}).descriptor;
+    $test_utils:assert_eq(speech["arguments"]["dobj"]["expectedKind"], "text", "unconstrained speech takes free text");
+    $test_utils:assert_false(maphaskey(speech["arguments"]["dobj"], "suggestions"), "speech does not suggest objects");
     const plain = event:transform_for(player, 'text_plain);
     $test_utils:assert_eq(plain["annotations"], [], "telnet needs no semantic metadata");
     $test_utils:assert_true(index(plain["content"]:join(""), "say <message>"), "telnet retains usage label");
@@ -170,7 +173,7 @@ object HEADLESS_EVENT_SCENARIOS
   endverb
   verb test_command_entries (this none this) owner: ARCH_WIZARD flags: "rxd"
     "Command listings bind the receiver and reuse authored completion scope without executing anything.";
-    const usage = $help_utils:command_usage("get <thing>", player).descriptor;
+    const usage = $help_utils:command_usage("get <thing>", player, {"this", "none", "none"}).descriptor;
     $test_utils:assert_eq(usage["template"], "get {dobj}", "authored usage does not bind whichever object defines get nearby");
     $test_utils:assert_eq(usage["arguments"]["dobj"]["suggestions"]["source"], "nearby", "usage has normal completion");
     const target = create($container, player);
@@ -230,6 +233,27 @@ object HEADLESS_EVENT_SCENARIOS
       $test_utils:assert_eq(descriptor["command"], command, "Invoker receives a complete command");
       $test_utils:assert_false(maphaskey(descriptor, "arguments"), "Invoker does not request an unused argument");
     endfor
+    return true;
+  endmethod
+  method test_action_semantics owner: ARCH_WIZARD
+    "Aliases share authored meanings; unknown commands do not acquire an icon by guesswork.";
+    const give = $actor:command_action("hand", "Mr. Welcome");
+    $test_utils:assert_eq(give, ["label" -> "Give", "title" -> "Give to Mr. Welcome", "arguments" -> ["dobj" -> "Item"]], "alias resolves the defining verb's authored action");
+    $test_utils:assert_false(maphaskey($root:command_action("open"), "icon"), "matching a familiar name does not invent semantics on another definer");
+    $test_utils:assert_eq($format.annotation:object(player).descriptor["objectKind"], "person", "actor references retain person identity");
+    $test_utils:assert_eq($format.annotation:object($container).descriptor["objectKind"], "container", "container references retain their identity");
+    const entry = $obj_utils:command_entry($actor, {"give hand", $actor, "any", "at/to", "this"}, #90102);
+    $test_utils:assert_eq(entry.descriptor["action"]["label"], "Give", "invocation carries the authored action");
+    $test_utils:assert_eq(entry.descriptor["template"], "give {dobj} at " + tostr($actor), "action labels do not rewrite parser commands");
+    $test_utils:assert_eq(entry.label, "give <item> at " + $actor:name(), "caption names the argument using the exact parser preposition");
+    const actor = $actor:create();
+    add_verb(actor, {player, "rd", "offer hand"}, {"any", "at", "this"});
+    set_verb_metadata(actor, "offer", "ui", ["label" -> "Offer", "icon" -> "give"]);
+    $test_utils:assert_eq(actor:command_action("hand")["icon"], "give", "optional icon comes from verb metadata through aliases");
+    $test_utils:assert_false(maphaskey($actor:command_action("give"), "icon"), "stock commands need not have icons");
+    set_verb_metadata(actor, "offer", "ui", 42);
+    $test_utils:assert_eq(actor:command_action("offer")["label"], "Offer", "malformed optional hints fall back to text");
+    recycle(actor);
     return true;
   endmethod
 endobject

@@ -171,6 +171,7 @@ export const PALETTE_VERBS: PaletteVerb[] = [
 ];
 
 export interface PaletteVerb {
+    actionIcon?: string;
     verb: string;
     label: string;
     placeholder: string | null;

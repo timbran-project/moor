@@ -267,9 +267,12 @@ export const MainSurface: React.FC = () => {
     const [memberCopyNotice, setMemberCopyNotice] = useState("");
     const [memberNavigation, setMemberNavigation] = useState<MemberNavigation | undefined>();
     const navigationSequence = useRef(0);
-    const [annotationCommand, setAnnotationCommand] = useState<Extract<SemanticAnnotation, { kind: "command" }> | null>(
-        null,
-    );
+    const [annotationCommand, setAnnotationCommand] = useState<
+        {
+            annotation: Extract<SemanticAnnotation, { kind: "command" }>;
+            position: { x: number; y: number };
+        } | null
+    >(null);
     useEffect(() => {
         setAnnotationCommand(null);
         setMemberNavigation(undefined);
@@ -286,7 +289,9 @@ export const MainSurface: React.FC = () => {
         if (annotation.kind === "object" && !argumentCoordinator.select(annotation.ref)) {
             void inspectObject(annotation.ref, position);
         }
-        if (annotation.kind === "command") setAnnotationCommand(annotation);
+        if (annotation.kind === "command") {
+            setAnnotationCommand({ annotation, position: { x: position.x, y: position.y + 8 } });
+        }
         if (annotation.kind === "verb" || annotation.kind === "property") {
             if (!canUseObjectBrowser) {
                 setMemberCopyNotice("");
@@ -911,7 +916,8 @@ export const MainSurface: React.FC = () => {
                     {annotationCommand && (
                         <AnnotationCommandReview
                             key={JSON.stringify(annotationCommand)}
-                            annotation={annotationCommand}
+                            annotation={annotationCommand.annotation}
+                            position={annotationCommand.position}
                             authToken={authToken}
                             revision={stateRevision}
                             onSubmit={submitInspectionCommand}

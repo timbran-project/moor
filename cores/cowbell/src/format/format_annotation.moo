@@ -20,7 +20,15 @@ object FORMAT_ANNOTATION [
   method object owner: HACKER
     "Capture an object reference with its authored label.";
     const {target, ?label = target:name()} = args;
-    return this:mk(label, ["kind" -> "object", "ref" -> $url_utils:to_curie_str(target)]);
+    return this:mk(label, ["kind" -> "object", "ref" -> $url_utils:to_curie_str(target), "objectKind" -> target:reference_kind()]);
+  endmethod
+
+  method with_action owner: HACKER
+    "Attach authored action labels without changing the parser command.";
+    const {action} = args;
+    let descriptor = this.descriptor;
+    descriptor["action"] = action;
+    return <$format.annotation, .label = this.label, .descriptor = descriptor>;
   endmethod
 
   method command owner: HACKER

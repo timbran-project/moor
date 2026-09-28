@@ -297,6 +297,11 @@ object CONTAINER [
     "```"
   };
 
+  method reference_kind owner: HACKER
+    "Identify containers in client references and choices.";
+    return "container";
+  endmethod
+
   method acceptable owner: HACKER
     "Containers accept items by default";
     return true;
@@ -467,16 +472,20 @@ object CONTAINER [
       const ref = tostr(this);
       actions = {@actions,
         ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + ref,
+          "action" -> $container:command_action("put", this:name()),
           "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Find a carried item…",
             "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "inventory"]]],
         ["id" -> "take_from", "label" -> "Take from", "command" -> "get {input} from " + ref,
+          "action" -> $container:command_action("get", this:name()),
           "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Find an item inside…",
             "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "contents"]]]};
     endif
     return actions;
   endmethod
 
-  verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd"
+  verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Take", "prefix" -> "Take from", "arguments" -> ["dobj" -> "Item"]]
+  ]
     "Take an object from this container";
     const actor = caller_perms();
     actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
@@ -527,7 +536,9 @@ object CONTAINER [
     endtry
   endverb
 
-  verb put (any any this) owner: ARCH_WIZARD flags: "rd"
+  verb put (any any this) owner: ARCH_WIZARD flags: "rd" [
+    ui -> ["label" -> "Put inside", "arguments" -> ["dobj" -> "Item"]]
+  ]
     "Put an object in/on this container.";
     const actor = caller_perms();
     actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);

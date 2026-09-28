@@ -14,6 +14,7 @@
 import React, { forwardRef, useEffect, useId, useRef, useState } from "react";
 import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { Suggestion, SuggestionSource, useSuggestions } from "../hooks/useSuggestions";
+import { SemanticIcon } from "./SemanticIcon";
 
 interface SuggestionInputProps {
     id: string;
@@ -148,7 +149,10 @@ export const SuggestionInput = forwardRef<HTMLInputElement, SuggestionInputProps
                                 onClick={() => choose(item)}
                                 onPointerMove={() => setActive(index)}
                             >
-                                <span>{item.label}</span>
+                                <span className="suggestion-label">
+                                    <SemanticIcon kind={item.objectKind} />
+                                    {item.label}
+                                </span>
                                 <small>{item.detail}</small>
                             </button>
                         ))}

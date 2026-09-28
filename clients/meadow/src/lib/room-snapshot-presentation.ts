@@ -70,7 +70,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
                     return "";
                 }
                 const label = status && status !== "awake" ? `${name} (${status})` : name;
-                return region(label, { kind: "object", ref: objectCurie });
+                return region(label, { kind: "object", ref: objectCurie, objectKind: "person" });
             })
             .filter(Boolean)
         : [];
@@ -87,7 +87,11 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
                 if (!name || !objectCurie) {
                     return "";
                 }
-                return region(name, { kind: "object", ref: objectCurie });
+                return region(name, {
+                    kind: "object",
+                    ref: objectCurie,
+                    ...(thing.objectKind === "container" ? { objectKind: "container" as const } : {}),
+                });
             })
             .filter(Boolean)
         : [];
@@ -135,7 +139,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
     if (exitsSection) chipSections.push(exitsSection);
     const objectsSection = section("Things", [...actionButtons, ...thingButtons]);
     if (objectsSection) chipSections.push(objectsSection);
-    const playersSection = section("Players", actorButtons);
+    const playersSection = section("People", actorButtons);
     if (playersSection) chipSections.push(playersSection);
 
     const htmlParts: string[] = [];

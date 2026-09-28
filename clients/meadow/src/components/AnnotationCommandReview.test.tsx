@@ -23,6 +23,7 @@ describe("annotation command review", () => {
         const close = vi.fn();
         render(
             <AnnotationCommandReview
+                position={{ x: 120, y: 180 }}
                 annotation={{ kind: "command", command: "go e" }}
                 onSubmit={submit}
                 onClose={close}
@@ -30,7 +31,7 @@ describe("annotation command review", () => {
         );
         expect(submit).not.toHaveBeenCalled();
         expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("false");
-        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        fireEvent.click(screen.getByRole("button", { name: "Run command" }));
         await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("go e"));
         expect(close).toHaveBeenCalledOnce();
     });
@@ -41,12 +42,13 @@ describe("annotation command review", () => {
         const close = vi.fn();
         render(
             <AnnotationCommandReview
+                position={{ x: 120, y: 180 }}
                 annotation={{ kind: "command", command: "take #47" }}
                 onSubmit={submit}
                 onClose={close}
             />,
         );
-        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        fireEvent.click(screen.getByRole("button", { name: "Run command" }));
         await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Finish the current prompt."));
         expect(close).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole("button", { name: "Close command" }));
@@ -57,6 +59,7 @@ describe("annotation command review", () => {
         const submit = vi.fn(() => true);
         render(
             <AnnotationCommandReview
+                position={{ x: 120, y: 180 }}
                 annotation={{
                     kind: "command",
                     template: "write {dobj} on {iobj}",
@@ -73,7 +76,50 @@ describe("annotation command review", () => {
         fireEvent.change(screen.getByLabelText("Surface"), { target: { value: "wall" } });
         fireEvent.change(screen.getByLabelText("Words"), { target: { value: "hello" } });
         expect(submit).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        fireEvent.click(screen.getByRole("button", { name: "Run command" }));
         await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("write hello on wall"));
+    });
+    it("keeps free-text arguments free of object suggestions", async () => {
+        const submit = vi.fn(() => true);
+        render(
+            <AnnotationCommandReview
+                position={{ x: 120, y: 180 }}
+                annotation={{
+                    kind: "command",
+                    template: "say {dobj}",
+                    arguments: { dobj: { label: "Message", expectedKind: "text" } },
+                }}
+                onSubmit={submit}
+                onClose={vi.fn()}
+            />,
+        );
+        const input = screen.getByRole("textbox", { name: "Message" });
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: "hello everyone" } });
+        expect(screen.queryByRole("combobox")).toBeNull();
+        expect(screen.queryByRole("listbox")).toBeNull();
+        expect(screen.queryByText("Choose from suggestions or the transcript.")).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Run command" }));
+        await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("say hello everyone"));
+    });
+    it("uses authored action identity without deriving it from parser text", async () => {
+        const submit = vi.fn(() => true);
+        render(
+            <AnnotationCommandReview
+                position={{ x: 120, y: 180 }}
+                annotation={{
+                    kind: "command",
+                    command: "hand #47 at #45",
+                    action: { icon: "give", label: "Give", title: "Give to Mr. Welcome" },
+                }}
+                onSubmit={submit}
+                onClose={vi.fn()}
+            />,
+        );
+        expect(screen.getByRole("dialog", { name: "Give to Mr. Welcome" })).toBeTruthy();
+        expect(screen.getByRole("heading").querySelector("svg")).toBeTruthy();
+        expect(submit).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Give" }));
+        await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("hand #47 at #45"));
     });
 });

@@ -60,7 +60,7 @@ object HELP_UTILS [
         const reference = resolved[name];
         if (length(reference))
           if (index(label, "<"))
-            const invocation = this:command_usage(label, viewer);
+            const invocation = this:command_usage(label, viewer, reference[3]);
             fragment = $obj_utils:command_with_source(invocation, reference[1], name, reference[2], viewer);
           elseif (label != name && !index(label, "["))
             fragment = $obj_utils:command_with_source($format.annotation:command(label), reference[1], name, reference[2], viewer);
@@ -78,7 +78,7 @@ object HELP_UTILS [
   method command_usage owner: ARCH_WIZARD
     "Use an article's authored placeholders without binding an incidental nearby receiver.";
     set_task_perms(caller_perms());
-    const {usage, viewer} = args;
+    const {usage, viewer, argspec} = args;
     let template = usage;
     let fields = [];
     for slot in ({"dobj", "iobj"})
@@ -94,6 +94,10 @@ object HELP_UTILS [
       fields[slot] = ["label" -> label:capitalize(), "expectedKind" -> "text"];
     endfor
     index(template, "<") && return usage;
+    "Unconstrained verbs consume free text; a parser slot alone does not imply an object.";
+    if (argspec == {"any", "any", "any"})
+      return $format.annotation:command_template(template, fields, usage);
+    endif
     const parsed = parse_command(strsub(strsub(template, "{dobj}", "#-2"), "{iobj}", "#-3"), {}, false);
     for slot in (mapkeys(fields))
       const marker = slot == "dobj" ? "#-2" | "#-3";

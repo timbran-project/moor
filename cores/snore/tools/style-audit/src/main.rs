@@ -140,7 +140,8 @@ fn run() -> Result<bool, Box<dyn Error>> {
         let mut body = None;
         // The lexer locates declaration boundaries; both the full objdef and each body
         // are checked by the compiler. Core declarations use the guide's two-space indent.
-        for token in lex(&source) {
+        let mut tokens = lex(&source).into_iter();
+        while let Some(token) = tokens.next() {
             if token.kind != SyntaxKind::Ident {
                 continue;
             }
@@ -155,12 +156,24 @@ fn run() -> Result<bool, Box<dyn Error>> {
                 if body.is_some() {
                     return Err(format!("nested declaration in {}", path.display()).into());
                 }
-                let start = source[token.span.end..]
-                    .find('\n')
-                    .ok_or("unterminated declaration")?
-                    + token.span.end
-                    + 1;
-                let header = source[token.span.end..start].trim().to_owned();
+                let mut metadata_depth = 0;
+                let mut metadata_start = None;
+                let start = loop {
+                    let next = tokens.next().ok_or("unterminated declaration")?;
+                    match next.kind {
+                        SyntaxKind::LBracket => {
+                            metadata_start.get_or_insert(next.span.start);
+                            metadata_depth += 1;
+                        }
+                        SyntaxKind::RBracket => metadata_depth -= 1,
+                        SyntaxKind::Newline if metadata_depth == 0 => break next.span.end,
+                        _ => {}
+                    }
+                };
+                // Metadata belongs to the declaration, not the executable body or debt key.
+                let header = source[token.span.end..metadata_start.unwrap_or(start)]
+                    .trim()
+                    .to_owned();
                 body = Some((
                     start,
                     header,

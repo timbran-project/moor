@@ -18,8 +18,9 @@ object OBJ_UTILS [
     const {receiver, spec, viewer, ?label = "", ?actions = {}} = args;
     const {names, definer, direct, prep_spec, indirect} = spec;
     const name = strsub(names:words()[1], "*", "");
-    let caption = label || this:format_verb_signature(name, direct, prep_spec, indirect, receiver:name());
+    let caption = label || name;
     let invocation = 0;
+    let hint = definer:command_action(names, direct == "this" || indirect == "this" ? receiver:name() | "");
     "Object-authored actions retain their argument scopes and chosen prepositions.";
     for action in (actions)
       const command = action["command"];
@@ -34,7 +35,7 @@ object OBJ_UTILS [
         || (!(prep_spec in {"none", "any"}) && !(parsed['prepstr] in prep_spec:split("/"))))
         continue;
       endif
-      !label && (caption = strsub(strsub(command, "{input}", "…"), tostr(receiver), receiver:name()));
+      maphaskey(action, "action") && (hint = action["action"]);
       if (!maphaskey(action, "input"))
         invocation = $format.annotation:command(command, caption);
         continue;
@@ -54,7 +55,7 @@ object OBJ_UTILS [
         fields["dobj"] = ["label" -> "Arguments", "expectedKind" -> "text", "required" -> false];
       else
         const prep = prep_spec == "none" ? "" | prep_spec:split("/")[1];
-        for position in ({{"dobj", direct, "Direct object"}, {"iobj", indirect, "Indirect object"}})
+        for position in ({{"dobj", direct, "Object"}, {"iobj", indirect, "Object"}})
           const {slot, constraint, prompt} = position;
           slot == "iobj" && prep && (template = template + " " + prep);
           if (constraint == "this")
@@ -68,15 +69,33 @@ object OBJ_UTILS [
       endif
       invocation = length(fields) ? $format.annotation:command_template(template, fields, caption) | $format.annotation:command(template, caption);
     endif
-    return this:command_with_source(invocation, receiver, names, definer, viewer);
+    let descriptor = invocation.descriptor;
+    const templated = maphaskey(descriptor, "template");
+    caption = templated ? descriptor["template"] | descriptor["command"];
+    if (templated)
+      let fields = descriptor["arguments"];
+      const labels = maphaskey(hint, "arguments") ? hint["arguments"] | [];
+      for slot in (mapkeys(fields))
+        let field = fields[slot];
+        const field_label = maphaskey(labels, slot) && typeof(labels[slot]) == TYPE_STR && labels[slot] ? labels[slot] | field["label"];
+        field["label"] = field_label;
+        fields[slot] = field;
+        caption = strsub(caption, "{" + slot + "}", "<" + field_label:lowercase() + ">");
+      endfor
+      descriptor["arguments"] = fields;
+    endif
+    caption = label || strsub(caption, tostr(receiver), receiver:name());
+    invocation = $format.annotation:mk(caption, descriptor);
+    return this:command_with_source(invocation:with_action(hint), receiver, names, definer, viewer);
   endmethod
 
   method command_with_source owner: ARCH_WIZARD
     "Keep invocation primary and offer programmer navigation as a separate adjacent link.";
     set_task_perms(caller_perms());
     const {invocation, receiver, name, definer, viewer} = args;
-    !viewer.programmer && return invocation;
-    return $format.paragraph:inline(invocation, " ", $format.annotation:verb(receiver, name, "↗", definer));
+    const linked = maphaskey(invocation.descriptor, "action") ? invocation | invocation:with_action(definer:command_action(name));
+    !viewer.programmer && return linked;
+    return $format.paragraph:inline(linked, " ", $format.annotation:verb(receiver, name, "↗", definer));
   endmethod
 
   method format_verb_signature owner: ARCH_WIZARD

@@ -4091,3 +4091,64 @@ button:disabled {
     font-size: 0.85em;
     color: var(--color-text-secondary);
 }
+
+/* Shared semantic marks stay subordinate to the accompanying names. */
+.semantic-icon {
+    display: inline-block;
+    width: 1.05em;
+    height: 1.05em;
+    flex: 0 0 auto;
+    vertical-align: -0.16em;
+}
+.semantic-icon-wrap { display: inline-flex; align-items: center; }
+.semantic-annotation > .semantic-icon { margin-inline-end: 0.3em; }
+.inspect-popover-title,
+.inspect-popover-action-label,
+.command-card-header h2,
+.command-card-footer button,
+.inspect-popover-input button,
+.suggestion-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+}
+.command-card-header h2 { min-width: 0; overflow-wrap: anywhere; }
+.command-card-header button { flex-shrink: 0; }
+.top_dock_panel_content .room_snapshot_chip_row .semantic-person {
+    background: transparent;
+    border-color: transparent;
+}
+.command-card-syntax {
+    margin: 0 12px 12px;
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+}
+.command-card-syntax summary { cursor: pointer; }
+.command-card-syntax summary code {
+    display: inline-block;
+    max-width: calc(100% - 6em);
+    margin-inline-start: 0.5em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    font-size: 0.75rem;
+}
+.command-card-syntax[open] summary code { visibility: hidden; }
+.command-card-syntax .annotation-command-preview { margin: 8px 0 0; }
+.command-card[data-mobile-sheet="true"] { border-radius: 16px; }
+.command-card[data-mobile-sheet="true"] .command-card-header { cursor: default; }
+@media (pointer: coarse) {
+    .command-card-header button,
+    .inspect-popover-close,
+    .inspect-popover-copy,
+    .command-card-footer button,
+    .inspect-popover-input button,
+    .suggestion-input [role="option"] { min-height: 44px; }
+    .command-card-header button,
+    .inspect-popover-close,
+    .inspect-popover-copy { min-width: 44px; }
+    .command-card [role="listbox"] { max-height: 176px; }
+    .command-card-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+.verb-chip .semantic-icon-wrap { margin-inline-end: 0.35em; vertical-align: -0.15em; }

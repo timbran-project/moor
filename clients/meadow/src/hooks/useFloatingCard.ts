@@ -16,7 +16,7 @@
 import { PointerEvent, useCallback, useLayoutEffect, useRef, useState } from "react";
 
 /** Keep a movable card inside the visual viewport, including the mobile keyboard. */
-export function useFloatingCard(position: { x: number; y: number }, enabled = true) {
+export function useFloatingCard(position: { x: number; y: number }, enabled = true, mobileSheet = false) {
     const cardRef = useRef<HTMLDivElement>(null);
     const drag = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -28,13 +28,22 @@ export function useFloatingCard(position: { x: number; y: number }, enabled = tr
         const top = (viewport?.offsetTop ?? 0) + 16;
         const width = viewport?.width ?? window.innerWidth;
         const height = viewport?.height ?? window.innerHeight;
-        card.style.maxWidth = `${Math.max(0, Math.min(360, width - 32))}px`;
+        const sheet = mobileSheet && width <= 600;
+        card.dataset.mobileSheet = String(sheet);
+        if (sheet) {
+            card.style.width = `${Math.max(0, width - 32)}px`;
+        }
+        card.style.maxWidth = `${Math.max(0, sheet ? width - 32 : Math.min(360, width - 32))}px`;
         card.style.maxHeight = `${Math.max(0, height - 32)}px`;
         const rect = card.getBoundingClientRect();
-        if (preferAbove && y + rect.height > top + height - 32) y -= rect.height + 8;
+        if (sheet) {
+            x = left;
+            y = top + height - 32 - rect.height;
+        }
+        if (preferAbove && !sheet && y + rect.height > top + height - 32) y -= rect.height + 8;
         card.style.left = `${Math.max(left, Math.min(x, left + width - 32 - rect.width))}px`;
         card.style.top = `${Math.max(top, Math.min(y, top + height - 32 - rect.height))}px`;
-    }, []);
+    }, [mobileSheet]);
     useLayoutEffect(() => {
         const card = cardRef.current;
         if (!card) return;
@@ -70,7 +79,10 @@ export function useFloatingCard(position: { x: number; y: number }, enabled = tr
         isDragging,
         dragHandlers: {
             onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
-                if (!enabled || event.button !== 0 || drag.current || (event.target as Element).closest("button")) {
+                if (
+                    cardRef.current?.dataset.mobileSheet === "true" || !enabled || event.button !== 0 || drag.current
+                    || (event.target as Element).closest("button")
+                ) {
                     return;
                 }
                 const card = cardRef.current;

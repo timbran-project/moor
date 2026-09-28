@@ -14,11 +14,19 @@
 // Copyright (C) 2026 The mooR Authors
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+export interface ActionHint {
+    icon?: string;
+    label: string;
+    title?: string;
+}
+
+export type ObjectKind = "object" | "person" | "container";
+
 /** Semantic references are data, scoped to the event that owns their anchors. */
 export type SemanticAnnotation =
-    | { kind: "object"; ref: string }
+    | { kind: "object"; ref: string; objectKind?: ObjectKind }
     | (
-        & { kind: "command"; exit?: ExitDescriptor }
+        & { kind: "command"; exit?: ExitDescriptor; action?: ActionHint }
         & (
             | { command: string; template?: never; arguments?: never }
             | { command?: never; template: string; arguments: Record<string, CommandArgument> }
@@ -73,7 +81,16 @@ export function decodeAnnotation(value: unknown): SemanticAnnotation | undefined
     if (size > MAX_ANNOTATION_SIZE) return undefined;
     switch (value.kind) {
         case "object":
-            return reference(value.ref) ? { kind: "object", ref: value.ref } : undefined;
+            return reference(value.ref)
+                ? {
+                    kind: "object",
+                    ref: value.ref,
+                    ...(value.objectKind === "person" || value.objectKind === "container"
+                            || value.objectKind === "object"
+                        ? { objectKind: value.objectKind }
+                        : {}),
+                }
+                : undefined;
         case "help":
             return reference(value.provider) && text(value.topic)
                 ? { kind: "help", provider: value.provider, topic: value.topic }
@@ -96,6 +113,19 @@ export function decodeAnnotation(value: unknown): SemanticAnnotation | undefined
                 ? { kind: "property", object: value.object, name: value.name }
                 : undefined;
         case "command": {
+            let action: ActionHint | undefined;
+            if (value.action !== undefined) {
+                if (
+                    !record(value.action) || !text(value.action.label, 80)
+                    || (value.action.icon !== undefined && !text(value.action.icon, 32))
+                    || (value.action.title !== undefined && !text(value.action.title))
+                ) return undefined;
+                action = {
+                    label: value.action.label,
+                    icon: value.action.icon as string | undefined,
+                    title: value.action.title as string | undefined,
+                };
+            }
             let exit: ExitDescriptor | undefined;
             if (value.exit !== undefined) {
                 if (
@@ -105,7 +135,7 @@ export function decodeAnnotation(value: unknown): SemanticAnnotation | undefined
                 exit = { source: value.exit.source, destination: value.exit.destination, passage: value.exit.passage };
             }
             if (text(value.command, 1024) && value.template === undefined && value.arguments === undefined) {
-                return { kind: "command", command: value.command, exit };
+                return { kind: "command", command: value.command, exit, ...(action ? { action } : {}) };
             }
             if (value.command !== undefined || !text(value.template, 1024) || !record(value.arguments) || exit) {
                 return undefined;
@@ -148,7 +178,7 @@ export function decodeAnnotation(value: unknown): SemanticAnnotation | undefined
                 slots.length !== fields.length || slots.some(slot => !Object.hasOwn(args, slot))
                 || new Set(slots).size !== slots.length
             ) return undefined;
-            return { kind: "command", template: value.template, arguments: args };
+            return { kind: "command", template: value.template, arguments: args, ...(action ? { action } : {}) };
         }
         default:
             return undefined;

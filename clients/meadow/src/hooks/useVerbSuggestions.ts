@@ -23,6 +23,7 @@ export interface VerbSuggestion {
     iobj: string;
     objects: string[];
     hint: string | null;
+    actionIcon?: string;
     placeholderText: string | null;
 }
 
@@ -81,6 +82,9 @@ export const useVerbSuggestions = (
                 objects: Array.isArray(item.objects)
                     ? item.objects.map((o: unknown) => String(o))
                     : [],
+                actionIcon: typeof (item.action as { icon?: unknown } | undefined)?.icon === "string"
+                    ? (item.action as { icon: string }).icon
+                    : undefined,
                 hint: typeof item.hint === "string" ? item.hint : null,
                 placeholderText: typeof item.placeholder_text === "string" ? item.placeholder_text : null,
             })).filter((s: VerbSuggestion) => s.verb !== "");

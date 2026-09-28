@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuthContext } from "../context/AuthContext";
 import { useVerbSuggestions, VerbSuggestion } from "../hooks/useVerbSuggestions";
 import { PALETTE_VERBS, PaletteVerb } from "../lib/known-verbs";
+import { SemanticIcon } from "./SemanticIcon";
 
 interface VerbPaletteProps {
     visible: boolean;
@@ -54,6 +55,7 @@ function suggestionToDisplay(suggestion: VerbSuggestion): PaletteVerb {
     return {
         verb,
         label: extractVerbLabel(suggestion.verb),
+        actionIcon: suggestion.actionIcon,
         placeholder,
     };
 }
@@ -321,7 +323,7 @@ export const VerbPalette: React.FC<VerbPaletteProps> = ({ visible, onVerbSelect 
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseLeave}
                 >
-                    {displayVerbs.map(({ verb, label, placeholder }, index) => (
+                    {displayVerbs.map(({ verb, label, placeholder, actionIcon }, index) => (
                         <button
                             key={verb}
                             ref={(el) => {
@@ -337,6 +339,7 @@ export const VerbPalette: React.FC<VerbPaletteProps> = ({ visible, onVerbSelect 
                             tabIndex={index === focusedIndex ? 0 : -1}
                             aria-label={buildVerbAriaLabel(verb, placeholder)}
                         >
+                            <SemanticIcon kind={actionIcon} />
                             {label}
                         </button>
                     ))}

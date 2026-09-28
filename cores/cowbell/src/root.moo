@@ -14,6 +14,34 @@ object ROOT [
   property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
   property revoked_capability_jtis (owner: ARCH_WIZARD, flags: "rc") = [];
+
+  method reference_kind owner: HACKER
+    "Semantic identity for object links, inspection, and completion choices.";
+    return "object";
+  endmethod
+
+  method command_action owner: ARCH_WIZARD
+    "Read optional UI hints from the actual verb's metadata; aliases share one definition.";
+    "The ui map accepts label, prefix (title before the target name), icon, and arguments.";
+    "arguments maps dobj/iobj to field labels. Icon names are optional client decoration.";
+    set_task_perms(caller_perms());
+    const {names, ?target_name = ""} = args;
+    let ui = `verb_metadata(this, names:words()[1], "ui") ! E_VERBNF, E_PERM => []';
+    typeof(ui) == TYPE_MAP || (ui = []);
+    const aliases = `verb_info(this, names:words()[1])[3] ! E_VERBNF, E_PERM => names';
+    const fallback = strsub(aliases:words()[1], "*", ""):capitalize();
+    const label = maphaskey(ui, "label") && typeof(ui["label"]) == TYPE_STR && ui["label"] ? ui["label"] | fallback;
+    const prefix = maphaskey(ui, "prefix") && typeof(ui["prefix"]) == TYPE_STR && ui["prefix"] ? ui["prefix"] | label;
+    let hint = ["label" -> label, "title" -> target_name ? prefix + " " + target_name | label];
+    if (maphaskey(ui, "icon") && typeof(ui["icon"]) == TYPE_STR && ui["icon"])
+      hint["icon"] = ui["icon"];
+    endif
+    if (maphaskey(ui, "arguments") && typeof(ui["arguments"]) == TYPE_MAP)
+      hint["arguments"] = ui["arguments"];
+    endif
+    return hint;
+  endmethod
+
   property thumbnail (owner: HACKER, flags: "rc") = false;
 
   method create owner: ARCH_WIZARD
@@ -763,7 +791,7 @@ object ROOT [
   method inspection owner: ARCH_WIZARD
     "Describe an object and its command suggestions for a viewer. Availability is advisory.";
     const {?who = player} = args;
-    return ["title" -> this:name(), "description" -> this:description(),
+    return ["title" -> this:name(), "objectKind" -> this:reference_kind(), "description" -> this:description(),
       "state" -> this:inspection_state(who), "actions" -> this:inspection_actions(who)];
   endmethod
 
@@ -775,7 +803,8 @@ object ROOT [
   method inspection_actions owner: ARCH_WIZARD
     "Return labelled commands; command parsing and execution remain authoritative.";
     const {?who = player} = args;
-    return {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + tostr(this)],
+    return {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + tostr(this),
+      "action" -> $player:command_action("examine", this:name())],
       @this:inspection_commands(who)};
   endmethod
 
@@ -813,8 +842,16 @@ object ROOT [
         continue;
       endif
       seen = {@seen, name};
-      let action = ["id" -> name, "label" -> name:capitalize(), "command" -> command];
+      const hint = definer:command_action(names, this:name());
+      let action = ["id" -> name, "label" -> hint["label"], "command" -> command, "action" -> hint];
       if (input_label)
+        const slot = direct == "any" ? "dobj" | "iobj";
+        const labels = maphaskey(hint, "arguments") ? hint["arguments"] | [];
+        if (maphaskey(labels, slot) && typeof(labels[slot]) == TYPE_STR && labels[slot])
+          input_label = labels[slot];
+        else
+          input_label = "Object";
+        endif
         action["input"] = ["label" -> input_label, "placeholder" -> "Find an item…",
           "suggestions" -> ["provider" -> $url_utils:to_curie_str(who), "source" -> "nearby"]];
       endif

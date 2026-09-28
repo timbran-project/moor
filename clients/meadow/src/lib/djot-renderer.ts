@@ -17,6 +17,7 @@ import { AnsiUp } from "ansi_up";
 import DOMPurify from "dompurify";
 import Prism from "prismjs";
 import { convertEmoticons } from "../components/EmojiToggle";
+import { semanticIconMarkup } from "./semantic-icons";
 import "./prism-moo";
 
 /**
@@ -632,6 +633,18 @@ export function bindAnnotationMarkers(html: string, annotations?: AnnotationTabl
         if (sourceLink) element.classList.add("semantic-source-link");
         element.title = sourceLink ? `${action}: ${label}` : action;
         element.setAttribute("aria-label", `${action}: ${label}`);
+        // Prose stays undecorated; structured room lists identify people.
+        const icon = annotation.kind === "object"
+            ? (annotation.objectKind === "person" && element.closest(".room_snapshot_chip_row") ? "person" : undefined)
+            : annotation.kind === "command"
+            ? (annotation.action?.icon ?? (element.closest(".reference-columns") ? "command" : undefined))
+            : annotation.kind === "help"
+            ? "help"
+            : undefined;
+        if (annotation.kind === "object" && annotation.objectKind === "person") {
+            element.classList.add("semantic-person");
+        }
+        element.insertAdjacentHTML("afterbegin", semanticIconMarkup(icon));
     }
     return container.innerHTML;
 }

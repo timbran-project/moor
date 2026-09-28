@@ -413,6 +413,7 @@ object ROOM [
     const identity = area:passage_link_id(this, destination);
     identity != "" || return [];
     return ["kind" -> "command", "command" -> "go " + direction,
+      "action" -> $player:command_action("go", direction),
       "exit" -> ["source" -> $url_utils:to_curie_str(this), "destination" -> $url_utils:to_curie_str(destination), "passage" -> identity]];
   endmethod
 
@@ -1174,7 +1175,7 @@ object ROOM [
         status = `look_data:actor_idle_status(o) ! ANY => ""';
         actors = {@actors, ["object" -> o, "name" -> name, "status" -> status]};
       else
-        things = {@things, ["object" -> o, "name" -> name]};
+        things = {@things, ["object" -> o, "name" -> name, "objectKind" -> o:reference_kind()]};
       endif
     endfor
     return ["room" -> this, "title" -> this:name(), "description" -> this:description(), "exits" -> all_exits, "exit_links" -> exit_links, "ambient_passages" -> ambient_passages, "actions" -> available_actions, "actors" -> actors, "things" -> things];

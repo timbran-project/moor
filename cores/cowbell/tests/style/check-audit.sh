@@ -23,7 +23,9 @@ object FIRST
   name: "First"
   parent: #-1
   owner: FIRST
-  method clean owner: FIRST
+  method clean owner: FIRST [
+    ui -> ["label" -> "Literal ] in a string", "arguments" -> ["dobj" -> "Item"]]
+  ]
     "Return a fixed value.";
     const value = 1;
     return value;
@@ -35,7 +37,7 @@ object SECOND
   name: "Second"
   parent: #-1
   owner: SECOND
-  method debt owner: SECOND
+  method debt owner: SECOND [ ui -> ["label" -> "Debt"] ]
     value = 1;
     if (value = 2)
       return value;

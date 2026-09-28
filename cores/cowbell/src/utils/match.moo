@@ -258,7 +258,7 @@ object MATCH [
       endif
       seen[obj] = length(result) + 1;
       result = {@result, ["id" -> tostr(obj), "label" -> obj:name(), "value" -> tostr(obj),
-        "detail" -> tostr(obj), "keys" -> {@obj:aliases(), @aliases}]};
+        "detail" -> tostr(obj), "objectKind" -> obj:reference_kind(), "keys" -> {@obj:aliases(), @aliases}]};
     endfor
     return result;
   endmethod
@@ -379,7 +379,8 @@ object MATCH [
       count = count + 1;
       if (length(buckets[rank]) < limit)
         buckets[rank] = {@buckets[rank], ["id" -> id, "label" -> candidate["label"],
-          "value" -> candidate["value"], "detail" -> `candidate["detail"] ! E_RANGE => ""']};
+          "value" -> candidate["value"], "detail" -> `candidate["detail"] ! E_RANGE => ""',
+          "objectKind" -> `candidate["objectKind"] ! E_RANGE => "object"']};
       endif
     endfor
     const ranked = {@buckets[1], @buckets[2], @buckets[3], @buckets[4]};
