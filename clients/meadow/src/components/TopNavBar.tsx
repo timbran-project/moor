@@ -45,9 +45,9 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 </svg>
             </button>
 
-            <div className="nav-title">{title}</div>
+            <div className="nav-title" title={title}>{title}</div>
 
-            <div className="flex gap-sm items-center">
+            <div className="nav-actions flex gap-sm items-center">
                 {onBrowserToggle && (
                     <button
                         className="account-icon"
