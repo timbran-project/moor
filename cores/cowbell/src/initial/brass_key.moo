@@ -8,6 +8,6 @@ object BRASS_KEY [
   owner: ARCH_WIZARD
   readable: true
 
-  override aliases = {"key", "brass key"};
-  override description = "A small brass key with an ornate handle. It looks like it might fit a lock on something nearby.";
+  override aliases (owner: ARCH_WIZARD, flags: "rc") = {"key", "brass key"};
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A small brass key with an ornate handle. It looks like it might fit a lock on something nearby.";
 endobject

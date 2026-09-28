@@ -1,0 +1,11 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; #90101:find_mailbox() == #90107 || raise(E_ASSERT); recycle(#90107); #90101:find_mailbox() == #-1 || raise(E_ASSERT); #90101.last_connected == 0 || raise(E_ASSERT); return true;
+true
+@programmer
+@@ user_created
+@wizard
+; const mailbox = #90101:find_mailbox(); return #90101.last_connected > 0 && valid(mailbox) && mailbox.owner == #90101;
+true

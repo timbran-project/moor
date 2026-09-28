@@ -7,7 +7,7 @@ object FORMAT_CODE [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for code block content. Renders code in fenced blocks with optional language specification for syntax highlighting.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for code block content. Renders code in fenced blocks with optional language specification for syntax highlighting.";
 
   method mk owner: HACKER
     "Create a code block flyweight. Args: (code_content) or (code_content, language)";

@@ -56,4 +56,61 @@ object HEADLESS_RELATION_SCENARIOS
     $test_utils:assert_false(rel:retract({actor, target_a, "holds"}), "retracting a missing tuple should return false");
     return true;
   endverb
+  method test_headless_relation_repeated_scalar_index owner: ARCH_WIZARD
+    "Repeated values in one tuple produce one result per asserted tuple.";
+    const relation = create($relation, $hacker, 2);
+    try
+      relation:assert({1, 1});
+      $test_utils:assert_eq(relation:select(1, 1), {{1, 1}}, "one tuple must appear once");
+      $test_utils:assert_eq(relation:select_containing(1), {{1, 1}}, "index must not duplicate the tuple");
+      relation:assert({1, 1});
+      $test_utils:assert_eq(length(relation:select(1, 1)), 2, "separate assertions retain multiplicity");
+      relation:retract({1, 1});
+      $test_utils:assert_eq(length(relation:select_containing(1)), 1, "retraction removes exactly one assertion");
+    finally
+      valid(relation) && relation:destroy();
+    endtry
+    return true;
+  endmethod
+
+  method test_headless_relation_private_reads_denied owner: ARCH_WIZARD
+    "Read APIs cannot use their verb owner to bypass private tuple and index permissions.";
+    const relation = create($relation, $hacker, 2);
+    try
+      relation:assert({100, 200});
+      for prop in (properties(relation))
+        const name = tostr(prop);
+        if (name:starts_with("tuple_") || name:starts_with("index_"))
+          set_property_info(relation, prop, {$hacker, ""});
+        endif
+      endfor
+      relation.r = 0;
+      for operation in ({"select", "select_containing", "tuples", "count", "query", "reachable_from"})
+        let denied = false;
+        try
+          this:_relation_call_as_player(relation, operation);
+        except (E_PERM)
+          denied = true;
+        endtry
+        $test_utils:assert_true(denied, operation + " must preserve caller read authority");
+      endfor
+    finally
+      valid(relation) && relation:destroy();
+    endtry
+    return true;
+  endmethod
+
+  method _relation_call_as_player owner: PLAYER
+    "Invoke only private-read regression operations under the player principal.";
+    caller == this && this == #90003 || raise(E_PERM);
+    const {relation, operation} = args;
+    operation == "select" && return relation:select(1, 100);
+    operation == "select_containing" && return relation:select_containing(100);
+    operation == "tuples" && return relation:tuples();
+    operation == "count" && return relation:count();
+    operation == "query" && return relation:query({100, {'var, 'target}});
+    operation == "reachable_from" && return relation:reachable_from(100);
+    raise(E_PERM);
+  endmethod
+
 endobject

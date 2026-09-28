@@ -1,0 +1,9 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; add_verb(#90102, {#90102, "rd", "authority-command-probe"}, {"none", "none", "none"}); set_verb_code(#90102, "authority-command-probe", {"notify(player, toliteral({caller, caller_perms(), task_perms()[1]})); return true;"}); return true;
+true
+@nonprogrammer
+% authority-command-probe
+={#90102, #-1, #90102}

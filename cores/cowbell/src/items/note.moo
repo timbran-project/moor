@@ -28,7 +28,7 @@ object NOTE [
     "."
   };
   property read_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
-  property text (owner: ARCH_WIZARD, flags: "rc") = {};
+  property text (owner: ARCH_WIZARD, flags: "c") = {};
   property write_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {"You can't write on that."};
   property write_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
@@ -40,8 +40,8 @@ object NOTE [
   };
   property write_rule (owner: ARCH_WIZARD, flags: "rc") = 0;
 
-  override description = "A blank note, ready to be written on.";
-  override object_documentation = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A blank note, ready to be written on.";
+  override object_documentation (owner: ARCH_WIZARD, flags: "rc") = {
     "# Notes",
     "",
     "## Overview",
@@ -297,9 +297,9 @@ object NOTE [
 
   method text owner: ARCH_WIZARD
     "Return the text content if caller can read it.";
-    cp = caller_perms();
+    const cp = caller_perms();
     "Owner and wizards can always read";
-    if (cp == this.owner || is_wizard(cp))
+    if (cp == this.owner || cp.wizard)
       return this.text;
     endif
     if (this:can_read(cp)['allowed])
@@ -310,10 +310,10 @@ object NOTE [
 
   method set_text owner: ARCH_WIZARD
     "Set the text content if caller can write.";
-    {new_text} = args;
-    cp = caller_perms();
+    const {new_text} = args;
+    const cp = caller_perms();
     "Owner and wizards can always write";
-    can_write = cp == this.owner || is_wizard(cp) || this:can_write(cp)['allowed];
+    const can_write = cp == this.owner || cp.wizard || this:can_write(cp)['allowed];
     if (!can_write)
       raise(E_PERM, "You can't write on this.");
     endif
@@ -325,10 +325,10 @@ object NOTE [
   endmethod
 
   method look_self owner: ARCH_WIZARD
-    "Custom look that indicates if there's writing on the note.";
-    set_task_perms(caller_perms());
-    description = this.description;
-    if (length(this.text) > 0)
+    "Describe writing only when the caller may read the note.";
+    const actor = caller_perms();
+    let description = this.description;
+    if (this:can_read(actor)['allowed] && length(this:text()) > 0)
       description = description + "  There appears to be some writing on it.";
     endif
     return <$look, .what = this, .title = this:name(), .description = description>;

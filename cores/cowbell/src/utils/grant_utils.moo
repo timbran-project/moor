@@ -7,7 +7,7 @@ object GRANT_UTILS [
   owner: HACKER
   readable: true
 
-  override description = "Utilities for formatting and parsing capability grant specifications.";
+  override description (owner: HACKER, flags: "rc") = "Utilities for formatting and parsing capability grant specifications.";
 
   method format_grant owner: HACKER
     "Format a grant specification as target.category(cap1,cap2,...).";

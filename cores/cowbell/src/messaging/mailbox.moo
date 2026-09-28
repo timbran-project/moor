@@ -9,9 +9,9 @@ object MAILBOX [
   fertile: true
   readable: true
 
-  override aliases = {"mailbox"};
-  override description = "A sturdy mailbox for receiving letters.";
-  override object_documentation = "A mailbox holds letters for its owner. Anyone can deposit letters, but only the owner can view or take them.";
+  override aliases (owner: HACKER, flags: "rc") = {"mailbox"};
+  override description (owner: HACKER, flags: "rc") = "A sturdy mailbox for receiving letters.";
+  override object_documentation (owner: HACKER, flags: "rc") = "A mailbox holds letters for its owner. Anyone can deposit letters, but only the owner can view or take them.";
 
   method acceptable owner: ARCH_WIZARD
     "Check if an object can be deposited. Only letters are accepted.";
@@ -20,22 +20,31 @@ object MAILBOX [
   endmethod
 
   verb deposit (any in this) owner: ARCH_WIZARD flags: "rxd"
-    "Deposit a letter into this mailbox. Anyone can do this.";
-    if (!valid(dobj))
-      player:inform_current($event:mk_error(player, "Deposit what?"));
-      return;
-    endif
-    if (!this:acceptable(dobj))
+    "Deposit a held letter and notify the mailbox owner.";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    if (!valid(dobj) || !isa(dobj, $letter))
       player:inform_current($event:mk_error(player, "You can only deposit letters in a mailbox."));
       return;
     endif
-    "Move the letter into the mailbox";
+    if (dobj.location != player)
+      player:inform_current($event:mk_error(player, "You're not holding that letter."));
+      return;
+    endif
+    if (!this:acceptable(dobj))
+      player:inform_current($event:mk_error(player, "This mailbox does not accept that letter."));
+      return;
+    endif
+    "The acceptance callback may suspend or transfer the letter.";
+    if (dobj.location != player)
+      player:inform_current($event:mk_error(player, "You're not holding that letter."));
+      return;
+    endif
     move(dobj, this);
     player:inform_current($event:mk_info(player, "You deposit ", dobj.name, " into the mailbox."));
-    "Notify the owner if they're connected";
-    owner = this.owner;
-    if (valid(owner) && owner in connected_players() && owner != player)
-      owner:inform_current($event:mk_info(owner, "You have new mail from ", player.name, "."));
+    const recipient = this.owner;
+    if (valid(recipient) && recipient != player && recipient in connected_players())
+      `recipient:tell($event:mk_info(recipient, "You have new mail from ", player.name, "."):with_audience('utility)) ! ANY';
     endif
   endverb
 
@@ -95,12 +104,14 @@ object MAILBOX [
 
   verb read (any from this) owner: ARCH_WIZARD flags: "rxd"
     "Read a letter from the mailbox by number. Usage: read <#> from mailbox";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
     if (player != this.owner && !player.wizard)
       player:inform_current($event:mk_error(player, "This isn't your mailbox."));
       return;
     endif
     "Get letters list";
-    letters = {};
+    let letters = {};
     for item in (this.contents)
       if (isa(item, $letter))
         letters = {@letters, item};
@@ -111,28 +122,30 @@ object MAILBOX [
       return;
     endif
     "Parse the number - strip # if present";
-    num_str = dobjstr;
+    let num_str = dobjstr;
     if (num_str && num_str[1] == "#")
       num_str = num_str[2..$];
     endif
-    idx = toint(num_str);
+    let idx = toint(num_str);
     if (idx < 1 || idx > length(letters))
       player:inform_current($event:mk_error(player, "Invalid letter number. Use 1-", tostr(length(letters)), "."));
       return;
     endif
     "Read the letter via action_read";
-    letter = letters[idx];
+    const letter = letters[idx];
     letter:action_read(player, []);
   endverb
 
   verb "take get" (any from this) owner: ARCH_WIZARD flags: "rxd"
     "Take a letter from this mailbox. Owner only.";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
     if (player != this.owner && !player.wizard)
       player:inform_current($event:mk_error(player, "This isn't your mailbox."));
       return;
     endif
     "Match the object name within the mailbox contents";
-    target = $match:resolve_in_scope(dobjstr, this.contents);
+    const target = $match:resolve_in_scope(dobjstr, this.contents);
     if (!valid(target))
       if (target == $failed_match)
         player:inform_current($event:mk_error(player, "I don't see that in the mailbox."));
@@ -149,11 +162,13 @@ object MAILBOX [
 
   verb mail (this none none) owner: ARCH_WIZARD flags: "rxd"
     "List the letters in this mailbox. Owner only.";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
     if (player != this.owner && !player.wizard)
       player:inform_current($event:mk_error(player, "This isn't your mailbox."));
       return;
     endif
-    letters = {};
+    let letters = {};
     for item in (this.contents)
       if (isa(item, $letter))
         letters = {@letters, item};
@@ -164,25 +179,25 @@ object MAILBOX [
       return;
     endif
     "Build table of letters";
-    headers = {"#", "Status", "From", "Subject"};
-    rows = {};
-    idx = 1;
+    const headers = {"#", "Status", "From", "Subject"};
+    let rows = {};
+    let idx = 1;
     for letter in (letters)
-      status = letter.read_at == 0 ? "NEW" | "";
-      from_name = valid(letter.author) ? letter.author.name | "anonymous";
-      subject = letter.name != "letter" ? letter.name | "(no subject)";
+      const status = letter.read_at == 0 ? "NEW" | "";
+      const from_name = valid(letter.author) ? letter.author.name | "anonymous";
+      const subject = letter.name != "letter" ? letter.name | "(no subject)";
       rows = {@rows, {tostr(idx), status, from_name, subject}};
       idx = idx + 1;
     endfor
-    unread = this:unread_count();
-    summary = tostr(length(letters), " letter", length(letters) == 1 ? "" | "s");
+    const unread = this:unread_count();
+    let summary = tostr(length(letters), " letter", length(letters) == 1 ? "" | "s");
     if (unread > 0)
       summary = summary + tostr(" (", unread, " unread)");
     endif
     "Build and display";
-    parts = {$format.title:mk("Mailbox: " + summary), $format.table:mk(headers, rows), "", "Use: read <#> from mailbox"};
-    content = $format.block:mk(@parts);
-    event = $event:mk_info(player, content):with_presentation_hint('inset);
+    const parts = {$format.title:mk("Mailbox: " + summary), $format.table:mk(headers, rows), "", "Use: read <#> from mailbox"};
+    const content = $format.block:mk(@parts);
+    let event = $event:mk_info(player, content):with_presentation_hint('inset);
     player:inform_current(event);
   endverb
 endobject

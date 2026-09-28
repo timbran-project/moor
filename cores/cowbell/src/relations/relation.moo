@@ -8,30 +8,30 @@ object RELATION [
   fertile: true
   readable: true
 
-  override description = "N-ary persistent data relation.";
+  override description (owner: HACKER, flags: "rc") = "N-ary persistent data relation.";
 
   method assert owner: ARCH_WIZARD
     "Add a tuple to the relation. Returns the UUID of the tuple.";
     set_task_perms(caller_perms());
-    {tuple} = args;
+    const {tuple} = args;
     typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     !length(tuple) && raise(E_INVARG);
-    tuple_id = uuid();
+    const tuple_id = uuid();
     add_property(this, "tuple_" + tuple_id, tuple, {this.owner, "r"});
     "Index each scalar element (lists/flyweights can't be map keys)";
     for i in [1..length(tuple)]
-      element = tuple[i];
+      const element = tuple[i];
       if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
         continue;
       endif
-      index_prop = "index_" + value_hash(element);
-      index_map = `this.(index_prop) ! E_PROPNF => 0';
+      const index_prop = "index_" + value_hash(element);
+      let index_map = `this.(index_prop) ! E_PROPNF => 0';
       if (typeof(index_map) != TYPE_MAP)
         index_map = [];
         add_property(this, index_prop, index_map, {this.owner, "r"});
       endif
-      uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
-      index_map[element] = {@uuid_list, tuple_id};
+      const uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
+      index_map[element] = setadd(uuid_list, tuple_id);
       this.(index_prop) = index_map;
     endfor
     return tuple_id;
@@ -40,22 +40,22 @@ object RELATION [
   method retract owner: ARCH_WIZARD
     "Remove a tuple from the relation. Returns true if found and removed, false otherwise.";
     set_task_perms(caller_perms());
-    {tuple} = args;
+    const {tuple} = args;
     typeof(tuple) != TYPE_LIST && raise(E_TYPE);
-    tuple_id = this:_find_tuple_id(tuple);
+    const tuple_id = this:_find_tuple_id(tuple);
     !tuple_id && return false;
     "Remove from all indexes (skip non-scalars)";
     for i in [1..length(tuple)]
-      element = tuple[i];
+      const element = tuple[i];
       if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
         continue;
       endif
-      index_prop = "index_" + value_hash(element);
+      const index_prop = "index_" + value_hash(element);
       if (!(index_prop in properties(this)))
         continue;
       endif
-      index_map = this.(index_prop);
-      uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
+      let index_map = this.(index_prop);
+      let uuid_list = maphaskey(index_map, element) ? index_map[element] | {};
       uuid_list = setremove(uuid_list, tuple_id);
       "Update or remove the index entry";
       if (length(uuid_list))
@@ -77,22 +77,24 @@ object RELATION [
   method member owner: ARCH_WIZARD
     "Check if a tuple exists in the relation.";
     set_task_perms(caller_perms());
-    {tuple} = args;
+    const {tuple} = args;
     typeof(tuple) != TYPE_LIST && raise(E_TYPE);
     return this:_find_tuple_id(tuple) ? true | false;
   endmethod
 
   method select owner: ARCH_WIZARD
     "Find all tuples where tuple[position] == value. Position is 1-indexed.";
-    {position, value} = args;
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    const {position, value} = args;
     typeof(position) != TYPE_INT && raise(E_TYPE);
     position < 1 && raise(E_INVARG);
-    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    const index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
-    uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
-    result = {};
+    const uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
+    let result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      const tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple != 0 && length(tuple) >= position && tuple[position] == value && (result = {@result, tuple});
     endfor
     return result;
@@ -100,13 +102,15 @@ object RELATION [
 
   method select_containing owner: ARCH_WIZARD
     "Find all tuples containing value in any position.";
-    {value} = args;
-    index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    const {value} = args;
+    const index_map = `this.("index_" + value_hash(value)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return {};
-    uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
-    result = {};
+    const uuid_list = maphaskey(index_map, value) ? index_map[value] | {};
+    let result = {};
     for tuple_id in (uuid_list)
-      tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      const tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
@@ -114,13 +118,15 @@ object RELATION [
 
   method tuples owner: ARCH_WIZARD
     "Return all tuples in the relation.";
-    result = {};
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    let result = {};
     for prop in (properties(this))
-      prop_str = tostr(prop);
+      const prop_str = tostr(prop);
       if (length(prop_str) < 6 || prop_str[1..6] != "tuple_")
         continue;
       endif
-      tuple = `this.(prop) ! E_PROPNF => 0';
+      const tuple = `this.(prop) ! E_PROPNF => 0';
       tuple != 0 && (result = {@result, tuple});
     endfor
     return result;
@@ -130,7 +136,7 @@ object RELATION [
     "Remove all tuples from the relation.";
     set_task_perms(caller_perms());
     for prop in (properties(this))
-      prop_str = tostr(prop);
+      const prop_str = tostr(prop);
       length(prop_str) >= 6 && prop_str[1..6] in {"tuple_", "index_"} && delete_property(this, prop);
     endfor
     return true;
@@ -139,10 +145,10 @@ object RELATION [
   method _find_tuple_id owner: ARCH_WIZARD
     "Internal: Find the UUID for a given tuple, or return 0 if not found.";
     set_task_perms(caller_perms());
-    {tuple} = args;
+    const {tuple} = args;
     !length(tuple) && return 0;
     "Find first scalar element to use for index lookup";
-    scalar_element = 0;
+    let scalar_element = 0;
     for elem in (tuple)
       if (typeof(elem) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
         continue;
@@ -153,20 +159,20 @@ object RELATION [
     "If no scalar elements, fall back to scanning all tuples";
     if (scalar_element == 0 && typeof(tuple[1]) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
       for prop in (properties(this))
-        prop_str = tostr(prop);
+        const prop_str = tostr(prop);
         if (length(prop_str) >= 6 && prop_str[1..6] == "tuple_")
-          stored_tuple = `this.(prop) ! E_PROPNF => 0';
+          let stored_tuple = `this.(prop) ! E_PROPNF => 0';
           stored_tuple == tuple && return prop_str[7..$];
         endif
       endfor
       return 0;
     endif
     "Use index for efficient lookup";
-    index_map = `this.("index_" + value_hash(scalar_element)) ! E_PROPNF => 0';
+    const index_map = `this.("index_" + value_hash(scalar_element)) ! E_PROPNF => 0';
     typeof(index_map) != TYPE_MAP && return 0;
-    uuid_list = maphaskey(index_map, scalar_element) ? index_map[scalar_element] | {};
+    const uuid_list = maphaskey(index_map, scalar_element) ? index_map[scalar_element] | {};
     for tuple_id in (uuid_list)
-      stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
+      const stored_tuple = `this.("tuple_" + tuple_id) ! E_PROPNF => 0';
       stored_tuple == tuple && return tuple_id;
     endfor
     return 0;
@@ -174,7 +180,7 @@ object RELATION [
 
   method test_assert_and_member owner: HACKER
     "Test basic assertion and membership checking";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Test binary relation";
     rel:assert({#1, #2});
     !rel:member({#1, #2}) && raise(E_ASSERT, "Binary tuple not found after assert");
@@ -190,7 +196,7 @@ object RELATION [
 
   method test_retract owner: HACKER
     "Test tuple removal";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     rel:assert({#1, #2, "edge1"});
     rel:assert({#1, #3, "edge2"});
     rel:assert({#2, #3, "edge3"});
@@ -208,13 +214,13 @@ object RELATION [
 
   method test_select owner: HACKER
     "Test position-based selection";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Setup passage-like data";
     rel:assert({#12, #39, "north"});
     rel:assert({#12, #40, "east"});
     rel:assert({#39, #40, "south"});
     "Select by first position";
-    results = rel:select(1, #12);
+    let results = rel:select(1, #12);
     length(results) != 2 && raise(E_ASSERT, "Expected 2 results from position 1");
     {#12, #39, "north"} in results || raise(E_ASSERT, "Missing expected tuple");
     {#12, #40, "east"} in results || raise(E_ASSERT, "Missing expected tuple");
@@ -233,14 +239,14 @@ object RELATION [
 
   method test_tuples owner: HACKER
     "Test retrieving all tuples";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Empty relation";
     length(rel:tuples()) != 0 && raise(E_ASSERT, "Empty relation should have no tuples");
     "Add some tuples";
     rel:assert({#1, #2});
     rel:assert({#3, #4});
     rel:assert({#5, #6, #7});
-    all_tuples = rel:tuples();
+    const all_tuples = rel:tuples();
     length(all_tuples) != 3 && raise(E_ASSERT, "Expected 3 tuples");
     {#1, #2} in all_tuples || raise(E_ASSERT, "Missing tuple");
     {#3, #4} in all_tuples || raise(E_ASSERT, "Missing tuple");
@@ -249,7 +255,7 @@ object RELATION [
 
   method test_clear owner: HACKER
     "Test clearing all tuples";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Add several tuples";
     rel:assert({#1, #2, "a"});
     rel:assert({#3, #4, "b"});
@@ -264,10 +270,10 @@ object RELATION [
 
   method test_duplicate_assert owner: HACKER
     "Test that asserting the same tuple twice preserves multiplicity.";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     rel:assert({#1, #2, "edge"});
     rel:assert({#1, #2, "edge"});
-    results = rel:tuples();
+    let results = rel:tuples();
     length(results) != 2 && raise(E_ASSERT, "Duplicate assert should create new tuple (UUIDs differ)");
     "Both should be present as member check is equality based";
     !rel:member({#1, #2, "edge"}) && raise(E_ASSERT, "Tuple should be present");
@@ -278,19 +284,19 @@ object RELATION [
 
   method test_bidirectional_indexing owner: HACKER
     "Test that a single tuple is indexed under all its values.";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Assert a passage-like tuple";
     rel:assert({#12, #39, "north"});
     "Find tuples containing #12";
-    results_from_12 = rel:select_containing(#12);
+    const results_from_12 = rel:select_containing(#12);
     length(results_from_12) != 1 && raise(E_ASSERT, "Should find 1 tuple via #12");
     {#12, #39, "north"} in results_from_12 || raise(E_ASSERT, "Wrong tuple via #12");
     "Find tuples containing #39";
-    results_from_39 = rel:select_containing(#39);
+    const results_from_39 = rel:select_containing(#39);
     length(results_from_39) != 1 && raise(E_ASSERT, "Should find 1 tuple via #39");
     {#12, #39, "north"} in results_from_39 || raise(E_ASSERT, "Wrong tuple via #39");
     "Find tuples containing 'north'";
-    results_from_north = rel:select_containing("north");
+    const results_from_north = rel:select_containing("north");
     length(results_from_north) != 1 && raise(E_ASSERT, "Should find 1 tuple via 'north'");
     {#12, #39, "north"} in results_from_north || raise(E_ASSERT, "Wrong tuple via 'north'");
     "Verify it's the SAME tuple found three different ways";
@@ -300,29 +306,27 @@ object RELATION [
     rel:assert({#12, #40, "east"});
     rel:assert({#39, #40, "south"});
     "Find all passages from #12";
-    from_12 = rel:select_containing(#12);
+    const from_12 = rel:select_containing(#12);
     length(from_12) != 2 && raise(E_ASSERT, "Room #12 should have 2 passages");
     {#12, #39, "north"} in from_12 || raise(E_ASSERT, "Missing north passage");
     {#12, #40, "east"} in from_12 || raise(E_ASSERT, "Missing east passage");
     "Find all passages from #40";
-    from_40 = rel:select_containing(#40);
+    const from_40 = rel:select_containing(#40);
     length(from_40) != 2 && raise(E_ASSERT, "Room #40 should have 2 passages");
     {#12, #40, "east"} in from_40 || raise(E_ASSERT, "Missing east passage");
     {#39, #40, "south"} in from_40 || raise(E_ASSERT, "Missing south passage");
     "Room #39 appears in different positions but both found";
-    from_39 = rel:select_containing(#39);
+    const from_39 = rel:select_containing(#39);
     length(from_39) != 2 && raise(E_ASSERT, "Room #39 should have 2 passages");
     {#12, #39, "north"} in from_39 || raise(E_ASSERT, "Missing north passage (pos 2)");
     {#39, #40, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
   endmethod
 
-  method query owner: HACKER
+  method query owner: ARCH_WIZARD
     "Match pattern with variables against tuples, return bindings. Variables use {'var, 'name} terms.";
-    length(args) < 1 && raise(E_ARGS);
-    length(args) > 3 && raise(E_ARGS);
-    pattern = args[1];
-    bindings = length(args) >= 2 ? args[2] | [];
-    options = length(args) >= 3 ? args[3] | [];
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    let {pattern, ?bindings = [], ?options = []} = args;
     typeof(pattern) != TYPE_LIST && raise(E_TYPE);
     typeof(bindings) != TYPE_MAP && raise(E_TYPE);
     typeof(options) != TYPE_MAP && raise(E_TYPE);
@@ -330,18 +334,20 @@ object RELATION [
     return term_query(pattern, this:tuples(), {}, bindings, options);
   endmethod
 
-  method reachable_from owner: HACKER
+  method reachable_from owner: ARCH_WIZARD
     "Find all values reachable via transitive closure from start value. Assumes binary relation.";
-    {start} = args;
-    visited = [start -> true];
-    frontier = {start};
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    const {start} = args;
+    let visited = [start -> true];
+    let frontier = {start};
     while (length(frontier) > 0)
-      current = frontier[1];
+      const current = frontier[1];
       frontier = listdelete(frontier, 1);
       for tuple in (this:select_containing(current))
         length(tuple) != 2 && raise(E_INVARG, "reachable_from requires binary relation");
-        {val_a, val_b} = tuple;
-        other = val_a == current ? val_b | val_a;
+        const {val_a, val_b} = tuple;
+        const other = val_a == current ? val_b | val_a;
         !maphaskey(visited, other) && (visited[other] = true) && (frontier = {@frontier, other});
       endfor
     endwhile
@@ -350,12 +356,12 @@ object RELATION [
 
   method test_query_basic owner: HACKER
     "Test basic pattern matching with variables";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     rel:assert({#12, #39, "north"});
     rel:assert({#12, #40, "east"});
     rel:assert({#39, #40, "south"});
     "Query for all passages from #12";
-    results = rel:query({#12, {'var, 'dest}, {'var, 'label}});
+    let results = rel:query({#12, {'var, 'dest}, {'var, 'label}});
     length(results) != 2 && raise(E_ASSERT, "Expected 2 results from #12");
     ['dest -> #39, 'label -> "north"] in results || raise(E_ASSERT, "Missing north binding");
     ['dest -> #40, 'label -> "east"] in results || raise(E_ASSERT, "Missing east binding");
@@ -370,14 +376,14 @@ object RELATION [
 
   method test_reachable owner: HACKER
     "Test transitive closure - note: relation is bidirectional";
-    rel = $relation:create(true);
+    const rel = $relation:create(true);
     "Build a chain: 1 <-> 2 <-> 3 <-> 4";
     rel:assert({#1, #2});
     rel:assert({#2, #3});
     rel:assert({#3, #4});
     "Add a branch: 2 <-> 5";
     rel:assert({#2, #5});
-    reachable = rel:reachable_from(#1);
+    let reachable = rel:reachable_from(#1);
     length(reachable) != 5 && raise(E_ASSERT, "Should reach 5 nodes from #1");
     #1 in reachable || raise(E_ASSERT, "Should include start node");
     #2 in reachable || raise(E_ASSERT, "Should reach #2");
@@ -395,9 +401,11 @@ object RELATION [
 
   method count owner: ARCH_WIZARD
     "Return the number of tuples in the relation.";
-    count = 0;
+    "Read and mutation authority is the calling principal; this method does not suspend.";
+    set_task_perms(caller_perms());
+    let count = 0;
     for prop in (properties(this))
-      prop_str = tostr(prop);
+      const prop_str = tostr(prop);
       length(prop_str) >= 6 && prop_str[1..6] == "tuple_" && (count = count + 1);
     endfor
     return count;

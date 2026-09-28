@@ -12,10 +12,12 @@ object AGENTIC_ROOM_OBSERVER [
   property enabled (owner: ARCH_WIZARD, flags: "rc") = 1;
   property runner (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
-  override description = "Room-facing observer adapter built on the agentic runtime.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Room-facing observer adapter built on the agentic runtime.";
 
   method configure owner: ARCH_WIZARD
     "Create a fresh agent and runner for this observer.";
+    const principal = caller_perms();
+    principal == this.owner || principal.wizard || raise(E_PERM);
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
     this.agent = $agentic.agent:create(true);
     this.agent.owner = this.owner;
@@ -27,10 +29,12 @@ object AGENTIC_ROOM_OBSERVER [
 
   method respond_once owner: ARCH_WIZARD
     "Run one response pass for a prompt and optionally announce speech.";
+    const principal = caller_perms();
+    principal == this.owner || principal.wizard || raise(E_PERM);
     this.enabled || return "Observer disabled.";
     valid(this.runner) || this:configure();
-    {prompt, ?announce = 0} = args;
-    response = this.runner:run_once(prompt);
+    const {prompt, ?announce = 0} = args;
+    const response = this.runner:run_once(prompt, false, principal);
     if (announce && typeof(response) == TYPE_STR && valid(this.location) && length(response) > 0)
       this.location:announce($event:mk_say(this, this:name(), " says, \"", response, "\""));
     endif
@@ -39,6 +43,8 @@ object AGENTIC_ROOM_OBSERVER [
 
   method observer_status owner: ARCH_WIZARD
     "Return a compact observer diagnostics map.";
+    const principal = caller_perms();
+    principal == this.owner || principal.wizard || raise(E_PERM);
     return ["enabled" -> this.enabled, "agent" -> this.agent, "runner" -> this.runner, "agent_valid" -> valid(this.agent), "runner_valid" -> valid(this.runner)];
   endmethod
 endobject

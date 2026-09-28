@@ -1,0 +1,10 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@wizard
+; #90108:set_passage(#90103, #90110, $passage:mk(#90103, "east", {"e"}, "", true, #90110, "west", {"w"}, "", true)); move(#90103, #90108); add_verb(#90103, {#90100, "rxd", "notify_pre_exit"}, {"this", "none", "this"}); return set_verb_code(#90103, "notify_pre_exit", {"const {who} = args; move(who, #90109); suspend(0); return true;"});
+0
+@nonprogrammer
+% go east
+@wizard
+; return #90102.location == #90109;
+true

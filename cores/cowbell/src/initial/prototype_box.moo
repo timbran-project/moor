@@ -8,5 +8,5 @@ object PROTOTYPE_BOX [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "A container for storing generic prototype objects. These objects serve as templates and base classes for the system.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A container for storing generic prototype objects. These objects serve as templates and base classes for the system.";
 endobject

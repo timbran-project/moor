@@ -8,7 +8,7 @@ object LLM_CHAT_OPTS [
   fertile: true
   readable: true
 
-  override description = "Flyweight delegate for LLM chat request options. Builder pattern: $llm_chat_opts:mk():with_temperature(0.3):with_tool_choice('required)";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for LLM chat request options. Builder pattern: $llm_chat_opts:mk():with_temperature(0.3):with_tool_choice('required)";
 
   method mk owner: HACKER
     "Create an empty chat options flyweight";

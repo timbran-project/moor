@@ -1,0 +1,30 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; const foreign = connections(#90102)[1][1]; try #90105:probe_notify(foreign, "authority delivery probe"); return false; except (E_PERM) return true; endtry
+true
+
+@nonprogrammer
+@quiet
+
+@wizard
+; try #90105:probe_present(#90102); return false; except (E_PERM) return true; endtry
+true
+
+@nonprogrammer
+@quiet
+
+@wizard
+; try #90105:probe_event_log(#90102); return false; except (E_PERM) return true; endtry
+true
+
+// A real command runs as the ordinary player, whose eval permission is disabled.
+; add_verb(#90102, {#90102, "rd", "authority-own-effects"}, {"none", "none", "none"}); return set_verb_code(#90102, "authority-own-effects", {"this:_present(this, \"authority-own\", \"text/html\", \"tools\", \"own presentation probe\", []); this:_event_log(this, \"authority-own-history\", 'text_plain);"});
+0
+
+@nonprogrammer
+% authority-own-effects
+@event present:text/html tools
+@text own presentation probe
+@event history:text_plain authority-own-history

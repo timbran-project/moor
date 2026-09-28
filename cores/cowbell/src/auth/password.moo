@@ -7,7 +7,7 @@ object PASSWORD [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for password storage using Argon2 encryption.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for password storage using Argon2 encryption.";
 
   method mk owner: ARCH_WIZARD
     "mk(password) => <$password, { <encrypted_password> }>; return an argon2 encrypted password";

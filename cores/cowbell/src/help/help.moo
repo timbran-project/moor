@@ -7,7 +7,7 @@ object HELP [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for help topics. Creates structured help entries that can be rendered for humans or machines.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for help topics. Creates structured help entries that can be rendered for humans or machines.";
 
   method mk owner: ARCH_WIZARD
     "Create a help topic flyweight.";

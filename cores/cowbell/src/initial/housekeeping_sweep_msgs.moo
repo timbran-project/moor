@@ -6,7 +6,7 @@ object HOUSEKEEPING_SWEEP_MSGS [
   parent: MSG_BAG
   owner: ARCH_WIZARD
 
-  override entries = {
+  override entries (owner: ARCH_WIZARD, flags: "rc") = {
     {
       "A member of housekeeping gently guides ",
       <SUB, .capitalize = false, .type = 'actor>,

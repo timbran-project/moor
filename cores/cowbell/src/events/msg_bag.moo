@@ -10,7 +10,7 @@ object MSG_BAG [
 
   property entries (owner: ARCH_WIZARD, flags: "rc") = {};
 
-  override description = "Container for lists of message templates. Supports {sub} templates and random selection.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Container for lists of message templates. Supports {sub} templates and random selection.";
 
   method add owner: ARCH_WIZARD
     "Add a message template. Returns new flyweight or entry count for objects.";

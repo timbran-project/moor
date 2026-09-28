@@ -25,30 +25,26 @@ object ROOT [
     "";
     "Permission requires: fertile, wizard, owner, or 'create_child capability.";
     "Returns: New child object owned by caller_perms().";
-    if (typeof(this) == TYPE_FLYWEIGHT)
-      target = this.delegate;
-    else
-      target = this;
-    endif
-    is_fertile = target.f;
+    const target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
+    const is_fertile = target.f;
     if (!is_fertile)
-      {_, perms} = this:check_permissions_as(caller_perms(), 'create_child);
+      const {_, perms} = $root:_check_permissions_as(this, caller_perms(), 'create_child);
     endif
-    {?otype = 2} = args;
+    let {?otype = 2} = args;
     if (typeof(otype) == TYPE_INT)
       "otype passed directly";
     else
       "boolean: true=anon, false=uuid";
       otype = otype ? 1 | 2;
     endif
-    new_obj = create(target, caller_perms(), otype);
+    const new_obj = create(target, caller_perms(), otype);
     new_obj.r = 1;
     return new_obj;
   endmethod
 
   method destroy owner: ARCH_WIZARD
     "Destroy this object. Permission: wizard, owner, or capability.";
-    {target, perms, grants} = this:check_permissions_with_grants_as(caller_perms(), 'recycle);
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, caller_perms(), 'recycle);
     set_task_perms(perms, grants);
     recycle(target);
   endmethod
@@ -66,11 +62,11 @@ object ROOT [
 
   method moveto owner: ARCH_WIZARD
     "Move this object to destination. Permission: wizard, owner, or capability.";
-    {destination} = args;
-    actor = caller_perms();
-    {this, perms, grants} = this:check_permissions_with_grants_as(actor, 'move);
+    const {destination} = args;
+    const actor = caller_perms();
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'move);
     set_task_perms(perms, grants);
-    return `move(this, destination) ! ANY';
+    return `move(target, destination) ! ANY';
   endmethod
 
   method set_owner owner: ARCH_WIZARD
@@ -88,7 +84,7 @@ object ROOT [
         raise(E_PERM);
       endtry
       claims["target"] == target || raise(E_PERM);
-      (!maphaskey(claims, "exp") || time() <= claims["exp"]) || raise(E_PERM);
+      !maphaskey(claims, "exp") || time() <= claims["exp"] || raise(E_PERM);
       !$root:_capability_is_revoked(claims) || raise(E_PERM);
       'set_owner in claims["caps"] || raise(E_PERM);
     endif
@@ -114,10 +110,10 @@ object ROOT [
 
   method set_name_aliases owner: ARCH_WIZARD
     "Set this object's name and aliases. Permission: wizard, owner, or 'set_name_aliases capability.";
-    actor = caller_perms();
-    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_name_aliases);
+    const actor = caller_perms();
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'set_name_aliases);
     set_task_perms(perms, grants);
-    {new_name, new_aliases} = args;
+    const {new_name, new_aliases} = args;
     target.name = new_name;
     target.aliases = new_aliases;
   endmethod
@@ -151,9 +147,9 @@ object ROOT [
 
   method set_thumbnail owner: ARCH_WIZARD
     "Set the thumbnail image for this object. Permission: owner or wizard.";
-    actor = caller_perms();
-    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_thumbnail);
-    {content_type, picbin} = args;
+    const actor = caller_perms();
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'set_thumbnail);
+    const {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 20) && raise(E_INVARG, "Thumbnail too large (5MB max)");
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
@@ -163,16 +159,17 @@ object ROOT [
 
   method set_description owner: ARCH_WIZARD
     "Set this object's description. Permission: wizard, owner, or 'set_description capability.";
-    actor = caller_perms();
-    {target, perms, grants} = this:check_permissions_with_grants_as(actor, 'set_description);
+    const actor = caller_perms();
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'set_description);
     set_task_perms(perms, grants);
-    {description} = args;
+    const {description} = args;
     "If description is a string with substitution tokens, compile it into $sub content so substitutions can render in looks.";
+    let compiled;
     if (typeof(description) == TYPE_STR && ("{" in description || "}" in description))
       try
         compiled = $sub_utils:compile(description);
       except e (ANY)
-        message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
+        const message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
         raise(E_INVARG, "Description template compilation failed: " + message);
       endtry
       target.description = compiled;
@@ -368,32 +365,33 @@ object ROOT [
   method merge_capability owner: ARCH_WIZARD
     "Merge two capability flyweights for the same target into one with combined permissions.";
     caller_perms().wizard || raise(E_PERM);
-    {cap1, cap2, ?key = 0} = args;
+    const {cap1, cap2, ?key = 0} = args;
     "Both must be flyweights with tokens";
     typeof(cap1) == TYPE_FLYWEIGHT && typeof(cap2) == TYPE_FLYWEIGHT || raise(E_TYPE);
     maphaskey(flyslots(cap1), 'token) && maphaskey(flyslots(cap2), 'token) || raise(E_INVARG);
     "Both must be for the same target";
     cap1.delegate == cap2.delegate || raise(E_INVARG, "Capabilities must be for same target");
-    target = cap1.delegate;
+    const target = cap1.delegate;
     "Decode both tokens";
-    claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
-    claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
+    const claims1 = key ? paseto_verify_local(cap1.token, key) | paseto_verify_local(cap1.token);
+    const claims2 = key ? paseto_verify_local(cap2.token, key) | paseto_verify_local(cap2.token);
+    claims1["target"] == target && claims2["target"] == target || raise(E_PERM);
     $root:_capability_is_revoked(claims1) && raise(E_PERM);
     $root:_capability_is_revoked(claims2) && raise(E_PERM);
     maphaskey(claims1, "exp") && time() > claims1["exp"] && raise(E_PERM);
     maphaskey(claims2, "exp") && time() > claims2["exp"] && raise(E_PERM);
     "Combine capability lists (remove duplicates)";
-    all_caps = {@claims1["caps"], @claims2["caps"]};
-    unique_caps = {};
+    const all_caps = {@claims1["caps"], @claims2["caps"]};
+    let unique_caps = {};
     for cap in (all_caps)
       !(cap in unique_caps) && (unique_caps = {@unique_caps, cap});
     endfor
     "Take the later expiration if any";
-    exp = 0;
+    let exp = 0;
     maphaskey(claims1, "exp") && (exp = claims1["exp"]);
     maphaskey(claims2, "exp") && claims2["exp"] > exp && (exp = claims2["exp"]);
     "Take run_as if either has it (prefer cap1) - comes back as object";
-    run_as = 0;
+    let run_as = 0;
     if (maphaskey(claims1, "run_as"))
       run_as = claims1["run_as"];
     elseif (maphaskey(claims2, "run_as"))
@@ -482,7 +480,7 @@ object ROOT [
     "Example:";
     "  {target, perms} = this:challenge_for('enter);";
     "  set_task_perms(perms);";
-    return this:_capability_challenge(args, 0);
+    return $root:_challenge_subject(this, args, 0);
   endmethod
 
   method challenge_for_with_key owner: ARCH_WIZARD
@@ -500,8 +498,8 @@ object ROOT [
     "Example:";
     "  test_key = \"dGVzdHRlc3R0ZXN0dGVzdHRlc3R0ZXN0dGVzdHRlc3Q=\";";
     "  {target, perms} = cap:challenge_for_with_key({'read}, test_key);";
-    {caps_list, key} = args;
-    return this:_capability_challenge(caps_list, key);
+    const {caps_list, key} = args;
+    return $root:_challenge_subject(this, caps_list, key);
   endmethod
 
   method require_caller owner: HACKER
@@ -519,60 +517,65 @@ object ROOT [
   endmethod
 
   method check_permissions_as owner: HACKER
-    "Check wizard, owner, or capability permission for an explicit actor. Returns {target, perms_object}.";
-    {actor, @required_caps} = args;
-    target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
-    if (valid(actor) && actor.wizard)
+    "Check owner, wizard, or bearer authority; privileged callers use fixed root dispatch.";
+    return $root:_check_permissions_as(this, @args);
+  endmethod
+
+  method _check_permissions_as owner: HACKER
+    "Validate the explicit subject without invoking its overridable authorization methods.";
+    const {subject, actor, @required_caps} = args;
+    const target = typeof(subject) == TYPE_FLYWEIGHT ? subject.delegate | subject;
+    if (valid(actor) && (actor.wizard || actor == target.owner))
       return {target, actor};
     endif
-    if (valid(actor) && actor == target.owner)
-      return {target, actor};
-    endif
-    if (typeof(this) == TYPE_FLYWEIGHT)
-      return this:challenge_for(@required_caps);
-    endif
-    raise(E_PERM);
+    typeof(subject) == TYPE_FLYWEIGHT || raise(E_PERM);
+    return $root:_challenge_subject(subject, required_caps, 0);
   endmethod
 
   method check_permissions_with_grants_as owner: HACKER
-    "Check wizard, owner, or capability permission for an explicit actor. Returns {target, perms_object, runtime_grants}.";
-    {actor, @required_caps} = args;
-    target = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
-    if (valid(actor) && actor.wizard)
+    "Check owner, wizard, or bearer authority and return the required runtime grants.";
+    return $root:_check_permissions_with_grants_as(this, @args);
+  endmethod
+
+  method _check_permissions_with_grants_as owner: HACKER
+    "Map verified capability authority to grants without dispatching on the target.";
+    const {subject, actor, @required_caps} = args;
+    const target = typeof(subject) == TYPE_FLYWEIGHT ? subject.delegate | subject;
+    if (valid(actor) && (actor.wizard || actor == target.owner))
       return {target, actor, {}};
     endif
-    if (valid(actor) && actor == target.owner)
-      return {target, actor, {}};
+    typeof(subject) == TYPE_FLYWEIGHT || raise(E_PERM);
+    let {validated_target, perms} = $root:_challenge_subject(subject, required_caps, 0);
+    if (valid(actor) && perms == $hacker)
+      perms = actor;
     endif
-    if (typeof(this) == TYPE_FLYWEIGHT)
-      {target, perms} = this:challenge_for(@required_caps);
-      if (valid(actor) && perms == $hacker)
-        perms = actor;
-      endif
-      return {target, perms, target:_runtime_grants_for_caps(required_caps)};
-    endif
-    raise(E_PERM);
+    return {validated_target, perms, $root:_runtime_grants_for_target(validated_target, required_caps)};
   endmethod
 
   method _runtime_grants_for_caps owner: HACKER
     "Return low-level runtime grants for supported root object mutation capabilities.";
-    {caps} = args;
-    grants = {};
+    return $root:_runtime_grants_for_target(this, @args);
+  endmethod
+
+  method _runtime_grants_for_target owner: HACKER
+    "Return only the runtime grants mapped to the validated target and requested capabilities.";
+    const {target, caps} = args;
+    let grants = {};
     for cap in (caps)
       if (cap == 'move)
-        grants = {@grants, {"object_move", this}};
+        grants = {@grants, {"object_move", target}};
       elseif (cap == 'recycle)
-        grants = {@grants, {"object_recycle", this}};
+        grants = {@grants, {"object_recycle", target}};
       elseif (cap == 'set_description)
-        grants = {@grants, {"property_write", this, "description"}};
+        grants = {@grants, {"property_write", target, "description"}};
       elseif (cap == 'set_name_aliases)
-        grants = {@grants, {"object_rename", this}, {"property_write", this, "aliases"}};
+        grants = {@grants, {"object_rename", target}, {"property_write", target, "aliases"}};
       elseif (cap == 'set_owner)
-        grants = {@grants, {"property_write", this, "owner"}};
+        grants = {@grants, {"property_write", target, "owner"}};
       elseif (cap == 'set_thumbnail)
-        grants = {@grants, {"property_write", this, "thumbnail"}};
+        grants = {@grants, {"property_write", target, "thumbnail"}};
       elseif (cap == 'set_api_key)
-        grants = {@grants, {"property_write", this, "api_key"}};
+        grants = {@grants, {"property_write", target, "api_key"}};
       else
         raise(E_PERM, "No runtime grant mapping for capability " + tostr(cap));
       endif
@@ -581,50 +584,30 @@ object ROOT [
   endmethod
 
   method _capability_challenge owner: ARCH_WIZARD
-    "Internal: Validate capability with optional custom signing key.";
-    if (caller != $root && !(caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate)))
-      raise(E_PERM);
-    endif
-    {required_caps, key} = args;
-    "Type check - this must be a flyweight";
-    if (typeof(this) != TYPE_FLYWEIGHT)
-      raise(E_PERM);
-    endif
-    "Structure check - must have token slot";
-    if (!maphaskey(flyslots(this), 'token))
-      raise(E_PERM);
-    endif
-    "Verify PASETO signature and decode";
-    claims = 0;
+    "Validate a bearer capability through fixed root dispatch.";
+    const {required_caps, key} = args;
+    return $root:_challenge_subject(this, required_caps, key);
+  endmethod
+
+  method _challenge_subject owner: ARCH_WIZARD
+    "Verify signature, target binding, expiry, revocation, and capability subset without delegate callbacks.";
+    const {subject, required_caps, key} = args;
+    typeof(subject) == TYPE_FLYWEIGHT || raise(E_PERM);
+    maphaskey(flyslots(subject), 'token) || raise(E_PERM);
+    let claims;
     try
-      claims = key ? paseto_verify_local(this.token, key) | paseto_verify_local(this.token);
+      claims = key ? paseto_verify_local(subject.token, key) | paseto_verify_local(subject.token);
     except (E_INVARG)
       raise(E_PERM);
     endtry
-    "Target binding - token must match this flyweight's delegate";
-    if (this.delegate != claims["target"])
-      raise(E_PERM);
-    endif
-    "Expiration check";
-    if (maphaskey(claims, "exp") && time() > claims["exp"])
-      raise(E_PERM);
-    endif
-    "Revocation check";
-    if ($root:_capability_is_revoked(claims))
-      raise(E_PERM);
-    endif
-    "Capability subset check - symbols round-trip directly";
+    subject.delegate == claims["target"] || raise(E_PERM);
+    maphaskey(claims, "exp") && time() > claims["exp"] && raise(E_PERM);
+    $root:_capability_is_revoked(claims) && raise(E_PERM);
     for required in (required_caps)
-      if (!(required in claims["caps"]))
-        raise(E_PERM);
-      endif
+      required in claims["caps"] || raise(E_PERM);
     endfor
-    "Determine run_as object - comes back as object directly via __type_obj";
-    run_as = $hacker;
-    if (maphaskey(claims, "run_as"))
-      run_as = claims["run_as"];
-    endif
-    return {this.delegate, run_as};
+    const run_as = `claims["run_as"] ! E_RANGE => $hacker';
+    return {subject.delegate, run_as};
   endmethod
 
   method _capability_jti owner: ARCH_WIZARD
@@ -808,18 +791,33 @@ object ROOT [
   endmethod
 
   method get_reactions owner: ARCH_WIZARD
-    "Gather all reactions from this object (properties ending with _reaction).";
-    set_task_perms(caller_perms());
-    result = {};
-    all_props = this:all_properties();
-    for prop_name in (all_props)
-      if (!tostr(prop_name):ends_with("_reaction"))
+    "Gather installed reactions from this object's readable reaction properties.";
+    return $root:_get_reactions_for(this, caller_perms());
+  endmethod
+
+  method _get_reactions_for owner: ARCH_WIZARD
+    "Read canonical reaction properties on a fixed host under the supplied caller authority.";
+    const {host, actor} = args;
+    actor == caller_perms() || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(actor);
+    typeof(host) == TYPE_OBJ && valid(host) || raise(E_INVARG);
+    let result = {};
+    let names = {};
+    for ancestor in ({host, @ancestors(host)})
+      for name in (`properties(ancestor) ! E_PERM => {}')
+        if (!(name in names))
+          names = {@names, name};
+        endif
+      endfor
+    endfor
+    for name in (names)
+      if (!tostr(name):ends_with("_reaction"))
         continue;
       endif
       try
-        val = this.(prop_name);
-        if (typeof(val) == TYPE_FLYWEIGHT && val.delegate == $reaction)
-          result = {@result, val};
+        const reaction = host.(name);
+        if (typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction)
+          result = {@result, reaction};
         endif
       except (E_PROPNF, E_PERM)
         continue;
@@ -830,13 +828,16 @@ object ROOT [
 
   method fire_trigger owner: ARCH_WIZARD
     "Fire a trigger on this object, executing all matching reactions.";
-    "Context is a map with bindings like ['Actor -> player, 'Key -> key_obj]";
-    {trigger_name, ?context = []} = args;
+    "Configured effects run under this host owner; context supplies event bindings.";
+    const {trigger_name, ?initial_context = []} = args;
+    typeof(this) == TYPE_OBJ && valid(this) || raise(E_INVARG);
+    set_task_perms(this.owner);
+    let context = initial_context;
     "Add standard context";
     context['This] = this;
     context['Location] = this.location;
     "Find and execute matching reactions";
-    for reaction in (this:get_reactions())
+    for reaction in ($root:_get_reactions_for(this, this.owner))
       if (reaction.enabled && reaction.trigger == trigger_name)
         reaction:execute(context);
       endif
@@ -845,21 +846,24 @@ object ROOT [
 
   method _check_thresholds owner: ARCH_WIZARD
     "Check if any threshold reactions should fire after a property change.";
-    "Called by $reaction:execute_effect after set/increment/decrement effects.";
-    {prop, old_value, new_value, context} = args;
+    "Called after mutation effects; installed threshold effects run under this host owner.";
+    const {prop, old_value, new_value, initial_context} = args;
+    typeof(this) == TYPE_OBJ && valid(this) || raise(E_INVARG);
+    set_task_perms(this.owner);
+    let context = initial_context;
     "Add standard context";
     context['This] = this;
     context['Location] = this.location;
-    for reaction in (this:get_reactions())
+    for reaction in ($root:_get_reactions_for(this, this.owner))
       if (!reaction.enabled)
         continue;
       endif
-      trigger = reaction.trigger;
+      const trigger = reaction.trigger;
       "Skip non-threshold triggers";
       if (typeof(trigger) != TYPE_LIST || length(trigger) < 4 || trigger[1] != 'when)
         continue;
       endif
-      {_, trigger_prop, op, threshold} = trigger;
+      const {_, trigger_prop, op, threshold} = trigger;
       "Skip if different property";
       if (trigger_prop != prop)
         continue;

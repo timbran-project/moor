@@ -8,7 +8,7 @@ object SOCIAL_FEATURES [
   owner: HACKER
   readable: true
 
-  override description = "Provides common social action verbs (nod, wave, bow, etc.) that can be added to a player's features to extend their ambient command environment.";
+  override description (owner: HACKER, flags: "rc") = "Provides common social action verbs (nod, wave, bow, etc.) that can be added to a player's features to extend their ambient command environment.";
 
   verb nod (none any any) owner: HACKER flags: "rd"
     "HINT: at <whom> -- Nod at/to someone or just nod.";

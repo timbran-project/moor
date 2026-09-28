@@ -43,8 +43,8 @@ object REACTION [
     'on_sittable_dump
   };
 
-  override description = "Flyweight delegate for reactive behaviors on objects.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for reactive behaviors on objects.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# $reaction - Reactive Behavior System",
     "",
     "## Overview",
@@ -124,7 +124,7 @@ object REACTION [
     "| `'tell`        | `{'tell, 'RecipientVar, \"message\"}` | Sends a private message to a recipient (resolved from context), parsed by `$sub_utils`. |",
     "| `'move`        | `{'move, destination}`                | Moves the reacting object to the `destination` object.                       |",
     "| `'trigger`     | `{'trigger, target_obj, 'event_sym}` | Fires another symbolic event on `target_obj`.                                |",
-    "| `'delay`       | `{'delay, seconds, inner_effect}`     | Schedules `inner_effect` to execute after `seconds` using `$scheduler`.      |",
+    "| `'delay`       | `{'delay, seconds, inner_effect}`     | Schedules `inner_effect` to execute after `seconds` in a forked task.      |",
     "| `'action`      | `{'action, 'verb_name, target}`       | Calls `target:action_<verb_name>(this, context)` for extensible behaviors.   |",
     "",
     "## Action Effects",
@@ -310,14 +310,16 @@ object REACTION [
     return now_met && !was_met;
   endmethod
 
-  method execute owner: HACKER
+  method execute owner: ARCH_WIZARD
     "Execute this reaction in the given context if its when clause succeeds.";
     "Context is map: ['Actor -> player, 'This -> object, 'Key -> iobj, ...]";
     "Returns false when a when clause fails, otherwise true after all effects run.";
-    {context} = args;
-    "Check when clause if present (flyweights are falsy, so check != 0)";
+    set_task_perms(caller_perms());
+    const {initial_context} = args;
+    let context = initial_context;
+    "A zero when clause means the reaction is unconditional.";
     if (this.when != 0)
-      result = $rule_engine:evaluate(this.when, context);
+      const result = $rule_engine:evaluate(this.when, context);
       if (!result['success])
         return false;
       endif
@@ -327,23 +329,24 @@ object REACTION [
       endif
     endif
     "Execute each effect";
-    target = context['This];
+    const target = context['This];
     for effect in (this.effects)
       this:execute_effect(effect, context, target);
     endfor
     return true;
   endmethod
 
-  method _resolve_msg owner: HACKER
+  method _resolve_msg owner: ARCH_WIZARD
     "Resolve a message reference to a compiled template list.";
     "If msg is a symbol, looks up that property on target.";
     "If the property is a $msg_bag (object or flyweight), picks randomly.";
     "Returns a list suitable for @-splat into $event:mk_info.";
-    {msg, target} = args;
+    set_task_perms(caller_perms());
+    const {msg, target} = args;
     "If it's a symbol, look up the property on target";
     if (typeof(msg) == TYPE_SYM)
-      prop_name = tostr(msg);
-      prop_value = `target.(prop_name) ! E_PROPNF => 0';
+      const prop_name = tostr(msg);
+      const prop_value = `target.(prop_name) ! E_PROPNF => 0';
       prop_value == 0 && return {"(missing message: " + prop_name + ")"};
       "If it's a msg_bag (object or flyweight), pick randomly";
       if (typeof(prop_value) == TYPE_OBJ && isa(prop_value, $msg_bag))
@@ -358,55 +361,58 @@ object REACTION [
     return msg;
   endmethod
 
-  method execute_effect owner: HACKER
+  method execute_effect owner: ARCH_WIZARD
     "Execute a single parsed or raw effect against target using context bindings.";
     "Mutation effects also check threshold reactions on the same target.";
-    {effect, context, target} = args;
+    set_task_perms(caller_perms());
+    const {raw_effect, context, target} = args;
+    let effect = raw_effect;
     "Parse list effects on the fly for convenience";
     if (typeof(effect) == TYPE_LIST)
       effect = this:parse_effect(effect);
     endif
-    actor = context['Actor] || player;
+    const requested_actor = `context['Actor] ! E_RANGE => 0';
+    const actor = typeof(requested_actor) == TYPE_OBJ && valid(requested_actor) ? requested_actor | player;
     if (effect.type == 'set)
-      old_value = `target.(effect.prop) ! E_PROPNF => 0';
+      const old_value = `target.(effect.prop) ! E_PROPNF => 0';
       target.(effect.prop) = effect.value;
       target:_check_thresholds(effect.prop, old_value, effect.value, context);
     elseif (effect.type == 'increment)
-      old_value = `target.(effect.prop) ! E_PROPNF => 0';
-      new_value = old_value + effect.by;
+      const old_value = `target.(effect.prop) ! E_PROPNF => 0';
+      const new_value = old_value + effect.by;
       target.(effect.prop) = new_value;
       target:_check_thresholds(effect.prop, old_value, new_value, context);
     elseif (effect.type == 'decrement)
-      old_value = `target.(effect.prop) ! E_PROPNF => 0';
-      new_value = old_value - effect.by;
+      const old_value = `target.(effect.prop) ! E_PROPNF => 0';
+      const new_value = old_value - effect.by;
       target.(effect.prop) = new_value;
       target:_check_thresholds(effect.prop, old_value, new_value, context);
     elseif (effect.type == 'announce)
       "Announce to actor's room - actor is the player, dobj is the reacting object";
-      msg = this:_resolve_msg(effect.msg, target);
-      event = $event:mk_info(actor, @msg):with_dobj(target);
-      room = isa(actor, $player) ? actor.location | target.location;
+      const msg = this:_resolve_msg(effect.msg, target);
+      const event = $event:mk_info(actor, @msg):with_dobj(target);
+      const room = isa(actor, $player) ? actor.location | target.location;
       if (valid(room) && isa(room, $room))
         room:announce(event);
       endif
     elseif (effect.type == 'emote)
       "Object 'does' something - auto-prefix target name like emote command";
-      msg = this:_resolve_msg(effect.msg, target);
-      event = $event:mk_emote(target, target.name, " ", @msg):with_dobj(actor);
-      room = isa(actor, $player) ? actor.location | target.location;
+      const msg = this:_resolve_msg(effect.msg, target);
+      const event = $event:mk_emote(target, target.name, " ", @msg):with_dobj(actor);
+      const room = isa(actor, $player) ? actor.location | target.location;
       if (valid(room) && isa(room, $room))
         room:announce(event);
       endif
     elseif (effect.type == 'tell)
       "Private message to a specific target";
-      recipient = context[effect.target];
+      const recipient = context[effect.target];
       if (valid(recipient))
-        msg = this:_resolve_msg(effect.msg, target);
-        event = $event:mk_info(actor, @msg):with_iobj(target);
-        recipient:inform_current(event);
+        const msg = this:_resolve_msg(effect.msg, target);
+        const event = $event:mk_info(actor, @msg):with_iobj(target);
+        recipient:tell(event);
       endif
     elseif (effect.type == 'move)
-      dest = typeof(effect.destination) == TYPE_SYM ? context[effect.destination] | effect.destination;
+      const dest = typeof(effect.destination) == TYPE_SYM ? context[effect.destination] | effect.destination;
       if (valid(dest))
         move(target, dest);
       endif
@@ -416,18 +422,18 @@ object REACTION [
         effect.target:fire_trigger(effect.event, context);
       endif
     elseif (effect.type == 'delay)
-      "Schedule future effect via scheduler";
+      "Fork commits earlier effects before this delayed effect runs.";
       fork (effect.seconds)
         this:execute_effect(effect.effect, context, target);
       endfork
     elseif (effect.type == 'action)
       "Call action_<name> on action_target, passing the reacting object and context";
-      action_target = effect.action_target;
+      let action_target = effect.action_target;
       if (typeof(action_target) == TYPE_SYM)
         action_target = context[action_target];
       endif
       if (valid(action_target))
-        verb_name = "action_" + tostr(effect.action);
+        const verb_name = "action_" + tostr(effect.action);
         `action_target:(verb_name)(target, context) ! E_VERBNF';
       endif
     endif

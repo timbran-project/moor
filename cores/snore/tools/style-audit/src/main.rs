@@ -16,17 +16,86 @@ use moor_compiler::{
     CompileOptions, SyntaxKind, lex, parse_program_frontend, parse_to_syntax_node,
 };
 use moor_objdef::{ObjDefSet, ObjDefSource};
-use std::{collections::BTreeMap, error::Error, fs, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+};
+
+/// Discover nested objdef sources without following directory symlinks.
+fn collect_sources(directory: &Path, files: &mut Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            collect_sources(&entry.path(), files)?;
+        } else if kind.is_file() && entry.path().extension().is_some_and(|ext| ext == "moo") {
+            files.push(entry.path());
+        }
+    }
+    Ok(())
+}
+
+fn read_baseline(source: &str) -> Result<BTreeMap<String, usize>, Box<dyn Error>> {
+    let mut lines = source.lines();
+    if lines.next() != Some("count\tfile\tverb\tkind\tdetail") {
+        return Err("invalid style baseline header".into());
+    }
+    let mut debt = BTreeMap::new();
+    for line in lines {
+        let (count, key) = line.split_once('\t').ok_or("invalid baseline record")?;
+        if key.split('\t').count() != 4 || debt.insert(key.to_owned(), count.parse()?).is_some() {
+            return Err("invalid or duplicate baseline record".into());
+        }
+    }
+    Ok(debt)
+}
 
 fn run() -> Result<bool, Box<dyn Error>> {
     let mut args = std::env::args().skip(1);
-    let directory = PathBuf::from(args.next().ok_or("usage: style-audit SRC_DIR [--strict]")?);
-    let strict = args.any(|arg| arg == "--strict");
-    let mut files = fs::read_dir(&directory)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<Result<Vec<_>, _>>()?;
-    files.retain(|path| path.extension().is_some_and(|ext| ext == "moo"));
+    let directory = PathBuf::from(args.next().ok_or(
+        "usage: style-audit SRC_DIR [--strict] [--check RELATIVE_PATH] [--baseline FILE] [--write-baseline FILE]",
+    )?);
+    let mut strict = false;
+    let mut selected = Vec::new();
+    let mut baseline = None;
+    let mut write_baseline = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--strict" => strict = true,
+            "--check" => selected.push(PathBuf::from(args.next().ok_or("--check needs a path")?)),
+            "--baseline" => {
+                baseline = Some(PathBuf::from(args.next().ok_or("--baseline needs a path")?))
+            }
+            "--write-baseline" => {
+                write_baseline = Some(PathBuf::from(
+                    args.next().ok_or("--write-baseline needs a path")?,
+                ))
+            }
+            _ => return Err(format!("unknown argument: {arg}").into()),
+        }
+    }
+    if baseline.is_some() && write_baseline.is_some() {
+        return Err("cannot check and write a baseline together".into());
+    }
+    let mut files = Vec::new();
+    collect_sources(&directory, &mut files)?;
     files.sort();
+    for selection in &selected {
+        if !files.iter().any(|path| {
+            path.strip_prefix(&directory).is_ok_and(|relative| {
+                relative.starts_with(
+                    selection
+                        .to_string_lossy()
+                        .split_once(':')
+                        .map_or(selection.as_path(), |(path, _)| Path::new(path)),
+                )
+            })
+        }) {
+            return Err(format!("selection has no sources: {}", selection.display()).into());
+        }
+    }
     if let Some(index) = files
         .iter()
         .position(|path| path.file_name().is_some_and(|name| name == "constants.moo"))
@@ -38,8 +107,7 @@ fn run() -> Result<bool, Box<dyn Error>> {
     for path in &files {
         sources.push(ObjDefSource {
             label: path
-                .file_name()
-                .ok_or("missing file name")?
+                .strip_prefix(&directory)?
                 .to_string_lossy()
                 .into_owned(),
             contents: fs::read_to_string(path)?,
@@ -61,8 +129,13 @@ fn run() -> Result<bool, Box<dyn Error>> {
     let mut verbs = 0;
     let mut findings = BTreeMap::new();
     let mut declarations = 0;
+    let mut debt = BTreeMap::<String, usize>::new();
+    let mut checked_verbs = 0;
+    let mut matched_selections = vec![false; selected.len()];
     println!("file\tline\tverb\tkind\tdetail");
     for path in files {
+        let relative = path.strip_prefix(&directory)?;
+
         let source = fs::read_to_string(&path)?;
         let mut body = None;
         // The lexer locates declaration boundaries; both the full objdef and each body
@@ -112,17 +185,44 @@ fn run() -> Result<bool, Box<dyn Error>> {
                 return Err(format!("{}: {errors:?}", path.display()).into());
             }
             verbs += 1;
+            let mut checked = selected.is_empty();
+            for (index, selection) in selected.iter().enumerate() {
+                let text = selection.to_string_lossy();
+                let matches = match text.split_once(':') {
+                    Some((file, verb)) => {
+                        relative == Path::new(file)
+                            && header
+                                .split_whitespace()
+                                .next()
+                                .is_some_and(|name| name.trim_matches('"') == verb)
+                    }
+                    None => relative.starts_with(selection),
+                };
+                matched_selections[index] |= matches;
+                checked |= matches;
+            }
+            checked_verbs += usize::from(checked);
             let mut report = |offset: usize, kind: &str, detail: String| {
                 let line_number = source[..start + offset]
                     .bytes()
                     .filter(|byte| *byte == b'\n')
                     .count()
                     + 1;
+                if !checked {
+                    return;
+                }
+                let detail = detail.replace(['\n', '\t'], " ");
+                *debt
+                    .entry(format!(
+                        "{}\t{header}\t{kind}\t{detail}",
+                        relative.display()
+                    ))
+                    .or_default() += 1;
                 *findings.entry(kind.to_owned()).or_insert(0_usize) += 1;
                 println!(
                     "{}\t{line_number}\t{header}\t{kind}\t{}",
                     path.display(),
-                    detail.replace(['\n', '\t'], " ")
+                    detail
                 );
             };
             let statements = root
@@ -213,7 +313,33 @@ fn run() -> Result<bool, Box<dyn Error>> {
         );
     }
     eprintln!("{verbs} verb bodies; {declarations} explicit declarations; findings: {findings:?}");
-    Ok(!strict || findings.is_empty())
+    for (selection, matched) in selected.iter().zip(matched_selections) {
+        if !matched {
+            return Err(format!("selection has no verb bodies: {}", selection.display()).into());
+        }
+    }
+    if checked_verbs == 0 {
+        return Err("no selected verb bodies examined".into());
+    }
+    let mut baseline_passes = true;
+    if let Some(path) = baseline {
+        let expected = read_baseline(&fs::read_to_string(path)?)?;
+        for (key, count) in &debt {
+            let allowed = expected.get(key).copied().unwrap_or_default();
+            if *count > allowed {
+                eprintln!("style debt increased: {key} ({count}, baseline {allowed})");
+                baseline_passes = false;
+            }
+        }
+    }
+    if let Some(path) = write_baseline {
+        let mut output = String::from("count\tfile\tverb\tkind\tdetail\n");
+        for (key, count) in &debt {
+            output.push_str(&format!("{count}\t{key}\n"));
+        }
+        fs::write(path, output)?;
+    }
+    Ok(baseline_passes && (!strict || findings.is_empty()))
 }
 
 fn main() -> std::process::ExitCode {

@@ -1,0 +1,15 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// This program is free software under the GNU General Public License, version 3.
+// It is distributed without any warranty. See <https://www.gnu.org/licenses/>.
+
+@nonprogrammer
+% say Cowbell session greeting
+~~Cowbell session greeting
+@programmer
+; return 1;
+1
+~~Cowbell session greeting
+@wizard
+; return 1;
+1
+~~Cowbell session greeting

@@ -42,8 +42,8 @@ object CONSUMABLE [
   property on_finish (owner: ARCH_WIZARD, flags: "rc") = "destroy";
   property portions (owner: ARCH_WIZARD, flags: "rc") = 1;
 
-  override description = "Base prototype for consumable items. Provides portions, consumption rules, and triggers.";
-  override object_documentation = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Base prototype for consumable items. Provides portions, consumption rules, and triggers.";
+  override object_documentation (owner: ARCH_WIZARD, flags: "rc") = {
     "# Consumables",
     "",
     "## Overview",

@@ -8,5 +8,5 @@ object FIRST_ROOM [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "You are in the very First Room. Someone needs to provide a description.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "You are in the very First Room. Someone needs to provide a description.";
 endobject

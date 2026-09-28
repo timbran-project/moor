@@ -8,14 +8,22 @@ object AGENTIC_LOOP [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for the agentic loop turn processor.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for the agentic loop turn processor.";
 
   method run_turn owner: ARCH_WIZARD
     "Run one agent turn: call LLM, execute tools, append context, and return status map.";
-    {agent, ?opts = false} = args;
+    let content = 0;
+    let result = 0;
+    let tc_content = 0;
+    const principal = caller_perms();
+    const {agent, ?opts = false, ?request_principal = principal} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
+    typeof(agent) == TYPE_OBJ && valid(agent) || raise(E_INVARG);
+    $agentic.agent:_challenge_permissions(agent, principal);
     typeof(agent) == TYPE_OBJ && valid(agent) || raise(E_INVARG, "agent must be a valid object");
-    response = agent:_call_llm_with_retry(agent:_get_tool_schemas(), opts);
-    agent:_track_token_usage(response);
+    const response = agent:_call_llm_with_retry(agent:_get_tool_schemas(), opts);
+    agent:_track_token_usage(response, request_principal);
     if (!response:is_valid())
       return ["status" -> "invalid", "raw" -> response.raw];
     endif
@@ -24,10 +32,10 @@ object AGENTIC_LOOP [
       agent:add_message("assistant", content);
       return ["status" -> "complete", "content" -> content];
     endif
-    tool_results = {};
-    all_failed = true;
+    let tool_results = {};
+    let all_failed = true;
     for tool_call in (response:tool_calls())
-      result = agent:_execute_tool_call(tool_call);
+      result = agent:_execute_tool_call(tool_call, request_principal);
       tool_results = {@tool_results, result};
       tc_content = `result["content"] ! ANY => ""';
       if (!(typeof(tc_content) == TYPE_STR && (tc_content:starts_with("TOOL BLOCKED:") || tc_content:starts_with("ERROR:"))))

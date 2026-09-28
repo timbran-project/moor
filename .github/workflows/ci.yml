@@ -122,11 +122,8 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
 
-      - name: Build Cowbell
-        run: make -C cores/cowbell
-
-      - name: Test Cowbell
-        run: make -C cores/cowbell test
+      - name: Check Cowbell
+        run: make -C cores/cowbell check
 
   license:
     name: License headers

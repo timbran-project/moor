@@ -8,7 +8,7 @@ object PROG_UTILS [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Core programmer utilities for verb and object manipulation. Provides common functionality used by both programmer features and development tools - verb/property management, code search, object inspection, etc.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Core programmer utilities for verb and object manipulation. Provides common functionality used by both programmer features and development tools - verb/property management, code search, object inspection, etc.";
 
   method grep_verb_code owner: ARCH_WIZARD
     "Search within a single verb's code for a pattern.";

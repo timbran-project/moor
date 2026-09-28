@@ -90,8 +90,8 @@ object SUB_UTILS [
   ];
   property verb_map (owner: HACKER, flags: "rc") = ["verb_be" -> "be", "verb_have" -> "have", "verb_look" -> "look"];
 
-  override description = "Compiler and utilities for $sub template language.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Compiler and utilities for $sub template language.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# $sub_utils - Template Compiler",
     "",
     "## Overview",

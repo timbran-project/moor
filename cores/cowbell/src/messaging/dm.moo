@@ -8,13 +8,14 @@ object DM [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for direct messages. DMs are lightweight, ephemeral player-to-player messages that follow the same protocol as letters (from, to, sent, text) but are stored as flyweights rather than full objects.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for direct messages. DMs are lightweight, ephemeral player-to-player messages that follow the same protocol as letters (from, to, sent, text) but are stored as flyweights rather than full objects.";
 
   method mk owner: ARCH_WIZARD
     "Create a DM flyweight.";
     "Args: sender, recipient, text";
-    {sender, recipient, msg_text} = args;
-    loc = valid(sender) ? sender.location | #-1;
+    const {sender, recipient, msg_text} = args;
+    typeof(sender) == TYPE_OBJ && typeof(recipient) == TYPE_OBJ && typeof(msg_text) == TYPE_STR || raise(E_TYPE);
+    const loc = valid(sender) ? sender.location | #-1;
     return toflyweight(this, ['from -> sender, 'to -> recipient, 'sent -> time(), 'text -> msg_text, 'location -> loc]);
   endmethod
 

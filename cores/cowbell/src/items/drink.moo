@@ -63,7 +63,7 @@ object DRINK [
   ];
   property temperature (owner: ARCH_WIZARD, flags: "rc") = "room";
 
-  override consume_msg = {
+  override consume_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "drink", .for_others = "drinks">,
@@ -71,8 +71,8 @@ object DRINK [
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  override description = "Prototype for drinkable beverages in vessels. Supports sip, drink, gulp, quaff and refill.";
-  override finish_msg = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Prototype for drinkable beverages in vessels. Supports sip, drink, gulp, quaff and refill.";
+  override finish_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "drain", .for_others = "drains">,
@@ -80,8 +80,8 @@ object DRINK [
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  override max_portions = 10;
-  override object_documentation = {
+  override max_portions (owner: ARCH_WIZARD, flags: "rc") = 10;
+  override object_documentation (owner: ARCH_WIZARD, flags: "rc") = {
     "# Drink",
     "",
     "## Overview",
@@ -151,8 +151,8 @@ object DRINK [
     "mug.contents_name = \"coffee\";",
     "```"
   };
-  override on_finish = "keep";
-  override portions = 10;
+  override on_finish (owner: ARCH_WIZARD, flags: "rc") = "keep";
+  override portions (owner: ARCH_WIZARD, flags: "rc") = 10;
 
   verb "drink sip gulp quaff" (this none none) owner: ARCH_WIZARD flags: "rd"
     "Handle drinking - command verb for drink/sip/gulp/quaff.";

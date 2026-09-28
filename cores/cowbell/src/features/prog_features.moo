@@ -8,8 +8,8 @@ object PROG_FEATURES [
   owner: HACKER
   readable: true
 
-  override description = "Provides programmer commands (@show, @program, @grep, @chmod, @move, @which, @clear-property) for object and code management.";
-  override help_source = PROG_HELP_TOPICS;
+  override description (owner: HACKER, flags: "rc") = "Provides programmer commands (@show, @program, @grep, @chmod, @move, @which, @clear-property) for object and code management.";
+  override help_source (owner: HACKER, flags: "rc") = PROG_HELP_TOPICS;
 
   verb eval (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <expression> -- Evaluate a MOO expression.";

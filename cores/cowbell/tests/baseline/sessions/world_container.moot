@@ -1,0 +1,24 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+% put #90112 in #90111
+~~put
+@wizard
+; return #90112.location == #90111;
+true
+@nonprogrammer
+% get #90112 from #90111
+~~take
+% close #90111
+~~close
+% put #90112 in #90111
+~~closed
+@wizard
+; return #90112.location == #90102 && !#90111.open;
+true
+@nonprogrammer
+% open #90111
+~~open
+@wizard
+; return #90111.open;
+true

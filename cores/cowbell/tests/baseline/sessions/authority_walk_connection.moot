@@ -1,0 +1,13 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; add_verb(#90102, {#90102, "rxd", "authority-walk-probe"}, {"this", "none", "this"}); set_verb_code(#90102, "authority-walk-probe", {"const {destination} = args; fork (1) this:_do_walk({{this.location, 0}}, destination); endfork return true;"}); #90102:("authority-walk-probe")(connections(#90102)[1][1]); suspend(2); return true;
+true
+@second
+@event text/plain utility
+@text You've arrived at Runtime Test Chamber.
+@nonprogrammer
+@quiet
+@noevents

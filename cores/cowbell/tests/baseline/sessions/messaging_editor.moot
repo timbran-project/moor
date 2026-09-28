@@ -1,0 +1,34 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@wizard
+; add_property(#90106, "runtime_session", "", {#90101, ""}); return true;
+true
+@programmer
+; #90106.runtime_session = player:start_edit_session(#90106, "receive_edit", {connection()}); return true;
+true
+; #90106:receive_edit(#90106.runtime_session, "owner edit"); return #90106.text;
+{"owner edit"}
+~~Letter saved.
+@event text/plain utility
+; player:end_edit_session(#90106.runtime_session); #90106.runtime_session = player:start_edit_session($root, "receive_edit", {connection()}); try #90106:receive_edit(#90106.runtime_session, "wrong target"); return false; except (E_PERM) return #90106.text == {"owner edit"}; endtry
+true
+; player:end_edit_session(#90106.runtime_session); #90106.runtime_session = player:start_edit_session(#90106, "receive_edit", {connection()}); return true;
+true
+@wizard
+; #90106.sealed = true; #90106.author = #90102; #90106.owner = #90102; return true;
+true
+@programmer
+; try #90106:receive_edit(#90106.runtime_session, "revoked write"); return false; except (E_PERM) return true; endtry
+true
+@wizard
+; return #90106.text == {"owner edit"};
+true
+@wizard
+; #90106.owner = #90101; #90106.sealed = false; #90101.editing_sessions = []; add_verb(#90106, {#90101, "rxd", "can_write"}, {"this", "none", "this"}); return set_verb_code(#90106, "can_write", {"const {who} = args; const id = mapkeys(who.editing_sessions)[1]; who:end_edit_session(id); suspend(0); return ['allowed -> true, 'reason -> {}];"});
+0
+@programmer
+; #90106.runtime_session = player:start_edit_session(#90106, "receive_edit", {connection()}); try #90106:receive_edit(#90106.runtime_session, "stale session"); return false; except (E_INVARG) return true; endtry
+true
+@wizard
+; return #90106.text == {"owner edit"};
+true

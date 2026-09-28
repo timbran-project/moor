@@ -16,5 +16,5 @@ object AGENTIC [
   property runner (owner: ARCH_WIZARD, flags: "rc") = AGENTIC_RUNNER;
   property tool (owner: ARCH_WIZARD, flags: "rc") = AGENTIC_TOOL;
 
-  override description = "Namespace root for agentic components. Accessed as $agentic with subcomponents like $agentic.tool and $agentic.agent.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Namespace root for agentic components. Accessed as $agentic with subcomponents like $agentic.tool and $agentic.agent.";
 endobject

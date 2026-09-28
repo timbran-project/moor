@@ -10,7 +10,7 @@ object WIZ_FEATURES [
 
   property help_source (owner: ARCH_WIZARD, flags: "rc") = WIZARD_HELP_TOPICS;
 
-  override description = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) for wizards.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Provides wizard-only administrative verbs (@programmer, @builder, @llm-*, etc.) for wizards.";
 
   verb "@announce" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Broadcast a message to all connected players.";

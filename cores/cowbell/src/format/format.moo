@@ -17,5 +17,5 @@ object FORMAT [
   property table (owner: HACKER, flags: "r") = FORMAT_TABLE;
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;
 
-  override description = "Container for formatting objects like block, list, table, and title.";
+  override description (owner: HACKER, flags: "rc") = "Container for formatting objects like block, list, table, and title.";
 endobject

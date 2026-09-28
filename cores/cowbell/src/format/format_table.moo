@@ -7,7 +7,7 @@ object FORMAT_TABLE [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for table content in events.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for table content in events.";
 
   method mk owner: HACKER
     "Create table flyweight with headers and rows";
@@ -161,7 +161,7 @@ object FORMAT_TABLE [
     table_obj = this:mk(headers, rows);
     text_result = table_obj:compose($nothing, 'text_plain, $nothing);
     "Should contain headers and separator";
-    (index(text_result, "Item") && index(text_result, "Price") && index(text_result, "---") && index(text_result, "Apple") && index(text_result, "$1.00")) || raise(E_ASSERT, "text result: " + toliteral(text_result));
+    index(text_result, "Item") && index(text_result, "Price") && index(text_result, "---") && index(text_result, "Apple") && index(text_result, "$1.00") || raise(E_ASSERT, "text result: " + toliteral(text_result));
     return true;
   endmethod
 endobject

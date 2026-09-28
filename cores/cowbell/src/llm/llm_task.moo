@@ -20,7 +20,7 @@ object LLM_TASK [
   property subtasks (owner: HACKER, flags: "rc") = {};
   property task_id (owner: HACKER, flags: "rc") = 0;
 
-  override description = "Anonymous task spawned by an LLM agent to track work and findings.";
+  override description (owner: HACKER, flags: "rc") = "Anonymous task spawned by an LLM agent to track work and findings.";
 
   method mk owner: ARCH_WIZARD
     "Create a task (typically called by agent). Returns task object.";

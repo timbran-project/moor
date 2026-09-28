@@ -9,10 +9,10 @@ object ACTOR [
   readable: true
 
   property performing (owner: ARCH_WIZARD, flags: "rc") = "{}";
-  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <SCHEDULED_TASK, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
+  property pronouns (owner: ARCH_WIZARD, flags: "rc") = <PRONOUNS, .verb_be = "are", .verb_have = "have", .is_plural = true, .display = "they/them", .ps = "they", .po = "them", .pp = "their", .pq = "theirs", .pr = "themselves">;
   property wearing (owner: ARCH_WIZARD, flags: "rc") = {};
 
-  override description = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
 
   method is_actor owner: HACKER
     "Actors can perform actions in the world.";

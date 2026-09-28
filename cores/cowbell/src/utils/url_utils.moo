@@ -7,7 +7,7 @@ object URL_UTILS [
   location: PROTOTYPE_BOX
   owner: HACKER
 
-  override description = "Utilities for fetching and parsing URL metadata (OpenGraph, meta tags) for link previews.";
+  override description (owner: HACKER, flags: "rc") = "Utilities for fetching and parsing URL metadata (OpenGraph, meta tags) for link previews.";
 
   method fetch_preview owner: ARCH_WIZARD
     "Fetch URL and extract OpenGraph/meta preview data.";

@@ -27,7 +27,6 @@ object HEADLESS_BOOT_SCENARIOS
     this:_assert_valid_global("event", #18);
     this:_assert_valid_global("sub", #19);
     this:_assert_valid_global("match", #21);
-    this:_assert_valid_global("scheduler", #27);
     this:_assert_valid_global("relation", #23);
     this:_assert_valid_global("rule_engine", #62);
     this:_assert_valid_global("test_utils", #127);

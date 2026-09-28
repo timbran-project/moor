@@ -7,7 +7,7 @@ object PROPERTY [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Delegate object for property metadata flyweights. Provides access to property information and operations. Slots: owner_obj, location, name, owner, perms, is_clear";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Delegate object for property metadata flyweights. Provides access to property information and operations. Slots: owner_obj, location, name, owner, perms, is_clear";
 
   method owner owner: ARCH_WIZARD
     "Return the owner of the property (user who created it)";

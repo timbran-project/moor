@@ -32,8 +32,10 @@ object RLM_AGENT [
 
   verb add_tool (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Register a tool for this agent to use.";
+    const principal = caller_perms();
+    valid(principal) && (principal == this.owner || principal.wizard) || raise(E_PERM);
     "Accepts both flyweight tools and external tool maps.";
-    {tool_name, tool} = args;
+    const {tool_name, tool} = args;
     typeof(tool_name) != TYPE_STR && raise(E_TYPE, "tool_name must be string");
     "Accept flyweights or maps with input_schema";
     if (typeof(tool) != TYPE_FLYWEIGHT && typeof(tool) != TYPE_MAP)
@@ -48,15 +50,17 @@ object RLM_AGENT [
   verb _find_tool (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Find a registered tool by name. Returns flyweight or #-1 if not found.";
     caller == this || raise(E_PERM);
-    {tool_name} = args;
+    const {tool_name} = args;
     maphaskey(this.tools, tool_name) && return this.tools[tool_name];
     return #-1;
   endverb
 
   verb _get_tool_schemas (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Get OpenAI-format tool schemas from registered tools.";
+    let schema = 0;
+    let tool = 0;
     caller == this || raise(E_PERM);
-    schemas = {};
+    let schemas = {};
     for tool_name in (mapkeys(this.tools))
       tool = this.tools[tool_name];
       if (typeof(tool) == TYPE_FLYWEIGHT)
@@ -73,9 +77,15 @@ object RLM_AGENT [
 
   verb _call_llm (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Call LLM API with tool schemas. Returns $llm_response flyweight.";
+    let cb = 0;
+    let err_str = 0;
+    let response = 0;
     caller == this || raise(E_PERM);
-    {tool_schemas} = args;
-    max_retries = 3;
+    const principal = caller_perms();
+    const {tool_schemas, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
+    const max_retries = 3;
     for retry_count in [0..max_retries]
       try
         response = this.client:chat(this.context, 0, false, false, tool_schemas);
@@ -86,10 +96,10 @@ object RLM_AGENT [
         cb = this.progress_callback;
         if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
           err_str = toliteral(e);
-          `cb[1]:_announce_status("LLM Error (attempt " + tostr(retry_count + 1) + "/" + tostr(max_retries + 1) + "): " + err_str) ! ANY';
+          `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"LLM Error (attempt " + tostr(retry_count + 1) + "/" + tostr(max_retries + 1) + "): " + err_str}) ! ANY';
           "If error message is long, show more of it";
           if (length(e) >= 2 && typeof(e[2]) == TYPE_STR && length(e[2]) > 100)
-            `cb[1]:_announce_status("Full error: " + e[2]) ! ANY';
+            `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"Full error: " + e[2]}) ! ANY';
           endif
         endif
         "Store last error for debugging";
@@ -102,13 +112,20 @@ object RLM_AGENT [
 
   verb _execute_tool_call (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Execute a single tool call. Returns result map for context.";
+    let result = 0;
+    let target = 0;
+    let tool = 0;
+    let val = 0;
     caller == this || raise(E_PERM);
-    {tool_call} = args;
-    tool_name = tool_call["function"]["name"];
-    raw_args = tool_call["function"]["arguments"];
-    tool_call_id = tool_call["id"];
+    const principal = caller_perms();
+    const {tool_call, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
+    const tool_name = tool_call["function"]["name"];
+    const raw_args = tool_call["function"]["arguments"];
+    const tool_call_id = tool_call["id"];
     "Parse JSON args if needed";
-    tool_args = [];
+    let tool_args = [];
     if (typeof(raw_args) == TYPE_STR)
       try
         tool_args = parse_json(raw_args);
@@ -135,13 +152,13 @@ object RLM_AGENT [
     endif
     "Handle built-in RLM tools first";
     if (tool_name == "moo_eval")
-      result = this:_builtin_eval(tool_args);
+      result = this:_builtin_eval(tool_args, request_principal);
     elseif (tool_name == "spawn_agent")
-      result = this:_builtin_spawn(tool_args);
+      result = this:_builtin_spawn(tool_args, request_principal);
     elseif (tool_name == "report_finding")
-      result = this:_builtin_report(tool_args);
+      result = this:_builtin_report(tool_args, request_principal);
     elseif (tool_name == "think")
-      result = this:_builtin_think(tool_args);
+      result = this:_builtin_think(tool_args, request_principal);
     else
       "Try registered tools";
       tool = this:_find_tool(tool_name);
@@ -149,16 +166,17 @@ object RLM_AGENT [
         result = "ERROR: Unknown tool: " + tool_name;
       elseif (typeof(tool) == TYPE_FLYWEIGHT)
         try
-          result = tool:execute(tool_args, this.actor);
+          set_task_perms(request_principal);
+          result = tool:execute(tool_args, request_principal);
         except e (ANY)
           result = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
         endtry
       elseif (typeof(tool) == TYPE_MAP && maphaskey(tool, "target_verb"))
         try
-          set_task_perms(this.actor);
+          set_task_perms(request_principal);
           target = tool["target_obj"];
           verb = tool["target_verb"];
-          result = target:(verb)(tool_args, this.actor);
+          result = target:(verb)(tool_args, request_principal);
         except e (ANY)
           result = "ERROR: " + tostr(e[1]) + " - " + tostr(e[2]);
         endtry
@@ -167,8 +185,8 @@ object RLM_AGENT [
       endif
     endif
     "Truncate large results";
-    content_out = typeof(result) == TYPE_STR ? result | toliteral(result);
-    max_len = 4000;
+    let content_out = typeof(result) == TYPE_STR ? result | toliteral(result);
+    const max_len = 4000;
     if (length(content_out) > max_len)
       content_out = content_out[1..max_len] + "\n... [TRUNCATED]";
     endif
@@ -187,8 +205,17 @@ object RLM_AGENT [
 
   verb _builtin_eval (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Execute MOO code with access to workspace. Returns truncated output.";
+    let err = 0;
+    let msg = 0;
+    let output = 0;
+    let result = 0;
+    let trimmed = 0;
+    let unwrapped = 0;
     caller == this || raise(E_PERM);
-    {tool_args} = args;
+    const principal = caller_perms();
+    let {tool_args, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
     "Parse JSON if needed";
     if (typeof(tool_args) == TYPE_STR)
       try
@@ -197,7 +224,7 @@ object RLM_AGENT [
         tool_args = [];
       endtry
     endif
-    code = tool_args["code"];
+    let code = tool_args["code"];
     typeof(code) != TYPE_STR && return "ERROR: code must be a string, got " + typeof(code);
     "Unwrap JSON-like structures that LLMs sometimes produce";
     "Handle [\"code\"] array format";
@@ -231,7 +258,7 @@ object RLM_AGENT [
       code = code[1..length(code) - 1]:trim();
     endwhile
     "Check if code has return - if not and it's a simple expression, add return";
-    has_return = index(code, "return ") > 0 || index(code, "return(") > 0;
+    const has_return = index(code, "return ") > 0 || index(code, "return(") > 0;
     if (!has_return)
       trimmed = code:trim();
       if (length(trimmed) > 0 && trimmed[length(trimmed)] == ";")
@@ -247,10 +274,10 @@ object RLM_AGENT [
       return "ERROR: Empty code after cleanup. Original input was malformed.";
     endif
     "Inject agent reference and actor";
-    injected_code = "agent = " + toliteral(this) + "; actor = " + toliteral(this.actor) + "; " + code;
+    const injected_code = "agent = " + toliteral(this) + "; actor = " + toliteral(request_principal) + "; " + code;
     try
-      set_task_perms(this.actor);
-      if (this.actor.wizard)
+      set_task_perms(request_principal);
+      if (request_principal.wizard)
         server_log("AGENT EVAL (WIZARD): " + code);
       endif
       result = eval(injected_code);
@@ -277,26 +304,31 @@ object RLM_AGENT [
 
   verb _builtin_spawn (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Spawn a child agent with a sub-query and workspace subset.";
+    let short_query = 0;
+    let ws = 0;
     caller == this || raise(E_PERM);
-    {tool_args} = args;
+    const principal = caller_perms();
+    let {tool_args, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
     "Parse JSON if needed";
     if (typeof(tool_args) == TYPE_STR)
       tool_args = parse_json(tool_args);
     endif
-    sub_query = tool_args["query"];
+    const sub_query = tool_args["query"];
     typeof(sub_query) != TYPE_STR && return "ERROR: query must be a string";
     "Check depth limit";
     if (this.depth >= this.max_depth)
       return "ERROR: Maximum recursion depth (" + tostr(this.max_depth) + ") reached. Cannot spawn more agents.";
     endif
     "Announce spawn via callback";
-    cb = this.progress_callback;
+    const cb = this.progress_callback;
     if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
       short_query = length(sub_query) > 60 ? sub_query[1..60] + "..." | sub_query;
-      `cb[1]:_announce("Spawning child agent: \"" + short_query + "\"") ! ANY';
+      `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce", {"Spawning child agent: \"" + short_query + "\""}) ! ANY';
     endif
     "Get workspace for child - either explicit or empty";
-    child_workspace = [];
+    let child_workspace = [];
     if (maphaskey(tool_args, "workspace"))
       ws = tool_args["workspace"];
       "Parse if it's a JSON string";
@@ -307,9 +339,7 @@ object RLM_AGENT [
       endif
     endif
     "Create anonymous child agent - garbage collected when parent completes";
-    set_task_perms(this.actor);
-    child = $rlm_agent:create(true);
-    child:set_owner(this.actor);
+    const child = create($rlm_agent, request_principal, 1);
     child.client = this.client;
     child.max_depth = this.max_depth;
     child.max_iterations = this.max_iterations;
@@ -319,12 +349,12 @@ object RLM_AGENT [
       child:add_tool(tool_name, this.tools[tool_name]);
     endfor
     "Setup and run child with workspace";
-    child:setup(sub_query, this.actor, this, this.depth + 1, child_workspace);
+    child:setup(sub_query, request_principal, this, this.depth + 1, child_workspace);
     this.child_agents = {@this.child_agents, child};
-    result = child:run();
+    const result = child:run(request_principal);
     "Announce completion";
     if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-      `cb[1]:_announce("Child agent completed (depth " + tostr(this.depth + 1) + ")") ! ANY';
+      `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce", {"Child agent completed (depth " + tostr(this.depth + 1) + ")"}) ! ANY';
     endif
     "Return child's result";
     return "Child agent (depth " + tostr(this.depth + 1) + ") completed.\nResult: " + (typeof(result) == TYPE_STR ? result | toliteral(result));
@@ -332,8 +362,14 @@ object RLM_AGENT [
 
   verb _builtin_report (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Record a finding or report final answer.";
+    let has_announce = 0;
+    let loc = 0;
+    let preview = 0;
     caller == this || raise(E_PERM);
-    {tool_args} = args;
+    const principal = caller_perms();
+    let {tool_args, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
     "Parse JSON if needed";
     if (typeof(tool_args) == TYPE_STR)
       try
@@ -342,9 +378,9 @@ object RLM_AGENT [
         tool_args = [];
       endtry
     endif
-    subject = tool_args["subject"];
-    content = tool_args["content"];
-    is_final = maphaskey(tool_args, "final") && tool_args["final"];
+    let subject = tool_args["subject"];
+    let content = tool_args["content"];
+    const is_final = maphaskey(tool_args, "final") && tool_args["final"];
     "Identify and resolve any mangled structures in content";
     content = this:_coerce_string(content);
     "Validate and coerce subject";
@@ -356,8 +392,8 @@ object RLM_AGENT [
       this.findings:assert({this.depth, subject, content});
     endif
     "Notify actor's location if it has _announce (like $agent_room)";
-    if (valid(this.actor) && valid(this.actor.location))
-      loc = this.actor.location;
+    if (valid(request_principal) && valid(request_principal.location))
+      loc = request_principal.location;
       has_announce = false;
       try
         verb_info(loc, "_announce");
@@ -388,21 +424,46 @@ object RLM_AGENT [
   verb _get_builtin_schemas (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Return OpenAI-format schemas for the builtin RLM tools.";
     caller == this || raise(E_PERM);
-    eval_schema = ["type" -> "function", "function" -> ["name" -> "moo_eval", "description" -> "Execute a MOO program to query state or calculate values. IMPORTANT: You MUST use 'return <expression>;' if you want to see a result. This tool takes full statements, not just a single expression.", "parameters" -> ["type" -> "object", "properties" -> ["code" -> ["type" -> "string", "description" -> "MOO code block. Variable 'agent' refers to you. Access workspace via 'agent.workspace'. MUST include 'return' to get data back. Example: 'return ctime();' or 'return verbs(#123);'"], "rationale" -> ["type" -> "string", "description" -> "What you're trying to learn from this query."]], "required" -> {"code", "rationale"}]]];
-    spawn_schema = ["type" -> "function", "function" -> ["name" -> "spawn_agent", "description" -> "Spawn a child agent with a focused sub-task and a subset of context. The child's workspace becomes its context to query. Child runs to completion and returns its result.", "parameters" -> ["type" -> "object", "properties" -> ["query" -> ["type" -> "string", "description" -> "The sub-task for the child. Be specific about what you need answered."], "workspace" -> ["type" -> "object", "description" -> "Context for the child - typically a partition or filtered subset."]], "required" -> {"query"}]]];
-    report_schema = ["type" -> "function", "function" -> ["name" -> "report_finding", "description" -> "Record a finding or report your final answer. Findings persist in a shared knowledge base. Use final=true when done.", "parameters" -> ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Category of finding (e.g., 'summary', 'issue', 'pattern')."], "content" -> ["type" -> "string", "description" -> "The finding or answer."], "final" -> ["type" -> "boolean", "description" -> "True if this is your complete answer. Agent terminates after."]], "required" -> {"subject", "content"}]]];
-    think_schema = ["type" -> "function", "function" -> ["name" -> "think", "description" -> "Share your current thinking or status with the user. Use this to explain what you're doing, why, or what you've learned. Helps the user follow your progress.", "parameters" -> ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "Your current thinking, plan, or status update."]], "required" -> {"thought"}]]];
+    const eval_schema = ["type" -> "function", "function" -> ["name" -> "moo_eval", "description" -> "Execute a MOO program to query state or calculate values. IMPORTANT: You MUST use 'return <expression>;' if you want to see a result. This tool takes full statements, not just a single expression.", "parameters" -> ["type" -> "object", "properties" -> ["code" -> ["type" -> "string", "description" -> "MOO code block. Variable 'agent' refers to you. Access workspace via 'agent.workspace'. MUST include 'return' to get data back. Example: 'return ctime();' or 'return verbs(#123);'"], "rationale" -> ["type" -> "string", "description" -> "What you're trying to learn from this query."]], "required" -> {"code", "rationale"}]]];
+    const spawn_schema = ["type" -> "function", "function" -> ["name" -> "spawn_agent", "description" -> "Spawn a child agent with a focused sub-task and a subset of context. The child's workspace becomes its context to query. Child runs to completion and returns its result.", "parameters" -> ["type" -> "object", "properties" -> ["query" -> ["type" -> "string", "description" -> "The sub-task for the child. Be specific about what you need answered."], "workspace" -> ["type" -> "object", "description" -> "Context for the child - typically a partition or filtered subset."]], "required" -> {"query"}]]];
+    const report_schema = ["type" -> "function", "function" -> ["name" -> "report_finding", "description" -> "Record a finding or report your final answer. Findings persist in a shared knowledge base. Use final=true when done.", "parameters" -> ["type" -> "object", "properties" -> ["subject" -> ["type" -> "string", "description" -> "Category of finding (e.g., 'summary', 'issue', 'pattern')."], "content" -> ["type" -> "string", "description" -> "The finding or answer."], "final" -> ["type" -> "boolean", "description" -> "True if this is your complete answer. Agent terminates after."]], "required" -> {"subject", "content"}]]];
+    const think_schema = ["type" -> "function", "function" -> ["name" -> "think", "description" -> "Share your current thinking or status with the user. Use this to explain what you're doing, why, or what you've learned. Helps the user follow your progress.", "parameters" -> ["type" -> "object", "properties" -> ["thought" -> ["type" -> "string", "description" -> "Your current thinking, plan, or status update."]], "required" -> {"thought"}]]];
     return {eval_schema, spawn_schema, report_schema, think_schema};
   endverb
 
   verb run (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Main agent loop. Execute until complete or max iterations.";
+    let assistant_msg = 0;
+    let brief = 0;
+    let cb = 0;
+    let cleaned_args = 0;
+    let content = 0;
+    let dsml_tool_calls = 0;
+    let expr = 0;
+    let findings = 0;
+    let nudge = 0;
+    let reasoning = 0;
+    let reminder = 0;
+    let res_content = 0;
+    let response = 0;
+    let status_msg = 0;
+    let thinking = 0;
+    let tool_calls_to_process = 0;
+    let tool_name = 0;
+    let tool_result_map = 0;
+    let tool_results = 0;
+    let used_dsml = 0;
+    const principal = caller_perms();
+    const {?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
+    principal == this.owner || principal.wizard || raise(E_PERM);
     !valid(this.client) && raise(E_INVARG, "No LLM client configured");
     this.status = 'running;
     this.iteration = 0;
     this.last_tool = "";
-    tool_schemas = {@this:_get_builtin_schemas(), @this:_get_tool_schemas()};
-    wrap_up_at = toint(this.max_iterations * 0.8);
+    const tool_schemas = {@this:_get_builtin_schemas(), @this:_get_tool_schemas()};
+    const wrap_up_at = toint(tofloat(this.max_iterations) * 0.8);
     for iteration in [1..this.max_iterations]
       this.iteration = iteration;
       if (this.status == 'complete)
@@ -410,28 +471,29 @@ object RLM_AGENT [
       endif
       cb = this.progress_callback;
       if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-        `cb[1]:(cb[2])(this, iteration, this.last_tool) ! ANY';
+        `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], cb[2], {this, iteration, this.last_tool}) ! ANY';
       endif
       if (iteration == wrap_up_at)
         reminder = ["role" -> "system", "content" -> "SYSTEM REMINDER: You are at iteration " + tostr(iteration) + " of " + tostr(this.max_iterations) + ". Please wrap up soon. Use report_finding with final=true when done."];
         this.context = {@this.context, reminder};
       endif
       if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-        `cb[1]:_announce_status("Thinking...") ! ANY';
+        `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"Thinking..."}) ! ANY';
       endif
-      response = this:_call_llm(tool_schemas);
+      response = this:_call_llm(tool_schemas, request_principal);
       if (!response:is_valid())
         this.status = 'failed;
         this.result = "LLM returned invalid response";
         return this.result;
       endif
       reasoning = response:reasoning();
+      thinking = response:content();
       if (reasoning && length(reasoning) > 0 && typeof(cb) == TYPE_LIST && length(cb) >= 2)
         "Let _announce_thinking handle truncation after processing";
-        `cb[1]:_announce_thinking(reasoning) ! ANY';
-      elseif ((thinking = response:content()) && length(thinking) > 0 && typeof(cb) == TYPE_LIST && length(cb) >= 2)
+        `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_thinking", {reasoning}) ! ANY';
+      elseif (thinking && length(thinking) > 0 && typeof(cb) == TYPE_LIST && length(cb) >= 2)
         "Let _announce_thinking handle truncation after stripping DSML";
-        `cb[1]:_announce_thinking(thinking) ! ANY';
+        `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_thinking", {thinking}) ! ANY';
       endif
       "Get tool calls - either from response or parsed from DSML in content";
       tool_calls_to_process = response:tool_calls();
@@ -443,7 +505,7 @@ object RLM_AGENT [
         if (length(dsml_tool_calls) > 0)
           "Found DSML tool calls - use those instead";
           if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-            `cb[1]:_announce_status("Parsed " + tostr(length(dsml_tool_calls)) + " tool call(s) from DSML") ! ANY';
+            `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"Parsed " + tostr(length(dsml_tool_calls)) + " tool call(s) from DSML"}) ! ANY';
           endif
           tool_calls_to_process = dsml_tool_calls;
           used_dsml = true;
@@ -460,7 +522,7 @@ object RLM_AGENT [
       for tool_call in (tool_calls_to_process)
         tool_name = tool_call["function"]["name"];
         this.last_tool = tool_name;
-        tool_result_map = this:_execute_tool_call(tool_call);
+        tool_result_map = this:_execute_tool_call(tool_call, request_principal);
         tool_results = {@tool_results, tool_result_map};
         cleaned_args = typeof(tool_call["function"]["arguments"]) == TYPE_STR ? `parse_json(tool_call["function"]["arguments"]) ! ANY => []' | tool_call["function"]["arguments"];
         if (typeof(cleaned_args) == TYPE_MAP)
@@ -485,21 +547,21 @@ object RLM_AGENT [
           status_msg = tool_name + ": " + cleaned_args["name"];
         endif
         if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-          `cb[1]:_announce_status(status_msg) ! ANY';
+          `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {status_msg}) ! ANY';
         endif
         if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
           res_content = tool_result_map["content"];
           if (index(res_content, "ERROR") == 1)
-            `cb[1]:_announce_status("  \u2192 " + res_content) ! ANY';
+            `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"  \u2192 " + res_content}) ! ANY';
           elseif (tool_name == "moo_eval")
             "Special case for eval: show result preview";
             brief = res_content;
             if (length(brief) > 500)
               brief = brief[1..500] + "...";
             endif
-            `cb[1]:_announce_status("  \u2192 " + brief) ! ANY';
+            `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"  \u2192 " + brief}) ! ANY';
           elseif (tool_name != "think" && tool_name != "report_finding" && tool_name != "show_verb" && tool_name != "program_verb" && length(res_content) > 0 && length(res_content) < 200)
-            `cb[1]:_announce_status("  \u2192 " + res_content) ! ANY';
+            `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_status", {"  \u2192 " + res_content}) ! ANY';
           endif
         endif
         if (this.status == 'complete)
@@ -535,26 +597,32 @@ object RLM_AGENT [
     "Convenience: create an agent, run it, and return the result.";
     "Usage: $rlm_agent:ask(query, actor, client)";
     "Agent is anonymous - garbage collected after use.";
-    {query, actor, client} = args;
-    actor == caller_perms() || caller_perms().wizard || isa(caller, $agent_room) || raise(E_PERM);
+    const {query, actor, client} = args;
+    const principal = caller_perms();
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM);
+    actor == principal || principal.wizard || raise(E_PERM);
     set_task_perms(actor);
-    agent = $rlm_agent:create(true);
+    const agent = $rlm_agent:create(true);
     agent:set_owner(actor);
     agent.client = client;
     agent:setup(query, actor);
-    return agent:run();
+    return agent:run(actor);
   endverb
 
   verb get_findings (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Get all findings from this agent's knowledge base.";
+    set_task_perms(caller_perms());
     !valid(this.findings) && return {};
     return this.findings:tuples();
   endverb
 
   verb setup (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Set up an RLM agent instance with query, actor, and optional initial context.";
-    {query, actor, ?parent = #-1, ?depth = 0, ?initial_workspace = []} = args;
-    actor == caller_perms() || caller_perms().wizard || isa(caller, $agent_room) || isa(caller, $rlm_agent) || raise(E_PERM);
+    const {query, actor, ?parent = #-1, ?depth = 0, ?initial_workspace = []} = args;
+    const principal = caller_perms();
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM);
+    actor == principal || principal.wizard || raise(E_PERM);
+    principal == this.owner || principal.wizard || raise(E_PERM);
     this.query = query;
     this.actor = actor;
     this.parent_agent = parent;
@@ -572,12 +640,12 @@ object RLM_AGENT [
       this.findings = $relation:create(true);
     endif
     "Build mode-aware system prompt";
-    q = query:lowercase();
-    mode = "mixed";
-    inspect_hints = {"inspect", "explain", "review", "understand", "show", "list", "find", "what is", "why"};
-    change_hints = {"create", "build", "add", "modify", "change", "fix", "update", "program", "set", "remove", "delete"};
-    inspect_score = 0;
-    change_score = 0;
+    const q = query:lowercase();
+    let mode = "mixed";
+    const inspect_hints = {"inspect", "explain", "review", "understand", "show", "list", "find", "what is", "why"};
+    const change_hints = {"create", "build", "add", "modify", "change", "fix", "update", "program", "set", "remove", "delete"};
+    let inspect_score = 0;
+    let change_score = 0;
     for h in (inspect_hints)
       if (index(q, h) > 0)
         inspect_score = inspect_score + 1;
@@ -593,14 +661,14 @@ object RLM_AGENT [
     elseif (change_score > 0 && inspect_score == 0)
       mode = "change";
     endif
-    guide = this:_get_guide();
-    mode_policy = "MODE: MIXED - Inspect first, then change only where needed.";
+    const guide = this:_get_guide();
+    let mode_policy = "MODE: MIXED - Inspect first, then change only where needed.";
     if (mode == "inspect")
       mode_policy = "MODE: INSPECT - Do not modify world state unless explicitly requested. Focus on reading and reporting.";
     elseif (mode == "change")
       mode_policy = "MODE: CHANGE - Make requested changes, but inspect target code/objects before writing.";
     endif
-    prompt = "You are a MOO building and maintenance agent. Use tools carefully and deliver concrete results.\n\nTASK: " + query + "\n\n" + mode_policy + "\n\nCOMPLETION CONTRACT:\n- You must finish by calling report_finding with final=true exactly once.\n- Do not end with plain assistant text alone.\n\nTOOL ARGUMENT CONTRACT:\n- Pass clean JSON object arguments only.\n- Keep object and verb separate (object=\"$room\", verb=\"description\").\n- Never include protocol or prefix noise in arguments.\n- For moo_eval, include return when you need output and terminate statements with semicolons.\n\nWORKFLOW CONTRACT:\n1. Think briefly about plan.\n2. Read before write: inspect existing verbs/properties/objects first.\n3. Apply minimal changes needed.\n4. Verify with follow-up reads/eval.\n5. Report findings and finish with report_finding(final=true).\n\nERROR RECOVERY CONTRACT:\n- On tool error: retry once with corrected arguments.\n- If second attempt fails, choose an alternate tool/path.\n- If blocked, report a concise blocker with exact error text.\n\nITERATION BUDGETING:\n- By iteration 20: have completed discovery and selected approach.\n- By iteration 35: have executed core change or proven blocker.\n- By iteration 45: run verification and prepare final report.\n\nPRIVACY SCOPE:\n- In shared rooms, do not reveal other users' private task details unless actor is a wizard.\n\n" + guide;
+    const prompt = "You are a MOO building and maintenance agent. Use tools carefully and deliver concrete results.\n\nTASK: " + query + "\n\n" + mode_policy + "\n\nCOMPLETION CONTRACT:\n- You must finish by calling report_finding with final=true exactly once.\n- Do not end with plain assistant text alone.\n\nTOOL ARGUMENT CONTRACT:\n- Pass clean JSON object arguments only.\n- Keep object and verb separate (object=\"$room\", verb=\"description\").\n- Never include protocol or prefix noise in arguments.\n- For moo_eval, include return when you need output and terminate statements with semicolons.\n\nWORKFLOW CONTRACT:\n1. Think briefly about plan.\n2. Read before write: inspect existing verbs/properties/objects first.\n3. Apply minimal changes needed.\n4. Verify with follow-up reads/eval.\n5. Report findings and finish with report_finding(final=true).\n\nERROR RECOVERY CONTRACT:\n- On tool error: retry once with corrected arguments.\n- If second attempt fails, choose an alternate tool/path.\n- If blocked, report a concise blocker with exact error text.\n\nITERATION BUDGETING:\n- By iteration 20: have completed discovery and selected approach.\n- By iteration 35: have executed core change or proven blocker.\n- By iteration 45: run verification and prepare final report.\n\nPRIVACY SCOPE:\n- In shared rooms, do not reveal other users' private task details unless actor is a wizard.\n\n" + guide;
     this.system_prompt = prompt;
     this.context = {["role" -> "system", "content" -> this.system_prompt]};
     return this;
@@ -608,9 +676,13 @@ object RLM_AGENT [
 
   verb load_external_tools (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Load tools from #0:external_agent_tools() into this agent.";
+    const principal = caller_perms();
+    valid(principal) && (principal == this.owner || principal.wizard) || raise(E_PERM);
     "Optional filter list to load only specific tools.";
+    let filter = 0;
+    let tool_name = 0;
     {?filter = {}} = args;
-    external_tools = $external_agent_tools();
+    const external_tools = $external_agent_tools();
     for tool in (external_tools)
       tool_name = tool["name"];
       "Skip if filter provided and tool not in filter";
@@ -625,9 +697,13 @@ object RLM_AGENT [
 
   verb _builtin_think (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Share thinking/status with the user via progress callback.";
-    {tool_args} = args;
+    let val = 0;
+    const principal = caller_perms();
+    let {tool_args, ?request_principal = this.actor} = args;
+    typeof(request_principal) == TYPE_OBJ && valid(request_principal) || raise(E_PERM);
+    request_principal == principal || principal.wizard || raise(E_PERM);
     "Handle malformed args - LLM sometimes sends weird map structures";
-    thought = "";
+    let thought = "";
     if (typeof(tool_args) == TYPE_MAP)
       if (maphaskey(tool_args, "thought"))
         thought = tool_args["thought"];
@@ -649,9 +725,9 @@ object RLM_AGENT [
     endif
     !thought || length(thought) == 0 && return "Please provide a thought to share.";
     "Announce via callback if available";
-    cb = this.progress_callback;
+    const cb = this.progress_callback;
     if (typeof(cb) == TYPE_LIST && length(cb) >= 2)
-      `cb[1]:_announce_thinking(thought) ! ANY';
+      `$rlm_agent:_invoke_request_callback(this, request_principal, cb[1], "_announce_thinking", {thought}) ! ANY';
     endif
     return "Shared: " + thought[1..min(50, length(thought))] + (length(thought) > 50 ? "..." | "");
   endverb
@@ -663,12 +739,22 @@ object RLM_AGENT [
 
   verb _coerce_string (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Aggressively convert mangled model output into a single string.";
-    {val} = args;
+    let coerced = 0;
+    let end_idx = 0;
+    let idx = 0;
+    let key_str = 0;
+    let parts = 0;
+    let patterns = 0;
+    let result = 0;
+    let v = 0;
+    let val_str = 0;
+    let {val} = args;
     if (typeof(val) == TYPE_STR)
       "Clean up hallucinated internal protocol tokens common in some model outputs (Kimi 2.5, DeepSeek)";
       patterns = {"<|tool_call_begin|>", "<|tool_call_end|>", "<|tool_call_argument_begin|>", "<|tool_calls_section_begin|>", "<|tool_calls_section_end|>", "<|DSML|", "<\uFF5CDSML\uFF5C", "functions.", ">functions.", "</thought>", "<|thought|>", "_of_thought"};
       for p in (patterns)
-        while (idx = index(val, p))
+        idx = index(val, p);
+        while (idx > 0)
           if (p[1] == "<" || p[1] == ">")
             end_idx = index(val[idx..$], ">") || index(val[idx..$], " ");
             if (end_idx)
@@ -679,6 +765,7 @@ object RLM_AGENT [
           else
             val = val[1..idx - 1] + val[idx + length(p)..$];
           endif
+          idx = index(val, p);
         endwhile
       endfor
       "Strip remaining punctuation garbage at start";
@@ -715,7 +802,7 @@ object RLM_AGENT [
   verb _resolve_citations (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Resolve citation structures in LLM output to clean content.";
     "Returns map with 'content key containing the cleaned value.";
-    {val} = args;
+    const {val} = args;
     "Simple types pass through";
     if (typeof(val) == TYPE_STR)
       return ['content -> val];
@@ -731,16 +818,36 @@ object RLM_AGENT [
   verb _parse_dsml_tool_calls (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Parse DSML markup from DeepSeek and convert to tool_calls format.";
     "Returns list of tool call maps, or empty list if no DSML found.";
-    {content} = args;
+    let block_end = 0;
+    let end_calls = 0;
+    let end_param = 0;
+    let func_name = 0;
+    let invoke_start = 0;
+    let name_end = 0;
+    let name_start = 0;
+    let next_invoke = 0;
+    let next_param = 0;
+    let param_name = 0;
+    let param_search_pos = 0;
+    let param_start = 0;
+    let param_value = 0;
+    let params = 0;
+    let pname_end = 0;
+    let pname_start = 0;
+    let tag_close = 0;
+    let tool_call = 0;
+    let value_end = 0;
+    let value_start = 0;
+    const {content} = args;
     !content && return {};
     "Check for DSML markers";
-    dsml_marker = "<\uFF5CDSML\uFF5C";
+    const dsml_marker = "<\uFF5CDSML\uFF5C";
     if (!index(content, dsml_marker))
       return {};
     endif
-    tool_calls = {};
+    let tool_calls = {};
     "Find all invoke blocks";
-    pos = 1;
+    let pos = 1;
     while (pos <= length(content))
       "Find next invoke";
       invoke_start = index(content[pos..length(content)], "<\uFF5CDSML\uFF5Cinvoke");
@@ -823,5 +930,15 @@ object RLM_AGENT [
       pos = block_end + 1;
     endwhile
     return tool_calls;
+  endverb
+
+  verb _invoke_request_callback (none none none) owner: ARCH_WIZARD flags: "rxd"
+    "Invoke an external progress callback under the captured requester.";
+    const {subject, principal, callback, callback_verb, callback_args} = args;
+    caller == subject || raise(E_PERM);
+    const incoming = caller_perms();
+    incoming == principal || incoming.wizard || raise(E_PERM);
+    set_task_perms(principal);
+    return callback:(callback_verb)(@callback_args);
   endverb
 endobject

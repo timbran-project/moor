@@ -8,7 +8,7 @@ object TEST_UTILS [
   owner: HACKER
   readable: true
 
-  override description = "Shared helpers for cowbell unit tests.";
+  override description (owner: HACKER, flags: "rc") = "Shared helpers for cowbell unit tests.";
 
   method assert_true owner: HACKER
     "Assert that condition is true.";

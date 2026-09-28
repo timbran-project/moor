@@ -8,7 +8,7 @@ object FORMAT_DEFLIST [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for definition lists (key-value pairs) in events.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for definition lists (key-value pairs) in events.";
 
   method mk owner: ARCH_WIZARD
     "Create deflist flyweight from a list of {term, definition} pairs.";

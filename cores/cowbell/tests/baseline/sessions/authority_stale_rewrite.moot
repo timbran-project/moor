@@ -1,0 +1,13 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; #90102:rewrite_event("stale-probe", "stale connection rewrite", #-999999); return true;
+true
+@nonprogrammer
+@quiet
+@noevents
+@second
+@quiet
+@noevents

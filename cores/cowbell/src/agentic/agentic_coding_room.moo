@@ -19,129 +19,114 @@ object AGENTIC_CODING_ROOM [
   property agentic_tool_state (owner: ARCH_WIZARD, flags: "rc") = "\"\"";
   property agentic_wait_started (owner: ARCH_WIZARD, flags: "rc") = 0;
 
-  override description = "Room-based coding agent that uses $agentic.agent for task execution and tool orchestration.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Room-based coding agent that uses $agentic.agent for task execution and tool orchestration.";
 
   method _tool_dump_object owner: ARCH_WIZARD
     "Tool: Dump object summary with properties and verbs.";
-    {args_map, actor} = args;
-    stack = callers();
-    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     valid(actor) || raise(E_PERM);
-    obj_ref = `args_map["object"] ! ANY => ""';
+    const obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
-    obj = $match:match_object(obj_ref, actor);
+    const obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    set_task_perms(actor, {{"object_read", obj}});
-    name = `obj.name ! ANY => tostr(obj)';
-    parent_obj = parent(obj);
-    props = properties(obj);
-    verbs_list = verbs(obj);
-    lines = {"Object: " + tostr(obj) + " (" + name + ")", "Parent: " + tostr(parent_obj), "Properties (" + tostr(length(props)) + "): " + (length(props) > 0 ? props:join(", ") | "(none)"), "Verbs (" + tostr(length(verbs_list)) + "): " + (length(verbs_list) > 0 ? verbs_list:join(", ") | "(none)")};
+    set_task_perms(actor);
+    const name = `obj.name ! ANY => tostr(obj)';
+    const parent_obj = parent(obj);
+    const props = properties(obj);
+    const verbs_list = verbs(obj);
+    const lines = {"Object: " + tostr(obj) + " (" + name + ")", "Parent: " + tostr(parent_obj), "Properties (" + tostr(length(props)) + "): " + (length(props) > 0 ? props:join(", ") | "(none)"), "Verbs (" + tostr(length(verbs_list)) + "): " + (length(verbs_list) > 0 ? verbs_list:join(", ") | "(none)")};
     return lines:join("\n");
   endmethod
 
   method _tool_list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
-    {args_map, actor} = args;
-    stack = callers();
-    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     valid(actor) || raise(E_PERM);
-    obj_ref = `args_map["object"] ! ANY => ""';
+    const obj_ref = `args_map["object"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
-    obj = $match:match_object(obj_ref, actor);
+    const obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    set_task_perms(actor, {{"object_read", obj}});
-    verbs_list = verbs(obj);
+    set_task_perms(actor);
+    const verbs_list = verbs(obj);
     !verbs_list && return "No verbs on " + tostr(obj) + ".";
     return "Verbs on " + tostr(obj) + ":\n- " + verbs_list:join("\n- ");
   endmethod
 
   method _tool_get_verb_code owner: ARCH_WIZARD
     "Tool: Return full code for a verb.";
-    {args_map, actor} = args;
-    stack = callers();
-    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     valid(actor) || raise(E_PERM);
-    obj_ref = `args_map["object"] ! ANY => ""';
-    verb_name = `args_map["verb"] ! ANY => ""';
+    const obj_ref = `args_map["object"] ! ANY => ""';
+    const verb_name = `args_map["verb"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     typeof(verb_name) == TYPE_STR || raise(E_TYPE, "verb must be string");
-    obj = $match:match_object(obj_ref, actor);
+    const obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
-    set_task_perms(actor, {{"verb_read", obj, verb_name}});
-    code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
+    set_task_perms(actor);
+    const code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
     code_lines == 0 && raise(E_VERBNF, "Verb not found: " + verb_name);
     return code_lines:join("\n");
   endmethod
 
   method _tool_read_property owner: ARCH_WIZARD
     "Tool: Read a property value from an object.";
-    {args_map, actor} = args;
-    stack = callers();
-    caller == $agentic.tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+    let value = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     valid(actor) || raise(E_PERM);
-    obj_ref = `args_map["object"] ! ANY => ""';
-    prop_name = `args_map["property"] ! ANY => ""';
+    const obj_ref = `args_map["object"] ! ANY => ""';
+    const prop_name = `args_map["property"] ! ANY => ""';
     typeof(obj_ref) == TYPE_STR || raise(E_TYPE, "object must be string");
     typeof(prop_name) == TYPE_STR || raise(E_TYPE, "property must be string");
-    obj = $match:match_object(obj_ref, actor);
+    const obj = $match:match_object(obj_ref, actor);
     valid(obj) || raise(E_INVARG, "Could not find object: " + obj_ref);
     try
-      set_task_perms(actor, {{"property_read", obj, prop_name}});
+      set_task_perms(actor);
       value = obj.(prop_name);
-    except e (E_PROPNF, E_PERM)
+    except e (E_PROPNF)
       raise(E_PROPNF, "Property not found: " + prop_name);
     endtry
     return toliteral(value);
   endmethod
 
-  method test_agentic_inspection_tools owner: HACKER
-    "Agentic inspection tools should return real metadata and surface missing properties.";
-    verbs_out = this:_tool_list_verbs(["object" -> "$agentic.agent"], player);
-    $test_utils:assert_type(verbs_out, TYPE_STR, "list_verbs should return formatted output");
-    $test_utils:assert_true(index(verbs_out, "send_message") > 0, "list_verbs should include readable agent verbs");
-    prop_out = this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "max_iterations"], player);
-    $test_utils:assert_type(prop_out, TYPE_STR, "read_property should return literal property value");
-    dump_out = this:_tool_dump_object(["object" -> "$agentic.agent"], player);
-    $test_utils:assert_true(index(dump_out, "Properties (") > 0, "dump_object should include property count");
-    $test_utils:assert_true(index(dump_out, "Verbs (") > 0, "dump_object should include verb count");
-    missing_prop_raised = false;
+  method test_agentic_inspection_tools owner: ARCH_WIZARD
+    "Inspection tools preserve public metadata access and deny arbitrary private targets.";
+    const actor = $test_player;
+    const public_output = this:_tool_list_verbs(["object" -> "$agentic.agent"], actor);
+    $test_utils:assert_true(index(public_output, "send_message") > 0, "readable metadata remains available");
+    const target = create($thing, $hacker, 2);
     try
-      this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player);
-    except e (E_PROPNF)
-      missing_prop_raised = true;
-    endtry
-    $test_utils:assert_true(missing_prop_raised, "read_property should surface missing property");
-    $test_utils:assert_raises(E_PERM, this, "_tool_read_property", {["object" -> "$agentic.agent", "property" -> "definitely_missing_agentic_test_property"], player}, "read_property should reject unrelated direct callers");
-    private_obj = #-1;
-    try
-      private_obj = $thing:create();
-      private_obj.name = "agentic private probe";
-      add_property(private_obj, "agentic_private_probe", "secret", {$hacker, ""});
-      add_verb(private_obj, {$hacker, "xd", "agentic_private_verb"}, {"this", "none", "this"});
-      set_verb_code(private_obj, "agentic_private_verb", {"return \"secret\";"});
-      private_obj.r = 0;
-      private_ref = tostr(private_obj);
-      prop_out = this:_tool_read_property(["object" -> private_ref, "property" -> "agentic_private_probe"], player);
-      $test_utils:assert_eq(prop_out, "\"secret\"", "read_property should use a scoped property_read grant");
-      code_out = this:_tool_get_verb_code(["object" -> private_ref, "verb" -> "agentic_private_verb"], player);
-      $test_utils:assert_true(index(code_out, "return \"secret\";") > 0, "get_verb_code should use a scoped verb_read grant");
-      verbs_out = this:_tool_list_verbs(["object" -> private_ref], player);
-      $test_utils:assert_true(index(verbs_out, "agentic_private_verb") > 0, "list_verbs should use scoped object/verb read grants");
-      dump_out = this:_tool_dump_object(["object" -> private_ref], player);
-      $test_utils:assert_true(index(dump_out, "agentic_private_probe") > 0, "dump_object should include granted private properties");
-      $test_utils:assert_true(index(dump_out, "agentic_private_verb") > 0, "dump_object should include granted private verbs");
+      target.r = 0;
+      add_property(target, "private_probe", "secret", {$hacker, ""});
+      add_verb(target, {$hacker, "xd", "private_probe"}, {"this", "none", "this"});
+      set_verb_code(target, "private_probe", {"return \"secret\";"});
+      for entry in ({{"_tool_read_property", ["object" -> tostr(target), "property" -> "private_probe"]}, {"_tool_get_verb_code", ["object" -> tostr(target), "verb" -> "private_probe"]}, {"_tool_list_verbs", ["object" -> tostr(target)]}, {"_tool_dump_object", ["object" -> tostr(target)]}})
+        let denied = false;
+        try
+          this:(entry[1])(entry[2], actor);
+        except (E_PERM)
+          denied = true;
+        endtry
+        $test_utils:assert_true(denied, entry[1] + " must deny foreign private access");
+      endfor
     finally
-      valid(private_obj) && private_obj:destroy();
+      valid(target) && target:destroy();
     endtry
     return true;
   endmethod
 
   method _get_agentic_tools owner: ARCH_WIZARD
     "Return tool definitions for agentic coding room.";
-    base = this:_get_room_tools();
-    extra = {["name" -> "dump_object", "description" -> "Get object summary including parent, properties, and verbs.", "target_obj" -> this, "target_verb" -> "_tool_dump_object", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "list_verbs", "description" -> "List verb names on an object.", "target_obj" -> this, "target_verb" -> "_tool_list_verbs", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "get_verb_code", "description" -> "Get full source code for a verb.", "target_obj" -> this, "target_verb" -> "_tool_get_verb_code", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "verb" -> ["type" -> "string"]], "required" -> {"object", "verb"}]], ["name" -> "read_property", "description" -> "Read a property value from an object.", "target_obj" -> this, "target_verb" -> "_tool_read_property", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "property" -> ["type" -> "string"]], "required" -> {"object", "property"}]]};
-    building = {};
+    const base = this:_get_room_tools();
+    const extra = {["name" -> "dump_object", "description" -> "Get object summary including parent, properties, and verbs.", "target_obj" -> this, "target_verb" -> "_tool_dump_object", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "list_verbs", "description" -> "List verb names on an object.", "target_obj" -> this, "target_verb" -> "_tool_list_verbs", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room' or '#123'"]], "required" -> {"object"}]], ["name" -> "get_verb_code", "description" -> "Get full source code for a verb.", "target_obj" -> this, "target_verb" -> "_tool_get_verb_code", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "verb" -> ["type" -> "string"]], "required" -> {"object", "verb"}]], ["name" -> "read_property", "description" -> "Read a property value from an object.", "target_obj" -> this, "target_verb" -> "_tool_read_property", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "property" -> ["type" -> "string"]], "required" -> {"object", "property"}]]};
+    let building = {};
     try
       building = $agent_building_tools:get_tools();
     except (ANY)
@@ -152,9 +137,20 @@ object AGENTIC_CODING_ROOM [
 
   method _execute_task owner: ARCH_WIZARD
     "Internal: execute one queued task using $agentic.agent backend.";
+    let brief = 0;
+    let child_result = 0;
+    let child_status = 0;
+    let content = 0;
+    let description = 0;
+    let input_schema = 0;
+    let target_obj = 0;
+    let target_verb = 0;
+    let tool_fw = 0;
+    let tool_name = 0;
     caller == this || raise(E_PERM);
-    {task} = args;
-    task_player = task['player];
+    const {task} = args;
+    $agent_room:_consume_task(this, task);
+    const task_player = task['player];
     this.task_requester = task_player;
     this.current_task = task['query];
     this.agentic_tool_current = "";
@@ -164,16 +160,15 @@ object AGENTIC_CODING_ROOM [
     this.agentic_last_error = "";
     this.agentic_wait_started = 0;
     this:_announce(task_player.name + " requested: \"" + task['query] + "\"");
-    agent = $agentic.agent:create(true);
+    const agent = create($agentic.agent, task_player, 1);
     this.agent = agent;
-    agent.owner = this.owner;
     agent.client = valid(this.llm_client) ? this.llm_client | $llm_client;
     agent.token_owner = task_player;
     agent.system_prompt = `this.agentic_system_prompt ! ANY => "You are a room-based coding agent for MOO development."';
     agent.tool_callback = this;
     agent.compaction_callback = this;
     agent:reset_context();
-    registered = [];
+    let registered = [];
     for tool_def in (this:_get_agentic_tools())
       if (typeof(tool_def) == TYPE_FLYWEIGHT)
         tool_name = `tool_def.name ! ANY => ""';
@@ -199,8 +194,8 @@ object AGENTIC_CODING_ROOM [
     if (maphaskey(task, 'context) && typeof(task['context]) == TYPE_LIST)
       agent.context = task['context];
     endif
-    run_prompt = "User request: " + task['query] + "\n\nProcess the request. Use tools for inspection and edits. Present final results with present_report or present_table when useful.";
-    task_timeout = `this.agentic_task_timeout_seconds ! ANY => 180';
+    const run_prompt = "User request: " + task['query] + "\n\nProcess the request. Use tools for inspection and edits. Present final results with present_report or present_table when useful.";
+    let task_timeout = `this.agentic_task_timeout_seconds ! ANY => 180';
     if (typeof(task_timeout) != TYPE_INT || task_timeout < 15)
       task_timeout = 180;
     endif
@@ -208,12 +203,12 @@ object AGENTIC_CODING_ROOM [
     this.agentic_tool_note = "Waiting for model response...";
     this.agentic_wait_started = time();
     this:_tell_requester($ansi:wrap("waiting for model response...", 'dim));
-    parent_tid = task_id();
-    run_tid = 0;
+    const parent_tid = task_id();
+    let run_tid = 0;
     fork child_tid (0)
-      set_task_perms(this.owner);
+      set_task_perms(task_player);
       try
-        child_result = agent:send_message(run_prompt);
+        child_result = agent:send_message(run_prompt, false, task_player);
         child_status = typeof(child_result) == TYPE_STR && child_result:starts_with("Error:") ? 'failed | 'complete;
       except child_err (ANY)
         child_result = "Error: " + tostr(child_err[1]) + " - " + tostr(child_err[2]);
@@ -222,10 +217,10 @@ object AGENTIC_CODING_ROOM [
       `task_send(parent_tid, ["type" -> "agent_done", "status" -> child_status, "result" -> child_result, "tid" -> task_id()]) ! ANY';
     endfork
     run_tid = child_tid;
-    deadline = time() + task_timeout;
-    done = 0;
-    status = 'failed;
-    result = "Error: Task terminated unexpectedly.";
+    const deadline = time() + task_timeout;
+    let done = 0;
+    let status = 'failed;
+    let result = "Error: Task terminated unexpectedly.";
     while (!done)
       for msg in (task_recv(1))
         if (typeof(msg) != TYPE_MAP)
@@ -256,7 +251,7 @@ object AGENTIC_CODING_ROOM [
       this.agentic_tool_state = "error";
     endif
     this.agentic_wait_started = 0;
-    failure_reason = "";
+    let failure_reason = "";
     if (status == 'failed)
       failure_reason = typeof(result) == TYPE_STR ? result | toliteral(result);
       if (this.agentic_last_error)
@@ -266,7 +261,7 @@ object AGENTIC_CODING_ROOM [
         failure_reason = failure_reason[1..260] + "...";
       endif
     endif
-    entry = ['query -> task['query], 'result -> result, 'status -> status, 'failure_reason -> failure_reason, 'finished_at -> time(), 'requester -> task_player, 'context -> agent.context];
+    const entry = ['query -> task['query], 'result -> result, 'status -> status, 'failure_reason -> failure_reason, 'finished_at -> time(), 'requester -> task_player, 'context -> agent.context];
     this.history = {@this.history, entry};
     if (status == 'complete)
       content = typeof(result) == TYPE_STR ? result | toliteral(result);
@@ -294,8 +289,18 @@ object AGENTIC_CODING_ROOM [
 
   verb status (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show current agent status (agentic-safe).";
-    lines = {};
-    show_details = `player.wizard ! ANY => 0';
+    let agent = 0;
+    let err = 0;
+    let iter = 0;
+    let mine = 0;
+    let note = 0;
+    let state = 0;
+    let task_desc = 0;
+    let timeout_s = 0;
+    let wait_started = 0;
+    let waited = 0;
+    let lines = {};
+    let show_details = `player.wizard ! ANY => 0';
     if (!show_details && this.current_task && this.task_requester == player)
       show_details = 1;
     endif
@@ -354,11 +359,11 @@ object AGENTIC_CODING_ROOM [
         lines = {@lines, "Last error: " + err};
       endif
     endif
-    active_count = length(this.active_tasks);
+    const active_count = length(this.active_tasks);
     if (active_count > 0)
       lines = {@lines, "Active workers: " + tostr(active_count)};
     endif
-    queue_len = length(this.task_queue);
+    const queue_len = length(this.task_queue);
     if (queue_len > 0)
       if (`player.wizard ! ANY => 0')
         lines = {@lines, "Queue: " + tostr(queue_len) + " pending"};
@@ -382,10 +387,15 @@ object AGENTIC_CODING_ROOM [
 
   verb "@agentic-selftest selftest" (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Run deterministic agentic integration checks (no LLM calls).";
-    lines = {"Agentic self-test: " + this:name()};
-    passed = 0;
-    failed = 0;
-    check = `valid($agentic) ! ANY => 0' && `valid($agentic.tool) ! ANY => 0' && `valid($agentic.loop) ! ANY => 0' && `valid($agentic.agent) ! ANY => 0' && `valid($agentic.event_queue) ! ANY => 0' && `valid($agentic.runner) ! ANY => 0' && `valid($agentic.room_observer) ! ANY => 0' && `valid($agentic.coding_room) ! ANY => 0';
+    let exec_out = 0;
+    let first = 0;
+    let registered = 0;
+    let sz = 0;
+    let t = 0;
+    let lines = {"Agentic self-test: " + this:name()};
+    let passed = 0;
+    let failed = 0;
+    let check = `valid($agentic) ! ANY => 0' && `valid($agentic.tool) ! ANY => 0' && `valid($agentic.loop) ! ANY => 0' && `valid($agentic.agent) ! ANY => 0' && `valid($agentic.event_queue) ! ANY => 0' && `valid($agentic.runner) ! ANY => 0' && `valid($agentic.room_observer) ! ANY => 0' && `valid($agentic.coding_room) ! ANY => 0';
     if (check)
       passed = passed + 1;
       lines = {@lines, "[PASS] Namespace and component references resolve."};
@@ -393,9 +403,9 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] Namespace/component references missing."};
     endif
-    schema = ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "property" -> ["type" -> "string"]], "required" -> {"object", "property"}];
-    test_tool = `$agentic.tool:mk("selftest_read_property", "Read a property", schema, this, "read_property") ! ANY => 0';
-    tool_schema = typeof(test_tool) == TYPE_FLYWEIGHT ? `test_tool:to_schema() ! ANY => 0' | 0;
+    const schema = ["type" -> "object", "properties" -> ["object" -> ["type" -> "string"], "property" -> ["type" -> "string"]], "required" -> {"object", "property"}];
+    const test_tool = `$agentic.tool:mk("selftest_read_property", "Read a property", schema, this, "read_property") ! ANY => 0';
+    const tool_schema = typeof(test_tool) == TYPE_FLYWEIGHT ? `test_tool:to_schema() ! ANY => 0' | 0;
     check = typeof(test_tool) == TYPE_FLYWEIGHT && typeof(tool_schema) == TYPE_MAP && `tool_schema["function"]["name"] ! ANY => ""' == "selftest_read_property";
     if (check)
       passed = passed + 1;
@@ -404,7 +414,7 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] $agentic.tool mk/to_schema behavior."};
     endif
-    verbs_out = `this:_tool_list_verbs(["object" -> "$agentic.agent"], player) ! ANY => 0';
+    const verbs_out = `this:_tool_list_verbs(["object" -> "$agentic.agent"], player) ! ANY => 0';
     check = typeof(verbs_out) == TYPE_STR && index(verbs_out, "send_message") > 0;
     if (check)
       passed = passed + 1;
@@ -413,7 +423,7 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] _tool_list_verbs could not inspect $agentic.agent."};
     endif
-    prop_out = `this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "max_iterations"], player) ! ANY => 0';
+    const prop_out = `this:_tool_read_property(["object" -> "$agentic.agent", "property" -> "max_iterations"], player) ! ANY => 0';
     check = typeof(prop_out) == TYPE_STR && length(prop_out) > 0;
     if (check)
       passed = passed + 1;
@@ -422,7 +432,7 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] _tool_read_property failed for max_iterations."};
     endif
-    a = `$agentic.agent:create(true) ! ANY => #-1';
+    const a = `$agentic.agent:create(true) ! ANY => #-1';
     check = valid(a);
     if (check)
       a.owner = this.owner;
@@ -441,7 +451,7 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] Agent + tool registration/execute path."};
     endif
-    q = `$agentic.event_queue:create(true) ! ANY => #-1';
+    const q = `$agentic.event_queue:create(true) ! ANY => #-1';
     check = valid(q);
     if (check)
       `q:clear() ! ANY';
@@ -459,7 +469,7 @@ object AGENTIC_CODING_ROOM [
       failed = failed + 1;
       lines = {@lines, "[FAIL] Event queue FIFO behavior."};
     endif
-    summary = "Summary: " + tostr(passed) + " passed, " + tostr(failed) + " failed.";
+    const summary = "Summary: " + tostr(passed) + " passed, " + tostr(failed) + " failed.";
     lines = {@lines, summary};
     player:inform_current($event:mk_info(player, lines:join("\n")));
     return ["passed" -> passed, "failed" -> failed, "lines" -> lines];
@@ -471,7 +481,7 @@ object AGENTIC_CODING_ROOM [
     if (valid(this.llm_client) && this.llm_client != $llm_client)
       return this.llm_client;
     endif
-    c = $llm_client:create(true);
+    const c = $llm_client:create(true);
     c.name = "LLM client for " + this:name();
     this.llm_client = c;
     return c;
@@ -480,12 +490,12 @@ object AGENTIC_CODING_ROOM [
   method client_config_status owner: ARCH_WIZARD
     "Return a map describing the room's effective client config.";
     caller == this || caller == this.owner || caller_perms().wizard || raise(E_PERM);
-    client = valid(this.llm_client) ? this.llm_client | $llm_client;
-    endpoint = `client.api_endpoint ! ANY => ""';
-    model = `client.model ! ANY => ""';
-    key = `client.api_key ! ANY => ""';
-    key_set = typeof(key) == TYPE_STR && length(key) > 0;
-    key_preview = "(not set)";
+    const client = valid(this.llm_client) ? this.llm_client | $llm_client;
+    const endpoint = `client.api_endpoint ! ANY => ""';
+    const model = `client.model ! ANY => ""';
+    const key = `client.api_key ! ANY => ""';
+    const key_set = typeof(key) == TYPE_STR && length(key) > 0;
+    let key_preview = "(not set)";
     if (key_set)
       if (length(key) > 10)
         key_preview = key[1..6] + "..." + key[length(key) - 3..length(key)];
@@ -513,16 +523,49 @@ object AGENTIC_CODING_ROOM [
     "  @model list provider openai limit 20";
     "  @model list find gpt-5";
     "  @model list openai gpt-5 limit 30";
+    let client = 0;
+    let filtered = 0;
+    let finish = 0;
+    let hay = 0;
+    let hdr = 0;
+    let i = 0;
+    let id = 0;
+    let keep = 0;
+    let limit = 0;
+    let lines = 0;
+    let low = 0;
+    let model = 0;
+    let models = 0;
+    let msg = 0;
+    let name = 0;
+    let offset = 0;
+    let owner = 0;
+    let parsed = 0;
+    let part = 0;
+    let pfx = 0;
+    let provider = 0;
+    let query = 0;
+    let raw_limit = 0;
+    let raw_mode = 0;
+    let rows = 0;
+    let s = 0;
+    let show_all = 0;
+    let shown = 0;
+    let shown_rows = 0;
+    let start = 0;
+    let tok = 0;
+    let tokens = 0;
+    let total = 0;
     player == this.owner || player.wizard || return player:inform_current($event:mk_error(player, "You can't configure this room."));
-    raw = argstr:trim();
+    const raw = argstr:trim();
     if (!raw)
       s = this:client_config_status();
       lines = {"Model config:", "  model: " + tostr(s["model"]), "  endpoint: " + tostr(s["endpoint"]), "  using_global_default: " + toliteral(s["using_global_default"]), "", "Usage:", "  @model <provider/model>", "  @model model <provider/model>", "  @model openrouter [provider/model]", "  @model endpoint <url>", "  @model key <api-key>", "  @model list [provider <name>] [find <text>] [limit <n>] [offset <n>] [all] [raw]", "  @model global"};
       return player:inform_current($event:mk_info(player, lines:join("\n")));
     endif
-    space = " " in raw;
-    cmd = space ? raw[1..space - 1]:lowercase() | raw:lowercase();
-    rest = space ? raw[space + 1..$]:trim() | "";
+    const space = " " in raw;
+    const cmd = space ? raw[1..space - 1]:lowercase() | raw:lowercase();
+    const rest = space ? raw[space + 1..$]:trim() | "";
     if (cmd == "global" || cmd == "reset")
       this.llm_client = #-1;
       return player:inform_current($event:mk_info(player, "This room now uses global $llm_client."));
@@ -707,20 +750,20 @@ object AGENTIC_CODING_ROOM [
   method on_tool_call owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution started.";
     valid(this.agent) && caller == this.agent || return;
-    {tool_name, ?tool_args = ""} = args;
+    const {tool_name, ?tool_args = ""} = args;
     this.agentic_tool_current = tool_name;
     this.agentic_tool_last = tool_name;
     this.agentic_tool_state = "running";
-    summary = this:_tool_call_summary(tool_args);
+    const summary = this:_tool_call_summary(tool_args);
     this.agentic_tool_note = summary;
-    mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
+    const mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
     if (mode == "quiet")
       return;
     endif
-    iter = `this.agent.current_iteration ! ANY => 0';
-    prefix = $ansi:wrap("[turn " + tostr(iter) + "]", 'cyan);
-    label = $ansi:wrap("tool", 'dim) + ": " + $ansi:wrap(tool_name, 'bold, 'yellow);
-    msg = prefix + " " + label;
+    const iter = `this.agent.current_iteration ! ANY => 0';
+    const prefix = $ansi:wrap("[turn " + tostr(iter) + "]", 'cyan);
+    const label = $ansi:wrap("tool", 'dim) + ": " + $ansi:wrap(tool_name, 'bold, 'yellow);
+    let msg = prefix + " " + label;
     if (summary)
       msg = msg + " " + $ansi:wrap("(" + summary + ")", 'dim);
     endif
@@ -730,20 +773,20 @@ object AGENTIC_CODING_ROOM [
   method on_tool_error owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution failed.";
     valid(this.agent) && caller == this.agent || return;
-    {tool_name, ?tool_args = "", ?error_msg = "ERROR"} = args;
+    const {tool_name, ?tool_args = "", ?error_msg = "ERROR"} = args;
     this.agentic_tool_current = "";
     this.agentic_tool_last = tool_name;
     this.agentic_tool_state = "error";
-    summary = this:_tool_call_summary(tool_args);
-    preview = typeof(error_msg) == TYPE_STR ? error_msg | toliteral(error_msg);
-    nl = "\n" in preview;
+    const summary = this:_tool_call_summary(tool_args);
+    let preview = typeof(error_msg) == TYPE_STR ? error_msg | toliteral(error_msg);
+    const nl = "\n" in preview;
     nl && (preview = preview[1..nl - 1]);
     if (length(preview) > 160)
       preview = preview[1..160] + "...";
     endif
     this.agentic_tool_note = preview;
     this.agentic_last_error = tool_name + ": " + preview;
-    msg = $ansi:wrap("error", 'bold, 'red) + " " + $ansi:wrap(tool_name, 'red);
+    let msg = $ansi:wrap("error", 'bold, 'red) + " " + $ansi:wrap(tool_name, 'red);
     if (summary)
       msg = msg + " " + $ansi:wrap("(" + summary + ")", 'dim);
     endif
@@ -754,23 +797,23 @@ object AGENTIC_CODING_ROOM [
   method on_tool_complete owner: ARCH_WIZARD
     "Callback from $agentic.agent: tool execution completed.";
     valid(this.agent) && caller == this.agent || return;
-    {tool_name, ?tool_args = "", ?content_out = ""} = args;
+    const {tool_name, ?tool_args = "", ?content_out = ""} = args;
     this.agentic_tool_current = "";
     this.agentic_tool_last = tool_name;
     this.agentic_tool_state = "ok";
-    preview = typeof(content_out) == TYPE_STR ? content_out | toliteral(content_out);
-    nl = "\n" in preview;
+    let preview = typeof(content_out) == TYPE_STR ? content_out | toliteral(content_out);
+    const nl = "\n" in preview;
     nl && (preview = preview[1..nl - 1]);
     if (length(preview) > 120)
       preview = preview[1..120] + "...";
     endif
     this.agentic_tool_note = preview;
-    mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
+    const mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
     if (mode != "verbose")
       return;
     endif
-    summary = this:_tool_call_summary(tool_args);
-    msg = $ansi:wrap("ok", 'green) + " " + $ansi:wrap(tool_name, 'bold, 'green);
+    const summary = this:_tool_call_summary(tool_args);
+    let msg = $ansi:wrap("ok", 'green) + " " + $ansi:wrap(tool_name, 'bold, 'green);
     if (summary)
       msg = msg + " " + $ansi:wrap("(" + summary + ")", 'dim);
     endif
@@ -780,7 +823,7 @@ object AGENTIC_CODING_ROOM [
   method on_compaction_start owner: ARCH_WIZARD
     "Callback from $agentic.agent when context compaction starts.";
     valid(this.agent) && caller == this.agent || return;
-    mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
+    const mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
     if (mode == "quiet")
       return;
     endif
@@ -790,7 +833,7 @@ object AGENTIC_CODING_ROOM [
   method on_compaction_end owner: ARCH_WIZARD
     "Callback from $agentic.agent when context compaction ends.";
     valid(this.agent) && caller == this.agent || return;
-    mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
+    const mode = `this.agentic_progress_mode ! ANY => "normal"':lowercase();
     if (mode == "quiet")
       return;
     endif
@@ -799,13 +842,20 @@ object AGENTIC_CODING_ROOM [
 
   verb history (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show completed task history with failure reason previews.";
+    let entry = 0;
+    let i = 0;
+    let line = 0;
+    let query = 0;
+    let query_preview = 0;
+    let reason = 0;
+    let status_str = 0;
     if (length(this.history) == 0)
       return player:inform_current($event:mk_info(player, "No task history yet."));
     endif
-    show_all = `player.wizard ! ANY => false';
-    lines = {"Task history (most recent first):"};
-    hist_len = length(this.history);
-    shown = 0;
+    const show_all = `player.wizard ! ANY => false';
+    let lines = {"Task history (most recent first):"};
+    const hist_len = length(this.history);
+    let shown = 0;
     for offset in [0..hist_len - 1]
       if (shown >= 10)
         break;
@@ -846,13 +896,22 @@ object AGENTIC_CODING_ROOM [
 
   verb description (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Formatted description with command and context status.";
-    intro = $ansi:wrap("A virtual workspace where you can interact with an AI agent.", 'dim);
-    cmd_header = "\n" + $ansi:wrap("Commands:", 'bold, 'cyan);
-    cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("resume [notes]", 'green) + " - Resume your last failed task from saved context", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("halt", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks", $ansi:wrap("tool", 'green) + " - Show available tools (aliases: tools, @tools)", $ansi:wrap("context", 'green) + " - Context details / compact / reset", $ansi:wrap("progress", 'green) + " - Live tool-update verbosity"}, false);
-    ctx_header = "\n" + $ansi:wrap("Context:", 'bold, 'cyan);
-    ctx_items = {};
-    ctx = {};
-    ctx_source = "none";
+    let content = 0;
+    let ctx_len = 0;
+    let iter = 0;
+    let maybe_ctx = 0;
+    let mode = 0;
+    let recent = 0;
+    let role = 0;
+    let tail = 0;
+    let tokens = 0;
+    const intro = $ansi:wrap("A virtual workspace where you can interact with an AI agent.", 'dim);
+    const cmd_header = "\n" + $ansi:wrap("Commands:", 'bold, 'cyan);
+    const cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("resume [notes]", 'green) + " - Resume your last failed task from saved context", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("halt", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks", $ansi:wrap("tool", 'green) + " - Show available tools (aliases: tools, @tools)", $ansi:wrap("context", 'green) + " - Context details / compact / reset", $ansi:wrap("progress", 'green) + " - Live tool-update verbosity"}, false);
+    const ctx_header = "\n" + $ansi:wrap("Context:", 'bold, 'cyan);
+    let ctx_items = {};
+    let ctx = {};
+    let ctx_source = "none";
     if (valid(this.agent))
       ctx = `this.agent.context ! ANY => {}';
       ctx_source = "active task";
@@ -891,13 +950,24 @@ object AGENTIC_CODING_ROOM [
     else
       ctx_items = {@ctx_items, "No context available yet."};
     endif
-    ctx_list = $format.list:mk(ctx_items, false);
+    const ctx_list = $format.list:mk(ctx_items, false);
     return {intro, cmd_header, cmds, ctx_header, ctx_list};
   endverb
 
   verb "context ctx" (any any any) owner: ARCH_WIZARD flags: "xd"
     "Context management command. Usage: context, context compact, context reset, context tail";
-    cmd = argstr:trim():lowercase();
+    let content = 0;
+    let ctx = 0;
+    let ctx_len = 0;
+    let emsg = 0;
+    let lines = 0;
+    let msg = 0;
+    let n = 0;
+    let recent = 0;
+    let role = 0;
+    let start = 0;
+    let tail = 0;
+    const cmd = argstr:trim():lowercase();
     if (!cmd || cmd == "status")
       lines = {"Context status:"};
       if (valid(this.agent))
@@ -931,7 +1001,7 @@ object AGENTIC_CODING_ROOM [
       lines = {@lines, "", "Commands: context compact | context reset | context tail"};
       return player:inform_current($event:mk_info(player, lines:join("\n")));
     endif
-    can_manage = `player.wizard ! ANY => 0' || player == this.owner || player == this.task_requester;
+    const can_manage = `player.wizard ! ANY => 0' || player == this.owner || player == this.task_requester;
     if (cmd == "compact")
       !can_manage && return player:inform_current($event:mk_error(player, "Only the task requester/owner can compact context."));
       return this:compact();
@@ -985,15 +1055,18 @@ object AGENTIC_CODING_ROOM [
 
   verb compact (none none none) owner: ARCH_WIZARD flags: "xd"
     "Compact current agent context with explicit progress messages.";
-    agent = this.agent;
+    let after = 0;
+    let emsg = 0;
+    let msg = 0;
+    const agent = this.agent;
     if (!valid(agent))
       return player:inform_current($event:mk_info(player, "No agent currently running."));
     endif
-    can_manage = `player.wizard ! ANY => 0' || player == this.owner || player == this.task_requester;
+    const can_manage = `player.wizard ! ANY => 0' || player == this.owner || player == this.task_requester;
     if (!can_manage)
       return player:inform_current($event:mk_error(player, "Only the task requester/owner can compact context."));
     endif
-    before = `length(agent.context) ! ANY => 0';
+    const before = `length(agent.context) ! ANY => 0';
     this:_tell_requester("context compaction starting...");
     try
       agent:compact_context();
@@ -1009,8 +1082,9 @@ object AGENTIC_CODING_ROOM [
 
   verb "progress @progress" (any any any) owner: ARCH_WIZARD flags: "xd"
     "Set or show live progress verbosity. Usage: progress [quiet|normal|verbose]";
-    mode = `this.agentic_progress_mode ! ANY => "normal"';
-    arg = argstr:trim():lowercase();
+    let lines = 0;
+    const mode = `this.agentic_progress_mode ! ANY => "normal"';
+    const arg = argstr:trim():lowercase();
     if (!arg)
       lines = {"Progress mode: " + mode, "", "Modes:", "  quiet   - only major failures/completions", "  normal  - tool start + errors", "  verbose - tool start + ok + args + compaction notices"};
       return player:inform_current($event:mk_info(player, lines:join("\n")));
@@ -1025,8 +1099,10 @@ object AGENTIC_CODING_ROOM [
 
   method _tool_call_summary owner: ARCH_WIZARD
     "Build concise target summary for tool-call args.";
-    {tool_args} = args;
-    args_map = [];
+    let parsed = 0;
+    let value = 0;
+    const {tool_args} = args;
+    let args_map = [];
     if (typeof(tool_args) == TYPE_MAP)
       args_map = tool_args;
     elseif (typeof(tool_args) == TYPE_STR && length(tool_args) > 0)
@@ -1035,8 +1111,8 @@ object AGENTIC_CODING_ROOM [
         args_map = parsed;
       endif
     endif
-    parts = {};
-    keys = {"object", "property", "verb", "parent", "name", "target", "target_room", "source_room", "destination", "direction", "area", "topic", "reference", "category", "grantee"};
+    let parts = {};
+    const keys = {"object", "property", "verb", "parent", "name", "target", "target_room", "source_room", "destination", "direction", "area", "topic", "reference", "category", "grantee"};
     for key in (keys)
       if (maphaskey(args_map, key))
         value = args_map[key];
@@ -1053,7 +1129,7 @@ object AGENTIC_CODING_ROOM [
     if (parts)
       return parts:join(", ");
     endif
-    fallback = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
+    let fallback = typeof(tool_args) == TYPE_STR ? tool_args | toliteral(tool_args);
     fallback = strsub(fallback, "\n", " ");
     if (length(fallback) > 96)
       fallback = fallback[1..96] + "...";
@@ -1063,19 +1139,25 @@ object AGENTIC_CODING_ROOM [
 
   method _tell_requester owner: ARCH_WIZARD
     "Send an inset utility message to the active requester.";
-    {message} = args;
-    requester = this.task_requester;
+    const {message} = args;
+    const requester = this.task_requester;
     !valid(requester) && return;
-    content = typeof(message) == TYPE_STR ? message | toliteral(message);
-    evt = $event:mk_info(requester, content):with_audience('utility):with_presentation_hint('inset):with_group('llm, this);
+    const content = typeof(message) == TYPE_STR ? message | toliteral(message);
+    const evt = $event:mk_info(requester, content):with_audience('utility):with_presentation_hint('inset):with_group('llm, this);
     requester:inform_current(evt);
   endmethod
 
   verb "tools tool @tools agenttools listtools" (none none none) owner: ARCH_WIZARD flags: "xd"
     "List currently available agent tools for this room.";
-    all = this:_get_agentic_tools();
-    seen = [];
-    rows = {};
+    let desc = 0;
+    let inserted = 0;
+    let name = 0;
+    let target = 0;
+    let target_obj = 0;
+    let target_verb = 0;
+    const all = this:_get_agentic_tools();
+    let seen = [];
+    let rows = {};
     for tool in (all)
       if (typeof(tool) == TYPE_FLYWEIGHT)
         name = `tool.name ! ANY => ""';
@@ -1108,7 +1190,7 @@ object AGENTIC_CODING_ROOM [
     if (!rows)
       return player:inform_current($event:mk_info(player, "No tools are currently registered."):with_audience('utility):with_group('tools));
     endif
-    sorted = {};
+    let sorted = {};
     for entry in (rows)
       inserted = 0;
       for i in [1..length(sorted)]
@@ -1120,25 +1202,28 @@ object AGENTIC_CODING_ROOM [
       endfor
       !inserted && (sorted = {@sorted, entry});
     endfor
-    table_rows = {};
+    let table_rows = {};
     for entry in (sorted)
       table_rows = {@table_rows, entry[2]};
     endfor
-    headers = {"Tool", "Target", "Description"};
-    table_obj = $format.table:mk(headers, table_rows);
-    title_obj = $format.title:mk("Available Tools (" + tostr(length(table_rows)) + ")");
-    content = $format.block:mk(title_obj, table_obj);
+    const headers = {"Tool", "Target", "Description"};
+    const table_obj = $format.table:mk(headers, table_rows);
+    const title_obj = $format.title:mk("Available Tools (" + tostr(length(table_rows)) + ")");
+    const content = $format.block:mk(title_obj, table_obj);
     player:inform_current($event:mk_info(player, content):with_audience('utility):with_group('tools));
   endverb
 
   verb "resume continue retry" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Resume the most recent failed task for this requester using saved context.";
+    let h = 0;
+    let query = 0;
+    let requester = 0;
     if (this.current_task)
       return player:inform_current($event:mk_error(player, "A task is already running. Use `status` or `halt` first."));
     endif
-    extra = argstr:trim();
-    show_all = `player.wizard ! ANY => false';
-    entry = 0;
+    const extra = argstr:trim();
+    const show_all = `player.wizard ! ANY => false';
+    let entry = 0;
     for i in [length(this.history)..1]
       h = this.history[i];
       requester = `h['requester] ! ANY => #-1';
@@ -1153,28 +1238,28 @@ object AGENTIC_CODING_ROOM [
     if (!entry)
       return player:inform_current($event:mk_error(player, "No failed task with resumable context was found."));
     endif
-    ctx = `entry['context] ! ANY => {}';
+    const ctx = `entry['context] ! ANY => {}';
     if (typeof(ctx) != TYPE_LIST || length(ctx) == 0)
       return player:inform_current($event:mk_error(player, "That failed task has no saved context to resume from."));
     endif
-    base_query = `entry['query] ! ANY => "previous task"';
+    const base_query = `entry['query] ! ANY => "previous task"';
     if (extra)
       query = "Continue from your previous attempt on: " + base_query + "\n\nAdditional direction: " + extra;
     else
       query = "Continue from your previous attempt on: " + base_query + ". Use existing context and avoid repeating completed work.";
     endif
-    max_len = `this.max_query_length ! E_PROPNF => 2000';
+    let max_len = `this.max_query_length ! E_PROPNF => 2000';
     if (max_len < 1)
       max_len = 1;
     endif
     if (length(query) > max_len)
       query = query[1..max_len];
     endif
-    max_pending = `this.max_pending_per_player ! E_PROPNF => 3';
+    let max_pending = `this.max_pending_per_player ! E_PROPNF => 3';
     if (max_pending < 1)
       max_pending = 1;
     endif
-    pending_for_player = 0;
+    let pending_for_player = 0;
     if (this.current_task && this.task_requester == player)
       pending_for_player = pending_for_player + 1;
     endif
@@ -1187,7 +1272,7 @@ object AGENTIC_CODING_ROOM [
       return player:inform_current($event:mk_error(player, "You already have " + tostr(pending_for_player) + " task(s) queued/running here. Please wait for one to finish."));
     endif
     this:_ensure_loop();
-    msg = ["type" -> "task", 'query -> query, 'player -> player, 'queued_at -> time(), 'context -> ctx, 'resumed_query -> base_query];
+    const msg = ["type" -> "task", 'query -> query, 'player -> player, 'queued_at -> time(), 'context -> ctx, 'resumed_query -> base_query];
     try
       task_send(this.loop_task, msg);
     except e (ANY)

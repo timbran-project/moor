@@ -33,7 +33,7 @@ object PLAYER [
   property profile_picture (owner: ARCH_WIZARD, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
 
-  override description = "You see a player who should get around to describing themself.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "You see a player who should get around to describing themself.";
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Look at an object or passage direction.";
@@ -337,10 +337,10 @@ object PLAYER [
 
   method set_profile_picture owner: ARCH_WIZARD
     "Update the profile picture of the given player.";
-    actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_profile_picture);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_profile_picture);
     set_task_perms(perms);
-    {content_type, picbin} = args;
+    const {content_type, picbin} = args;
     length(picbin) > 5 * (1 << 23) && raise(E_INVARG("Profile picture too large"));
     typeof(content_type) == TYPE_STR && content_type:starts_with("image/") || raise(E_TYPE);
     typeof(picbin) == TYPE_BINARY || raise(E_TYPE);
@@ -349,11 +349,11 @@ object PLAYER [
 
   method set_password owner: ARCH_WIZARD
     "Change this player's password. Permission: wizard, owner, or 'set_password capability.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_password);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_password);
     set_task_perms(perms);
-    {new_password} = args;
-    this.password = $password:mk(new_password);
+    const {new_password} = args;
+    target.password = $password:mk(new_password);
   endmethod
 
   verb "@password" (any any any) owner: ARCH_WIZARD flags: "rd"
@@ -382,29 +382,29 @@ object PLAYER [
 
   method set_player_flag owner: ARCH_WIZARD
     "Mark this object as a player. Permission: wizard or 'set_player_flag capability.";
-    {flag_value} = args;
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_player_flag);
+    const {flag_value} = args;
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_player_flag);
     set_task_perms(perms);
-    set_player_flag(this, flag_value);
+    set_player_flag(target, flag_value);
   endmethod
 
   method set_programmer owner: ARCH_WIZARD
     "Set this player's programmer flag. Permission: wizard, owner, or 'set_programmer capability.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_programmer);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_programmer);
     set_task_perms(perms);
-    {flag_value} = args;
-    this.programmer = flag_value;
+    const {flag_value} = args;
+    target.programmer = flag_value;
   endmethod
 
   method set_email_address owner: ARCH_WIZARD
     "Set this player's email address. Permission: wizard, owner, or 'set_email_address capability.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_email_address);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_email_address);
     set_task_perms(perms);
-    {email} = args;
-    this.email_address = email;
+    const {email} = args;
+    target.email_address = email;
   endmethod
 
   method set_oauth2_identities owner: ARCH_WIZARD
@@ -414,12 +414,12 @@ object PLAYER [
     if (typeof(this) == TYPE_FLYWEIGHT)
       const claims = paseto_verify_local(this.token);
       target = this.delegate;
-      (claims["target"] == target && 'set_oauth2_identities in claims["caps"]) || raise(E_PERM);
-      (maphaskey(claims, "exp") && time() > claims["exp"]) && raise(E_PERM);
+      claims["target"] == target && 'set_oauth2_identities in claims["caps"] || raise(E_PERM);
+      maphaskey(claims, "exp") && time() > claims["exp"] && raise(E_PERM);
       $root:_capability_is_revoked(claims) && raise(E_PERM);
       const issuer = claims["granted_by"];
       const authority = `claims["run_as"] ! E_RANGE => $nothing';
-      (valid(issuer) && issuer.wizard && valid(authority) && authority.wizard) || raise(E_PERM);
+      valid(issuer) && issuer.wizard && valid(authority) && authority.wizard || raise(E_PERM);
     else
       caller_perms().wizard || raise(E_PERM);
     endif
@@ -702,18 +702,18 @@ object PLAYER [
 
   method make_player owner: ARCH_WIZARD
     "Create a player and return a setup capability for initial configuration.";
-    actor = caller_perms();
-    {_, perms} = this:check_permissions_as(actor, 'make_player);
+    const actor = caller_perms();
+    const {_, perms} = $root:_check_permissions_as(this, actor, 'make_player);
     return this:_make_player_setup_cap(perms);
   endmethod
 
   method _make_player_setup_cap owner: ARCH_WIZARD
-    "Create a player and return a setup capability that runs as perms.";
-    caller == this || caller_perms().wizard || raise(E_PERM);
-    {perms, ?key = 0} = args;
+    "Create a player with the authority selected by a wizard-owned caller.";
+    caller_perms().wizard || raise(E_PERM);
+    const {perms, ?key = 0} = args;
     valid(perms) || raise(E_INVARG);
     set_task_perms(perms);
-    new_player = this:create();
+    const new_player = this:create();
     return $root:issue_capability(new_player, {'set_player_flag, 'set_owner, 'set_name_aliases, 'set_password, 'set_programmer, 'set_email_address, 'set_oauth2_identities, 'set_home, 'move}, 0, perms, key);
   endmethod
 
@@ -1423,15 +1423,16 @@ object PLAYER [
     "Args: target_obj, verb_name, ?initial_content, ?opts";
     "opts keys: content_type ('text_plain or 'text_djot), title, text_mode ('list or 'string), session_id";
     "On save calls: target_obj:verb_name(content)";
-    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
-    {target_obj, verb_name, ?initial_content = "", ?opts = []} = args;
-    content_type = `opts['content_type] ! E_RANGE => 'text_plain';
-    title = `opts['title] ! E_RANGE => "Edit"';
-    text_mode = `opts['text_mode] ! E_RANGE => 'string';
-    session_id = `opts['session_id] ! E_RANGE => ""';
-    ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
-    mode_str = text_mode == 'string ? "string" | "list";
-    attrs = {{"object", $url_utils:to_curie_str(target_obj)}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
+    const actor = caller_perms();
+    actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {target_obj, verb_name, ?initial_content = "", ?opts = []} = args;
+    const content_type = `opts['content_type] ! E_RANGE => 'text_plain';
+    const title = `opts['title] ! E_RANGE => "Edit"';
+    const text_mode = `opts['text_mode] ! E_RANGE => 'string';
+    const session_id = `opts['session_id] ! E_RANGE => ""';
+    const ct_str = content_type == 'text_djot ? "text/djot" | "text/plain";
+    const mode_str = text_mode == 'string ? "string" | "list";
+    const attrs = {{"object", $url_utils:to_curie_str(target_obj)}, {"verb", verb_name}, {"title", title}, {"text_mode", mode_str}};
     present(this, session_id, ct_str, "text-editor", initial_content, attrs);
   endmethod
 
@@ -1439,25 +1440,28 @@ object PLAYER [
     "Create an editing session for tracking editor callbacks.";
     "Args: target_obj, verb_name, ?extra_args";
     "Returns: session_id string";
-    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
-    {target_obj, verb_name, ?extra_args = {}} = args;
-    session_id = uuid();
+    const actor = caller_perms();
+    actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {target_obj, verb_name, ?extra_args = {}} = args;
+    const session_id = uuid();
     this.editing_sessions[session_id] = ['target -> target_obj, 'verb -> verb_name, 'args -> extra_args];
     return session_id;
   endmethod
 
   method get_edit_session owner: ARCH_WIZARD
     "Get an editing session by session_id. Returns session data or E_INVARG if not found.";
-    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
-    {session_id} = args;
+    const actor = caller_perms();
+    actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {session_id} = args;
     return `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
   endmethod
 
   method end_edit_session owner: ARCH_WIZARD
     "End an editing session, removing it from the map. Returns session data.";
-    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
-    {session_id} = args;
-    session = `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
+    const actor = caller_perms();
+    actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {session_id} = args;
+    const session = `this.editing_sessions[session_id] ! E_RANGE => raise(E_INVARG, "No such editing session")';
     this.editing_sessions = mapdelete(this.editing_sessions, session_id);
     return session;
   endmethod
@@ -1599,19 +1603,21 @@ object PLAYER [
   verb "dm pm tell page" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Send a direct message to another player.";
     "Usage: dm <player> <message>";
-    caller != this && raise(E_PERM);
+    caller == this || raise(E_PERM);
+    const actor = caller_perms();
+    actor == #-1 || actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
     set_task_perms(this);
-    if (!args || length(args) < 2)
+    const {?target_name = "", @words} = args;
+    if (length(words) == 0)
       return this:inform_current($event:mk_error(this, "Usage: " + verb + " <player> <message>"):with_audience('utility));
     endif
     "First arg is player name, rest is message";
-    target_name = args[1];
-    message = args[2..$]:join(" ");
+    const message = words:join(" ");
     if (!target_name || !message)
       return this:inform_current($event:mk_error(this, "Usage: " + verb + " <player> <message>"):with_audience('utility));
     endif
     "Match target player";
-    target = `$match:match_player(target_name) ! E_INVARG => $failed_match';
+    const target = `$match:match_player(target_name) ! E_INVARG => $failed_match';
     if (target == $failed_match || !valid(target) || !is_player(target))
       return this:inform_current($event:mk_error(this, "I don't know who '" + target_name + "' is."):with_audience('utility));
     endif
@@ -1619,7 +1625,8 @@ object PLAYER [
       return this:inform_current($event:mk_error(this, "Talking to yourself?"):with_audience('utility));
     endif
     "Create and deliver the DM";
-    dm_obj = $dm:mk(this, target, message);
+    const dm_obj = $dm:mk(this, target, message);
+    let delivered = false;
     try
       delivered = target:receive_dm(dm_obj);
     except e (ANY)
@@ -1633,30 +1640,45 @@ object PLAYER [
   endverb
 
   method receive_dm owner: ARCH_WIZARD
-    "Receive a direct message from another player.";
-    "Stores in direct_messages buffer and notifies if online.";
-    caller_perms().wizard || caller_perms() == args[1].from || raise(E_PERM);
-    {dm_obj} = args;
-    "Add to buffer, keeping last 100";
-    buffer = this.direct_messages;
-    buffer = {@buffer, dm_obj};
+    "Accept a validated DM from its authenticated sender before notifying live sessions.";
+    const {dm_obj} = args;
+    const actor = caller_perms();
+    typeof(dm_obj) == TYPE_FLYWEIGHT && dm_obj.delegate == $dm || raise(E_TYPE);
+    const slots = flyslots(dm_obj);
+    const sender = slots['from];
+    const recipient = slots['to];
+    const text = slots['text];
+    const sent = slots['sent];
+    const location = slots['location];
+    typeof(sender) == TYPE_OBJ && valid(sender) || raise(E_INVARG);
+    actor == sender || actor.wizard || raise(E_PERM);
+    recipient == this || raise(E_INVARG);
+    typeof(text) == TYPE_STR && typeof(sent) == TYPE_INT && typeof(location) == TYPE_OBJ || raise(E_TYPE);
+    const accepted = toflyweight($dm, ['from -> sender, 'to -> this, 'text -> text, 'sent -> sent, 'location -> location]);
+    const event = accepted:display_event(this);
+    let buffer = {@this.direct_messages, accepted};
     if (length(buffer) > 100)
       buffer = buffer[length(buffer) - 99..$];
     endif
     this.direct_messages = buffer;
-    "Track last sender for reply";
-    this.last_dm_from = dm_obj.from;
-    "Notify if online";
-    this:tell(dm_obj:display_event(this));
+    this.last_dm_from = sender;
+    "Storage is delivery; a failed live notification must not report the stored DM as rejected.";
+    try
+      this:tell(event);
+    except error (ANY)
+      server_log("DM notification failed for " + tostr(this) + ": " + tostr(error[1]));
+    endtry
     return true;
   endmethod
 
   verb reply (any any any) owner: ARCH_WIZARD flags: "rd"
     "Reply to the last person who DM'd you.";
     "Usage: reply <message>";
-    caller != this && raise(E_PERM);
+    caller == this || raise(E_PERM);
+    const actor = caller_perms();
+    actor == #-1 || actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
     set_task_perms(this);
-    target = this.last_dm_from;
+    const target = this.last_dm_from;
     if (!valid(target) || !is_player(target))
       this.last_dm_from = #-1;
       return this:inform_current($event:mk_error(this, "No one to reply to."):with_audience('utility));
@@ -1664,9 +1686,10 @@ object PLAYER [
     if (!args || length(args) < 1)
       return this:inform_current($event:mk_error(this, "Usage: reply <message>"):with_audience('utility));
     endif
-    message = args:join(" ");
+    const message = args:join(" ");
     "Create and deliver the DM";
-    dm_obj = $dm:mk(this, target, message);
+    const dm_obj = $dm:mk(this, target, message);
+    let delivered = false;
     try
       delivered = target:receive_dm(dm_obj);
     except e (ANY)
@@ -1681,24 +1704,31 @@ object PLAYER [
 
   verb "dms messages msgs mail" (any none none) owner: ARCH_WIZARD flags: "rd"
     "Show all messages (DMs and mail) in unified view.";
-    caller != this && raise(E_PERM);
+    caller == this || raise(E_PERM);
+    const actor = caller_perms();
+    actor == #-1 || actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
     set_task_perms(this);
     "Ensure mailbox exists";
-    mailbox = this:find_mailbox();
+    let mailbox = this:find_mailbox();
     if (!valid(mailbox))
       mailbox = create($mailbox, this);
       mailbox.name = this.name + "'s mailbox";
       move(mailbox, $mail_room);
     endif
-    messages = this:all_messages();
+    const messages = this:all_messages();
     if (!messages || length(messages) == 0)
       return this:inform_current($event:mk_info(this, "No messages."):with_audience('utility):with_group('messages));
     endif
     "Build table";
-    headers = {"#", "Type", "From", "Subject", "When"};
-    rows = {};
-    idx = 1;
+    const headers = {"#", "Type", "From", "Subject", "When"};
+    let rows = {};
+    let idx = 1;
     for msg in (messages)
+      let msg_type = "";
+      let from_name = "";
+      let preview = "";
+      let age = 0;
+      let when = "";
       if (typeof(msg) == TYPE_FLYWEIGHT)
         "DM flyweight - show full text";
         msg_type = "DM";
@@ -1718,46 +1748,47 @@ object PLAYER [
       idx = idx + 1;
     endfor
     "Count unread";
-    unread = 0;
+    let unread = 0;
     for msg in (messages)
       if (typeof(msg) != TYPE_FLYWEIGHT && msg.read_at == 0)
         unread = unread + 1;
       endif
     endfor
-    summary = tostr(length(messages), " message", length(messages) == 1 ? "" | "s");
+    let summary = tostr(length(messages), " message", length(messages) == 1 ? "" | "s");
     if (unread > 0)
       summary = summary + tostr(" (", unread, " unread)");
     endif
-    title = $format.title:mk("Messages: " + summary);
-    parts = {title, $format.table:mk(headers, rows), "", "To read: message <#>"};
-    content = $format.block:mk(@parts);
+    const title = $format.title:mk("Messages: " + summary);
+    const parts = {title, $format.table:mk(headers, rows), "", "To read: message <#>"};
+    const content = $format.block:mk(@parts);
     this:inform_current($event:mk_info(this, content):with_audience('utility):with_presentation_hint('inset):with_group('messages));
   endverb
 
   method all_messages owner: ARCH_WIZARD
     "Return unified list of all messages (DMs and letters), sorted by time.";
-    caller == this || caller_perms() == this || caller_perms().wizard || raise(E_PERM);
-    msgs = {};
+    const actor = caller_perms();
+    actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let msgs = {};
     "Add DMs with their timestamps";
     for dm_obj in (this.direct_messages)
-      t = dm_obj.sent;
+      const t = dm_obj.sent;
       msgs = {@msgs, {t, dm_obj}};
     endfor
     "Add letters from mailbox";
-    mailbox = this:find_mailbox();
+    const mailbox = this:find_mailbox();
     if (valid(mailbox))
       for letter in (mailbox.contents)
         if (isa(letter, $letter))
-          t = letter.sent_at;
+          const t = letter.sent_at;
           msgs = {@msgs, {t, letter}};
         endif
       endfor
     endif
     "Sort by timestamp (newest first) using simple insertion sort";
-    sorted = {};
+    let sorted = {};
     for item in (msgs)
-      {t, msg} = item;
-      inserted = false;
+      const {t, msg} = item;
+      let inserted = false;
       for i in [1..length(sorted)]
         if (t > sorted[i][1])
           sorted = {@sorted[1..i - 1], item, @sorted[i..$]};
@@ -1765,7 +1796,9 @@ object PLAYER [
           break;
         endif
       endfor
-      !inserted && (sorted = {@sorted, item});
+      if (!inserted)
+        sorted = {@sorted, item};
+      endif
     endfor
     "Extract just the messages";
     return { m[2] for m in (sorted) };
@@ -1774,20 +1807,22 @@ object PLAYER [
   verb message (any none none) owner: ARCH_WIZARD flags: "rd"
     "Read a specific message by number.";
     "Usage: message <#>";
-    caller != this && raise(E_PERM);
+    caller == this || raise(E_PERM);
+    const actor = caller_perms();
+    actor == #-1 || actor == this || (valid(actor) && actor.wizard) || raise(E_PERM);
     set_task_perms(this);
     if (!dobjstr || !dobjstr:is_numeric())
       return this:inform_current($event:mk_error(this, "Usage: message <#>"):with_audience('utility));
     endif
-    idx = toint(dobjstr);
-    messages = this:all_messages();
+    let idx = toint(dobjstr);
+    const messages = this:all_messages();
     if (idx < 1 || idx > length(messages))
       return this:inform_current($event:mk_error(this, "No message #" + tostr(idx) + "."):with_audience('utility));
     endif
-    msg = messages[idx];
+    const msg = messages[idx];
     if (typeof(msg) == TYPE_FLYWEIGHT)
       "DM - display it";
-      display = msg:display(this);
+      const display = msg:display(this);
       this:inform_current($event:mk_info(this, display):with_audience('utility):with_presentation_hint('inset):with_group('messages));
     else
       "Letter";
@@ -1869,11 +1904,10 @@ object PLAYER [
     if (typeof(pending) != TYPE_MAP)
       pending = [];
     endif
-    all_conns = connections();
-    if (!all_conns || length(all_conns) == 0)
+    const current_conn = `connection() ! E_INVARG => 0';
+    if (typeof(current_conn) != TYPE_OBJ)
       return false;
     endif
-    current_conn = all_conns[1][1];
     token = uuid();
     pending[token] = ["created_at" -> time(), "pc" -> pc, "conn" -> current_conn];
     this.assist_pending = pending;
@@ -1992,11 +2026,10 @@ object PLAYER [
     if (typeof(pending) != TYPE_MAP)
       pending = [];
     endif
-    all_conns = connections();
-    if (!all_conns || length(all_conns) == 0)
+    const current_conn = `connection() ! E_INVARG => 0';
+    if (typeof(current_conn) != TYPE_OBJ)
       return false;
     endif
-    current_conn = all_conns[1][1];
     token = uuid();
     pending[token] = ["kind" -> "help", "created_at" -> time(), "query" -> query, "conn" -> current_conn];
     this.assist_pending = pending;
@@ -2014,12 +2047,12 @@ object PLAYER [
 
   method set_pronouns owner: ARCH_WIZARD
     "Programmatically set pronouns from a string like 'they/them'.";
-    actor = caller_perms();
-    {target, perms} = this:check_permissions_as(actor, 'set_pronouns);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_pronouns);
     set_task_perms(perms);
-    {pronouns_str} = args;
+    const {pronouns_str} = args;
     typeof(pronouns_str) == TYPE_STR || raise(E_TYPE, "Pronouns must be a string");
-    pronoun_set = $pronouns:lookup(pronouns_str:trim());
+    const pronoun_set = $pronouns:lookup(pronouns_str:trim());
     if (typeof(pronoun_set) != TYPE_FLYWEIGHT)
       raise(E_INVARG, "Unknown pronoun set: " + pronouns_str);
     endif
@@ -2028,11 +2061,11 @@ object PLAYER [
 
   method set_home owner: ARCH_WIZARD
     "Set this player's home room. Permission: wizard, owner, or 'set_home capability.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'set_home);
+    const actor = caller_perms();
+    const {target, perms} = $root:_check_permissions_as(this, actor, 'set_home);
     set_task_perms(perms);
-    {room} = args;
-    this.home = room;
+    const {room} = args;
+    target.home = room;
   endmethod
 
   verb "@gag" (any any any) owner: ARCH_WIZARD flags: "rxd"
@@ -2579,32 +2612,34 @@ object PLAYER [
     steps = length(path) - 1;
     player:inform_current($event:mk_info(player, "Walking to " + destination:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
+    const output_connection = `connection() ! E_INVARG => 0';
     fork activity_task_id (0)
-      this:_do_walk(path);
+      this:_do_walk(path, output_connection);
     endfork
     this:action_start_activity(this, 'walk, activity_task_id, "walking to " + destination:name());
   endverb
 
   method _do_walk owner: ARCH_WIZARD
     "Internal: Execute the walking through a path.";
-    "Called from forked task in :walk verb.";
-    {path} = args;
-    set_task_perms(this.owner);
-    current_task = task_id();
-    walk_delay = 2;
+    "Caller authority is captured by the fork; output remains bound to its initiating connection.";
+    caller == this || raise(E_PERM);
+    const {path, ?output_connection = 0} = args;
+    set_task_perms(caller_perms());
+    const current_task = task_id();
+    const walk_delay = 2;
     for i in [1..length(path) - 1]
-      {from_room, connector} = path[i];
-      {to_room, _} = path[i + 1];
+      const {from_room, connector} = path[i];
+      const {to_room, _} = path[i + 1];
       "Check player is still in expected room";
       if (this.location != from_room)
         "Player moved manually or was moved - stop walking";
-        this:inform_current($event:mk_info(this, "You've stopped walking (you moved)."));
+        this:inform_connection(output_connection, $event:mk_info(this, "You've stopped walking (you moved)."));
         this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Check this is a passage (not transport)";
       if (typeof(connector) == TYPE_LIST && connector[1] == 'transport)
-        this:inform_current($event:mk_error(this, "Can't auto-walk through transport - stopping."));
+        this:inform_connection(output_connection, $event:mk_error(this, "Can't auto-walk through transport - stopping."));
         this:action_clear_activity_task(this, current_task);
         return;
       endif
@@ -2612,27 +2647,28 @@ object PLAYER [
       suspend(walk_delay);
       "Check still in expected room after delay";
       if (this.location != from_room)
-        this:inform_current($event:mk_info(this, "You've stopped walking."));
+        this:inform_connection(output_connection, $event:mk_info(this, "You've stopped walking."));
         this:action_clear_activity_task(this, current_task);
         return;
       endif
       "Move via the passage";
+      let success;
       try
         success = connector:travel_from(this, from_room, {});
       except e (ANY)
-        this:inform_current($event:mk_error(this, "Walking failed: " + tostr(e[2]) + " - stopping."));
+        this:inform_connection(output_connection, $event:mk_error(this, "Walking failed: " + tostr(e[2]) + " - stopping."));
         this:action_clear_activity_task(this, current_task);
         return;
       endtry
       if (!success)
-        this:inform_current($event:mk_error(this, "Something blocked your path - stopping."));
+        this:inform_connection(output_connection, $event:mk_error(this, "Something blocked your path - stopping."));
         this:action_clear_activity_task(this, current_task);
         return;
       endif
     endfor
     "Arrived at destination";
-    destination = path[$][1];
-    this:inform_current($event:mk_info(this, "You've arrived at " + destination:name() + "."));
+    const destination = path[$][1];
+    this:inform_connection(output_connection, $event:mk_info(this, "You've arrived at " + destination:name() + "."));
     this:action_clear_activity_task(this, current_task);
   endmethod
 
@@ -2743,8 +2779,9 @@ object PLAYER [
     steps = length(path) - 1;
     player:inform_current($event:mk_info(player, "Walking to " + target:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
+    const output_connection = `connection() ! E_INVARG => 0';
     fork activity_task_id (0)
-      this:_do_walk(path);
+      this:_do_walk(path, output_connection);
     endfork
     this:action_start_activity(this, 'walk, activity_task_id, "walking to " + target:name());
   endverb
@@ -2838,8 +2875,9 @@ object PLAYER [
     steps = length(path) - 1;
     player:inform_current($event:mk_info(player, "Walking home to " + home:name() + " (" + tostr(steps) + " " + (steps == 1 ? "step" | "steps") + ")..."));
     "Fork task to do the walking";
+    const output_connection = `connection() ! E_INVARG => 0';
     fork activity_task_id (0)
-      this:_do_walk(path);
+      this:_do_walk(path, output_connection);
     endfork
     this:action_start_activity(this, 'walk, activity_task_id, "walking home to " + home:name());
   endverb
@@ -2934,10 +2972,12 @@ object PLAYER [
         this:_assist_with_pc(pc, conn);
         return true;
       endif
-      all_conns = connections();
-      conn = all_conns && length(all_conns) > 0 ? all_conns[1][1] | 0;
+      const output_connection = `connection() ! E_INVARG => 0';
+      if (typeof(output_connection) != TYPE_OBJ)
+        return true;
+      endif
       pc = ["verb" -> input, "dobjstr" -> "", "prepstr" -> "", "iobjstr" -> "", "dobj" -> $failed_match, "iobj" -> $failed_match];
-      this:_assist_with_pc(pc, conn);
+      this:_assist_with_pc(pc, output_connection);
       return true;
     endif
     token = `this.assist_last_token ! ANY => ""';
@@ -2972,18 +3012,18 @@ object PLAYER [
   method _assist_with_pc owner: ARCH_WIZARD
     "Run LLM command suggestions for a parsed command context.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
-    {pc, ?current_conn = 0} = args;
-    llm_client = $player.suggestions_llm_client;
-    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
-      this:inform_current($event:mk_info(this, "Assist is not configured right now."):with_audience('utility));
+    const {pc, ?requested_connection = 0} = args;
+    let current_conn = requested_connection;
+    if (typeof(current_conn) != TYPE_OBJ)
+      current_conn = `connection() ! E_INVARG => 0';
+    endif
+    if (typeof(current_conn) != TYPE_OBJ)
       return false;
     endif
-    if (!current_conn)
-      all_conns = connections();
-      if (!all_conns || length(all_conns) == 0)
-        return false;
-      endif
-      current_conn = all_conns[1][1];
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
+      this:inform_connection(current_conn, $event:mk_info(this, "Assist is not configured right now."):with_audience('utility));
+      return false;
     endif
     location = this.location;
     area = valid(location) && valid(location.location) ? location.location | #-1;
@@ -3050,7 +3090,7 @@ object PLAYER [
     fallback_html = "I couldn't find a close match for that. Here are a few general commands: " + fallback_links:join(", ");
     rewrite_id = uuid();
     placeholder = $event:mk_info(this, "Checking a few possibilities..."):with_rewritable(rewrite_id, 30, fallback_html):with_presentation_hint('processing):with_audience('utility);
-    this:inform_current(placeholder);
+    this:inform_connection(current_conn, placeholder);
     fork (0)
       cmd_verb = `pc['verb] ! ANY => ""';
       cmd_dobjstr = `pc['dobjstr] ! ANY => ""';
@@ -3329,23 +3369,23 @@ object PLAYER [
   method _assist_with_help_query owner: ARCH_WIZARD
     "Run LLM help-topic suggestions after explicit assist opt-in.";
     caller != this && caller_perms() != this && !caller_perms().wizard && return E_PERM;
-    {query, ?current_conn = 0} = args;
-    llm_client = $player.suggestions_llm_client;
-    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
-      this:inform_current($event:mk_error(this, "Help assist is not configured right now."):with_audience('utility));
+    const {query, ?requested_connection = 0} = args;
+    let current_conn = requested_connection;
+    if (typeof(current_conn) != TYPE_OBJ)
+      current_conn = `connection() ! E_INVARG => 0';
+    endif
+    if (typeof(current_conn) != TYPE_OBJ)
       return false;
     endif
-    if (!current_conn)
-      all_conns = connections();
-      if (!all_conns || length(all_conns) == 0)
-        return false;
-      endif
-      current_conn = all_conns[1][1];
+    llm_client = $player.suggestions_llm_client;
+    if (typeof(llm_client) != TYPE_OBJ || !valid(llm_client))
+      this:inform_connection(current_conn, $event:mk_error(this, "Help assist is not configured right now."):with_audience('utility));
+      return false;
     endif
     rewrite_id = uuid();
     fallback = "No help found for '" + query + "'. Try `help` to see available topics.";
     placeholder = $event:mk_error(this, "No help found for '" + query + "'. Checking suggestions..."):with_rewritable(rewrite_id, 30, fallback):with_presentation_hint('processing):with_audience('utility);
-    this:inform_current(placeholder);
+    this:inform_connection(current_conn, placeholder);
     is_programmer = this.programmer;
     fork (0)
       all_topics = this:_collect_help_topics();

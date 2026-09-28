@@ -56,6 +56,7 @@ object SYSOBJ [
   property help_topics (owner: ARCH_WIZARD, flags: "r") = HELP_TOPICS;
   property help_utils (owner: HACKER, flags: "r") = HELP_UTILS;
   property henri (owner: HACKER, flags: "r") = HENRI;
+  property housekeeping (owner: HACKER, flags: "r") = HOUSEKEEPING;
   property html (owner: HACKER, flags: "r") = HTML;
   property int_proto (owner: HACKER, flags: "r") = INT_PROTO;
   property kibble_cupboard (owner: HACKER, flags: "r") = KIBBLE_CUPBOARD;
@@ -97,8 +98,6 @@ object SYSOBJ [
   property root (owner: HACKER, flags: "r") = ROOT;
   property rule (owner: HACKER, flags: "r") = RULE;
   property rule_engine (owner: HACKER, flags: "r") = RULE_ENGINE;
-  property scheduled_task (owner: HACKER, flags: "r") = SCHEDULED_TASK;
-  property scheduler (owner: HACKER, flags: "r") = SCHEDULER;
   property server_options (owner: ARCH_WIZARD, flags: "r") = SERVER_OPTIONS;
   property sittable (owner: HACKER, flags: "r") = SITTABLE;
   property social_features (owner: HACKER, flags: "r") = SOCIAL_FEATURES;
@@ -115,11 +114,11 @@ object SYSOBJ [
   property wearable (owner: HACKER, flags: "r") = WEARABLE;
   property wiz_features (owner: HACKER, flags: "r") = WIZ_FEATURES;
 
-  override description = "System object containing global properties and core server event handlers.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "System object containing global properties and core server event handlers.";
 
-  method do_oauth_login owner: ARCH_WIZARD flags: "rxd"
+  method do_oauth_login owner: ARCH_WIZARD
     "Daemon entry for verified OAuth identities; require a root call for an unauthenticated connection.";
-    (!callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player) || raise(E_PERM);
+    !callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player || raise(E_PERM);
     connection_name(player);
     const {operation, @parameters} = args;
     operation in {"oauth2_check", "oauth2_create", "oauth2_connect"} || raise(E_INVARG);
@@ -152,8 +151,7 @@ object SYSOBJ [
       return;
     endif
     "First connection. Decide whether to announce.";
-    "Based on time since last connect -- last_disconnected is not reliably";
-    "set because silent connection reaping (mobile/network) skips it.";
+    "Use the last connection time to avoid repeat announcements during short reconnects.";
     quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
     time_since_last = last_conn > 0 ? time() - last_conn | quiet_period + 1;
     should_announce = is_new_player || time_since_last > quiet_period;
@@ -191,14 +189,12 @@ object SYSOBJ [
   endmethod
 
   method user_reconnected owner: ARCH_WIZARD
-    "Called by the server when a user reconnects (network blip, browser wake, etc).";
-    "Quiet reconnect: no room description, no announce, just update last_connected.";
+    "Record a server reconnect without room output. Wizard callers may invoke this for administration.";
     callers() && !caller_perms().wizard && return E_PERM;
-    user = args[1];
+    const {user} = args;
     if (user < #0)
       return;
     endif
-    "Update last_connected.";
     `user.last_connected = time() ! E_PROPNF, E_PERM';
   endmethod
 
@@ -242,9 +238,9 @@ object SYSOBJ [
         endfor
         traceback = {@traceback, "(End of traceback)"};
         traceback = {@traceback, " [when called with " + toliteral(args) + "]"};
-        player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+        player:inform_current($event:mk_error(player, $format.code:mk(traceback)):with_metadata('command_exception, true));
       else
-        player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility));
+        player:inform_current($event:mk_do_not_understand(player, "I don't understand that."):with_audience('utility):with_metadata('command_exception, true));
       endif
       return true;
     endtry
@@ -299,9 +295,9 @@ object SYSOBJ [
                   traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
                 endfor
                 traceback = {@traceback, "(End of traceback)"};
-                player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+                player:inform_current($event:mk_error(player, $format.code:mk(traceback)):with_metadata('command_exception, true));
               else
-                player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."));
+                player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."):with_metadata('command_exception, true));
               endif
               return true;
             endtry
@@ -324,9 +320,9 @@ object SYSOBJ [
           traceback = {@traceback, tostr("... called from ", tb[4], ":", tb[2], tb[4] != tb[1] ? tostr(" (this == ", tb[1], ")") | "", ", line ", tb[6])};
         endfor
         traceback = {@traceback, "(End of traceback)"};
-        player:inform_current($event:mk_error(player, $format.code:mk(traceback)));
+        player:inform_current($event:mk_error(player, $format.code:mk(traceback)):with_metadata('command_exception, true));
       else
-        player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."));
+        player:inform_current($event:mk_error(player, "Something went wrong while processing your command. If this keeps happening, please let a wizard know what you were trying to do."):with_metadata('command_exception, true));
       endif
     endtry
     player:inform_current($event:mk_do_not_understand(player, "I don't know how to do that."):with_audience('utility));
@@ -416,8 +412,6 @@ object SYSOBJ [
     player_class = $login.default_player_class;
     $login.player_setup_capability = $player:issue_capability(player_class, {'create_child, 'make_player}, 0, $arch_wizard);
     server_log("Issued player creation capability to $login");
-    "Resume scheduler if needed";
-    $scheduler:resume_if_needed();
   endmethod
 
   method handle_uncaught_error owner: ARCH_WIZARD
@@ -459,8 +453,5 @@ object SYSOBJ [
   method _log owner: ARCH_WIZARD
     callers() && !caller_perms().wizard && return E_PERM;
     server_log(@args);
-  endmethod
-
-  method user_reconnected owner: ARCH_WIZARD
   endmethod
 endobject

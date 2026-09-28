@@ -8,7 +8,7 @@ object INT_PROTO [
   owner: HACKER
   readable: true
 
-  override description = "Prototype object for integer utility methods.";
+  override description (owner: HACKER, flags: "rc") = "Prototype object for integer utility methods.";
 
   method compose owner: HACKER
     "Return string representation for event composition";

@@ -1,0 +1,11 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; add_verb(#90102, {#90102, "rxd", "authority-greeting-probe"}, {"this", "none", "this"}); set_verb_code(#90102, "authority-greeting-probe", {"try $login:greet_new_player(#90101); return false; except (E_PERM) return true; endtry"}); return true;
+true
+; return #90102:("authority-greeting-probe")();
+true
+@programmer
+@quiet
+@noevents

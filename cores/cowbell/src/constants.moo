@@ -121,10 +121,6 @@ define RULE = #63;
 define RULE_TEST = #64;
 define REACTION = #69;
 
-// scheduler
-define SCHEDULER = #27;
-define SCHEDULED_TASK = #28;
-
 // types
 define STR_PROTO = #13;
 define LIST_PROTO = #14;

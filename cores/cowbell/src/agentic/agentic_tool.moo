@@ -8,11 +8,11 @@ object AGENTIC_TOOL [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for agentic tool definitions and execution.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for agentic tool definitions and execution.";
 
   method mk owner: ARCH_WIZARD
     "Create an agentic tool definition flyweight.";
-    {name, description, parameters, target_obj, target_verb} = args;
+    const {name, description, parameters, target_obj, target_verb} = args;
     typeof(name) == TYPE_STR || raise(E_TYPE, "name must be string");
     typeof(description) == TYPE_STR || raise(E_TYPE, "description must be string");
     typeof(parameters) == TYPE_MAP || raise(E_TYPE, "parameters must be map");
@@ -32,15 +32,16 @@ object AGENTIC_TOOL [
   endmethod
 
   method execute owner: ARCH_WIZARD
-    "Execute tool with args map (or JSON string) and optional actor.";
-    isa(caller, $agentic_agent) || raise(E_PERM);
-    {args_json, ?actor = #-1} = args;
-    if (typeof(args_json) == TYPE_STR)
-      tool_args = parse_json(args_json);
-    else
-      tool_args = args_json;
-    endif
-    prefixed_verb = "_tool_" + this.target_verb;
+    "Dispatch a tool as its authenticated caller. Explicit actor delegation requires a wizard caller.";
+    const principal = caller_perms();
+    isa(caller, $agentic.agent) || raise(E_PERM);
+    const {args_json, ?actor = caller_perms()} = args;
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM, "Tool actor must be valid");
+    principal == actor || principal.wizard || raise(E_PERM, "Tool caller cannot impersonate actor");
+    set_task_perms(actor);
+    const tool_args = typeof(args_json) == TYPE_STR ? parse_json(args_json) | args_json;
+    typeof(tool_args) == TYPE_MAP || raise(E_TYPE, "Tool arguments must be a map");
+    const prefixed_verb = "_tool_" + this.target_verb;
     if (respond_to(this.target_obj, prefixed_verb))
       return this.target_obj:(prefixed_verb)(tool_args, actor);
     elseif (respond_to(this.target_obj, this.target_verb))

@@ -21,44 +21,48 @@ object AGENT_ROOM [
   property task_queue (owner: ARCH_WIZARD, flags: "rc") = {};
   property task_requester (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
-  override description = "A virtual workspace for agent interaction.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A virtual workspace for agent interaction.";
 
   verb do (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Catch-all command verb - queues natural language commands for the agent.";
     "Usage: do <anything> - queues the command for agent processing";
-    command_text = argstr;
+    const incoming = caller_perms();
+    const requester = incoming == #-1 && caller == player && valid(player) && is_player(player) ? player | incoming;
+    typeof(requester) == TYPE_OBJ && valid(requester) || raise(E_PERM);
+    const command_text = argstr;
     if (!command_text)
-      player:inform_current($event:mk_info(player, "What would you like me to do?"));
+      requester:inform_current($event:mk_info(requester, "What would you like me to do?"));
       return;
     endif
-    max_len = `this.max_query_length ! E_PROPNF => 2000';
+    let max_len = `this.max_query_length ! E_PROPNF => 2000';
     if (max_len < 1)
       max_len = 1;
     endif
     if (length(command_text) > max_len)
-      player:inform_current($event:mk_error(player, "Task is too long (" + tostr(length(command_text)) + " chars). Max is " + tostr(max_len) + "."));
+      requester:inform_current($event:mk_error(requester, "Task is too long (" + tostr(length(command_text)) + " chars). Max is " + tostr(max_len) + "."));
       return;
     endif
-    max_pending = `this.max_pending_per_player ! E_PROPNF => 3';
+    let max_pending = `this.max_pending_per_player ! E_PROPNF => 3';
     if (max_pending < 1)
       max_pending = 1;
     endif
-    pending_for_player = 0;
-    if (this.current_task && this.task_requester == player)
+    let pending_for_player = 0;
+    if (this.current_task && this.task_requester == requester)
       pending_for_player = pending_for_player + 1;
     endif
     for task in (this.task_queue)
-      if (`task['player] ! ANY => #-1' == player)
+      if (`task['player] ! ANY => #-1' == requester)
         pending_for_player = pending_for_player + 1;
       endif
     endfor
     if (pending_for_player >= max_pending)
-      player:inform_current($event:mk_error(player, "You already have " + tostr(pending_for_player) + " task(s) queued/running here. Please wait for one to finish."));
+      requester:inform_current($event:mk_error(requester, "You already have " + tostr(pending_for_player) + " task(s) queued/running here. Please wait for one to finish."));
       return;
     endif
     "Ensure event loop is running and send task";
     this:_ensure_loop();
-    msg = ["type" -> "task", 'query -> command_text, 'player -> player, 'queued_at -> time()];
+    let msg = ["type" -> "task", 'query -> command_text, 'player -> requester, 'queued_at -> time()];
+    msg["authorization"] = $agent_room:_authorize_task(this, msg);
     try
       task_send(this.loop_task, msg);
     except e (ANY)
@@ -67,28 +71,28 @@ object AGENT_ROOM [
       try
         task_send(this.loop_task, msg);
       except e2 (ANY)
-        player:inform_current($event:mk_error(player, "Failed to queue task."));
+        requester:inform_current($event:mk_error(requester, "Failed to queue task."));
         return;
       endtry
     endtry
-    player:inform_current($event:mk_info(player, "Queued: \"" + command_text + "\""));
+    requester:inform_current($event:mk_info(requester, "Queued: \"" + command_text + "\""));
   endverb
 
   method _announce owner: ARCH_WIZARD
     "Announce an agent message to the room using proper room events.";
-    {message} = args;
+    const {message} = args;
     "Create a proper room event";
-    agent = valid(this.agent) ? this.agent | this;
+    const agent = valid(this.agent) ? this.agent | this;
     "Set as djot so client renders markdown correctly";
-    event = $event:mk_announce(agent, message):as_djot();
+    const event = $event:mk_announce(agent, message):as_djot();
     this:announce(event);
   endmethod
 
   verb halt (none none none) owner: ARCH_WIZARD flags: "xd"
     "Stop all current tasks and the event loop.";
     this:_stop_loop();
-    queue_len = length(this.task_queue);
-    msg = "Stopped all background tasks.";
+    const queue_len = length(this.task_queue);
+    let msg = "Stopped all background tasks.";
     if (queue_len > 0)
       msg = msg + " " + tostr(queue_len) + " queued tasks remain.";
     endif
@@ -97,8 +101,14 @@ object AGENT_ROOM [
 
   verb status (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show current agent status.";
-    lines = {};
-    show_details = `player.wizard ! ANY => false';
+    let agent = 0;
+    let iter = 0;
+    let max_iter = 0;
+    let mine = 0;
+    let pct = 0;
+    let task_desc = 0;
+    let lines = {};
+    let show_details = `player.wizard ! ANY => false';
     if (!show_details && this.current_task && this.task_requester == player)
       show_details = true;
     endif
@@ -127,12 +137,12 @@ object AGENT_ROOM [
       lines = {@lines, "No task running."};
     endif
     "Active workers";
-    active_count = length(this.active_tasks);
+    const active_count = length(this.active_tasks);
     if (active_count > 1)
       lines = {@lines, "Active workers: " + tostr(active_count)};
     endif
     "Queue info";
-    queue_len = length(this.task_queue);
+    const queue_len = length(this.task_queue);
     if (queue_len > 0)
       if (`player.wizard ! ANY => false')
         lines = {@lines, "Queue: " + tostr(queue_len) + " pending"};
@@ -155,13 +165,15 @@ object AGENT_ROOM [
 
   verb queue (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show pending tasks in the queue.";
+    let task = 0;
+    let task_player = 0;
     if (length(this.task_queue) == 0)
       return player:inform_current($event:mk_info(player, "Queue is empty."));
     endif
-    show_all = `player.wizard ! ANY => false';
-    lines = {"Pending tasks:"};
-    shown = 0;
-    hidden = 0;
+    const show_all = `player.wizard ! ANY => false';
+    let lines = {"Pending tasks:"};
+    let shown = 0;
+    let hidden = 0;
     for i in [1..length(this.task_queue)]
       task = this.task_queue[i];
       task_player = `task['player] ! ANY => #-1';
@@ -183,14 +195,18 @@ object AGENT_ROOM [
 
   verb history (none none none) owner: ARCH_WIZARD flags: "xd"
     "Show completed task history.";
+    let entry = 0;
+    let i = 0;
+    let query_preview = 0;
+    let status_str = 0;
     if (length(this.history) == 0)
       return player:inform_current($event:mk_info(player, "No task history yet."));
     endif
-    show_all = `player.wizard ! ANY => false';
-    lines = {"Task history (most recent first):"};
+    const show_all = `player.wizard ! ANY => false';
+    let lines = {"Task history (most recent first):"};
     "Show up to 10 relevant entries, newest first";
-    hist_len = length(this.history);
-    shown = 0;
+    const hist_len = length(this.history);
+    let shown = 0;
     for offset in [0..hist_len - 1]
       if (shown >= 10)
         break;
@@ -216,19 +232,20 @@ object AGENT_ROOM [
 
   verb description (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Formatted description with explicit newlines.";
-    intro = $ansi:wrap("A virtual workspace where you can interact with an AI agent.", 'dim);
-    cmd_header = "\n" + $ansi:wrap("Commands:", 'bold, 'cyan);
-    cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("halt", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks"}, false);
+    const intro = $ansi:wrap("A virtual workspace where you can interact with an AI agent.", 'dim);
+    const cmd_header = "\n" + $ansi:wrap("Commands:", 'bold, 'cyan);
+    const cmds = $format.list:mk({$ansi:wrap("do <task>", 'green) + " - Queue a task for the agent", $ansi:wrap("status", 'green) + " - Check current activity", $ansi:wrap("halt", 'green) + " - Interrupt current task", $ansi:wrap("queue", 'green) + " - Show pending tasks", $ansi:wrap("history", 'green) + " - Show completed tasks"}, false);
     return {intro, cmd_header, cmds};
   endverb
 
   method _tool_present_code owner: ARCH_WIZARD
     "Tool: Present formatted code to the room.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    title = maphaskey(args_map, "title") ? args_map["title"] | "Code";
-    code = args_map["code"];
-    language = maphaskey(args_map, "language") ? args_map["language"] | 'moo;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const title = maphaskey(args_map, "title") ? args_map["title"] | "Code";
+    let code = args_map["code"];
+    const language = maphaskey(args_map, "language") ? args_map["language"] | 'moo;
     "Handle list of lines (from verb_code) - join into string";
     if (typeof(code) == typeof({}))
       code = code:join("\n");
@@ -236,11 +253,11 @@ object AGENT_ROOM [
       code = toliteral(code);
     endif
     "Build raw Markdown/Djot code block";
-    report = "";
+    let report = "";
     if (title && length(title) > 0)
       report = "### " + title + "\n\n";
     endif
-    lang_str = tostr(language);
+    const lang_str = tostr(language);
     report = report + "```" + lang_str + "\n" + code + "\n```";
     "Announce to room using _announce (which uses as_djot)";
     this:_announce(report);
@@ -249,12 +266,13 @@ object AGENT_ROOM [
 
   method _tool_present_report owner: ARCH_WIZARD
     "Tool: Present a formatted report/document to the room.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    title = maphaskey(args_map, "title") ? args_map["title"] | "";
-    content = args_map["content"];
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    let title = maphaskey(args_map, "title") ? args_map["title"] | "";
+    let content = args_map["content"];
     "Get the agent - it's stored on this.agent during task execution";
-    agent = valid(this.agent) ? this.agent | #-1;
+    const agent = valid(this.agent) ? this.agent | #-1;
     "Use agent's _coerce_string if available";
     if (valid(agent) && "_coerce_string" in verbs(agent))
       content = agent:_coerce_string(content);
@@ -265,7 +283,7 @@ object AGENT_ROOM [
       title = typeof(title) != TYPE_STR ? tostr(title) | title;
     endif
     "Build raw markdown string";
-    report = "";
+    let report = "";
     if (title && length(title) > 0)
       report = "### " + title + "\n\n";
     endif
@@ -277,13 +295,17 @@ object AGENT_ROOM [
 
   method _tool_present_table owner: ARCH_WIZARD
     "Tool: Present a formatted table to the room.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    title = maphaskey(args_map, "title") ? args_map["title"] | "";
-    headers = args_map["headers"];
-    rows = args_map["rows"];
+    let clean_headers = 0;
+    let clean_row = 0;
+    let clean_rows = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    let title = maphaskey(args_map, "title") ? args_map["title"] | "";
+    let headers = args_map["headers"];
+    let rows = args_map["rows"];
     "Get agent for coercion";
-    agent = valid(this.agent) ? this.agent | #-1;
+    const agent = valid(this.agent) ? this.agent | #-1;
     "Coerce title if needed";
     if (typeof(title) != TYPE_STR)
       title = valid(agent) && "_coerce_string" in verbs(agent) ? agent:_coerce_string(title) | tostr(title);
@@ -321,14 +343,14 @@ object AGENT_ROOM [
       raise(E_TYPE, "rows must be a list of lists");
     endif
     "Build raw Djot/Markdown table string";
-    table_str = "";
+    let table_str = "";
     if (title && length(title) > 0)
       table_str = "### " + title + "\n\n";
     endif
     "Header row";
     table_str = table_str + "| " + headers:join(" | ") + " |\n";
     "Separator row";
-    sep_parts = {};
+    let sep_parts = {};
     for h in (headers)
       sep_parts = {@sep_parts, "---"};
     endfor
@@ -347,19 +369,16 @@ object AGENT_ROOM [
     return {["name" -> "show_verb", "description" -> "Display a verb's source code. Always include 'reason' to explain WHY you're reading this code.", "target_obj" -> this, "target_verb" -> "_tool_show_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$room', '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to display"], "reason" -> ["type" -> "string", "description" -> "WHY you're reading this - e.g. 'to understand how wearables work'"]], "required" -> {"object", "verb", "reason"}]], ["name" -> "present_report", "description" -> "Present a prose report. Write clear explanatory text about what you DID or found.", "target_obj" -> this, "target_verb" -> "_tool_present_report", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Report title"], "content" -> ["type" -> "string", "description" -> "Report text - prose paragraphs"]], "required" -> {"content"}]], ["name" -> "present_table", "description" -> "Present tabular data like verb lists or property comparisons.", "target_obj" -> this, "target_verb" -> "_tool_present_table", "input_schema" -> ["type" -> "object", "properties" -> ["title" -> ["type" -> "string", "description" -> "Table title"], "headers" -> ["type" -> "array", "items" -> ["type" -> "string"], "description" -> "Column headers"], "rows" -> ["type" -> "array", "items" -> ["type" -> "array"], "description" -> "Table rows"]], "required" -> {"headers", "rows"}]], ["name" -> "program_verb", "description" -> "Set the MOO code for a verb. IMPORTANT: 'code' must be a single string containing the COMPLETE verb body. Use \\n for line breaks. Example: code=\"\\\"Docstring\\\";\\nplayer:inform_current($event:mk_info(player, ctime()));\"", "target_obj" -> this, "target_verb" -> "_tool_program_verb", "input_schema" -> ["type" -> "object", "properties" -> ["object" -> ["type" -> "string", "description" -> "Object reference like '$thing', '#123'"], "verb" -> ["type" -> "string", "description" -> "Verb name to program"], "code" -> ["type" -> "string", "description" -> "Complete MOO code as a SINGLE STRING. Use \\n for newlines. NOT an object/map."]], "required" -> {"object", "verb", "code"}]]};
   endmethod
 
-  method _require_tool_dispatch owner: ARCH_WIZARD
-    "Only registered tool dispatch or same-room internals may invoke tool handlers.";
-    stack = callers();
-    caller == $llm_agent_tool || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
-  endmethod
-
   method _tool_show_verb owner: ARCH_WIZARD
     "Tool: Fetch and present verb code with explanation of why.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    obj_ref = args_map["object"];
-    verb_name = args_map["verb"];
-    reason = maphaskey(args_map, "reason") ? args_map["reason"] | "";
+    let preview_lines = 0;
+    let preview_str = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    let obj_ref = args_map["object"];
+    let verb_name = args_map["verb"];
+    const reason = maphaskey(args_map, "reason") ? args_map["reason"] | "";
     typeof(obj_ref) != TYPE_STR && raise(E_TYPE, "object must be a string like '$room' or '#123'");
     typeof(verb_name) != TYPE_STR && raise(E_TYPE, "verb must be a string");
     "Robustness: strip hallucinated colon/separator prefixes from object ref";
@@ -373,24 +392,24 @@ object AGENT_ROOM [
       verb_name = verb_name[2..$]:trim();
     endwhile
     "Resolve object reference";
-    obj = $match:match_object(obj_ref);
+    const obj = $match:match_object(obj_ref);
     !valid(obj) && raise(E_INVARG, "Could not find object: " + obj_ref);
     "Get verb code";
-    code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
+    const code_lines = `verb_code(obj, verb_name) ! E_VERBNF => 0';
     code_lines == 0 && raise(E_VERBNF, "Verb not found: " + verb_name);
     "Get verb metadata";
-    info = verb_info(obj, verb_name);
-    flags = info[2];
-    argspec = info[3];
+    const info = verb_info(obj, verb_name);
+    const flags = info[2];
+    const argspec = info[3];
     "Build content with context and reason";
-    context_line = "[Reading verb code]";
+    let context_line = "[Reading verb code]";
     if (reason && length(reason) > 0)
       context_line = context_line + " " + reason;
     endif
-    title = tostr(obj) + ":" + verb_name + " [" + flags + "] " + argspec;
+    const title = tostr(obj) + ":" + verb_name + " [" + flags + "] " + argspec;
     "Show first 12 lines as preview for the room";
-    total_lines = length(code_lines);
-    max_preview = 12;
+    const total_lines = length(code_lines);
+    const max_preview = 12;
     if (total_lines > max_preview)
       preview_lines = code_lines[1..max_preview];
       preview_str = preview_lines:join("\n") + "\n... (" + tostr(total_lines - max_preview) + " more lines)";
@@ -398,7 +417,7 @@ object AGENT_ROOM [
       preview_str = code_lines:join("\n");
     endif
     "Create formatted content (Markdown)";
-    report = "### " + title + "\n\n" + context_line + "\n\n```moo\n" + preview_str + "\n```";
+    const report = "### " + title + "\n\n" + context_line + "\n\n```moo\n" + preview_str + "\n```";
     "Announce to room using improved _announce (with as_djot)";
     this:_announce(report);
     "RETURN FULL CODE to the agent so it can actually see it";
@@ -408,10 +427,18 @@ object AGENT_ROOM [
   verb look_self (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Override look_self to include formatted agent status.";
     "Get base look from parent";
-    look_data = pass(@args);
+    let iter = 0;
+    let last_tool = 0;
+    let max_iter = 0;
+    let pct = 0;
+    let query_preview = 0;
+    let recent = 0;
+    let status_color = 0;
+    let task_preview = 0;
+    const look_data = pass(@args);
     "Build status section with explicit newlines";
-    status_header = "\n" + $ansi:wrap("Agent Status:", 'bold, 'cyan);
-    status_items = {};
+    const status_header = "\n" + $ansi:wrap("Agent Status:", 'bold, 'cyan);
+    let status_items = {};
     if (this.current_task && length(this.current_task) > 0)
       task_preview = this.current_task[1..min(50, length(this.current_task))];
       if (length(this.current_task) > 50)
@@ -436,14 +463,14 @@ object AGENT_ROOM [
       status_items = {@status_items, "State: " + $ansi:wrap("Idle", 'green)};
     endif
     "Queue info";
-    queue_len = length(this.task_queue);
+    const queue_len = length(this.task_queue);
     if (queue_len > 0)
       status_items = {@status_items, "Queue: " + $ansi:wrap(tostr(queue_len) + " pending", 'yellow)};
     endif
-    status_list = $format.list:mk(status_items, false);
+    const status_list = $format.list:mk(status_items, false);
     "History summary";
-    history_part = {};
-    hist_len = length(this.history);
+    let history_part = {};
+    const hist_len = length(this.history);
     if (hist_len > 0)
       recent = this.history[hist_len];
       query_preview = recent['query][1..min(40, length(recent['query]))];
@@ -454,22 +481,25 @@ object AGENT_ROOM [
       history_part = {"\n" + $ansi:wrap("Last Task:", 'dim) + " [" + $ansi:wrap(tostr(recent['status]), status_color) + "] " + query_preview};
     endif
     "Combine description with status as list";
-    base_desc = look_data.description;
+    let base_desc = look_data.description;
     if (typeof(base_desc) != TYPE_LIST)
       base_desc = {base_desc};
     endif
-    new_desc = {@base_desc, status_header, status_list, @history_part};
+    const new_desc = {@base_desc, status_header, status_list, @history_part};
     "Return updated flyweight";
-    contents_list = flycontents(look_data);
-    exits = `look_data.exits ! E_PROPNF => {}';
-    ambient = `look_data.ambient_passages ! E_PROPNF => {}';
-    actions = `look_data.actions ! E_PROPNF => {}';
+    const contents_list = flycontents(look_data);
+    const exits = `look_data.exits ! E_PROPNF => {}';
+    const ambient = `look_data.ambient_passages ! E_PROPNF => {}';
+    const actions = `look_data.actions ! E_PROPNF => {}';
     return <look_data.delegate, .what = look_data.what, .title = look_data.title, .description = new_desc, .exits = exits, .ambient_passages = ambient, .actions = actions, {@contents_list}>;
   endverb
 
   method _on_progress owner: ARCH_WIZARD
     "Called by agent during run to report progress. Ephemeral to requester.";
-    {agent, iteration, last_tool} = args;
+    let max_iter = 0;
+    let msg = 0;
+    let pct = 0;
+    const {agent, iteration, last_tool} = args;
     "Only report every 5 iterations, or on first iteration";
     if (iteration == 1 || iteration % 5 == 0)
       max_iter = agent.max_iterations;
@@ -493,29 +523,34 @@ object AGENT_ROOM [
 
   verb compact (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Compact the current agent's context by summarizing it.";
-    agent = this.agent;
+    const agent = this.agent;
     !valid(agent) && return player:inform_current($event:mk_info(player, "No agent currently running."));
-    ctx = agent.context;
+    const ctx = agent.context;
     length(ctx) < 3 && return player:inform_current($event:mk_info(player, "Context too short to compact."));
     "Build summary request";
-    summary_prompt = "Summarize the conversation so far in 2-3 sentences. Focus on: what task was given, what actions were taken, what was learned. Be concise.";
-    summary_messages = {@ctx, ["role" -> "user", "content" -> summary_prompt]};
+    const summary_prompt = "Summarize the conversation so far in 2-3 sentences. Focus on: what task was given, what actions were taken, what was learned. Be concise.";
+    const summary_messages = {@ctx, ["role" -> "user", "content" -> summary_prompt]};
     "Call LLM for summary";
-    client = agent.client;
-    response = client:chat(summary_messages, []);
+    const client = agent.client;
+    const response = client:chat(summary_messages, []);
     !response:is_valid() && return player:inform_current($event:mk_info(player, "Failed to generate summary."));
-    summary = response:content();
+    const summary = response:content();
     "Replace context with system prompt + summary";
-    sys_msg = ctx[1];
+    const sys_msg = ctx[1];
     agent.context = {sys_msg, ["role" -> "user", "content" -> "CONTEXT SUMMARY (conversation was compacted):\n" + summary + "\n\nContinue working on the task."]};
-    old_len = length(ctx);
-    new_len = length(agent.context);
+    const old_len = length(ctx);
+    const new_len = length(agent.context);
     player:inform_current($event:mk_info(player, "Compacted context from " + tostr(old_len) + " to " + tostr(new_len) + " messages."));
   endverb
 
   method _announce_thinking owner: ARCH_WIZARD
     "Send agent's thinking to requester only (ephemeral).";
-    {thinking} = args;
+    let end_tag = 0;
+    let parsed = 0;
+    let parts = 0;
+    let start = 0;
+    let val = 0;
+    let {thinking} = args;
     thinking && length(thinking) > 0 || return;
     "Convert non-strings to readable form";
     if (typeof(thinking) != TYPE_STR)
@@ -584,18 +619,26 @@ object AGENT_ROOM [
 
   method _announce_status owner: ARCH_WIZARD
     "Send lightweight status update to requester only (ephemeral).";
-    {status} = args;
+    const {status} = args;
     status && length(status) > 0 || return;
     this:_tell_requester(status);
   endmethod
 
   method _tool_program_verb owner: ARCH_WIZARD
     "Tool: Program a verb with code preview.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    obj_ref = args_map["object"];
-    verb_name = args_map["verb"];
-    code = args_map["code"];
+    let args_info = 0;
+    let info = 0;
+    let is_all_strings = 0;
+    let preview_lines = 0;
+    let preview_str = 0;
+    let unique_cites = 0;
+    let val = 0;
+    let {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const obj_ref = args_map["object"];
+    const verb_name = args_map["verb"];
+    let code = args_map["code"];
     "Handle case where code is wrapped in a map or list (common LLM mistakes)";
     if (typeof(code) == TYPE_MAP)
       "Try to extract the first string value";
@@ -624,17 +667,17 @@ object AGENT_ROOM [
     endif
     typeof(code) != TYPE_STR && raise(E_TYPE, "code must be a string, got: " + typeof(code));
     "Check for citations if the agent is $rlm_agent";
-    agent_obj = #-1;
+    let agent_obj = #-1;
     try
       agent_obj = caller;
       typeof(agent_obj) == TYPE_OBJ || (agent_obj = #-1);
     except (ANY)
     endtry
-    citations = valid(agent_obj) ? agent_obj.last_tool_citations | {};
+    const citations = valid(agent_obj) ? agent_obj.last_tool_citations | {};
     "Get current verb info for the preview";
-    target_obj = $match:match_object(obj_ref, actor);
-    v_flags = "???";
-    v_args = "...";
+    const target_obj = $match:match_object(obj_ref, actor);
+    let v_flags = "???";
+    let v_args = "...";
     if (valid(target_obj))
       try
         info = verb_info(target_obj, verb_name);
@@ -645,9 +688,9 @@ object AGENT_ROOM [
       endtry
     endif
     "Show code preview";
-    code_lines = code:split("\n");
-    total_lines = length(code_lines);
-    max_preview = 8;
+    const code_lines = code:split("\n");
+    const total_lines = length(code_lines);
+    const max_preview = 8;
     if (total_lines > max_preview)
       preview_lines = code_lines[1..max_preview];
       preview_str = preview_lines:join("\n") + "\n... (" + tostr(total_lines - max_preview) + " more lines)";
@@ -655,7 +698,7 @@ object AGENT_ROOM [
       preview_str = code;
     endif
     "Build announcement";
-    citation_msg = "";
+    let citation_msg = "";
     if (length(citations) > 0)
       "Format citations nicely";
       unique_cites = {};
@@ -666,19 +709,19 @@ object AGENT_ROOM [
       endfor
       citation_msg = $ansi:wrap(" (citing " + unique_cites:join(", ") + ")", 'dim);
     endif
-    context_line = $ansi:wrap("[Programming verb]", 'dim) + citation_msg;
-    title = obj_ref + ":" + verb_name + " [" + v_flags + "] " + v_args + " (" + tostr(total_lines) + " lines)";
-    title_fw = $format.title:mk(title, 4);
-    code_fw = $format.code:mk(preview_str, 'moo);
-    content = $format.block:mk($format.paragraph:mk(context_line), title_fw, code_fw);
+    const context_line = $ansi:wrap("[Programming verb]", 'dim) + citation_msg;
+    const title = obj_ref + ":" + verb_name + " [" + v_flags + "] " + v_args + " (" + tostr(total_lines) + " lines)";
+    const title_fw = $format.title:mk(title, 4);
+    const code_fw = $format.code:mk(preview_str, 'moo);
+    const content = $format.block:mk($format.paragraph:mk(context_line), title_fw, code_fw);
     "Announce to room";
-    final_agent = this;
+    let final_agent = this;
     if (valid(this.agent))
       final_agent = this.agent;
     elseif (valid(agent_obj))
       final_agent = agent_obj;
     endif
-    event = $event:mk_announce(final_agent, content);
+    const event = $event:mk_announce(final_agent, content);
     this:announce(event);
     "Update args_map with extracted code and delegate";
     args_map["code"] = code;
@@ -687,41 +730,46 @@ object AGENT_ROOM [
 
   method _tell_requester owner: ARCH_WIZARD
     "Send ephemeral message to the task requester only.";
-    {message} = args;
-    requester = this.task_requester;
+    const {message} = args;
+    const requester = this.task_requester;
     !valid(requester) && return;
-    content = $ansi:wrap("  \u2192 " + message, 'dim);
+    const content = $ansi:wrap("  \u2192 " + message, 'dim);
     requester:inform_current($event:mk_info(requester, content));
   endmethod
 
   verb "fix revise" (any any any) owner: ARCH_WIZARD flags: "rxd"
     "Request correction/revision to previous work - continues with existing context.";
     "Usage: fix <instructions> - tells agent to revise existing work";
-    command_text = argstr;
+    let h = 0;
+    const incoming = caller_perms();
+    const requester = incoming == #-1 && caller == player && valid(player) && is_player(player) ? player | incoming;
+    typeof(requester) == TYPE_OBJ && valid(requester) || raise(E_PERM);
+    const command_text = argstr;
     if (!command_text)
-      player:inform_current($event:mk_info(player, "What needs to be fixed or revised?"));
+      requester:inform_current($event:mk_info(requester, "What needs to be fixed or revised?"));
       return;
     endif
-    "Get the most recent history entry for this player";
-    prev_context = {};
-    prev_query = "";
+    "Get the most recent history entry for this requester";
+    let prev_context = {};
+    let prev_query = "";
     for i in [length(this.history)..1]
       h = this.history[i];
-      if (h['requester] == player)
+      if (h['player] == requester)
         prev_context = h['context] || {};
         prev_query = h['query];
         break;
       endif
     endfor
     if (length(prev_context) == 0)
-      player:inform_current($event:mk_info(player, "No previous task found to continue from. Use 'do' to start a new task."));
+      requester:inform_current($event:mk_info(requester, "No previous task found to continue from. Use 'do' to start a new task."));
       return;
     endif
     "Build the revision query";
-    revision_query = "REVISION REQUEST: Please fix/revise the previous work as follows: " + command_text;
+    const revision_query = "REVISION REQUEST: Please fix/revise the previous work as follows: " + command_text;
     "Ensure event loop is running and send task with context";
     this:_ensure_loop();
-    msg = ["type" -> "task", 'query -> revision_query, 'player -> player, 'queued_at -> time(), 'context -> prev_context];
+    let msg = ["type" -> "task", 'query -> revision_query, 'player -> requester, 'queued_at -> time(), 'context -> prev_context];
+    msg["authorization"] = $agent_room:_authorize_task(this, msg);
     try
       task_send(this.loop_task, msg);
     except e (ANY)
@@ -730,27 +778,38 @@ object AGENT_ROOM [
       try
         task_send(this.loop_task, msg);
       except e2 (ANY)
-        player:inform_current($event:mk_error(player, "Failed to queue revision."));
+        requester:inform_current($event:mk_error(requester, "Failed to queue revision."));
         return;
       endtry
     endtry
-    player:inform_current($event:mk_info(player, "Revision queued (continuing from previous context): \"" + command_text + "\""));
+    requester:inform_current($event:mk_info(requester, "Revision queued (continuing from previous context): \"" + command_text + "\""));
   endverb
 
   method _execute_task owner: ARCH_WIZARD
     "Internal verb to execute a single task from the queue.";
+    let brief = 0;
+    let content = 0;
+    let h = 0;
+    let history_summary = 0;
+    let max_hist = 0;
+    let msg = 0;
+    let report = 0;
+    let result = 0;
+    let selected = 0;
+    let status = 0;
+    let title = 0;
     caller == this || raise(E_PERM);
-    {task} = args;
-    task_player = task['player];
+    const {task} = args;
+    $agent_room:_consume_task(this, task);
+    const task_player = task['player];
     "Set task tracking properties for status display";
     this.task_requester = task_player;
     this.current_task = task['query];
     "Announce to room that someone started a task - FULL prompt";
     this:_announce(task_player.name + " requested: \"" + task['query] + "\"");
     "Create persistent agent (with UUID) so it can be cited in eval()";
-    agent = $rlm_agent:create();
+    const agent = create($rlm_agent, task_player);
     this.agent = agent;
-    agent:set_owner(task_player);
     agent.client = valid(this.llm_client) ? this.llm_client | $llm_client;
     agent.max_iterations = 50;
     agent.progress_callback = {this, "_on_progress"};
@@ -796,14 +855,14 @@ object AGENT_ROOM [
     endif
     "Run agent";
     try
-      result = agent:run();
+      result = agent:run(task_player);
       status = agent.status;
     except e (ANY)
       result = "Error: " + tostr(e[1]) + " - " + tostr(e[2]);
       status = 'failed;
     endtry
     "Record in history - include context for potential continuation";
-    entry = ['query -> task['query], 'result -> result, 'status -> status, 'finished_at -> time(), 'requester -> task_player, 'context -> agent.context];
+    const entry = ['query -> task['query], 'result -> result, 'status -> status, 'finished_at -> time(), 'requester -> task_player, 'context -> agent.context];
     this.history = {@this.history, entry};
     "Announce completion to room with formatted result";
     if (status == 'complete)
@@ -838,7 +897,14 @@ object AGENT_ROOM [
 
   method _flatten_content owner: ARCH_WIZARD
     "Flatten complex content (lists, maps) into readable text.";
-    {val} = args;
+    let flat = 0;
+    let key_str = 0;
+    let parsed = 0;
+    let parts = 0;
+    let result = 0;
+    let v = 0;
+    let val_str = 0;
+    let {val} = args;
     if (typeof(val) == TYPE_STR)
       "Check if string looks like JSON array and unwrap";
       if (length(val) > 4 && val[1] == "[" && val[2] == "\"")
@@ -878,10 +944,20 @@ object AGENT_ROOM [
 
   method _event_loop owner: ARCH_WIZARD
     "Main event loop. Receives tasks via task_recv, dispatches workers.";
-    pending = {};
-    active = {};
-    loop_id = task_id();
-    should_exit = false;
+    let all_tasks = 0;
+    let done_tid = 0;
+    let live_tids = 0;
+    let max_workers = 0;
+    let messages = 0;
+    let msg_type = 0;
+    let my_loop = 0;
+    let new_active = 0;
+    let task = 0;
+    let timeout = 0;
+    let pending = {};
+    let active = {};
+    const loop_id = task_id();
+    let should_exit = false;
     while (!should_exit)
       "Wait for messages - short timeout when workers active, longer when idle";
       timeout = length(active) > 0 ? 5 | 60;
@@ -976,7 +1052,7 @@ object AGENT_ROOM [
   method _start_loop owner: ARCH_WIZARD
     "Fork the event loop task and store its ID.";
     "Stop any existing loop first to prevent duplicates.";
-    lt = this.loop_task;
+    const lt = this.loop_task;
     this.loop_task = 0;
     this.task_id = 0;
     if (lt > 0)
@@ -1000,7 +1076,7 @@ object AGENT_ROOM [
 
   method _stop_loop owner: ARCH_WIZARD
     "Kill the event loop and all active workers.";
-    lt = this.loop_task;
+    const lt = this.loop_task;
     this.loop_task = 0;
     this.task_id = 0;
     "Kill the loop task";
@@ -1025,5 +1101,46 @@ object AGENT_ROOM [
     if (this.loop_task <= 0)
       this:_start_loop();
     endif
+  endmethod
+
+  method _authorize_task owner: ARCH_WIZARD
+    "Sign one bounded room request using the actual incoming principal, without ancestry or owner trust.";
+    const principal = caller_perms();
+    const {room, task} = args;
+    typeof(room) == TYPE_OBJ && valid(room) && isa(room, $agent_room) || raise(E_PERM);
+    typeof(task) == TYPE_MAP || raise(E_TYPE);
+    const actor = task['player];
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM);
+    actor == principal || principal.wizard || raise(E_PERM);
+    const query = task['query];
+    typeof(query) == TYPE_STR || raise(E_TYPE);
+    const context = maphaskey(task, 'context) ? task['context] | {};
+    typeof(context) == TYPE_LIST || raise(E_TYPE);
+    return paseto_make_local(["purpose" -> "agent_room_task", "room" -> room, "actor" -> actor, "query" -> query, "context" -> context, "jti" -> uuid()]);
+  endmethod
+
+  method _consume_task owner: ARCH_WIZARD
+    "Verify and consume the bounded request before callbacks, suspension, or task effects.";
+    const principal = caller_perms();
+    valid(principal) && principal.wizard || raise(E_PERM);
+    const {room, task} = args;
+    typeof(task) == TYPE_MAP && maphaskey(task, "authorization") || raise(E_PERM);
+    let claims = [];
+    try
+      claims = paseto_verify_local(task["authorization"]);
+    except (E_TYPE, E_INVARG)
+      raise(E_PERM, "Invalid room task authorization");
+    endtry
+    typeof(claims) == TYPE_MAP || raise(E_PERM);
+    for key in ({"purpose", "room", "actor", "query", "context", "jti"})
+      maphaskey(claims, key) || raise(E_PERM, "Incomplete room task authorization");
+    endfor
+    const context = maphaskey(task, 'context) ? task['context] | {};
+    claims["purpose"] == "agent_room_task" && claims["room"] == room && claims["actor"] == task['player] && claims["query"] == task['query] && claims["context"] == context || raise(E_PERM, "Room task authorization does not match request");
+    typeof(claims["actor"]) == TYPE_OBJ && valid(claims["actor"]) || raise(E_PERM);
+    typeof(claims["jti"]) == TYPE_STR && length(claims["jti"]) > 0 || raise(E_PERM);
+    !$root:_capability_is_revoked(claims) || raise(E_PERM, "Room task authorization already consumed");
+    $root:_revoke_capability_token(<$root, .jti = claims["jti"]>);
+    return claims;
   endmethod
 endobject

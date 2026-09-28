@@ -7,7 +7,7 @@ object FORMAT_LIST [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for list content in events.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for list content in events.";
 
   method mk owner: HACKER
     "Create list flyweight with optional ordered attribute";

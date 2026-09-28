@@ -11,7 +11,7 @@ object LLM_CLIENT [
   property api_key (owner: ARCH_WIZARD, flags: "") = 0;
   property model (owner: HACKER, flags: "r") = 0;
 
-  override description = "OpenAI-compatible LLM API client for chat completions using worker_request.";
+  override description (owner: HACKER, flags: "rc") = "OpenAI-compatible LLM API client for chat completions using worker_request.";
 
   method chat owner: ARCH_WIZARD
     "Make a chat completion request to LLM API";

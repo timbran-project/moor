@@ -9,12 +9,12 @@ object AGENT_BUILDING_TOOLS [
 
   property guide (owner: ARCH_WIZARD, flags: "rc") = "SPATIAL CONCEPTS:\n\n1) AREAS are organizational containers (like buildings or zones) that group related rooms together. Areas have object IDs like #38.\n\n2) ROOMS are individual locations within an area. Rooms have object IDs like #12 or #50.\n\n3) The hierarchy is: AREA contains ROOMS, not the other way around.\n\n4) When a user says 'build rooms in the hotel lobby area', they mean build rooms in the SAME AREA that contains the hotel lobby room, NOT inside the lobby room itself.\n\n5) ALWAYS use object numbers (like #38 or #50) when referencing specific objects to avoid ambiguity. NEVER use names alone.\n\nOBJECT PROTOTYPES:\n\nThe system provides prototype objects that serve as templates for creating new objects. Use the 'list_prototypes' tool to see available prototypes like $room (rooms), $thing (generic objects), $wearable (items that can be worn), and $area (organizational containers). When creating objects, choose the appropriate prototype as the parent - for example, use $wearable for items like hats or tools, $thing for furniture or decorations, and $room for new locations.\n\nMOVING OBJECTS:\n\nUse the 'move_object' tool to relocate objects between locations. You can move objects to rooms, players, or containers. This is useful for placing furniture in rooms, giving items to players, or organizing objects. You must own the object or be a wizard to move it.\n\nRULE ENGINE FOR OBJECT BEHAVIOR:\n\nThe system provides a Datalog-style rule engine that lets builders configure object behavior WITHOUT writing MOO code. Rules are declarative logic expressions used for locks, puzzles, quest triggers, and conditional behaviors.\n\nExample: 'Key is(\"golden key\")?' finds an object matching \"golden key\" and binds it to variable Key.\n\nRules can chain relationships transitively: 'Child parent(Parent)? AND Parent parent(Grandparent)?' walks up a family tree.\n\nVariables (capitalized like Key, Item, Accessor) unify with values returned by fact predicates. The engine supports AND, OR, and bounded NOT operators.\n\nCommon use cases: container lock_rule/unlock_rule for key-based locks, puzzle objects with solution_rule checking conditions, doors with can_pass rules, quest items with requirements.\n\nUse list_rules to see existing rules on objects, set_rule to configure behavior, and doc_lookup(\"$rule_engine\") to read comprehensive documentation.\n\nCONSTRUCTION DEFAULTS:\n\nWhen building rooms, if no area is specified, rooms are created in the user's current area automatically - you do NOT need to specify an area unless the user wants rooms in a different area. The 'area' parameter for build_room is optional and defaults to the user's current area.\n\nSUBSTITUTION TEMPLATES:\n\nUse $sub/$sub_utils syntax for dynamic messages: {n/nc} actor, {d/dc} dobj, {i}, {t}, {l}; articles {a d}/{an d}/{the d} render article + noun; pronouns {s/o/p/q/r} with _dobj/_iobj variants; self alternation {you|they} auto-picks perspective; verbs conjugate with be/have/look.\n\nALWAYS use self-alternation for verbs that differ by person (e.g., {set|sets}, {place|places}) so the actor sees second-person grammar.\n\nBefore crafting templates, use doc_lookup(\"$sub_utils\") to recall article rules and binding variants.";
 
-  override description = "Shared tool definitions and handlers for AI agents that build and manipulate the world. Used by both in-world wearables (like $architects_compass) and external MCP agents.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Shared tool definitions and handlers for AI agents that build and manipulate the world. Used by both in-world wearables (like $architects_compass) and external MCP agents.";
 
   method get_tools owner: ARCH_WIZARD
     "Return list of tool definitions for building/manipulation. All tools point to $agent_building_tools.";
-    target_obj = this;
-    tools = {};
+    const target_obj = this;
+    let tools = {};
     "Build/manipulation tools";
     tools = {@tools, $llm_agent_tool:mk("build_room", "Create a new room in an area. Areas are organizational containers that group rooms. IMPORTANT: The 'area' parameter must be an AREA object (like #38), NOT a room object. To build in the same area as an existing room, omit the area parameter or use 'here'.", ["type" -> "object", "properties" -> ["name" -> ["type" -> "string", "description" -> "Room name"], "area" -> ["type" -> "string", "description" -> "AREA object number to build in (like #38). MUST be an area, NOT a room. Use 'here' for current area, 'ether' for free-floating, or omit entirely to default to current area. NEVER pass a room object here."], "parent" -> ["type" -> "string", "description" -> "Parent room object reference (optional, default: $room)"]], "required" -> {"name"}], target_obj, "build_room")};
     tools = {@tools, $llm_agent_tool:mk("dig_passage", "Create a passage between two rooms. Can be one-way or bidirectional. ALWAYS use object numbers for room references.", ["type" -> "object", "properties" -> ["source_room" -> ["type" -> "string", "description" -> "Source room object number (optional, defaults to actor's current location). Use object numbers like #12 or #50"], "direction" -> ["type" -> "string", "description" -> "Exit direction from source room (e.g. 'north', 'up', 'north,n' for aliases)"], "target_room" -> ["type" -> "string", "description" -> "Destination room object number (like #12 or #50). MUST use object number."], "return_direction" -> ["type" -> "string", "description" -> "Return direction (optional, will be inferred if omitted)"], "oneway" -> ["type" -> "boolean", "description" -> "True for one-way passage (default: false)"]], "required" -> {"direction", "target_room"}], target_obj, "dig_passage")};
@@ -69,29 +69,39 @@ object AGENT_BUILDING_TOOLS [
 
   method _parse_direction_spec owner: ARCH_WIZARD
     "Parse direction string into list (handles 'north:n' and 'north,n' formats)";
-    {dir_spec} = args;
+    const {dir_spec} = args;
     !dir_spec:contains(":") && return $str_proto:split(dir_spec, ",");
-    colon_parts = $str_proto:split(dir_spec, ":");
+    const colon_parts = $str_proto:split(dir_spec, ":");
     length(colon_parts) < 2 && return {dir_spec};
     return {colon_parts[1], @$str_proto:split(colon_parts[2], ",")};
   endmethod
 
   method _require_tool_dispatch owner: ARCH_WIZARD
-    "Only registered agent/tool dispatchers may invoke shared building tool handlers.";
-    stack = callers();
-    caller == $llm_agent_tool || caller == $agent_room || caller_perms().wizard || (length(stack) && stack[1][4] == this) || raise(E_PERM);
+    "Validate the entry's captured principal before privileged tool effects. Caller ancestry does not grant authority.";
+    const {actor, principal} = args;
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM, "Tool actor must be valid");
+    principal == actor || principal.wizard || raise(E_PERM, "Tool caller cannot impersonate actor");
   endmethod
 
   method build_room owner: ARCH_WIZARD
     "Tool: Create a new room";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let actual_area = 0;
+    let area_spec = 0;
+    let area_str = 0;
+    let area_target = 0;
+    let cap = 0;
+    let current_room = 0;
+    let new_room = 0;
+    let parent_spec = 0;
+    let room_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
     {room_name, area_spec, parent_spec} = {args_map["name"], maphaskey(args_map, "area") ? args_map["area"] | "", maphaskey(args_map, "parent") ? args_map["parent"] | "$room"};
-    parent_obj = this:_resolve_object(parent_spec, actor);
+    const parent_obj = this:_resolve_object(parent_spec, actor);
     typeof(parent_obj) == TYPE_OBJ || raise(E_INVARG, "Invalid parent object: " + tostr(parent_spec));
     "Parse area - default to current area if not specified, 'ether' means free-floating";
-    target_area = #-1;
+    let target_area = #-1;
     if (!area_spec || area_spec == "" || area_spec == "here")
       current_room = actor.location;
       valid(current_room) && (target_area = current_room.location);
@@ -123,15 +133,21 @@ object AGENT_BUILDING_TOOLS [
 
   method dig_passage owner: ARCH_WIZARD
     "Tool: Create a passage between two rooms";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let direction = 0;
+    let oneway_flag = 0;
+    let opposites = 0;
+    let return_dir = 0;
+    let source_spec = 0;
+    let target_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
     {source_spec, direction, target_spec, return_dir, oneway_flag} = {maphaskey(args_map, "source_room") ? args_map["source_room"] | "", args_map["direction"], args_map["target_room"], maphaskey(args_map, "return_direction") ? args_map["return_direction"] | "", maphaskey(args_map, "oneway") ? args_map["oneway"] | false};
     "Parse direction string into list";
-    from_dirs = this:_parse_direction_spec(direction);
+    let from_dirs = this:_parse_direction_spec(direction);
     from_dirs = $passage:expand_direction_aliases({@from_dirs});
     "Parse return direction";
-    to_dirs = {};
+    let to_dirs = {};
     if (!oneway_flag)
       if (return_dir)
         to_dirs = this:_parse_direction_spec(return_dir);
@@ -143,46 +159,52 @@ object AGENT_BUILDING_TOOLS [
       endif
     endif
     "Find source room - default to actor's location if not specified";
-    source_room = this:_resolve_object(source_spec, actor, actor.location);
+    const source_room = this:_resolve_object(source_spec, actor, actor.location);
     typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
-    target_room = this:_resolve_object(target_spec, actor);
+    const target_room = this:_resolve_object(target_spec, actor);
     typeof(target_room) == TYPE_OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
     "Get area - both rooms must be in the same area";
-    area = source_room.location;
+    const area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
     target_room.location == area || raise(E_INVARG, "Both rooms must be in the same area");
     "Check permissions";
-    from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
+    const from_cap = actor:find_capability_for(source_room, 'room);
+    const from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
       return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
-    to_cap = actor:find_capability_for(target_room, 'room);
-    to_target = typeof(to_cap) == TYPE_FLYWEIGHT ? to_cap | target_room;
+    const to_cap = actor:find_capability_for(target_room, 'room);
+    const to_target = typeof(to_cap) == TYPE_FLYWEIGHT ? to_cap | target_room;
     try
       to_target:check_can_dig_into();
     except (E_PERM)
       return "Permission denied: " + $grant_utils:format_denial(target_room, 'room, {'dig_into});
     endtry
     "Create passage";
-    passage = oneway_flag || !to_dirs ? $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true) | $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, to_dirs[1], to_dirs, "", true, true);
+    const passage = oneway_flag || !to_dirs ? $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, "", {}, "", false, true) | $passage:mk(source_room, from_dirs[1], from_dirs, "", true, target_room, to_dirs[1], to_dirs, "", true, true);
     "Register with area";
-    area_cap = actor:find_capability_for(area, 'area);
-    area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
+    const area_cap = actor:find_capability_for(area, 'area);
+    const area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
     area_target:create_passage(from_target, to_target, passage);
     "Report";
-    msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way)." | !to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred)." | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ".";
+    const msg = oneway_flag ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way)." | !to_dirs ? "Dug passage: " + from_dirs:join(",") + " to " + tostr(target_room) + " (one-way - no return direction inferred)." | "Dug passage: " + from_dirs:join(",") + " | " + to_dirs:join(",") + " connecting to " + tostr(target_room) + ".";
     return msg;
   endmethod
 
   method remove_passage owner: ARCH_WIZARD
     "Tool: Remove a passage between two rooms";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let side_a_room = 0;
+    let side_b_room = 0;
+    let source_room = 0;
+    let source_spec = 0;
+    let target_room = 0;
+    let target_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
     {target_spec, source_spec} = {args_map["target_room"], maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
     "Resolve source_room - may be object, string, or empty";
@@ -203,92 +225,104 @@ object AGENT_BUILDING_TOOLS [
     endif
     typeof(target_room) == TYPE_OBJ || raise(E_INVARG, "Target room not found");
     valid(target_room) || raise(E_INVARG, "Target room no longer exists");
-    area = source_room.location;
+    const area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
     target_room.location == area || raise(E_INVARG, "Both rooms must be in the same area");
-    passage = area:passage_for(source_room, target_room);
+    const passage = area:passage_for(source_room, target_room);
     typeof(passage) != TYPE_FLYWEIGHT && return "No passage found between " + tostr(source_room) + " and " + tostr(target_room) + ".";
     "Collect labels for reporting";
     {side_a_room, side_b_room} = {passage.side_a_room, passage.side_b_room};
-    labels = {};
+    let labels = {};
     source_room == side_a_room && passage.side_a_label != "" && (labels = {@labels, passage.side_a_label});
     source_room == side_b_room && passage.side_b_label != "" && (labels = {@labels, passage.side_b_label});
     target_room == side_a_room && passage.side_a_label != "" && !(passage.side_a_label in labels) && (labels = {@labels, passage.side_a_label});
     target_room == side_b_room && passage.side_b_label != "" && !(passage.side_b_label in labels) && (labels = {@labels, passage.side_b_label});
     "Check permissions";
-    from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
+    const from_cap = actor:find_capability_for(source_room, 'room);
+    const from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
       return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
     "Remove passage via area";
-    area_cap = actor:find_capability_for(area, 'area);
-    area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
-    result = area_target:remove_passage(from_target, target_room);
-    label_str = labels ? " (" + labels:join("/") + ")" | "";
+    const area_cap = actor:find_capability_for(area, 'area);
+    const area_target = typeof(area_cap) == TYPE_FLYWEIGHT ? area_cap | area;
+    const result = area_target:remove_passage(from_target, target_room);
+    const label_str = labels ? " (" + labels:join("/") + ")" | "";
     return result ? "Removed passage" + label_str + " between " + tostr(source_room) + " and " + tostr(target_room) + "." | "Failed to remove passage (may have already been removed).";
   endmethod
 
   method set_passage_description owner: ARCH_WIZARD
     "Tool: Set description and ambient flag for a passage";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let ambient = 0;
+    let description = 0;
+    let direction = 0;
+    let source_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
     {direction, description, ambient, source_spec} = {args_map["direction"], args_map["description"], maphaskey(args_map, "ambient") ? args_map["ambient"] | true, maphaskey(args_map, "source_room") ? args_map["source_room"] | ""};
     typeof(description) == TYPE_STR && ("{" in description || "}" in description) && (description = $sub_utils:compile(description));
-    source_room = this:_resolve_object(source_spec, actor, actor.location);
+    const source_room = this:_resolve_object(source_spec, actor, actor.location);
     typeof(source_room) == TYPE_OBJ || raise(E_INVARG, "Source room not found");
     valid(source_room) || raise(E_INVARG, "Source room no longer exists");
-    area = source_room.location;
+    const area = source_room.location;
     valid(area) || raise(E_INVARG, "Source room is not in an area");
-    passages = area:passages_from(source_room);
+    const passages = area:passages_from(source_room);
     typeof(passages) != TYPE_LIST && return "No passages from " + tostr(source_room) + ".";
     length(passages) == 0 && return "No passages from " + tostr(source_room) + ".";
-    target_passage = area:find_passage_by_direction(source_room, direction);
+    const target_passage = area:find_passage_by_direction(source_room, direction);
     typeof(target_passage) != TYPE_FLYWEIGHT && return "No passage found in direction '" + direction + "' from " + tostr(source_room) + ".";
-    from_cap = actor:find_capability_for(source_room, 'room);
-    from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
+    const from_cap = actor:find_capability_for(source_room, 'room);
+    const from_target = typeof(from_cap) == TYPE_FLYWEIGHT ? from_cap | source_room;
     try
       from_target:check_can_dig_from();
     except (E_PERM)
       return "Permission denied: " + $grant_utils:format_denial(source_room, 'room, {'dig_from});
     endtry
-    new_passage = target_passage:with_description_from(source_room, description):with_ambient_from(source_room, ambient);
+    const new_passage = target_passage:with_description_from(source_room, description):with_ambient_from(source_room, ambient);
     area:update_passage(source_room, target_passage:other_room(source_room), new_passage);
     return "Set description for '" + direction + "' passage" + (ambient ? " (ambient - integrates into room description)" | " (explicit - shows in exits list)") + ".";
   endmethod
 
   method create_object owner: ARCH_WIZARD
     "Tool: Create an object from a parent";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let extra_aliases = 0;
+    let name_spec = 0;
+    let parent_spec = 0;
+    let parsed_aliases = 0;
+    let primary_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {parent_spec, name_spec, extra_aliases} = {args_map["parent"], args_map["name"], maphaskey(args_map, "aliases") ? args_map["aliases"] | {}};
     {primary_name, parsed_aliases} = $str_proto:parse_name_aliases(name_spec);
-    final_aliases = {@parsed_aliases, @extra_aliases};
+    const final_aliases = {@parsed_aliases, @extra_aliases};
     !primary_name && raise(E_INVARG, "Object name cannot be blank");
     set_task_perms(actor);
-    parent_obj = $match:match_object(parent_spec, actor);
+    const parent_obj = $match:match_object(parent_spec, actor);
     typeof(parent_obj) == TYPE_OBJ || raise(E_INVARG, "Parent not found");
     valid(parent_obj) || raise(E_INVARG, "Parent no longer exists");
     "Use fertile flag (f) to allow child creation";
-    is_fertile = parent_obj.f;
+    const is_fertile = parent_obj.f;
     !is_fertile && !actor.wizard && parent_obj.owner != actor && raise(E_PERM, "You do not have permission to create children of " + tostr(parent_obj));
-    new_obj = parent_obj:create();
+    const new_obj = parent_obj:create();
     new_obj:set_name_aliases(primary_name, final_aliases);
     new_obj:moveto(actor);
-    message = "Created \"" + primary_name + "\" (" + tostr(new_obj) + ") from " + tostr(parent_obj) + " in your inventory.";
+    let message = "Created \"" + primary_name + "\" (" + tostr(new_obj) + ") from " + tostr(parent_obj) + " in your inventory.";
     final_aliases && (message = message + " Aliases: " + final_aliases:join(", ") + ".");
     return message;
   endmethod
 
   method recycle_object owner: ARCH_WIZARD
     "Tool: Permanently destroy an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let obj_id = 0;
+    let obj_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to recycle " + tostr(target_obj));
@@ -299,28 +333,30 @@ object AGENT_BUILDING_TOOLS [
 
   method rename_object owner: ARCH_WIZARD
     "Tool: Rename an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let new_aliases = 0;
+    let new_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to rename " + tostr(target_obj));
     {new_name, new_aliases} = $str_proto:parse_name_aliases(args_map["name"]);
     !new_name && raise(E_INVARG, "Object name cannot be blank");
-    old_name = target_obj.name;
+    const old_name = target_obj.name;
     target_obj:set_name_aliases(new_name, new_aliases);
-    message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
+    let message = "Renamed \"" + old_name + "\" (" + tostr(target_obj) + ") to \"" + new_name + "\".";
     new_aliases && (message = message + " Aliases: " + new_aliases:join(", ") + ".");
     return message;
   endmethod
 
   method describe_object owner: ARCH_WIZARD
     "Tool: Set object description";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to describe " + tostr(target_obj));
@@ -331,62 +367,70 @@ object AGENT_BUILDING_TOOLS [
 
   method move_object owner: ARCH_WIZARD
     "Tool: Move an object to a new location";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let dest_spec = 0;
+    let obj_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
     {obj_spec, dest_spec} = {args_map["object"], args_map["destination"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to move " + tostr(target_obj));
-    dest_obj = this:_resolve_object(dest_spec, actor);
+    const dest_obj = this:_resolve_object(dest_spec, actor);
     typeof(dest_obj) == TYPE_OBJ || raise(E_INVARG, "Destination not found");
     valid(dest_obj) || raise(E_INVARG, "Destination no longer exists");
-    old_location_name = valid(target_obj.location) ? target_obj.location.name | "(nowhere)";
+    const old_location_name = valid(target_obj.location) ? target_obj.location.name | "(nowhere)";
     target_obj:moveto(dest_obj);
     return "Moved \"" + target_obj.name + "\" (" + tostr(target_obj) + ") from " + old_location_name + " to \"" + dest_obj.name + "\" (" + tostr(dest_obj) + ").";
   endmethod
 
   method set_integrated_description owner: ARCH_WIZARD
     "Tool: Set object's integrated description";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not have permission to modify " + tostr(target_obj));
     target_obj.integrated_description = args_map["integrated_description"];
-    obj_name = target_obj.name;
+    const obj_name = target_obj.name;
     return args_map["integrated_description"] == "" ? "Cleared integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + ")." | "Set integrated description of \"" + obj_name + "\" (" + tostr(target_obj) + "). When in a room, this will appear in the room description.";
   endmethod
 
   method grant_capability owner: ARCH_WIZARD
     "Tool: Grant capabilities to a player";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let category = 0;
+    let grantee_spec = 0;
+    let perms = 0;
+    let target_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {target_spec, category, perms, grantee_spec} = {args_map["target"], args_map["category"], args_map["permissions"], args_map["grantee"]};
     set_task_perms(actor);
-    target_obj = this:_resolve_object(target_spec, actor);
+    const target_obj = this:_resolve_object(target_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Target not found");
     valid(target_obj) || raise(E_INVARG, "Target no longer exists");
-    grantee = this:_resolve_object(grantee_spec, actor);
+    const grantee = this:_resolve_object(grantee_spec, actor);
     typeof(grantee) == TYPE_OBJ || raise(E_INVARG, "Grantee not found");
     valid(grantee) || raise(E_INVARG, "Grantee no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to grant capabilities for " + tostr(target_obj));
-    perm_symbols = { tostr(p):to_symbol() for p in (perms) };
+    const perm_symbols = { tostr(p):to_symbol() for p in (perms) };
     $root:grant_capability(target_obj, perm_symbols, grantee, tostr(category):to_symbol());
     return "Granted " + $grant_utils:format_grant_with_name(target_obj, tostr(category):to_symbol(), perm_symbols) + " to " + grantee:name() + " (" + tostr(grantee) + ").";
   endmethod
 
   method audit_owned owner: ARCH_WIZARD
     "Tool: List all owned objects";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let p = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    owned = sort(owned_objects(actor));
+    const owned = sort(owned_objects(actor));
     !owned && return "You don't own any objects.";
-    result = "You own " + tostr(length(owned)) + " objects:\n";
+    let result = "You own " + tostr(length(owned)) + " objects:\n";
     for o in (owned)
       p = parent(o);
       result = result + tostr(o) + ": \"" + o.name + "\" (parent: " + (valid(p) ? tostr(p) | "(none)") + ")\n";
@@ -396,13 +440,14 @@ object AGENT_BUILDING_TOOLS [
 
   method area_map owner: ARCH_WIZARD
     "Tool: Get list of all rooms in the current area";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    current_room = actor.location;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const current_room = actor.location;
     !valid(current_room) && return "Error: You are not in a room.";
-    area = current_room.location;
+    const area = current_room.location;
     !valid(area) && return "Error: Current room is not in an area.";
-    result = {"Current Location: " + current_room:name() + " (" + tostr(current_room) + ")", "Area: " + area:name() + " (" + tostr(area) + ")", "", "Rooms in this area:"};
+    let result = {"Current Location: " + current_room:name() + " (" + tostr(current_room) + ")", "Area: " + area:name() + " (" + tostr(area) + ")", "", "Rooms in this area:"};
     for o in (area.contents)
       if (valid(o))
         result = {@result, "  * " + o:name() + " (" + tostr(o) + ")" + (o == current_room ? " (you are here)" | "")};
@@ -413,8 +458,23 @@ object AGENT_BUILDING_TOOLS [
 
   method find_route owner: ARCH_WIZARD
     "Tool: Find route between two rooms";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let connector = 0;
+    let direction = 0;
+    let from_name = 0;
+    let from_room = 0;
+    let from_spec = 0;
+    let label = 0;
+    let next_name = 0;
+    let next_room = 0;
+    let room = 0;
+    let side_a_room = 0;
+    let side_b_room = 0;
+    let to_name = 0;
+    let to_room = 0;
+    let to_spec = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {to_spec, from_spec} = {args_map["to_room"], maphaskey(args_map, "from_room") ? args_map["from_room"] | ""};
     set_task_perms(actor);
     "Resolve from_room - may be object, string, or empty";
@@ -427,7 +487,7 @@ object AGENT_BUILDING_TOOLS [
     endif
     typeof(from_room) == TYPE_OBJ || return "Error: Could not find starting room '" + tostr(from_spec) + "'.";
     !valid(from_room) && return "Error: You are not in a room.";
-    area = from_room.location;
+    const area = from_room.location;
     !valid(area) && return "Error: Starting room is not in an area.";
     "Resolve to_room - may be object or string";
     if (typeof(to_spec) == TYPE_OBJ)
@@ -439,9 +499,9 @@ object AGENT_BUILDING_TOOLS [
     !valid(to_room) && return "Error: Destination room does not exist.";
     {from_name, to_name} = {from_room:name(), to_room:name()};
     to_room == from_room && return "You are already at " + to_name + "!";
-    path = area:find_path(from_room, to_room);
+    const path = area:find_path(from_room, to_room);
     !path && return "No route found from " + from_name + " to " + to_name + ".";
-    result = {"Route from " + from_name + " (" + tostr(from_room) + ") to " + to_name + " (" + tostr(to_room) + "):"};
+    let result = {"Route from " + from_name + " (" + tostr(from_room) + ") to " + to_name + " (" + tostr(to_room) + "):"};
     for i in [1..length(path) - 1]
       {room, connector} = path[i];
       next_room = path[i + 1][1];
@@ -461,12 +521,13 @@ object AGENT_BUILDING_TOOLS [
     return result:join("\n");
   endmethod
 
-  method list_prototypes owner: HACKER
+  method list_prototypes owner: ARCH_WIZARD
     "Tool: List available prototype objects for building";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    prototypes = $sysobj:list_builder_prototypes();
-    result = {"Available prototypes for creating objects:", ""};
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const prototypes = $sysobj:list_builder_prototypes();
+    let result = {"Available prototypes for creating objects:", ""};
     for proto_info in (prototypes)
       result = {@result, "* " + proto_info["name"] + " (" + proto_info["object"] + ")", "  " + proto_info["description"], ""};
     endfor
@@ -475,18 +536,24 @@ object AGENT_BUILDING_TOOLS [
 
   method inspect_object owner: ARCH_WIZARD
     "Tool: Inspect an object and return detailed information";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let area = 0;
+    let exits = 0;
+    let label = 0;
+    let passages = 0;
+    let side_a_room = 0;
+    let side_b_room = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
     set_task_perms(actor);
-    target = this:_resolve_object(args_map["object"], actor);
+    const target = this:_resolve_object(args_map["object"], actor);
     typeof(target) == TYPE_OBJ || return "Error: Could not find object '" + tostr(args_map["object"]) + "'.";
     !valid(target) && return "Error: Object does not exist.";
-    obj_name = target:name();
-    desc = target:description();
-    owner = target.owner;
-    parent_obj = parent(target);
-    loc = target.location;
-    result = {"Object Information for " + tostr(target) + ":", "", "Name: " + obj_name, "Description: " + desc, "", "Owner: " + (valid(owner) ? owner:name() + " (" + tostr(owner) + ")" | "(none)"), "Parent: " + (valid(parent_obj) ? parent_obj:name() + " (" + tostr(parent_obj) + ")" | "(none)"), "Location: " + (valid(loc) ? loc:name() + " (" + tostr(loc) + ")" | "(nowhere)"), ""};
+    const obj_name = target:name();
+    const desc = target:description();
+    const owner = target.owner;
+    const parent_obj = parent(target);
+    const loc = target.location;
+    let result = {"Object Information for " + tostr(target) + ":", "", "Name: " + obj_name, "Description: " + desc, "", "Owner: " + (valid(owner) ? owner:name() + " (" + tostr(owner) + ")" | "(none)"), "Parent: " + (valid(parent_obj) ? parent_obj:name() + " (" + tostr(parent_obj) + ")" | "(none)"), "Location: " + (valid(loc) ? loc:name() + " (" + tostr(loc) + ")" | "(nowhere)"), ""};
     "Type-specific information";
     if (respond_to(target, 'is_actor) && target:is_actor())
       result = {@result, "Type: Actor/Player"};
@@ -526,14 +593,19 @@ object AGENT_BUILDING_TOOLS [
 
   method list_rules owner: ARCH_WIZARD
     "Tool: List all rule properties on an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let prop = 0;
+    let prop_name = 0;
+    let rule_str = 0;
+    let value = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    rule_props = $obj_utils:rule_properties(target_obj, actor, true);
+    const rule_props = $obj_utils:rule_properties(target_obj, actor, true);
     !rule_props && return "No rule properties found on " + tostr(target_obj) + ".";
-    lines = {"Rules on " + tostr(target_obj) + ":"};
+    let lines = {"Rules on " + tostr(target_obj) + ":"};
     for prop_info in (rule_props)
       {prop, value} = prop_info;
       prop_name = tostr(prop);
@@ -551,19 +623,23 @@ object AGENT_BUILDING_TOOLS [
 
   method set_rule owner: ARCH_WIZARD
     "Tool: Set a rule on an object property";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let expression = 0;
+    let obj_spec = 0;
+    let prop_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name, expression} = {args_map["object"], args_map["property"], args_map["expression"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set rules on " + tostr(target_obj));
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    prop_exists = prop_key != E_PROPNF;
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
-    compiled = $rule_engine:parse_expression(expression, prop_name, actor);
-    validation = $rule_engine:validate_rule(compiled);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_exists = prop_key != E_PROPNF;
+    set_task_perms(actor);
+    const compiled = $rule_engine:parse_expression(expression, prop_name, actor);
+    const validation = $rule_engine:validate_rule(compiled);
     !validation['valid] && raise(E_INVARG, "Rule validation failed: " + validation['warnings]:join("; "));
     if (prop_exists)
       target_obj.(prop_key) = compiled;
@@ -575,17 +651,21 @@ object AGENT_BUILDING_TOOLS [
 
   method show_rule owner: ARCH_WIZARD
     "Tool: Show a specific rule property";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let obj_spec = 0;
+    let prop_name = 0;
+    let rule_str = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name} = {args_map["object"], args_map["property"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     prop_name:ends_with("_rule") || raise(E_INVARG, "Property name must end with '_rule'");
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && return tostr(target_obj) + "." + prop_name + " is not defined.";
-    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
-    value = target_obj.(prop_key);
+    set_task_perms(actor);
+    const value = target_obj.(prop_key);
     if (value == 0)
       return tostr(target_obj) + "." + prop_name + ": (no rule set)";
     elseif (typeof(value) == TYPE_FLYWEIGHT)
@@ -597,41 +677,52 @@ object AGENT_BUILDING_TOOLS [
 
   method tool_test_rule owner: ARCH_WIZARD
     "Tool: Test a rule expression with specific variable bindings";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let bindings = 0;
+    let expression = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {expression, bindings} = {args_map["expression"], args_map["bindings"]};
     typeof(expression) == TYPE_STR || raise(E_TYPE, "expression must be string");
     typeof(bindings) == TYPE_MAP || raise(E_TYPE, "bindings must be object/map");
     set_task_perms(actor);
-    compiled = `$rule_engine:parse_expression(expression, 'test_rule, actor) ! ANY => E_INVARG';
+    const compiled = `$rule_engine:parse_expression(expression, 'test_rule, actor) ! ANY => E_INVARG';
     compiled == E_INVARG && return "ERROR: Rule parsing failed. Check syntax. Expression: " + expression;
-    validation = $rule_engine:validate_rule(compiled);
+    const validation = $rule_engine:validate_rule(compiled);
     !validation['valid] && return "ERROR: Rule validation failed: " + validation['warnings]:join("; ") + ". Expression: " + expression;
     "Convert bindings map keys from strings to symbols";
-    converted_bindings = [];
+    let converted_bindings = [];
     for key in (mapkeys(bindings))
       converted_bindings[tosym(key)] = `$match:match_object(bindings[key], actor) ! ANY => bindings[key]';
     endfor
-    result = $rule_engine:evaluate(compiled, converted_bindings);
+    const result = $rule_engine:evaluate(compiled, converted_bindings);
     if (result['success])
       return "SUCCESS: Rule evaluated to true. Bindings: " + toliteral(converted_bindings);
     endif
-    reason = maphaskey(result, 'reason) ? typeof(result['reason]) == TYPE_STR ? result['reason] | toliteral(result['reason]) | "rule did not match";
+    const reason = maphaskey(result, 'reason) ? typeof(result['reason]) == TYPE_STR ? result['reason] | toliteral(result['reason]) | "rule did not match";
     return "FAILED: Rule evaluated to false. Reason: " + reason + ". Bindings: " + toliteral(converted_bindings);
   endmethod
 
   method list_reactions owner: ARCH_WIZARD
     "Tool: List reactions on an object with details";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let kind = 0;
+    let op = 0;
+    let prop = 0;
+    let prop_name = 0;
+    let reaction = 0;
+    let rule_str = 0;
+    let value = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    reaction_props = $obj_utils:reaction_properties(target_obj, actor, true);
+    const reaction_props = $obj_utils:reaction_properties(target_obj, actor, true);
     if (!reaction_props || length(reaction_props) == 0)
       return "No reactions found on " + tostr(target_obj);
     endif
-    lines = {"Reactions on " + tostr(target_obj) + " (" + tostr(length(reaction_props)) + " total):", ""};
+    let lines = {"Reactions on " + tostr(target_obj) + " (" + tostr(length(reaction_props)) + " total):", ""};
     for prop_info in (reaction_props)
       {prop_name, reaction} = prop_info;
       lines = {@lines, prop_name + ":"};
@@ -669,15 +760,20 @@ object AGENT_BUILDING_TOOLS [
 
   method add_reaction owner: ARCH_WIZARD
     "Tool: Add a reaction to an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property_name"];
-    trigger_str = args_map["trigger"];
-    when_str = args_map["when"];
-    effects_str = args_map["effects"];
+    let effects = 0;
+    let reaction = 0;
+    let trigger = 0;
+    let when_clause = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const obj_spec = args_map["object"];
+    const prop_name = args_map["property_name"];
+    const trigger_str = args_map["trigger"];
+    const when_str = args_map["when"];
+    const effects_str = args_map["effects"];
     "Parse object";
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     "Validate property name";
@@ -686,9 +782,9 @@ object AGENT_BUILDING_TOOLS [
     if (!actor.wizard && target_obj.owner != actor)
       return "Permission denied: You do not own " + tostr(target_obj) + " and are not a wizard.";
     endif
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    prop_exists = prop_key != E_PROPNF;
-    set_task_perms(actor, {prop_exists ? {"property_write", target_obj, prop_key} | {"property_define", target_obj}});
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_exists = prop_key != E_PROPNF;
+    set_task_perms(actor);
     "Parse trigger literal";
     if (pcre_match(trigger_str, "^[a-z_]+$"))
       trigger = tosym(trigger_str);
@@ -728,13 +824,14 @@ object AGENT_BUILDING_TOOLS [
 
   method set_reaction_enabled owner: ARCH_WIZARD
     "Tool: Enable or disable a reaction";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    obj_spec = args_map["object"];
-    prop_name = args_map["property_name"];
-    enabled = args_map["enabled"];
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const obj_spec = args_map["object"];
+    const prop_name = args_map["property_name"];
+    const enabled = args_map["enabled"];
     "Parse object";
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     "Validate property name";
@@ -744,27 +841,33 @@ object AGENT_BUILDING_TOOLS [
       return "Permission denied: You do not own " + tostr(target_obj);
     endif
     "Check property exists and is a reaction";
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && raise(E_INVARG, "Property not found: " + prop_name);
-    set_task_perms(actor, {{"property_read", target_obj, prop_key}, {"property_write", target_obj, prop_key}});
-    reaction = target_obj.(prop_key);
+    set_task_perms(actor);
+    const reaction = target_obj.(prop_key);
     typeof(reaction) == TYPE_FLYWEIGHT && reaction.delegate == $reaction || raise(E_INVARG, prop_name + " is not a reaction");
     "Reconstruct flyweight with new enabled state (flyweights are immutable)";
-    new_reaction = <reaction.delegate, .when = reaction.when, .trigger = reaction.trigger, .effects = reaction.effects, .enabled = enabled, .fired_at = reaction.fired_at>;
+    const new_reaction = <reaction.delegate, .when = reaction.when, .trigger = reaction.trigger, .effects = reaction.effects, .enabled = enabled, .fired_at = reaction.fired_at>;
     target_obj.(prop_key) = new_reaction;
     return (enabled ? "Enabled" | "Disabled") + " " + tostr(target_obj) + "." + prop_name;
   endmethod
 
   method list_messages owner: ARCH_WIZARD
     "Tool: List message template properties on an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let is_bag = 0;
+    let is_compiled = 0;
+    let prop = 0;
+    let prop_name = 0;
+    let value = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    msg_props = $obj_utils:message_properties(target_obj, actor, true);
+    const msg_props = $obj_utils:message_properties(target_obj, actor, true);
     !msg_props && return "No message properties found on " + tostr(target_obj) + ".";
-    lines = {"Messages on " + tostr(target_obj) + ":"};
+    let lines = {"Messages on " + tostr(target_obj) + ":"};
     for prop_info in (msg_props)
       {prop, value} = prop_info;
       prop_name = tostr(prop);
@@ -794,16 +897,22 @@ object AGENT_BUILDING_TOOLS [
 
   method get_message_template owner: ARCH_WIZARD
     "Tool: Get a message template value";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let entries = 0;
+    let entry = 0;
+    let lines = 0;
+    let obj_spec = 0;
+    let prop_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name} = {args_map["object"], args_map["property"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && return tostr(target_obj) + "." + prop_name + " is not defined.";
-    set_task_perms(actor, {{"property_read", target_obj, prop_key}});
-    value = target_obj.(prop_key);
+    set_task_perms(actor);
+    const value = target_obj.(prop_key);
     "Check for message bag (object or flyweight)";
     if ($msg_bag:is_msg_bag(value))
       entries = value:entries();
@@ -815,7 +924,7 @@ object AGENT_BUILDING_TOOLS [
       return lines:join("\n");
     endif
     "Check for compiled template (list starting with non-list)";
-    is_compiled = typeof(value) == TYPE_LIST && length(value) > 0 && typeof(value[1]) != TYPE_LIST;
+    const is_compiled = typeof(value) == TYPE_LIST && length(value) > 0 && typeof(value[1]) != TYPE_LIST;
     if (typeof(value) == TYPE_LIST && is_compiled)
       return tostr(target_obj) + "." + prop_name + ": " + $sub_utils:decompile(value);
     elseif (typeof(value) == TYPE_LIST)
@@ -836,22 +945,26 @@ object AGENT_BUILDING_TOOLS [
 
   method set_message_template owner: ARCH_WIZARD
     "Tool: Set a message template on an object";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let obj_spec = 0;
+    let prop_name = 0;
+    let template = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     "Compile the template";
-    compiled = $sub_utils:compile(template);
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const compiled = $sub_utils:compile(template);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
     if (prop_key != E_PROPNF)
-      $obj_utils:set_compiled_message(target_obj, prop_key, compiled, actor, {{"property_write", target_obj, prop_key}});
+      $obj_utils:set_compiled_message(target_obj, prop_key, compiled, actor);
     elseif (prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag"))
-      $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor, {{"property_define", target_obj}});
+      $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
     else
-      set_task_perms(actor, {{"property_define", target_obj}});
+      set_task_perms(actor);
       add_property(target_obj, prop_name, compiled, {actor, "rc"});
     endif
     return "Set " + tostr(target_obj) + "." + prop_name + ": " + template;
@@ -859,31 +972,38 @@ object AGENT_BUILDING_TOOLS [
 
   method add_message_template owner: ARCH_WIZARD
     "Tool: Add a message to a message bag";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let obj_spec = 0;
+    let prop_name = 0;
+    let template = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name, template} = {args_map["object"], args_map["property"], args_map["template"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to set messages on " + tostr(target_obj));
     prop_name:ends_with("_msgs") || prop_name:ends_with("_msg_bag") || raise(E_INVARG, "Property must end with _msgs or _msg_bag");
-    compiled = $sub_utils:compile(template);
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
-    grants = prop_key == E_PROPNF ? {{"property_define", target_obj}} | {{"property_write", target_obj, prop_key}};
-    $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor, grants);
+    const compiled = $sub_utils:compile(template);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
+    $obj_utils:add_message_entry(target_obj, prop_name, compiled, actor);
     return "Added message to " + tostr(target_obj) + "." + prop_name + ": " + template;
   endmethod
 
   method delete_message_template owner: ARCH_WIZARD
     "Tool: Delete a message from a message bag by index";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
+    let index = 0;
+    let obj_spec = 0;
+    let prop_name = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
     {obj_spec, prop_name, index} = {args_map["object"], args_map["property"], args_map["index"]};
-    target_obj = this:_resolve_object(obj_spec, actor);
+    const target_obj = this:_resolve_object(obj_spec, actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You must be owner or wizard to modify messages on " + tostr(target_obj));
-    prop_key = $obj_utils:property_key(target_obj, prop_name);
+    const prop_key = $obj_utils:property_key(target_obj, prop_name);
     prop_key == E_PROPNF && raise(E_INVARG, "Message bag not found on " + tostr(target_obj) + "." + prop_name);
     $obj_utils:remove_message_entry(target_obj, prop_key, index, actor, {{"property_write", target_obj, prop_key}});
     return "Deleted message " + tostr(index) + " from " + tostr(target_obj) + "." + prop_name;
@@ -891,12 +1011,24 @@ object AGENT_BUILDING_TOOLS [
 
   method doc_lookup owner: ARCH_WIZARD
     "Tool: Fetch developer documentation for object/verb/property";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_spec = args_map["target"];
+    let alias_name = 0;
+    let doc_text = 0;
+    let item_name = 0;
+    let object_str = 0;
+    let parsed = 0;
+    let selector = 0;
+    let selectors = 0;
+    let target_obj = 0;
+    let title = 0;
+    let type = 0;
+    let verb_location = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_spec = args_map["target"];
     set_task_perms(actor);
     "Handle special alias cases";
-    alias_obj = false;
+    let alias_obj = false;
     if (typeof(target_spec) == TYPE_STR)
       alias_name = target_spec:starts_with("$") ? target_spec[2..$] | target_spec;
       alias_name == "sub_utils" && (alias_obj = $sub_utils);
@@ -939,15 +1071,18 @@ object AGENT_BUILDING_TOOLS [
     else
       raise(E_INVARG, "Unknown target type");
     endif
-    doc_body = typeof(doc_text) == TYPE_LIST ? doc_text:join("\n") | doc_text;
+    const doc_body = typeof(doc_text) == TYPE_LIST ? doc_text:join("\n") | doc_text;
     return title + "\n\n" + (doc_body ? doc_body | "(No documentation available)");
   endmethod
 
   method help_lookup owner: ARCH_WIZARD
     "Tool: Look up a help topic";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    topic = args_map["topic"];
+    let all_topics = 0;
+    let result = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const topic = args_map["topic"];
     typeof(topic) != TYPE_STR && return "Error: topic must be a string.";
     "If empty topic, list available topics";
     if (topic == "")
@@ -959,7 +1094,7 @@ object AGENT_BUILDING_TOOLS [
       return result:join("\n");
     endif
     "Search for specific topic";
-    found = actor:find_help_topic(topic);
+    const found = actor:find_help_topic(topic);
     if (typeof(found) == TYPE_INT)
       return "No help found for: " + topic;
     endif
@@ -969,12 +1104,15 @@ object AGENT_BUILDING_TOOLS [
 
   method get_verb_code owner: ARCH_WIZARD
     "Tool: Get the code of a verb. If verb is omitted, lists verbs on the object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let code_lines = 0;
+    let info = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    verb_name = maphaskey(args_map, "verb") ? args_map["verb"] | "";
+    let verb_name = maphaskey(args_map, "verb") ? args_map["verb"] | "";
     if (!verb_name)
       "No verb provided - fallback to listing verbs";
       return $agent_building_tools:list_verbs(args_map, actor);
@@ -987,7 +1125,7 @@ object AGENT_BUILDING_TOOLS [
     endwhile
     "Get verb info and code";
     try
-      set_task_perms(actor, {{"verb_read", target_obj, verb_name}});
+      set_task_perms(actor);
       info = verb_info(target_obj, verb_name);
     except (E_VERBNF)
       raise(E_VERBNF, "Verb '" + verb_name + "' not found on " + tostr(target_obj));
@@ -997,9 +1135,9 @@ object AGENT_BUILDING_TOOLS [
     except (E_VERBNF)
       code_lines = {};
     endtry
-    argspec = info[3];
-    flags = info[2];
-    result = "Verb: " + tostr(target_obj) + ":" + verb_name + "\n";
+    const argspec = info[3];
+    const flags = info[2];
+    let result = "Verb: " + tostr(target_obj) + ":" + verb_name + "\n";
     result = result + "Flags: " + flags + "  Argspec: " + argspec + "\n";
     result = result + "Code (" + tostr(length(code_lines)) + " lines):\n";
     result = result + "---\n";
@@ -1010,40 +1148,42 @@ object AGENT_BUILDING_TOOLS [
 
   method add_verb owner: ARCH_WIZARD
     "Tool: Add a new verb to an object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
-    verb_name = args_map["verb"];
+    const verb_name = args_map["verb"];
     typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
     dobj = maphaskey(args_map, "dobj") ? args_map["dobj"] | "this";
-    prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
+    const prep = maphaskey(args_map, "prep") ? args_map["prep"] | "none";
     iobj = maphaskey(args_map, "iobj") ? args_map["iobj"] | "none";
     "Default to rxd for methods, rd for commands";
-    default_flags = dobj == "none" && prep == "none" && iobj == "none" ? "rxd" | "rd";
-    perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | default_flags;
-    set_task_perms(actor, {{"verb_add", target_obj}});
+    const default_flags = dobj == "none" && prep == "none" && iobj == "none" ? "rxd" | "rd";
+    const perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | default_flags;
+    set_task_perms(actor);
     add_verb(target_obj, {actor, perms, verb_name}, {dobj, prep, iobj});
     return "Added verb '" + verb_name + "' to " + tostr(target_obj) + " [" + perms + "] " + dobj + " " + prep + " " + iobj;
   endmethod
 
   method program_verb owner: ARCH_WIZARD
     "Tool: Set the code for a verb.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
-    verb_name = args_map["verb"];
+    const verb_name = args_map["verb"];
     typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
-    code = args_map["code"];
+    const code = args_map["code"];
     typeof(code) != TYPE_STR && raise(E_INVARG, "code must be a string");
-    code_lines = code:split("\n");
-    set_task_perms(actor, {{"verb_program", target_obj, verb_name}});
-    errors = set_verb_code(target_obj, verb_name, code_lines);
+    const code_lines = code:split("\n");
+    set_task_perms(actor);
+    const errors = set_verb_code(target_obj, verb_name, code_lines);
     "set_verb_code returns list of errors, or possibly 0/{} on success";
     if (typeof(errors) == TYPE_LIST && length(errors) > 0)
       raise(E_INVARG, "Compile error: " + errors:join("; "));
@@ -1053,21 +1193,20 @@ object AGENT_BUILDING_TOOLS [
 
   method list_verbs owner: ARCH_WIZARD
     "Tool: List verbs on an object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let info = 0;
+    let vargs = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    verb_list = verbs(target_obj);
+    const verb_list = verbs(target_obj);
     if (length(verb_list) == 0)
       return "No verbs on " + tostr(target_obj);
     endif
-    grants = {{"object_read", target_obj}};
-    for v in (verb_list)
-      grants = {@grants, {"verb_read", target_obj, v}};
-    endfor
-    set_task_perms(actor, grants);
-    result = "Verbs on " + tostr(target_obj) + ":\n";
+    set_task_perms(actor);
+    let result = "Verbs on " + tostr(target_obj) + ":\n";
     for v in (verb_list)
       info = verb_info(target_obj, v);
       vargs = verb_args(target_obj, v);
@@ -1078,36 +1217,36 @@ object AGENT_BUILDING_TOOLS [
 
   method delete_verb owner: ARCH_WIZARD
     "Tool: Delete a verb from an object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
-    verb_name = args_map["verb"];
+    const verb_name = args_map["verb"];
     typeof(verb_name) != TYPE_STR && raise(E_INVARG, "verb must be a string");
-    set_task_perms(actor, {{"object_write", target_obj}});
+    set_task_perms(actor);
     delete_verb(target_obj, verb_name);
     return "Deleted verb '" + verb_name + "' from " + tostr(target_obj);
   endmethod
 
   method list_properties owner: ARCH_WIZARD
     "Tool: List properties on an object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    let val = 0;
+    let val_str = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_list = properties(target_obj);
+    const prop_list = properties(target_obj);
     if (length(prop_list) == 0)
       return "No properties defined on " + tostr(target_obj);
     endif
-    grants = {{"object_read", target_obj}};
-    for p in (prop_list)
-      grants = {@grants, {"property_read", target_obj, p}};
-    endfor
-    set_task_perms(actor, grants);
-    result = "Properties on " + tostr(target_obj) + ":\n";
+    set_task_perms(actor);
+    let result = "Properties on " + tostr(target_obj) + ":\n";
     for p in (prop_list)
       try
         val = target_obj.(p);
@@ -1125,89 +1264,99 @@ object AGENT_BUILDING_TOOLS [
 
   method get_property owner: ARCH_WIZARD
     "Tool: Get the value of a property.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name = args_map["property"];
+    const prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
-    set_task_perms(actor, {{"property_read", target_obj, prop_name}});
-    val = target_obj.(prop_name);
+    set_task_perms(actor);
+    const val = target_obj.(prop_name);
     return tostr(target_obj) + "." + prop_name + " = " + toliteral(val);
   endmethod
 
   method set_property owner: ARCH_WIZARD
     "Tool: Set the value of a property.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
-    prop_name = args_map["property"];
+    const prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
-    value = args_map["value"];
-    set_task_perms(actor, {{"property_write", target_obj, prop_name}});
+    const value = args_map["value"];
+    set_task_perms(actor);
     target_obj.(prop_name) = value;
     return "Set " + tostr(target_obj) + "." + prop_name + " = " + toliteral(value);
   endmethod
 
   method add_property owner: ARCH_WIZARD
     "Tool: Add a new property to an object.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     valid(target_obj) || raise(E_INVARG, "Object no longer exists");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "You do not own " + tostr(target_obj));
-    prop_name = args_map["property"];
+    const prop_name = args_map["property"];
     typeof(prop_name) != TYPE_STR && raise(E_INVARG, "property must be a string");
-    value = maphaskey(args_map, "value") ? args_map["value"] | 0;
-    set_task_perms(actor, {{"property_define", target_obj}});
+    const value = maphaskey(args_map, "value") ? args_map["value"] | 0;
+    set_task_perms(actor);
     add_property(target_obj, prop_name, value, {actor, "rc"});
     return "Added property '" + prop_name + "' to " + tostr(target_obj) + " = " + toliteral(value);
   endmethod
 
   verb set_verb_info (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb metadata (permissions, names).";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
-    verb_name = args_map["verb"];
-    requested_owner = maphaskey(args_map, "owner") ? this:_resolve_object(args_map["owner"], actor) | #-1;
-    set_task_perms(actor, {{"verb_read", target_obj, verb_name}, {"verb_write", target_obj, verb_name}});
-    info = verb_info(target_obj, verb_name);
-    new_owner = valid(requested_owner) ? requested_owner | info[1];
-    new_perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | info[2];
-    new_names = maphaskey(args_map, "names") ? args_map["names"] | info[3];
+    const verb_name = args_map["verb"];
+    const requested_owner = maphaskey(args_map, "owner") ? this:_resolve_object(args_map["owner"], actor) | #-1;
+    set_task_perms(actor);
+    const info = verb_info(target_obj, verb_name);
+    const new_owner = valid(requested_owner) ? requested_owner | info[1];
+    const new_perms = maphaskey(args_map, "permissions") ? args_map["permissions"] | info[2];
+    const new_names = maphaskey(args_map, "names") ? args_map["names"] | info[3];
     set_verb_info(target_obj, verb_name, {new_owner, new_perms, new_names});
     return "Updated " + tostr(target_obj) + ":" + verb_name + " [" + new_perms + "]";
   endverb
 
   verb set_verb_args (none none none) owner: ARCH_WIZARD flags: "rxd"
     "Tool: Set verb argument specification.";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    target_obj = this:_resolve_object(args_map["object"], actor);
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const target_obj = this:_resolve_object(args_map["object"], actor);
     typeof(target_obj) == TYPE_OBJ || raise(E_INVARG, "Object not found");
     !actor.wizard && target_obj.owner != actor && raise(E_PERM, "Permission denied");
-    verb_name = args_map["verb"];
+    const verb_name = args_map["verb"];
     dobj = args_map["dobj"];
-    prep = args_map["prep"];
+    const prep = args_map["prep"];
     iobj = args_map["iobj"];
-    set_task_perms(actor, {{"verb_write", target_obj, verb_name}});
+    set_task_perms(actor);
     set_verb_args(target_obj, verb_name, {dobj, prep, iobj});
     return "Updated " + tostr(target_obj) + ":" + verb_name + " args to [" + dobj + " " + prep + " " + iobj + "]";
   endverb
 
-  method test_core_building_tool_metadata owner: HACKER
+  method test_core_building_tool_metadata owner: ARCH_WIZARD
     "Core building tools should expose real prototype and object metadata.";
-    prototypes = this:list_prototypes([], player);
+    let audit = 0;
+    let details = 0;
+    let message = 0;
+    let messages = 0;
+    let rules = 0;
+    const prototypes = this:list_prototypes([], player);
     $test_utils:assert_true(index(prototypes, "$thing") > 0, "list_prototypes should include $thing");
     $test_utils:assert_true(index(prototypes, $thing.description) > 0, "list_prototypes should include prototype descriptions");
-    created = #-1;
+    let created = #-1;
     try
       message = this:create_object(["parent" -> "$thing", "name" -> "tool metadata probe:tool-probe"], $hacker);
       $test_utils:assert_true(index(message, "Created \"tool metadata probe\"") > 0, "create_object should report created object");
@@ -1250,34 +1399,42 @@ object AGENT_BUILDING_TOOLS [
     return true;
   endmethod
 
-  method test_code_property_tool_scoped_grants owner: HACKER
-    "Code and property inspection tools should use narrow grants for private targets.";
-    target = $thing:create(0);
+  method test_code_property_tool_actor_permissions owner: ARCH_WIZARD
+    "Private code and property inspection require the requesting actor's ordinary authority.";
+    const target = create($thing, $hacker, 2);
     try
-      target.name = "Agent Building Private Probe";
       target.r = 0;
       add_property(target, "agent_building_private_probe", "secret", {$hacker, ""});
       add_verb(target, {$hacker, "xd", "agent_building_private_verb"}, {"this", "none", "this"});
       set_verb_code(target, "agent_building_private_verb", {"return \"secret\";"});
-      prop_result = this:get_property(["object" -> tostr(target), "property" -> "agent_building_private_probe"], $test_player);
-      $test_utils:assert_eq(prop_result, tostr(target) + ".agent_building_private_probe = \"secret\"", "get_property should read a non-readable property through a property_read grant");
-      code_result = this:get_verb_code(["object" -> tostr(target), "verb" -> "agent_building_private_verb"], $test_player);
-      $test_utils:assert_true(index(code_result, "return \"secret\";") > 0, "get_verb_code should read non-readable verb code through a verb_read grant");
-      verbs_result = this:list_verbs(["object" -> tostr(target)], $test_player);
-      verbs_text = typeof(verbs_result) == TYPE_STR ? verbs_result | toliteral(verbs_result);
-      $test_utils:assert_true(index(verbs_text, "agent_building_private_verb") > 0, "list_verbs should enumerate a non-readable object through object/verb read grants");
+      for entry in ({{"get_property", ["object" -> target, "property" -> "agent_building_private_probe"]}, {"get_verb_code", ["object" -> target, "verb" -> "agent_building_private_verb"]}, {"list_verbs", ["object" -> target]}})
+        const {endpoint, values} = entry;
+        let denied = false;
+        try
+          this:(endpoint)(values, $test_player);
+        except (E_PERM)
+          denied = true;
+        endtry
+        $test_utils:assert_true(denied, endpoint + " must not mint private target grants");
+      endfor
     finally
       $test_utils:destroy_if_valid(target);
     endtry
     return true;
   endmethod
 
-  method test_navigation_tool_metadata owner: HACKER
+  method test_navigation_tool_metadata owner: ARCH_WIZARD
     "Navigation tools should expose real room, area, and passage metadata.";
-    area = $area:create(true);
-    r1 = $room:create(true);
-    r2 = $room:create(true);
-    actor = $root:create(true);
+    let details = 0;
+    let map = 0;
+    let passage = 0;
+    let result = 0;
+    let route = 0;
+    let updated_passage = 0;
+    const area = $area:create(true);
+    const r1 = $room:create(true);
+    const r2 = $room:create(true);
+    const actor = $root:create(true);
     try
       actor.name = "Tool Test Actor";
       area.name = "Tool Test Area";
@@ -1288,8 +1445,14 @@ object AGENT_BUILDING_TOOLS [
       move(actor, r1);
       passage = <$passage, .side_a_room = r1, .side_a_label = "east", .side_b_room = r2, .side_b_label = "west", .is_open = true>;
       area:set_passage(r1, r2, passage);
-      $test_utils:assert_raises(E_INVARG, this, "set_passage_description", {["direction" -> "east", "description" -> "broken {template", "source_room" -> r1], $hacker}, "set_passage_description should reject malformed templates");
-      result = this:set_passage_description(["direction" -> "east", "description" -> "{nc} heads east.", "source_room" -> r1], $hacker);
+      let invalid_template = false;
+      try
+        this:set_passage_description(["direction" -> "east", "description" -> "broken {template", "source_room" -> r1], $arch_wizard);
+      except (E_INVARG)
+        invalid_template = true;
+      endtry
+      $test_utils:assert_true(invalid_template, "set_passage_description should reject malformed templates");
+      result = this:set_passage_description(["direction" -> "east", "description" -> "{nc} heads east.", "source_room" -> r1], $arch_wizard);
       $test_utils:assert_true(index(result, "Set description for 'east' passage") > 0, "set_passage_description should report success");
       updated_passage = area:passage_for(r1, r2);
       $test_utils:assert_type(updated_passage.side_a_description, TYPE_LIST, "set_passage_description should store compiled templates");
@@ -1315,7 +1478,7 @@ object AGENT_BUILDING_TOOLS [
     "Resolve an object spec that may be an object, string, or empty";
     "Returns the resolved object, or raises E_INVARG if not found";
     "Usage: this:_resolve_object(spec, actor [, default])";
-    {spec, actor, ?default = E_INVARG} = args;
+    let {spec, actor, ?default = E_INVARG} = args;
     "If already an object, return it directly";
     typeof(spec) == TYPE_OBJ && return spec;
     "If empty/falsy, return default or raise";

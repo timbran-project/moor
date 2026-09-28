@@ -9,6 +9,6 @@ object CAT_KIBBLE [
   fertile: true
   readable: true
 
-  override aliases = {"kibble", "cat food", "food", "can", "can of kibble"};
-  override description = "A can of premium cat kibble, the kind Henri grudgingly accepts. The label reads 'Gourmet Feline Cuisine - Construction Site Edition'.";
+  override aliases (owner: ARCH_WIZARD, flags: "rc") = {"kibble", "cat food", "food", "can", "can of kibble"};
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A can of premium cat kibble, the kind Henri grudgingly accepts. The label reads 'Gourmet Feline Cuisine - Construction Site Edition'.";
 endobject

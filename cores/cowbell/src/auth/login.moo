@@ -8,7 +8,6 @@ object LOGIN [
   owner: ARCH_WIZARD
   readable: true
 
-  property oauth2_identity_version (owner: ARCH_WIZARD, flags: "") = 0;
   property blank_command (owner: ARCH_WIZARD, flags: "r") = "welcome";
   property bogus_command (owner: ARCH_WIZARD, flags: "r") = "?";
   property connection_quiet_period (owner: ARCH_WIZARD, flags: "rc") = 7200;
@@ -36,6 +35,7 @@ object LOGIN [
     "",
     "Try entering `help` to see what kind of things you can do where you are."
   };
+  property oauth2_identity_version (owner: ARCH_WIZARD, flags: "") = 0;
   property player_creation_enabled (owner: ARCH_WIZARD, flags: "r") = true;
   property player_setup_capability (owner: LOGIN, flags: "") = <PLAYER, .token = "v4.local.EIjSChEcQf8hjLCih4NGE-vKw_UZDTKRpWaYiZeQP615jQATzm-KoZTU_t7DfF8lVdOkzNqSRrItjVEZczaN6BIB-83GPs-xGAM4eg9J8sb3NJJr8z8sJPXh2uNurXg4vEbB5TMhj04AQsuski87Jmwe0r1kEq1cS5baIer5griqGFykpZBCHuieE382dS8XJdOzq0p9xViQ9-x_87dmbVdJPAP0tbxA-7KycBk72eldC-mGBTPjfD2qQWqhczzmB77RJ1azUhhOTZU4g6uEBEBfLgE8a-heeB_AIqK1zKl_t8lOf-vUq9rUEQChG5YJID6_NNZGNB8y68eciVHUD1lPnPOaeCc">;
   property player_wakeup_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} woken up.";
@@ -83,7 +83,7 @@ object LOGIN [
   };
   property welcome_message_content_type (owner: ARCH_WIZARD, flags: "rc") = "text/djot";
 
-  override description = "Login service handling player authentication, character creation, and OAuth2 integration.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Login service handling player authentication, character creation, and OAuth2 integration.";
 
   verb welcome (any none any) owner: ARCH_WIZARD flags: "rxd"
     "Present the welcome message property to the user.";
@@ -165,7 +165,7 @@ object LOGIN [
     "$login:oauth2_check(provider, external_id)";
     " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
@@ -189,7 +189,7 @@ object LOGIN [
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
     " => 0 (for failed creation)";
     " => objnum (for successful creation)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     if (!this.player_creation_enabled)
       notify(player, this.registration_string);
       return 0;
@@ -225,7 +225,7 @@ object LOGIN [
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
     " => 0 (for failed connection)";
     " => objnum (for successful link)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     try
       {provider, external_id, email, name, username, existing_name, existing_password} = args;
       existing_name = strsub(existing_name, " ", "_");
@@ -346,8 +346,7 @@ object LOGIN [
       return {@li, @args};
     endif
     !args && return {this.blank_command, @args};
-    args[1] in {"oauth2_check", "oauth2_create", "oauth2_connect", "do_oauth_login"} &&
-      return {this.bogus_command, @args};
+    args[1] in {"oauth2_check", "oauth2_create", "oauth2_connect", "do_oauth_login"} && return {this.bogus_command, @args};
     if ((verb = args[1]) && !verb:is_numeric())
       for i in ({this, @ancestors(this)})
         try
@@ -377,8 +376,8 @@ object LOGIN [
         endtry
         for identity in (identities)
           if (typeof(identity) == TYPE_LIST && length(identity) == 2 && strcmp(identity[1], provider) == 0 && strcmp(identity[2], external_id) == 0)
-            (valid(found) && found != candidate) && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
-          found = candidate;
+            valid(found) && found != candidate && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
+            found = candidate;
           endif
         endfor
       endif
@@ -469,22 +468,22 @@ object LOGIN [
 
   method setup_new_player owner: ARCH_WIZARD
     "Set up a new player's mailbox and welcome letter. Requires wizard perms.";
-    "Args: {player_obj}";
-    {new_player} = args;
+    caller_perms().wizard || raise(E_PERM);
+    const {new_player} = args;
     !valid(new_player) && return;
     this:_server_log(tostr("setup_new_player called for ", new_player));
     "Create welcome letter if configured";
-    letter_config = this.new_player_letter;
+    const letter_config = this.new_player_letter;
     this:_server_log(tostr("setup_new_player: letter_config type = ", typeof(letter_config), " length = ", typeof(letter_config) == TYPE_LIST ? length(letter_config) | 0));
     if (typeof(letter_config) == TYPE_LIST && length(letter_config) == 3)
-      {from_obj, subject, msg_lines} = letter_config;
+      const {from_obj, subject, msg_lines} = letter_config;
       "Create mailbox for new player";
-      mailbox = create($mailbox, new_player);
+      const mailbox = create($mailbox, new_player);
       mailbox.name = new_player.name + "'s mailbox";
       move(mailbox, $mail_room);
       this:_server_log(tostr("setup_new_player: created mailbox ", mailbox, " owner = ", mailbox.owner));
       "Create the welcome letter";
-      letter = create($letter, from_obj);
+      const letter = create($letter, from_obj);
       letter.name = subject;
       letter.author = from_obj;
       letter.addressee = new_player;
@@ -504,19 +503,19 @@ object LOGIN [
 
   method greet_new_player owner: ARCH_WIZARD
     "Display welcome message to a new player. Called after room confunc.";
-    "Args: {player_obj}";
-    {new_player} = args;
+    caller == #0 || caller_perms().wizard || raise(E_PERM);
+    const {new_player} = args;
     !valid(new_player) && return;
-    title = $format.title:mk(this:_apply_template("Welcome to {TITLE}!"));
-    tips_list = $format.list:mk({"Set your description: @describe me as <text>", "Set your pronouns: @pronouns they/them (or she/her, he/him, etc.)"});
-    content = $format.block:mk(title, "", "Try entering `help` to see what kind of things you can do where you are.", "", "Next steps:", tips_list);
-    event = $event:mk_info(new_player, content):with_audience('utility):with_presentation_hint('inset);
+    const title = $format.title:mk(this:_apply_template("Welcome to {TITLE}!"));
+    const tips_list = $format.list:mk({"Set your description: @describe me as <text>", "Set your pronouns: @pronouns they/them (or she/her, he/him, etc.)"});
+    const content = $format.block:mk(title, "", "Try entering `help` to see what kind of things you can do where you are.", "", "Next steps:", tips_list);
+    let event = $event:mk_info(new_player, content):with_audience('utility):with_presentation_hint('inset);
     event = event:with_metadata('preferred_content_types, {'text_html, 'text_plain});
     new_player:inform_current(event);
     "Trigger profile setup presentation if enabled";
     if (this.post_creation_setup_enabled)
-      setup_title = this.post_creation_setup_title;
-      fields = this.post_creation_setup_fields;
+      const setup_title = this.post_creation_setup_title;
+      const fields = this.post_creation_setup_fields;
       present(new_player, tostr("profile-setup-", new_player), "text/plain", "profile-setup", "", ["title" -> setup_title, "fields" -> fields]);
     endif
   endmethod
@@ -637,18 +636,18 @@ object LOGIN [
     endif
     return 1;
   endverb
+
   method _claim_oauth_identity owner: ARCH_WIZARD
     "Bind one verified identity to one account; only wizard-owned login methods may call this.";
     "The shared revision makes concurrent claims conflict. This method does not suspend.";
-    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    caller == this && caller_perms().wizard || raise(E_PERM);
     const {account, provider, external_id} = args;
     this.oauth2_identity_version = this.oauth2_identity_version + 1;
     const linked = this:find_by_oauth2(provider, external_id);
-    (valid(linked) && linked != account) && raise(E_INVARG, "OAuth identity is already linked to another account.");
+    valid(linked) && linked != account && raise(E_INVARG, "OAuth identity is already linked to another account.");
     linked == account && return false;
     const identities = `account.oauth2_identities ! E_PROPNF => {}';
     account.oauth2_identities = {@identities, {provider, external_id}};
     return true;
   endmethod
-
 endobject

@@ -8,7 +8,7 @@ object HELP_UTILS [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Help utilities for documentation extraction and lookup. Provides verbs for extracting verb docstrings, object documentation, and parsing help references.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Help utilities for documentation extraction and lookup. Provides verbs for extracting verb docstrings, object documentation, and parsing help references.";
 
   method extract_verb_documentation owner: ARCH_WIZARD
     "Extract documentation from a verb's code. Returns list of all comment lines (string literals ending with ;) from the start of the verb until the first non-comment line.";

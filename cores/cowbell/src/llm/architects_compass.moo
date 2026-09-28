@@ -10,18 +10,18 @@ object ARCHITECTS_COMPASS [
 
   property current_building_task (owner: ARCH_WIZARD, flags: "rc") = #-1;
 
-  override description = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
-  override placeholder_text = "Ask about building rooms, passages, objects...";
-  override processing_message = "Analyzing spatial construction request...";
-  override progress_steps = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A precision instrument for spatial construction and world building. When worn, it provides tools for creating rooms, passages, and objects. Can interface with neural augmentation systems for conversational operation.";
+  override placeholder_text (owner: ARCH_WIZARD, flags: "rc") = "Ask about building rooms, passages, objects...";
+  override processing_message (owner: ARCH_WIZARD, flags: "rc") = "Analyzing spatial construction request...";
+  override progress_steps (owner: ARCH_WIZARD, flags: "rc") = {
     {"list_prototypes", 'complete, "[SCAN] Listing prototypes"},
     {"doc_lookup", 'in_progress, "[DOC] Loading $thing docs"}
   };
-  override prompt_color = 'bright_green;
-  override prompt_label = "[COMPASS]";
-  override prompt_text = "Enter building query:";
-  override requires_wearing_only = false;
-  override tool_name = "COMPASS";
+  override prompt_color (owner: ARCH_WIZARD, flags: "rc") = 'bright_green;
+  override prompt_label (owner: ARCH_WIZARD, flags: "rc") = "[COMPASS]";
+  override prompt_text (owner: ARCH_WIZARD, flags: "rc") = "Enter building query:";
+  override requires_wearing_only (owner: ARCH_WIZARD, flags: "rc") = false;
+  override tool_name (owner: ARCH_WIZARD, flags: "rc") = "COMPASS";
 
   method _setup_agent owner: ARCH_WIZARD
     "Configure agent with compass-specific prompts and tools";
@@ -355,12 +355,13 @@ object ARCHITECTS_COMPASS [
 
   method _tool_create_project owner: ARCH_WIZARD
     "Tool: Create a new building project task";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    wearer = actor || this:_action_perms_check();
-    description = args_map["description"];
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const wearer = actor;
+    const description = args_map["description"];
     typeof(description) == TYPE_STR || raise(E_TYPE("Description must be string"));
-    task = this.agent:create_task(description);
+    const task = this.agent:create_task(description);
     this.current_building_task = task.task_id;
     task:mark_in_progress();
     return "Building project #" + tostr(task.task_id) + " started: " + description;
@@ -368,14 +369,18 @@ object ARCHITECTS_COMPASS [
 
   method _tool_record_creation owner: ARCH_WIZARD
     "Tool: Record a creation in current project's knowledge base";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    wearer = actor || this:_action_perms_check();
+    let key = 0;
+    let subject = 0;
+    let value = 0;
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const wearer = actor;
     {subject, key, value} = {args_map["subject"], args_map["key"], args_map["value"]};
     typeof(subject) == TYPE_STR || raise(E_TYPE("Subject must be string"));
     typeof(key) == TYPE_STR || raise(E_TYPE("Key must be string"));
     this.current_building_task == -1 && return "No active building project. Create one with create_project first.";
-    task_obj = this.agent.current_tasks[this.current_building_task];
+    const task_obj = this.agent.current_tasks[this.current_building_task];
     !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
     task_obj:add_finding(subject, key, value);
     return "Recorded [" + subject + "/" + key + "]";
@@ -383,14 +388,15 @@ object ARCHITECTS_COMPASS [
 
   method _tool_project_status owner: ARCH_WIZARD
     "Tool: Get current building project status";
-    {args_map, actor} = args;
-    this:_require_tool_dispatch();
-    wearer = actor || this:_action_perms_check();
+    const {args_map, actor} = args;
+    $agent_building_tools:_require_tool_dispatch(actor, caller_perms());
+    set_task_perms(actor);
+    const wearer = actor;
     this.current_building_task == -1 && return "No active building project.";
-    task_obj = this.agent.current_tasks[this.current_building_task];
+    const task_obj = this.agent.current_tasks[this.current_building_task];
     !valid(task_obj) && return "Building project #" + tostr(this.current_building_task) + " is no longer valid.";
-    status = task_obj:get_status();
-    status_lines = {"Project #" + tostr(status["task_id"]) + ": " + status["description"], "Status: " + tostr(status["status"])};
+    let status = task_obj:get_status();
+    let status_lines = {"Project #" + tostr(status["task_id"]) + ": " + status["description"], "Status: " + tostr(status["status"])};
     status["status"] == 'completed && (status_lines = {@status_lines, "Completed: " + status["result"]});
     status["status"] == 'failed && (status_lines = {@status_lines, "Error: " + status["error"]});
     status["status"] == 'blocked && (status_lines = {@status_lines, "Blocked: " + status["error"]});

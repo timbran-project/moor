@@ -9,7 +9,7 @@ object EVENT_RECEIVER [
   fertile: true
   readable: true
 
-  override description = "Generic event receiver prototype providing event broadcasting and connection notification capabilities.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Generic event receiver prototype providing event broadcasting and connection notification capabilities.";
 
   method tell owner: HACKER
     "Broadcast an event to all connections for this player, with per-connection content negotiation.";
@@ -60,42 +60,32 @@ object EVENT_RECEIVER [
   endmethod
 
   method inform_connection owner: HACKER
-    "Deliver an event to a single connection without broadcasting or event-logging it.";
+    "Deliver utility output only to the requested attached connection. Unavailable destinations are discarded.";
     this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
-    {connection_obj, event} = args;
-    info = this:_connection_entry(connection_obj);
-    event = event:with_audience('utility);
-    contents = this:_event_render({info}, event);
-    entry_num = 0;
+    const {connection_obj, original_event} = args;
+    const info = `this:_connection_entry(connection_obj) ! E_INVARG => 0';
+    info == 0 && return 0;
+    const event = original_event:with_audience('utility);
+    const contents = this:_event_render({info}, event);
+    const event_slots = flyslots(event);
     for content in (contents)
-      entry_num = entry_num + 1;
-      if (entry_num % 50 == 0)
-        suspend_if_needed();
-      endif
-      {conn, content_type, output} = content;
-      let event_slots = flyslots(event);
-      this:_notify(conn, output, false, false, content_type, event_slots);
+      const {conn, content_type, output} = content;
+      try
+        this:_notify(conn, output, false, false, content_type, event_slots);
+      except (E_PERM)
+        "Rendering may suspend while the destination disconnects or changes player.";
+        return 0;
+      endtry
     endfor
     return 0;
   endmethod
 
   method inform_current owner: HACKER
-    "Deliver an event only to the connection executing the current task.";
+    "Deliver utility output only to the initiating connection. Never substitute another connection.";
     this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
-    {event} = args;
-    event = event:with_audience('utility);
-    "connections() returns current connection first (but all connections globally)";
-    all_conns = connections();
-    if (!all_conns)
-      return this:tell(event);
-    endif
-    current = all_conns[1][1];
-    "Verify this connection belongs to us by looking it up in our connections";
-    info = `this:_connection_entry(current) ! E_INVARG => 0';
-    if (!info)
-      "Current connection is not ours, fall back to broadcast";
-      return this:tell(event);
-    endif
+    const {event} = args;
+    const current = `connection() ! E_INVARG => 0';
+    typeof(current) != TYPE_OBJ && return 0;
     return this:inform_connection(current, event);
   endmethod
 
@@ -207,50 +197,49 @@ object EVENT_RECEIVER [
   endmethod
 
   method _notify owner: ARCH_WIZARD
+    "Send only to a connection still attached to this receiver after rendering callbacks.";
     caller == this || raise(E_PERM);
+    const {target_connection, @rest} = args;
+    let attached = false;
+    for info in (`connections(this) ! E_INVARG => {}')
+      if (info[1] == target_connection)
+        attached = true;
+        break;
+      endif
+    endfor
+    attached || raise(E_PERM);
     notify(@args);
   endmethod
 
   method _present owner: ARCH_WIZARD
+    "Present receiver-owned UI only to this receiver.";
     caller == this || raise(E_PERM);
+    const {target, @rest} = args;
+    target == this || raise(E_PERM);
     present(@args);
   endmethod
 
   method _event_log owner: ARCH_WIZARD
+    "Append narrative history only for this receiver.";
     caller == this || raise(E_PERM);
+    const {target, @rest} = args;
+    target == this || raise(E_PERM);
     event_log(@args);
   endmethod
 
   method rewrite_event owner: ARCH_WIZARD
-    "Replace a previously-sent rewritable event with new content.";
-    "Args: rewrite_id, new_content, ?connection (optional - required if called from fork)";
+    "Replace utility output on its captured connection. Stale destinations never become broadcasts.";
     this:_can_inform_as(caller, caller_perms()) || raise(E_PERM);
-    {rewrite_id, new_content, ?target_conn = 0} = args;
-    "Build the replacement event";
-    if (typeof(new_content) == TYPE_STR)
-      event = $event:mk_rewrite(this, new_content);
-    elseif (typeof(new_content) == TYPE_FLYWEIGHT && new_content.delegate == $event)
+    const {rewrite_id, new_content, ?requested_connection = 0} = args;
+    const target_conn = typeof(requested_connection) == TYPE_OBJ ? requested_connection | `connection() ! E_INVARG => 0';
+    typeof(target_conn) != TYPE_OBJ && return 0;
+    let event;
+    if (typeof(new_content) == TYPE_FLYWEIGHT && new_content.delegate == $event)
       event = new_content;
     else
       event = $event:mk_rewrite(this, new_content);
     endif
-    "Mark it as a rewrite targeting the original";
-    event = event:with_metadata('rewrite_target, rewrite_id);
-    event = event:with_audience('utility);
-    "Determine which connection to send to";
-    if (!target_conn)
-      "No connection specified - try to find current connection";
-      all_conns = connections();
-      if (!all_conns || length(all_conns) == 0)
-        return this:tell(event);
-      endif
-      target_conn = all_conns[1][1];
-    endif
-    "Verify and send to the target connection";
-    info = `this:_connection_entry(target_conn) ! E_INVARG => 0';
-    if (!info)
-      return this:tell(event);
-    endif
+    event = event:with_metadata('rewrite_target, rewrite_id):with_audience('utility);
     return this:inform_connection(target_conn, event);
   endmethod
 

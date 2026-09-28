@@ -7,7 +7,7 @@ object VERB [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Delegate object for verb metadata flyweights. Provides access to verb information and operations. Slots: owner_obj, location, name, verb_owner, flags, dobj, prep, iobj";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Delegate object for verb metadata flyweights. Provides access to verb information and operations. Slots: owner_obj, location, name, verb_owner, flags, dobj, prep, iobj";
 
   method owner owner: ARCH_WIZARD
     "Return the owner of the verb";

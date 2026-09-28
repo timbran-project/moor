@@ -1,320 +1,142 @@
 # Capability Security Guide
 
-This core relies on cryptographically signed capability flyweights to delegate
-authority without sharing passwords or granting builder status. This document
-explains how to issue, store, and consume capabilities safely.
+Cowbell uses signed capability flyweights for explicit delegation. Ordinary ownership, role checks,
+and MOO read/write permissions still apply. A tool request does not itself grant access to its target.
 
-## Core Concepts
+## Capability references
 
-- **Capabilities are flyweights** returned by `$root:issue_capability()` with a
-  `.token` slot containing a PASETO V4.Local token. Whoever holds the flyweight
-  possesses the authority encoded in the token.
-- **Tokens are signed with the server’s symmetric key**, so only wizard-owned
-  verbs can mint them. Any attempt to call `paseto_make_local()` outside wizard
-  perms will raise `E_PERM`.
-- **Authorization is centralized in `$root:check_permissions_as(actor, ...)`**.
-  Privileged verbs own themselves but call this helper with the actor they are
-  authorizing. It determines whether that actor is a wizard, owns the target, or
-  is acting through a capability flyweight. Always authorize before mutating
-  sensitive state.
-- **`challenge_for()` validates tokens** (signature, expiration, target binding,
-  revocation, and capability subset) and returns `{delegate, run_as}` where
-  `run_as` defaults to `$hacker`. Capability-consuming verbs should challenge
-  tokens through this path instead of decoding them directly.
+`$root:issue_capability()` returns a flyweight whose delegate is the target object. Its `token` slot
+contains a PASETO V4.Local token. Anyone who holds a copy can exercise its encoded authority.
+Treat these flyweights as bearer credentials.
 
-### Capability references
+The server key authenticates the target, capability symbols, token id, and optional expiration and
+`run_as` principal. Only wizard activations can use the server-key token builtin. The issuance verb
+first requires the actual caller to own the target or be a wizard.
 
-The flyweight is both the authority *and* the reference to the target object.
-The `delegate` slot points at the real object (`cap.delegate == target`), so
-verbs can accept either a raw object or a capability flyweight and treat them
-interchangeably:
+A privileged consumer captures its incoming principal before nested calls. It calls a canonical
+root helper with the explicit subject. It does not ask the target's overridable authorization method
+whether that target permits a privileged effect.
 
 ```moo
-authority = room_arg;
-actor = typeof(authority) == TYPE_FLYWEIGHT ? authority | player;
-{actual_room, perms} = authority:check_permissions_as(actor, 'dig_from);
+const principal = caller_perms();
+const {subject, new_name} = args;
+const {target, perms, grants} =
+  $root:_check_permissions_with_grants_as(subject, principal, 'set_name_aliases);
+set_task_perms(perms, grants);
+target.name = new_name;
+```
+
+This example belongs in a privileged activation. The helper checks owner/wizard authority or validates
+a bearer token before it returns target-specific runtime grants. The consumer reduces permissions
+before the effect. Existing `$root:set_name_aliases()` also handles aliases and validates its input.
+
+For a capability-aware operation that does not need mapped runtime grants, use the canonical helper:
+
+```moo
+const principal = caller_perms();
+const {subject} = args;
+const {target, perms} = $root:_check_permissions_as(subject, principal, 'dig_from);
 set_task_perms(perms);
 ```
 
-Passing the flyweight therefore “carries” permission with it - scripts can hand a
-player a capability, and the player can then pass that flyweight into privileged
-verbs without ever knowing the underlying object number. Treat capability
-flyweights like bearer credentials; discarding your copy only removes your local
-access and does not invalidate copies held elsewhere.
+The subject must remain the flyweight when the request uses bearer authority. Replacing it with its
+raw delegate loses the token. `_challenge_subject(subject, required_caps, key)` validates the token
+without a callback to the delegate. It checks authentication, target binding, expiration, revocation,
+and the requested capability subset. Ordinary callers use the existing consumer verbs rather than
+implement their own token decoder.
 
-## Issuing Capabilities
+## Issuance, storage, and revocation
 
-Use `$root:issue_capability(target_obj, cap_list, ?expiration, ?run_as, ?key)`
-or delegate-specific wrappers (e.g., `$player:issue_capability`). Only two types
-of callers can mint a token:
+`$root:issue_capability(target, caps, ?expiration, ?run_as, ?key)` accepts an owner or wizard caller.
+An explicit `run_as` must equal the issuer's incoming principal or the current `player`.
+The default token has no explicit `run_as`, and challenge returns `$hacker` for that case.
 
-1. Wizards.
-2. The owner of `target_obj`.
-
-`run_as` may only be the caller or `player`, enforcing the “on behalf of me or
-on behalf of the player” semantics. If omitted, the bearer will run as
-`$hacker`. Tokens can carry optional expirations.
-
-### Grant Buckets
-
-`$root:grant_capability(target, caps, grantee, category)` issues a capability
-and stores it in a property named `grants_<category>` on the grantee (e.g.,
-`grants_area`). These properties are wizard-owned maps of `{target_obj -> cap}`.
-
-`grantee:find_capability_for(target, category)` looks up the stored flyweight so
-builder UX and tools can fetch the right capability without touching protected
-properties directly.
-
-`$root:revoke_capability(target, grantee, category)` removes the stored grant
-and records the grant token id in `$root.revoked_capability_jtis`, so copied
-bearer flyweights for that grant fail later challenge checks.
-
-When a stored grant is replaced by a merged grant,
-`$root:grant_capability()` also revokes the old token id. This prevents old
-copies of the pre-merge grant from remaining usable after the grantee's stored
-authority changes. Directly-issued capabilities that were never stored as grants
-still need expiration or server key rotation for global invalidation.
-
-## Consuming Capabilities
-
-Every verb that requires delegated authority must follow this pattern:
+`$root:grant_capability(target, caps, grantee, category)` stores the flyweight in the grantee's
+`grants_<category>` map. The category is a symbol. The grantee must have that grant bucket.
+`grantee:find_capability_for(target, category)` retrieves the stored flyweight.
 
 ```moo
-actor = typeof(this) == TYPE_FLYWEIGHT ? this | caller_perms();
-{target, perms} = this:check_permissions_as(actor, 'cap_symbol);
-set_task_perms(perms);
-"… privileged work …"
-```
-
-Command wrappers often use the connected player as the fallback actor while
-still allowing a stored grant to substitute for the raw object:
-
-```moo
-cap = player:find_capability_for(target_obj, 'category);
-authority = typeof(cap) == TYPE_FLYWEIGHT ? cap | target_obj;
-actor = typeof(authority) == TYPE_FLYWEIGHT ? authority | player;
-{target, perms} = authority:check_permissions_as(actor, 'cap_symbol);
+const principal = caller_perms();
+const {target_obj} = args;
+const cap = principal:find_capability_for(target_obj, 'room);
+const subject = typeof(cap) == TYPE_FLYWEIGHT ? cap | target_obj;
+const {target, perms} = $root:_check_permissions_as(subject, principal, 'dig_from);
 set_task_perms(perms);
 ```
 
-The important rule is that the object being challenged must be the flyweight
-when capability authority is being used. Passing `caller_perms()` to
-`check_permissions_as()` is only correct when you are deliberately checking
-ambient owner/wizard authority; it will not prove that a caller holds a
-capability.
+`$root:revoke_capability(target, grantee, category)` removes the stored grant and records its token id.
+Copied flyweights then fail challenge. Merging a stored grant also revokes the replaced token id.
+Deleting a local copy does not revoke other copies. Direct bearer tokens remain valid until their
+expiration, recorded revocation, or server key rotation. Key rotation invalidates tokens made with
+that key.
 
-This guarantees three facts:
+`$grant_utils:format_denial(target, category, caps)` supplies the existing builder denial message.
+Authorization must precede mutations and publication of events. A denied operation must preserve
+protected state.
 
-1. Wizards bypass the capability path entirely.
-2. Owners can always act on their objects.
-3. Capability bearers must present a valid token before work begins.
+## Actor permissions and tool requests
 
-Never mutate object state before the `check_permissions_as()` call. If you only
-need to verify access (no mutation), still call `check_permissions_as()` and
-ignore the returned `perms` object.
+LLM and agent tools use the authenticated request principal. A supplied actor must match the actual
+incoming principal unless an authenticated wizard activation explicitly delegates the request.
+Agent ancestry, an object's owner, `player` context, and billing identity do not prove delegation.
+An owner can transfer an ordinary object to a wizard, so that ownership alone does not establish trust.
 
-### Denying Access Nicely
+Tool handlers reduce permissions before target inspection, mutation, and untrusted callbacks.
+They retain existing explicit room/area capabilities. They do not create blanket read, write, code,
+object, or privileged-builtin grants for arbitrary requested targets. Owned private and foreign
+public data remain accessible under ordinary MOO permissions. Foreign private data requires its
+existing authorized access path. Full object dumps require the builtin's dump authority.
 
-When rejecting a request because the caller lacks a capability, use
-`$grant_utils:format_denial(target, category, caps)` to explain which grant is
-missing. Builder verbs such as `@dig` already follow this pattern.
+Queued room requests bind the requester to the room, query, and context. Each authorization can
+execute once. A room owner cannot replace the requester with a foreign principal. Autonomous
+observers act as the NPC itself. Their billing identity can be different from their tool principal.
 
-## run_as Semantics
+## Current delegation surfaces
 
-`run_as` controls the task perms returned by `check_permissions_as()`. Allowed
-values are:
+Area/room building uses explicit capabilities for `add_room`, `dig_from`, `dig_into`,
+`create_passage`, and `remove_passage`. Passage descriptions use source-room `dig_from` authority.
+Stored grant lookup preserves the flyweight until the capability-aware operation consumes it.
 
-- `caller_perms()` at issuance time - delegates authority back to the issuer.
-- `player` at issuance time - executes as the player active while the token is
-  issued.
-- `$hacker` (implicit default) – unprivileged execution.
+Root mutation helpers map validated capabilities to specific runtime operations. Current mappings
+include move, recycle, description, name/aliases, owner, thumbnail, and API-key changes.
+An unsupported symbol fails instead of supplying broad property or code authority.
 
-Because `run_as` is embedded in the signed token, callers cannot forge higher
-privileges. Be deliberate when issuing capabilities with `run_as != $hacker`,
-and keep the scope of `cap_list` as narrow as possible.
+Programmer commands retain programmer checks and normal builtin permissions. Inspection commands
+retain read/debug permissions. Cowbell does not provide a general bearer capability for arbitrary
+property writes or arbitrary code execution. New delegation requires an explicit target and action
+contract, denial tests, and tests for copied, revoked, and modified tokens.
 
-## Testing and Auditing
+## Runtime boundaries
 
-- `$root:test_capabilities()`, `test_merge_capability()`, and
-  `test_grant_capability()` exercise token issuance, validation, expiration,
-  merging, and grant storage.
-- `tests/headless/headless_capability_scenarios.moo` covers the broader
-  integration surface: stored grants, non-owner capability use, command wrappers,
-  setup capabilities, revocation, copied bearer denial, tamper resistance, and
-  merge laundering regressions.
-- When authoring new verbs, scan for wizard-owned verbs without a call to
-  `check_permissions_as()` or an equivalent explicit authorization check. A
-  wizard-owned mutator that only relies on `set_task_perms()` is probably a bug.
+`set_task_perms()` changes the current activation. A nested wizard-owned verb starts another
+privileged activation. Each privileged consumer must authenticate its incoming request.
+Ordinary actor operations and untrusted callbacks require permission reduction. An explicit capability
+path can retain necessary framework permissions for its bounded mutation, such as an area's protected
+passage relation. This does not grant the actor general framework authority.
+Permission reduction does not sandbox the whole call tree.
 
-## Feature-layer audit
+The runtime does not interpret Cowbell capability tokens. Core helpers validate them and map supported
+operations to runtime grants. The runtime then enforces those grants. Flyweights are immutable.
+A copy retains the same bearer token and authority.
 
-Capability use in the feature layer is currently narrow. The core capability
-verbs and headless scenarios cover issuance, validation, stored grants,
-revocation, tampering, setup capabilities, and a few command wrappers, but most
-builder and programmer commands still rely on classic owner/wizard checks plus
-`set_task_perms(player)`.
+A suspension commits the current transaction. Request principals must remain local across that
+boundary. Mutable actor or billing properties cannot replace the authenticated requester after resumption.
 
-### Builder commands already using capabilities
+## Tests and audit limits
 
-These commands already look up stored grants or pass capability flyweights into
-lower-level capability-aware verbs:
+`tests/headless/headless_capability_scenarios.moo` covers issuance, grants, revocation, copied bearer
+denial, modified tokens, merges, setup capabilities, and selected command wrappers.
+`tests/headless/headless_authority_scenarios.moo` covers direct calls and inherited authorization overrides.
+`tests/headless/headless_llm_scenarios.moo` uses local fake models for actor spoofing, private access,
+callback interleaving, room request replay, and NPC identity. It makes no external model requests.
 
-- `@grant` creates stored capability grants through `$root:grant_capability()`.
-- `@build` uses an area `add_room` grant when creating rooms inside an area.
-- `@dig` uses source-room `dig_from`, destination-room `dig_into`, and area
-  `create_passage` authority.
-- `@undig`, `@remove-exit`, and `@delete-passage` use source-room `dig_from`
-  and area `remove_passage` authority.
-- Passage editing paths such as `@describe` on a direction and `@set-passage`
-  use source-room `dig_from` before updating passage flyweights.
+These cases cover the maintained contracts. They do not prove all future feature combinations or
+third-party tools. The [audit matrix](AUDIT.md) records the bounded review and remaining debt.
 
-These are the most mature capability surfaces. They should keep positive,
-negative, revoked-grant, copied-token, and command-UX coverage in headless
-tests.
-
-### Builder commands still using owner/wizard checks
-
-These commands mutate builder-visible world state but mostly require direct
-ownership or wizard status:
-
-- `@create` requires a fertile parent, ownership of the parent, or wizard
-  status before creating a child object.
-- `@recycle` and `@destroy` require ownership or wizard status before
-  destroying an object.
-- `@rename` requires ownership or wizard status before changing object names and
-  aliases.
-- `@describe` on an object and `@edit-description` require ownership or wizard
-  status before changing object descriptions.
-- `@integrate` requires ownership or wizard status before changing integrated
-  descriptions.
-- `@move` requires ownership or wizard status before moving an object.
-- `@set-thumbnail` requires ownership or wizard status before changing
-  thumbnail data.
-- `@set-rule`, `@clear-rule`, `@add-reaction`, `@set-reaction`,
-  `@enable-reaction`, and `@disable-reaction` require ownership or wizard status
-  before changing rule or reaction properties.
-
-These are plausible delegation candidates because they are builder operations
-against ordinary world objects. Most should not invent new permission logic in
-the command verb itself. Prefer making the underlying object verbs consume
-capabilities consistently, then let the command wrapper resolve either the raw
-object or a stored grant.
-
-Likely capability names for this layer:
-
-- `create_child` for `@create`.
-- `recycle` for `@recycle` / `@destroy`.
-- `set_name_aliases` for `@rename`.
-- `set_description` for object `@describe` and `@edit-description`.
-- `set_integrated_description` if integrated descriptions are meant to be
-  separately delegatable from ordinary descriptions.
-- `move` for `@move`.
-- `set_thumbnail` for `@set-thumbnail`.
-- A separate content-customization family for rules, reactions, and message
-  properties, if those should be delegatable at all.
-
-### Builder commands that are mostly introspection
-
-Commands such as `@audit`, `@owned`, `@parent`, `@children`, `@descendants`,
-`@parents`, `@ancestors`, `@messages`, `@rules`, `@reactions`, `@passage`, and
-`@passage-info` primarily read and format state. They should continue to rely on
-ordinary read permissions unless a specific private-read capability is designed.
-
-### Programmer commands
-
-`src/features/prog_features.moo` is effectively not capability-aware. It gates
-commands on programmer status, then relies on normal MOO permission checks,
-explicit owner/wizard checks, or builtin enforcement.
-
-Surfaces that should probably remain classic programmer authority until a much
-more deliberate code-edit capability model exists:
-
-- `eval`
-- `@verb`, `@rmverb`, `@program`, `@program#`, `@args`, `@chmod`
-- `@property`, `@rmproperty`, `@clear-property`
-- `@chparent`
-- `@mvverb`, `@cpverb`
-- `@kill-task`
-
-The object-rename half of programmer `@rename` overlaps with builder `@rename`
-and could share the same eventual `set_name_aliases` capability path. The
-verb-rename half should remain tied to verb ownership or wizard status unless
-the project intentionally adds a verb-edit capability model.
-
-Programmer read-only tools such as `@show`, `@display`, `@list`, `@verbs`,
-`@properties`, `@grep`, `@which`, `@browse`, and editor presentation helpers
-should stay governed by existing read/debug permissions for now.
-
-### Audit takeaways
-
-The current capability system is not yet a general replacement for MOO
-ownership. It is an explicit delegation layer used mainly for area/room building,
-some object/player mutation helpers, setup-time player creation, and LLM/client
-surfaces. The safest expansion path is to cap-enable small, existing object
-mutation verbs first, then update feature commands to call those verbs through a
-stored grant when present.
-
-Avoid granting broad property-write or arbitrary-code capabilities as a shortcut.
-Those would collapse too many unrelated authority boundaries into one token and
-would make later runtime-level auth work harder to reason about.
-
-## Best Practices
-
-- **Least privilege**: issue capabilities with the minimal list of symbols and a
-  reasonable expiration when possible.
-- **Never share flyweights** outside trusted code paths; treat them like
-  passwords. If you must transmit one (e.g., via mail), remember that anyone who
-  sees it gains the encoded rights.
-- **Revoke stored grants explicitly** with `$root:revoke_capability()` when
-  removing delegated access. Deleting a local variable or inventory object is not
-  a global revocation mechanism.
-- **Document capability needs** on objects so admins know which grants to issue.
-  All prototype verbs that rely on capabilities should have descriptive comments
-  (see `src/root.moo` and `src/area.moo` for examples).
-
-Following the above conventions keeps the capability system predictable,
-auditable, and safe for builders and wizards alike.
-
-## Background reading
-
-- Mark S. Miller, *Capability-Based Financial Instruments* and the E-rights
-  papers – foundational thinking on object-capability security.
-- Norm Hardy, “The Confused Deputy” – classic motivation for why ambient
-  authority (pure ACLs) causes privilege leaks.
-- Jonathan Rees, “A Security Kernel Based on the Lambda Calculus” – describes
-  capability passing in higher-level languages.
-
-Capability-based security avoids the confused-deputy problem because authority
-flows explicitly: you can only act on an object if someone hands you a reference
-that already embodies the necessary rights. That fits MOO’s prototype model
-well—passing a flyweight both identifies the target and carries its limited
-authority—so builders can safely delegate without global ACL checks or
-hard-to-reason-about privilege escalations.
-
-## Runtime limitations to remember
-
-- `set_task_perms()` affects only the *current* stack frame. Each capability
-  consumer must call it explicitly; the interpreter does not propagate `run_as`
-  to nested calls.
-- The runtime has no built-in concept of capabilities. All validation and
-  downgrading happens in core verbs, so consistency depends on following the
-  documented patterns.
-- Tokens are symmetrically encrypted; rotating the server key invalidates every
-  outstanding capability unless you reissue them. Plan for that operationally.
-- Stored-grant revocation uses a token-id denylist. This requires server-side
-  state, so it only applies to token ids recorded during revoke/merge; old
-  direct bearer tokens remain valid until expiration or key rotation.
-- Flyweights are immutable and expose their metadata only via `flyslots()` /
-  related helpers. Treat them as black boxes you hand around rather than data
-  structures you modify in place.
-
-These constraints explain why privileged verbs must call `check_permissions_as()`
-or perform an equivalent explicit authorization check, then explicitly
-`set_task_perms()` before doing privileged work. Without interpreter support,
-discipline in userland code keeps the capability model safe.
+Consumed room requests use the existing persistent token revocation map. Each consumed job records
+one token id. Retention and cleanup optimization remain deferred.
 
 ## Credit
 
-This implementation of capabilities mimics in some ways the implementation
-of capabilities implemented by "Quantum-Vacuum" on ColdMUD using its "frobs"
-(similar to mooR's flyweights) in the 90s. 
+This implementation draws on Quantum-Vacuum's capability implementation for ColdMUD frobs in the
+1990s. Those values serve a role similar to mooR flyweights.

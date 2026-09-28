@@ -1,0 +1,10 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@wizard
+; move(#90106, #90102); #90106.addressee = #90101; add_verb(#90101, {#90100, "rxd", "find_mailbox"}, {"this", "none", "this"}); return set_verb_code(#90101, "find_mailbox", {"move(#90106, #90103); return #90107;"});
+0
+@nonprogrammer
+% send #90106
+@wizard
+; return #90106.location == #90103 && !#90106.sealed && #90106.sent_at == 0;
+true

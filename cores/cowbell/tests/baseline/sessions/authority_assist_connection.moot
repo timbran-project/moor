@@ -1,0 +1,22 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; $player.suggestions_llm_client = #-1; const destination = connections(#90102)[1][1]; #90102:_assist_with_pc([], destination); return true;
+true
+@second
+@event text/plain utility
+@text Assist is not configured right now.
+@nonprogrammer
+@quiet
+@noevents
+@wizard
+; const destination = connections(#90102)[1][1]; #90102:_assist_with_help_query("probe", destination); return true;
+true
+@second
+@event text/plain utility
+@text Help assist is not configured right now.
+@nonprogrammer
+@quiet
+@noevents

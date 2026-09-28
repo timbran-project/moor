@@ -10,7 +10,7 @@ object AGENTIC_EVENT_QUEUE [
 
   property queue (owner: ARCH_WIZARD, flags: "rc") = {};
 
-  override description = "Queue helper for agentic runners and observers.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Queue helper for agentic runners and observers.";
 
   method push owner: ARCH_WIZARD
     "Append an item to queue.";

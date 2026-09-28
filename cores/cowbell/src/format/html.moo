@@ -8,7 +8,7 @@ object HTML [
   fertile: true
   readable: true
 
-  override description = "Flyweight delegate for HTML tree structures.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for HTML tree structures.";
 
   method render owner: HACKER
     {content_type} = args;

@@ -8,7 +8,7 @@ object OBJ_UTILS [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Core object utilities for introspection and formatting. Provides common functionality for displaying object information, verb signatures, and other object-related utilities.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Core object utilities for introspection and formatting. Provides common functionality for displaying object information, verb signatures, and other object-related utilities.";
 
   method format_verb_signature owner: ARCH_WIZARD
     "Format a verb signature into user-friendly text. Returns a formatted string.";

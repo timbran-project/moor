@@ -65,7 +65,7 @@ object PASSAGE [
   property unlock_msg (owner: HACKER, flags: "rc") = 0;
   property unlock_rule (owner: HACKER, flags: "rc") = 0;
 
-  override description = "Bidirectional passage configuration.";
+  override description (owner: HACKER, flags: "rc") = "Bidirectional passage configuration.";
 
   method mk owner: HACKER
     {room_a, label_a, aliases_a, description_a, ambient_a, room_b, label_b, aliases_b, description_b, ambient_b, ?is_open = true} = args;
@@ -301,37 +301,46 @@ object PASSAGE [
     return false;
   endmethod
 
-  method travel_from owner: HACKER
+  method travel_from owner: ARCH_WIZARD
     "Handle passage traversal using movement context and passage messages";
-    {player, from_room, parsed} = args;
-    valid(player) || return false;
+    const {traveler, from_room, parsed} = args;
+    const actor = caller_perms();
+    valid(traveler) && valid(actor) || raise(E_INVARG);
+    actor == traveler || actor == traveler.owner || actor.wizard || raise(E_PERM);
+    valid(traveler) || return false;
     valid(from_room) || return false;
-    player.location == from_room || return false;
-    this:_value("is_open", true) || return this:_notify_blocked(player, from_room);
-    this:check_unlock(player, from_room) || return this:_notify_locked(player, from_room);
-    to_room = this:other_room(from_room);
+    traveler.location == from_room || return false;
+    this:_value("is_open", true) || return this:_notify_blocked(traveler, from_room);
+    this:check_unlock(traveler, from_room) || return this:_notify_locked(traveler, from_room);
+    const to_room = this:other_room(from_room);
     valid(to_room) || return false;
     "Get passage metadata";
-    from_label = this:label_for(from_room);
-    to_label = this:label_for(to_room);
+    const from_label = this:label_for(from_room);
+    const to_label = this:label_for(to_room);
     "Create movement context for message rendering";
-    move_context = this:mk_movement_context(player, from_room, to_room, from_label, to_label);
+    const move_context = this:mk_movement_context(traveler, from_room, to_room, from_label, to_label);
     "Notify room contents before departure (e.g., stand up from furniture)";
-    `from_room:notify_pre_exit(player) ! E_VERBNF => 0';
-    "Actually move the player before any expensive presentation work.";
-    this:_move_actor(player, to_room);
+    `from_room:notify_pre_exit(traveler) ! E_VERBNF => 0';
+    "Actually move the traveler before any expensive presentation work.";
+    "Pre-exit callbacks may suspend or change the actor's location.";
+    traveler.location == from_room || return false;
+    set_task_perms(actor);
+    this:_move_actor(traveler, to_room);
     "Render and announce movement asynchronously after the move commits.";
     fork (0)
+      let departure = 0;
+      let arrival = 0;
+      let desc_lower = "";
       "Render departure event";
-      from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
-      leave_msg = this:_side_lookup(from_side, 'leave_msg);
+      const from_side = from_room == this:_side_lookup('a, 'room) ? 'a | 'b;
+      const leave_msg = this:_side_lookup(from_side, 'leave_msg);
       if (typeof(leave_msg) == TYPE_LIST && length(leave_msg) > 0)
-        departure_text = "";
+        let departure_text = "";
         for component in (leave_msg)
           suspend_if_needed();
           if (typeof(component) == TYPE_FLYWEIGHT)
             try
-              rendered = component:render_as(player, 'text_plain, move_context);
+              const rendered = component:render_as(traveler, 'text_plain, move_context);
               departure_text = departure_text + rendered;
             except (ANY)
               departure_text = departure_text + tostr(component);
@@ -340,32 +349,32 @@ object PASSAGE [
             departure_text = departure_text + tostr(component);
           endif
         endfor
-        departure = $event:mk(player, #-1, from_room, #-1, #-1, {departure_text}, {});
+        departure = $event:mk(traveler, #-1, from_room, #-1, #-1, {departure_text}, {});
       else
-        from_description = this:description_for(from_room);
-        departure_phrase = this:departure_phrase_for(from_room);
+        let from_description = this:description_for(from_room);
+        const departure_phrase = this:departure_phrase_for(from_room);
         if (!departure_phrase || departure_phrase == "" && typeof(from_description) == TYPE_STR)
           desc_lower = from_description:lowercase();
           if (desc_lower:starts_with("through "))
             from_description = from_description[9..length(from_description)];
           endif
         endif
-        departure = `player:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
+        departure = `traveler:mk_departure_event(from_room, from_label, from_description, to_room, departure_phrase) ! E_VERBNF => 0';
       endif
-      if (departure)
+      if (typeof(departure) == TYPE_FLYWEIGHT)
         departure = departure:with_audience('narrative);
         `from_room:announce(departure) ! ANY => 0';
       endif
       "Render arrival event";
-      to_side = to_room == this:_side_lookup('a, 'room) ? 'a | 'b;
-      arrive_msg = this:_side_lookup(to_side, 'arrive_msg);
+      const to_side = to_room == this:_side_lookup('a, 'room) ? 'a | 'b;
+      const arrive_msg = this:_side_lookup(to_side, 'arrive_msg);
       if (typeof(arrive_msg) == TYPE_LIST && length(arrive_msg) > 0)
-        arrival_text = "";
+        let arrival_text = "";
         for component in (arrive_msg)
           suspend_if_needed();
           if (typeof(component) == TYPE_FLYWEIGHT)
             try
-              rendered = component:render_as(player, 'text_plain, move_context);
+              const rendered = component:render_as(traveler, 'text_plain, move_context);
               arrival_text = arrival_text + rendered;
             except (ANY)
               arrival_text = arrival_text + tostr(component);
@@ -374,10 +383,10 @@ object PASSAGE [
             arrival_text = arrival_text + tostr(component);
           endif
         endfor
-        arrival = $event:mk(player, #-1, to_room, #-1, #-1, {arrival_text}, {});
+        arrival = $event:mk(traveler, #-1, to_room, #-1, #-1, {arrival_text}, {});
       else
-        to_description = this:description_for(to_room);
-        arrival_phrase = this:arrival_phrase_for(to_room);
+        let to_description = this:description_for(to_room);
+        const arrival_phrase = this:arrival_phrase_for(to_room);
         if (!arrival_phrase || arrival_phrase == "" && typeof(to_description) == TYPE_STR)
           desc_lower = to_description:lowercase();
           if (desc_lower:starts_with("from "))
@@ -386,9 +395,9 @@ object PASSAGE [
             to_description = to_description[9..length(to_description)];
           endif
         endif
-        arrival = `player:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
+        arrival = `traveler:mk_arrival_event(to_room, to_label, to_description, from_room, arrival_phrase) ! E_VERBNF => 0';
       endif
-      if (arrival)
+      if (typeof(arrival) == TYPE_FLYWEIGHT)
         arrival = arrival:with_audience('narrative);
         `to_room:announce(arrival) ! ANY => 0';
       endif
@@ -399,8 +408,11 @@ object PASSAGE [
   method _move_actor owner: ARCH_WIZARD
     "Privileged final movement step for checked passage traversal.";
     caller == this || (typeof(this) == TYPE_FLYWEIGHT && caller == this.delegate) || raise(E_PERM);
-    {actor, destination} = args;
+    const {actor, destination} = args;
     valid(actor) && valid(destination) || raise(E_INVARG);
+    const principal = caller_perms();
+    principal == actor || principal == actor.owner || (valid(principal) && principal.wizard) || raise(E_PERM);
+    set_task_perms(principal);
     return move(actor, destination);
   endmethod
 

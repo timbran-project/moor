@@ -8,7 +8,7 @@ object LIST_PROTO [
   owner: HACKER
   readable: true
 
-  override description = "Prototype object for list utility methods and functional programming operations.";
+  override description (owner: HACKER, flags: "rc") = "Prototype object for list utility methods and functional programming operations.";
 
   method append owner: HACKER
     "Return a single list containing every element from each argument list, in order.";

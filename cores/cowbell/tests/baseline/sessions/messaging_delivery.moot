@@ -1,0 +1,21 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+% deposit #90106 in #90107
+~~You're not holding that letter.
+@wizard
+; return #90106.location == #90101;
+true
+; move(#90106, #90102); return true;
+true
+@nonprogrammer
+% deposit #90106 in #90107
+~~You deposit
+@programmer
+; return true;
+true
+~~You have new mail from
+@event text/plain utility
+@wizard
+; return #90106.location == #90107;
+true

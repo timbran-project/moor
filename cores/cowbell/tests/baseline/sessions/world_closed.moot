@@ -1,0 +1,12 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@wizard
+; #90108:set_passage(#90103, #90110, $passage:mk(#90103, "east", {"e"}, "", true, #90110, "west", {"w"}, "", true, false)); move(#90103, #90108); return true;
+true
+@nonprogrammer
+% go east
+~~closed
+@event text/plain utility
+@wizard
+; return #90102.location == #90103;
+true

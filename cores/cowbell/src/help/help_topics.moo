@@ -298,7 +298,7 @@ object HELP_TOPICS [
     {}
   };
 
-  override description = "Global help topics available everywhere in the system.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Global help topics available everywhere in the system.";
 
   method help_topics owner: ARCH_WIZARD
     "Return global help topics for players.";

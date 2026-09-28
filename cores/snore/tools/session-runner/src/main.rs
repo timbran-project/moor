@@ -50,7 +50,9 @@ struct MockMootRunner {
     scheduler: SchedulerClient,
     features: Arc<FeaturesConfig>,
     sessions: HashMap<Obj, Arc<TestSession>>,
+    named_sessions: HashMap<String, (Obj, Arc<TestSession>)>,
     lines: HashMap<Obj, VecDeque<String>>,
+    events: HashMap<Obj, VecDeque<(Obj, NarrativeEvent)>>,
     last_result: Option<Var>,
     hub: Arc<SessionHub>,
     input_queue: HashMap<Obj, VecDeque<String>>,
@@ -67,7 +69,9 @@ impl MockMootRunner {
             scheduler,
             features,
             sessions: HashMap::new(),
+            named_sessions: HashMap::new(),
             lines: HashMap::new(),
+            events: HashMap::new(),
             last_result: None,
             hub,
             input_queue: HashMap::new(),
@@ -159,9 +163,13 @@ impl MockMootRunner {
     /// Route all committed output, including output from background tasks, by recipient.
     fn harvest_all(&mut self) {
         for (recipient, event) in self.hub.take_committed_events() {
+            self.events
+                .entry(recipient)
+                .or_default()
+                .push_back((recipient, event.clone()));
             if let Some(text) = render_event(&event) {
                 self.lines
-                    .entry(self.hub.recipient_player(recipient))
+                    .entry(recipient)
                     .or_default()
                     .extend(text.split('\n').map(str::to_string));
             }
@@ -171,12 +179,21 @@ impl MockMootRunner {
 
 fn render_event(event: &NarrativeEvent) -> Option<String> {
     match &event.event {
-        Event::Notify { value, .. } => Some(
-            value
+        Event::Notify { value, .. } => Some(match value.as_list() {
+            Some(lines) => lines
+                .iter()
+                .map(|line| {
+                    line.as_string()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| format!("{line:?}"))
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            None => value
                 .as_string()
                 .map(str::to_string)
                 .unwrap_or_else(|| format!("{value:?}")),
-        ),
+        }),
         Event::Present(presentation) => Some(presentation.content.clone()),
         _ => None,
     }
@@ -188,6 +205,14 @@ impl MootRunner for MockMootRunner {
     fn eval<S: Into<String>>(&mut self, player: &Obj, command: S) -> Result<()> {
         self.harvest_all();
         let session = self.session(player);
+        let connection = session
+            .connection_id()
+            .ok_or_else(|| eyre!("selected session has no connection"))?;
+        if self.hub.owner_for(connection) != Some(*player) {
+            return Err(eyre!(
+                "cannot submit a new task for {player} on detached or reassigned connection {connection}"
+            ));
+        }
         let handle = self
             .scheduler
             .submit_eval_task(
@@ -208,6 +233,14 @@ impl MootRunner for MockMootRunner {
     fn command<S: AsRef<str>>(&mut self, player: &Obj, command: S) -> Result<()> {
         self.harvest_all();
         let session = self.session(player);
+        let connection = session
+            .connection_id()
+            .ok_or_else(|| eyre!("selected session has no connection"))?;
+        if self.hub.owner_for(connection) != Some(*player) {
+            return Err(eyre!(
+                "cannot submit a new task for {player} on detached or reassigned connection {connection}"
+            ));
+        }
         let handle = self
             .scheduler
             .submit_command_task(&SYSTEM_OBJECT, player, command.as_ref(), session)
@@ -215,16 +248,33 @@ impl MootRunner for MockMootRunner {
         let result = self.run_task(&handle, false)?;
         self.last_result = Some(result);
         self.harvest_all();
+        for events in self.events.values() {
+            for (recipient, event) in events {
+                if let Event::Notify {
+                    metadata: Some(metadata),
+                    ..
+                } = &event.event
+                    && metadata
+                        .iter()
+                        .any(|(key, value)| key.as_str() == "command_exception" && value.is_true())
+                {
+                    return Err(eyre!(
+                        "caught command exception for connection {recipient}: {event:?}"
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 
     fn read_line(&mut self, player: &Obj) -> Result<Option<String>> {
+        let recipient = self.session(player).connection_id().unwrap_or(*player);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
             self.harvest_all();
             if let Some(line) = self
                 .lines
-                .get_mut(player)
+                .get_mut(&recipient)
                 .and_then(|lines| lines.pop_front())
             {
                 return Ok(Some(line));
@@ -250,7 +300,143 @@ impl MootRunner for MockMootRunner {
     }
 }
 
+/// Match an event contract without imposing order on independent committed tasks.
+fn event_matches(event: &Event, content_type: &str, audience: &str) -> bool {
+    if let Some(mime) = content_type.strip_prefix("present:") {
+        return matches!(event, Event::Present(presentation)
+            if presentation.content_type == mime && presentation.target == audience);
+    }
+    if let Some(namespace) = content_type.strip_prefix("data:") {
+        return matches!(event, Event::Data { namespace: actual, kind, .. }
+            if actual.as_str() == namespace && kind.as_str() == audience);
+    }
+    let Event::Notify {
+        content_type: actual,
+        metadata,
+        ..
+    } = event
+    else {
+        return false;
+    };
+    actual.is_some_and(|actual| actual.as_str() == content_type)
+        && metadata.as_ref().is_some_and(|metadata| {
+            metadata.iter().any(|(key, value)| {
+                key.as_str() == "audience"
+                    && value
+                        .as_symbol()
+                        .is_ok_and(|value| value.as_str() == audience)
+            })
+        })
+}
+
 impl SessionRunner for MockMootRunner {
+    fn select_connection(&mut self, name: &str) -> Result<Obj> {
+        let (player, session) = self
+            .named_sessions
+            .get(name)
+            .cloned()
+            .ok_or_else(|| eyre!("unknown connection: {name}"))?;
+        self.sessions.insert(player, session);
+        Ok(player)
+    }
+    fn attach_connection(&mut self, name: &str, player: Obj) -> Result<()> {
+        if self.named_sessions.contains_key(name) {
+            return Err(eyre!("duplicate connection name: {name}"));
+        }
+        let connection = self.hub.attach(player);
+        self.named_sessions.insert(
+            name.into(),
+            (
+                player,
+                Arc::new(TestSession::for_connection(self.hub.clone(), connection)),
+            ),
+        );
+        Ok(())
+    }
+    fn detach_connection(&mut self, name: &str) -> Result<()> {
+        let (_, session) = self
+            .named_sessions
+            .get(name)
+            .ok_or_else(|| eyre!("unknown connection: {name}"))?;
+        if !self.hub.detach(session.connection_id().unwrap()) {
+            return Err(eyre!("connection already detached: {name}"));
+        }
+        Ok(())
+    }
+    fn reassign_connection(&mut self, name: &str, player: Obj) -> Result<()> {
+        let endpoint = self
+            .named_sessions
+            .get_mut(name)
+            .ok_or_else(|| eyre!("unknown connection: {name}"))?;
+        if !self
+            .hub
+            .reassign(endpoint.1.connection_id().unwrap(), player)
+        {
+            return Err(eyre!("connection detached: {name}"));
+        }
+        endpoint.0 = player;
+        Ok(())
+    }
+
+    fn expect_event(&mut self, player: &Obj, content_type: &str, audience: &str) -> Result<()> {
+        let recipient = self.session(player).connection_id().unwrap_or(*player);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            self.harvest_all();
+            for events in self.events.values() {
+                for (connection, event) in events {
+                    if let Event::Notify {
+                        metadata: Some(metadata),
+                        ..
+                    } = &event.event
+                        && metadata.iter().any(|(key, value)| {
+                            key.as_str() == "command_exception" && value.is_true()
+                        })
+                    {
+                        return Err(eyre!(
+                            "caught command exception for connection {connection}: {event:?}"
+                        ));
+                    }
+                }
+            }
+            if let Some(kind) = content_type.strip_prefix("history:") {
+                if self.hub.consume_logged(*player, kind, audience) {
+                    return Ok(());
+                }
+                if std::time::Instant::now() >= deadline {
+                    return Err(eyre!(
+                        "missing committed history for {player}: {kind} {audience}"
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                continue;
+            }
+            let events = self.events.entry(recipient).or_default();
+            if content_type == "none" && audience == "none" {
+                if let Some((connection, event)) = events.front() {
+                    return Err(eyre!(
+                        "unexpected committed event for {player}, connection {connection}: {event:?}"
+                    ));
+                }
+                return Ok(());
+            }
+            if let Some(index) = events
+                .iter()
+                .position(|(_, event)| event_matches(&event.event, content_type, audience))
+            {
+                events.remove(index);
+                return Ok(());
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(eyre!(
+                    "event contract failed for {player}, connection {recipient}: no committed {content_type} event with audience/kind {audience}; queued events: {events:?}"
+                ));
+            }
+            self.pump_input()?;
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
     fn provide_input(&mut self, player: &Obj, text: &str) -> Result<()> {
         self.input_queue
             .entry(*player)
@@ -343,9 +529,11 @@ struct Args {
     wizard: i32,
     programmer: i32,
     nonprogrammer: i32,
+    cowbell: bool,
 }
 
 fn parse_args() -> Result<Args> {
+    let mut cowbell = false;
     let mut core_dir = None;
     let mut moot = None;
     let mut wizard = 2;
@@ -354,6 +542,7 @@ fn parse_args() -> Result<Args> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
+            "--cowbell" => cowbell = true,
             "--core-dir" => core_dir = args.next().map(PathBuf::from),
             "--moot" => moot = args.next().map(PathBuf::from),
             "--wizard" => {
@@ -383,6 +572,7 @@ fn parse_args() -> Result<Args> {
         wizard,
         programmer,
         nonprogrammer,
+        cowbell,
     })
 }
 
@@ -427,8 +617,8 @@ fn run_scenario(args: &Args, path: &Path) -> Result<()> {
         symbol_type: true,
         custom_errors: true,
         use_uuobjids: true,
-        flyweight_type: false,
-        rich_notify: false,
+        flyweight_type: args.cowbell,
+        rich_notify: args.cowbell,
         use_boolean_returns: true,
         use_symbols_in_builtins: true,
         ..Default::default()
@@ -481,8 +671,14 @@ fn run_scenario(args: &Args, path: &Path) -> Result<()> {
     };
     let mut runner = MockMootRunner::new(scheduler_client.clone(), features.clone(), hub);
     // Register all fixture principals up front so the shared connection view is complete.
-    for player in [args.wizard, args.programmer, args.nonprogrammer] {
-        let _ = runner.session(&Obj::mk_id(player));
+    for (name, player) in [
+        ("wizard", args.wizard),
+        ("programmer", args.programmer),
+        ("nonprogrammer", args.nonprogrammer),
+    ] {
+        let player = Obj::mk_id(player);
+        let session = runner.session(&player);
+        runner.named_sessions.insert(name.into(), (player, session));
     }
 
     let result = scenario::run(&mut runner, &actors, path);

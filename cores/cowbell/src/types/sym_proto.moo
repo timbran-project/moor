@@ -8,7 +8,7 @@ object SYM_PROTO [
   owner: HACKER
   readable: true
 
-  override description = "Prototype object for symbol utility methods.";
+  override description (owner: HACKER, flags: "rc") = "Prototype object for symbol utility methods.";
 
   method as_string owner: HACKER
     "Return the symbol's text.";

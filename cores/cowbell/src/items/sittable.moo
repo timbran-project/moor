@@ -67,9 +67,9 @@ object SITTABLE [
     "."
   };
 
-  override aliases = {"sittable"};
-  override description = "A prototype for objects that can be sat upon. Set .seats to control capacity, .squeeze for extra squeezable spots (-1 for rigid furniture), .sitting_verb and .sitting_prep for customization.";
-  override object_documentation = {
+  override aliases (owner: HACKER, flags: "rc") = {"sittable"};
+  override description (owner: HACKER, flags: "rc") = "A prototype for objects that can be sat upon. Set .seats to control capacity, .squeeze for extra squeezable spots (-1 for rigid furniture), .sitting_verb and .sitting_prep for customization.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# Sittable Objects",
     "",
     "## Overview",

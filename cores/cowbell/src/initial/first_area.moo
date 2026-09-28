@@ -7,6 +7,6 @@ object FIRST_AREA [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Default area container for the initial rooms.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Default area container for the initial rooms.";
   override passages_rel (owner: ARCH_WIZARD, flags: "rc") = FIRST_AREA_PASSAGES;
 endobject

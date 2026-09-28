@@ -192,7 +192,7 @@ object HENRI [
     }}>;
   property pet_rule (owner: HACKER, flags: "r") = <RULE, .name = 'henri_pet_rule, .body = {{'not, {'is_grouchy, {'var, 'This}}}}, .variables = {'This}, .head = 'henri_pet_rule>;
   property pets_received (owner: HACKER, flags: "rc") = 33;
-  property scheduled_behaviours (owner: HACKER, flags: "rc") = {};
+  property scheduled_behaviours (owner: HACKER, flags: "rc") = [];
   property sleepy_threshold_msg (owner: HACKER, flags: "r") = {
     <SUB, .capitalize = true, .type = 'dobj>,
     " seems to have exhausted ",
@@ -205,9 +205,9 @@ object HENRI [
       {'action, 'sit, COUCH}
     }, .fired_at = 0>;
 
-  override aliases = {"cat", "grouchy cat"};
-  override description = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
-  override object_documentation = {
+  override aliases (owner: HACKER, flags: "rc") = {"cat", "grouchy cat"};
+  override description (owner: HACKER, flags: "rc") = "A sleek black cat with piercing green eyes and an air of perpetual annoyance. His fur is immaculately groomed despite the construction dust, and he holds himself with the offended dignity of a creature who knows he deserves better accommodations. He occasionally flicks his tail in irritation, as if to emphasize his displeasure with the current state of affairs.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# Henri - The Grouchy Cat",
     "",
     "## Overview",
@@ -275,7 +275,7 @@ object HENRI [
     "- Dramatic sighs (every 12-18 minutes)",
     "- Construction reactions (every 10-16 minutes)"
   };
-  override pronouns = <PRONOUNS, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
+  override pronouns (owner: HACKER, flags: "rc") = <PRONOUNS, .verb_be = "is", .verb_have = "has", .is_plural = false, .display = "he/him", .ps = "he", .po = "him", .pp = "his", .pq = "his", .pr = "himself">;
 
   method _pick_message owner: HACKER
     "Pick a message from a bag/string or use a compiled list directly, returning empty string on failure.";
@@ -568,64 +568,30 @@ object HENRI [
   endverb
 
   method start_behaviours owner: HACKER
-    "Start Henri's periodic autonomous behaviours";
-    set_task_perms(this.owner);
-    "Clear disabled flag";
+    "Start Henri's six adaptive native schedules. The owner or a wizard may change this policy.";
+    caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     this.behaviours_disabled = false;
-    "Check if behaviours are already running";
-    if (length(this.scheduled_behaviours) > 0)
-      player:inform_current($event:mk_info(player, "Henri's behaviours are already running."));
-      return;
-    endif
-    "Initialize behaviours map";
-    this.scheduled_behaviours = [];
-    "Schedule different behaviours at staggered random intervals to avoid bunching:";
-    "1. Grooming (every 4-6 minutes, randomized)";
-    groom_task = $scheduler:schedule_every({240, 120}, this, "_autonomous_groom");
-    this.scheduled_behaviours["grooming"] = groom_task;
-    "2. Stretching (every 5-8 minutes, randomized)";
-    stretch_task = $scheduler:schedule_every({300, 180}, this, "_autonomous_stretch");
-    this.scheduled_behaviours["stretching"] = stretch_task;
-    "3. Complaining (every 7-12 minutes, randomized)";
-    complain_task = $scheduler:schedule_every({420, 300}, this, "_autonomous_complain");
-    this.scheduled_behaviours["complaining"] = complain_task;
-    "4. Occasional mood shifts (every 9-15 minutes, randomized)";
-    mood_task = $scheduler:schedule_every({540, 360}, this, "_autonomous_mood_shift");
-    this.scheduled_behaviours["mood_shifts"] = mood_task;
-    "5. Dramatic sighs (every 12-18 minutes, randomized)";
-    sigh_task = $scheduler:schedule_every({720, 360}, this, "_autonomous_sigh");
-    this.scheduled_behaviours["sighing"] = sigh_task;
-    "6. Construction-specific reactions (every 10-16 minutes, randomized)";
-    construction_task = $scheduler:schedule_every({600, 360}, this, "_autonomous_construction_reaction");
-    this.scheduled_behaviours["construction_reactions"] = construction_task;
-    player:inform_current($event:mk_info(player, "Henri's autonomous behaviours started. He will now exhibit natural cat behaviours periodically."));
-    "Announce initial behaviour to room";
-    if (valid(this.location))
+    const started = this:_install_behaviour_schedules();
+    player:inform_current($event:mk_info(player, started ? "Henri's autonomous behaviours started." | "Henri's behaviours are already running."));
+    if (started && valid(this.location))
       this.location:announce(this:mk_emote_event("seems to settle into a routine of periodic sulking and grooming."));
     endif
+    return started;
   endmethod
 
   method stop_behaviours owner: HACKER
-    "Stop Henri's periodic autonomous behaviours";
-    set_task_perms(this.owner);
-    "Set disabled flag to prevent auto-restart";
+    "Cancel future behaviours as the owner or a wizard. Running callbacks finish; cancellation commits with this state.";
+    caller_perms().wizard || caller_perms() == this.owner || raise(E_PERM);
     this.behaviours_disabled = true;
-    "Check if behaviours are running";
-    if (length(this.scheduled_behaviours) == 0)
-      player:inform_current($event:mk_info(player, "Henri's behaviours are not currently running."));
-      return;
-    endif
-    "Cancel all scheduled tasks";
-    for task_id, behaviour_name in (this.scheduled_behaviours)
-      $scheduler:cancel(task_id);
+    for schedule_id, behaviour_name in (this.scheduled_behaviours)
+      schedule_stop(schedule_id);
     endfor
-    "Clear the behaviours map";
-    this.scheduled_behaviours = {};
+    this.scheduled_behaviours = [];
     player:inform_current($event:mk_info(player, "Henri's autonomous behaviours stopped."));
-    "Announce to room";
     if (valid(this.location))
       this.location:announce(this:mk_emote_event("seems to settle into a more permanent state of annoyance."));
     endif
+    return true;
   endmethod
 
   method _autonomous_groom owner: HACKER
@@ -744,67 +710,29 @@ object HENRI [
   endmethod
 
   verb behaviour_status (none none none) owner: HACKER flags: "rxd"
-    "Show status of Henri's autonomous behaviours";
-    "Check if behaviours are running";
-    if (length(this.scheduled_behaviours) == 0)
-      player:inform_current($event:mk_info(player, "Henri's autonomous behaviours are not currently running."));
-      return;
-    endif
-    "Build status information";
-    status_lines = {};
-    status_lines = {@status_lines, "Henri's Autonomous behaviours Status:"};
-    status_lines = {@status_lines, "================================"};
-    for behaviour_name, task_id in (this.scheduled_behaviours)
-      "Check if task is still scheduled";
-      is_scheduled = $scheduler:is_scheduled(task_id);
-      status = is_scheduled ? "RUNNING" | "STOPPED";
-      status_lines = {@status_lines, behaviour_name + ": " + status + " (Task ID: " + tostr(task_id) + ")"};
+    "Show whether Henri's native behaviour schedules remain live.";
+    let status_lines = {"Henri's autonomous behaviours:"};
+    for schedule_id, behaviour_name in (this.scheduled_behaviours)
+      const status = schedule_valid(schedule_id) ? "RUNNING" | "STOPPED";
+      status_lines = {@status_lines, behaviour_name + ": " + status + " (Schedule ID: " + tostr(schedule_id) + ")"};
     endfor
-    "Show status to player";
-    status_content = $format.block:mk("behaviour Status", status_lines:join("\n"));
+    const status_content = $format.block:mk("Behaviour status", status_lines:join("\n"));
     player:inform_current($event:mk_info(player, status_content):with_presentation_hint('inset));
   endverb
 
   verb _maybe_start_behaviours (none none none) owner: HACKER flags: "rxd"
-    "Check if behaviors should auto-start and start them if needed.";
-    "Only start if: in a valid location, players present, not already running, not disabled";
-    if (!valid(this.location))
-      return false;
-    endif
-    "Explicitly disabled by user?";
-    if (this.behaviours_disabled)
-      return false;
-    endif
-    "Already running?";
-    if (length(this.scheduled_behaviours) > 0)
-      return false;
-    endif
-    "Check for players in the room";
-    has_players = false;
+    "Start enabled behaviours when a valid room contains a player.";
+    !valid(this.location) && return false;
+    this.behaviours_disabled && return false;
+    let has_players = false;
     for thing in (this.location.contents)
       if (typeof(thing) == TYPE_OBJ && valid(thing) && is_player(thing))
         has_players = true;
         break;
       endif
     endfor
-    if (!has_players)
-      return false;
-    endif
-    "Start behaviors silently (no player notification)";
-    this.scheduled_behaviours = [];
-    groom_task = $scheduler:schedule_every({240, 120}, this, "_autonomous_groom");
-    this.scheduled_behaviours["grooming"] = groom_task;
-    stretch_task = $scheduler:schedule_every({300, 180}, this, "_autonomous_stretch");
-    this.scheduled_behaviours["stretching"] = stretch_task;
-    complain_task = $scheduler:schedule_every({420, 300}, this, "_autonomous_complain");
-    this.scheduled_behaviours["complaining"] = complain_task;
-    mood_task = $scheduler:schedule_every({540, 360}, this, "_autonomous_mood_shift");
-    this.scheduled_behaviours["mood_shifts"] = mood_task;
-    sigh_task = $scheduler:schedule_every({720, 360}, this, "_autonomous_sigh");
-    this.scheduled_behaviours["sighing"] = sigh_task;
-    construction_task = $scheduler:schedule_every({600, 360}, this, "_autonomous_construction_reaction");
-    this.scheduled_behaviours["construction_reactions"] = construction_task;
-    return true;
+    !has_players && return false;
+    return this:_install_behaviour_schedules();
   endverb
 
   verb moveto (none none none) owner: HACKER flags: "rxd"
@@ -814,6 +742,40 @@ object HENRI [
     this:_maybe_start_behaviours();
     return result;
   endverb
+
+  method _install_behaviour_schedules owner: HACKER
+    "Fill missing native behaviour schedules. IDs and state commit together without suspension.";
+    caller == this || raise(E_PERM);
+    let started = false;
+    for spec in ({{"grooming", "_autonomous_groom", 240, 120}, {"stretching", "_autonomous_stretch", 300, 180}, {"complaining", "_autonomous_complain", 420, 300}, {"mood_shifts", "_autonomous_mood_shift", 540, 360}, {"sighing", "_autonomous_sigh", 720, 360}, {"construction_reactions", "_autonomous_construction_reaction", 600, 360}})
+      const {name, verb_name, minimum, random_range} = spec;
+      const existing = `this.scheduled_behaviours[name] ! E_RANGE => 0';
+      if (!schedule_valid(existing))
+        const delay = minimum + random(random_range);
+        const id = schedule_every(this, "_scheduled_behaviour", delay, {name, verb_name, minimum, random_range}, ['adaptive -> true, 'pass_elapsed -> false]);
+        this.scheduled_behaviours[name] = id;
+        started = true;
+      endif
+    endfor
+    return started;
+  endmethod
+
+  method _scheduled_behaviour owner: HACKER
+    "Run one native behaviour firing and return a fresh random delay for the next firing.";
+    "The creator remains the owner principal. Positive returns change the native cadence; faults use its base retry interval.";
+    caller_perms() == this.owner || caller_perms().wizard || raise(E_PERM);
+    const {name, verb_name, minimum, random_range} = args;
+    verb_name in {"_autonomous_groom", "_autonomous_stretch", "_autonomous_complain", "_autonomous_mood_shift", "_autonomous_sigh", "_autonomous_construction_reaction"} || raise(E_INVARG);
+    typeof(minimum) in {TYPE_INT, TYPE_FLOAT} && tofloat(minimum) > 0.0 || raise(E_INVARG);
+    typeof(random_range) == TYPE_INT && random_range >= 0 || raise(E_INVARG);
+    if (this.behaviours_disabled)
+      schedule_stop(`this.scheduled_behaviours[name] ! E_RANGE => 0');
+      return 0;
+    endif
+    this:(verb_name)();
+    const offset = random_range > 0 ? random(random_range) | 0;
+    return typeof(minimum) == TYPE_FLOAT ? minimum + tofloat(offset) | minimum + offset;
+  endmethod
 
   method on_location_enter owner: HACKER
     "Called by room when a player enters. Auto-start behaviors if needed.";

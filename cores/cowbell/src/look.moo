@@ -5,7 +5,7 @@ object LOOK [
   parent: ROOT
   owner: HACKER
 
-  override description = "The $look flyweight delegate holds the attributes involved in looking at an object, and can be transformed into output events. It always has mandatory 'title and 'description slots, and then optional contents which are a series of integration descriptions.";
+  override description (owner: HACKER, flags: "rc") = "The $look flyweight delegate holds the attributes involved in looking at an object, and can be transformed into output events. It always has mandatory 'title and 'description slots, and then optional contents which are a series of integration descriptions.";
 
   method mk owner: HACKER
     {what, @contents} = args;

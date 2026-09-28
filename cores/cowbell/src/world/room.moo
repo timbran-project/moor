@@ -15,7 +15,7 @@ object ROOM [
   property acoustic_neighbors (owner: HACKER, flags: "rc") = [];
   property engagements (owner: HACKER, flags: "rc") = [];
 
-  override description = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
+  override description (owner: HACKER, flags: "rc") = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
 
   method initialize owner: ARCH_WIZARD
     "Set sensible defaults for newly created rooms.";
@@ -180,18 +180,24 @@ object ROOM [
     return entries;
   endmethod
 
-  method maybe_handle_passage owner: HACKER
+  method maybe_handle_passage owner: ARCH_WIZARD
     "Let our location (area) potentially handle passage commands...";
-    {parsed} = args;
+    const {parsed} = args;
+    const actor = caller_perms();
+    actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    set_task_perms(actor);
     if (!valid(this.location) || !respond_to(this.location, 'handle_passage_command))
       return false;
     endif
     return this.location:handle_passage_command(parsed);
   endmethod
 
-  method maybe_handle_command owner: HACKER
+  method maybe_handle_command owner: ARCH_WIZARD
     "Handle any potential commands that the command matcher didn't already handle on the player, for example for furniture or exits";
-    {pc} = args;
+    const {pc} = args;
+    const actor = caller_perms();
+    actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    set_task_perms(actor);
     return this:maybe_handle_passage(pc);
   endmethod
 
@@ -428,7 +434,9 @@ object ROOM [
 
   method recycle owner: ARCH_WIZARD
     "Clean up passages when room is recycled.";
-    area = this.location;
+    const actor = caller_perms();
+    actor == this.owner || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const area = this.location;
     if (valid(area) && respond_to(area, 'on_room_recycle))
       `area:on_room_recycle(this) ! ANY';
     endif

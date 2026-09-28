@@ -7,7 +7,7 @@ object ANSI [
   owner: HACKER
   readable: true
 
-  override description = "Utility object for generating ANSI escape sequences for terminal colors and formatting.";
+  override description (owner: HACKER, flags: "rc") = "Utility object for generating ANSI escape sequences for terminal colors and formatting.";
 
   method reset owner: HACKER
     "Reset all formatting and colors";

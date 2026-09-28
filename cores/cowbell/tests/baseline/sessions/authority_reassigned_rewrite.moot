@@ -1,0 +1,16 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; const destination = connections(#90102)[1][1]; fork (1) #90102:rewrite_event("reassigned-probe", "reassigned delayed output", destination); endfork return true;
+true
+@reassign second programmer
+; suspend(2); return true;
+true
+@nonprogrammer
+@quiet
+@noevents
+@second
+@quiet
+@noevents

@@ -1,0 +1,8 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// This program is free software under the GNU General Public License, version 3.
+// It is distributed without any warranty. See <https://www.gnu.org/licenses/>.
+
+@nonprogrammer
+% look
+@programmer
+@event data:state room_snapshot

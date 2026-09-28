@@ -93,8 +93,8 @@ object CONTAINER [
   };
   property unlock_rule (owner: HACKER, flags: "rc") = 0;
 
-  override description = "Generic container prototype for objects that can hold other items.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Generic container prototype for objects that can hold other items.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# Containers",
     "",
     "## Overview",
@@ -423,7 +423,10 @@ object CONTAINER [
 
   verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd"
     "Take an object from this container";
-    set_task_perms(caller_perms());
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     if (!dobjstr || dobjstr == "")
       event = $event:mk_error(player, "Take what?");
       player:inform_current(event);
@@ -448,7 +451,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule";
-    access_check = this:can_take_from(player, dobj);
+    const access_check = this:can_take_from(player, dobj);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(dobj):with_iobj(this);
       player:inform_current(event);
@@ -463,7 +466,7 @@ object CONTAINER [
     try
       this:do_take_from(player, dobj);
     except e (E_PERM)
-      msg = length(e) > 2 ? e[2] | "You can't take that from " + this:name() + ".";
+      const msg = length(e) > 2 ? e[2] | "You can't take that from " + this:name() + ".";
       event = $event:mk_error(player, msg):with_dobj(dobj);
       player:inform_current(event);
     endtry
@@ -471,7 +474,10 @@ object CONTAINER [
 
   verb put (any any this) owner: ARCH_WIZARD flags: "rd"
     "Put an object in/on this container.";
-    set_task_perms(caller_perms());
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     "Check preposition is valid for this container.";
     if (!(prepstr in this.put_preps))
       event = $event:mk_error(player, "You can't put things ", prepstr, " ", $sub:i(), "."):with_iobj(this);
@@ -507,7 +513,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule.";
-    access_check = this:can_put_into(player, dobj);
+    const access_check = this:can_put_into(player, dobj);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(dobj):with_iobj(this);
       player:inform_current(event);
@@ -522,7 +528,7 @@ object CONTAINER [
     try
       this:do_put_into(player, dobj, prepstr);
     except e (E_PERM)
-      msg = length(e) > 2 ? e[2] | "You can't put that " + prepstr + " " + this:name() + ".";
+      const msg = length(e) > 2 ? e[2] | "You can't put that " + prepstr + " " + this:name() + ".";
       event = $event:mk_error(player, msg):with_dobj(dobj);
       player:inform_current(event);
     endtry
@@ -530,7 +536,10 @@ object CONTAINER [
 
   verb lock (this with any) owner: ARCH_WIZARD flags: "rxd"
     "Lock this container with a key";
-    set_task_perms(this.owner);
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     "Check if container is lockable";
     if (this.lock_rule == 0)
       event = $event:mk_error(player, @this.not_lockable_msg):with_iobj(this);
@@ -543,6 +552,7 @@ object CONTAINER [
       return;
     endif
     "Match the key object from player's perspective";
+    let key = #-1;
     try
       key = $match:match_object(iobjstr, player);
     except e (ANY)
@@ -562,7 +572,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule";
-    access_check = this:can_lock(player, key);
+    const access_check = this:can_lock(player, key);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(key):with_iobj(this);
       player:inform_current(event);
@@ -573,7 +583,10 @@ object CONTAINER [
 
   verb unlock (this with any) owner: ARCH_WIZARD flags: "rxd"
     "Unlock this container with a key";
-    set_task_perms(this.owner);
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     "Check if container is unlockable";
     if (this.unlock_rule == 0)
       event = $event:mk_error(player, @this.not_unlockable_msg):with_iobj(this);
@@ -586,6 +599,7 @@ object CONTAINER [
       return;
     endif
     "Match the key object from player's perspective";
+    let key = #-1;
     try
       key = $match:match_object(iobjstr, player);
     except e (ANY)
@@ -605,7 +619,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule";
-    access_check = this:can_unlock(player, key);
+    const access_check = this:can_unlock(player, key);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(key):with_iobj(this);
       player:inform_current(event);
@@ -650,7 +664,10 @@ object CONTAINER [
 
   verb "open op*" (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Open this container";
-    set_task_perms(this.owner);
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     "Check if already open";
     if (this.open)
       event = $event:mk_error(player, @this.already_open_msg):with_dobj(this);
@@ -664,7 +681,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule";
-    access_check = this:can_open(player);
+    const access_check = this:can_open(player);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(this);
       player:inform_current(event);
@@ -675,7 +692,10 @@ object CONTAINER [
 
   verb close (this none none) owner: ARCH_WIZARD flags: "rxd"
     "Close this container";
-    set_task_perms(this.owner);
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let event = false;
+    set_task_perms(actor == #-1 ? player | actor);
     "Check if already closed";
     if (!this.open)
       event = $event:mk_error(player, @this.already_closed_msg):with_dobj(this);
@@ -683,7 +703,7 @@ object CONTAINER [
       return;
     endif
     "Check access via rule";
-    access_check = this:can_close(player);
+    const access_check = this:can_close(player);
     if (!access_check['allowed])
       event = $event:mk_error(player, @access_check['reason]):with_dobj(this);
       player:inform_current(event);
@@ -701,10 +721,18 @@ object CONTAINER [
     "Core: move item from container to actor's inventory.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_take_from must be called by this object");
-    {who, item, ?silent = false} = args;
-    item:moveto(who);
+    const {who, item, ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    valid(item) && item.location == this && this.open || return false;
+    const policy = this.take_rule;
+    this:can_take_from(who, item)['allowed] && who:acceptable(item) || return false;
+    item.location == this && this.open && this.take_rule == policy || return false;
+    const moved = item:moveto(who);
+    typeof(moved) == TYPE_ERR && raise(moved);
+    item.location == who || raise(E_INVARG, "Item movement did not reach its destination");
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.take_msg):with_dobj(item):with_iobj(this):with_this(who.location);
+      const event = $event:mk_info(who, @this.take_msg):with_dobj(item):with_iobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     this:fire_trigger('on_take, ['Actor -> who, 'Item -> item]);
@@ -715,14 +743,22 @@ object CONTAINER [
     "Core: move item from actor into this container.";
     "Only callable by this object itself.";
     caller != this && raise(E_PERM, "do_put_into must be called by this object");
-    {who, item, ?prep = "", ?silent = false} = args;
-    item:moveto(this);
+    const {who, item, ?prep = "", ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    valid(item) && item.location == who && this.open || return false;
+    const policy = this.put_rule;
+    this:can_put_into(who, item)['allowed] && this:acceptable(item) || return false;
+    item.location == who && this.open && this.put_rule == policy || return false;
+    const moved = item:moveto(this);
+    typeof(moved) == TYPE_ERR && raise(moved);
+    item.location == this || raise(E_INVARG, "Item movement did not reach its destination");
     this:fire_trigger('on_put, ['Actor -> who, 'Item -> item]);
     if (!silent && valid(who.location))
       "Use prep passed in, or fall back to put_prep_display property.";
-      display_prep = prep != "" ? prep | this.put_prep_display;
-      msg = $sub_utils:compile("{Nc} {put|puts} {d} " + display_prep + " {i}.");
-      event = $event:mk_info(who, @msg):with_dobj(item):with_iobj(this):with_this(who.location);
+      const display_prep = prep != "" ? prep | this.put_prep_display;
+      const msg = $sub_utils:compile("{Nc} {put|puts} {d} " + display_prep + " {i}.");
+      const event = $event:mk_info(who, @msg):with_dobj(item):with_iobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
@@ -732,11 +768,17 @@ object CONTAINER [
     "Core: open this container.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_open must be called by this object");
-    {who, ?silent = false} = args;
+    const {who, ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    !this.open && !this.locked || return false;
+    const policy = this.open_rule;
+    this:can_open(who)['allowed] || return false;
+    !this.open && !this.locked && this.open_rule == policy || return false;
     this.open = true;
     this:fire_trigger('on_open, ['Actor -> who]);
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.open_msg):with_dobj(this):with_this(who.location);
+      const event = $event:mk_info(who, @this.open_msg):with_dobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
@@ -746,11 +788,17 @@ object CONTAINER [
     "Core: close this container.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_close must be called by this object");
-    {who, ?silent = false} = args;
+    const {who, ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    this.open || return false;
+    const policy = this.close_rule;
+    this:can_close(who)['allowed] || return false;
+    this.open && this.close_rule == policy || return false;
     this.open = false;
     this:fire_trigger('on_close, ['Actor -> who]);
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.close_msg):with_dobj(this):with_this(who.location);
+      const event = $event:mk_info(who, @this.close_msg):with_dobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
@@ -760,11 +808,17 @@ object CONTAINER [
     "Core: lock this container with key.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_lock must be called by this object");
-    {who, key, ?silent = false} = args;
+    const {who, key, ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    !this.locked && valid(key) && key.location == who || return false;
+    const policy = this.lock_rule;
+    policy != 0 && this:can_lock(who, key)['allowed] || return false;
+    !this.locked && key.location == who && this.lock_rule == policy || return false;
     this.locked = true;
     this:fire_trigger('on_lock, ['Actor -> who, 'Key -> key]);
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.lock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
+      const event = $event:mk_info(who, @this.lock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
@@ -774,70 +828,67 @@ object CONTAINER [
     "Core: unlock this container with key.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_unlock must be called by this object");
-    {who, key, ?silent = false} = args;
+    const {who, key, ?silent = false} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    this.locked && valid(key) && key.location == who || return false;
+    const policy = this.unlock_rule;
+    policy != 0 && this:can_unlock(who, key)['allowed] || return false;
+    this.locked && key.location == who && this.unlock_rule == policy || return false;
     this.locked = false;
     this:fire_trigger('on_unlock, ['Actor -> who, 'Key -> key]);
     if (!silent && valid(who.location))
-      event = $event:mk_info(who, @this.unlock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
+      const event = $event:mk_info(who, @this.unlock_msg):with_dobj(key):with_iobj(this):with_this(who.location);
       who.location:announce(event);
     endif
     return true;
   endmethod
 
   method action_take_from owner: ARCH_WIZARD
-    "Action handler: actor takes item from this container.";
-    set_task_perms(this.owner);
-    {who, context, item} = args;
-    item.location != this && return false;
-    !this:can_take_from(who, item)['allowed] && return false;
-    !who:acceptable(item) && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context, item} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_take_from(who, item);
   endmethod
 
   method action_put_into owner: ARCH_WIZARD
-    "Action handler: actor puts item into this container.";
-    set_task_perms(this.owner);
-    {who, context, item} = args;
-    item.location != who && return false;
-    !this:can_put_into(who, item)['allowed] && return false;
-    !this:acceptable(item) && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context, item} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_put_into(who, item);
   endmethod
 
   method action_open owner: ARCH_WIZARD
-    "Action handler: actor opens this container.";
-    set_task_perms(this.owner);
-    {who, context} = args;
-    this.open && return false;
-    this.locked && return false;
-    !this:can_open(who)['allowed] && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_open(who);
   endmethod
 
   method action_close owner: ARCH_WIZARD
-    "Action handler: actor closes this container.";
-    set_task_perms(this.owner);
-    {who, context} = args;
-    !this.open && return false;
-    !this:can_close(who)['allowed] && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_close(who);
   endmethod
 
   method action_lock owner: ARCH_WIZARD
-    "Action handler: actor locks this container with key.";
-    set_task_perms(this.owner);
-    {who, context, key} = args;
-    this.locked && return false;
-    !this:can_lock(who, key)['allowed] && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context, key} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_lock(who, key);
   endmethod
 
   method action_unlock owner: ARCH_WIZARD
-    "Action handler: actor unlocks this container with key.";
-    set_task_perms(this.owner);
-    {who, context, key} = args;
-    !this.locked && return false;
-    !this:can_unlock(who, key)['allowed] && return false;
+    "Apply the container action for its authenticated accessor.";
+    const {who, context, key} = args;
+    const actor = caller_perms();
+    actor == who || (valid(actor) && actor.wizard) || raise(E_PERM);
     return this:do_unlock(who, key);
   endmethod
 

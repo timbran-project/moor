@@ -7,8 +7,8 @@ object SUB [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate and factory for template substitution in events.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate and factory for template substitution in events.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# $sub - Event Substitution System",
     "",
     "## Overview",

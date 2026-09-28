@@ -1,0 +1,14 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; $player.suggestions_llm_client = #-1; return true;
+true
+@attach second nonprogrammer
+@second
+% assist connection routing probe
+@event text/plain utility
+@text Assist is not configured right now.
+@nonprogrammer
+@quiet
+@noevents

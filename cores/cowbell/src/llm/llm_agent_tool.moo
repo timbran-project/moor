@@ -8,11 +8,11 @@ object LLM_AGENT_TOOL [
   fertile: true
   readable: true
 
-  override description = "Flyweight delegate for LLM agent tool definitions. Converts to OpenAI tool schema and executes tool calls.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for LLM agent tool definitions. Converts to OpenAI tool schema and executes tool calls.";
 
   method mk owner: HACKER
     "Create a tool definition flyweight";
-    {name, description, parameters, target_obj, target_verb} = args;
+    const {name, description, parameters, target_obj, target_verb} = args;
     typeof(name) == TYPE_STR || raise(E_TYPE);
     typeof(description) == TYPE_STR || raise(E_TYPE);
     typeof(parameters) == TYPE_MAP || raise(E_TYPE);
@@ -32,24 +32,21 @@ object LLM_AGENT_TOOL [
   endmethod
 
   method execute owner: ARCH_WIZARD
-    "Execute the tool with given arguments and optional actor";
+    "Dispatch a tool as its authenticated caller. Explicit actor delegation requires a wizard caller.";
+    const principal = caller_perms();
     isa(caller, $llm_agent) || isa(caller, $rlm_agent) || raise(E_PERM);
-    {args_json, ?actor = false} = args;
-    "Parse arguments if they're JSON";
-    if (typeof(args_json) == TYPE_STR)
-      tool_args = parse_json(args_json);
-    else
-      tool_args = args_json;
-    endif
-    "Dispatch to target verb with _tool_ prefix when available; fall back to direct verb";
-    prefixed_verb = "_tool_" + this.target_verb;
+    const {args_json, ?actor = caller_perms()} = args;
+    typeof(actor) == TYPE_OBJ && valid(actor) || raise(E_PERM, "Tool actor must be valid");
+    principal == actor || principal.wizard || raise(E_PERM, "Tool caller cannot impersonate actor");
+    set_task_perms(actor);
+    const tool_args = typeof(args_json) == TYPE_STR ? parse_json(args_json) | args_json;
+    typeof(tool_args) == TYPE_MAP || raise(E_TYPE, "Tool arguments must be a map");
+    const prefixed_verb = "_tool_" + this.target_verb;
     if (respond_to(this.target_obj, prefixed_verb))
-      result = this.target_obj:(prefixed_verb)(tool_args, actor);
+      return this.target_obj:(prefixed_verb)(tool_args, actor);
     elseif (respond_to(this.target_obj, this.target_verb))
-      result = this.target_obj:(this.target_verb)(tool_args, actor);
-    else
-      raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
+      return this.target_obj:(this.target_verb)(tool_args, actor);
     endif
-    return result;
+    raise(E_VERBNF, "Tool handler not found: " + prefixed_verb + " or " + this.target_verb);
   endmethod
 endobject

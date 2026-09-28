@@ -7,7 +7,7 @@ object FORMAT_BLOCK [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for multiline block content in events. Used to compose paragraphs and structured text that can be rendered to both plain text and HTML.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for multiline block content in events. Used to compose paragraphs and structured text that can be rendered to both plain text and HTML.";
 
   method mk owner: HACKER
     return <this, {@args}>;

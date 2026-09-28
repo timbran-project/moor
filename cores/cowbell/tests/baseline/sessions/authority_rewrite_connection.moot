@@ -1,0 +1,13 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; #90102:rewrite_event("connection-probe", "explicit connection rewrite", connections(#90102)[1][1]); return true;
+true
+@second
+@event text/plain utility
+@text explicit connection rewrite
+@nonprogrammer
+@quiet
+@noevents

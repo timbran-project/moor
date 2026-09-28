@@ -22,7 +22,7 @@ object WIZARD_HELP_TOPICS [
   property topic_wizard_reissue_tools (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@reissue-tools`\n\nDestroys existing tool instances and reissues them to qualified players.", .name = "@reissue-tools", .aliases = {"reissue-tools", "tool reissue"}, .category = 'administration, .summary = "Reissue tool instances", .see_also = {"@reconfigure-tools"}>;
   property topic_wizard_shutdown (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@shutdown [in <minutes>] [message]`\n\nSends countdown announcements, dumps database, and shuts down server.", .name = "@shutdown", .aliases = {"shutdown", "reboot"}, .category = 'administration, .summary = "Shutdown server", .see_also = {"@announce"}>;
 
-  override topic_order = {
+  override topic_order (owner: ARCH_WIZARD, flags: "rc") = {
     'topic_wizard_overview,
     'topic_wizard_announce,
     'topic_wizard_programmer,

@@ -12,7 +12,7 @@ object RULE_TEST [
   property mother (owner: HACKER, flags: "") = SYSOBJ;
   property reputation (owner: HACKER, flags: "") = 8;
 
-  override description = "Test fixture providing sample fact predicates for testing the rule system.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Test fixture providing sample fact predicates for testing the rule system.";
 
   method fact_reputation owner: HACKER
     "Fact: reputation(Guild, MinLevel) - does Guild have reputation >= MinLevel?";

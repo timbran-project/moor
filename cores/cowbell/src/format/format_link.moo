@@ -7,7 +7,7 @@ object FORMAT_LINK [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
 
   method cmd owner: HACKER
     "Create a command link that executes as if typed.";

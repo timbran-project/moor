@@ -7,8 +7,8 @@ object RULE_ENGINE [
   owner: HACKER
   readable: true
 
-  override description = "Stateless Datalog-style query engine. Evaluates rules and goals by calling fact predicates on objects.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Stateless Datalog-style query engine. Evaluates rules and goals by calling fact predicates on objects.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# Rule Engine ($rule_engine)",
     "",
     "## Overview",
@@ -114,31 +114,33 @@ object RULE_ENGINE [
     "Then use in rules: `Accessor has_key(\"rusty key\")?`"
   };
 
-  method evaluate owner: HACKER
+  method evaluate owner: ARCH_WIZARD
     "Evaluate a rule to find all satisfying variable bindings.";
     "Returns: {success: bool, bindings: map, alternatives: list of maps, warnings: list}";
-    {rule, ?initial_bindings = []} = args;
+    set_task_perms(caller_perms());
+    const {rule, ?initial_bindings = []} = args;
     typeof(rule) == TYPE_FLYWEIGHT || raise(E_TYPE, "rule must be flyweight");
-    body = rule.body;
-    warnings = this:_check_negation_warnings(body, initial_bindings);
+    const body = rule.body;
+    const warnings = this:_check_negation_warnings(body, initial_bindings);
     "Check if body is OR-structured (nested lists) or AND-structured (flat goals)";
-    is_branches = length(body) > 0 && typeof(body[1]) == TYPE_LIST && length(body[1]) > 0 && typeof(body[1][1]) == TYPE_LIST;
-    result = is_branches ? this:_prove_alternatives(body, initial_bindings) | this:_prove_goals(body, initial_bindings, {});
+    const is_branches = length(body) > 0 && typeof(body[1]) == TYPE_LIST && length(body[1]) > 0 && typeof(body[1][1]) == TYPE_LIST;
+    let result = is_branches ? this:_prove_alternatives(body, initial_bindings) | this:_prove_goals(body, initial_bindings, {});
     result['warnings] = warnings;
     return result;
   endmethod
 
-  method _prove_alternatives owner: HACKER
+  method _prove_alternatives owner: ARCH_WIZARD
     "Prove a list of alternative goal branches (OR).";
-    {alternatives, bindings} = args;
+    set_task_perms(caller_perms());
+    const {alternatives, bindings} = args;
     typeof(alternatives) == TYPE_LIST || raise(E_TYPE, "alternatives must be list");
-    all_solutions = {};
+    let all_solutions = {};
     for branch in (alternatives)
       typeof(branch) == TYPE_LIST || raise(E_TYPE, "each branch must be list of goals");
-      result = this:_prove_goals(branch, bindings, {});
+      const result = this:_prove_goals(branch, bindings, {});
       if (result['success])
         all_solutions = {@all_solutions, result['bindings]};
-        branch_alts = result['alternatives];
+        const branch_alts = result['alternatives];
         if (typeof(branch_alts) == TYPE_LIST)
           for alt in (branch_alts)
             all_solutions = {@all_solutions, alt};
@@ -150,53 +152,57 @@ object RULE_ENGINE [
     return ['success -> true, 'bindings -> all_solutions[1], 'alternatives -> all_solutions[2..$]];
   endmethod
 
-  method _prove_goals owner: HACKER
+  method _prove_goals owner: ARCH_WIZARD
     "Prove a list of goals with backtracking. Returns all solutions.";
-    {goals, bindings, ?_choice_stack = {}} = args;
+    set_task_perms(caller_perms());
+    const {goals, bindings, ?_choice_stack = {}} = args;
     typeof(goals) == TYPE_LIST || raise(E_TYPE, "goals must be list");
     typeof(bindings) == TYPE_MAP || raise(E_TYPE, "bindings must be map");
     length(goals) == 0 && return ['success -> true, 'bindings -> bindings, 'alternatives -> {}];
-    first_goal = goals[1];
-    rest_goals = listdelete(goals, 1);
+    const first_goal = goals[1];
+    const rest_goals = listdelete(goals, 1);
     "Handle negation as failure";
     if (length(first_goal) > 0 && first_goal[1] == 'not)
-      inner_goals = listdelete(first_goal, 1);
-      inner_result = this:_prove_goals(inner_goals, bindings);
+      const inner_goals = listdelete(first_goal, 1);
+      const inner_result = this:_prove_goals(inner_goals, bindings);
       inner_result['success] && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
       return this:_prove_goals(rest_goals, bindings);
     endif
     "Get all solutions for the first goal, then prove rest with each";
-    all_results = {};
+    let all_results = {};
     for solution_bindings in (this:_solve_goal(first_goal, bindings))
-      rest_result = this:_prove_goals(rest_goals, solution_bindings);
-      rest_result['success] && (all_results = {@all_results, rest_result['bindings]});
+      const rest_result = this:_prove_goals(rest_goals, solution_bindings);
+      if (rest_result['success])
+        all_results = {@all_results, rest_result['bindings], @rest_result['alternatives]};
+      endif
     endfor
     length(all_results) == 0 && return ['success -> false, 'bindings -> [], 'alternatives -> {}];
     return ['success -> true, 'bindings -> all_results[1], 'alternatives -> all_results[2..$]];
   endmethod
 
-  method _solve_goal owner: HACKER
+  method _solve_goal owner: ARCH_WIZARD
     "Solve a single goal by calling fact predicates. Returns list of bindings.";
-    {goal, bindings} = args;
+    set_task_perms(caller_perms());
+    const {goal, bindings} = args;
     typeof(goal) == TYPE_LIST || raise(E_TYPE, "goal must be list");
     length(goal) >= 1 || raise(E_INVARG, "goal must have predicate name");
-    predicate_name = goal[1];
-    goal_args = goal[2..$];
+    const predicate_name = goal[1];
+    const goal_args = goal[2..$];
     typeof(predicate_name) == TYPE_STR || typeof(predicate_name) == TYPE_SYM || raise(E_TYPE, "predicate name must be string or symbol");
-    substituted_args = this:_substitute_args(goal_args, bindings);
+    const substituted_args = this:_substitute_args(goal_args, bindings);
     length(substituted_args) == 0 && raise(E_INVARG, "goal needs at least one argument (the object)");
-    target_obj = substituted_args[1];
+    const target_obj = substituted_args[1];
     typeof(target_obj) == TYPE_OBJ || raise(E_TYPE, "first goal argument must be object");
-    fact_results = `target_obj:("fact_" + tostr(predicate_name))(@substituted_args) ! E_VERBNF => false';
+    let fact_results = `target_obj:("fact_" + tostr(predicate_name))(@substituted_args) ! E_VERBNF => false';
     "Check for failure (false, 0, empty string, empty list - but NOT valid objects)";
     if (fact_results == false || fact_results == 0 || fact_results == "" || fact_results == {})
       return {};
     endif
     typeof(fact_results) != TYPE_LIST && (fact_results = {fact_results});
     "Unify each result with the original goal to get bindings";
-    unified_solutions = {};
+    let unified_solutions = {};
     for result in (fact_results)
-      new_bindings = this:_unify_goal(goal, result, bindings);
+      const new_bindings = this:_unify_goal(goal, result, bindings);
       new_bindings != false && (unified_solutions = {@unified_solutions, new_bindings});
     endfor
     return unified_solutions;

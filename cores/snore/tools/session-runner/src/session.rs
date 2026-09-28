@@ -12,9 +12,9 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Test sessions with transaction-local output and one scenario-wide delivery/presence hub.
-//! Each connected player has one synthetic connection. Attributes and elapsed time are not simulated.
+//! Synthetic connections can be attached, detached, and reassigned. Attributes and elapsed time are not simulated.
 
-use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
+use moor_common::tasks::{ConnectionDetails, Event, NarrativeEvent, Session, SessionError};
 use moor_var::{Obj, Symbol, Var};
 use std::{
     collections::HashMap,
@@ -30,6 +30,7 @@ pub type InputRequest = (Obj, Uuid, Option<Vec<(Symbol, Var)>>);
 #[derive(Default)]
 pub struct SessionHub {
     delivered: Mutex<Vec<(Obj, NarrativeEvent)>>,
+    logged: Mutex<Vec<(Obj, NarrativeEvent)>>,
     input: Mutex<Vec<InputRequest>>,
     connected: Mutex<HashMap<Obj, Obj>>,
     next_connection: AtomicI32,
@@ -37,23 +38,69 @@ pub struct SessionHub {
 }
 
 impl SessionHub {
+    pub fn attach(&self, player: Obj) -> Obj {
+        let connection = Obj::mk_id(-1000 - self.next_connection.fetch_add(1, Ordering::Relaxed));
+        self.connected.lock().unwrap().insert(connection, player);
+        connection
+    }
+    pub fn detach(&self, connection: Obj) -> bool {
+        self.connected.lock().unwrap().remove(&connection).is_some()
+    }
+    pub fn reassign(&self, connection: Obj, player: Obj) -> bool {
+        let mut connected = self.connected.lock().unwrap();
+        let Some(owner) = connected.get_mut(&connection) else {
+            return false;
+        };
+        *owner = player;
+        true
+    }
+    pub fn for_player(&self, player: Obj) -> Vec<Obj> {
+        let mut connections: Vec<_> = self
+            .connected
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(connection, owner)| (*owner == player).then_some(*connection))
+            .collect();
+        connections.sort();
+        connections
+    }
     pub fn set_connected(&self, player: Obj, connected: bool) {
-        let mut players = self.connected.lock().unwrap();
         if connected {
-            players.entry(player).or_insert_with(|| {
-                Obj::mk_id(-1000 - self.next_connection.fetch_add(1, Ordering::Relaxed))
-            });
+            if self.for_player(player).is_empty() {
+                self.attach(player);
+            }
         } else {
-            players.remove(&player);
+            self.connected
+                .lock()
+                .unwrap()
+                .retain(|_, owner| *owner != player);
         }
+    }
+    pub fn owner_for(&self, connection: Obj) -> Option<Obj> {
+        self.connected.lock().unwrap().get(&connection).copied()
     }
     pub fn recipient_player(&self, target: Obj) -> Obj {
         self.connected
             .lock()
             .unwrap()
-            .iter()
-            .find_map(|(player, connection)| (*connection == target).then_some(*player))
+            .get(&target)
+            .copied()
             .unwrap_or(target)
+    }
+    /// Consume a committed history record for an exact player, type and string value.
+    pub fn consume_logged(&self, player: Obj, content_type: &str, text: &str) -> bool {
+        let mut logged = self.logged.lock().unwrap();
+        let Some(index) = logged.iter().position(|(recipient, event)| {
+            *recipient == player
+                && matches!(&event.event,
+                Event::Notify { value, content_type: Some(actual), .. }
+                    if actual.as_str() == content_type && value.as_string() == Some(text))
+        }) else {
+            return false;
+        };
+        logged.remove(index);
+        true
     }
     pub fn take_input_requests(&self) -> Vec<InputRequest> {
         std::mem::take(&mut *self.input.lock().unwrap())
@@ -65,6 +112,7 @@ impl SessionHub {
 
 pub struct TestSession {
     pending: Mutex<Vec<(Obj, NarrativeEvent)>>,
+    pending_log: Mutex<Vec<(Obj, NarrativeEvent)>>,
     hub: Arc<SessionHub>,
     connection: Option<Obj>,
 }
@@ -73,13 +121,14 @@ impl TestSession {
     pub fn new(hub: Arc<SessionHub>) -> Self {
         Self {
             pending: Mutex::default(),
+            pending_log: Mutex::default(),
             hub,
             connection: None,
         }
     }
 
     pub fn for_player(hub: Arc<SessionHub>, player: Obj) -> Self {
-        let connection = hub.connected.lock().unwrap().get(&player).copied();
+        let connection = hub.for_player(player).first().copied();
         Self {
             connection,
             ..Self::new(hub)
@@ -87,15 +136,30 @@ impl TestSession {
     }
 }
 
+impl TestSession {
+    pub fn for_connection(hub: Arc<SessionHub>, connection: Obj) -> Self {
+        Self {
+            connection: Some(connection),
+            ..Self::new(hub)
+        }
+    }
+    pub fn connection_id(&self) -> Option<Obj> {
+        self.connection
+    }
+}
+
 impl Session for TestSession {
     fn commit(&self) -> Result<(), SessionError> {
         let pending = std::mem::take(&mut *self.pending.lock().unwrap());
         self.hub.delivered.lock().unwrap().extend(pending);
+        let logged = std::mem::take(&mut *self.pending_log.lock().unwrap());
+        self.hub.logged.lock().unwrap().extend(logged);
         Ok(())
     }
 
     fn rollback(&self) -> Result<(), SessionError> {
         self.pending.lock().unwrap().clear();
+        self.pending_log.lock().unwrap().clear();
         Ok(())
     }
 
@@ -125,12 +189,22 @@ impl Session for TestSession {
     }
 
     fn send_event(&self, player: Obj, msg: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        self.pending.lock().unwrap().push((player, *msg));
+        let connections = self.hub.for_player(player);
+        let mut pending = self.pending.lock().unwrap();
+        if connections.is_empty() {
+            pending.push((player, *msg));
+        } else {
+            pending.extend(
+                connections
+                    .into_iter()
+                    .map(|connection| (connection, (*msg).clone())),
+            );
+        }
         Ok(())
     }
 
-    fn log_event(&self, _player: Obj, _event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        // Mock session doesn't persist to event log, so this is a no-op
+    fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
+        self.pending_log.lock().unwrap().push((player, *event));
         Ok(())
     }
 
@@ -158,16 +232,21 @@ impl Session for TestSession {
     }
 
     fn disconnect(&self, player: Obj) -> Result<(), SessionError> {
-        self.hub
-            .set_connected(self.hub.recipient_player(player), false);
+        if player.is_positive() {
+            self.hub.set_connected(player, false);
+        } else {
+            self.hub.detach(player);
+        }
         Ok(())
     }
 
     fn connected_players(&self, include_all: bool) -> Result<Vec<Obj>, SessionError> {
         let connected = self.hub.connected.lock().unwrap();
-        let mut players: Vec<_> = connected.keys().copied().collect();
+        let mut players: Vec<_> = connected.values().copied().collect();
+        players.sort();
+        players.dedup();
         if include_all {
-            players.extend(connected.values().copied());
+            players.extend(connected.keys().copied());
         }
         players.sort();
         Ok(players)
@@ -179,7 +258,8 @@ impl Session for TestSession {
             .connected
             .lock()
             .unwrap()
-            .contains_key(&player)
+            .values()
+            .any(|owner| *owner == player)
             .then_some(0.0)
             .ok_or(SessionError::NoConnectionForPlayer(player))
     }
@@ -190,13 +270,30 @@ impl Session for TestSession {
 
     fn connections(&self, player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
         let connected = self.hub.connected.lock().unwrap();
-        let connection = match player {
-            Some(player) => connected.get(&player).copied(),
-            None => self
-                .connection
-                .filter(|current| connected.values().any(|c| c == current)),
+        if let Some(player) = player {
+            let mut connections: Vec<_> = connected
+                .iter()
+                .filter_map(|(connection, owner)| (*owner == player).then_some(*connection))
+                .collect();
+            connections.sort();
+            return Ok(connections);
+        }
+        let Some(current) = self
+            .connection
+            .filter(|connection| connected.contains_key(connection))
+        else {
+            return Ok(Vec::new());
         };
-        Ok(connection.into_iter().collect())
+        let owner = connected[&current];
+        let mut others: Vec<_> = connected
+            .iter()
+            .filter_map(|(connection, candidate)| {
+                (*candidate == owner && *connection != current).then_some(*connection)
+            })
+            .collect();
+        others.sort();
+        // The host places the initiating client first, followed by its other connections.
+        Ok(std::iter::once(current).chain(others).collect())
     }
 
     fn connection_details(
@@ -245,6 +342,36 @@ mod tests {
             false,
             None,
         ))
+    }
+    #[test]
+    fn history_requires_commit_and_exact_principal_type_and_value() {
+        let hub = Arc::new(SessionHub::default());
+        let session = Arc::new(TestSession::new(hub.clone()));
+        let player = Obj::mk_id(7);
+        let record = || {
+            Box::new(NarrativeEvent::notify(
+                v_obj(SYSTEM_OBJECT),
+                v_str("history"),
+                Some(Symbol::mk("text_plain")),
+                false,
+                false,
+                None,
+            ))
+        };
+        session.log_event(player, record()).unwrap();
+        assert!(!hub.consume_logged(player, "text_plain", "history"));
+        session.rollback().unwrap();
+        session.commit().unwrap();
+        assert!(!hub.consume_logged(player, "text_plain", "history"));
+        let child = session.clone().fork().unwrap();
+        child.log_event(player, record()).unwrap();
+        session.rollback().unwrap();
+        child.commit().unwrap();
+        assert!(!hub.consume_logged(Obj::mk_id(8), "text_plain", "history"));
+        assert!(!hub.consume_logged(player, "text/html", "history"));
+        assert!(!hub.consume_logged(player, "text_plain", "other"));
+        assert!(hub.consume_logged(player, "text_plain", "history"));
+        assert!(!hub.consume_logged(player, "text_plain", "history"));
     }
     fn delivered(hub: &SessionHub) -> Vec<(Obj, String)> {
         hub.take_committed_events()
@@ -348,6 +475,32 @@ mod tests {
         assert!(child.connections(None).unwrap().is_empty());
         let replacement = TestSession::for_player(hub, a);
         assert_ne!(replacement.connections(None).unwrap(), vec![ac]);
+    }
+
+    #[test]
+    fn multiple_connections_preserve_targets_after_reassignment_and_detach() {
+        let hub = Arc::new(SessionHub::default());
+        let a = Obj::mk_id(11);
+        let b = Obj::mk_id(12);
+        let first = hub.attach(a);
+        let second = hub.attach(a);
+        let session = TestSession::for_connection(hub.clone(), second);
+        assert_eq!(session.connections(None).unwrap(), vec![second, first]);
+        assert_eq!(session.connections(Some(a)).unwrap().len(), 2);
+        session.send_event(a, event("broadcast")).unwrap();
+        session.commit().unwrap();
+        let output = delivered(&hub);
+        assert_eq!(output.len(), 2);
+        assert!(output.iter().any(|(target, _)| *target == first));
+        assert!(output.iter().any(|(target, _)| *target == second));
+        assert!(hub.reassign(second, b));
+        assert_eq!(hub.recipient_player(second), b);
+        assert_eq!(session.connections(Some(a)).unwrap(), vec![first]);
+        assert_eq!(session.connections(Some(b)).unwrap(), vec![second]);
+        assert!(hub.detach(second));
+        assert!(session.connections(None).unwrap().is_empty());
+        assert!(!hub.reassign(second, a));
+        assert_eq!(session.connections(Some(a)).unwrap(), vec![first]);
     }
 
     #[test]

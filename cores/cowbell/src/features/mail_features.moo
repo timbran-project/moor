@@ -8,11 +8,13 @@ object MAIL_FEATURES [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Provides mail commands (mail, send, compose) for players.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Provides mail commands (mail, send, compose) for players.";
 
   verb mail (none none none) owner: ARCH_WIZARD flags: "rxd"
     "HINT: -- Check your mailbox for letters.";
-    mailbox = player:find_mailbox();
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    let mailbox = player:find_mailbox();
     if (!valid(mailbox))
       "Create mailbox in mail room";
       mailbox = create($mailbox, player);
@@ -25,7 +27,9 @@ object MAIL_FEATURES [
 
   verb compose (any any any) owner: ARCH_WIZARD flags: "rxd"
     "HINT: [<subject>] [to <player>] -- Create a new letter for writing.";
-    letter = create($letter, player);
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const letter = create($letter, player);
     "Set subject if provided";
     if (dobjstr && dobjstr != "")
       letter.name = dobjstr;
@@ -35,7 +39,7 @@ object MAIL_FEATURES [
     "Set addressee if 'to' preposition used";
     if (prepstr == "to" && iobjstr)
       "Use match_player to find players anywhere, not just nearby";
-      recipient = $match:match_player(iobjstr);
+      const recipient = $match:match_player(iobjstr);
       if (valid(recipient) && is_player(recipient))
         letter.addressee = recipient;
         letter.author = player;
@@ -58,6 +62,8 @@ object MAIL_FEATURES [
 
   verb send (any any any) owner: ARCH_WIZARD flags: "rxd"
     "HINT: <letter> [to <player>] -- Send a letter to someone.";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
     if (!valid(dobj) || !isa(dobj, $letter))
       player:inform_current($event:mk_error(player, "Send what letter?"));
       return;
@@ -67,7 +73,7 @@ object MAIL_FEATURES [
       return;
     endif
     "Determine recipient - explicit or from letter";
-    recipient = #-1;
+    let recipient = #-1;
     if (prepstr == "to" && iobjstr)
       "Use match_player to find players anywhere, not just nearby";
       recipient = $match:match_player(iobjstr);
@@ -82,24 +88,30 @@ object MAIL_FEATURES [
       return;
     endif
     "Find recipient's mailbox";
-    recipient_mailbox = recipient:find_mailbox();
+    let recipient_mailbox = recipient:find_mailbox();
     if (!valid(recipient_mailbox))
       player:inform_current($event:mk_error(player, recipient.name, " doesn't have a mailbox."));
       return;
     endif
-    "Address and seal the letter";
+    "Mailbox lookup may suspend or change custody; validate its result without callbacks.";
+    if (dobj.location != player)
+      player:inform_current($event:mk_error(player, "You're not holding that letter."));
+      return;
+    endif
+    isa(recipient_mailbox, $mailbox) && recipient_mailbox.owner == recipient || raise(E_PERM);
+    move(dobj, recipient_mailbox);
+    dobj.location == recipient_mailbox && recipient_mailbox.owner == recipient || raise(E_PERM);
+    "Address and seal only the successfully delivered letter.";
     dobj.addressee = recipient;
     dobj.sealed = true;
     dobj.sent_at = time();
     if (!valid(dobj.author))
       dobj.author = player;
     endif
-    "Deposit in their mailbox";
-    move(dobj, recipient_mailbox);
     player:inform_current($event:mk_info(player, "You send ", dobj.name, " to ", recipient.name, "."));
     "Notify recipient if online";
     if (recipient in connected_players() && recipient != player)
-      event = $event:mk_info(recipient, "*You have new mail from ", player.name, ".*"):as_djot():as_inset();
+      const event = $event:mk_info(recipient, "*You have new mail from ", player.name, ".*"):as_djot():as_inset();
       `recipient:tell(event) ! ANY';
     endif
   endverb

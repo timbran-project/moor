@@ -26,8 +26,8 @@ object WEARABLE [
     "."
   };
 
-  override description = "Generic parent for items that can be worn by players.";
-  override object_documentation = {
+  override description (owner: HACKER, flags: "rc") = "Generic parent for items that can be worn by players.";
+  override object_documentation (owner: HACKER, flags: "rc") = {
     "# Wearable Items",
     "",
     "## Overview",

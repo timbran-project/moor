@@ -16,7 +16,7 @@ object ADMIN_FEATURES [
   property sudo_log_limit (owner: ARCH_WIZARD, flags: "rc") = 200;
   property sudo_require_confirm (owner: ARCH_WIZARD, flags: "rc") = 1;
 
-  override description = "Provides delegated admin command elevation (@sudo) with explicit grants and per-command allowlists.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Provides delegated admin command elevation (@sudo) with explicit grants and per-command allowlists.";
 
   method _challenge_command_perms owner: ARCH_WIZARD
     caller == player || caller == #-1 || caller_perms() == player || caller_perms().wizard || raise(E_PERM);

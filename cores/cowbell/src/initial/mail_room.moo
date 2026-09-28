@@ -8,6 +8,6 @@ object MAIL_ROOM [
   owner: ARCH_WIZARD
   readable: true
 
-  override aliases = {"mail room", "mailroom"};
-  override description = "A quiet room lined with rows of sturdy mailboxes. Each one bears a small nameplate.";
+  override aliases (owner: ARCH_WIZARD, flags: "rc") = {"mail room", "mailroom"};
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A quiet room lined with rows of sturdy mailboxes. Each one bears a small nameplate.";
 endobject

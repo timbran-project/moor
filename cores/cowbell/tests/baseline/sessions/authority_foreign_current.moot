@@ -1,0 +1,13 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@attach second nonprogrammer
+@wizard
+; #90102:inform_current($event:mk_info(#90102, "foreign current output")); return true;
+true
+@nonprogrammer
+@quiet
+@noevents
+@second
+@quiet
+@noevents

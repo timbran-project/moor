@@ -1,0 +1,22 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+% seal #90106
+~~You didn't write this letter.
+% address #90106 to RUNTIME_PLAYER
+~~You didn't write this letter.
+% open #90106
+~~This letter isn't yours to open.
+@wizard
+; return !#90106.sealed && #90106.author == #-1 && #90106.addressee == #-1;
+true
+@programmer
+% seal #90106
+~~You seal the letter.
+% open #90106
+~~You break the seal on the letter.
+% address #90106 to RUNTIME_PLAYER
+~~You address the letter
+@wizard
+; return #90106.sealed && #90106.author == #90101 && #90106.addressee == #90102;
+true

@@ -1,2 +1,9 @@
 gen.objdir/
 .runtime-headless-src/
+.runtime-test-src/
+gen.objdir.rt/
+gen.objdir.rt.in-progress/
+gen.empty.log
+gen.exception.log
+gen.event-control.log
+!tests/baseline/sessions/

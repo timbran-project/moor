@@ -7,7 +7,7 @@ object FORMAT_TITLE [
   owner: HACKER
   readable: true
 
-  override description = "Flyweight delegate for title/heading content in events.";
+  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for title/heading content in events.";
 
   method mk owner: HACKER
     "Create a title flyweight. Args: (content) or (content, level)";

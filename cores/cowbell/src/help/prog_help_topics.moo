@@ -65,7 +65,7 @@ object PROG_HELP_TOPICS [
     {}
   };
 
-  override topic_order = {
+  override topic_order (owner: ARCH_WIZARD, flags: "rc") = {
     'topic_programming_overview,
     'topic_programming_show,
     'topic_programming_program,

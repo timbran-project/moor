@@ -10,7 +10,7 @@ object AREA [
 
   property passages_rel (owner: HACKER, flags: "r") = 0;
 
-  override description = "Area container that manages passages between rooms using a relation.";
+  override description (owner: HACKER, flags: "rc") = "Area container that manages passages between rooms using a relation.";
 
   method acceptable owner: HACKER
     "Areas accept rooms as spatial contents.";
@@ -18,22 +18,25 @@ object AREA [
     return typeof(what) == TYPE_OBJ && valid(what) && isa(what, $room);
   endmethod
 
-  method initialize owner: HACKER
-    "Called after creation to set up the passages relation.";
+  method initialize owner: ARCH_WIZARD
+    "Allocate the owned passage relation only for an authorized area lifecycle caller.";
+    const actor = caller_perms();
+    actor == this.owner || (valid(actor) && actor.wizard) || raise(E_PERM);
     pass();
     this:_ensure_passages_relation();
   endmethod
 
   method _ensure_passages_relation owner: ARCH_WIZARD
-    "Ensure this.passages_rel references a valid relation owned by the area's owner.";
+    "Create the area's protected relation under its owner after checking caller authority.";
+    const actor = caller_perms();
+    actor == this.owner || (valid(actor) && actor.wizard) || raise(E_PERM);
     if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
       return this.passages_rel;
     endif
-    set_task_perms(valid(this.owner) ? this.owner | caller_perms());
-    rel = create($relation);
-    rel.name = "Passages Relation for Area " + tostr(this);
-    this.passages_rel = rel;
-    return this.passages_rel;
+    const relation = create($relation, this.owner);
+    relation.name = "Passages Relation for Area " + tostr(this);
+    this.passages_rel = relation;
+    return relation;
   endmethod
 
   method _canonical_tuple owner: HACKER
@@ -50,11 +53,13 @@ object AREA [
 
   method passage_for owner: HACKER
     "Find the passage between two rooms.";
-    {room_a, room_b} = args;
+    const {room_a, room_b} = args;
     typeof(room_a) == TYPE_OBJ && typeof(room_b) == TYPE_OBJ || raise(E_TYPE);
-    this:initialize();
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
+      return false;
+    endif
     "Find all tuples containing room_a, then filter for room_b";
-    candidates = this.passages_rel:select_containing(room_a);
+    const candidates = this.passages_rel:select_containing(room_a);
     for tuple in (candidates)
       if (room_b in tuple)
         return tuple[3];
@@ -64,35 +69,19 @@ object AREA [
   endmethod
 
   method set_passage owner: ARCH_WIZARD
-    this:require_caller(this);
-    set_task_perms(this.owner);
     "Set or update the passage between two rooms.";
-    {room_a, room_b, passage} = args;
-    this:_ensure_passages_relation();
-    "Remove existing passage if any";
-    this:clear_passage(room_a, room_b);
-    "Add new passage as canonical tuple";
-    tuple = this:_canonical_tuple(room_a, room_b, passage);
-    this.passages_rel:assert(tuple);
-    return passage;
+    const actor = caller_perms();
+    actor == this.owner || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {room_a, room_b, passage} = args;
+    return this:_do_create_passage(room_a, room_b, passage);
   endmethod
 
   method clear_passage owner: ARCH_WIZARD
-    this:require_caller(this);
-    set_task_perms(this.owner);
-    "Remove the passage between two rooms.";
-    {room_a, room_b} = args;
-    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
-      return false;
-    endif
-    "Find and retract the tuple";
-    candidates = this.passages_rel:select_containing(room_a);
-    for tuple in (candidates)
-      if (room_b in tuple)
-        return this.passages_rel:retract(tuple);
-      endif
-    endfor
-    return false;
+    "Remove the passage between two rooms for an owner or wizard.";
+    const actor = caller_perms();
+    actor == this.owner || (valid(actor) && actor.wizard) || raise(E_PERM);
+    const {room_a, room_b} = args;
+    return this:_do_remove_passage(room_a, room_b);
   endmethod
 
   method passages owner: ARCH_WIZARD
@@ -132,15 +121,19 @@ object AREA [
     return passages;
   endmethod
 
-  method handle_passage_command owner: HACKER
-    {parsed} = args;
-    room = player.location;
+  method handle_passage_command owner: ARCH_WIZARD
+    "Dispatch passage commands under the authenticated player's incoming principal.";
+    const {parsed} = args;
+    const actor = caller_perms();
+    actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    set_task_perms(actor);
+    const room = player.location;
     valid(room) || return false;
-    passages = this:passages_from(room);
+    const passages = this:passages_from(room);
     passages || return false;
-    verb_name = tostr(parsed['verb]);
+    const verb_name = tostr(parsed['verb]);
     length(verb_name) || return false;
-    dobj_name = parsed['dobjstr];
+    const dobj_name = parsed['dobjstr];
     for passage in (passages)
       if (passage:matches_command(room, verb_name))
         return passage:travel_from(player, room, parsed);
@@ -328,113 +321,105 @@ object AREA [
   endmethod
 
   method create_passage owner: ARCH_WIZARD
-    "Create passage between two rooms. Requires 'create_passage on area, 'dig_from on room_a, 'dig_into on room_b.";
-    "For bidirectional passages, also requires 'dig_from on room_b and 'dig_into on room_a.";
-    "room_a and room_b should be capability flyweights or raw room objects that caller has permission for.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'create_passage);
-    {room_a, room_b, passage} = args;
-    "Extract actual room objects from capabilities if needed";
-    actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
-    actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
-    "Check room_a allows digging from it and room_b allows digging into it";
-    try
-      room_a:check_permissions_as(actor, 'dig_from);
-    except (E_PERM)
-      message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
-      raise(E_PERM, message);
-    endtry
-    try
-      room_b:check_permissions_as(actor, 'dig_into);
-    except (E_PERM)
-      message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_into});
-      raise(E_PERM, message);
-    endtry
-    "If bidirectional (has side_b label or aliases), also check the reverse direction";
-    is_bidirectional = passage.side_b_label != "" || length(passage.side_b_aliases) > 0;
+    "Create a passage with area create_passage and the required room digging authority.";
+    const actor = caller_perms();
+    const {room_a, room_b, passage} = args;
+    const {area, perms} = $root:_check_permissions_as(this, actor, 'create_passage);
+    const actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
+    const actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
+    $root:_check_permissions_as(room_a, actor, 'dig_from);
+    $root:_check_permissions_as(room_b, actor, 'dig_into);
+    const is_bidirectional = passage.side_b_label != "" || length(passage.side_b_aliases) > 0;
     if (is_bidirectional)
-      try
-        room_b:check_permissions_as(actor, 'dig_from);
-      except (E_PERM)
-        message = $grant_utils:format_denial(actual_room_b, 'room, {'dig_from});
-        raise(E_PERM, message);
-      endtry
-      try
-        room_a:check_permissions_as(actor, 'dig_into);
-      except (E_PERM)
-        message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_into});
-        raise(E_PERM, message);
-      endtry
+      $root:_check_permissions_as(room_b, actor, 'dig_from);
+      $root:_check_permissions_as(room_a, actor, 'dig_into);
     endif
-    "Now create the passage with elevated area permissions";
-    return this:_do_create_passage(actual_room_a, actual_room_b, passage, perms);
+    return area:_do_create_passage(actual_room_a, actual_room_b, passage);
   endmethod
 
   method _do_create_passage owner: ARCH_WIZARD
-    "Internal: Actually create the passage with elevated permissions.";
-    this:require_caller(this);
-    {room_a, room_b, passage, perms} = args;
-    set_task_perms(perms);
-    this:set_passage(room_a, room_b, passage);
+    "Mutate a checked area's relation only from an actual wizard activation on that area.";
+    const actor = caller_perms();
+    caller == this || (typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this) && valid(actor) && actor.wizard || raise(E_PERM);
+    const {room_a, room_b, passage} = args;
+    this:_ensure_passages_relation();
+    this:_do_remove_passage(room_a, room_b);
+    const tuple = $area:_canonical_tuple(room_a, room_b, passage);
+    this.passages_rel:assert(tuple);
     return passage;
   endmethod
 
   method update_passage owner: ARCH_WIZARD
-    "Update an existing passage between two rooms.";
-    "Requires 'dig_from on source room; does not create new links.";
-    set_task_perms(caller_perms());
-    {source_room, dest_room, new_passage} = args;
+    "Replace an existing passage with source-room dig_from authority; never create a new link.";
+    const actor = caller_perms();
+    const {source_room, dest_room, new_passage} = args;
+    const area = typeof(this) == TYPE_FLYWEIGHT ? this.delegate | this;
     typeof(source_room) == TYPE_OBJ || typeof(source_room) == TYPE_FLYWEIGHT || raise(E_TYPE);
     typeof(dest_room) == TYPE_OBJ || typeof(dest_room) == TYPE_FLYWEIGHT || raise(E_TYPE);
     typeof(new_passage) == TYPE_OBJ || typeof(new_passage) == TYPE_FLYWEIGHT || raise(E_TYPE);
-    actual_source = typeof(source_room) == TYPE_FLYWEIGHT ? source_room.delegate | source_room;
-    actual_dest = typeof(dest_room) == TYPE_FLYWEIGHT ? dest_room.delegate | dest_room;
+    const actual_source = typeof(source_room) == TYPE_FLYWEIGHT ? source_room.delegate | source_room;
+    const actual_dest = typeof(dest_room) == TYPE_FLYWEIGHT ? dest_room.delegate | dest_room;
     valid(actual_source) && valid(actual_dest) || raise(E_INVARG);
-    existing = this:passage_for(actual_source, actual_dest);
-    typeof(existing) != TYPE_FLYWEIGHT && (typeof(existing) != TYPE_OBJ || !valid(existing)) && raise(E_INVARG, "No existing passage between those rooms.");
-    cap = caller_perms():find_capability_for(actual_source, 'room);
-    room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | actual_source;
-    room_target:check_can_dig_from();
-    this:set_passage(actual_source, actual_dest, new_passage);
-    return new_passage;
+    const cap = actor:find_capability_for(actual_source, 'room);
+    const room_target = typeof(cap) == TYPE_FLYWEIGHT ? cap | actual_source;
+    $root:_check_permissions_as(room_target, actor, 'dig_from);
+    const relation = area.passages_rel;
+    typeof(relation) == TYPE_OBJ && valid(relation) && isa(relation, $relation) || raise(E_INVARG, "Invalid area relation.");
+    let exists = false;
+    const lower = actual_source < actual_dest ? actual_source | actual_dest;
+    const upper = actual_source < actual_dest ? actual_dest | actual_source;
+    for property_name in (properties(relation))
+      if (index(tostr(property_name), "tuple_") == 1)
+        const tuple = relation.(property_name);
+        if (typeof(tuple) == TYPE_LIST && length(tuple) == 3 && tuple[1] == lower && tuple[2] == upper)
+          exists = true;
+          break;
+        endif
+      endif
+    endfor
+    exists || raise(E_INVARG, "No existing passage between those rooms.");
+    return area:_do_create_passage(actual_source, actual_dest, new_passage);
   endmethod
 
   method remove_passage owner: ARCH_WIZARD
-    "Remove passage between two rooms. Requires 'remove_passage on area and 'dig_from on source room.";
-    actor = caller_perms();
-    {this, perms} = this:check_permissions_as(actor, 'remove_passage);
-    {room_a, room_b} = args;
-    "Extract actual room objects from capabilities if needed";
-    actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
-    actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
-    "Check that source room allows digging from it (implies permission to remove passages)";
-    try
-      room_a:check_permissions_as(actor, 'dig_from);
-    except (E_PERM)
-      message = $grant_utils:format_denial(actual_room_a, 'room, {'dig_from});
-      raise(E_PERM, message);
-    endtry
-    "Remove the passage with elevated permissions";
-    return this:_do_remove_passage(actual_room_a, actual_room_b, perms);
+    "Remove a passage with area remove_passage and source-room dig_from authority.";
+    const actor = caller_perms();
+    const {room_a, room_b} = args;
+    const {area, perms} = $root:_check_permissions_as(this, actor, 'remove_passage);
+    const actual_room_a = typeof(room_a) == TYPE_FLYWEIGHT ? room_a.delegate | room_a;
+    const actual_room_b = typeof(room_b) == TYPE_FLYWEIGHT ? room_b.delegate | room_b;
+    $root:_check_permissions_as(room_a, actor, 'dig_from);
+    return area:_do_remove_passage(actual_room_a, actual_room_b);
   endmethod
 
   method _do_remove_passage owner: ARCH_WIZARD
-    "Internal: Actually remove the passage with elevated permissions.";
-    this:require_caller(this);
-    {room_a, room_b, perms} = args;
-    set_task_perms(perms);
-    return this:clear_passage(room_a, room_b);
+    "Remove a checked link only from an actual wizard activation on that area.";
+    const actor = caller_perms();
+    caller == this || (typeof(caller) == TYPE_FLYWEIGHT && caller.delegate == this) && valid(actor) && actor.wizard || raise(E_PERM);
+    const {room_a, room_b} = args;
+    if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
+      return false;
+    endif
+    const candidates = this.passages_rel:select_containing(room_a);
+    for tuple in (candidates)
+      if (room_b in tuple)
+        return this.passages_rel:retract(tuple);
+      endif
+    endfor
+    return false;
   endmethod
 
   method on_room_recycle owner: ARCH_WIZARD
-    "Clean up all passages to/from a room that is being recycled.";
-    set_task_perms(this.owner);
-    {room} = args;
-    typeof(room) == TYPE_OBJ || return;
+    "Remove room links for an authorized area owner or its authorized member room.";
+    const {room} = args;
+    typeof(room) == TYPE_OBJ && valid(room) || raise(E_INVARG);
+    const actor = caller_perms();
+    const room_lifecycle = caller == room && isa(room, $room) && room.location == this && actor == room.owner;
+    actor == this.owner || (valid(actor) && actor.wizard) || room_lifecycle || raise(E_PERM);
     if (typeof(this.passages_rel) != TYPE_OBJ || !valid(this.passages_rel))
       return;
     endif
-    tuples = this.passages_rel:select_containing(room);
+    const tuples = this.passages_rel:select_containing(room);
     for tuple in (tuples)
       this.passages_rel:retract(tuple);
     endfor
@@ -625,12 +610,13 @@ object AREA [
   endmethod
 
   method destroy owner: ARCH_WIZARD
-    "Destroy this area, cleaning up the passages relation first.";
-    "Clean up passages relation if it exists";
-    if (typeof(this.passages_rel) == TYPE_OBJ && valid(this.passages_rel))
-      this.passages_rel:destroy();
+    "Check recycle authority before destroying the area's owned passage relation.";
+    const actor = caller_perms();
+    const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'recycle);
+    set_task_perms(perms, grants);
+    if (typeof(target.passages_rel) == TYPE_OBJ && valid(target.passages_rel))
+      target.passages_rel:destroy();
     endif
-    "Call parent destroy";
-    pass();
+    return pass();
   endmethod
 endobject

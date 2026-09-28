@@ -1,0 +1,17 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+% runtime-match-probe special probe
+~~MATCHING DISPATCH #90114
+% runtime-match-probe matching probe
+~~MATCHING DISPATCH #90114
+% runtime-match-probe #90114
+~~MATCHING DISPATCH #90114
+% runtime-match-probe #000001-ABCDEF1234
+~~MATCHING DISPATCH #000001-ABCDEF1234
+@wizard
+; for object in ({#90113, #90114}) add_verb(object, {#90100, "rd", "runtime-ordinal-probe"}, {"this", "none", "none"}); set_verb_code(object, "runtime-ordinal-probe", {"this == #90100.runtime_probe || raise(E_ASSERT); player:inform_current($event:mk_note(player, \"ORDINAL DISPATCH OK\"):with_audience('utility));"}); endfor const parsed = parse_command("runtime-ordinal-probe second matching probe", #90102:match_environment("", ['complex -> true]), true, 0.3); #90100.runtime_probe = parsed['dobj]; return (#90100.runtime_probe in {#90113, #90114}) != 0;
+true
+@nonprogrammer
+% runtime-ordinal-probe second matching probe
+~~ORDINAL DISPATCH OK

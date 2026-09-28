@@ -38,7 +38,7 @@ object BUILDER_FEATURES [
   ];
   property help_source (owner: ARCH_WIZARD, flags: "rc") = BUILDER_HELP_TOPICS;
 
-  override description = "Provides building commands (@create, @build, @dig, etc.) for builders.";
+  override description (owner: HACKER, flags: "rc") = "Provides building commands (@create, @build, @dig, etc.) for builders.";
 
   method _require_builder_command owner: ARCH_WIZARD
     caller == this || raise(E_PERM);

@@ -8,27 +8,27 @@ object HOUSEKEEPING [
   readable: true
 
   property idle_threshold (owner: ARCH_WIZARD, flags: "rc") = 3600;
-  property schedule_id (owner: ARCH_WIZARD, flags: "rc") = 38;
+  property schedule_id (owner: ARCH_WIZARD, flags: "rc") = 0;
   property sweep_interval (owner: ARCH_WIZARD, flags: "rc") = 3000;
   property sweep_msgs (owner: ARCH_WIZARD, flags: "rc") = HOUSEKEEPING_SWEEP_MSGS;
 
   method sweep owner: ARCH_WIZARD
     "Sweep disconnected players back to their home rooms.";
-    "Called periodically by the scheduler.";
-    caller_perms().wizard || caller == $scheduler || raise(E_PERM);
-    connected = connected_players();
-    threshold = this.idle_threshold;
-    now = time();
-    swept = {};
+    "Native recurring firings use their creator as caller; each firing has a separate transaction.";
+    caller_perms().wizard || raise(E_PERM);
+    const connected = connected_players();
+    const threshold = this.idle_threshold;
+    const now = time();
+    let swept = {};
     for p in (players())
       if (p in connected)
         continue;
       endif
-      disconnected_at = `p.last_disconnected ! E_PROPNF => 0';
+      const disconnected_at = `p.last_disconnected ! E_PROPNF => 0';
       if (disconnected_at == 0 || now - disconnected_at < threshold)
         continue;
       endif
-      home = `p.home ! E_PROPNF => #-1';
+      let home = `p.home ! E_PROPNF => #-1';
       if (typeof(home) != TYPE_OBJ || !valid(home))
         this:_server_log("Player with no home: " + tostr(p) + " (" + p.name + ") .. resetting to $login.default_home");
         p.home = $login.default_home;
@@ -37,25 +37,25 @@ object HOUSEKEEPING [
       if (p.location == home)
         continue;
       endif
-      old_loc = p.location;
+      const old_loc = p.location;
       try
         p:moveto(home);
         swept = {@swept, {old_loc, p}};
-        msg = "Housekeeping quietly escorted you back to " + home.name + " while you were away.";
+        const msg = "Housekeeping quietly escorted you back to " + home.name + " while you were away.";
         p:tell($event:mk_info(this, msg):with_audience('utility));
-        suspend(0);
-      except e (ANY)
+      except error (ANY)
+        this:_server_log("Housekeeping player error: " + toliteral(error));
       endtry
     endfor
-    rooms_done = {};
-    total_swept = length(swept);
+    let rooms_done = {};
+    const total_swept = length(swept);
     for entry in (swept)
-      {room, _} = entry;
+      const {room, _} = entry;
       if (room in rooms_done)
         continue;
       endif
       rooms_done = {@rooms_done, room};
-      names = {};
+      let names = {};
       for e in (swept)
         if (e[1] == room)
           names = {@names, e[2].name};
@@ -64,16 +64,21 @@ object HOUSEKEEPING [
       if (!valid(room) || !respond_to(room, 'announce) || length(names) == 0)
         continue;
       endif
+      let msg = "";
       if (length(names) == 1)
         msg = "Housekeeping quietly escorts " + names[1] + " away to bed.";
       elseif (length(names) <= 4)
         msg = "Housekeeping quietly escorts " + names:english_list() + " away to bed.";
       else
-        shown = names[1..3];
-        rest = length(names) - 3;
+        const shown = names[1..3];
+        const rest = length(names) - 3;
         msg = "Housekeeping quietly escorts " + shown:english_list() + ", and " + tostr(rest) + " others away to bed.";
       endif
-      `room:announce($event:mk_info(this, msg):with_audience('utility)) ! ANY';
+      try
+        room:announce($event:mk_info(this, msg):with_audience('utility));
+      except error (ANY)
+        this:_server_log("Housekeeping room output error: " + toliteral(error));
+      endtry
     endfor
     total_swept > 0 && this:_server_log(tostr("Housekeeping swept ", total_swept, " sleeping player(s) home."));
     return total_swept;
@@ -87,27 +92,21 @@ object HOUSEKEEPING [
   endmethod
 
   method start owner: ARCH_WIZARD
-    "Start the housekeeping sweep schedule.";
+    "Start one native housekeeping schedule. Wizard callers only; creation commits with this property.";
     caller_perms().wizard || raise(E_PERM);
-    existing = $scheduler:is_scheduled(this, "sweep");
-    if (existing)
-      this.schedule_id = existing;
-      return "Already running (schedule_id: " + tostr(existing) + ")";
+    if (schedule_valid(this.schedule_id))
+      return "Already running (schedule_id: " + tostr(this.schedule_id) + ")";
     endif
-    this.schedule_id = $scheduler:schedule_every(this.sweep_interval, this, "sweep", {});
+    this.schedule_id = schedule_every(this, "sweep", this.sweep_interval, {}, ['adaptive -> false, 'pass_elapsed -> false]);
     return "Housekeeping started (schedule_id: " + tostr(this.schedule_id) + ", interval: " + tostr(this.sweep_interval) + "s)";
   endmethod
 
   method stop owner: ARCH_WIZARD
-    "Stop the housekeeping sweep schedule.";
+    "Stop future native sweeps. Running firings finish; cancellation commits with the cleared property.";
     caller_perms().wizard || raise(E_PERM);
-    existing = $scheduler:is_scheduled(this, "sweep");
-    if (!existing)
-      this.schedule_id = 0;
-      return "Not running.";
-    endif
-    $scheduler:cancel(existing);
+    const schedule_id = this.schedule_id;
+    const stopped = schedule_stop(schedule_id);
     this.schedule_id = 0;
-    return "Housekeeping stopped (was schedule_id: " + tostr(existing) + ")";
+    return stopped ? "Housekeeping stopped (was schedule_id: " + tostr(schedule_id) + ")" | "Not running.";
   endmethod
 endobject

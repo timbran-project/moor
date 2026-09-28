@@ -45,7 +45,7 @@ top of the event and behaviour systems without requiring framework changes.
   maps, and flyweights
 - **Composable**: Building blocks that work together without requiring code for common patterns
 - **Accessible**: Text-first design that works naturally with screen readers and keyboard navigation
-- **Version-controlled**: Objdef format enables proper source control; in-MOO changes merge back to
+- **Version-controlled**: objdef format enables proper source control; in-MOO changes merge back to
   repo
 
 ### Current Implementation Status
@@ -91,8 +91,18 @@ top of the event and behaviour systems without requiring framework changes.
 - Relational/graph system for object relationships (`relation.moo`)
 - Rule engine for datalog-style queries and logic (`rule_engine.moo`, `rule.moo`)
 - Reaction system for declarative event-driven behaviors (`reaction.moo`)
-- Task scheduler for deferred and periodic execution (`scheduler.moo`)
+- Native scheduled tasks for deferred and periodic execution
 - Help system with topic-based documentation (`help.moo`, `help_topics.moo`)
+
+Cowbell uses the runtime [native scheduled-task builtins](../../book/src/the-system/scheduled-tasks.md)
+directly. Housekeeping starts and stops one recurring sweep through wizard-only methods. Henri uses
+adaptive recurring schedules that choose a fresh random delay after each firing. Native cadence uses
+scheduled deadlines. Callback faults retry at the base interval, with retirement after 50 consecutive
+faults by default.
+
+Schedules persist in the runtime task database, separately from objdef exports. An objdef export can
+contain stored IDs but does not contain the schedule store. Fresh imports replace invalid IDs when
+housekeeping or Henri starts.
 
 **Commands (via feature objects):**
 
@@ -457,7 +467,21 @@ configured entirely through rules and reactions.
 
 ## Development
 
-To compile and validate your changes, use the provided `Makefile`.
+Run the local check from the repository root:
+
+```sh
+make -C cores/cowbell check
+```
+
+The check includes style, methods, headless scenarios, sessions, export stability, and real
+connection/restart checks. See [runtime testing](RUNTIME_TESTING.md) for focused commands and fixture
+contracts. [The style guide](STYLE_GUIDE.md) describes declarations, authority, and transaction
+boundaries. [Capabilities](CAPABILITIES.md) explains explicit delegation and tool actor permissions.
+[The audit matrix](AUDIT.md) records the reviewed scope and remaining debt.
+
+`make -C cores/cowbell` builds the shipped objdef export. `make rebuild` replaces source with an
+export after roundtrip checks. Export removes comments, so use this target only for an intended
+source replacement.
 
 Cowbell is maintained in the mooR monorepo under `cores/cowbell/`, so a normal mooR checkout
 contains the matching core sources.

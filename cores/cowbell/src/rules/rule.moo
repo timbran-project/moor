@@ -7,7 +7,7 @@ object RULE [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Flyweight delegate for Datalog-style rules. Rules consist of a head predicate and a body of goals.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Flyweight delegate for Datalog-style rules. Rules consist of a head predicate and a body of goals.";
 
   method mk owner: ARCH_WIZARD
     "Create a new rule flyweight.";
@@ -43,10 +43,11 @@ object RULE [
     return variables;
   endmethod
 
-  method evaluate owner: HACKER
-    "Evaluate this rule with initial bindings.";
+  method evaluate owner: ARCH_WIZARD
+    "Evaluate this rule with initial bindings under the invoking principal.";
+    set_task_perms(caller_perms());
     "Returns: {success: bool, bindings: map, alternatives: list}";
-    {?initial_bindings = []} = args;
+    const {?initial_bindings = []} = args;
     "Delegate to rule engine";
     return $rule_engine:evaluate(this, initial_bindings);
   endmethod

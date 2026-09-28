@@ -39,7 +39,7 @@ object ADMIN_HELP_TOPICS [
   property topic_administration_sudo_show (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@sudo-show <player>`\n\nShows delegate mapping, allowlist, and active sudo task entries for a player.", .name = "@sudo-show", .aliases = {"sudo-show", "show sudo", "sudo-show"}, .category = 'administration, .summary = "Show sudo state for a player", .see_also = {"@sudo-who", "@sudo-allow"}>;
   property topic_administration_sudo_who (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@sudo-who`\n\nLists active sudo tasks and recent sudo audit log entries.", .name = "@sudo-who", .aliases = {"sudo-who", "sudo active", "sudo-active"}, .category = 'administration, .summary = "Show active sudo and recent audit", .see_also = {"@sudo-show", "@sudo-log"}>;
 
-  override topic_order = {
+  override topic_order (owner: ARCH_WIZARD, flags: "rc") = {
     'topic_administration_overview,
     'topic_administration_sudo,
     'topic_administration_sudo_grant,

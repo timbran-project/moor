@@ -51,7 +51,7 @@ object FOOD [
     "."
   };
 
-  override consume_msg = {
+  override consume_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "eat", .for_others = "eats">,
@@ -59,8 +59,8 @@ object FOOD [
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  override description = "Prototype for edible food items. Supports eat, bite, nibble, devour commands.";
-  override finish_msg = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Prototype for edible food items. Supports eat, bite, nibble, devour commands.";
+  override finish_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .capitalize = false, .type = 'self_alt, .for_self = "finish", .for_others = "finishes">,
@@ -68,7 +68,7 @@ object FOOD [
     <SUB, .capitalize = false, .type = 'article_the, .binding_name = 'd, .capitalize_binding = false>,
     "."
   };
-  override object_documentation = {
+  override object_documentation (owner: ARCH_WIZARD, flags: "rc") = {
     "# Food",
     "",
     "## Overview",

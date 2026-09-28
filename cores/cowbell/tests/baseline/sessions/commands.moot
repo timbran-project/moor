@@ -1,0 +1,23 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// This program is free software under the GNU General Public License, version 3.
+// It is distributed without any warranty. See <https://www.gnu.org/licenses/>.
+
+@nonprogrammer
+% look
+~~Runtime Test Chamber
+=
+~~A room for isolated Cowbell runtime tests.
+~~You see
+~~RUNTIME
+@event data:state room_snapshot
+@event text/plain utility
+@programmer
+@quiet
+@noevents
+@wizard
+@quiet
+@noevents
+@nonprogrammer
+% runtime-test-denial
+~~Fixture denial
+@event text/plain utility

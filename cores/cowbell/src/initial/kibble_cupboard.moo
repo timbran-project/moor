@@ -14,8 +14,8 @@ object KIBBLE_CUPBOARD [
       {'trigger, HENRI, 'on_cupboard_open}
     }, .fired_at = 0>;
 
-  override aliases = {"cupboard", "cabinet", "wooden cupboard"};
-  override close_msg = {
+  override aliases (owner: ARCH_WIZARD, flags: "rc") = {"cupboard", "cabinet", "wooden cupboard"};
+  override close_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "close", .for_others = "closes">,
@@ -23,14 +23,14 @@ object KIBBLE_CUPBOARD [
     <SUB, .capitalize = false, .type = 'dobj>,
     ", sealing away the kibble."
   };
-  override description = "A sturdy wooden cupboard with a brass lock on the door. It has a faint aroma of cat food emanating from within.";
-  override get_denied_msg = {"The cupboard is far too heavy and unwieldy to pick up."};
-  override get_rule = <RULE, .name = 'is_portable, .body = {{'is_portable, {'var, 'This}}}, .variables = {'This}, .head = 'is_portable>;
-  override lock_denied_msg = {
+  override description (owner: ARCH_WIZARD, flags: "rc") = "A sturdy wooden cupboard with a brass lock on the door. It has a faint aroma of cat food emanating from within.";
+  override get_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {"The cupboard is far too heavy and unwieldy to pick up."};
+  override get_rule (owner: ARCH_WIZARD, flags: "rc") = <RULE, .name = 'is_portable, .body = {{'is_portable, {'var, 'This}}}, .variables = {'This}, .head = 'is_portable>;
+  override lock_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'iobj>,
     " won't lock without the proper key."
   };
-  override lock_msg = {
+  override lock_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "lock", .for_others = "locks">,
@@ -40,14 +40,14 @@ object KIBBLE_CUPBOARD [
     <SUB, .capitalize = false, .type = 'dobj>,
     " with a satisfying click."
   };
-  override lock_rule = <RULE, .name = 'cupboard_lock_rule, .body = {{'is, {'var, 'Key}, BRASS_KEY}}, .variables = {'Key}, .head = 'cupboard_lock_rule>;
-  override locked = true;
-  override open = false;
-  override open_locked_msg = {
+  override lock_rule (owner: ARCH_WIZARD, flags: "rc") = <RULE, .name = 'cupboard_lock_rule, .body = {{'is, {'var, 'Key}, BRASS_KEY}}, .variables = {'Key}, .head = 'cupboard_lock_rule>;
+  override locked (owner: HACKER, flags: "r") = true;
+  override open (owner: HACKER, flags: "r") = false;
+  override open_locked_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'dobj>,
     " is locked tight. You'll need to unlock it first."
   };
-  override open_msg = {
+  override open_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "open", .for_others = "opens">,
@@ -55,19 +55,19 @@ object KIBBLE_CUPBOARD [
     <SUB, .capitalize = false, .type = 'dobj>,
     ", revealing Henri's kibble storage."
   };
-  override put_denied_msg = {
+  override put_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'iobj>,
     " is closed. You'll need to open it first."
   };
-  override take_denied_msg = {
+  override take_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'iobj>,
     " is closed. You'll need to open it first."
   };
-  override unlock_denied_msg = {
+  override unlock_denied_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'iobj>,
     " won't budge. It needs the right key."
   };
-  override unlock_msg = {
+  override unlock_msg (owner: ARCH_WIZARD, flags: "rc") = {
     <SUB, .capitalize = true, .type = 'actor>,
     " ",
     <SUB, .type = 'self_alt, .for_self = "unlock", .for_others = "unlocks">,
@@ -77,7 +77,7 @@ object KIBBLE_CUPBOARD [
     <SUB, .capitalize = false, .type = 'dobj>,
     ". The brass lock clicks open."
   };
-  override unlock_rule = <RULE, .name = 'cupboard_unlock_rule, .body = {{'is, {'var, 'Key}, BRASS_KEY}}, .variables = {'Key}, .head = 'cupboard_unlock_rule>;
+  override unlock_rule (owner: ARCH_WIZARD, flags: "rc") = <RULE, .name = 'cupboard_unlock_rule, .body = {{'is, {'var, 'Key}, BRASS_KEY}}, .variables = {'Key}, .head = 'cupboard_unlock_rule>;
 
   method fact_is_portable owner: ARCH_WIZARD
     "Cupboards are not portable.";
