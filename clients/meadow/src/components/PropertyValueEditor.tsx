@@ -230,6 +230,7 @@ export function PropertyValueEditor({
     const titleBarDragProps = useTitleBarDrag();
     const [mode, setMode] = useState<EditorMode>(() => detectMode(propertyValue));
     const [value, setValue] = useState<string>(() => toEditorText(propertyValue, detectMode(propertyValue)));
+    const [savedValue, setSavedValue] = useState(value);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -281,6 +282,8 @@ export function PropertyValueEditor({
             // Send the literal string value to the backend
             // Backend will parse and validate it
             await updatePropertyFlatBuffer(authToken, objectCurie, propertyName, literal);
+            // Keep the submitted spelling as the baseline; server formatting may differ.
+            setSavedValue(value);
             setIsSaving(false);
             onSave();
         } catch (err) {
@@ -338,8 +341,8 @@ export function PropertyValueEditor({
         }));
     };
 
-    // Track if content has changed from original
-    const hasUnsavedChanges = value !== toEditorText(propertyValue, mode);
+    // Track edits since the last successful save.
+    const hasUnsavedChanges = value !== savedValue;
 
     // Track if metadata has changed (compare normalized values) or is being edited
     const hasMetadataChanges = isEditingOwner
@@ -361,7 +364,9 @@ export function PropertyValueEditor({
         }
 
         // Reload the original value in the new mode
-        setValue(toEditorText(propertyValue, newMode));
+        const reloadedValue = toEditorText(propertyValue, newMode);
+        setValue(reloadedValue);
+        setSavedValue(reloadedValue);
         setMode(newMode);
     };
 

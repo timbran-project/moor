@@ -14,8 +14,8 @@
 import { useCallback, useState } from "react";
 
 export interface VerbMetadata {
-    location: number;
-    owner: number;
+    location: string;
+    owner: string;
     names: string[];
     r: boolean; // readable
     w: boolean; // writable
@@ -73,6 +73,9 @@ export const useVerbEditor = () => {
 
             const location = objToString(verbInfo.location());
             const owner = objToString(verbInfo.owner());
+            if (!location || !owner) {
+                throw new Error("Invalid object reference in verb metadata");
+            }
 
             const namesLength = verbInfo.namesLength();
             const names: string[] = [];
@@ -95,8 +98,8 @@ export const useVerbEditor = () => {
             }
 
             const verbMetadata: VerbMetadata = {
-                location: location ? parseInt(location) : 0,
-                owner: owner ? parseInt(owner) : 0,
+                location,
+                owner,
                 names,
                 r: verbInfo.r(),
                 w: verbInfo.w(),
