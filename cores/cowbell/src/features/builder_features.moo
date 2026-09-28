@@ -1347,7 +1347,7 @@ object BUILDER_FEATURES [
     editor_id = "edit-" + tostr(target_obj) + "-" + prop_name;
     editor_title = "Edit " + prop_name + " on " + tostr(target_obj);
     object_curie = $url_utils:to_curie_str(target_obj);
-    present(player, editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
+    present(connection(), editor_id, "text/plain", "property-value-editor", "", {{"object", object_curie}, {"property", prop_name}, {"title", editor_title}});
   endmethod
 
   verb "@set-m*essage @setm" (any any any) owner: HACKER flags: "rd"

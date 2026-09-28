@@ -174,7 +174,7 @@ object PROG_FEATURES [
     editor_id = "edit-" + tostr(verb_location) + "-" + verb_name;
     editor_title = "Edit " + verb_name + " on " + tostr(verb_location);
     object_curie = $url_utils:to_curie_str(verb_location);
-    present(player, editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
+    present(connection(), editor_id, "text/plain", "verb-editor", "", {{"object", object_curie}, {"verb", verb_name}, {"title", editor_title}});
   endmethod
 
   method present_object_browser owner: ARCH_WIZARD
@@ -627,7 +627,7 @@ object PROG_FEATURES [
     player:inform_current(listing_event);
   endverb
 
-  verb "@prop*erty" (any any any) owner: HACKER flags: "rd"
+  verb "@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>.<property> [value [perms [owner]]] -- Add a property to an object.";
     this:_challenge_command_perms();
     set_task_perms(player);

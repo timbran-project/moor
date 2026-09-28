@@ -1,0 +1,24 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; #90101.authoring_features = $prog_features; #90101.is_builder = true; return true;
+true
+@programmer
+% @property me.authoring_probe ["enabled" -> true]
+; return player.authoring_probe;
+["enabled" -> true]
+% @verb me:authoring_probe
+@attach second programmer
+@programmer
+% @edit me:authoring_probe
+@event present:text/plain verb-editor
+@second
+@quiet
+@noevents
+@programmer
+% @edit me.authoring_probe
+@event present:text/plain property-value-editor
+@second
+@quiet
+@noevents

@@ -1408,21 +1408,21 @@ count	file	verb	kind	detail
 1	features/prog_features.moo	"@program @program#" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	verb_num
 1	features/prog_features.moo	"@program @program#" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	verb_spec
 1	features/prog_features.moo	"@program @program#" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	words
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	description
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	eval_result
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	flag_parts
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	flags_desc
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	maybe_perms
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	offset
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	owner
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	parsed
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	perms
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	prop_name
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	remainder
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	remaining_words
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	selector
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	target_obj
-1	features/prog_features.moo	"@prop*erty" (any any any) owner: HACKER flags: "rd"	implicit-local	value
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	description
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	eval_result
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	flag_parts
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	flags_desc
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	maybe_perms
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	offset
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	owner
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	parsed
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	perms
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	prop_name
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	remainder
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	remaining_words
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	selector
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	target_obj
+1	features/prog_features.moo	"@prop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	value
 1	features/prog_features.moo	"@properties @props" (any any any) owner: HACKER flags: "rd"	implicit-local	code_text
 1	features/prog_features.moo	"@properties @props" (any any any) owner: HACKER flags: "rd"	implicit-local	formatted_code
 1	features/prog_features.moo	"@properties @props" (any any any) owner: HACKER flags: "rd"	implicit-local	listing_event
