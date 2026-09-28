@@ -43,6 +43,10 @@ interface ContentRendererProps {
 const HOLD_THRESHOLD_MS = 300;
 const isExternalLink = (url: string) => url.startsWith("http://") || url.startsWith("https://");
 const isAllowedLinkUrl = (url: string) => isExternalLink(url) || url.startsWith("moo://");
+// Object references fetch current data; only context-dependent commands expire.
+const isLinkAvailable = (url: string, isStale: boolean) =>
+    isAllowedLinkUrl(url)
+    && (!isStale || isExternalLink(url) || url.startsWith("moo://inspect/") || url.startsWith("moo://help/"));
 
 export function normalizeEmbeddedUri(uri: string, baseUrl: string = window.location.href): string | null {
     try {
@@ -85,7 +89,13 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         if (!containerRef.current) return;
         const links = containerRef.current.querySelectorAll("[data-url]");
         links.forEach((link) => {
-            (link as HTMLElement).tabIndex = isStale ? -1 : 0;
+            const available = isLinkAvailable(link.getAttribute("data-url") ?? "", isStale);
+            (link as HTMLElement).tabIndex = available ? 0 : -1;
+            if (available) {
+                link.removeAttribute("aria-disabled");
+            } else {
+                link.setAttribute("aria-disabled", "true");
+            }
         });
     }, [isStale, content]);
 
@@ -99,7 +109,8 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
     // Unified click handler for moo-link spans (all moo-link-* variants) and objids
     const handleClick = useCallback((e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
+        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
+        if (!target) return;
 
         // Handle ObjId copy (regular MOO objids like #123)
         const objid = target.getAttribute("data-objid");
@@ -134,13 +145,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         // Check for data-url attribute which all our link spans have
         const url = target.getAttribute("data-url");
         if (!url || !onLinkClick) return;
-        if (!isAllowedLinkUrl(url)) {
-            return;
-        }
-
-        // For stale/historical content, only allow external links (http/https)
-        // MOO command links should remain disabled to prevent re-executing old commands
-        if (isStale && !isExternalLink(url)) return;
+        if (!isLinkAvailable(url, isStale)) return;
 
         e.preventDefault();
         // Pass click position and event metadata for context
@@ -148,13 +153,14 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
             actorName: eventMetadata?.actorName,
             verb: eventMetadata?.verb,
         });
-    }, [onLinkClick, isStale, eventMetadata]);
+    }, [onLinkClick, isStale, eventMetadata, showToast]);
 
     // Keyboard handler for Enter/Space on focused links
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key !== "Enter" && e.key !== " ") return;
 
-        const target = e.target as HTMLElement;
+        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
+        if (!target) return;
 
         // Handle ObjId copy (regular MOO objids like #123)
         const objid = target.getAttribute("data-objid");
@@ -184,12 +190,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
         const url = target.getAttribute("data-url");
         if (!url || !onLinkClick) return;
-        if (!isAllowedLinkUrl(url)) {
-            return;
-        }
-
-        // For stale/historical content, only allow external links
-        if (isStale && !isExternalLink(url)) return;
+        if (!isLinkAvailable(url, isStale)) return;
 
         e.preventDefault();
         // Use element position for popovers since there's no mouse position
@@ -198,14 +199,12 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
             actorName: eventMetadata?.actorName,
             verb: eventMetadata?.verb,
         });
-    }, [onLinkClick, isStale, eventMetadata]);
+    }, [onLinkClick, isStale, eventMetadata, showToast]);
 
     // Touch start: begin tracking for hold detection on inspect links
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        // Ignore touches when content is stale
-        if (isStale) return;
-
-        const target = e.target as HTMLElement;
+        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
+        if (!target) return;
         const url = target.getAttribute("data-url");
 
         // Only handle inspect links with hold behavior
@@ -231,7 +230,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         }, HOLD_THRESHOLD_MS);
 
         touchStateRef.current = { url, position, timer, isHolding: false };
-    }, [onLinkHoldStart, isStale]);
+    }, [onLinkHoldStart]);
 
     // Touch end: either complete tap or end hold preview
     const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -268,7 +267,8 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
 
     // Prevent context menu on inspect links (Firefox long-press)
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
+        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
+        if (!target) return;
         const url = target.getAttribute("data-url");
         if (url?.startsWith("moo://inspect/")) {
             e.preventDefault();
@@ -278,10 +278,12 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     const staleClass = isStale ? " content-stale" : "";
 
     // Helper to wrap content with sr-only link hint when links are present
-    const wrapWithLinkHint = (contentElement: React.ReactElement, html: string) => {
+    const wrapWithLinkHint = useCallback((contentElement: React.ReactElement, html: string) => {
         // Check if the HTML contains interactive links (data-url attributes)
-        const hasLinks = html.includes("data-url=");
-        if (!hasLinks || isStale) {
+        const hasLinks = isStale
+            ? /data-url=["'](?:https?:\/\/|moo:\/\/(?:inspect|help)\/)/.test(html)
+            : html.includes("data-url=");
+        if (!hasLinks) {
             return contentElement;
         }
         return (
@@ -292,7 +294,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
                 </span>
             </>
         );
-    };
+    }, [isStale]);
 
     const renderedContent = useMemo(() => {
         switch (contentType) {
@@ -406,7 +408,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
         handleContextMenu,
         content,
         staleClass,
-        isStale,
+        wrapWithLinkHint,
         enableEmoji,
     ]);
 

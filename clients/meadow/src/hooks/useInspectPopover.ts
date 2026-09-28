@@ -11,13 +11,14 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InspectAction, InspectData } from "../components/InspectPopover";
 import { MoorVar } from "../lib/MoorVar";
 import { invokeVerbFlatBuffer } from "../lib/rpc-fb";
 import { PresentationData } from "../types/presentation";
 
 interface InspectPopoverState {
+    oref: string;
     data: InspectData;
     position: { x: number; y: number };
     isPreview?: boolean;
@@ -67,10 +68,21 @@ const extractOutputMessages = (output: VerbOutputEvent[]): string[] => {
  */
 export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPresentation }: UseInspectPopoverArgs) => {
     const [inspectPopover, setInspectPopover] = useState<InspectPopoverState | null>(null);
+    const requestGeneration = useRef(0);
+    const pendingPreview = useRef(false);
 
     const closeInspectPopover = useCallback(() => {
+        requestGeneration.current += 1;
+        pendingPreview.current = false;
         setInspectPopover(null);
     }, []);
+
+    useEffect(() => {
+        closeInspectPopover();
+        return () => {
+            requestGeneration.current += 1;
+        };
+    }, [authToken, closeInspectPopover]);
 
     const inspectObject = useCallback(async (
         oref: string,
@@ -82,11 +94,18 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
             return;
         }
 
+        const generation = ++requestGeneration.current;
+        pendingPreview.current = isPreview === true;
+        setInspectPopover(null);
         try {
-            const { result } = await invokeVerbFlatBuffer(authToken, oref, "inspection");
+            const objectRef = decodeURIComponent(oref);
+            const { result } = await invokeVerbFlatBuffer(authToken, objectRef, "inspection");
+            if (generation !== requestGeneration.current) return;
+            pendingPreview.current = false;
             if (result) {
                 const data = result as InspectData;
                 setInspectPopover({
+                    oref: objectRef,
                     data,
                     position: position ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
                     ...(isPreview ? { isPreview } : {}),
@@ -95,6 +114,8 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
                 showMessage("No inspect data available", 2);
             }
         } catch (error) {
+            if (generation !== requestGeneration.current) return;
+            pendingPreview.current = false;
             console.error("Failed to inspect object:", error);
             if (!isPreview) {
                 showMessage(`Inspect failed: ${error instanceof Error ? error.message : String(error)}`, 3);
@@ -112,6 +133,10 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
 
     // Handle end of hold-to-preview
     const handleLinkHoldEnd = useCallback(() => {
+        if (pendingPreview.current) {
+            requestGeneration.current += 1;
+            pendingPreview.current = false;
+        }
         setInspectPopover((current) => {
             // Only dismiss if it's a preview popover
             if (current?.isPreview) return null;
@@ -134,7 +159,9 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
             if (!command) {
                 return [];
             }
-            sendMessage(command);
+            if (!sendMessage(command)) {
+                throw new Error("Not connected. Please try again after reconnecting.");
+            }
             return [];
         }
 
@@ -148,7 +175,24 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
         }
 
         const argsBytes = invokeArgs.length > 0 ? MoorVar.buildInvokeArgs(invokeArgs) : undefined;
+        const generation = requestGeneration.current;
         const { output } = await invokeVerbFlatBuffer(authToken, action.target, action.verb, argsBytes);
+
+        // A completed transfer can change Take to Drop, or remove a now-unavailable action.
+        if (inspectPopover && generation === requestGeneration.current && action.resultMode !== "panel") {
+            try {
+                const { result } = await invokeVerbFlatBuffer(authToken, inspectPopover.oref, "inspection");
+                if (generation === requestGeneration.current) {
+                    setInspectPopover(current =>
+                        current && result ? { ...current, data: result as InspectData } : null
+                    );
+                }
+            } catch {
+                if (generation === requestGeneration.current) closeInspectPopover();
+            }
+        }
+
+        if (generation !== requestGeneration.current) return [];
 
         if (action.resultMode === "panel") {
             const messages = extractOutputMessages(output);
@@ -173,7 +217,7 @@ export const useInspectPopover = ({ authToken, showMessage, sendMessage, addPres
         }
 
         return output;
-    }, [addPresentation, authToken, sendMessage]);
+    }, [addPresentation, authToken, closeInspectPopover, inspectPopover, sendMessage]);
 
     return {
         inspectPopover,

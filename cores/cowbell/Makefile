@@ -17,7 +17,7 @@ export CARGO_TARGET_DIR ?= $(abspath ../../target)
 # Options: cargo (default), direct, docker
 MOORC_TYPE ?= cargo
 HEADLESS_FILTERS ?= 90104 90000 90001 90002 90003 90004 90005 90006 90007 90010 90011 90012 90013 90014 90015
-HEADLESS_PLAYER_FILTERS ?= 90008:test_headless_builder_commands_use_stored_grants 90008:test_headless_builder_commands_missing_grants_deny_cleanly 90008:test_headless_builder_message_commands_dispatch_as_player
+HEADLESS_PLAYER_FILTERS ?= 90008:test_headless_builder_commands_use_stored_grants 90008:test_headless_builder_commands_missing_grants_deny_cleanly 90008:test_headless_builder_message_commands_dispatch_as_player 90014:test_inspection_transfer_reachability 90014:test_inspection_transfers_recheck_after_policy_yield
 HEADLESS_WIZARD_FILTERS ?= 90008:test_headless_builder_commands_wizard_builds_without_grants
 HEADLESS_TASK_PLAYER ?= 90102
 HEADLESS_TIMEOUT ?= 10

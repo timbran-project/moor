@@ -250,6 +250,90 @@ object HEADLESS_WORLD_SCENARIOS
   endmethod
 
 
+  method call_as_test_player owner: ARCH_WIZARD
+    "Invoke an interaction with the test task player's permissions.";
+    caller == this && this == #90014 || raise(E_PERM);
+    const {target, method, @parameters} = args;
+    set_task_perms(player);
+    return target:(method)(@parameters);
+  endmethod
+
+  method test_inspection_transfer_reachability owner: ARCH_WIZARD
+    "Old inspection actions must neither take remote items nor bypass container access.";
+    const room = create($room, #90100, 2);
+    const remote = create($room, #90100, 2);
+    const item = create($thing, #90100, 2);
+    const box = create($container, #90101, 2);
+    const who = player;
+    const prior_location = who.location;
+    "Keep announcements inside the fixture; headless actors have no network connections.";
+    add_verb(room, {#90100, "rxd", "announce"}, {"this", "none", "this"});
+    set_verb_code(room, "announce", {"return;"});
+    try
+      move(who, room);
+      move(item, room);
+      const nearby = item:inspection(who);
+      $test_utils:assert_eq(nearby["actions"][2]["label"], "Take", "nearby item offers Take");
+      move(item, remote);
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, remote, "stale Take cannot fetch a remote item");
+      const distant = item:inspection(who);
+      $test_utils:assert_eq(length(distant["actions"]), 1, "remote inspection offers only Examine");
+      move(item, room);
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, who, "nearby Take succeeds");
+      const held = item:inspection(who);
+      $test_utils:assert_eq(held["actions"][2]["label"], "Drop", "fresh inspection reflects custody");
+      this:call_as_test_player(item, "drop");
+      $test_utils:assert_eq(item.location, room, "held Drop succeeds");
+      move(box, room);
+      move(item, box);
+      box.open = false;
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, box, "closed container cannot be bypassed by Take");
+      box.open = true;
+      box.take_rule = $rule_engine:parse_expression("This owner_is(Accessor)?", 'owner_take);
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, box, "container take policy still applies");
+      box.take_rule = 0;
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, who, "open public nearby container permits Take");
+    finally
+      move(who, prior_location);
+      recycle(item);
+      recycle(box);
+      recycle(room);
+      recycle(remote);
+    endtry
+  endmethod
+
+  method test_inspection_transfers_recheck_after_policy_yield owner: ARCH_WIZARD
+    "Transfer policy callbacks may suspend; final custody and reachability must be checked again.";
+    const room = create($room, #90100, 2);
+    const item = create($thing, #90100, 2);
+    const who = player;
+    const prior_location = who.location;
+    "Keep announcements inside the fixture; headless actors have no network connections.";
+    add_verb(room, {#90100, "rxd", "announce"}, {"this", "none", "this"});
+    set_verb_code(room, "announce", {"return;"});
+    try
+      move(who, room);
+      move(item, room);
+      add_verb(item, {#90100, "rxd", "can_get"}, {"this", "none", "this"});
+      set_verb_code(item, "can_get", {"move(this, #90103); suspend(0); return true;"});
+      this:call_as_test_player(item, "get");
+      $test_utils:assert_eq(item.location, #90103, "Take rechecks reachability after policy yield");
+      move(item, who);
+      add_verb(item, {#90100, "rxd", "can_drop"}, {"this", "none", "this"});
+      set_verb_code(item, "can_drop", {"move(this, #90103); suspend(0); return true;"});
+      this:call_as_test_player(item, "drop");
+      $test_utils:assert_eq(item.location, #90103, "Drop rechecks custody after policy yield");
+    finally
+      move(who, prior_location);
+      recycle(item);
+      recycle(room);
+    endtry
+  endmethod
 endobject
 
 object #90108

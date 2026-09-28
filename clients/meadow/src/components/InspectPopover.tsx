@@ -71,6 +71,13 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     isPreview = false,
 }) => {
     const popoverRef = useRef<HTMLDivElement>(null);
+    const mountedRef = useRef(false);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
     const autoCloseTimerRef = useRef<number | null>(null);
 
     // Reset auto-close timer
@@ -181,6 +188,8 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
             }
 
             const output = await onAction(action, inputValue);
+            // An action from a dismissed popover must not close a newer inspection.
+            if (!mountedRef.current) return;
 
             // Extract text content from NotifyEvents
             const messages: string[] = [];

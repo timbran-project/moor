@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object THING [
   import_export_id -> "thing",
   import_export_hierarchy -> {"items"}
@@ -213,12 +215,34 @@ object THING [
     return result['success];
   endmethod
 
+  method take_reachable owner: ARCH_WIZARD
+    "Return whether an item is on the actor's floor or in an open nearby container.";
+    "Args: {item, who}. This geometry check does not grant permission to take the item.";
+    const {item, who} = args;
+    valid(item) && valid(who) && valid(who.location) || return false;
+    const source = item.location;
+    source == who.location && return true;
+    valid(source) && isa(source, $container) || return false;
+    return source.open && (source.location == who || source.location == who.location);
+  endmethod
+
   method do_get owner: ARCH_WIZARD
     "Move item to actor's inventory. Returns true. Optional silent flag.";
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_get must be called by this object");
     {who, ?silent = false} = args;
+    $thing:take_reachable(this, who) || raise(E_PERM, "That is no longer within reach.");
     old_location = this.location;
+    if (old_location != who.location)
+      const take_policy = old_location.take_rule;
+      old_location:can_take_from(who, this)['allowed]
+        || raise(E_PERM, "You can't take that from its container.");
+      old_location.take_rule == take_policy
+        || raise(E_PERM, "The container's access rules changed. Please try again.");
+    endif
+    "Container policy callbacks may suspend; recheck the source before moving.";
+    this.location == old_location && $thing:take_reachable(this, who)
+      || raise(E_PERM, "That is no longer within reach.");
     this:moveto(who);
     if (!silent && isa(old_location, $room))
       event = $event:mk_moved(who, @this.get_msg):with_dobj(this):with_iobj(who);
@@ -232,7 +256,9 @@ object THING [
     "Only callable by this object itself";
     caller != this && raise(E_PERM, "do_drop must be called by this object");
     {who, ?silent = false} = args;
+    this.location == who || raise(E_PERM, "You no longer have that to drop.");
     new_location = who.location;
+    valid(new_location) || raise(E_PERM, "There is nowhere to drop that here.");
     this:moveto(new_location);
     if (!silent)
       event = $event:mk_moved(who, @this.drop_msg):with_dobj(this):with_iobj(who);
@@ -247,6 +273,10 @@ object THING [
     if (this.location == player)
       event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(this);
       player:inform_current(event);
+      return;
+    endif
+    if (!$thing:take_reachable(this, player))
+      player:inform_current($event:mk_error(player, "That is no longer within reach."));
       return;
     endif
     if (!this:can_get(player))
@@ -381,6 +411,9 @@ object THING [
     if (who_ref)
       actions = {@actions, ["label" -> "Examine", "verb" -> "do_examine", "target" -> who_ref, "args" -> {this_ref}]};
       seen = {"do_examine"};
+    endif
+    if (this.location != who && !$thing:take_reachable(this, who))
+      return actions;
     endif
     transfer_verb = this.location == who ? "drop" | "get";
     transfer_label = transfer_verb == "drop" ? "Drop" | "Take";

@@ -10,7 +10,7 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ContentRenderer } from "./ContentRenderer";
 
@@ -45,5 +45,61 @@ describe("ContentRenderer URI embeds", () => {
         expect(screen.getByTitle("Embedded content").getAttribute("src")).toBe(
             `${window.location.origin}/welcome`,
         );
+    });
+});
+
+describe("ContentRenderer historical links", () => {
+    const content = "<a href=\"moo://inspect/oid:42\"><strong>Key</strong></a> "
+        + "<a href=\"moo://cmd/go%20north\">North</a> "
+        + "<a href=\"moo://help/movement\">Help</a> "
+        + "<a href=\"https://example.com\">Website</a>";
+
+    it("keeps references, help, and external links keyboard-accessible after a message expires", () => {
+        const onLinkClick = vi.fn();
+        const { container, rerender } = render(
+            <ContentRenderer content={content} contentType="text/html" onLinkClick={onLinkClick} />,
+        );
+        rerender(<ContentRenderer content={content} contentType="text/html" isStale onLinkClick={onLinkClick} />);
+        const links = [...container.querySelectorAll<HTMLElement>("[data-url]")];
+        expect(links.map(link => link.tabIndex)).toEqual([0, -1, 0, 0]);
+        expect(links[1].getAttribute("aria-disabled")).toBe("true");
+
+        fireEvent.click(screen.getByText("Key"));
+        fireEvent.keyDown(links[0], { key: "Enter" });
+        fireEvent.keyDown(links[2], { key: " " });
+        fireEvent.keyDown(links[3], { key: "Enter" });
+        expect(onLinkClick.mock.calls.map(call => call[0])).toEqual([
+            "moo://inspect/oid:42",
+            "moo://inspect/oid:42",
+            "moo://help/movement",
+            "https://example.com",
+        ]);
+        fireEvent.click(links[1]);
+        fireEvent.keyDown(links[1], { key: "Enter" });
+        expect(onLinkClick).toHaveBeenCalledTimes(4);
+    });
+
+    it("allows touch previews on historical object references", () => {
+        vi.useFakeTimers();
+        try {
+            const onLinkHoldStart = vi.fn();
+            const onLinkHoldEnd = vi.fn();
+            render(
+                <ContentRenderer
+                    content={content}
+                    contentType="text/html"
+                    isStale
+                    onLinkHoldStart={onLinkHoldStart}
+                    onLinkHoldEnd={onLinkHoldEnd}
+                />,
+            );
+            fireEvent.touchStart(screen.getByText("Key"), { touches: [{ clientX: 20, clientY: 40 }] });
+            act(() => vi.advanceTimersByTime(300));
+            expect(onLinkHoldStart).toHaveBeenCalledWith("moo://inspect/oid:42", { x: 20, y: 40 });
+            fireEvent.touchEnd(screen.getByText("Key"));
+            expect(onLinkHoldEnd).toHaveBeenCalledOnce();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
