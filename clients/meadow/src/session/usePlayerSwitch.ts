@@ -48,10 +48,10 @@ export const usePlayerSwitch = (
             if (!playerOid) {
                 handlers.onSessionEnded();
             }
+        }
 
-            if (previous.historyPlayerOid !== historyPlayerOid) {
-                handlers.onHistoryIdentityChanged();
-            }
+        if (previous.historyPlayerOid && previous.historyPlayerOid !== historyPlayerOid) {
+            handlers.onHistoryIdentityChanged();
         }
 
         previousPlayerIdentityRef.current = { playerOid, historyPlayerOid };

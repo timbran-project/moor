@@ -66,6 +66,40 @@ describe("auth session persistence", () => {
         expect(localStorage.getItem("oauth2_auth_token")).toBeNull();
     });
 
+    it("keeps a restored tab's identity paired with its connection when another tab switches", () => {
+        localStorage.setItem("auth_token", "alice-token");
+        localStorage.setItem("player_oid", "oid:42");
+        localStorage.setItem("history_auth_token", "alice-history-token");
+        localStorage.setItem("history_player_oid", "oid:1");
+        localStorage.setItem("player_flags", "2");
+        sessionStorage.setItem("client_id", "alice-connection");
+        sessionStorage.setItem("client_token", "alice-client-token");
+        const restored = readAuthSession();
+
+        // Another tab switches players, then refreshes its flags.
+        localStorage.setItem("auth_token", "bob-token");
+        localStorage.setItem("player_oid", "oid:43");
+        localStorage.setItem("history_auth_token", "bob-token");
+        localStorage.setItem("history_player_oid", "oid:43");
+        localStorage.setItem("player_flags", "0");
+
+        expect(readAuthSession()).toEqual(restored);
+        expect(readAuthSession()?.playerOid).toBe("oid:42");
+
+        // Logging out this tab must not erase the other player's remembered login.
+        clearAuthSession();
+        expect(localStorage.getItem("auth_token")).toBe("bob-token");
+        expect(readAuthSession()).toBeNull();
+
+        // A newly opened tab can still use the remembered login.
+        installStorageMock("sessionStorage");
+        expect(readAuthSession()).toMatchObject({
+            playerOid: "oid:43",
+            historyPlayerOid: "oid:43",
+            reconnectCredentials: null,
+        });
+    });
+
     it("clears stale reconnect credentials as a pair", () => {
         sessionStorage.setItem("client_id", "11111111-1111-1111-1111-111111111111");
 

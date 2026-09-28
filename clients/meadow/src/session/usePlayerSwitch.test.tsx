@@ -72,6 +72,23 @@ describe("usePlayerSwitch", () => {
         expect(handlers.onHistoryIdentityChanged).toHaveBeenCalledTimes(1);
     });
 
+    it("reloads history when the same player stops preserving another owner's history", () => {
+        const handlers = {
+            onAuthorityReset: vi.fn(),
+            onSessionEnded: vi.fn(),
+            onHistoryIdentityChanged: vi.fn(),
+        };
+        const { rerender } = renderHook(({ historyOid }) => usePlayerSwitch("bob", historyOid, handlers), {
+            initialProps: { historyOid: "alice" },
+        });
+
+        rerender({ historyOid: "bob" });
+
+        expect(handlers.onHistoryIdentityChanged).toHaveBeenCalledTimes(1);
+        expect(handlers.onAuthorityReset).not.toHaveBeenCalled();
+        expect(handlers.onSessionEnded).not.toHaveBeenCalled();
+    });
+
     it("reports session end only when no player remains attached", () => {
         const handlers = {
             onAuthorityReset: vi.fn(noop),

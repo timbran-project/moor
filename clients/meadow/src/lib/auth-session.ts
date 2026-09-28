@@ -17,6 +17,7 @@ const HISTORY_AUTH_TOKEN_KEY = "history_auth_token";
 const HISTORY_PLAYER_OID_KEY = "history_player_oid";
 const CLIENT_TOKEN_KEY = "client_token";
 const CLIENT_ID_KEY = "client_id";
+const TAB_IDENTITY_KEY = "tab_identity_initialized";
 const CLIENT_SESSION_ACTIVE_KEY = "client_session_active";
 
 const OBSOLETE_AUTH_KEYS = [
@@ -62,31 +63,44 @@ export function persistReconnectCredentials(credentials: ReconnectCredentials | 
     sessionStorage.setItem(CLIENT_TOKEN_KEY, credentials.clientToken);
 }
 
+function persistIdentity(storage: Storage, session: AuthSession): void {
+    storage.setItem(AUTH_TOKEN_KEY, session.authToken);
+    storage.setItem(PLAYER_OID_KEY, session.playerOid);
+    storage.setItem(HISTORY_PLAYER_OID_KEY, session.historyPlayerOid);
+    storage.setItem(HISTORY_AUTH_TOKEN_KEY, session.historyAuthToken);
+    storage.setItem(PLAYER_FLAGS_KEY, session.playerFlags.toString());
+}
+
 export function readAuthSession(): AuthSession | null {
-    const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const playerOid = localStorage.getItem(PLAYER_OID_KEY);
+    // Pin the remembered login to this tab before another tab can switch it.
+    const storage = sessionStorage.getItem(TAB_IDENTITY_KEY) ? sessionStorage : localStorage;
+    const authToken = storage.getItem(AUTH_TOKEN_KEY);
+    const playerOid = storage.getItem(PLAYER_OID_KEY);
     if (!authToken || !playerOid) {
         return null;
     }
 
-    const storedFlags = localStorage.getItem(PLAYER_FLAGS_KEY);
+    const storedFlags = storage.getItem(PLAYER_FLAGS_KEY);
     const parsedFlags = storedFlags === null ? 0 : Number.parseInt(storedFlags, 10);
-    return {
+    const session = {
         playerOid,
         authToken,
-        historyPlayerOid: localStorage.getItem(HISTORY_PLAYER_OID_KEY) ?? playerOid,
-        historyAuthToken: localStorage.getItem(HISTORY_AUTH_TOKEN_KEY) ?? authToken,
+        historyPlayerOid: storage.getItem(HISTORY_PLAYER_OID_KEY) ?? playerOid,
+        historyAuthToken: storage.getItem(HISTORY_AUTH_TOKEN_KEY) ?? authToken,
         playerFlags: Number.isFinite(parsedFlags) ? parsedFlags : 0,
         reconnectCredentials: readReconnectCredentials(),
     };
+    if (storage === localStorage) {
+        persistIdentity(sessionStorage, session);
+        sessionStorage.setItem(TAB_IDENTITY_KEY, "true");
+    }
+    return session;
 }
 
 export function persistAuthSession(session: AuthSession): void {
-    localStorage.setItem(AUTH_TOKEN_KEY, session.authToken);
-    localStorage.setItem(PLAYER_OID_KEY, session.playerOid);
-    localStorage.setItem(HISTORY_PLAYER_OID_KEY, session.historyPlayerOid);
-    localStorage.setItem(HISTORY_AUTH_TOKEN_KEY, session.historyAuthToken);
-    localStorage.setItem(PLAYER_FLAGS_KEY, session.playerFlags.toString());
+    persistIdentity(sessionStorage, session);
+    sessionStorage.setItem(TAB_IDENTITY_KEY, "true");
+    persistIdentity(localStorage, session);
     persistReconnectCredentials(session.reconnectCredentials);
     for (const key of OBSOLETE_AUTH_KEYS) {
         localStorage.removeItem(key);
@@ -102,11 +116,15 @@ export function isClientSessionActive(): boolean {
 }
 
 export function clearAuthSession(): void {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(PLAYER_OID_KEY);
-    localStorage.removeItem(PLAYER_FLAGS_KEY);
-    localStorage.removeItem(HISTORY_PLAYER_OID_KEY);
-    localStorage.removeItem(HISTORY_AUTH_TOKEN_KEY);
+    const clearRememberedIdentity = !sessionStorage.getItem(TAB_IDENTITY_KEY)
+        || sessionStorage.getItem(AUTH_TOKEN_KEY) === localStorage.getItem(AUTH_TOKEN_KEY);
+    const keys = [AUTH_TOKEN_KEY, PLAYER_OID_KEY, PLAYER_FLAGS_KEY, HISTORY_PLAYER_OID_KEY, HISTORY_AUTH_TOKEN_KEY];
+    for (const key of keys) {
+        sessionStorage.removeItem(key);
+        if (clearRememberedIdentity) localStorage.removeItem(key);
+    }
+    // A logged-out tab must not adopt another tab's remembered login on refresh.
+    sessionStorage.setItem(TAB_IDENTITY_KEY, "true");
     for (const key of OBSOLETE_AUTH_KEYS) {
         localStorage.removeItem(key);
     }
