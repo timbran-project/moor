@@ -13,11 +13,14 @@
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { SuggestionSource } from "../hooks/useSuggestions";
+import { SuggestionInput } from "./SuggestionInput";
+
 export interface InspectAction {
     id: string;
     label: string;
     command: string;
-    input?: { label: string; placeholder: string };
+    input?: { label: string; placeholder: string; suggestions?: SuggestionSource };
 }
 
 export interface InspectData {
@@ -45,6 +48,8 @@ interface InspectPopoverProps {
     onCommand: (command: string) => boolean;
     returnFocusTo?: HTMLElement | null;
     isPreview?: boolean;
+    authToken?: string | null;
+    revision?: number;
 }
 
 /** Keep the card inside the visible viewport, including when the mobile keyboard opens. */
@@ -69,6 +74,8 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     onCommand,
     returnFocusTo,
     isPreview = false,
+    authToken = null,
+    revision = 0,
 }) => {
     const popoverRef = useRef<HTMLDivElement>(null);
     const drag = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
@@ -86,16 +93,16 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
             if (!popoverRef.current?.contains(event.target as Node)) dismiss();
         };
         const escape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return;
+            if (event.key !== "Escape" || event.defaultPrevented) return;
             event.preventDefault();
             event.stopPropagation();
             dismiss();
         };
         document.addEventListener("pointerdown", outside);
-        document.addEventListener("keydown", escape, true);
+        document.addEventListener("keydown", escape);
         return () => {
             document.removeEventListener("pointerdown", outside);
-            document.removeEventListener("keydown", escape, true);
+            document.removeEventListener("keydown", escape);
         };
     }, [dismiss, isPreview]);
 
@@ -155,7 +162,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     };
 
     const [activeInput, setActiveInput] = useState<string | null>(null);
-    const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const [drafts, setDrafts] = useState<Record<string, { text: string; value: string }>>({});
     const [notice, setNotice] = useState("");
     const [error, setError] = useState("");
     const fieldId = useId();
@@ -167,11 +174,11 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     const send = (action: InspectAction) => {
         setError("");
         try {
-            const command = inspectionCommand(action, drafts[action.id]);
+            const command = inspectionCommand(action, drafts[action.id]?.value);
             if (!onCommand(command)) throw new Error("Not connected. Your command was not sent.");
             setNotice(`Sent: ${command}`);
             setActiveInput(null);
-            setDrafts(current => ({ ...current, [action.id]: "" }));
+            setDrafts(current => ({ ...current, [action.id]: { text: "", value: "" } }));
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not send the command.");
         }
@@ -218,7 +225,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                     {data.actions.length === 0 && <p>No commands available here.</p>}
                     {data.actions.map(action => {
                         const expanded = activeInput === action.id;
-                        const preview = action.command.split("{input}").join(drafts[action.id] || "…");
+                        const preview = action.command.split("{input}").join(drafts[action.id]?.value || "…");
                         return (
                             <div className="inspect-popover-command" key={action.id}>
                                 <button
@@ -248,14 +255,22 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                                         }}
                                     >
                                         <label htmlFor={fieldId}>{action.input.label}</label>
-                                        <input
+                                        <SuggestionInput
                                             ref={inputRef}
                                             id={fieldId}
-                                            value={drafts[action.id] || ""}
+                                            value={drafts[action.id]?.text || ""}
                                             placeholder={action.input.placeholder}
-                                            autoComplete="off"
-                                            onChange={event =>
-                                                setDrafts(current => ({ ...current, [action.id]: event.target.value }))}
+                                            authToken={authToken}
+                                            revision={revision}
+                                            source={action.input.suggestions && {
+                                                ...action.input.suggestions,
+                                                template: action.command,
+                                            }}
+                                            onChange={(text, selection) =>
+                                                setDrafts(current => ({
+                                                    ...current,
+                                                    [action.id]: { text, value: selection?.value ?? text },
+                                                }))}
                                         />
                                         <button type="submit">
                                             {action.label} <span aria-hidden="true">↵</span>

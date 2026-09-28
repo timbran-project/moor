@@ -109,6 +109,10 @@ authorization when it runs. Results appear in the normal transcript or presentat
 Meadow refreshes an open inspector after command completion and room-state events, preserving input
 drafts by action ID. An action must not return a second, inspector-specific result format.
 
+Inspector inputs can request [contextual suggestions](docs/suggestions.md). These reuse the command
+environment and, when a command template is known, `parse_command` / `find_command_verb` to check
+argument signatures before offering a choice. Selection fills an input without executing it.
+
 **Systems:**
 
 - Authentication with argon2 password hashing (`password.moo`, `login.moo`)

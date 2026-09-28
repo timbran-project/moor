@@ -2722,6 +2722,52 @@
   .inspect-popover-input button { min-height: 44px; }
 }
 
+/* Contextual suggestions stay inside their form and scroll independently. */
+.suggestion-input-menu {
+  margin-top: 6px;
+  border: 1px solid var(--color-border-medium);
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+.suggestion-input [role="listbox"] {
+  max-height: 190px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.suggestion-input [role="option"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestion-input [role="option"][aria-selected="true"],
+.suggestion-input [role="option"]:hover {
+  background: var(--color-bg-hover);
+}
+
+.suggestion-input small,
+.suggestion-input-status {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.suggestion-input small { flex-shrink: 0; }
+.suggestion-input-status { padding: 8px 10px; }
+
 /* ====== DEFINITION LIST STYLES ====== */
 /* Compact two-column key-value layout */
 dl {

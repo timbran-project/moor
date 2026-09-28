@@ -237,4 +237,100 @@ object MATCH [
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.0]);
     result != #-3 && raise(E_ASSERT, "Fuzzy disabled should fail: " + toliteral(result));
   endmethod
+  method object_suggestions owner: ARCH_WIZARD
+    "Build labelled object choices from a visible match scope, retaining scope aliases.";
+    set_task_perms(caller_perms());
+    const {scope} = args;
+    let result = {};
+    let seen = [];
+    for entry in (scope)
+      const obj = typeof(entry) == TYPE_LIST && entry ? entry[1] | entry;
+      if (typeof(obj) != TYPE_OBJ || !valid(obj))
+        continue;
+      endif
+      const aliases = typeof(entry) == TYPE_LIST ? entry[2..$] | {};
+      if (maphaskey(seen, obj))
+        const previous = seen[obj];
+        result[previous]["keys"] = {@result[previous]["keys"], @aliases};
+        continue;
+      endif
+      seen[obj] = length(result) + 1;
+      result = {@result, ["id" -> tostr(obj), "label" -> obj:name(), "value" -> tostr(obj),
+        "detail" -> tostr(obj), "keys" -> {@obj:aliases(), @aliases}]};
+    endfor
+    return result;
+  endmethod
+
+  method matching_suggestions owner: ARCH_WIZARD
+    "Parse a template once, then ask the command matcher whether each candidate fits its object slot.";
+    set_task_perms(caller_perms());
+    const {candidates, template, match_env, command_env} = args;
+    const slot = index(template, "{input}");
+    slot && slot == rindex(template, "{input}") || raise(E_INVARG, "Expected one input slot");
+    const parsed = parse_command(strsub(template, "{input}", "#-1"), match_env, true, 0.3);
+    const direct = parsed['dobjstr] == "#-1";
+    direct || parsed['iobjstr] == "#-1" || raise(E_INVARG, "Input must fill an object argument");
+    const other_key = direct ? 'iobj | 'dobj;
+    const other_candidates = parsed[other_key] == $ambiguous_match
+      ? parsed[direct ? 'ambiguous_iobj | 'ambiguous_dobj] | {parsed[other_key]};
+    let result = {};
+    for candidate in (candidates)
+      let command = parsed;
+      command[direct ? 'dobj | 'iobj] = toobj(candidate["value"]);
+      command[direct ? 'dobjstr | 'iobjstr] = candidate["value"];
+      for other in (other_candidates)
+        command[other_key] = other;
+        if (find_command_verb(command, command_env))
+          result = {@result, candidate};
+          break;
+        endif
+      endfor
+    endfor
+    return result;
+  endmethod
+
+  method rank_suggestions owner: HACKER
+    "Rank exact, prefix, word-prefix, then substring matches; bound returned rows and omit search keys.";
+    const {candidates, query, limit} = args;
+    const needle = query:trim():lowercase();
+    let buckets = {{}, {}, {}, {}};
+    let seen = [];
+    let count = 0;
+    for candidate in (candidates)
+      const id = candidate["id"];
+      if (maphaskey(seen, id))
+        continue;
+      endif
+      const keys = {candidate["label"], candidate["value"], @`candidate["keys"] ! E_RANGE => {}'};
+      let rank = 5;
+      for key in (keys)
+        if (typeof(key) != TYPE_STR)
+          continue;
+        endif
+        const text = key:lowercase();
+        if (!needle || text == needle)
+          rank = 1;
+          break;
+        elseif (index(text, needle) == 1)
+          rank = min(rank, 2);
+        elseif (index(text, " " + needle))
+          rank = min(rank, 3);
+        elseif (index(text, needle))
+          rank = min(rank, 4);
+        endif
+      endfor
+      if (rank == 5)
+        continue;
+      endif
+      seen[id] = true;
+      count = count + 1;
+      if (length(buckets[rank]) < limit)
+        buckets[rank] = {@buckets[rank], ["id" -> id, "label" -> candidate["label"],
+          "value" -> candidate["value"], "detail" -> `candidate["detail"] ! E_RANGE => ""']};
+      endif
+    endfor
+    const ranked = {@buckets[1], @buckets[2], @buckets[3], @buckets[4]};
+    return ["items" -> ranked[1..min(length(ranked), limit)], "more" -> count > limit];
+  endmethod
+
 endobject

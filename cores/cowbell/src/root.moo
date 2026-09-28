@@ -684,6 +684,31 @@ object ROOT [
     return `property_info(this, prop_name) ! ANY => false' ? true | false;
   endmethod
 
+  method suggestions owner: ARCH_WIZARD
+    "Read-only typeahead endpoint with optional command-template validation.";
+    const {source, query, ?template = "", ?limit = 12} = args;
+    valid(player) && is_player(player) || raise(E_PERM);
+    typeof(source) == TYPE_STR && typeof(query) == TYPE_STR && typeof(template) == TYPE_STR && typeof(limit) == TYPE_INT || raise(E_TYPE);
+    length(source) <= 64 && length(query) <= 256 && length(template) <= 1024 && limit >= 1 && limit <= 50 || raise(E_INVARG);
+    set_task_perms(player);
+    return $match:rank_suggestions(this:suggestion_candidates(source, query, template), query, limit);
+  endmethod
+
+  method suggestion_candidates owner: ARCH_WIZARD
+    "Use the command environment for object choices; override for other named sources of labelled values.";
+    set_task_perms(caller_perms());
+    const {source, ?query = "", ?template = ""} = args;
+    const scope = player:match_environment(template, ['scope -> source, 'target -> this]);
+    const candidates = $match:object_suggestions(scope);
+    !template && return candidates;
+    return $match:matching_suggestions(candidates, template, {@player:match_environment(template), @scope}, player:command_environment());
+  endmethod
+
+  method match_scope_for owner: ARCH_WIZARD
+    "Contribute visible objects and aliases to an actor's environmental search.";
+    return {};
+  endmethod
+
   method inspection owner: ARCH_WIZARD
     "Describe an object and its command suggestions for a viewer. Availability is advisory.";
     const {?who = player} = args;
@@ -739,7 +764,8 @@ object ROOT [
       seen = {@seen, name};
       let action = ["id" -> name, "label" -> name:capitalize(), "command" -> command];
       if (input_label)
-        action["input"] = ["label" -> input_label, "placeholder" -> "Item name or #reference"];
+        action["input"] = ["label" -> input_label, "placeholder" -> "Find an item…",
+          "suggestions" -> ["provider" -> $url_utils:to_curie_str(who), "source" -> "nearby"]];
       endif
       actions = {@actions, action};
     endfor

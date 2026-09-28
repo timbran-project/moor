@@ -160,3 +160,16 @@ items/thing.moo:inspection_actions
 items/container.moo:inspection_state
 items/container.moo:inspection_commands
 player.moo:inspection_actions
+
+root.moo:suggestions
+root.moo:suggestion_candidates
+player.moo:suggestion_candidates
+items/container.moo:can_view_contents
+items/container.moo:contents
+utils/match.moo:object_suggestions
+utils/match.moo:rank_suggestions
+root.moo:match_scope_for
+player.moo:match_environment
+items/container.moo:match_scope_for
+utils/match.moo:matching_suggestions
+player.moo:command_environment

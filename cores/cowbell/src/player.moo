@@ -448,40 +448,38 @@ object PLAYER [
   endmethod
 
   method match_environment owner: ARCH_WIZARD
-    caller != this && caller != #0 && !caller.wizard && return E_PERM;
-    "Return list of objects to match against for execution in commands.";
-    location = this.location;
-    env = {this};
-    "Add player's inventory.";
-    for item in (this.contents)
-      valid(item) && (env = {@env, item});
-    endfor
-    "Add worn items to environment so their verbs are directly accessible.";
-    for item in (this.wearing)
-      valid(item) && (env = {@env, item});
-    endfor
-    "Add player's mailbox if they have one.";
-    mailbox = this:find_mailbox();
+    "Return parser scope entries. Context may narrow to inventory or expand into a target's visible contents.";
+    caller_perms() == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
+    const {?command = "", ?context = []} = args;
+    const scope = `context['scope] ! E_RANGE => "nearby"';
+    const target = `context['target] ! E_RANGE => $nothing';
+    if (scope == "inventory")
+      return {item for item in (this:contents()) if (item != target)};
+    elseif (scope == "contents")
+      valid(target) && (target.location == this || $thing:take_reachable(target, this)) || return {};
+      return target:match_scope_for(this, context);
+    endif
+    scope == "nearby" || raise(E_INVARG, "Unknown matching scope");
+    const carried = {carried_item for carried_item in (this:contents()) if (valid(carried_item))};
+    const worn = {worn_item for worn_item in (this.wearing) if (valid(worn_item))};
+    let env = {this, @carried, @worn};
+    const mailbox = this:find_mailbox();
     valid(mailbox) && (env = {@env, mailbox});
-    "Add location and its contents.";
+    const location = this.location;
     if (valid(location))
-      "Let the room/location contribute additional objects (e.g., its contents, and passages).";
-      "Add contents BEFORE the room so items match before room name.";
-      if (respond_to(location, 'match_scope_for))
-        ambient = location:match_scope_for(this);
-        typeof(ambient) == TYPE_LIST && (env = {@env, @ambient});
-      endif
-      env = {@env, location};
+      const ambient = location:match_scope_for(this, context);
+      env = {@env, @ambient, location};
     endif
     return env;
   endmethod
 
   method command_environment owner: ARCH_WIZARD
-    "Return objects whose verbs can trigger as primary / ambient commands.";
-    "This is typically just the player and their location, as in the builtin-parser, but can be extended to add e.g. feature objects or ambient environmental things that require direct interaction.";
-    caller != this && caller != #0 && !caller.wizard && return E_PERM;
-    env = {this, @this:_feature_environment()};
-    location = this.location;
+    "Return the player, features, and location searched for ambient command verbs.";
+    caller_perms() == this || caller == #0 || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(this);
+    let env = {this, @this:_feature_environment()};
+    const location = this.location;
     valid(location) && (env = {@env, location});
     return env;
   endmethod
@@ -1493,6 +1491,22 @@ object PLAYER [
       this:inform_current($event:mk_info(this, "Cancelled."):with_audience('utility):with_presentation_hint('inset):with_group('utility, this));
       return false;
     endif
+  endmethod
+
+  method suggestion_candidates owner: ARCH_WIZARD
+    "Add command-name completion to the shared environment-based object sources.";
+    const {source, ?query = "", ?template = ""} = args;
+    this == player && (caller_perms() == this || caller_perms().wizard) || raise(E_PERM);
+    set_task_perms(this);
+    source != "commands" && return pass(@args);
+    let result = {};
+    for entry in (this:verb_suggestions())
+      const names = {strsub(alias, "*", "") for alias in (entry['verb]:words())};
+      const name = names[1];
+      result = {@result, ["id" -> name, "label" -> name, "value" -> name,
+        "detail" -> entry['hint], "keys" -> names]};
+    endfor
+    return result;
   endmethod
 
   method verb_suggestions owner: ARCH_WIZARD

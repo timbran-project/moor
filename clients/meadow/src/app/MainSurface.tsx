@@ -813,6 +813,8 @@ export const MainSurface: React.FC = () => {
                     position={inspect.inspectPopover.position}
                     onClose={inspect.closeInspectPopover}
                     onCommand={submitInspectionCommand}
+                    authToken={authToken}
+                    revision={stateRevision}
                     isPreview={inspect.inspectPopover.isPreview}
                 />
             )}

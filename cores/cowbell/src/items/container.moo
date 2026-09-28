@@ -390,17 +390,39 @@ object CONTAINER [
     endif
   endmethod
 
+  method can_view_contents owner: ARCH_WIZARD
+    "Apply the container's viewing rule and recheck reach/open state after authored callbacks.";
+    set_task_perms(caller_perms());
+    const {viewer} = args;
+    const reachable = this.location == viewer || $thing:take_reachable(this, viewer);
+    this.open && reachable || return false;
+    if (this.take_rule != 0)
+      const result = $rule_engine:evaluate(this.take_rule, ['This -> this, 'Accessor -> viewer]);
+      result['success] || return false;
+    endif
+    return this.open && (this.location == viewer || $thing:take_reachable(this, viewer));
+  endmethod
+
+  method contents owner: ARCH_WIZARD
+    "Expose only contents the current viewer can see, for looks, examination, and suggestions.";
+    set_task_perms(caller_perms());
+    this:can_view_contents(player) || return {};
+    return pass();
+  endmethod
+
+  method match_scope_for owner: ARCH_WIZARD
+    "Contribute visible contents to an explicitly targeted environmental search.";
+    set_task_perms(caller_perms());
+    const {actor, ?context = []} = args;
+    actor == player || raise(E_PERM);
+    return this:contents();
+  endmethod
+
   method look_self owner: ARCH_WIZARD
     "Custom look that shows contents with container-appropriate language";
     set_task_perms(caller_perms());
     description = this.description;
-    "Check if viewer can see contents via take_rule";
-    can_view = true;
-    if (this.take_rule != 0)
-      "Evaluate rule without dobj binding for general access check";
-      result = $rule_engine:evaluate(this.take_rule, ['This -> this, 'Accessor -> player]);
-      can_view = result['success];
-    endif
+    can_view = this:can_view_contents(player);
     if (can_view)
       "Show contents";
       contents_list = {};
@@ -445,9 +467,11 @@ object CONTAINER [
       const ref = tostr(this);
       actions = {@actions,
         ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + ref,
-          "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Carried item name or #reference"]],
+          "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Find a carried item…",
+            "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "inventory"]]],
         ["id" -> "take_from", "label" -> "Take from", "command" -> "get {input} from " + ref,
-          "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Item name or #reference"]]};
+          "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Find an item inside…",
+            "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "contents"]]]};
     endif
     return actions;
   endmethod

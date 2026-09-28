@@ -453,6 +453,61 @@ object HEADLESS_WORLD_SCENARIOS
     endtry
   endmethod
 
+  method test_contextual_suggestions owner: ARCH_WIZARD
+    "Suggestions share scopes and command matching, preserve aliases, and never execute candidate verbs.";
+    const prior = player.location;
+    const prior_wearing = player.wearing;
+    const room = create($room, #90100, 2);
+    const box = create($container, #90100, 2);
+    const alpha = create($thing, player, 2);
+    const beta = create($thing, player, 2);
+    try
+      move(player, room);
+      move(box, room);
+      move(alpha, player);
+      player.wearing = {#-1};
+      move(beta, player);
+      alpha.name = "Silver token";
+      alpha.aliases = {"coin"};
+      beta.name = "Copper token";
+      add_verb(alpha, {player, "rd", "polish"}, {"this", "none", "none"});
+      set_verb_code(alpha, "polish", {"raise(E_ASSERT, \"Suggestion executed a command\");"});
+      const filtered = player:suggestions("inventory", "token", "polish {input}");
+      $test_utils:assert_eq({row["value"] for row in (filtered["items"])}, {tostr(alpha)}, "argspec matcher excludes objects without the command");
+      $test_utils:assert_eq(player:suggestions("inventory", "token", "polish {input} with " + tostr(box))["items"], {}, "preposition mismatch is not suggested");
+      $test_utils:assert_eq(player:suggestions("inventory", "COIN")["items"][1]["value"], tostr(alpha), "aliases match without case sensitivity");
+      const limited = player:suggestions("inventory", "token", "", 1);
+      $test_utils:assert_eq(length(limited["items"]), 1, "limit bounds the response");
+      $test_utils:assert_eq(limited["more"], true, "additional choices are indicated");
+      const entries = $match:object_suggestions({alpha, {alpha, "scope alias"}});
+      $test_utils:assert_eq(length(entries), 1, "duplicate scope entries collapse");
+      $test_utils:assert_eq($match:rank_suggestions(entries, "scope alias", 12)["items"][1]["value"], tostr(alpha), "environment aliases survive duplicate entries");
+      add_verb(alpha, {player, "rd", "fit"}, {"any", "with", "this"});
+      set_verb_code(alpha, "fit", {"raise(E_ASSERT, \"Suggestion executed a command\");"});
+      $test_utils:assert_eq(player:suggestions("inventory", "token", "fit " + tostr(box) + " with {input}")["items"][1]["value"], tostr(alpha), "indirect argument slots use the same matcher");
+      move(beta, box);
+      $test_utils:assert_eq(box:suggestions("contents", "", "get {input} from " + tostr(box))["items"][1]["value"], tostr(beta), "container scope can expand beyond ordinary nearby matches");
+      box.open = false;
+      $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "closed contents stay private");
+      box.open = true;
+      box.take_rule = $rule_engine:parse_expression("This owner_is(Accessor)?", 'owner_view);
+      $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "viewing rules apply to suggestions");
+      box.take_rule = 0;
+      move(box, #90103);
+      $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "distant containers do not expose contents");
+      const foreign = `#90101:suggestions("inventory", "") ! E_PERM => E_PERM';
+      $test_utils:assert_eq(foreign, E_PERM, "another player's inventory is not queryable");
+      $test_utils:assert_true(length(player:suggestions("commands", "loo")["items"]) > 0, "command names use the existing verb catalog");
+    finally
+      player.wearing = prior_wearing;
+      move(player, prior);
+      recycle(alpha);
+      recycle(beta);
+      recycle(box);
+      recycle(room);
+    endtry
+  endmethod
+
 endobject
 
 object #90108
@@ -487,4 +542,5 @@ object #90112
   parent: THING
   owner: RUNTIME_PLAYER
   location: RUNTIME_PLAYER
+
 endobject
