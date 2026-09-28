@@ -806,10 +806,7 @@ impl RuntimeApi for RpcMessageHandler {
                 }
                 scheduler_client
                     .update_property(&player, &player, &object, property, value)
-                    .map_err(|e| {
-                        error!(error = ?e, "Error updating property");
-                        RpcMessageError::EntityRetrievalError("error updating property".to_string())
-                    })?;
+                    .map_err(RpcMessageError::TaskError)?;
                 Ok(ClientReply::PropertyUpdated)
             }
 

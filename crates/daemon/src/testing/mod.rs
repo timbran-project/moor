@@ -34,3 +34,6 @@ mod oauth_login_test;
 
 #[cfg(test)]
 mod disconnect_test;
+
+#[cfg(test)]
+mod property_update_test;

@@ -80,6 +80,29 @@ async function toBytes(response: Response): Promise<Uint8Array> {
     }
 }
 
+async function responseError(response: Response, context: string): Promise<MoorApiError> {
+    let message = `Request failed: ${response.status} ${response.statusText}`;
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    if (contentType === "application/json") {
+        try {
+            const body: unknown = await response.json();
+            if (
+                body && typeof body === "object" && "error" in body
+                && typeof body.error === "string" && body.error.trim()
+            ) {
+                message = body.error;
+            }
+        } catch {
+            // Keep the HTTP status when a proxy or server returns an invalid body.
+        }
+    }
+    return new MoorApiError("transport", message, {
+        status: response.status,
+        statusText: response.statusText,
+        context,
+    });
+}
+
 export function createMoorApiClient(options: MoorApiClientOptions = {}): MoorApiClient {
     const fetcher: FetchLike = options.fetcher ?? window.fetch.bind(window);
     const baseUrl = options.baseUrl;
@@ -92,11 +115,7 @@ export function createMoorApiClient(options: MoorApiClientOptions = {}): MoorApi
     async function getFlatBuffer(path: string, init?: RequestInit): Promise<Uint8Array> {
         const response = await request(path, init);
         if (!response.ok) {
-            throw new MoorApiError(
-                "transport",
-                `Request failed: ${response.status} ${response.statusText}`,
-                { status: response.status, statusText: response.statusText, context: path },
-            );
+            throw await responseError(response, path);
         }
         return toBytes(response);
     }
@@ -107,11 +126,7 @@ export function createMoorApiClient(options: MoorApiClientOptions = {}): MoorApi
             return null;
         }
         if (!response.ok) {
-            throw new MoorApiError(
-                "transport",
-                `Request failed: ${response.status} ${response.statusText}`,
-                { status: response.status, statusText: response.statusText, context: path },
-            );
+            throw await responseError(response, path);
         }
         return toBytes(response);
     }

@@ -47,6 +47,37 @@ describe("createMoorApiClient", () => {
         expect(bytes).toBeNull();
     });
 
+    it("preserves the server explanation and HTTP status for a failed property edit", async () => {
+        const api = createMoorApiClient({
+            fetcher: async () =>
+                new Response(JSON.stringify({ error: "Property permission denied" }), {
+                    status: 403,
+                    headers: { "Content-Type": "application/json" },
+                }),
+        });
+        await expect(api.getFlatBuffer("/v1/properties/oid:42/private", { method: "POST" }))
+            .rejects.toMatchObject({ message: "Property permission denied", status: 403, kind: "transport" });
+        await expect(api.getFlatBufferOrNullOn404("/v1/properties/oid:42/private"))
+            .rejects.toMatchObject({ message: "Property permission denied", status: 403 });
+    });
+
+    it.each([
+        ["text/html", "<html>Proxy failed</html>"],
+        ["application/json", "not JSON"],
+        ["application/json", JSON.stringify({ error: { message: "unrecognized shape" } })],
+    ])("keeps the HTTP error when %s has no usable JSON explanation", async (contentType, body) => {
+        const api = createMoorApiClient({
+            fetcher: async () =>
+                new Response(body, {
+                    status: 502,
+                    statusText: "Bad Gateway",
+                    headers: { "Content-Type": contentType },
+                }),
+        });
+        await expect(api.getFlatBuffer("/v1/properties/oid:42/value"))
+            .rejects.toMatchObject({ message: "Request failed: 502 Bad Gateway", status: 502 });
+    });
+
     it("resolves relative paths against baseUrl", async () => {
         let seenUrl = "";
         const api = createMoorApiClient({
