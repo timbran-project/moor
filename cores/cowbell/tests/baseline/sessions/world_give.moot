@@ -1,0 +1,25 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Carrying a wizard-owned item authorizes a gift, without changing ownership.
+@nonprogrammer
+@wizard
+; move(#45, #90103); move(#47, #90103); return {#47.owner, #45:acceptable(#47)};
+{#2, true}
+@nonprogrammer
+% get #47
+~~You picked up Architect's Compass.
+% give #47 at #45
+~~You give Architect's Compass to Mr. Welcome.
+@quiet
+@wizard
+; return {#47.location, #47.owner};
+{#45, #2}
+~~RUNTIME_PLAYER picked up Architect's Compass.
+~~RUNTIME_PLAYER gives Architect's Compass to Mr. Welcome.
+// The command also works for a wizard, using the natural-language preposition.
+; move(#47, #90100); return true;
+true
+% hand #47 to #45
+~~You give Architect's Compass to Mr. Welcome.
+; return {#47.location, #47.owner};
+{#45, #2}

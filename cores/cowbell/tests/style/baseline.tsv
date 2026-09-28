@@ -1,8 +1,6 @@
 count	file	verb	kind	detail
 1	actor.moo	"get take steal grab" (any from this) owner: HACKER flags: "rd"	implicit-local	event
 1	actor.moo	"get take steal grab" (any from this) owner: HACKER flags: "rd"	implicit-local	msg
-1	actor.moo	"give hand" (any at this) owner: HACKER flags: "rd"	implicit-local	event
-1	actor.moo	"give hand" (any at this) owner: HACKER flags: "rd"	implicit-local	msg
 1	actor.moo	"pronoun_*" owner: ARCH_WIZARD	implicit-local	p
 1	actor.moo	"pronoun_*" owner: ARCH_WIZARD	implicit-local	ptype
 1	actor.moo	"pronoun_*" owner: ARCH_WIZARD	missing-docstring	Describe the contract before executable statements.

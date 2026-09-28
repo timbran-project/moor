@@ -1,0 +1,33 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+@wizard
+; move(#45, #90103); move(#47, #90102); add_verb(#47, {#2, "rxd", "can_drop"}, {"this", "none", "this"}); set_verb_code(#47, "can_drop", {"move(this, #90103); suspend(0); return true;"}); return true;
+true
+@nonprogrammer
+% give #47 at #45
+~~You no longer have that to give.
+@quiet
+@wizard
+; return #47.location;
+#90103
+// Acceptance can yield too: a departed recipient must not get the item.
+; move(#47, #90102); delete_verb(#47, "can_drop"); set_verb_code(#45, "acceptable", {"set_task_perms(caller_perms()); move(this, $first_room); suspend(0); return true;"}); set_verb_info(#45, "acceptable", {#2, "rxd", "acceptable"}); return true;
+true
+@nonprogrammer
+% give #47 at #45
+~~That recipient is no longer within reach.
+@quiet
+@wizard
+; return {#47.location, #45.location == $first_room};
+{#90102, true}
+// Acceptance cannot change the item's drop restriction after its check.
+; move(#45, #90103); set_verb_code(#45, "acceptable", {"#47.drop_rule = 1; suspend(0); return true;"}); return true;
+true
+@nonprogrammer
+% give #47 at #45
+~~The item's access rules changed. Please try again.
+@quiet
+@wizard
+; return #47.location;
+#90102

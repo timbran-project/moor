@@ -173,3 +173,6 @@ player.moo:match_environment
 items/container.moo:match_scope_for
 utils/match.moo:matching_suggestions
 player.moo:command_environment
+
+actor.moo:give
+actor.moo:do_give

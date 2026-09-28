@@ -1,0 +1,19 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+@nonprogrammer
+@wizard
+; move(#45, #90103); move(#47, #90102); return true;
+true
+// Calling the movement helper from a foreign object cannot bypass the command.
+; try #90014:call_as_programmer(#45, "do_give", #90102, #47); return false; except (E_PERM) return true; endtry
+true
+// A self-call on a programmer-owned actor cannot select somebody else as giver.
+; add_verb(#90101, {#90101, "rxd", "gift_probe"}, {"this", "none", "this"}); set_verb_code(#90101, "gift_probe", {"return this:do_give(@args);"}); try #90101:gift_probe(#90102, #47); return false; except (E_PERM) return true; endtry
+true
+// Ordinary movement still requires ownership or an explicit capability.
+; try #90014:call_as_programmer(#47, "moveto", #90101); return false; except (E_PERM) return true; endtry
+true
+; return {#47.location, #47.owner};
+{#90102, #2}
+@nonprogrammer
+@quiet

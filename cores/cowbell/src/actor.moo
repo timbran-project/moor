@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object ACTOR [
   import_export_id -> "actor"
 ]
@@ -30,57 +32,58 @@ object ACTOR [
     player:inform_current(event);
   endverb
 
-  verb "give hand" (any at this) owner: HACKER flags: "rd"
-    "Give an object to this actor";
-    if (!dobjstr || dobjstr == "")
-      event = $event:mk_error(player, "Give what?");
-      player:inform_current(event);
+  verb "give hand" (any at this) owner: ARCH_WIZARD flags: "rd"
+    "Give a carried object to a nearby actor through the command parser.";
+    const actor = caller_perms();
+    actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
+    set_task_perms(actor == #-1 ? player | actor);
+    if (!dobjstr)
+      player:inform_current($event:mk_error(player, "Give what?"));
       return;
     endif
-    "Match the object being given from player's perspective";
     try
       dobj = $match:match_object(dobjstr, player);
-    except e (ANY)
-      event = $event:mk_error(player, "You don't have that.");
-      player:inform_current(event);
+    except (ANY)
+      player:inform_current($event:mk_error(player, "You don't have that."));
       return;
     endtry
-    if (!valid(dobj) || typeof(dobj) != TYPE_OBJ)
-      event = $event:mk_error(player, "You don't have that.");
-      player:inform_current(event);
-      return;
-    endif
-    if (dobj.location != player)
-      event = $event:mk_error(player, "You don't have ", $sub:d(), "."):with_dobj(dobj);
-      player:inform_current(event);
-      return;
-    endif
-    if (this == player)
-      event = $event:mk_error(player, "You already have ", $sub:d(), "."):with_dobj(dobj);
-      player:inform_current(event);
-      return;
-    endif
-    "Check if this recipient can accept the item";
-    if (!this:acceptable(dobj))
-      event = $event:mk_error(player, $sub:t(), " can't accept ", $sub:d(), "."):with_dobj(dobj):with_this(this);
-      player:inform_current(event);
-      return;
-    endif
-    "Move the item";
     try
-      dobj:moveto(this);
+      this:do_give(player, dobj);
     except e (E_PERM)
-      msg = length(e) > 2 ? e[2] | "You don't have permission to give that away.";
-      event = $event:mk_error(player, msg):with_dobj(dobj);
-      player:inform_current(event);
-      return;
+      player:inform_current($event:mk_error(player, e[2]));
     endtry
-    "Announce to room";
-    if (valid(player.location))
-      event = $event:mk_info(player, $sub:nc(), " ", $sub:self_alt("give", "gives"), " ", $sub:d(), " to ", $sub:i(), "."):with_dobj(dobj):with_iobj(this):with_this(player.location);
-      player.location:announce(event);
-    endif
   endverb
+
+  method do_give owner: ARCH_WIZARD
+    "Transfer a held item without requiring its giver to own it.";
+    caller == this || raise(E_PERM, "do_give must be called by this object");
+    const {who, item} = args;
+    const actor = caller_perms();
+    valid(who) && (actor == who || (valid(actor) && actor.wizard)) || raise(E_PERM);
+    valid(item) && item.location == who || raise(E_PERM, "You don't have that to give.");
+    this != who || raise(E_PERM, "You already have that.");
+    const room = who.location;
+    valid(room) && this.location == room || raise(E_PERM, "That recipient is no longer within reach.");
+    const is_thing = isa(item, $thing);
+    const policy = is_thing ? item.drop_rule | 0;
+    if (is_thing && !item:can_drop(who))
+      who:inform_current($event:mk_error(who, @item.drop_denied_msg):with_dobj(item));
+      return false;
+    endif
+    this:acceptable(item) || raise(E_PERM, "That recipient can't accept the item.");
+    "Policy callbacks may suspend; possession and proximity must still hold.";
+    valid(item) && item.location == who || raise(E_PERM, "You no longer have that to give.");
+    valid(who) && who.location == room && this.location == room
+      || raise(E_PERM, "That recipient is no longer within reach.");
+    (!is_thing || item.drop_rule == policy)
+      || raise(E_PERM, "The item's access rules changed. Please try again.");
+    const moved = item:moveto(this);
+    typeof(moved) == TYPE_ERR && raise(moved);
+    item.location == this || raise(E_INVARG, "Item movement did not reach its destination");
+    const event = $event:mk_info(who, $sub:nc(), " ", $sub:self_alt("give", "gives"), " ", $sub:d(), " to ", $sub:i(), "."):with_dobj(item):with_iobj(this):with_this(room);
+    room:announce(event);
+    return true;
+  endmethod
 
   verb "get take steal grab" (any from this) owner: HACKER flags: "rd"
     "Take an object from this actor";
