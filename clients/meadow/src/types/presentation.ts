@@ -13,7 +13,7 @@
 
 import type { PresentationData as SdkPresentationData } from "@moor/web-sdk";
 
-export type PresentationData = SdkPresentationData;
+export type PresentationData = SdkPresentationData & { eventId?: string };
 
 export interface Presentation {
     readonly id: string;

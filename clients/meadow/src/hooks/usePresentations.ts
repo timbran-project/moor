@@ -12,7 +12,7 @@
 //
 
 import { parsePresentationBytes, parsePresentationSnapshot, toPresentationData } from "@moor/web-sdk";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { decryptEventBlob } from "../lib/age-decrypt";
 import { buildAuthHeaders } from "../lib/authHeaders";
 import { getCurrentPresentationsFlatBuffer } from "../lib/rpc-fb";
@@ -59,9 +59,28 @@ const useSemanticMapping = () => {
 export const usePresentations = () => {
     const [presentations, setPresentations] = useState<Map<string, Presentation>>(new Map());
     const { getPlacementForTarget } = useSemanticMapping();
+    const seenEvents = useRef(new Map<string, Set<string>>());
+    const dismissedEvents = useRef<Set<string> | null>(null);
+    if (dismissedEvents.current === null) {
+        try {
+            dismissedEvents.current = new Set(
+                JSON.parse(sessionStorage.getItem("dismissed_presentation_events") || "[]"),
+            );
+        } catch {
+            dismissedEvents.current = new Set();
+        }
+    }
 
     // Add a new presentation
     const addPresentation = useCallback((data: PresentationData) => {
+        // Reattach can replay an already delivered event. A new event with the
+        // same presentation ID must still open, including after server restart.
+        if (data.eventId) {
+            if (dismissedEvents.current?.has(data.eventId)) return;
+            const events = seenEvents.current.get(data.id) ?? new Set<string>();
+            events.add(data.eventId);
+            seenEvents.current.set(data.id, events);
+        }
         // Convert attributes array to object
         const attrs: { [key: string]: string } = {};
         for (const [key, value] of data.attributes) {
@@ -201,6 +220,15 @@ export const usePresentations = () => {
 
     // API call to dismiss a presentation on the server
     const dismissPresentation = useCallback(async (id: string, authToken: string) => {
+        for (const eventId of seenEvents.current.get(id) ?? []) {
+            dismissedEvents.current?.add(eventId);
+        }
+        seenEvents.current.delete(id);
+        try {
+            sessionStorage.setItem("dismissed_presentation_events", JSON.stringify([...dismissedEvents.current ?? []]));
+        } catch {
+            // In-memory dismissal still works when browser storage is unavailable.
+        }
         // Remove locally immediately (optimistic update)
         removePresentation(id);
 

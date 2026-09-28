@@ -48,6 +48,7 @@ const deferred = <T,>(): Deferred<T> => {
 describe("usePresentations request generations", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        sessionStorage.clear();
     });
 
     it("does not restore presentations after the request becomes stale", async () => {
@@ -81,5 +82,40 @@ describe("usePresentations request generations", () => {
 
         expect(result.current.presentations).toEqual([]);
         expect(sdkMocks.parsePresentationSnapshot).not.toHaveBeenCalled();
+    });
+    it("keeps dismissed events closed across reload while accepting a fresh open for the same panel", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+        try {
+            const panel = {
+                id: "editor",
+                target: "property-value-editor",
+                content: "",
+                content_type: "text/plain",
+                attributes: [],
+            };
+            const first = renderHook(() => usePresentations());
+            act(() => {
+                first.result.current.addPresentation({ ...panel, eventId: "event-1" });
+                first.result.current.addPresentation({ ...panel, eventId: "event-2" });
+            });
+            await act(async () => {
+                await first.result.current.dismissPresentation("editor", "auth-token");
+            });
+            expect(first.result.current.presentations).toEqual([]);
+            first.unmount();
+
+            const reloaded = renderHook(() => usePresentations());
+            act(() => {
+                reloaded.result.current.addPresentation({ ...panel, eventId: "event-1" });
+                reloaded.result.current.addPresentation({ ...panel, eventId: "event-2" });
+            });
+            expect(reloaded.result.current.presentations).toEqual([]);
+            act(() => {
+                reloaded.result.current.addPresentation({ ...panel, eventId: "fresh-event" });
+            });
+            expect(reloaded.result.current.presentations.map(p => p.id)).toEqual(["editor"]);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });

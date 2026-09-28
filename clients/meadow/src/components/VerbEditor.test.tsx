@@ -135,3 +135,27 @@ describe("VerbEditor compile shortcut", () => {
         });
     });
 });
+
+it("lets a docked verb close only after its dirty draft is discarded", () => {
+    const onClose = vi.fn();
+    render(
+        <VerbEditor
+            visible
+            splitMode
+            onClose={onClose}
+            title="Test verb"
+            objectCurie="oid:7"
+            verbName="test"
+            initialContent="return 1;"
+            authToken="auth-token"
+        />,
+    );
+    fireEvent.change(screen.getByLabelText("Mock Monaco editor"), { target: { value: "return 2;" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close verb editor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Mock Monaco editor") as HTMLTextAreaElement).value).toBe("return 2;");
+    fireEvent.click(screen.getByRole("button", { name: "Close verb editor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
+    expect(onClose).toHaveBeenCalledOnce();
+});

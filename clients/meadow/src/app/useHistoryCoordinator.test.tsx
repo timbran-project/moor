@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NarrativeMessage, NarrativeRef } from "../components/Narrative";
 import { useHistoryCoordinator } from "./useHistoryCoordinator";
@@ -124,5 +124,42 @@ describe("useHistoryCoordinator generations", () => {
 
         expect(prependHistoricalMessages).not.toHaveBeenCalled();
         expect(mocks.resetHistoryRequestState).toHaveBeenLastCalledWith(true);
+    });
+    it("restores current panels without reopening editors from historical events", async () => {
+        mocks.fetchInitialHistory.mockResolvedValue({
+            messages: [message],
+            presentationActions: [{
+                kind: "present",
+                data: {
+                    id: "dismissed-editor",
+                    target: "property-value-editor",
+                    content_type: "text/plain",
+                    content: "",
+                    attributes: [["object", "oid:7"], ["property", "payload"]],
+                },
+            }],
+        });
+        mocks.fetchCurrentPresentations.mockResolvedValue(true);
+        const addHistoricalMessages = vi.fn();
+        const narrativeRef = {
+            current: { getLastMessageTimestamp: () => 0, addHistoricalMessages } as unknown as NarrativeRef,
+        };
+        renderHook(() =>
+            useHistoryCoordinator({
+                authToken: "auth-one",
+                historyAuthToken: "history-one",
+                encryptionKeyForHistory: "age-key",
+                encryptionHasCheckedOnce: true,
+                encryptionStatusError: null,
+                eventLogEnabled: true,
+                loginMode: "connect",
+                narrativeRef,
+                showMessage: vi.fn(),
+            })
+        );
+        await waitFor(() => expect(mocks.connectWS).toHaveBeenCalled());
+        expect(addHistoricalMessages).toHaveBeenCalledWith([message]);
+        expect(mocks.fetchCurrentPresentations).toHaveBeenCalledWith("auth-one", "age-key", expect.any(Function));
+        expect(mocks.addPresentation).not.toHaveBeenCalled();
     });
 });

@@ -256,7 +256,7 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                         break;
                     case "present":
                         if (onPresentMessage) {
-                            onPresentMessage(parsedNarrativeEvent.presentData);
+                            onPresentMessage({ ...parsedNarrativeEvent.presentData, eventId });
                         }
                         break;
                     case "unpresent":

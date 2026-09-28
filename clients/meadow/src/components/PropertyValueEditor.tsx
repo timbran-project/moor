@@ -222,7 +222,6 @@ export function PropertyValueEditor({
     onNavigateToObject,
     normalizeObjectInput,
     getDollarName,
-    splitMode: _splitMode = false,
     onToggleSplitMode,
     isInSplitMode = false,
     isTouchDevice = false,
@@ -351,7 +350,11 @@ export function PropertyValueEditor({
         || permissions?.writable !== editPermissions.writable
         || permissions?.chown !== editPermissions.chown;
 
-    // Handle mode changes - warn about unsaved content
+    const handleClose = () => {
+        if (hasUnsavedChanges && !window.confirm("Discard unsaved property changes?")) return;
+        onCancel();
+    };
+
     const handleModeChange = (newMode: EditorMode) => {
         if (mode === newMode) return;
 
@@ -518,15 +521,13 @@ export function PropertyValueEditor({
                         </button>
                     )}
                     {/* Close button */}
-                    {!_splitMode && (
-                        <button
-                            onClick={onCancel}
-                            aria-label="Close property editor"
-                            className="editor-btn-close"
-                        >
-                            <span aria-hidden="true">×</span>
-                        </button>
-                    )}
+                    <button
+                        onClick={handleClose}
+                        aria-label="Close property editor"
+                        className="editor-btn-close"
+                    >
+                        <span aria-hidden="true">×</span>
+                    </button>
                 </div>
             </div>
 

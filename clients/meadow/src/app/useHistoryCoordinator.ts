@@ -97,7 +97,7 @@ export const useHistoryCoordinator = ({
         return invalidateScheduledWork;
     }, [invalidateScheduledWork]);
 
-    const { addPresentation, removePresentation, fetchCurrentPresentations } = usePresentationContext();
+    const { fetchCurrentPresentations } = usePresentationContext();
     const { wsState, connect: connectWS } = useWebSocketContext();
 
     const {
@@ -190,7 +190,6 @@ export const useHistoryCoordinator = ({
                             return;
                         }
                         const historicalMessages = result.messages;
-                        const historyPresentationActions = result.presentationActions;
                         const signature = computeHistoryBatchSignature(historicalMessages);
                         const now = Date.now();
                         const isRedundantBatch = isRedundantHistoryBatch(
@@ -206,15 +205,6 @@ export const useHistoryCoordinator = ({
                                 sinceLastMs: now - lastHistoryBatchAppliedAtRef.current,
                             });
                         } else {
-                            if (historyPresentationActions.length > 0) {
-                                historyPresentationActions.forEach((action) => {
-                                    if (action.kind === "present") {
-                                        addPresentation(action.data);
-                                        return;
-                                    }
-                                    removePresentation(action.id);
-                                });
-                            }
                             setPendingHistoricalMessages(historicalMessages);
                             lastHistoryBatchSignatureRef.current = signature;
                             lastHistoryBatchAppliedAtRef.current = now;
@@ -226,6 +216,8 @@ export const useHistoryCoordinator = ({
                         }
                         isHistoryResyncRef.current = false;
 
+                        // Historical opens can precede a dismissal. Restore panels only
+                        // from the current snapshot, which includes those dismissals.
                         try {
                             await fetchCurrentPresentations(authToken, encryptionKeyForHistory, isCurrent);
                         } catch {
@@ -271,7 +263,6 @@ export const useHistoryCoordinator = ({
             }, 100);
         }
     }, [
-        addPresentation,
         authToken,
         connectWS,
         encryptionHasCheckedOnce,
@@ -284,7 +275,6 @@ export const useHistoryCoordinator = ({
         historyLoaded,
         loginMode,
         narrativeRef,
-        removePresentation,
         setHistoryBoundaryNow,
         showMessage,
         wsState.isConnected,

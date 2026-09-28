@@ -1108,15 +1108,13 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                             {isInSplitMode ? "🪟" : "⬌"}
                         </button>
                     )}
-                    {!splitMode && (
-                        <button
-                            onClick={handleCloseRequest}
-                            aria-label="Close verb editor"
-                            className="editor-btn-close"
-                        >
-                            <span aria-hidden="true">×</span>
-                        </button>
-                    )}
+                    <button
+                        onClick={handleCloseRequest}
+                        aria-label="Close verb editor"
+                        className="editor-btn-close"
+                    >
+                        <span aria-hidden="true">×</span>
+                    </button>
                 </div>
             </div>
         );

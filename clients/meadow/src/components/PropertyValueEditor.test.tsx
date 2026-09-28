@@ -24,7 +24,7 @@ import { PropertyValueEditor } from "./PropertyValueEditor";
 vi.mock("../lib/rpc-fb", () => ({ updatePropertyFlatBuffer: vi.fn(), performEvalFlatBuffer: vi.fn() }));
 vi.mock("./EditorWindow", () => ({ useTitleBarDrag: () => ({}) }));
 
-function renderProperty() {
+function renderProperty(onCancel = vi.fn(), splitMode = false) {
     const builder = new Builder(128);
     const str = VarStr.createVarStr(builder, builder.createString("line\nbreak"));
     builder.finish(Var.createVar(builder, VarUnion.VarStr, str));
@@ -35,7 +35,8 @@ function renderProperty() {
             propertyName="payload"
             propertyValue={new MoorVar(Var.getRootAsVar(new ByteBuffer(builder.asUint8Array())))}
             onSave={vi.fn()}
-            onCancel={vi.fn()}
+            onCancel={onCancel}
+            splitMode={splitMode}
         />,
     );
     fireEvent.click(screen.getByRole("button", { name: "MOO literal mode" }));
@@ -73,4 +74,34 @@ it("keeps edits made during a pending save dirty, including after a later failed
     await screen.findByText("Permission denied");
     expect((input as HTMLTextAreaElement).value).toBe("\"newer draft\"");
     expect(screen.getByText("●")).toBeTruthy();
+});
+
+it("offers a docked close action and preserves the draft when discard is declined", () => {
+    const onCancel = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+        renderProperty(onCancel, true);
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "\"unsaved\"" } });
+        fireEvent.click(screen.getByRole("button", { name: "Close property editor" }));
+        expect(onCancel).not.toHaveBeenCalled();
+        expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("\"unsaved\"");
+        confirm.mockReturnValue(true);
+        fireEvent.click(screen.getByRole("button", { name: "Close property editor" }));
+        expect(onCancel).toHaveBeenCalledOnce();
+    } finally {
+        confirm.mockRestore();
+    }
+});
+
+it("closes a clean docked property without a discard prompt", () => {
+    const onCancel = vi.fn();
+    const confirm = vi.spyOn(window, "confirm");
+    try {
+        renderProperty(onCancel, true);
+        fireEvent.click(screen.getByRole("button", { name: "Close property editor" }));
+        expect(onCancel).toHaveBeenCalledOnce();
+        expect(confirm).not.toHaveBeenCalled();
+    } finally {
+        confirm.mockRestore();
+    }
 });
