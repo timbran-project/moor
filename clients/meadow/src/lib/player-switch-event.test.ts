@@ -43,6 +43,7 @@ function playerSwitchedEventBytes(
         builder,
         ClientEventUnion.PlayerSwitchedEvent,
         playerSwitched,
+        1n,
     );
     builder.finish(event);
     return builder.asUint8Array();
