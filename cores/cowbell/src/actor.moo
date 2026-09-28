@@ -168,7 +168,7 @@ object ACTOR [
     {?is_new_player = false} = args;
     "Select template based on whether this is a new player";
     if (is_new_player)
-      template = `$login.new_player_arrival_template ! E_PROPNF => "{nc} has just arrived."';
+      template = `$login.new_player_arrival_template ! E_PROPNF => "{nc} {have|has} just arrived."';
     else
       template = `$login.player_wakeup_template ! E_PROPNF => "{nc} {have|has} woken up."';
     endif

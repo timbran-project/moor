@@ -4,6 +4,8 @@
 @wizard
 ; #90101:find_mailbox() == #90107 || raise(E_ASSERT); recycle(#90107); #90101:find_mailbox() == #-1 || raise(E_ASSERT); #90101.last_connected == 0 || raise(E_ASSERT); return true;
 true
+// HTTP registration can still have its authentication connection during the first WebSocket attach.
+@attach registration programmer
 @programmer
 @@ user_created
 @wizard

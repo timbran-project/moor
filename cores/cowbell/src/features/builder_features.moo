@@ -940,7 +940,7 @@ object BUILDER_FEATURES [
       editor_title = "Edit Description: " + target_obj.name;
       conn = connection();
       session_id = player:start_edit_session(target_obj, "set_description", {conn});
-      present(player, session_id, "text/djot", "text-editor", current_desc, {{"object", $url_utils:to_curie_str($builder_features)}, {"verb", "receive_description_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
+      present(conn, session_id, "text/djot", "text-editor", current_desc, {{"object", $url_utils:to_curie_str($builder_features)}, {"verb", "receive_description_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
     except e (ANY)
       message = length(e) >= 2 && typeof(e[2]) == TYPE_STR ? e[2] | toliteral(e);
       player:inform_current($event:mk_error(player, message));

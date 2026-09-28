@@ -143,9 +143,9 @@ object SYSOBJ [
     "Verify by checking whether the player has connected before.";
     last_conn = `user.last_connected ! E_PROPNF => 0';
     is_new_player = verb == "user_created" && !last_conn;
-    "If player already has other connections, just show the room and return.";
-    "No announce, no confunc -- they are already awake.";
-    if (length(connections(user)) > 1)
+    "Existing players with another connection are already awake.";
+    "New players still need setup when HTTP authentication overlaps the first WebSocket.";
+    if (length(connections(user)) > 1 && !is_new_player)
       set_task_perms(user);
       `user:emit_room_look(user.location) ! ANY';
       return;

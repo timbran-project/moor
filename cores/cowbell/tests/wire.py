@@ -77,8 +77,8 @@ def run(server, core_dir):
         shutil.copytree(core_dir, core)
         arch = core / "arch_wizard.moo"
         source, replacements = re.subn(
-            r"override password = .*;",
-            "override password = <PASSWORD, {" + json.dumps(PASSWORD_HASH) + "}>;",
+            r'(override password(?:\s*\([^;\n]*\))?\s*=\s*).*?;',
+            lambda match: match[1] + "<PASSWORD, {" + json.dumps(PASSWORD_HASH) + "}>;",
             arch.read_text(),
         )
         assert replacements == 1, "Expected exactly one ArchWizard password fixture"

@@ -16,7 +16,7 @@ object LOGIN [
   property intercepted_actions (owner: ARCH_WIZARD, flags: "rc") = {};
   property intercepted_players (owner: ARCH_WIZARD, flags: "rc") = {};
   property moo_title (owner: ARCH_WIZARD, flags: "rc") = "Cowbell-Core";
-  property new_player_arrival_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} has just arrived.";
+  property new_player_arrival_template (owner: ARCH_WIZARD, flags: "rc") = "{nc} {have|has} just arrived.";
   property new_player_letter (owner: ARCH_WIZARD, flags: "rc") = {
     ARCH_WIZARD,
     "Welcome to Cowbell!",

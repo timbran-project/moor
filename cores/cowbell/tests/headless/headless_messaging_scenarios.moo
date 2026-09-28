@@ -68,6 +68,23 @@ object HEADLESS_MESSAGING_SCENARIOS
     endtry
   endmethod
 
+  method test_letter_edit_without_connection owner: ARCH_WIZARD
+    "HTTP editor callbacks save through an authenticated player without a connection view.";
+    $test_utils:assert_eq(`connection() ! E_INVARG => E_INVARG', E_INVARG, "callback has no connection");
+    const letter = create($letter, player, 2);
+    const session_id = player:start_edit_session(letter, "receive_edit", {#-123});
+    try
+      letter:receive_edit(session_id, "first line\nsecond line");
+      $test_utils:assert_eq(letter.text, {"first line", "second line"}, "saved body");
+      $test_utils:assert_eq(letter.author, player, "authenticated author");
+      letter:receive_edit(session_id, 'close);
+      $test_utils:assert_eq(`player:get_edit_session(session_id) ! E_INVARG => E_INVARG', E_INVARG, "close ends session");
+    finally
+      `player:end_edit_session(session_id) ! E_INVARG';
+      recycle(letter);
+    endtry
+  endmethod
+
   method test_dm_factory_validates_text_structure owner: ARCH_WIZARD
     "The value factory validates text structure without claiming message authenticity.";
     const result = `this:call_as_programmer($dm, "mk", #90102, #90100, 17) ! E_TYPE => E_TYPE';

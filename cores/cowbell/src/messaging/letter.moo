@@ -248,20 +248,21 @@ object LETTER [
     const session_id = player:start_edit_session(this, "receive_edit", {conn});
     const editor_title = "Edit: " + this.name;
     const current_body = this.text:join("\n");
-    present(player, session_id, "text/djot", "text-editor", current_body, {{"object", $url_utils:to_curie_str(this)}, {"verb", "receive_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
+    present(conn, session_id, "text/djot", "text-editor", current_body, {{"object", $url_utils:to_curie_str(this)}, {"verb", "receive_edit"}, {"title", editor_title}, {"text_mode", "string"}, {"session_id", session_id}});
   endverb
 
   method receive_edit owner: ARCH_WIZARD
-    "Save only the bound live editor session while its writer remains authorized.";
+    "Save the bound editor session while its authenticated writer remains authorized.";
     const {session_id, content} = args;
     const actor = caller_perms();
     actor == #-1 && caller == player || actor == player || (valid(actor) && actor.wizard) || raise(E_PERM);
     const session = player:get_edit_session(session_id);
     session['target] == this && session['verb] == "receive_edit" || raise(E_PERM);
     const {conn} = session['args];
-    conn == connection() || raise(E_PERM);
-    const live = { entry[1] for entry in (connections(player)) };
-    conn in live || raise(E_PERM);
+    "HTTP saves have no connection view; authorize them through the player and stored session.";
+    const request_conn = `connection() ! E_INVARG => #-1';
+    request_conn == #-1 || request_conn == conn || raise(E_PERM);
+    request_conn == #-1 || conn in { entry[1] for entry in (connections(player)) } || raise(E_PERM);
     if (content == 'close)
       player:end_edit_session(session_id);
       return;
@@ -270,11 +271,12 @@ object LETTER [
     this:can_write(player)['allowed] || raise(E_PERM);
     "Policy evaluation may suspend; recheck the session and connection before mutation.";
     player:get_edit_session(session_id) == session || raise(E_PERM);
-    conn == connection() && conn in { current_entry[1] for current_entry in (connections(player)) } || raise(E_PERM);
+    request_conn == #-1 || conn in { current_entry[1] for current_entry in (connections(player)) } || raise(E_PERM);
     this.text = content:split("\n");
     if (!valid(this.author))
       this.author = player;
     endif
-    player:inform_connection(conn, $event:mk_info(player, "Letter saved."));
+    "HTTP editors display their save result; connected callers also receive a local message.";
+    request_conn != #-1 && player:inform_connection(conn, $event:mk_info(player, "Letter saved."));
   endmethod
 endobject
