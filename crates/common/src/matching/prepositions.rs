@@ -183,25 +183,25 @@ fn find_preposition_fuzzy(prep: &str) -> Option<Preposition> {
     best_match
 }
 
-/// Get all possible string forms for a preposition (for fuzzy matching)
-pub fn get_preposition_forms(prep: Preposition) -> Vec<&'static str> {
+/// Get all accepted spellings of a preposition.
+pub fn get_preposition_forms(prep: Preposition) -> &'static [&'static str] {
     match prep {
-        Preposition::WithUsing => vec!["with", "using"],
-        Preposition::AtTo => vec!["at", "to"],
-        Preposition::InFrontOf => vec!["in front of", "in-front-of"],
-        Preposition::IntoIn => vec!["in", "inside", "into"],
-        Preposition::OnTopOfOn => vec!["on top of", "on", "onto", "upon"],
-        Preposition::OutOf => vec!["out of", "from inside", "from"],
-        Preposition::Over => vec!["over"],
-        Preposition::Through => vec!["through"],
-        Preposition::Under => vec!["under", "underneath", "beneath"],
-        Preposition::Behind => vec!["behind"],
-        Preposition::Beside => vec!["beside"],
-        Preposition::ForAbout => vec!["for", "about"],
-        Preposition::Is => vec!["is"],
-        Preposition::As => vec!["as"],
-        Preposition::OffOf => vec!["off", "off of"],
-        Preposition::NamedCalled => vec!["named", "called", "known as"],
+        Preposition::WithUsing => &["with", "using"],
+        Preposition::AtTo => &["at", "to"],
+        Preposition::InFrontOf => &["in front of", "in-front-of"],
+        Preposition::IntoIn => &["in", "inside", "into"],
+        Preposition::OnTopOfOn => &["on top of", "on", "onto", "upon"],
+        Preposition::OutOf => &["out of", "from inside", "from"],
+        Preposition::Over => &["over"],
+        Preposition::Through => &["through"],
+        Preposition::Under => &["under", "underneath", "beneath"],
+        Preposition::Behind => &["behind"],
+        Preposition::Beside => &["beside"],
+        Preposition::ForAbout => &["for", "about"],
+        Preposition::Is => &["is"],
+        Preposition::As => &["as"],
+        Preposition::OffOf => &["off", "off of"],
+        Preposition::NamedCalled => &["named", "called", "known as"],
     }
 }
 

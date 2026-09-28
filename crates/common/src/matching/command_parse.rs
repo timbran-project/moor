@@ -15,8 +15,8 @@ use std::{marker::PhantomData, string::ToString};
 
 use crate::{
     matching::{
-        CommandParser, ObjectNameMatcher, ParseCommandError, ParsedCommand,
-        find_preposition_for_command,
+        CommandParser, ObjectNameMatcher, ParseCommandError, ParsedCommand, all_prepositions,
+        find_preposition_for_command, get_preposition_forms,
     },
     model::PrepSpec,
     util,
@@ -121,7 +121,7 @@ where
         };
 
         // Get indirect object string
-        let iobjstr = prep_match.as_ref().map(|(j, _)| words[j + 1..].join(" "));
+        let iobjstr = prep_match.map(|(_, end)| words[end..].join(" "));
 
         // Get indirect object object
         let (iobj, ambiguous_iobj) = match (prep, &iobjstr) {
@@ -150,7 +150,7 @@ where
             dobjstr,
             dobj,
             ambiguous_dobj,
-            prepstr: prep_match.map(|(_, p)| p.to_string()),
+            prepstr: prep_match.map(|(start, end)| words[start..end].join(" ")),
             prep,
             iobjstr,
             iobj,
@@ -158,12 +158,26 @@ where
         })
     }
 }
-// Seeks the first preposition in a list of words, returning the index of the preposition, the
-// preposition itself, and the preposition string, if any.
-fn seek_preposition(words: &[String]) -> (Option<(usize, String)>, PrepSpec) {
-    for (j, word) in words.iter().enumerate() {
-        if let Some(preposition) = find_preposition_for_command(word.as_str()) {
-            return (Some((j, word.clone())), PrepSpec::Other(preposition));
+// Match the earliest preposition, preferring the longest spelling at that position.
+// Token bounds keep every word of a multiword preposition out of the object strings.
+fn seek_preposition(words: &[String]) -> (Option<(usize, usize)>, PrepSpec) {
+    for (start, word) in words.iter().enumerate() {
+        let mut best = find_preposition_for_command(word).map(|prep| (1, prep));
+        for prep in all_prepositions() {
+            for form in get_preposition_forms(prep) {
+                let mut length = 0;
+                let matches = form.split(' ').all(|part| {
+                    let matches = words.get(start + length).is_some_and(|word| word == part);
+                    length += 1;
+                    matches
+                });
+                if matches && best.is_none_or(|(best_length, _)| length > best_length) {
+                    best = Some((length, prep));
+                }
+            }
+        }
+        if let Some((length, prep)) = best {
+            return (Some((start, start + length)), PrepSpec::Other(prep));
         }
     }
     (None, PrepSpec::None)
@@ -282,6 +296,60 @@ mod tests {
             vec![v_str("obj"), v_str("to"), v_str("player")]
         );
         assert_eq!(parsed.argstr, "obj to player");
+    }
+
+    #[test]
+    fn test_parse_every_preposition_spelling() {
+        let parser = DefaultParseCommand::new();
+        for prep in all_prepositions() {
+            for form in get_preposition_forms(prep) {
+                for direct in ["", "obj "] {
+                    let parsed = parser
+                        .parse_command(
+                            &format!("test {direct}{form} player"),
+                            &SimpleParseMatcher {},
+                        )
+                        .unwrap();
+                    assert_eq!(parsed.prep, PrepSpec::Other(prep), "{form}");
+                    assert_eq!(parsed.prepstr.as_deref(), Some(*form));
+                    assert_eq!(parsed.dobj, (!direct.is_empty()).then_some(Obj::mk_id(1)));
+                    assert_eq!(parsed.iobjstr.as_deref(), Some("player"));
+                    assert_eq!(parsed.iobj, Some(Obj::mk_id(2)));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_preposition_boundaries_and_incomplete_phrases() {
+        let parser = DefaultParseCommand::new();
+        for (command, prep, indirect) in [
+            ("test obj on top", Some("on"), Some("top")),
+            ("test obj out of", Some("out of"), Some("")),
+            ("test obj out offstage", None, None),
+            ("test obj in front office", Some("in"), Some("front office")),
+            (
+                "test obj to player on top of obj",
+                Some("to"),
+                Some("player on top of obj"),
+            ),
+            (
+                "test obj on   top  of player",
+                Some("on top of"),
+                Some("player"),
+            ),
+            (
+                "test obj \"on top of\" player",
+                Some("on top of"),
+                Some("player"),
+            ),
+        ] {
+            let parsed = parser
+                .parse_command(command, &SimpleParseMatcher {})
+                .unwrap();
+            assert_eq!(parsed.prepstr.as_deref(), prep, "{command}");
+            assert_eq!(parsed.iobjstr.as_deref(), indirect, "{command}");
+        }
     }
 
     #[test]

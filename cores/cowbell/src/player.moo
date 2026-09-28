@@ -171,7 +171,7 @@ object PLAYER [
     return false;
   endmethod
 
-  verb "i*nventory" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "i*nventory" (none none none) owner: ARCH_WIZARD flags: "rd"
     "Display player's inventory using list format";
     caller == this || raise(E_PERM);
     set_task_perms(this);
@@ -1739,7 +1739,7 @@ object PLAYER [
     this:inform_current(dm_obj:sender_echo_event());
   endverb
 
-  verb "dms messages msgs mail" (any none none) owner: ARCH_WIZARD flags: "rd"
+  verb "dms messages msgs mail" (none none none) owner: ARCH_WIZARD flags: "rd"
     "Show all messages (DMs and mail) in unified view.";
     caller == this || raise(E_PERM);
     const actor = caller_perms();
@@ -2021,7 +2021,11 @@ object PLAYER [
 
   method set_pronouns owner: ARCH_WIZARD
     "Programmatically set pronouns from a string like 'they/them'.";
-    const actor = caller_perms();
+    let actor = caller_perms();
+    "Direct client calls have no MOO caller; nested and scheduled calls retain their own authority.";
+    if (actor == #-1 && !callers() && caller == player)
+      actor = player;
+    endif
     const {target, perms} = $root:_check_permissions_as(this, actor, 'set_pronouns);
     set_task_perms(perms);
     const {pronouns_str} = args;
@@ -2214,7 +2218,7 @@ object PLAYER [
     return this:inform_current($event:mk_error(this, "'" + ref + "' isn't on your gag lists."):with_audience('utility));
   endverb
 
-  verb "@listgag listgag" (any any any) owner: ARCH_WIZARD flags: "rxd"
+  verb "@listgag listgag" (none none none) owner: ARCH_WIZARD flags: "rxd"
     "List players/objects you have gagged, and (optionally) who has gagged you.";
     caller != this && raise(E_PERM);
     set_task_perms(this);
@@ -3507,22 +3511,26 @@ object PLAYER [
 
   method test_help_environment_includes_global_player_and_features owner: HACKER
     "Help lookup should cover global topics, the player surface, and feature-generated topics.";
-    help_env = this:help_environment();
-    command_env = this:command_environment();
-    $test_utils:assert_true(is_member(this, help_env), "help environment should include player");
-    $test_utils:assert_true(is_member(this, command_env), "command environment should include player");
-    is_builder = `this.is_builder ! ANY => false';
+    "Exercise the command surface as its owning player, not the player prototype.";
+    const subject = $hacker;
+    const denied = `$player:command_environment() ! E_PERM => E_PERM';
+    $test_utils:assert_eq(denied, E_PERM, "Unrelated callers cannot inspect another command environment");
+    help_env = subject:help_environment();
+    command_env = subject:command_environment();
+    $test_utils:assert_true(is_member(subject, help_env), "help environment should include player");
+    $test_utils:assert_true(is_member(subject, command_env), "command environment should include player");
+    is_builder = `subject.is_builder ! ANY => false';
     if (is_builder)
       $test_utils:assert_true(is_member($builder_features, help_env), "builder help should include builder features");
       $test_utils:assert_true(is_member($builder_features, command_env), "builder command environment should include builder features");
     endif
-    say_topic = this:find_help_topic("say");
+    say_topic = subject:find_help_topic("say");
     $test_utils:assert_type(say_topic, TYPE_FLYWEIGHT, "global help topic 'say' should resolve");
     $test_utils:assert_eq(say_topic.name, "say", "global help topic name");
-    emote_topic = this:find_help_topic("emote");
+    emote_topic = subject:find_help_topic("emote");
     $test_utils:assert_type(emote_topic, TYPE_FLYWEIGHT, "global help topic 'emote' should resolve");
     $test_utils:assert_eq(emote_topic.name, "emote", "global emote help topic name");
-    bonk_topic = this:find_help_topic("bonk");
+    bonk_topic = subject:find_help_topic("bonk");
     $test_utils:assert_type(bonk_topic, TYPE_FLYWEIGHT, "feature-generated help topic 'bonk' should resolve");
     $test_utils:assert_eq(bonk_topic.name, "bonk", "feature-generated help topic name");
     return true;

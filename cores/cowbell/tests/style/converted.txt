@@ -218,3 +218,5 @@ utils/obj_utils.moo:command_entry
 utils/obj_utils.moo:command_with_source
 format/format_paragraph.moo:inline
 help/help_utils.moo:command_usage
+
+types/str_proto.moo:parse_verbref

@@ -1,0 +1,38 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; move($couch, #90102.location); return true;
+true
+@nonprogrammer
+% sit on #107
+~~You sink into
+@wizard
+; return #90102 in $couch.sitting;
+1
+@nonprogrammer
+% stand from #107
+~~You stand up from
+@wizard
+; return #90102 in $couch.sitting;
+0
+@nonprogrammer
+% sit on top of #107
+~~You sink into
+@wizard
+; return #90102 in $couch.sitting;
+1
+@nonprogrammer
+% stand out of #107
+~~You stand up from
+@wizard
+; return #90102 in $couch.sitting;
+0
+@nonprogrammer
+% frown
+~~You frown
+% clap
+~~your hands
+
+% inventory
+~~Inventory

@@ -207,4 +207,29 @@ object HEADLESS_EVENT_SCENARIOS
     endtry
     return true;
   endverb
+  method test_argument_free_command_entries owner: ARCH_WIZARD
+    "Actual command signatures must not invent argument fields for ignored input.";
+    const cases = {
+      {$sittable, "sit", "none", "this", "sit on top of " + tostr($sittable)},
+      {$sittable, "stand", "none", "this", "stand out of " + tostr($sittable)},
+      {$player, "inventory", "none", "none", "inventory"},
+      {$player, "dms", "none", "none", "dms"},
+      {$player, "listgag", "none", "none", "@listgag"},
+      {$prog_features, "@ps", "none", "none", "@ps"},
+      {$prog_features, "@codepaste", "none", "none", "@codepaste"},
+      {$social_features, "frown", "none", "none", "frown"},
+      {$social_features, "applaud", "none", "none", "applaud"}
+    };
+    for example in (cases)
+      const {target, name, direct, indirect, command} = example;
+      const {dobj_spec, prep, iobj_spec} = verb_args(target, name);
+      $test_utils:assert_eq({dobj_spec, iobj_spec}, {direct, indirect}, "Command signature consumes only meaningful arguments");
+      const spec = {verb_info(target, name)[3], target, dobj_spec, prep, iobj_spec};
+      const entry = $obj_utils:command_entry(target, spec, #90102, "", {});
+      const descriptor = entry.descriptor;
+      $test_utils:assert_eq(descriptor["command"], command, "Invoker receives a complete command");
+      $test_utils:assert_false(maphaskey(descriptor, "arguments"), "Invoker does not request an unused argument");
+    endfor
+    return true;
+  endmethod
 endobject

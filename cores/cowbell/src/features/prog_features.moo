@@ -559,7 +559,7 @@ object PROG_FEATURES [
     return verbs(target_obj);
   endmethod
 
-  verb "@verbs" (any any any) owner: HACKER flags: "rd"
+  verb "@verbs" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- List all verbs on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -582,7 +582,7 @@ object PROG_FEATURES [
     "Format as MOO literal";
     code_text = ";verbs(" + tostr(target_obj) + ") => " + toliteral(verb_list);
     formatted_code = $format.code:mk(code_text, 'moo);
-    listing_event = $event:mk_eval_result(player, "", formatted_code);
+    listing_event = $event:mk_eval_result(player, formatted_code);
     player:inform_current(listing_event);
   endverb
 
@@ -602,7 +602,7 @@ object PROG_FEATURES [
     add_property(target_obj, prop_name, value, prop_info);
   endmethod
 
-  verb "@properties @props" (any any any) owner: HACKER flags: "rd"
+  verb "@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object> -- List all properties on an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -625,7 +625,7 @@ object PROG_FEATURES [
     "Format as MOO literal";
     code_text = ";properties(" + tostr(target_obj) + ") => " + toliteral(prop_list);
     formatted_code = $format.code:mk(code_text, 'moo);
-    listing_event = $event:mk_eval_result(player, "", formatted_code);
+    listing_event = $event:mk_eval_result(player, formatted_code);
     player:inform_current(listing_event);
   endverb
 
@@ -694,7 +694,7 @@ object PROG_FEATURES [
     delete_property(target_obj, prop_name);
   endmethod
 
-  verb "@rmprop*erty" (any any any) owner: HACKER flags: "rd"
+  verb "@rmprop*erty" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>.<property> [--dry-run] -- Remove a property from an object.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -1601,7 +1601,7 @@ object PROG_FEATURES [
     player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
   endverb
 
-  verb "@codep*aste" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@codep*aste" (none none none) owner: ARCH_WIZARD flags: "rd"
     "HINT: -- Paste MOO code with syntax highlighting to the room.";
     this:_challenge_command_perms();
     if (!valid(player.location))
@@ -2110,7 +2110,7 @@ object PROG_FEATURES [
     return found_name;
   endmethod
 
-  verb "@ps @tasks" (any any any) owner: ARCH_WIZARD flags: "rd"
+  verb "@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"
     "Show active and queued tasks.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -3021,10 +3021,20 @@ object PROG_FEATURES [
       for event in (events)
         $test_utils:assert_true(event:validate(), "display helper should emit a valid event");
       endfor
-      $test_utils:assert_eq(flycontents(events[3])[1][2].rows[1][1], ".private_display_prop", "local property should be displayed");
-      $test_utils:assert_eq(flycontents(events[4])[1][2].rows[1][1], ".private_display_parent_prop", "inherited property should be displayed");
-      $test_utils:assert_eq(flycontents(events[6])[1][2].rows[1][1], tostr(fixture) + ":private_display_verb", "local verb should be displayed");
-      $test_utils:assert_eq(flycontents(events[7])[1][2].rows[1][1], tostr(parent_fixture) + ":private_display_parent_verb", "inherited verb should be displayed");
+      const local_property = flycontents(events[3])[1][2].rows[1][1];
+      const inherited_property = flycontents(events[4])[1][2].rows[1][1];
+      const local_verb = flycontents(events[6])[1][2].rows[1][1];
+      const inherited_verb = flycontents(events[7])[1][2].rows[1][1];
+      $test_utils:assert_eq(local_property.label, ".private_display_prop", "local property should be displayed");
+      $test_utils:assert_eq(inherited_property.label, ".private_display_parent_prop", "inherited property should be displayed");
+      $test_utils:assert_eq(local_verb.label, tostr(fixture) + ":private_display_verb", "local verb should be displayed");
+      $test_utils:assert_eq(inherited_verb.label, tostr(parent_fixture) + ":private_display_parent_verb", "inherited verb should be displayed");
+      const receiver_ref = $url_utils:to_curie_str(fixture);
+      const parent_ref = $url_utils:to_curie_str(parent_fixture);
+      $test_utils:assert_eq(local_property.descriptor, ["kind" -> "property", "object" -> receiver_ref, "name" -> "private_display_prop"], "local property reference should target the inspected object");
+      $test_utils:assert_eq(inherited_property.descriptor, ["kind" -> "property", "object" -> receiver_ref, "name" -> "private_display_parent_prop"], "inherited property reference should retain the inspected object's value");
+      $test_utils:assert_eq(local_verb.descriptor, ["kind" -> "verb", "receiver" -> receiver_ref, "name" -> "private_display_verb", "definer" -> receiver_ref], "local verb reference should identify its receiver and definer");
+      $test_utils:assert_eq(inherited_verb.descriptor, ["kind" -> "verb", "receiver" -> receiver_ref, "name" -> "private_display_parent_verb", "definer" -> parent_ref], "inherited verb reference should distinguish receiver from definer");
     finally
       stubbed_inform && `delete_verb(player, "inform_current") ! E_VERBNF => 0';
       added_inform_log && `delete_property(player, "prog_show_last_inform") ! E_PROPNF => 0';

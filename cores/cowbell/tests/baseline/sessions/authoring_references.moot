@@ -1,0 +1,36 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; #90100.authoring_features = $prog_features; #90101.authoring_features = $prog_features; #90101.is_builder = true; return true;
+true
+@programmer
+% @verbs $couch
+~~verbs(
+=
+% @properties $couch
+~~properties(
+=
+; add_property(player, "reference_probe", 1, {player, "rc"}); return true;
+true
+% @rmproperty me.reference_probe
+~~deleted.
+; return "reference_probe" in properties(player);
+0
+% @list $furniture:sit
+~~System property $furniture does not exist
+% @edit $furniture:sit
+~~System property $furniture does not exist
+% @list $sittable:missing_verb_probe
+~~Verb 'missing_verb_probe' not found
+% @list $sittable:
+~~Invalid verb reference format
+% @list $sittable:sit
+~~Args
+@wizard
+% @verbs $couch
+~~verbs(
+=
+% @properties $couch
+~~properties(
+=

@@ -49,6 +49,26 @@ object HEADLESS_AUTHORITY_SCENARIOS
     return true;
   endmethod
 
+  method test_pronouns_use_callers_authority owner: RUNTIME_WIZARD
+    "Profile mutations honor their MOO caller even when the task player is a wizard.";
+    const own_pronouns = #90102.pronouns;
+    const other_pronouns = #90100.pronouns;
+    try
+      this:_call_as_player(#90102, "set_pronouns", "she/her");
+      $test_utils:assert_eq(#90102:pronouns_display(), "she/her", "Owners can update their own pronouns");
+      const denied = `this:_call_as_player(#90100, "set_pronouns", "she/her") ! E_PERM => E_PERM';
+      $test_utils:assert_eq(denied, E_PERM, "Task player authority must not replace the nested caller");
+      $test_utils:assert_eq(#90100.pronouns, other_pronouns, "Denied updates preserve pronouns");
+      const invalid = `this:_call_as_player(#90102, "set_pronouns", "unknown pronouns") ! E_INVARG => E_INVARG';
+      $test_utils:assert_eq(invalid, E_INVARG, "Unknown presets remain invalid");
+      $test_utils:assert_eq(#90102:pronouns_display(), "she/her", "Invalid updates preserve pronouns");
+    finally
+      #90102.pronouns = own_pronouns;
+      #90100.pronouns = other_pronouns;
+    endtry
+    return true;
+  endmethod
+
   method test_reconnect_updates_timestamp owner: RUNTIME_WIZARD
     "Reconnect records activity through the single server callback.";
     const original = #90102.last_connected;
@@ -114,7 +134,7 @@ object HEADLESS_AUTHORITY_SCENARIOS
     "Run a mutation with the ordinary fixture principal's permissions.";
     caller == #90010 || raise(E_PERM);
     const {target, mutation, value} = args;
-    mutation in {"set_description", "set_email_address", "_invoke_setup"} || raise(E_PERM);
+    mutation in {"set_description", "set_email_address", "set_pronouns", "_invoke_setup"} || raise(E_PERM);
     return target:(mutation)(value);
   endmethod
 

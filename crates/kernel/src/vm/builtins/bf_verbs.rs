@@ -1120,7 +1120,7 @@ fn bf_prepositions(_bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         let id = (index + 1) as i64;
         let short_form = v_str(prep.to_string_single());
         let forms = get_preposition_forms(*prep);
-        let forms_list = v_list_iter(forms.into_iter().map(v_str));
+        let forms_list = v_list_iter(forms.iter().copied().map(v_str));
 
         result.push(v_list(&[id.into(), short_form, forms_list]));
     }

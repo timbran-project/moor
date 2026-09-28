@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object STR_PROTO [
   import_export_id -> "str_proto",
   import_export_hierarchy -> {"types"}
@@ -683,20 +685,13 @@ object STR_PROTO [
   endmethod
 
   method parse_verbref owner: HACKER
-    "Parses string as a MOO-code verb reference, returning {object-string, verb-name-string} for a successful parse and false otherwise.  It always returns the right object-string to pass to, for example, this-room:match_object().";
-    s = args[1];
-    colon = index(s, ":");
+    "Split object:verb syntax without resolving the object; matching reports missing references.";
+    const {reference} = args;
+    const colon = index(reference, ":");
     colon || return false;
-    object = s[1..colon - 1];
-    verbname = s[colon + 1..$];
+    const object = reference[1..colon - 1]:trim();
+    const verbname = reference[colon + 1..$]:trim();
     object && verbname || return false;
-    if (object[1] == "$")
-      pname = tosym(object[2..$]);
-      if (!(pname in properties(#0)) || typeof(object = #0.(pname)) != TYPE_OBJ)
-        return false;
-      endif
-      object = tostr(object);
-    endif
     return {object, verbname};
   endmethod
 
@@ -1063,7 +1058,10 @@ object STR_PROTO [
     "Cover MOO verb-reference parsing.";
     $test_utils:assert_eq("#1":parse_verbref(), false, "missing colon should fail");
     $test_utils:assert_eq(":":parse_verbref(), false, "empty object and verb should fail");
-    $test_utils:assert_eq("$str_proto:look_self":parse_verbref(), {tostr($str_proto), "look_self"}, "sysobj verbref should resolve object");
+    $test_utils:assert_eq("$str_proto:look_self":parse_verbref(), {"$str_proto", "look_self"}, "sysobj verbref should preserve the reference for matching");
+    $test_utils:assert_eq("$missing_object:sit":parse_verbref(), {"$missing_object", "sit"}, "unknown object is valid reference syntax");
+    $test_utils:assert_eq("$missing_object:":parse_verbref(), false, "missing verb remains invalid syntax");
+    $test_utils:assert_eq("  $str_proto : look_self  ":parse_verbref(), {"$str_proto", "look_self"}, "trim reference components");
     $test_utils:assert_eq("#1:look_self":parse_verbref(), {"#1", "look_self"}, "numbered verbref should preserve object string");
     $test_utils:assert_eq("honk:look_self":parse_verbref(), {"honk", "look_self"}, "named verbref should preserve object string");
     return true;

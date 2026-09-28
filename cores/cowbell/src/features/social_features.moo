@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object SOCIAL_FEATURES [
   import_export_id -> "social_features",
   import_export_hierarchy -> {"features"}
@@ -98,7 +100,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb oif (any none none) owner: HACKER flags: "rd"
+  verb oif (none none none) owner: HACKER flags: "rd"
     "HINT: -- Acknowledge a bonk to maintain cosmic balance.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -129,7 +131,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb frown (any none none) owner: HACKER flags: "rd"
+  verb frown (none none none) owner: HACKER flags: "rd"
     "HINT: -- Frown, showing displeasure.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -139,7 +141,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb laugh (any none none) owner: HACKER flags: "rd"
+  verb laugh (none none none) owner: HACKER flags: "rd"
     "HINT: -- Laugh out loud.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -149,7 +151,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb dance (any none none) owner: HACKER flags: "rd"
+  verb dance (none none none) owner: HACKER flags: "rd"
     "HINT: -- Dance joyfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -159,7 +161,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb shrug (any none none) owner: HACKER flags: "rd"
+  verb shrug (none none none) owner: HACKER flags: "rd"
     "HINT: -- Shrug your shoulders.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -184,7 +186,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb ponder (any none none) owner: HACKER flags: "rd"
+  verb ponder (none none none) owner: HACKER flags: "rd"
     "HINT: -- Ponder thoughtfully.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -194,7 +196,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb "applaud a*pplaud clap c*lap" (any none none) owner: HACKER flags: "rd"
+  verb "applaud a*pplaud clap c*lap" (none none none) owner: HACKER flags: "rd"
     "HINT: -- Applaud or clap your hands.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -204,7 +206,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb cheer (any none none) owner: HACKER flags: "rd"
+  verb cheer (none none none) owner: HACKER flags: "rd"
     "HINT: -- Cheer enthusiastically.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -214,7 +216,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb sigh (any none none) owner: HACKER flags: "rd"
+  verb sigh (none none none) owner: HACKER flags: "rd"
     "HINT: -- Sigh deeply.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -224,7 +226,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb yawn (any none none) owner: HACKER flags: "rd"
+  verb yawn (none none none) owner: HACKER flags: "rd"
     "HINT: -- Yawn tiredly.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -234,7 +236,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb stretch (any none none) owner: HACKER flags: "rd"
+  verb stretch (none none none) owner: HACKER flags: "rd"
     "HINT: -- Stretch your body.";
     caller != player && return E_PERM;
     if (!valid(player.location))
@@ -272,7 +274,7 @@ object SOCIAL_FEATURES [
     player.location:announce(event);
   endverb
 
-  verb "@paste paste" (any any any) owner: HACKER flags: "rxd"
+  verb "@paste paste" (none none none) owner: HACKER flags: "rxd"
     "Paste multiline content to the room";
     caller != player && caller != #0 && return E_PERM;
     if (!valid(player.location))
