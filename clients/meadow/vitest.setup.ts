@@ -11,6 +11,14 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type {} from "vitest/jsdom";
+
+// Use the test window's storage, independent of Node's native web-storage globals.
+Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    get: () => jsdom.window.localStorage,
+});
+
 // Polyfill ResizeObserver for jsdom
 global.ResizeObserver = class ResizeObserver {
     callback: ResizeObserverCallback;
