@@ -105,7 +105,9 @@ export const DialogSheet: React.FC<DialogSheetProps> = ({
 
     return (
         <>
-            {modal && <div className="dialog-sheet-backdrop" onClick={onCancel} role="presentation" aria-hidden="true" />}
+            {modal && (
+                <div className="dialog-sheet-backdrop" onClick={onCancel} role="presentation" aria-hidden="true" />
+            )}
             <div
                 ref={dialogRef}
                 className={`dialog-sheet${modal ? "" : " dialog-sheet-nonmodal"}`}

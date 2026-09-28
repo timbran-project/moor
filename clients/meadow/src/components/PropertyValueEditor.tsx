@@ -356,7 +356,6 @@ export function PropertyValueEditor({
         return () => onDirtyChange?.(false);
     }, [hasUnsavedChanges, hasMetadataChanges, onDirtyChange]);
 
-
     const handleClose = () => {
         if (hasUnsavedChanges && !window.confirm("Discard unsaved property changes?")) return;
         onCancel();

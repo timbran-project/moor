@@ -55,8 +55,17 @@ describe("ContentRenderer semantic references", () => {
         const table = { a1: { kind: "object" as const, ref: "oid:42" } };
         render(
             <AnnotationContext.Provider value={activate}>
-                <ContentRenderer content="[Key]{annotation=a1}" contentType="text/djot" isStale eventMetadata={{ annotations: table }} />
-                <ContentRenderer content="[Other key]{annotation=a1}" contentType="text/djot" eventMetadata={{ annotations: { a1: { kind: "object", ref: "oid:43" } } }} />
+                <ContentRenderer
+                    content="[Key]{annotation=a1}"
+                    contentType="text/djot"
+                    isStale
+                    eventMetadata={{ annotations: table }}
+                />
+                <ContentRenderer
+                    content="[Other key]{annotation=a1}"
+                    contentType="text/djot"
+                    eventMetadata={{ annotations: { a1: { kind: "object", ref: "oid:43" } } }}
+                />
             </AnnotationContext.Provider>,
         );
         fireEvent.click(screen.getByText("Key"));
@@ -65,7 +74,11 @@ describe("ContentRenderer semantic references", () => {
     });
     it("does not activate on hover, render, or missing metadata", () => {
         const activate = vi.fn();
-        render(<AnnotationContext.Provider value={activate}><ContentRenderer content="[Key]{annotation=a1}" contentType="text/djot" /></AnnotationContext.Provider>);
+        render(
+            <AnnotationContext.Provider value={activate}>
+                <ContentRenderer content="[Key]{annotation=a1}" contentType="text/djot" />
+            </AnnotationContext.Provider>,
+        );
         fireEvent.mouseOver(screen.getByText("Key"));
         fireEvent.click(screen.getByText("Key"));
         expect(activate).not.toHaveBeenCalled();
@@ -77,7 +90,13 @@ describe("ContentRenderer semantic references", () => {
     });
     it("preserves external links and ignores historical internal URLs", () => {
         const onLinkClick = vi.fn();
-        const { container } = render(<ContentRenderer content='<a href="moo://exit/oid:10/oid:20/id">East</a> <a href="https://example.com">Website</a>' contentType="text/html" onLinkClick={onLinkClick} />);
+        const { container } = render(
+            <ContentRenderer
+                content='<a href="moo://exit/oid:10/oid:20/id">East</a> <a href="https://example.com">Website</a>'
+                contentType="text/html"
+                onLinkClick={onLinkClick}
+            />,
+        );
         fireEvent.click(screen.getByText("East"));
         expect(onLinkClick).not.toHaveBeenCalled();
         fireEvent.keyDown(screen.getByText("Website"), { key: " " });

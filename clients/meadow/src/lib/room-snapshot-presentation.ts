@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { MAX_ANNOTATIONS, decodeAnnotation, SemanticAnnotation } from "@moor/web-sdk";
+import { decodeAnnotation, MAX_ANNOTATIONS, SemanticAnnotation } from "@moor/web-sdk";
 import { PresentationData } from "../types/presentation";
 import { jsObjectRefToCurie } from "./var";
 

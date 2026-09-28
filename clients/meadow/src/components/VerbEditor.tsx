@@ -902,7 +902,6 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
         return () => onDirtyChange?.(false);
     }, [hasUnsavedChanges, hasMetadataChanges, onDirtyChange]);
 
-
     // Handle close request with unsaved changes protection
     const handleCloseRequest = useCallback(() => {
         if (hasUnsavedChanges) {

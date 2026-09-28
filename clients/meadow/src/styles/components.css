@@ -1,3 +1,7 @@
+/* Copyright (C) 2026 The mooR Authors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /*
  * Component-specific styles
  */
@@ -395,11 +399,11 @@
 /* Common dock styles */
 .right_dock,
 .left_dock {
-  background-color: color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
+  background: transparent;
   color: var(--color-text-secondary);
   border-radius: var(--radius-md);
-  padding: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--color-border-medium) 50%, transparent);
+  padding: 0;
+  border: none;
   font-family: var(--font-sans);
   overflow-y: auto;
   flex-shrink: 0;
@@ -436,16 +440,16 @@
 }
 
 .top_dock {
-  margin: var(--space-lg) var(--space-lg) var(--space-sm) var(--space-lg);
-  padding: var(--space-xs);
+  margin: 0.5rem var(--layout-gutter, var(--space-md)) 0;
+  padding: 0;
   resize: none;
   align-items: stretch;
   overflow-y: auto;
   max-height: min(46vh, 32rem);
   min-height: 0;
   gap: var(--space-sm);
-  background: color-mix(in srgb, var(--color-bg-secondary) 92%, var(--color-bg-primary));
-  border-color: color-mix(in srgb, var(--color-border-medium) 75%, var(--color-border-light));
+  background: transparent;
+  border: none;
   transition: max-height 150ms cubic-bezier(0.22, 0.61, 0.36, 1);
   will-change: max-height;
 }
@@ -526,8 +530,12 @@
 }
 
 .bottom_dock {
-  margin: var(--space-sm) var(--space-lg) var(--space-lg) var(--space-lg);
-  resize: none; /* Disable resize for now to fix handle position issue */
+  margin: 0 var(--layout-gutter, var(--space-md)) var(--layout-gutter, var(--space-md));
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-height: 0;
+  resize: none;
 }
 
 /* ====== DOCK PANELS ====== */
@@ -538,11 +546,11 @@
   flex-grow: 1;
   margin: 0 0 0.5rem 0;
   padding: 0;
-  background-color: color-mix(in srgb, var(--color-bg-tertiary) 78%, var(--color-bg-base));
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
-  border: 1px solid color-mix(in srgb, var(--color-border-medium) 68%, transparent);
+  border: 1px solid var(--color-border-medium);
   overflow-y: auto;
   resize: vertical;
 }
@@ -554,63 +562,61 @@
 
 .right_dock_panel_content,
 .left_dock_panel_content {
-  padding: 0.9rem;
-}
-
-.right_dock_panel_content {
+  padding: 0 0.75rem 0.625rem;
   font-size: 0.95rem;
   line-height: 1.48;
 }
 
-.right_dock_panel_content .content-html,
-.right_dock_panel_content .text_djot,
-.right_dock_panel_content .content-text {
+:is(.left_dock_panel_content, .right_dock_panel_content) .content-html,
+:is(.left_dock_panel_content, .right_dock_panel_content) .text_djot,
+:is(.left_dock_panel_content, .right_dock_panel_content) .content-text {
   color: color-mix(in srgb, var(--color-text-primary) 88%, transparent);
 }
 
-.right_dock_panel_content .content-html > *:first-child,
-.right_dock_panel_content .text_djot > *:first-child {
+:is(.left_dock_panel_content, .right_dock_panel_content) .content-html > *:first-child,
+:is(.left_dock_panel_content, .right_dock_panel_content) .text_djot > *:first-child {
   margin-top: 0;
 }
 
-.right_dock_panel_content .content-html > *:last-child,
-.right_dock_panel_content .text_djot > *:last-child {
+:is(.left_dock_panel_content, .right_dock_panel_content) .content-html > *:last-child,
+:is(.left_dock_panel_content, .right_dock_panel_content) .text_djot > *:last-child {
   margin-bottom: 0;
 }
 
-.right_dock_panel_content h1,
-.right_dock_panel_content h2,
-.right_dock_panel_content h3,
-.right_dock_panel_content h4,
-.right_dock_panel_content h5,
-.right_dock_panel_content h6 {
+:is(.left_dock_panel_content, .right_dock_panel_content) h1,
+:is(.left_dock_panel_content, .right_dock_panel_content) h2,
+:is(.left_dock_panel_content, .right_dock_panel_content) h3,
+:is(.left_dock_panel_content, .right_dock_panel_content) h4,
+:is(.left_dock_panel_content, .right_dock_panel_content) h5,
+:is(.left_dock_panel_content, .right_dock_panel_content) h6 {
   margin: 0 0 0.55rem 0;
   line-height: 1.25;
 }
 
-.right_dock_panel_content p {
+:is(.left_dock_panel_content, .right_dock_panel_content) p {
   margin: 0 0 0.85rem 0;
 }
 
-.right_dock_panel_content ul,
-.right_dock_panel_content ol {
+:is(.left_dock_panel_content, .right_dock_panel_content) ul,
+:is(.left_dock_panel_content, .right_dock_panel_content) ol {
   margin: 0.35rem 0 0 1.15rem;
   padding: 0;
 }
 
-.right_dock_panel_content li + li {
+:is(.left_dock_panel_content, .right_dock_panel_content) li + li {
   margin-top: 0.3rem;
 }
 
 .top_dock_panel,
 .bottom_dock_panel {
+  box-sizing: border-box;
   min-width: 12em;
   width: 15em;
   max-width: 30em;
-  height: 100%;
+  height: auto;
   margin: 0;
   padding: 0;
-  background-color: var(--color-bg-tertiary);
+  background-color: var(--color-bg-secondary);
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
@@ -631,14 +637,9 @@
   min-height: 0;
   overflow: hidden;
   resize: none;
-  border-radius: calc(var(--radius-md) + 2px);
-  border-color: color-mix(in srgb, var(--color-border-medium) 52%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-bg-tertiary) 86%, white 14%),
-    var(--color-bg-tertiary)
-  );
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--color-shadow) 18%, transparent);
+  border-radius: var(--radius-md);
+  border-color: var(--color-border-medium);
+  background: var(--color-bg-secondary);
 }
 
 .top_dock.single-panel .top_dock_panel {
@@ -650,14 +651,10 @@
 
 .top_dock_panel_content,
 .bottom_dock_panel_content {
-  padding: var(--space-xs) var(--space-sm);
+  padding: 0 0.75rem 0.625rem;
   flex-grow: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.top_dock_panel_content {
-  padding: 1rem 1.35rem;
 }
 
 .top_dock_panel_content_collapsed {
@@ -697,17 +694,17 @@
 .top_dock_panel_title,
 .bottom_dock_panel_title {
   font-family: var(--font-sans);
-  font-size: 0.9em;
-  font-weight: normal;
+  font-size: 1rem;
+  font-weight: 600;
   margin: 0;
-  padding: 0.72rem 0.9rem;
+  padding: 0.25rem 0.75rem;
   display: flex;
   align-items: center;
-  gap: 0.4em;
-  background-color: var(--color-bg-header);
-  color: var(--color-text-header);
+  gap: 0.25rem;
+  background: transparent;
+  color: var(--color-text-primary);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-medium) 58%, transparent);
+  border-bottom: none;
   overflow: hidden;
 }
 
@@ -716,6 +713,9 @@
   flex-shrink: 0;
 }
 
+.right_dock_panel_title > span,
+.left_dock_panel_title > span,
+.bottom_dock_panel_title > span,
 .top_dock_panel_title > span {
   flex: 1 1 auto;
   min-width: 0;
@@ -724,17 +724,9 @@
   white-space: nowrap;
 }
 
-.top_dock_panel_title {
-  padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-lg);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  border-bottom-color: color-mix(in srgb, var(--color-border-light) 54%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-bg-header) 86%, white 14%),
-    var(--color-bg-header)
-  );
+/* Keep the room title aligned with its description, with controls at the end. */
+.room_look_panel .top_dock_panel_title > span {
+  order: -1;
 }
 
 /* Close buttons - consistent sizing across all devices */
@@ -783,6 +775,24 @@
   transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
+/* Keep mouse controls compact while retaining larger touch targets. */
+:is(.top_dock_panel_toggle, .top_dock_panel_close, .bottom_dock_panel_close, .left_dock_panel_close, .right_dock_panel_close) {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  margin: 0;
+}
+
+@media (pointer: coarse) {
+  :is(.top_dock_panel_toggle, .top_dock_panel_close, .bottom_dock_panel_close, .left_dock_panel_close, .right_dock_panel_close) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 .top_dock_panel_toggle:hover {
   background-color: color-mix(in srgb, var(--color-bg-header) 45%, var(--color-bg-tertiary));
   color: var(--color-text-primary);
@@ -796,7 +806,7 @@
 }
 
 .top_dock_panel_toggle_chevron {
-  font-size: 0.46rem;
+  font-size: 0.625rem;
   line-height: 1;
   transition: transform 150ms ease;
 }
@@ -855,9 +865,9 @@
 
 .top_dock_panel_content .room_snapshot_row {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 0.42rem;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.375rem;
   min-width: 0;
 }
 
@@ -872,22 +882,20 @@
 
 .top_dock_panel_content .room_snapshot_chip_row {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0.26rem;
+  flex-wrap: wrap;
+  gap: 0.25rem;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  scrollbar-width: thin;
-  padding-bottom: 0.05rem;
 }
 
 .top_dock_panel_content .room_snapshot_chip_row .semantic-annotation {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
-  border-radius: 999px;
-  padding: 0.16em 0.58em;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  padding: 0.2em 0.5em;
   margin: 0;
   font-size: 0.8em;
   line-height: 1.2;
@@ -1729,7 +1737,6 @@
 @media (max-height: 860px) {
   .top_dock.top_dock_compact {
     padding: 0;
-    margin: 0;
     max-height: 34vh;
     overflow-x: auto;
     overflow-y: hidden;
@@ -1794,7 +1801,6 @@
   }
 
   .top_dock.top_dock_compact .top_dock_panel_content {
-    padding: var(--space-md);
     flex: 1;
     max-height: min(28vh, 22rem);
     overflow: auto;
@@ -1898,6 +1904,14 @@
     position: relative;
   }
 
+  .top_dock {
+    margin: 0.5rem var(--layout-gutter, var(--space-md)) 0;
+  }
+
+  .bottom_dock {
+    margin: 0 var(--layout-gutter, var(--space-md)) var(--layout-gutter, var(--space-md));
+  }
+
   .top_dock::-webkit-scrollbar,
   .bottom_dock::-webkit-scrollbar {
     display: none;
@@ -1908,24 +1922,14 @@
     margin: 0;
     height: auto;
     max-height: none;
+    max-width: none;
     flex: 0 0 100%;
     scroll-snap-align: start;
     width: 100%;
   }
 
-  .top_dock_panel_title,
-  .bottom_dock_panel_title {
-    padding: var(--space-md);
-    font-size: 1em;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-
   .top_dock_panel_content,
   .bottom_dock_panel_content {
-    padding: var(--space-md);
     flex: 1;
     max-height: min(28vh, 22rem);
     overflow: auto;
@@ -2600,8 +2604,7 @@ input[type="text"]:focus {
 }
 
 /* Ensure interactive elements meet minimum size requirements */
-.theme-toggle,
-[class*="dock_panel_close"] {
+.theme-toggle {
   min-height: 44px;
   min-width: 44px;
 }

@@ -279,13 +279,23 @@ describe("OutputWindow screen reader announcements", () => {
 describe("OutputWindow exit annotations", () => {
     it("routes a historic occurrence with its own exact command for review", () => {
         const activate = vi.fn();
-        const annotation = { kind: "command" as const, command: "go e", exit: { source: "oid:10", destination: "oid:20", passage: "id" } };
-        const message = { ...createMessage("old-room", '<span data-moor-annotation="a1">East</span>', { contentType: "text/html" }), isHistorical: true, eventMetadata: { annotations: { a1: annotation } } };
+        const annotation = {
+            kind: "command" as const,
+            command: "go e",
+            exit: { source: "oid:10", destination: "oid:20", passage: "id" },
+        };
+        const message = {
+            ...createMessage("old-room", "<span data-moor-annotation=\"a1\">East</span>", { contentType: "text/html" }),
+            isHistorical: true,
+            eventMetadata: { annotations: { a1: annotation } },
+        };
         const { container } = render(
-            <AnnotationContext.Provider value={activate}><OutputWindow messages={[message]} /></AnnotationContext.Provider>,
+            <AnnotationContext.Provider value={activate}>
+                <OutputWindow messages={[message]} />
+            </AnnotationContext.Provider>,
             { wrapper: ToastProvider },
         );
-        fireEvent.click(container.querySelector('[data-moor-annotation="a1"]')!);
+        fireEvent.click(container.querySelector("[data-moor-annotation=\"a1\"]")!);
         expect(activate).toHaveBeenCalledWith(expect.objectContaining({ annotation }));
     });
 });

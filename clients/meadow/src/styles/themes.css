@@ -1,3 +1,7 @@
+/* Copyright (C) 2026 The mooR Authors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /*
  * Theme-specific styles and transitions
  */
@@ -36,15 +40,6 @@
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.fresh-theme .top_dock,
-.fresh-theme .bottom_dock,
-.fresh-theme .right_dock,
-.fresh-theme .left_dock {
-    background: color-mix(in srgb, var(--color-bg-secondary) 85%, transparent);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .fresh-theme .narrative {
