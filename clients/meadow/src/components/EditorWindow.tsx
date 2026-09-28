@@ -216,10 +216,11 @@ export const EditorWindow: React.FC<EditorWindowProps> = ({
     // Modal mode styling - floating window
     const modalStyle: React.CSSProperties = {
         position: "fixed",
-        top: `${position.y}px`,
-        left: `${position.x}px`,
-        width: `${size.width}px`,
-        height: `${size.height}px`,
+        boxSizing: "border-box",
+        top: `clamp(0px, ${position.y}px, 100dvh - min(${size.height}px, 100dvh))`,
+        left: `clamp(0px, ${position.x}px, 100vw - min(${size.width}px, 100vw))`,
+        width: `min(${size.width}px, 100vw)`,
+        height: `min(${size.height}px, 100dvh)`,
         backgroundColor: "var(--color-bg-input)",
         border: "1px solid var(--color-border-medium)",
         borderRadius: "var(--radius-lg)",
