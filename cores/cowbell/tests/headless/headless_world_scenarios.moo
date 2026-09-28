@@ -468,7 +468,14 @@ object HEADLESS_WORLD_SCENARIOS
       $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "closed contents stay private");
       box.open = true;
       box.take_rule = $rule_engine:parse_expression("This owner_is(Accessor)?", 'owner_view);
-      $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "viewing rules apply to suggestions");
+      box.owner = player;
+      $test_utils:assert_eq({owner_row["value"] for owner_row in (box:suggestions("contents", "")["items"])}, {tostr(beta)}, "viewing rules allow the owner to see contents");
+      $test_utils:assert_true(box:suggestion_eligibility("contents", {beta_ref})[beta_ref]["eligible"], "owner-visible contents remain eligible");
+      box.owner = player == #90101 ? #90100 | #90101;
+      $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "viewing rules deny nonowner suggestions");
+      const denied = box:suggestion_eligibility("contents", {beta_ref})[beta_ref];
+      $test_utils:assert_false(denied["eligible"], "viewing rules deny nonowner eligibility");
+      $test_utils:assert_false(maphaskey(denied, "label"), "denied eligibility does not reveal the item name");
       box.take_rule = 0;
       move(box, #90103);
       $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "distant containers do not expose contents");
