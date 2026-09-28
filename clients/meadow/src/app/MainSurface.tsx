@@ -219,14 +219,11 @@ export const MainSurface: React.FC = () => {
         closeEditor,
         propertyEditorSession,
         handlePropertyEditorClose,
-        closePropertyEditor,
         propertyValueEditorSession,
         refreshPropertyValueEditor,
         handlePropertyValueEditorClose,
-        closePropertyValueEditor,
         textEditorSession,
         handleTextEditorClose,
-        closeTextEditor,
         objectBrowserFocusedObjectCurie,
         dismissAllObjectBrowserPresentations,
         profileSetupPresentation,
@@ -306,23 +303,11 @@ export const MainSurface: React.FC = () => {
 
     const handleOpenObjectBrowser = useCallback(() => {
         if (isTouchDevice) {
-            closeEditor();
-            closePropertyEditor();
-            closePropertyValueEditor();
-            closeTextEditor();
-            if (!isObjectBrowserDocked) {
-                setIsObjectBrowserDocked(true);
-            }
+            setIsObjectBrowserDocked(true);
+            setIsEvalPanelOpen(false);
         }
         setIsObjectBrowserOpen(true);
-    }, [
-        isTouchDevice,
-        closeEditor,
-        closePropertyEditor,
-        closePropertyValueEditor,
-        closeTextEditor,
-        isObjectBrowserDocked,
-    ]);
+    }, [isTouchDevice]);
 
     openObjectBrowserRef.current = handleOpenObjectBrowser;
 
@@ -335,85 +320,30 @@ export const MainSurface: React.FC = () => {
 
     const handleOpenEvalPanel = useCallback(() => {
         if (isTouchDevice) {
-            closeEditor();
-            closePropertyEditor();
-            closePropertyValueEditor();
-            closeTextEditor();
-            if (!isEvalPanelDocked) {
-                setIsEvalPanelDocked(true);
-            }
-        }
-        setIsEvalPanelOpen(true);
-    }, [isTouchDevice, closeEditor, closePropertyEditor, closePropertyValueEditor, closeTextEditor, isEvalPanelDocked]);
-
-    useEffect(() => {
-        if (!isTouchDevice) {
-            return;
-        }
-        if (isObjectBrowserOpen) {
-            closeEditor();
-            closePropertyEditor();
-            closePropertyValueEditor();
-            closeTextEditor();
-        }
-    }, [
-        isTouchDevice,
-        isObjectBrowserOpen,
-        closeEditor,
-        closePropertyEditor,
-        closePropertyValueEditor,
-        closeTextEditor,
-    ]);
-
-    useEffect(() => {
-        if (!isTouchDevice) {
-            return;
-        }
-        if (
-            (editorSession || propertyEditorSession || propertyValueEditorSession || textEditorSession)
-            && isObjectBrowserOpen
-        ) {
+            setIsEvalPanelDocked(true);
             setIsObjectBrowserOpen(false);
         }
+        setIsEvalPanelOpen(true);
+    }, [isTouchDevice]);
+
+    // A newly opened editor takes the touch dock. Tool navigation itself leaves
+    // existing editors mounted so their unsaved content survives the switch.
+    useEffect(() => {
+        if (!isTouchDevice) return;
+        setIsObjectBrowserOpen(false);
+        setIsEvalPanelOpen(false);
     }, [
         isTouchDevice,
-        editorSession,
-        propertyEditorSession,
-        propertyValueEditorSession,
-        textEditorSession,
-        isObjectBrowserOpen,
+        editorSession?.id,
+        editorSession?.presentationId,
+        propertyEditorSession?.id,
+        propertyEditorSession?.presentationId,
+        propertyValueEditorSession?.id,
+        propertyValueEditorSession?.presentationId,
+        textEditorSession?.id,
     ]);
 
-    useEffect(() => {
-        if (!isTouchDevice) {
-            return;
-        }
-        if (isEvalPanelOpen) {
-            closeEditor();
-            closePropertyEditor();
-            closePropertyValueEditor();
-            closeTextEditor();
-        }
-    }, [isTouchDevice, isEvalPanelOpen, closeEditor, closePropertyEditor, closePropertyValueEditor, closeTextEditor]);
-
-    useEffect(() => {
-        if (!isTouchDevice) {
-            return;
-        }
-        if (
-            (editorSession || propertyEditorSession || propertyValueEditorSession || textEditorSession)
-            && isEvalPanelOpen
-        ) {
-            setIsEvalPanelOpen(false);
-        }
-    }, [
-        isTouchDevice,
-        editorSession,
-        propertyEditorSession,
-        propertyValueEditorSession,
-        textEditorSession,
-        isEvalPanelOpen,
-    ]);
+    const editorsCovered = isTouchDevice && (isObjectBrowserOpen || isEvalPanelOpen);
 
     // Handle closing presentations
     const handleClosePresentation = useCallback((id: string) => {
@@ -648,73 +578,75 @@ export const MainSurface: React.FC = () => {
                                 minHeight: 0,
                             }}
                         >
-                            {verbEditorDocked && editorSession && (
-                                <VerbEditor
-                                    visible={true}
-                                    onClose={handleVerbEditorClose}
-                                    title={editorSession.title}
-                                    objectCurie={editorSession.objectCurie}
-                                    verbName={editorSession.verbName}
-                                    initialContent={editorSession.content}
-                                    authToken={authToken}
-                                    uploadAction={editorSession.uploadAction}
-                                    onSendMessage={sendMessage}
-                                    splitMode={true}
-                                    onToggleSplitMode={toggleSplitMode}
-                                    isInSplitMode={true}
-                                    onPreviousEditor={previousSession}
-                                    onNextEditor={nextSession}
-                                    editorCount={editorSessions.length}
-                                    currentEditorIndex={activeSessionIndex}
-                                />
-                            )}
-                            {propertyEditorDocked && propertyEditorSession && (
-                                <PropertyEditor
-                                    visible={true}
-                                    onClose={handlePropertyEditorClose}
-                                    title={propertyEditorSession.title}
-                                    objectCurie={propertyEditorSession.objectCurie}
-                                    propertyName={propertyEditorSession.propertyName}
-                                    initialContent={propertyEditorSession.content}
-                                    authToken={authToken}
-                                    uploadAction={propertyEditorSession.uploadAction}
-                                    onSendMessage={sendMessage}
-                                    splitMode={true}
-                                    onToggleSplitMode={toggleSplitMode}
-                                    isInSplitMode={true}
-                                    contentType={propertyEditorSession.contentType}
-                                />
-                            )}
-                            {propertyValueEditorDocked && propertyValueEditorSession && (
-                                <PropertyValueEditorWindow
-                                    visible={true}
-                                    authToken={authToken}
-                                    session={propertyValueEditorSession}
-                                    onClose={handlePropertyValueEditorClose}
-                                    onRefresh={() => refreshPropertyValueEditor(authToken)}
-                                    splitMode={true}
-                                    onToggleSplitMode={toggleSplitMode}
-                                    isInSplitMode={true}
-                                />
-                            )}
-                            {textEditorDocked && textEditorSession && (
-                                <TextEditor
-                                    visible={true}
-                                    onClose={handleTextEditorClose}
-                                    title={textEditorSession.title}
-                                    description={textEditorSession.description}
-                                    objectCurie={textEditorSession.objectCurie}
-                                    verbName={textEditorSession.verbName}
-                                    sessionId={textEditorSession.sessionId}
-                                    initialContent={textEditorSession.content}
-                                    authToken={authToken}
-                                    contentType={textEditorSession.contentType}
-                                    textMode={textEditorSession.textMode}
-                                    splitMode={true}
-                                    onToggleSplitMode={toggleSplitMode}
-                                    isInSplitMode={true}
-                                />
-                            )}
+                            <div style={{ display: editorsCovered ? "none" : "contents" }}>
+                                {verbEditorDocked && editorSession && (
+                                    <VerbEditor
+                                        visible={!editorsCovered}
+                                        onClose={handleVerbEditorClose}
+                                        title={editorSession.title}
+                                        objectCurie={editorSession.objectCurie}
+                                        verbName={editorSession.verbName}
+                                        initialContent={editorSession.content}
+                                        authToken={authToken}
+                                        uploadAction={editorSession.uploadAction}
+                                        onSendMessage={sendMessage}
+                                        splitMode={true}
+                                        onToggleSplitMode={toggleSplitMode}
+                                        isInSplitMode={true}
+                                        onPreviousEditor={previousSession}
+                                        onNextEditor={nextSession}
+                                        editorCount={editorSessions.length}
+                                        currentEditorIndex={activeSessionIndex}
+                                    />
+                                )}
+                                {propertyEditorDocked && propertyEditorSession && (
+                                    <PropertyEditor
+                                        visible={true}
+                                        onClose={handlePropertyEditorClose}
+                                        title={propertyEditorSession.title}
+                                        objectCurie={propertyEditorSession.objectCurie}
+                                        propertyName={propertyEditorSession.propertyName}
+                                        initialContent={propertyEditorSession.content}
+                                        authToken={authToken}
+                                        uploadAction={propertyEditorSession.uploadAction}
+                                        onSendMessage={sendMessage}
+                                        splitMode={true}
+                                        onToggleSplitMode={toggleSplitMode}
+                                        isInSplitMode={true}
+                                        contentType={propertyEditorSession.contentType}
+                                    />
+                                )}
+                                {propertyValueEditorDocked && propertyValueEditorSession && (
+                                    <PropertyValueEditorWindow
+                                        visible={true}
+                                        authToken={authToken}
+                                        session={propertyValueEditorSession}
+                                        onClose={handlePropertyValueEditorClose}
+                                        onRefresh={() => refreshPropertyValueEditor(authToken)}
+                                        splitMode={true}
+                                        onToggleSplitMode={toggleSplitMode}
+                                        isInSplitMode={true}
+                                    />
+                                )}
+                                {textEditorDocked && textEditorSession && (
+                                    <TextEditor
+                                        visible={true}
+                                        onClose={handleTextEditorClose}
+                                        title={textEditorSession.title}
+                                        description={textEditorSession.description}
+                                        objectCurie={textEditorSession.objectCurie}
+                                        verbName={textEditorSession.verbName}
+                                        sessionId={textEditorSession.sessionId}
+                                        initialContent={textEditorSession.content}
+                                        authToken={authToken}
+                                        contentType={textEditorSession.contentType}
+                                        textMode={textEditorSession.textMode}
+                                        splitMode={true}
+                                        onToggleSplitMode={toggleSplitMode}
+                                        isInSplitMode={true}
+                                    />
+                                )}
+                            </div>
                             {isObjectBrowserOpen && objectBrowserDocked && canUseObjectBrowser && (
                                 <ObjectBrowser
                                     key="object-browser-instance"
