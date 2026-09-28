@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentState } from "../../../hooks/usePersistentState";
 import { fetchServerFeatures, listObjectsFlatBuffer, performEvalFlatBuffer } from "../../../lib/rpc-fb";
 import type { ServerFeatureSet } from "../../../lib/rpc-fb";
@@ -31,6 +31,10 @@ export interface UseObjectCatalogArgs {
  * filter/ownership display state.
  */
 export const useObjectCatalog = ({ authToken, visible, playerObjectRef }: UseObjectCatalogArgs) => {
+    const requestGeneration = useRef(0);
+    useEffect(() => () => {
+        requestGeneration.current += 1;
+    }, [authToken]);
     const [objects, setObjects] = useState<ObjectData[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [filter, setFilter] = useState("");
@@ -43,10 +47,12 @@ export const useObjectCatalog = ({ authToken, visible, playerObjectRef }: UseObj
 
     /** Fetches the full object list, replacing local state. */
     const loadObjects = useCallback(async (): Promise<ObjectData[]> => {
+        const request = ++requestGeneration.current;
         setIsLoading(true);
         let objectList: ObjectData[] = [];
         try {
             const reply = await listObjectsFlatBuffer(authToken);
+            if (request !== requestGeneration.current) return [];
             const objectsLength = reply.objectsLength();
             const result: ObjectData[] = [];
 
@@ -89,7 +95,7 @@ export const useObjectCatalog = ({ authToken, visible, playerObjectRef }: UseObj
         } catch (error) {
             console.error("Failed to load objects:", error);
         } finally {
-            setIsLoading(false);
+            if (request === requestGeneration.current) setIsLoading(false);
         }
         return objectList;
     }, [authToken]);

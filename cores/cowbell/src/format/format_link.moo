@@ -9,41 +9,7 @@ object FORMAT_LINK [
   owner: HACKER
   readable: true
 
-  override description (owner: HACKER, flags: "rc") = "Flyweight delegate for interactive links in events. Supports command links (moo://cmd/), room-bound exits (moo://exit/), inspect links (moo://inspect/), help links (moo://help/), and external URLs.";
-
-  method cmd owner: HACKER
-    "Create a command link that executes as if typed.";
-    "Args: (command) or (command, label)";
-    {command, ?label = false} = args;
-    typeof(command) == TYPE_STR || raise(E_TYPE, "Command must be a string");
-    label = label ? label | command;
-    return <this, .link_type = 'cmd, .command = command, .label = label>;
-  endmethod
-
-  method exit owner: HACKER
-    "Create a persistent exit reference bound to a room and its registered passage.";
-    const {room, direction, ?label = direction} = args;
-    const url = room:exit_link(direction);
-    return <this, .link_type = 'exit, .url = url, .label = label>;
-  endmethod
-
-  method inspect owner: HACKER
-    "Create an inspect link that shows object info in a popover.";
-    "Args: (target) or (target, label)";
-    {target, ?label = false} = args;
-    typeof(target) == TYPE_OBJ || raise(E_TYPE, "Target must be an object");
-    label = label ? label | `target:name() ! E_VERBNF => target.name';
-    return <this, .link_type = 'inspect, .target = target, .label = label>;
-  endmethod
-
-  method help owner: HACKER
-    "Create a help link that opens documentation.";
-    "Args: (topic) or (topic, label)";
-    {topic, ?label = false} = args;
-    typeof(topic) == TYPE_STR || raise(E_TYPE, "Topic must be a string");
-    label = label ? label | topic;
-    return <this, .link_type = 'help, .topic = topic, .label = label>;
-  endmethod
+  override description (owner: HACKER, flags: "rc") = "External URLs and inline formatted content.";
 
   method external owner: HACKER
     "Create an external link that opens a URL in a new tab.";
@@ -70,86 +36,34 @@ object FORMAT_LINK [
   endmethod
 
   method to_djot owner: HACKER
-    "Render as djot link syntax: [label](url){.class}";
-    if (this.link_type == 'cmd)
-      url = "moo://cmd/" + urlencode(this.command);
-      return "[" + this.label + "](" + url + "){.cmd}";
-    elseif (this.link_type == 'exit)
-      this.url != "" || return this.label;
-      return "[" + this.label + "](" + this.url + "){.cmd}";
-    elseif (this.link_type == 'inspect)
-      oref = $url_utils:to_curie_str(this.target);
-      url = "moo://inspect/" + oref;
-      return "[" + this.label + "](" + url + "){.inspect}";
-    elseif (this.link_type == 'help)
-      url = "moo://help/" + urlencode(this.topic);
-      return "[" + this.label + "](" + url + "){.help}";
-    elseif (this.link_type == 'external)
-      return "[" + this.label + "](" + this.url + "){.external}";
-    endif
-    return this.label;
+    "Render an external URL with an escaped Djot label.";
+    return "[" + $format.annotation:escape_djot(this.label) + "](" + this.url + "){.external}";
   endmethod
 
   method to_html owner: HACKER
-    "Render as HTML anchor element.";
-    if (this.link_type == 'cmd)
-      url = "moo://cmd/" + urlencode(this.command);
-      return <$html, {"a", {"href", url, "class", "cmd"}, {this.label}}>;
-    elseif (this.link_type == 'exit)
-      this.url != "" || return this.label;
-      return <$html, {"a", {"href", this.url, "class", "cmd"}, {this.label}}>;
-    elseif (this.link_type == 'inspect)
-      oref = $url_utils:to_curie_str(this.target);
-      url = "moo://inspect/" + oref;
-      return <$html, {"a", {"href", url, "class", "inspect"}, {this.label}}>;
-    elseif (this.link_type == 'help)
-      url = "moo://help/" + urlencode(this.topic);
-      return <$html, {"a", {"href", url, "class", "help"}, {this.label}}>;
-    elseif (this.link_type == 'external)
-      return <$html, {"a", {"href", this.url, "class", "external", "target", "_blank"}, {this.label}}>;
-    endif
-    return this.label;
+    "Render an external URL as an escaped HTML anchor.";
+    return <$html, {"a", {"href", this.url, "class", "external", "target", "_blank"}, {this.label}}>;
   endmethod
 
   method inline owner: HACKER
     "Create inline content mixing text and links.";
     "Args: list of strings and link flyweights to be composed inline.";
-    "Example: $format.link:inline({'Exits: ', $format.link:cmd('north'), ', ', $format.link:cmd('south')})";
+    "Example: $format.link:inline({'Exits: ', $format.annotation:command('north'), ', ', $format.annotation:command('south')})";
     {parts} = args;
     typeof(parts) == TYPE_LIST || raise(E_TYPE, "Parts must be a list");
     return <this, .link_type = 'inline, {@parts}>;
   endmethod
 
   method _compose_inline owner: HACKER
-    "Internal: compose inline content for given content type.";
-    {render_for, content_type, event} = args;
-    parts = flycontents(this);
-    if (content_type == 'text_html)
-      "Build HTML span with mixed content";
-      html_parts = {};
-      for part in (parts)
-        if (typeof(part) == TYPE_FLYWEIGHT)
-          html_parts = {@html_parts, part:compose(render_for, content_type, event)};
-        else
-          html_parts = {@html_parts, tostr(part)};
-        endif
-      endfor
-      return <$html, {"span", {}, html_parts}>;
-    endif
-    "Djot or plain text: concatenate as string";
-    result = "";
-    for part in (parts)
-      if (typeof(part) == TYPE_FLYWEIGHT)
-        result = result + part:compose(render_for, content_type, event);
-      else
-        result = result + tostr(part);
-      endif
-    endfor
-    return result;
+    "Compose inline fragments while preserving their occurrence tables.";
+    const {render_for, content_type, event} = args;
+    const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
+    const body = content_type == 'text_html ? <$html, {"span", {}, parts}> | parts:join("");
+    return $format:result(body, annotations);
   endmethod
 
   method ambient_passage owner: HACKER
-    "Create an ambient passage description with a room-bound exit link.";
+    "Create an ambient passage description with a exit command annotation.";
     "Args: {description, direction, room}. The link retains its originating room.";
     const {description, direction, room} = args;
     typeof(description) == TYPE_STR || raise(E_TYPE, "Description must be a string");
@@ -158,20 +72,20 @@ object FORMAT_LINK [
     idx = index(description, direction);
     if (idx == 0)
       "Direction not found in description - append link at end";
-      parts = {description, " (", this:exit(room, direction), ")"};
+      parts = {description, " (", $format.annotation:exit(room, direction), ")"};
     else
       "Split description around direction and insert link";
       before = description[1..idx - 1];
       "Get the actual text that matched (preserve original case)";
       matched = description[idx..idx + length(direction) - 1];
       after = description[idx + length(direction)..length(description)];
-      parts = {before, this:exit(room, direction, matched), after};
+      parts = {before, $format.annotation:exit(room, direction, matched), after};
     endif
     return <this, .link_type = 'inline, {@parts}>;
   endmethod
 
   verb linkify_direction (none none none) owner: ARCH_WIZARD flags: "rxd"
-    "Replace a direction word in a description with a room-bound exit link.";
+    "Replace a direction word in a description with a exit command annotation.";
     "Args: (description, direction, room, ?lowercase=false) - returns inline flyweight or original string.";
     const {description, direction, room, ?lowercase = false} = args;
     typeof(description) == TYPE_STR || return description;
@@ -185,8 +99,8 @@ object FORMAT_LINK [
       before = before:initial_lowercase();
     endif
     after = pos + length(direction) <= length(description) ? description[pos + length(direction)..length(description)] | "";
-    "Bind the link to the passage rather than resolving a direction at click time.";
-    link = this:exit(room, direction);
+    "Cowbell supplies both the invocation and the passage descriptor.";
+    link = $format.annotation:exit(room, direction);
     return this:inline({before, link, after});
   endverb
 endobject

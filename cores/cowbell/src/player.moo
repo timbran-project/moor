@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object PLAYER [
   import_export_id -> "player"
 ]
@@ -177,7 +179,7 @@ object PLAYER [
     items = this.contents;
     !items && return this:inform_current($event:mk_inventory(player, "You are not carrying anything."):with_audience('utility):with_group('inventory));
     "Get item names";
-    item_names = { item:display_name() for item in (items) };
+    item_names = { $format.annotation:object(item, item:display_name()) for item in (items) };
     "Create and display the inventory list";
     list_obj = $format.list:mk(item_names);
     title_obj = $format.title:mk("Inventory");
@@ -204,12 +206,13 @@ object PLAYER [
         return this:inform_current($event:mk_error(this, "That name matches more than one player. Be more specific."):with_audience('utility):with_group('who));
       endtry
       display_name = show_ids ? matched:name() + " (" + tostr(matched) + ")" | matched:name();
+      display_name = $format.annotation:object(matched, display_name);
       if (matched in connected)
         headers = {"Name", "Location", "Idle", "Connected"};
         idle_str = idle_seconds(matched):format_time_seconds();
         conn_str = connected_seconds(matched):format_time_seconds();
         if (valid(matched.location))
-          location_name = show_ids ? matched.location:name() + " (" + tostr(matched.location) + ")" | matched.location:name();
+          location_name = $format.annotation:object(matched.location, show_ids ? matched.location:name() + " (" + tostr(matched.location) + ")" | matched.location:name());
         else
           location_name = "(nowhere)";
         endif
@@ -241,11 +244,11 @@ object PLAYER [
     rows = {};
     for p in (connected)
       if (typeof(idle_time = idle_seconds(p)) != TYPE_ERR)
-        display_name = show_ids ? p:name() + " (" + tostr(p) + ")" | p:name();
+        display_name = $format.annotation:object(p, show_ids ? p:name() + " (" + tostr(p) + ")" | p:name());
         idle_str = idle_time:format_time_seconds();
         conn_str = connected_seconds(p):format_time_seconds();
         if (valid(p.location))
-          location_name = show_ids ? p.location:name() + " (" + tostr(p.location) + ")" | p.location:name();
+          location_name = $format.annotation:object(p.location, show_ids ? p.location:name() + " (" + tostr(p.location) + ")" | p.location:name());
         else
           location_name = "(nowhere)";
         endif
@@ -756,11 +759,11 @@ object PLAYER [
     endif
     header_parts = {@header_parts, "and", tostr(exam.object_ref)};
     header = header_parts:join(" ");
-    lines = {@lines, $format.title:mk(header)};
+    lines = {@lines, $format.title:mk($format.annotation:object(exam.object_ref, header))};
     "Ownership";
     if (valid(exam.owner))
       owner_name = `exam.owner:name() ! ANY => tostr(exam.owner)';
-      lines = {@lines, "Owned by " + owner_name + "."};
+      lines = {@lines, $format.paragraph:mk("Owned by ", $format.annotation:object(exam.owner, owner_name), ".")};
     else
       lines = {@lines, "(Unowned)"};
     endif
@@ -774,9 +777,10 @@ object PLAYER [
     if (exam.verbs && length(exam.verbs) > 0)
       lines = {@lines, ""};
       "Build user-friendly verb signatures using obj_utils";
-      verb_sigs = $obj_utils:format_verb_signatures(exam.verbs, exam.name);
+      const actions = exam.object_ref:inspection_commands(this);
+      verb_sigs = { $obj_utils:command_entry(exam.object_ref, spec, this, "", actions) for spec in (exam.verbs) };
       "Create formatted verb list";
-      verb_list = $format.list:mk(verb_sigs);
+      verb_list = $format.list:mk(verb_sigs, false, true);
       verb_title = $format.title:mk("Obvious verbs");
       lines = {@lines, verb_title, verb_list};
     endif
@@ -818,7 +822,7 @@ object PLAYER [
           endif
         endfor
         lines = {@lines, "", $format.title:mk("Help Topics", 4)};
-        lines = {@lines, $format.code:mk(topic_names:join(", "))};
+        lines = {@lines, $format.list:mk({ $format.annotation:help(topic_entry.provider, topic_entry.name) for topic_entry in (topics) }, false, true)};
         lines = {@lines, "Type `help <topic>` for details."};
       endif
       "Then commands";
@@ -913,20 +917,11 @@ object PLAYER [
       if (!topics || typeof(topics) != TYPE_LIST)
         lines = {@lines, "(No topics)"};
       else
-        for t in (topics)
-          if (typeof(t) != TYPE_FLYWEIGHT)
-            continue;
-          endif
-          summary = `t.summary ! ANY => ""';
-          if (summary)
-            lines = {@lines, "  " + t.name + " - " + summary};
-          else
-            lines = {@lines, "  " + t.name};
-          endif
-        endfor
+        const topic_links = { $format.paragraph:mk($format.annotation:help(src, topic_entry.name), " — ", topic_entry.summary) for topic_entry in (topics) };
+        lines = {@lines, $format.list:mk(topic_links, false, true)};
       endif
       lines = {@lines, "", "Tip: `help <topic> from " + src.name + "`"};
-      content = $format.block:mk($format.title:mk("Help Source"), lines:join("\n"));
+      content = $format.block:mk($format.title:mk("Help Source"), @lines);
       event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
       this:inform_current(event);
       return;
@@ -1204,9 +1199,9 @@ object PLAYER [
         lines = {@lines, $format.title:mk("Things you can do", 4)};
         verbs = {};
         for verb_info in (ambient_verbs)
-          verbs = {@verbs, verb_info["verb"]};
+          verbs = {@verbs, verb_info["annotation"]};
         endfor
-        lines = {@lines, $format.code:mk(verbs:join(", "))};
+        lines = {@lines, $format.list:mk(verbs, false, true)};
       else
         lines = {@lines, "(No commands available)"};
       endif
@@ -1232,7 +1227,7 @@ object PLAYER [
       lines = {@lines, ""};
       for obj_info in (targetable_verbs)
         lines = {@lines, $format.title:mk("Things you can do with " + obj_info["object_name"], 4)};
-        lines = {@lines, $format.code:mk(obj_info["verbs"]:join(", "))};
+        lines = {@lines, $format.list:mk(obj_info["verbs"], false, true)};
       endfor
     else
       lines = {@lines, "(No commands available for this object)"};
@@ -1249,7 +1244,7 @@ object PLAYER [
     lines = {@lines, ""};
     for obj_info in (targetable_verbs)
       lines = {@lines, $format.title:mk("Things you can do with " + obj_info["object_name"], 4)};
-      lines = {@lines, $format.code:mk(obj_info["verbs"]:join(", "))};
+      lines = {@lines, $format.list:mk(obj_info["verbs"], false, true)};
     endfor
     return lines;
   endmethod
@@ -1266,22 +1261,22 @@ object PLAYER [
     "Separate verbs by source object";
     for verb_info in (ambient_verbs)
       if (verb_info["from_object"] == location)
-        room_verbs = {@room_verbs, verb_info["verb"]};
+        room_verbs = {@room_verbs, verb_info["annotation"]};
       else
-        player_verbs = {@player_verbs, verb_info["verb"]};
+        player_verbs = {@player_verbs, verb_info["annotation"]};
       endif
     endfor
     "Display player commands (including features)";
     if (player_verbs && length(player_verbs) > 0)
       lines = {@lines, ""};
       lines = {@lines, $format.title:mk("Things you can do", 4)};
-      lines = {@lines, $format.code:mk(player_verbs:join(", "))};
+      lines = {@lines, $format.list:mk(player_verbs, false, true)};
     endif
     "Display room commands";
     if (room_verbs && length(room_verbs) > 0)
       lines = {@lines, ""};
       lines = {@lines, $format.title:mk("Things you can do in this room", 4)};
-      lines = {@lines, $format.code:mk(room_verbs:join(", "))};
+      lines = {@lines, $format.list:mk(room_verbs, false, true)};
     endif
     return lines;
   endmethod
@@ -1395,7 +1390,7 @@ object PLAYER [
           continue;
         endif
         seen_topic_names[key] = true;
-        all_topics = {@all_topics, t};
+        all_topics = {@all_topics, t:from_provider(o)};
       endfor
     endfor
     return all_topics;
@@ -1493,9 +1488,37 @@ object PLAYER [
     endif
   endmethod
 
+  method command_input_context owner: ARCH_WIZARD
+    "Describe the object argument at a composer cursor using the ordinary parser. Query only; never dispatch.";
+    const {before_cursor, after_cursor} = args;
+    valid(player) && is_player(player) && this == player || raise(E_PERM);
+    typeof(before_cursor) == TYPE_STR && typeof(after_cursor) == TYPE_STR || raise(E_TYPE);
+    const command = before_cursor + after_cursor;
+    length(command) <= 1024 && !index(command, "\n") && !index(command, "\r") || return [];
+    set_task_perms(player);
+    const marker = "cursor" + uuid();
+    const probe = before_cursor + marker + after_cursor;
+    const parsed = parse_command(probe, {}, false);
+    const slot = index(parsed['dobjstr], marker) ? "dobj" | index(parsed['iobjstr], marker) ? "iobj" | "";
+    !length(slot) && return [];
+    const argument = parsed[slot == "dobj" ? 'dobjstr | 'iobjstr];
+    const start = index(probe, argument);
+    "Do not guess offsets after parser normalization of quotes, escapes, or repeated whitespace.";
+    !start && return [];
+    const before = probe[1..start - 1];
+    const after = probe[start + length(argument)..$];
+    "The exact raw slice must round-trip; otherwise leave ordinary text editing alone.";
+    const query = strsub(argument, marker, "");
+    before + query + after == command || return [];
+    const template = before + "{input}" + after;
+    const context = $match:input_context(template);
+    return ["before" -> before, "after" -> after, "query" -> query, "label" -> slot == "dobj" ? "direct object" | "indirect object",
+      "source" -> ["provider" -> $url_utils:to_curie_str(player), "source" -> "nearby", "context" -> context]];
+  endmethod
+
   method suggestion_candidates owner: ARCH_WIZARD
     "Add command-name completion to the shared environment-based object sources.";
-    const {source, ?query = "", ?template = ""} = args;
+    const {source, ?query = "", ?context = []} = args;
     this == player && (caller_perms() == this || caller_perms().wizard) || raise(E_PERM);
     set_task_perms(this);
     source != "commands" && return pass(@args);
@@ -1865,8 +1888,7 @@ object PLAYER [
     pending[token] = ["created_at" -> time(), "pc" -> pc, "conn" -> current_conn];
     this.assist_pending = pending;
     this.assist_last_token = token;
-    encoded = strsub(token, " ", "%20");
-    message = "I didn't understand that command. Want help checking alternatives? <a href=\"moo://cmd/assist%20" + encoded + "\" class=\"cmd\">Yes</a>";
+    message = $format.paragraph:mk({"I didn't understand that command. Want help checking alternatives? ", $format.annotation:command("assist " + token, "Yes")});
     this:inform_current($event:mk_do_not_understand(this, message):with_audience('utility));
     return true;
   endverb
@@ -1987,8 +2009,7 @@ object PLAYER [
     pending[token] = ["kind" -> "help", "created_at" -> time(), "query" -> query, "conn" -> current_conn];
     this.assist_pending = pending;
     this.assist_last_token = token;
-    encoded = strsub(token, " ", "%20");
-    message = "No help found for '" + query + "'. Want help finding similar topics? <a href=\"moo://cmd/assist%20" + encoded + "\" class=\"cmd\">Yes</a>";
+    message = $format.paragraph:mk({"No help found for '" + query + "'. Want help finding similar topics? ", $format.annotation:command("assist " + token, "Yes")});
     this:inform_current($event:mk_error(this, message):with_audience('utility));
     return true;
   endverb
@@ -3039,8 +3060,7 @@ object PLAYER [
         endif
       endfor
     endif
-    fallback_links = {"<a href=\"moo://cmd/look\" class=\"cmd\">`look`</a>", "<a href=\"moo://cmd/inventory\" class=\"cmd\">`inventory`</a>", "<a href=\"moo://cmd/help\" class=\"cmd\">`help`</a>"};
-    fallback_html = "I couldn't find a close match for that. Here are a few general commands: " + fallback_links:join(", ");
+    fallback_html = "I couldn't find a close match for that. Try look, inventory, or help.";
     rewrite_id = uuid();
     placeholder = $event:mk_info(this, "Checking a few possibilities..."):with_rewritable(rewrite_id, 30, fallback_html):with_presentation_hint('processing):with_audience('utility);
     this:inform_connection(current_conn, placeholder);
@@ -3269,11 +3289,10 @@ object PLAYER [
       endif
       lines = {};
       for candidate in (checked)
-        encoded = strsub(candidate, " ", "%20");
-        lines = {@lines, "- <a href=\"moo://cmd/" + encoded + "\" class=\"cmd\">`" + candidate + "`</a>"};
+        lines = {@lines, $format.annotation:command(candidate)};
       endfor
       header = ai_valid_count > 0 ? "Here are a few commands worth trying:" | "I couldn't find a close match for that, but here are some general suggestions:";
-      html = (length(note) > 0 ? note + "<br><br>" | "") + header + "<br>" + lines:join("<br>");
+      html = $format.block:mk(note, header, $format.list:mk(lines));
       this:rewrite_event(rewrite_id, $event:mk_info(this, html):with_presentation_hint('inset):with_audience('utility), current_conn);
     endfork
     return true;
@@ -3344,9 +3363,11 @@ object PLAYER [
       all_topics = this:_collect_help_topics();
       topic_list = {};
       topic_lookup = [];
+      let providers = [];
       for t in (all_topics)
         topic_list = {@topic_list, ["name" -> t.name, "summary" -> t.summary, "aliases" -> t.aliases]};
         topic_lookup[t.name:lowercase()] = t.name;
+        providers[t.name] = t.provider;
         for alias in (t.aliases)
           if (typeof(alias) == TYPE_STR && length(alias) > 0)
             topic_lookup[alias:lowercase()] = t.name;
@@ -3414,14 +3435,9 @@ object PLAYER [
         if (length(valid_topics) > 0)
           topic_lines = {};
           for topic_name in (valid_topics)
-            cmd_text = "help " + topic_name;
-            link = $format.link:cmd(cmd_text, cmd_text):to_djot();
-            topic_lines = {@topic_lines, "- " + link};
+            topic_lines = {@topic_lines, $format.annotation:help(providers[topic_name], topic_name)};
           endfor
-          body = "Try one of these:\n" + topic_lines:join("\n");
-          if (length(note) > 0)
-            body = note + "\n\n" + body;
-          endif
+          body = $format.block:mk(note, "Try one of these:", $format.list:mk(topic_lines));
           result_event = $event:mk_info(this, $format.block:mk("No help found for '" + query + "', but...\n", body)):as_djot():as_inset();
           this:rewrite_event(rewrite_id, result_event, current_conn);
         else

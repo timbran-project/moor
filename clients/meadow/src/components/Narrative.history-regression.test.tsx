@@ -22,8 +22,10 @@ vi.mock("./InputArea", () => ({
 
 vi.mock("./OutputWindow", () => ({
     OutputWindow: ({ messages }: { messages: NarrativeMessage[] }) => (
-        <div data-testid="output-window">
-            {messages.map((message) => String(message.content)).join("|")}
+        <div data-testid="output-window" data-messages={JSON.stringify(messages)}>
+            {messages.map((message) =>
+                String(message.content)
+            ).join("|")}
         </div>
     ),
 }));
@@ -275,5 +277,62 @@ describe("Narrative history merge regressions", () => {
         const rendered = container.querySelector("[data-testid=\"output-window\"]")?.textContent || "";
         const lines = rendered.split("|").map(line => line.trim()).filter(Boolean);
         expect(lines).toEqual(["SAME LINE"]);
+    });
+    it("rewrites content and annotations together and suppresses a duplicate delivery", async () => {
+        installMatchMediaMock();
+        const ref = createRef<NarrativeRef>();
+        const { container } = render(
+            <Narrative ref={ref} visible connectionStatus="connected" onSendMessage={() => true} />,
+        );
+        act(() =>
+            ref.current!.addNarrativeContent(
+                "[old]{annotation=a1}",
+                "text/djot",
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                { eventId: "original", actor: { oid: 2 }, annotations: { a1: { kind: "object", ref: "oid:47" } } },
+                { id: "replace", owner: "oid:2", ttl: 30 },
+            )
+        );
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        });
+        act(() =>
+            ref.current!.addNarrativeContent(
+                "[new]{annotation=a1}",
+                "text/djot",
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                { eventId: "replacement", actor: { oid: 2 }, annotations: { a1: { kind: "object", ref: "oid:65" } } },
+                undefined,
+                "replace",
+            )
+        );
+        const messages = JSON.parse(container.querySelector("[data-messages]")!.getAttribute("data-messages")!);
+        expect(messages).toHaveLength(1);
+        expect(messages[0].content).toBe("[new]{annotation=a1}");
+        expect(messages[0].eventMetadata.annotations.a1.ref).toBe("oid:65");
+        act(() =>
+            ref.current!.addNarrativeContent(
+                "duplicate",
+                "text/plain",
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                { eventId: "original" },
+            )
+        );
+        expect(JSON.parse(container.querySelector("[data-messages]")!.getAttribute("data-messages")!)).toHaveLength(1);
     });
 });

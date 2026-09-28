@@ -98,6 +98,7 @@ export const usePresentations = () => {
             target: data.target,
             title: attrs.title || attrs.name || `Panel ${data.id}`,
             content: data.content,
+            annotations: data.annotations,
             contentType,
             attrs,
         };

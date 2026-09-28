@@ -199,7 +199,7 @@ object LOOK [
     "Exit links retain the originating room and registered passage.";
     parts = {};
     if (length(exits) == 1)
-      parts = {"An exit leads out ", $format.link:exit(this.what, exits[1]), "."};
+      parts = {"An exit leads out ", $format.annotation:exit(this.what, exits[1]), "."};
     else
       parts = {"Exits lead out "};
       for i in [1..length(exits)]
@@ -208,7 +208,7 @@ object LOOK [
         elseif (i > 1)
           parts = {@parts, ", "};
         endif
-        parts = {@parts, $format.link:exit(this.what, exits[i])};
+        parts = {@parts, $format.annotation:exit(this.what, exits[i])};
       endfor
       parts = {@parts, "."};
     endif
@@ -230,7 +230,7 @@ object LOOK [
       endif
       item = objects[i];
       label = `item:display_name() ! E_VERBNF => item.name';
-      parts = {@parts, $format.link:inspect(item, label)};
+      parts = {@parts, $format.annotation:object(item, label)};
     endfor
     parts = {@parts, " here."};
     return $format.paragraph:mk(parts);
@@ -252,7 +252,7 @@ object LOOK [
       {actor, status} = actor_data[i];
       actor_name = `actor:name() ! E_VERBNF => actor.name';
       label = status && status != "" ? actor_name + " (" + status + ")" | actor_name;
-      parts = {@parts, $format.link:inspect(actor, label)};
+      parts = {@parts, $format.annotation:object(actor, label)};
     endfor
     verb_form = length(actor_data) == 1 ? " is" | " are";
     parts = {@parts, verb_form, " here."};
@@ -274,7 +274,7 @@ object LOOK [
       endif
       {actor, status} = actor_data[i];
       actor_name = `actor:name() ! E_VERBNF => actor.name';
-      parts = {@parts, $format.link:inspect(actor, actor_name)};
+      parts = {@parts, $format.annotation:object(actor, actor_name)};
     endfor
     verb_form = length(actor_data) == 1 ? " is" | " are";
     parts = {@parts, verb_form, " deeply asleep."};
@@ -294,7 +294,7 @@ object LOOK [
       if (i > 1)
         parts = {@parts, " "};
       endif
-      parts = {@parts, $format.link:cmd(cmd, label)};
+      parts = {@parts, $format.annotation:command(cmd, label)};
     endfor
     return $format.paragraph:mk(parts);
   endmethod
@@ -307,7 +307,7 @@ object LOOK [
     event = this:into_event();
     transformed = event:transform_for(player, content_type);
     output = {};
-    for entry in (transformed)
+    for entry in (transformed["content"])
       output = player:_extend_output(output, entry, content_type);
     endfor
     content = output:join("");
@@ -321,6 +321,6 @@ object LOOK [
         content = prefix + suffix;
       endif
     endif
-    return ["title" -> title, "content" -> content, "content_type" -> tostr(content_type)];
+    return ["title" -> title, "content" -> content, "content_type" -> tostr(content_type), "annotations" -> transformed["annotations"]];
   endmethod
 endobject

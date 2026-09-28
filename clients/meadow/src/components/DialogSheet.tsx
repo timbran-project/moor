@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
 interface DialogSheetProps {
+    modal?: boolean;
     title: string;
     titleId: string;
     onCancel: () => void;
@@ -26,6 +27,7 @@ interface DialogSheetProps {
 const FOCUSABLE_SELECTOR = "button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])";
 
 export const DialogSheet: React.FC<DialogSheetProps> = ({
+    modal = true,
     title,
     titleId,
     onCancel,
@@ -76,7 +78,7 @@ export const DialogSheet: React.FC<DialogSheetProps> = ({
             }
 
             // Focus trapping for Tab key
-            if (e.key === "Tab" && dialogRef.current) {
+            if (modal && e.key === "Tab" && dialogRef.current) {
                 const focusableElements = dialogRef.current.querySelectorAll(FOCUSABLE_SELECTOR);
                 if (focusableElements.length === 0) return;
 
@@ -98,18 +100,18 @@ export const DialogSheet: React.FC<DialogSheetProps> = ({
                 }
             }
         },
-        [onCancel],
+        [onCancel, modal],
     );
 
     return (
         <>
-            <div className="dialog-sheet-backdrop" onClick={onCancel} role="presentation" aria-hidden="true" />
+            {modal && <div className="dialog-sheet-backdrop" onClick={onCancel} role="presentation" aria-hidden="true" />}
             <div
                 ref={dialogRef}
-                className="dialog-sheet"
+                className={`dialog-sheet${modal ? "" : " dialog-sheet-nonmodal"}`}
                 style={{ maxWidth }}
                 role={role}
-                aria-modal="true"
+                aria-modal={modal}
                 aria-labelledby={titleId}
                 aria-describedby={ariaDescribedBy}
                 tabIndex={-1}

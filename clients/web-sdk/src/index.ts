@@ -38,3 +38,5 @@ export * from "./ws-dispatch.js";
 export * from "./ws-narrative.js";
 export * from "./ws-session.js";
 export * from "./ws.js";
+
+export * from "./annotations.js";

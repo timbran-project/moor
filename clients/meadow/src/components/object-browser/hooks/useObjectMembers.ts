@@ -47,6 +47,15 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
     const [properties, setProperties] = useState<PropertyData[]>([]);
     const [verbs, setVerbs] = useState<VerbData[]>([]);
 
+    const loadGeneration = useRef(0);
+    const selectionGeneration = useRef(0);
+    const [loadedObject, setLoadedObject] = useState<string | null>(null);
+    const [memberError, setMemberError] = useState<string | null>(null);
+    useEffect(() => () => {
+        loadGeneration.current += 1;
+        selectionGeneration.current += 1;
+    }, [authToken]);
+
     // Editor state
     const [selectedProperty, setSelectedProperty] = useState<PropertyData | null>(null);
     const [selectedVerb, setSelectedVerb] = useState<VerbData | null>(null);
@@ -113,6 +122,8 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
 
     /** Clears the embedded editor selection. */
     const clearSelection = useCallback(() => {
+        selectionGeneration.current += 1;
+        setMemberError(null);
         setSelectedProperty(null);
         setSelectedVerb(null);
         setEditorVisible(false);
@@ -123,6 +134,10 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
      * Returns the loaded property list for callers that restore selections.
      */
     const loadPropertiesAndVerbs = useCallback(async (obj: ObjectData): Promise<PropertyData[]> => {
+        const generation = ++loadGeneration.current;
+        selectionGeneration.current += 1;
+        setLoadedObject(null);
+        setMemberError(null);
         try {
             const objectCurie = stringToCurie(obj.obj);
             const propsReply = await getPropertiesFlatBuffer(authToken, objectCurie, true);
@@ -149,8 +164,6 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
                     chown: propInfo.chown(),
                 });
             }
-
-            setProperties(propList);
 
             const verbsReply = await getVerbsFlatBuffer(authToken, objectCurie, true);
             const verbsLength = verbsReply.verbsLength();
@@ -203,18 +216,27 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
                 });
             }
 
+            if (generation !== loadGeneration.current) return [];
+            setProperties(propList);
             setVerbs(verbList);
+            setLoadedObject(objectCurie);
             return propList;
         } catch (error) {
+            if (generation !== loadGeneration.current) return [];
+            setProperties([]);
+            setVerbs([]);
+            setMemberError("Could not read this object's members.");
             console.error("Failed to load properties/verbs:", error);
             return []; // Return empty array on error
         }
     }, [authToken]);
 
     const handlePropertySelect = useCallback(async (prop: PropertyData) => {
+        const generation = ++selectionGeneration.current;
+        setMemberError(null);
         setSelectedProperty(prop);
         setSelectedVerb(null);
-        setEditorVisible(true);
+        setEditorVisible(false);
 
         // Fetch through the selected object so inherited properties show the closest override.
         if (!selectedObject) return;
@@ -222,6 +244,7 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
         try {
             const objectCurie = stringToCurie(selectedObject.obj);
             const propValue = await getPropertyFlatBuffer(authToken, objectCurie, prop.name);
+            if (generation !== selectionGeneration.current) return;
             const propInfo = propValue.propInfo();
             const owner = propInfo?.owner();
             const definer = propInfo?.definer();
@@ -242,21 +265,28 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
                     writable: propInfo?.w() ?? prop.writable,
                     chown: propInfo?.chown() ?? prop.chown,
                 });
+                setEditorVisible(true);
             }
         } catch (error) {
+            if (generation !== selectionGeneration.current) return;
+            setMemberError("This property is unavailable or you do not have permission to read it.");
             console.error("Failed to load property value:", error);
         }
     }, [authToken, selectedObject]);
 
     const handleVerbSelect = useCallback(async (verb: VerbData) => {
+        const generation = ++selectionGeneration.current;
+        setMemberError(null);
+        setVerbCode("");
         setSelectedVerb(verb);
         setSelectedProperty(null);
-        setEditorVisible(true);
+        setEditorVisible(false);
 
         // Fetch verb code from the object where the verb is defined (verb.location)
         try {
             const objectCurie = stringToCurie(verb.location);
             const verbValue = await getVerbCodeFlatBuffer(authToken, objectCurie, verb.names[0]);
+            if (generation !== selectionGeneration.current) return;
             const codeLength = verbValue.codeLength();
             const lines: string[] = [];
             for (let i = 0; i < codeLength; i++) {
@@ -264,9 +294,13 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
                 if (line) lines.push(line);
             }
             setVerbCode(lines.join("\n"));
+            setEditorVisible(true);
         } catch (error) {
+            if (generation !== selectionGeneration.current) return;
+            setMemberError("This verb is unavailable or you do not have permission to read its source.");
             console.error("Failed to load verb code:", error);
-            setVerbCode("// Failed to load verb code");
+            setVerbCode("");
+            setEditorVisible(false);
         }
     }, [authToken]);
 
@@ -459,6 +493,8 @@ export const useObjectMembers = ({ authToken, selectedObject }: UseObjectMembers
     }, [groupedVerbs]);
 
     return {
+        loadedObject,
+        memberError,
         properties,
         verbs,
         loadPropertiesAndVerbs,

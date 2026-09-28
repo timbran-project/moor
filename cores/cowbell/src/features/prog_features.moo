@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object PROG_FEATURES [
   import_export_id -> "prog_features",
   import_export_hierarchy -> {"features"}
@@ -315,7 +317,7 @@ object PROG_FEATURES [
       verb_signature = tostr(verb_location) + ":" + tostr(verb_name);
       args_spec = dobj + " " + prep + " " + iobj;
       headers = {"Verb", "Args", "Owner", "Flags"};
-      row = {verb_signature, args_spec, tostr(verb_owner), verb_flags};
+      row = {$format.annotation:verb(target_obj, tostr(verb_name), verb_signature, verb_location), args_spec, $format.annotation:object(verb_owner, tostr(verb_owner)), verb_flags};
       metadata_table = $format.table:mk(headers, {row});
       "Add line numbers if requested";
       if (!hide_numbers)
@@ -856,7 +858,7 @@ object PROG_FEATURES [
     return ['name -> target_obj.name, 'aliases -> `target_obj.aliases ! ANY => {}', 'contents -> target_obj.contents, 'location -> target_obj.location];
   endmethod
 
-  verb "@sh*ow @d*isplay" (any any any) owner: HACKER flags: "rd"
+  verb "@sh*ow @d*isplay" (any any any) owner: ARCH_WIZARD flags: "rd"
     "HINT: <object>[selectors] -- Display object information.";
     "Syntax:";
     "  @show obj         Summary with counts and hints";
@@ -871,7 +873,7 @@ object PROG_FEATURES [
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      usage = {verb + " <object>[.<prop>|..|:<verb>|::]"};
+      let usage = {verb + " <object>[.<prop>|..|:<verb>|::]"};
       usage = {@usage, ""};
       usage = {@usage, "Examples:"};
       usage = {@usage, "  " + verb + " #1       Show summary with counts"};
@@ -886,14 +888,15 @@ object PROG_FEATURES [
       player:inform_current($event:mk_error(player, $format.code:mk(usage:join("\n"))));
       return;
     endif
-    spec = argstr:trim();
-    parsed = $prog_utils:parse_target_spec(spec);
+    const spec = argstr:trim();
+    const parsed = $prog_utils:parse_target_spec(spec);
     if (!parsed)
       player:inform_current($event:mk_error(player, "Invalid specification. Use @show for usage."));
       return;
     endif
     "Match the target object";
-    object_str = parsed['object_str];
+    const object_str = parsed['object_str];
+    let target_obj = $nothing;
     try
       target_obj = $match:match_object(object_str, player);
     except e (ANY)
@@ -907,11 +910,11 @@ object PROG_FEATURES [
     endif
     "Compound type - always show header first, then process selectors";
     this:_display_header(target_obj);
-    selectors = parsed['selectors];
+    const selectors = parsed['selectors];
     for selector in (selectors)
-      kind = selector['kind];
-      inherited = selector['inherited];
-      item_name = selector['item_name];
+      const kind = selector['kind];
+      const inherited = selector['inherited];
+      const item_name = selector['item_name];
       try
         if (kind == 'property)
           if (item_name)
@@ -935,7 +938,7 @@ object PROG_FEATURES [
           endif
         endif
       except e (ANY)
-        message = "Error displaying selector.";
+        let message = "Error displaying selector.";
         if (typeof(e) == TYPE_LIST && length(e) >= 2 && typeof(e[2]) == TYPE_STR)
           message = message + " " + e[2];
         endif
@@ -957,7 +960,7 @@ object PROG_FEATURES [
     prop_owner = metadata:owner();
     owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
     headers = {"Property", "Owner", "Flags", "Value"};
-    row = {"." + prop_name, owner_str, metadata:perms(), prop_value};
+    row = {$format.annotation:property(target_obj, tostr(prop_name), "." + tostr(prop_name)), owner_str, metadata:perms(), prop_value};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
   endmethod
@@ -983,7 +986,7 @@ object PROG_FEATURES [
     if (definer == #-1)
       raise(E_PROPNF, "Property not found: " + prop_name);
     endif
-    this:_display_property(definer, prop_name);
+    this:_display_property(target_obj, prop_name);
   endmethod
 
   method _display_all_properties owner: HACKER
@@ -1009,7 +1012,7 @@ object PROG_FEATURES [
           try
             metadata = this:_do_get_property_metadata(current, prop_name);
           except (E_PERM)
-            rows = {@rows, {"." + prop_display, definer_str, "(no access)", "", ""}};
+            rows = {@rows, {$format.annotation:property(target_obj, prop_display, "." + prop_display), definer_str, "(no access)", "", ""}};
             continue;
           endtry
           prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(current, prop_name) ! E_PERM => "(no access)"');
@@ -1019,7 +1022,7 @@ object PROG_FEATURES [
           "Format owner as Name (#num)";
           prop_owner = metadata:owner();
           owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
-          rows = {@rows, {"." + prop_display, definer_str, owner_str, metadata:perms(), prop_value}};
+          rows = {@rows, {$format.annotation:property(target_obj, prop_display, "." + prop_display), definer_str, owner_str, metadata:perms(), prop_value}};
         endfor
         current = current_info['parent];
       endwhile
@@ -1032,7 +1035,7 @@ object PROG_FEATURES [
         try
           metadata = this:_do_get_property_metadata(target_obj, prop_name);
         except (E_PERM)
-          rows = {@rows, {"." + prop_display, "(no access)", "", ""}};
+          rows = {@rows, {$format.annotation:property(target_obj, prop_display, "." + prop_display), "(no access)", "", ""}};
           continue;
         endtry
         prop_value = metadata:is_clear() ? "(clear)" | toliteral(`this:_do_get_property_value(target_obj, prop_name) ! E_PERM => "(no access)"');
@@ -1042,7 +1045,7 @@ object PROG_FEATURES [
         "Format owner as Name (#num)";
         prop_owner = metadata:owner();
         owner_str = valid(prop_owner) ? `prop_owner.name ! ANY => "???"' + " (" + tostr(prop_owner) + ")" | tostr(prop_owner);
-        rows = {@rows, {"." + prop_display, owner_str, metadata:perms(), prop_value}};
+        rows = {@rows, {$format.annotation:property(target_obj, prop_display, "." + prop_display), owner_str, metadata:perms(), prop_value}};
       endfor
     endif
     if (!rows)
@@ -1067,7 +1070,7 @@ object PROG_FEATURES [
     headers = {"Verb", "Owner", "Flags", "Args"};
     args_spec = dobj + " " + prep + " " + iobj;
     verb_spec = tostr(verb_location) + ":" + verb_name;
-    row = {verb_spec, owner_str, verb_flags, args_spec};
+    row = {$format.annotation:verb(target_obj, tostr(verb_name), verb_spec, verb_location), owner_str, verb_flags, args_spec};
     table = $format.table:mk(headers, {row});
     player:inform_current($event:mk_info(player, table));
   endmethod
@@ -1079,7 +1082,7 @@ object PROG_FEATURES [
     if (verb_location == #-1)
       raise(E_VERBNF, "Verb not found: " + verb_name);
     endif
-    this:_display_verb(verb_location, verb_name);
+    this:_display_verb(target_obj, verb_name);
   endmethod
 
   method _display_all_verbs owner: HACKER
@@ -1106,7 +1109,7 @@ object PROG_FEATURES [
           definer_str = current_info['name] + " (" + tostr(current) + ")";
           "Format owner as Name (#num)";
           owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-          rows = {@rows, {":" + verb_display, definer_str, owner_str, verb_flags, args_spec}};
+          rows = {@rows, {$format.annotation:verb(target_obj, verb_display, ":" + verb_display, current), definer_str, owner_str, verb_flags, args_spec}};
         endfor
         current = current_info['parent];
       endwhile
@@ -1120,7 +1123,7 @@ object PROG_FEATURES [
         args_spec = dobj + " " + prep + " " + iobj;
         "Format owner as Name (#num)";
         owner_str = valid(verb_owner) ? `verb_owner.name ! ANY => "???"' + " (" + tostr(verb_owner) + ")" | tostr(verb_owner);
-        rows = {@rows, {":" + verb_display, owner_str, verb_flags, args_spec}};
+        rows = {@rows, {$format.annotation:verb(target_obj, verb_display, ":" + verb_display, target_obj), owner_str, verb_flags, args_spec}};
       endfor
     endif
     if (!rows)
@@ -1144,11 +1147,11 @@ object PROG_FEATURES [
     items = {{"Object", tostr(target_obj)}};
     items = {@items, {"Name", obj_name}};
     owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (" + tostr(obj_owner) + ")" | "???";
-    items = {@items, {"Owner", owner_str}};
+    items = {@items, {"Owner", valid(obj_owner) ? $format.annotation:object(obj_owner, owner_str:replace_all("`", "")) | owner_str}};
     parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (" + tostr(obj_parent) + ")" | "(none)";
-    items = {@items, {"Parent", parent_str}};
+    items = {@items, {"Parent", valid(obj_parent) ? $format.annotation:object(obj_parent, parent_str:replace_all("`", "")) | parent_str}};
     loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (" + tostr(obj_location) + ")" | "nowhere";
-    items = {@items, {"Location", loc_str}};
+    items = {@items, {"Location", valid(obj_location) ? $format.annotation:object(obj_location, loc_str:replace_all("`", "")) | loc_str}};
     deflist = $format.deflist:mk(items);
     player:inform_current($event:mk_info(player, deflist));
     "Show properties (including inherited)";
@@ -1837,7 +1840,7 @@ object PROG_FEATURES [
         owner_str = valid(owner) ? `this:_do_get_object_display_info(owner)['name] ! ANY => tostr(owner)' + " (" + tostr(owner) + ")" | "???";
         loc = obj_info['location];
         loc_str = valid(loc) ? `this:_do_get_object_display_info(loc)['name] ! ANY => tostr(loc)' + " (" + tostr(loc) + ")" | "nowhere";
-        items = {{"Object", obj_str}, {"Name", name}, {"Owner", owner_str}, {"Location", loc_str}};
+        items = {{"Object", $format.annotation:object(result, obj_str)}, {"Name", name}, {"Owner", valid(owner) ? $format.annotation:object(owner, owner_str) | owner_str}, {"Location", valid(loc) ? $format.annotation:object(loc, loc_str) | loc_str}};
         return {'deflist, $format.deflist:mk(items)};
       else
         return {'simple, obj_str + " (invalid)"};
@@ -1873,14 +1876,14 @@ object PROG_FEATURES [
     endwhile
     "Build single deflist with all info - wrap object refs in djot backticks";
     obj_ref = tostr(target_obj);
-    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {{"Object", $format.annotation:object(target_obj, obj_ref)}};
     items = {@items, {"Name", obj_name}};
     owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
-    items = {@items, {"Owner", owner_str}};
+    items = {@items, {"Owner", valid(obj_owner) ? $format.annotation:object(obj_owner, owner_str:replace_all("`", "")) | owner_str}};
     parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
-    items = {@items, {"Parent", parent_str}};
+    items = {@items, {"Parent", valid(obj_parent) ? $format.annotation:object(obj_parent, parent_str:replace_all("`", "")) | parent_str}};
     loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
-    items = {@items, {"Location", loc_str}};
+    items = {@items, {"Location", valid(obj_location) ? $format.annotation:object(obj_location, loc_str:replace_all("`", "")) | loc_str}};
     "Add counts to same deflist";
     prop_summary = tostr(local_prop_count) + " local";
     if (inherited_prop_count > 0)
@@ -1914,14 +1917,14 @@ object PROG_FEATURES [
     obj_location = obj_info['location];
     "Build deflist with object info - wrap object refs in djot backticks";
     obj_ref = tostr(target_obj);
-    items = {{"Object", "`" + obj_ref + "`"}};
+    items = {{"Object", $format.annotation:object(target_obj, obj_ref)}};
     items = {@items, {"Name", obj_name}};
     owner_str = valid(obj_owner) ? `obj_owner.name ! ANY => "???"' + " (`" + tostr(obj_owner) + "`)" | "???";
-    items = {@items, {"Owner", owner_str}};
+    items = {@items, {"Owner", valid(obj_owner) ? $format.annotation:object(obj_owner, owner_str:replace_all("`", "")) | owner_str}};
     parent_str = valid(obj_parent) ? `obj_parent.name ! ANY => "???"' + " (`" + tostr(obj_parent) + "`)" | "(none)";
-    items = {@items, {"Parent", parent_str}};
+    items = {@items, {"Parent", valid(obj_parent) ? $format.annotation:object(obj_parent, parent_str:replace_all("`", "")) | parent_str}};
     loc_str = valid(obj_location) ? `obj_location.name ! ANY => "???"' + " (`" + tostr(obj_location) + "`)" | "nowhere";
-    items = {@items, {"Location", loc_str}};
+    items = {@items, {"Location", valid(obj_location) ? $format.annotation:object(obj_location, loc_str:replace_all("`", "")) | loc_str}};
     deflist = $format.deflist:mk(items);
     event = $event:mk_info(player, deflist);
     event = event:with_metadata('preferred_content_types, {'text_djot, 'text_plain});

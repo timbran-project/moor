@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object HELP [
   import_export_id -> "help",
   import_export_hierarchy -> {"help"}
@@ -14,6 +16,13 @@ object HELP [
     "Args: (name, summary, content, ?aliases, ?category, ?see_also)";
     {name, summary, content, ?aliases = {}, ?category = 'general, ?see_also = {}} = args;
     return <this, .name = name, .summary = summary, .content = content, .aliases = aliases, .category = category, .see_also = see_also>;
+  endmethod
+
+  method from_provider owner: ARCH_WIZARD
+    "Retain the exact help provider for annotations in topic listings.";
+    const {provider} = args;
+    this.provider = provider;
+    return this;
   endmethod
 
   method matches owner: ARCH_WIZARD
@@ -33,16 +42,22 @@ object HELP [
 
   method render_prose owner: ARCH_WIZARD
     "Render this help topic as a list of lines (splat into a block).";
-    lines = {};
-    lines = {@lines, this.summary};
-    lines = {@lines, ""};
-    "Split content on newlines so each becomes a separate line";
-    for line in (this.content:split("\n"))
-      lines = {@lines, line};
-    endfor
-    if (length(this.see_also) > 0)
-      lines = {@lines, ""};
-      lines = {@lines, "See also: " + this.see_also:join(", ")};
+    const viewer = player;
+    let lines = {this.summary, "", $help_utils:annotate_prose(this.content, viewer)};
+    if (length(this.see_also))
+      const topics = viewer:_collect_help_topics();
+      let references = {};
+      for name in (this.see_also)
+        let reference = name;
+        for topic in (topics)
+          if (topic.name == name || name in topic.aliases)
+            reference = $format.annotation:help(topic.provider, topic.name, name);
+            break;
+          endif
+        endfor
+        references = {@references, reference};
+      endfor
+      lines = {@lines, "", "See also:", $format.list:mk(references, false, true)};
     endif
     return lines;
   endmethod

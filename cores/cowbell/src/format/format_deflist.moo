@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_DEFLIST [
   import_export_id -> "FORMAT_DEFLIST",
   import_export_hierarchy -> {"format"}
@@ -22,7 +24,13 @@ object FORMAT_DEFLIST [
     "Compose definition list into appropriate format.";
     "Items is a list of {term, definition} pairs.";
     {render_for, content_type, event} = args;
-    items = this.items;
+    items = {};
+    let annotations = [];
+    for raw_pair in (this.items)
+      const {pair_parts, pair_annotations} = $format:compose_parts(raw_pair, @args);
+      items = {@items, pair_parts};
+      annotations = $format:merge_annotations(annotations, pair_annotations);
+    endfor
     if (!items || length(items) == 0)
       if (content_type == 'text_html)
         return <$html, {"p", {}, {"(empty)"}}>;
@@ -35,17 +43,17 @@ object FORMAT_DEFLIST [
       dl_children = {};
       for pair in (items)
         {term, defn} = pair;
-        defn_content = `defn:compose(@args) ! E_VERBNF => tostr(defn)';
-        dl_children = {@dl_children, <$html, {"dt", {}, {tostr(term)}}>};
+        defn_content = defn;
+        dl_children = {@dl_children, <$html, {"dt", {}, {term}}>};
         dl_children = {@dl_children, <$html, {"dd", {}, {defn_content}}>};
       endfor
-      return <$html, {"dl", {}, dl_children}>;
+      return $format:result(<$html, {"dl", {}, dl_children}>, annotations);
     elseif (content_type == 'text_djot)
       "Djot definition list syntax";
       result = {};
       for pair in (items)
         {term, defn} = pair;
-        defn_str = `defn:compose(@args) ! E_VERBNF => tostr(defn)';
+        defn_str = defn;
         result = {@result, ": " + tostr(term)};
         result = {@result, ""};
         "Indent each line of definition";
@@ -54,7 +62,7 @@ object FORMAT_DEFLIST [
         endfor
         result = {@result, ""};
       endfor
-      return result:join("\n");
+      return $format:result(result:join("\n"), annotations);
     endif
     "Plain text - aligned label: value";
     "Calculate max label width";
@@ -69,10 +77,10 @@ object FORMAT_DEFLIST [
     result = {};
     for pair in (items)
       {term, defn} = pair;
-      defn_str = `defn:compose(@args) ! E_VERBNF => tostr(defn)';
+      defn_str = defn;
       label = $str_proto:pad_right(tostr(term) + ":", max_width + 1);
       result = {@result, label + " " + defn_str};
     endfor
-    return result:join("\n");
+    return $format:result(result:join("\n"), annotations);
   endmethod
 endobject

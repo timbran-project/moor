@@ -135,9 +135,11 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                             presentationHint: parsedEvent.presentationHint,
                             groupId: parsedEvent.groupId,
                             thumbnail: parsedEvent.thumbnail,
-                            eventMetadata: parsedEvent.deliveryId
-                                ? { deliveryId: parsedEvent.deliveryId, delivery_id: parsedEvent.deliveryId }
-                                : undefined,
+                            eventMetadata: {
+                                deliveryId: parsedEvent.deliveryId,
+                                delivery_id: parsedEvent.deliveryId,
+                                annotations: parsedEvent.annotations,
+                            },
                         },
                     };
                 default:

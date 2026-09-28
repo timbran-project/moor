@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_TABLE [
   import_export_id -> "format_table",
   import_export_hierarchy -> {"format"}
@@ -20,8 +22,15 @@ object FORMAT_TABLE [
   method compose owner: HACKER
     "Compose table content into appropriate format";
     {render_for, content_type, event} = args;
-    headers = this.headers;
-    rows = this.rows;
+    const {rendered_headers, header_annotations} = $format:compose_parts(this.headers, @args);
+    headers = rendered_headers;
+    let annotations = header_annotations;
+    rows = {};
+    for raw_row in (this.rows)
+      const {rendered_row, row_annotations} = $format:compose_parts(raw_row, @args);
+      rows = {@rows, rendered_row};
+      annotations = $format:merge_annotations(annotations, row_annotations);
+    endfor
     if (!headers || !rows)
       if (content_type == 'text_html)
         return <$html, {"p", {}, {"(empty table)"}}>;
@@ -36,7 +45,7 @@ object FORMAT_TABLE [
       if (headers)
         header_cells = {};
         for header in (headers)
-          header_content = `header:compose(@args) ! E_VERBNF => tostr(header)';
+          header_content = header;
           header_cells = {@header_cells, <$html, {"th", {}, {header_content}}>};
         endfor
         thead = <$html, {"thead", {}, {<$html, {"tr", {}, header_cells}>}}>;
@@ -52,14 +61,14 @@ object FORMAT_TABLE [
         endif
         row_cells = {};
         for cell in (row)
-          cell_content = `cell:compose(@args) ! E_VERBNF => tostr(cell)';
+          cell_content = cell;
           row_cells = {@row_cells, <$html, {"td", {}, {cell_content}}>};
         endfor
         body_rows = {@body_rows, <$html, {"tr", {}, row_cells}>};
       endfor
       tbody = <$html, {"tbody", {}, body_rows}>;
       table_children = {@table_children, tbody};
-      return <$html, {"table", {}, table_children}>;
+      return $format:result(<$html, {"table", {}, table_children}>, annotations);
     elseif (content_type == 'text_djot)
       "Djot pipe table output - no padding needed";
       result = {};
@@ -79,7 +88,7 @@ object FORMAT_TABLE [
         row_cells = { tostr(cell) for cell in (row) };
         result = {@result, "| " + row_cells:join(" | ") + " |"};
       endfor
-      return result:join("\n");
+      return $format:result(result:join("\n"), annotations);
     endif
     "Plain text table output";
     result = {};
@@ -136,7 +145,7 @@ object FORMAT_TABLE [
       endfor
       result = {@result, line};
     endfor
-    return result:join("\n");
+    return $format:result(result:join("\n"), annotations);
   endmethod
 
   method test_simple_table owner: HACKER

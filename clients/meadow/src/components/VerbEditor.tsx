@@ -26,6 +26,7 @@ import { useTheme } from "./ThemeProvider";
 import { monacoThemeFor } from "./themeSupport";
 
 interface VerbEditorProps {
+    onDirtyChange?: (dirty: boolean) => void;
     visible: boolean;
     onClose: () => void;
     title: string;
@@ -76,6 +77,7 @@ interface CompileError {
 const FONT_SIZE_STORAGE_KEY = "moor-code-editor-font-size";
 
 export const VerbEditor: React.FC<VerbEditorProps> = ({
+    onDirtyChange,
     visible,
     onClose,
     title,
@@ -895,6 +897,11 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
 
     // Track if content has changed since last successful compile
     const hasUnsavedChanges = content !== lastCompiledContent;
+    useEffect(() => {
+        onDirtyChange?.(hasUnsavedChanges || hasMetadataChanges);
+        return () => onDirtyChange?.(false);
+    }, [hasUnsavedChanges, hasMetadataChanges, onDirtyChange]);
+
 
     // Handle close request with unsaved changes protection
     const handleCloseRequest = useCallback(() => {

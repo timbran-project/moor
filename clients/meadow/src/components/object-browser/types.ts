@@ -91,3 +91,12 @@ export interface TestResult {
     result?: string;
     error?: string;
 }
+
+/** A repeatable navigation request, independent of the browser's persisted selection. */
+export interface MemberNavigation {
+    requestId: number;
+    object: string;
+    kind: "verb" | "property";
+    name: string;
+    definer?: string;
+}

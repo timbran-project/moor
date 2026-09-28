@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { AnnotationTable } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { extractRoomLookKey } from "../lib/var";
 import { ContentRenderer } from "./ContentRenderer";
@@ -25,6 +26,7 @@ interface ObjRef {
 }
 
 interface EventMetadata {
+    annotations?: AnnotationTable;
     verb?: string;
     lookKind?: string;
     look_kind?: string;
@@ -66,12 +68,9 @@ interface OutputWindowProps {
         position?: { x: number; y: number },
         metadata?: { actorName?: string; verb?: string },
     ) => void;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
     fontSize?: number;
     playerOid?: string | null;
     staleMessageIds?: Set<string>;
-    onMessageLinkClicked?: (messageId: string) => void;
     currentRoomLookKey?: string | null;
     onActiveRoomLookVisibilityChange?: (
         roomKey: string | null,
@@ -97,12 +96,9 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     onLoadMoreHistory,
     isLoadingHistory = false,
     onLinkClick,
-    onLinkHoldStart,
-    onLinkHoldEnd,
     fontSize,
     playerOid: _playerOid,
     staleMessageIds,
-    onMessageLinkClicked,
     currentRoomLookKey,
     onActiveRoomLookVisibilityChange,
 }) => {
@@ -145,21 +141,15 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         });
     }, []);
 
-    // Create a wrapped link click handler that also marks the message as stale for command links
-    const createLinkClickHandler = useCallback((messageId: string, eventMetadata?: EventMetadata) => {
+    // Retain event context for external navigation.
+    const createLinkClickHandler = useCallback((_messageId: string, eventMetadata?: EventMetadata) => {
         return (url: string, position?: { x: number; y: number }) => {
-            // Only mark message stale for MOO command links (which execute server actions)
-            // External http/https links should remain clickable
-            if (url.startsWith("moo://cmd/")) {
-                onMessageLinkClicked?.(messageId);
-            }
-            // Call the original handler with metadata
             return onLinkClick?.(url, position, {
                 actorName: eventMetadata?.actorName,
                 verb: eventMetadata?.verb,
             });
         };
-    }, [onLinkClick, onMessageLinkClicked]);
+    }, [onLinkClick]);
 
     // Render content with optional TTS text for screen readers
     const renderContentWithTts = useCallback((
@@ -191,8 +181,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             content={content}
                             contentType={contentType}
                             onLinkClick={linkClickHandler}
-                            onLinkHoldStart={onLinkHoldStart}
-                            onLinkHoldEnd={onLinkHoldEnd}
                             isStale={isStale}
                             enableEmoji={enableEmoji}
                             eventMetadata={eventMetadata}
@@ -209,8 +197,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                     content={content}
                     contentType={contentType}
                     onLinkClick={linkClickHandler}
-                    onLinkHoldStart={onLinkHoldStart}
-                    onLinkHoldEnd={onLinkHoldEnd}
                     isStale={isStale}
                     enableEmoji={enableEmoji}
                     eventMetadata={eventMetadata}
@@ -218,7 +204,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                 {linkPreview && <LinkPreviewCard preview={linkPreview} />}
             </>
         );
-    }, [onLinkClick, onLinkHoldStart, onLinkHoldEnd, createLinkClickHandler]);
+    }, [onLinkClick, createLinkClickHandler]);
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {

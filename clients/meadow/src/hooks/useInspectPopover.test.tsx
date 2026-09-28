@@ -73,7 +73,7 @@ describe("inspection request lifecycle", () => {
         });
         act(() => {
             if (operation === "close") result.current.closeInspectPopover();
-            if (operation === "release") result.current.handleLinkHoldEnd();
+            if (operation === "release") result.current.dismissPreview();
             if (operation === "identity") rerender({ authToken: "other-token" });
         });
         await act(async () => {

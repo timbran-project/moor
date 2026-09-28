@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object OBJ_UTILS [
   import_export_id -> "obj_utils",
   import_export_hierarchy -> {"utils"}
@@ -9,6 +11,73 @@ object OBJ_UTILS [
   readable: true
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "Core object utilities for introspection and formatting. Provides common functionality for displaying object information, verb signatures, and other object-related utilities.";
+
+  method command_entry owner: ARCH_WIZARD
+    "Render an invokable command signature, with a separate source reference for programmers.";
+    set_task_perms(caller_perms());
+    const {receiver, spec, viewer, ?label = "", ?actions = {}} = args;
+    const {names, definer, direct, prep_spec, indirect} = spec;
+    const name = strsub(names:words()[1], "*", "");
+    let caption = label || this:format_verb_signature(name, direct, prep_spec, indirect, receiver:name());
+    let invocation = 0;
+    "Object-authored actions retain their argument scopes and chosen prepositions.";
+    for action in (actions)
+      const command = action["command"];
+      if (!(command:words()[1] in strsub(names, "*", ""):words()))
+        continue;
+      endif
+      const parsed = parse_command(strsub(command, "{input}", "#-2"), {}, false);
+      if ((direct == "this" && parsed['dobjstr] != tostr(receiver))
+        || (indirect == "this" && parsed['iobjstr] != tostr(receiver))
+        || (direct == "none" && parsed['dobjstr]) || (indirect == "none" && parsed['iobjstr])
+        || (prep_spec == "none" && parsed['prepstr])
+        || (!(prep_spec in {"none", "any"}) && !(parsed['prepstr] in prep_spec:split("/"))))
+        continue;
+      endif
+      !label && (caption = strsub(strsub(command, "{input}", "…"), tostr(receiver), receiver:name()));
+      if (!maphaskey(action, "input"))
+        invocation = $format.annotation:command(command, caption);
+        continue;
+      endif
+      const input = action["input"];
+      const slot = parsed['dobjstr] == "#-2" ? "dobj" | "iobj";
+      let field = ["label" -> input["label"], "expectedKind" -> "object"];
+      maphaskey(input, "suggestions") && (field["suggestions"] = input["suggestions"]);
+      invocation = $format.annotation:command_template(strsub(command, "{input}", "{" + slot + "}"), [slot -> field], caption);
+    endfor
+    if (typeof(invocation) != TYPE_FLYWEIGHT)
+      let template = name;
+      let fields = [];
+      if (prep_spec == "any")
+        "Argspec cannot choose a preposition or describe a free-form command's grammar.";
+        template = template + " {dobj}";
+        fields["dobj"] = ["label" -> "Arguments", "expectedKind" -> "text", "required" -> false];
+      else
+        const prep = prep_spec == "none" ? "" | prep_spec:split("/")[1];
+        for position in ({{"dobj", direct, "Direct object"}, {"iobj", indirect, "Indirect object"}})
+          const {slot, constraint, prompt} = position;
+          slot == "iobj" && prep && (template = template + " " + prep);
+          if (constraint == "this")
+            template = template + " " + tostr(receiver);
+          elseif (constraint == "any")
+            template = template + " {" + slot + "}";
+            fields[slot] = ["label" -> prompt, "expectedKind" -> "object", "required" -> direct == "this" || indirect == "this" || prep_spec != "none",
+              "suggestions" -> ["provider" -> $url_utils:to_curie_str(viewer), "source" -> "nearby"]];
+          endif
+        endfor
+      endif
+      invocation = length(fields) ? $format.annotation:command_template(template, fields, caption) | $format.annotation:command(template, caption);
+    endif
+    return this:command_with_source(invocation, receiver, names, definer, viewer);
+  endmethod
+
+  method command_with_source owner: ARCH_WIZARD
+    "Keep invocation primary and offer programmer navigation as a separate adjacent link.";
+    set_task_perms(caller_perms());
+    const {invocation, receiver, name, definer, viewer} = args;
+    !viewer.programmer && return invocation;
+    return $format.paragraph:inline(invocation, " ", $format.annotation:verb(receiver, name, "↗", definer));
+  endmethod
 
   method format_verb_signature owner: ARCH_WIZARD
     "Format a verb signature into user-friendly text. Returns a formatted string.";
@@ -92,10 +161,11 @@ object OBJ_UTILS [
       endif
       "Filter for targetable verbs only";
       targetable_sigs = {};
+      const actions = o:inspection_commands(player);
       for verb_info in (exam.verbs)
         {verb_name, definer, dobj, prep, iobj} = verb_info;
         if (this:is_targetable_verb(dobj, prep, iobj))
-          sig = this:format_verb_signature(verb_name, dobj, prep, iobj, exam.name);
+          sig = this:command_entry(o, verb_info, player, "", actions);
           targetable_sigs = {@targetable_sigs, sig};
         endif
       endfor
@@ -123,6 +193,7 @@ object OBJ_UTILS [
       endif
       "Get object display name for tracking source";
       obj_name = `o:display_name() ! ANY => tostr(o)';
+      const actions = o:inspection_commands(player);
       "Walk inheritance chain to collect all verbs";
       ancestor_chain = ancestors(o);
       for definer in ({o, @ancestor_chain})
@@ -143,7 +214,7 @@ object OBJ_UTILS [
             "Skip if we've already seen this verb";
             if (!maphaskey(seen, verb_name))
               seen[verb_name] = true;
-              entry = ["verb" -> verb_name, "from_object" -> o, "from_name" -> obj_name];
+              entry = ["verb" -> verb_name, "from_object" -> o, "from_name" -> obj_name, "annotation" -> this:command_entry(o, {verb_name, definer, dobj, prep, iobj}, player, strsub(verb_name:words()[1], "*", ""), actions)];
               result = listappend(result, entry);
             endif
           endif

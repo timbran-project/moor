@@ -20,6 +20,7 @@ import { TracebackEvent } from "@moor/schema/generated/moor-common/traceback-eve
 import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-event";
 import { HistoryResponseReply } from "@moor/schema/generated/moor-rpc/history-response-reply";
 import * as flatbuffers from "flatbuffers";
+import { AnnotationTable, decodeAnnotations } from "./annotations.js";
 
 import { ParsedPresentation, parsePresentationValue } from "./presentations.js";
 import { parseClientReplyUnion } from "./reply.js";
@@ -70,6 +71,7 @@ export interface ParsedNarrativeEventEnvelope {
 }
 
 export interface ParsedHistoricalNotifyEvent {
+    annotations?: AnnotationTable;
     kind: "notify";
     content: unknown;
     contentType: "text/plain" | "text/djot" | "text/html";
@@ -152,6 +154,7 @@ export function parseHistoricalNarrativeEvent(
                 return null;
             }
 
+            let annotations: AnnotationTable | undefined;
             let presentationHint: string | undefined;
             let groupId: string | undefined;
             let deliveryId: string | undefined;
@@ -168,7 +171,9 @@ export function parseHistoricalNarrativeEvent(
                 const metadataValue = metadata.value();
                 const decoded = metadataValue ? decodeVarToJs(metadataValue) : null;
 
-                if (keyValue === "presentation_hint" && typeof decoded === "string") {
+                if (keyValue === "annotations") {
+                    annotations = decodeAnnotations(decoded);
+                } else if (keyValue === "presentation_hint" && typeof decoded === "string") {
                     presentationHint = decoded;
                 } else if (keyValue === "group_id" && typeof decoded === "string") {
                     groupId = decoded;
@@ -188,6 +193,7 @@ export function parseHistoricalNarrativeEvent(
 
             return {
                 kind: "notify",
+                annotations,
                 content: decodeVarToJs(value),
                 contentType: normalizeContentType(notify.contentType()?.value() || null),
                 presentationHint,

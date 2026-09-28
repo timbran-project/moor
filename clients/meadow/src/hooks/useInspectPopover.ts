@@ -91,16 +91,8 @@ export const useInspectPopover = ({ authToken, showMessage, refreshKey }: UseIns
         }
     }, [authToken, showMessage]);
 
-    // Handle hold-to-preview for inspect links (mobile)
-    const handleLinkHoldStart = useCallback(async (url: string, position: { x: number; y: number }) => {
-        if (!url.startsWith("moo://inspect/") || !authToken) return;
-
-        const oref = url.slice(14);
-        await inspectObject(oref, position, true);
-    }, [authToken, inspectObject]);
-
     // Handle end of hold-to-preview
-    const handleLinkHoldEnd = useCallback(() => {
+    const dismissPreview = useCallback(() => {
         if (pendingPreview.current) {
             requestGeneration.current += 1;
             pendingPreview.current = false;
@@ -148,8 +140,7 @@ export const useInspectPopover = ({ authToken, showMessage, refreshKey }: UseIns
         inspectPopover,
         closeInspectPopover,
         inspectObject,
-        handleLinkHoldStart,
-        handleLinkHoldEnd,
+        dismissPreview,
         refreshInspection,
     };
 };

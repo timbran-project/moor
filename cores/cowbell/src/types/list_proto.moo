@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object LIST_PROTO [
   import_export_id -> "list_proto",
   import_export_hierarchy -> {"types"}
@@ -226,30 +228,10 @@ object LIST_PROTO [
   endmethod
 
   method compose owner: HACKER
-    "Compose each list element for the requested content type and combine the results.";
-    "HTML composition returns the composed list; text composition joins rendered text parts.";
-    {lst, render_for, content_type, @rest} = args;
-    results = {};
-    for x in (lst)
-      results = {@results, x:compose(render_for, content_type, @rest)};
-    endfor
-    "For HTML, return list of composed elements (caller wraps in container)";
-    "For text formats, join strings";
-    if (content_type == 'text_html)
-      return results;
-    endif
-    "Join text results, handling any non-strings gracefully";
-    text_parts = {};
-    for r in (results)
-      if (typeof(r) == TYPE_STR)
-        text_parts = {@text_parts, r};
-      elseif (typeof(r) == TYPE_FLYWEIGHT)
-        text_parts = {@text_parts, r:render(content_type)};
-      else
-        text_parts = {@text_parts, tostr(r)};
-      endif
-    endfor
-    return text_parts:join("");
+    "Compose a list of fragments, joining text and preserving HTML structure.";
+    const {lst, render_for, content_type, ?event = false} = args;
+    const {parts, annotations} = $format:compose_parts(lst, render_for, content_type, event);
+    return $format:result(content_type == 'text_html ? parts | parts:join(""), annotations);
   endmethod
 
   method test_core_list_helpers owner: HACKER

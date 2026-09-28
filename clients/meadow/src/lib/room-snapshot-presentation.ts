@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { MAX_ANNOTATIONS, decodeAnnotation, SemanticAnnotation } from "@moor/web-sdk";
 import { PresentationData } from "../types/presentation";
 import { jsObjectRefToCurie } from "./var";
 
@@ -41,6 +42,14 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
         return null;
     }
 
+    const annotations: Record<string, SemanticAnnotation> = Object.create(null);
+    const region = (label: string, annotation: SemanticAnnotation) => {
+        const count = Object.keys(annotations).length;
+        if (count >= MAX_ANNOTATIONS || !decodeAnnotation(annotation)) return escapeHtml(label);
+        const id = `a${count + 1}`;
+        annotations[id] = annotation;
+        return `<span data-moor-annotation="${id}">${escapeHtml(label)}</span>`;
+    };
     const snapshot = payload as Record<string, unknown>;
     const title = coerceText(snapshot.title) || "Room";
     const description = coerceText(snapshot.description);
@@ -61,8 +70,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
                     return "";
                 }
                 const label = status && status !== "awake" ? `${name} (${status})` : name;
-                const href = `moo://inspect/${encodeURIComponent(objectCurie)}`;
-                return `<a href="${href}">${escapeHtml(label)}</a>`;
+                return region(label, { kind: "object", ref: objectCurie });
             })
             .filter(Boolean)
         : [];
@@ -79,8 +87,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
                 if (!name || !objectCurie) {
                     return "";
                 }
-                const href = `moo://inspect/${encodeURIComponent(objectCurie)}`;
-                return `<a href="${href}">${escapeHtml(name)}</a>`;
+                return region(name, { kind: "object", ref: objectCurie });
             })
             .filter(Boolean)
         : [];
@@ -89,9 +96,9 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
         const exit = entry as Record<string, unknown>;
         const label = coerceText(exit.label);
-        const url = coerceText(exit.url);
-        if (!label || !url.startsWith("moo://exit/")) return [];
-        return [`<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`];
+        const annotation = decodeAnnotation(exit.annotation);
+        if (!label || annotation?.kind !== "command" || !annotation.exit) return [];
+        return [region(label, annotation)];
     });
 
     const actionButtons = actions
@@ -107,11 +114,9 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
                 if (!fallbackCmd || !fallbackLabel) {
                     return "";
                 }
-                const fallbackHref = `moo://cmd/${encodeURIComponent(fallbackCmd)}`;
-                return `<a href="${fallbackHref}">${escapeHtml(fallbackLabel)}</a>`;
+                return region(fallbackLabel, { kind: "command", command: fallbackCmd });
             }
-            const href = `moo://cmd/${encodeURIComponent(command)}`;
-            return `<a href="${href}">${escapeHtml(label)}</a>`;
+            return region(label, { kind: "command", command });
         })
         .filter(Boolean);
 
@@ -155,6 +160,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
         target: "top",
         content_type: "text/html",
         content: htmlParts.join(""),
+        annotations,
         attributes,
     };
 }

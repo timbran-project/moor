@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object ROOT [
   import_export_id -> "root",
   import_export_hierarchy -> {}
@@ -685,28 +687,77 @@ object ROOT [
   endmethod
 
   method suggestions owner: ARCH_WIZARD
-    "Read-only typeahead endpoint with optional command-template validation.";
-    const {source, query, ?template = "", ?limit = 12} = args;
+    "Read-only ranked completion using a shared argument context.";
+    const {source, query, ?raw_context = [], ?limit = 12} = args;
     valid(player) && is_player(player) || raise(E_PERM);
-    typeof(source) == TYPE_STR && typeof(query) == TYPE_STR && typeof(template) == TYPE_STR && typeof(limit) == TYPE_INT || raise(E_TYPE);
-    length(source) <= 64 && length(query) <= 256 && length(template) <= 1024 && limit >= 1 && limit <= 50 || raise(E_INVARG);
+    typeof(source) == TYPE_STR && typeof(query) == TYPE_STR && typeof(limit) == TYPE_INT || raise(E_TYPE);
+    length(source) <= 64 && length(query) <= 256 && limit >= 1 && limit <= 50 || raise(E_INVARG);
+    const context = $match:normalize_input_context(raw_context);
     set_task_perms(player);
-    return $match:rank_suggestions(this:suggestion_candidates(source, query, template), query, limit);
+    return $match:rank_suggestions(this:suggestion_candidates(source, query, context), query, limit);
   endmethod
 
   method suggestion_candidates owner: ARCH_WIZARD
-    "Use the command environment for object choices; override for other named sources of labelled values.";
+    "Use the same discovery scope and command matcher for ranked and explicit reference queries.";
     set_task_perms(caller_perms());
-    const {source, ?query = "", ?template = ""} = args;
+    const {source, ?query = "", ?context = []} = args;
+    const template = `context["template"] ! E_RANGE => ""';
     const scope = player:match_environment(template, ['scope -> source, 'target -> this]);
     const candidates = $match:object_suggestions(scope);
-    !template && return candidates;
-    return $match:matching_suggestions(candidates, template, {@player:match_environment(template), @scope}, player:command_environment());
+    !length(context) && return candidates;
+    return $match:matching_suggestions(candidates, context, {@player:match_environment(template), @scope}, player:command_environment());
+  endmethod
+
+  method suggestion_eligibility owner: ARCH_WIZARD
+    "Check a bounded batch of explicit references against the complete candidate scope, without ranking or execution.";
+    const {source, references, ?raw_context = []} = args;
+    valid(player) && is_player(player) || raise(E_PERM);
+    typeof(source) == TYPE_STR && length(source) <= 64 && typeof(references) == TYPE_LIST && length(references) <= 64 || raise(E_INVARG);
+    const context = $match:normalize_input_context(raw_context);
+    set_task_perms(player);
+    let eligible = [];
+    for candidate in (this:suggestion_candidates(source, "", context))
+      const object = `toobj(candidate["value"]) ! E_TYPE, E_INVARG, E_RANGE => $nothing';
+      if (valid(object) && tostr(object) == candidate["value"])
+        eligible[$url_utils:to_curie_str(object)] = candidate;
+      endif
+    endfor
+    let result = [];
+    for reference in (references)
+      typeof(reference) == TYPE_STR && length(reference) <= 64 || raise(E_INVARG);
+      if (maphaskey(eligible, reference))
+        const candidate = eligible[reference];
+        result[reference] = ["eligible" -> true, "label" -> candidate["label"], "value" -> candidate["value"]];
+      else
+        result[reference] = ["eligible" -> false, "reason" -> "That reference is not available for this argument."];
+      endif
+    endfor
+    return result;
   endmethod
 
   method match_scope_for owner: ARCH_WIZARD
     "Contribute visible objects and aliases to an actor's environmental search.";
     return {};
+  endmethod
+
+  method help_topic owner: ARCH_WIZARD
+    "Read an exact topic from this provider without resolving against the viewer's current room.";
+    const {topic_name} = args;
+    const actor = player;
+    valid(actor) && is_player(actor) || raise(E_PERM);
+    this.r || this.owner == actor || actor.wizard || raise(E_PERM);
+    typeof(topic_name) == TYPE_STR && length(topic_name) <= 256 || raise(E_INVARG);
+    set_task_perms(actor);
+    const topics = this:help_topics(actor, "");
+    typeof(topics) == TYPE_LIST || raise(E_INVARG, "Help topic is unavailable");
+    for topic in (topics)
+      if (typeof(topic) == TYPE_FLYWEIGHT && topic.name == topic_name)
+        const event = $event:mk_info(actor, $format.block:mk(@topic:render_prose()));
+        const rendered = event:transform_for(actor, 'text_djot);
+        return ["title" -> topic.name, "content" -> rendered["content"], "annotations" -> rendered["annotations"]];
+      endif
+    endfor
+    raise(E_INVARG, "Help topic is unavailable");
   endmethod
 
   method inspection owner: ARCH_WIZARD

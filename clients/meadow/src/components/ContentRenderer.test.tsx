@@ -10,8 +10,9 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { AnnotationContext } from "../context/AnnotationContext";
 import { ContentRenderer } from "./ContentRenderer";
 
 vi.mock("./Toast", () => ({
@@ -48,104 +49,39 @@ describe("ContentRenderer URI embeds", () => {
     });
 });
 
-describe("ContentRenderer historical links", () => {
-    const content = "<a href=\"moo://inspect/oid:42\"><strong>Key</strong></a> "
-        + "<a href=\"moo://cmd/go%20north\">North</a> "
-        + "<a href=\"moo://help/movement\">Help</a> "
-        + "<a href=\"https://example.com\">Website</a>";
-
-    it("keeps references, help, and external links keyboard-accessible after a message expires", () => {
-        const onLinkClick = vi.fn();
-        const { container, rerender } = render(
-            <ContentRenderer content={content} contentType="text/html" onLinkClick={onLinkClick} />,
+describe("ContentRenderer semantic references", () => {
+    it("activates an event-local reference with mouse and keyboard after newer output", () => {
+        const activate = vi.fn();
+        const table = { a1: { kind: "object" as const, ref: "oid:42" } };
+        render(
+            <AnnotationContext.Provider value={activate}>
+                <ContentRenderer content="[Key]{annotation=a1}" contentType="text/djot" isStale eventMetadata={{ annotations: table }} />
+                <ContentRenderer content="[Other key]{annotation=a1}" contentType="text/djot" eventMetadata={{ annotations: { a1: { kind: "object", ref: "oid:43" } } }} />
+            </AnnotationContext.Provider>,
         );
-        rerender(<ContentRenderer content={content} contentType="text/html" isStale onLinkClick={onLinkClick} />);
-        const links = [...container.querySelectorAll<HTMLElement>("[data-url]")];
-        expect(links.map(link => link.tabIndex)).toEqual([0, -1, 0, 0]);
-        expect(links[1].getAttribute("aria-disabled")).toBe("true");
-
         fireEvent.click(screen.getByText("Key"));
-        fireEvent.keyDown(links[0], { key: "Enter" });
-        fireEvent.keyDown(links[2], { key: " " });
-        fireEvent.keyDown(links[3], { key: "Enter" });
-        expect(onLinkClick.mock.calls.map(call => call[0])).toEqual([
-            "moo://inspect/oid:42",
-            "moo://inspect/oid:42",
-            "moo://help/movement",
-            "https://example.com",
-        ]);
-        fireEvent.click(links[1]);
-        fireEvent.keyDown(links[1], { key: "Enter" });
-        expect(onLinkClick).toHaveBeenCalledTimes(4);
+        fireEvent.keyDown(screen.getByText("Other key"), { key: "Enter" });
+        expect(activate.mock.calls.map(call => call[0].annotation.ref)).toEqual(["oid:42", "oid:43"]);
     });
-
-    it("allows touch previews on historical object references", () => {
-        vi.useFakeTimers();
-        try {
-            const onLinkHoldStart = vi.fn();
-            const onLinkHoldEnd = vi.fn();
-            render(
-                <ContentRenderer
-                    content={content}
-                    contentType="text/html"
-                    isStale
-                    onLinkHoldStart={onLinkHoldStart}
-                    onLinkHoldEnd={onLinkHoldEnd}
-                />,
-            );
-            fireEvent.touchStart(screen.getByText("Key"), { touches: [{ clientX: 20, clientY: 40 }] });
-            act(() => vi.advanceTimersByTime(300));
-            expect(onLinkHoldStart).toHaveBeenCalledWith("moo://inspect/oid:42", { x: 20, y: 40 });
-            fireEvent.touchEnd(screen.getByText("Key"));
-            expect(onLinkHoldEnd).toHaveBeenCalledOnce();
-        } finally {
-            vi.useRealTimers();
-        }
+    it("does not activate on hover, render, or missing metadata", () => {
+        const activate = vi.fn();
+        render(<AnnotationContext.Provider value={activate}><ContentRenderer content="[Key]{annotation=a1}" contentType="text/djot" /></AnnotationContext.Provider>);
+        fireEvent.mouseOver(screen.getByText("Key"));
+        fireEvent.click(screen.getByText("Key"));
+        expect(activate).not.toHaveBeenCalled();
     });
-});
-
-describe("ContentRenderer bound exits", () => {
-    it("keeps old exits usable and disables only the pending action for mouse and keyboard", async () => {
-        let resolve!: () => void;
-        const pending = new Promise<void>(done => {
-            resolve = done;
-        });
-        const onLinkClick = vi.fn(() => pending);
-        const { container } = render(
-            <ContentRenderer
-                content='<a href="moo://exit/oid:10/oid:20/id">East</a> <a href="moo://inspect/oid:42">Key</a>'
-                contentType="text/html"
-                isStale
-                onLinkClick={onLinkClick}
-            />,
-        );
-        const [exit, inspect] = [...container.querySelectorAll<HTMLElement>("[data-url]")];
-        expect(exit.tabIndex).toBe(0);
-        fireEvent.click(exit);
-        expect(exit.getAttribute("aria-busy")).toBe("true");
-        expect(exit.tabIndex).toBe(-1);
-        expect(inspect.tabIndex).toBe(0);
-        fireEvent.keyDown(exit, { key: "Enter" });
-        expect(onLinkClick).toHaveBeenCalledTimes(1);
-        await act(async () => {
-            resolve();
-            await pending;
-        });
-        expect(exit.getAttribute("aria-busy")).toBeNull();
-        expect(exit.tabIndex).toBe(0);
-        fireEvent.keyDown(exit, { key: "Enter" });
-        await act(async () => {
-            await pending;
-        });
-        expect(onLinkClick).toHaveBeenCalledTimes(2);
+    it("leaves unannotated object-like text plain", () => {
+        const { container } = render(<ContentRenderer content="#42 #000A54-9B1A1A9B2E" />);
+        expect(container.querySelector("[role=button], [data-objid], [data-uuobjid]")).toBeNull();
+        expect(container.textContent).toBe("#42 #000A54-9B1A1A9B2E");
     });
-});
-
-it.each(["text/html", "text/djot"] as const)("omits internal URL tooltips in %s", contentType => {
-    const content = contentType === "text/html"
-        ? "<a href=\"moo://inspect/oid:42\">Key</a><a href=\"https://example.com\">Website</a>"
-        : "[Key](moo://inspect/oid:42) [Website](https://example.com)";
-    render(<ContentRenderer content={content} contentType={contentType} />);
-    expect(screen.getByText("Key").getAttribute("title")).toBeNull();
-    expect(screen.getByText("Website").getAttribute("title")).toBe("https://example.com");
+    it("preserves external links and ignores historical internal URLs", () => {
+        const onLinkClick = vi.fn();
+        const { container } = render(<ContentRenderer content='<a href="moo://exit/oid:10/oid:20/id">East</a> <a href="https://example.com">Website</a>' contentType="text/html" onLinkClick={onLinkClick} />);
+        fireEvent.click(screen.getByText("East"));
+        expect(onLinkClick).not.toHaveBeenCalled();
+        fireEvent.keyDown(screen.getByText("Website"), { key: " " });
+        expect(onLinkClick).toHaveBeenCalledWith("https://example.com", expect.any(Object), expect.any(Object));
+        expect(container.querySelectorAll("[data-url]")).toHaveLength(1);
+    });
 });

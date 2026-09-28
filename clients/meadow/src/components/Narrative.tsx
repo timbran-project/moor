@@ -11,7 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { AnnotationTable } from "@moor/web-sdk";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { CommandDraft, decodeDraft, draftEcho, plainDraft, serializeDraft } from "../lib/command-draft";
 import { stringToCurie, uuObjIdToString } from "../lib/var";
 import { InputMetadata } from "../types/input";
 import { getCommandEchoEnabled } from "./CommandEchoToggle";
@@ -20,6 +22,7 @@ import { LinkPreview } from "./LinkPreviewCard";
 import { OutputWindow } from "./OutputWindow";
 
 export interface EventMetadata {
+    annotations?: AnnotationTable;
     eventId?: string;
     deliveryId?: string;
     delivery_id?: string;
@@ -69,8 +72,6 @@ interface NarrativeProps {
     onLoadMoreHistory?: () => void;
     isLoadingHistory?: boolean;
     onLinkClick?: (url: string, position?: { x: number; y: number }) => void;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
     playerOid?: string | null;
     onMessageAppended?: (message: NarrativeMessage) => void;
     currentRoomLookKey?: string | null;
@@ -113,7 +114,7 @@ export interface NarrativeRef {
 // Verbs that trigger staleness - a new event with this verb makes previous events with the same verb stale
 const STALENESS_VERBS = new Set(["look"]);
 
-const COMMAND_HISTORY_STORAGE_PREFIX = "moor-command-history";
+const COMMAND_HISTORY_STORAGE_PREFIX = "moor-command-history-v2";
 const MAX_COMMAND_HISTORY = 500;
 
 const getCommandHistoryStorageKey = (playerOid?: string | null) => {
@@ -155,8 +156,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     onLoadMoreHistory,
     isLoadingHistory = false,
     onLinkClick,
-    onLinkHoldStart,
-    onLinkHoldEnd,
     playerOid,
     onMessageAppended,
     currentRoomLookKey,
@@ -167,7 +166,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 }, ref) => {
     const connected = connectionStatus === "connected";
     const [messages, setMessages] = useState<NarrativeMessage[]>([]);
-    const [commandHistory, setCommandHistory] = useState<string[]>([]);
+    const [commandHistory, setCommandHistory] = useState<CommandDraft[]>([]);
     const [staleMessageIds, setStaleMessageIds] = useState<Set<string>>(new Set());
     const narrativeContainerRef = useRef<HTMLDivElement>(null);
     const storageKeyRef = useRef<string | null>(null);
@@ -355,6 +354,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                         return {
                             ...msg,
                             content,
+                            eventMetadata,
                             contentType: contentType || msg.contentType,
                             presentationHint: presentationHint, // Clear processing hint
                             rewritable: undefined,
@@ -451,7 +451,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     }, [addMessage, onSendMessage]);
 
     // Add to command history
-    const addToHistory = useCallback((command: string) => {
+    const addToHistory = useCallback((command: CommandDraft) => {
         setCommandHistory(prev => {
             const nextHistory = [...prev, command];
             const cappedHistory = nextHistory.length > MAX_COMMAND_HISTORY
@@ -473,9 +473,30 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         });
     }, []);
 
+    const submitDraft = useCallback((draft: CommandDraft) => {
+        if (!onSendMessage(serializeDraft(draft).command)) return false;
+        if (getCommandEchoEnabled()) {
+            const echo = draftEcho(draft);
+            addMessage(
+                echo.content,
+                "input_echo",
+                "text/djot",
+                false,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                { annotations: echo.annotations },
+            );
+        }
+        addToHistory(draft);
+        return true;
+    }, [onSendMessage, addMessage, addToHistory]);
+
     const submitCommand = useCallback((command: string) => {
         if (!handleSendMessage(command)) return false;
-        addToHistory(command);
+        addToHistory(plainDraft(command));
         return true;
     }, [handleSendMessage, addToHistory]);
 
@@ -750,7 +771,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             }
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
-                const normalized = parsed.map(item => (typeof item === "string" ? item : String(item)));
+                const normalized = parsed.map(decodeDraft).filter((draft): draft is CommandDraft => draft !== null);
                 if (normalized.length > MAX_COMMAND_HISTORY) {
                     const capped = normalized.slice(-MAX_COMMAND_HISTORY);
                     window.localStorage.setItem(storageKey, JSON.stringify(capped));
@@ -798,12 +819,9 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                     onLoadMoreHistory={onLoadMoreHistory}
                     isLoadingHistory={isLoadingHistory}
                     onLinkClick={onLinkClick}
-                    onLinkHoldStart={onLinkHoldStart}
-                    onLinkHoldEnd={onLinkHoldEnd}
                     fontSize={fontSize}
                     playerOid={playerOid}
                     staleMessageIds={staleMessageIds}
-                    onMessageLinkClicked={markMessageStale}
                     currentRoomLookKey={currentRoomLookKey}
                     onActiveRoomLookVisibilityChange={onActiveRoomLookVisibilityChange}
                 />
@@ -824,7 +842,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                     disabled={!connected}
                     onSendMessage={handleSendMessage}
                     commandHistory={commandHistory}
-                    onAddToHistory={addToHistory}
+                    onSubmitDraft={submitDraft}
                     inputMetadata={inputMetadata}
                     onClearInputMetadata={onClearInputMetadata}
                 />

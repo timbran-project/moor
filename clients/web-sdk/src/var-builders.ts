@@ -17,7 +17,10 @@ import { ObjUnion } from "@moor/schema/generated/moor-common/obj-union";
 import { UuObjId } from "@moor/schema/generated/moor-common/uu-obj-id";
 import { Var as FbVar } from "@moor/schema/generated/moor-var/var";
 import { VarList } from "@moor/schema/generated/moor-var/var-list";
+import { VarMap } from "@moor/schema/generated/moor-var/var-map";
+import { VarMapPair } from "@moor/schema/generated/moor-var/var-map-pair";
 import { VarObj } from "@moor/schema/generated/moor-var/var-obj";
+import { VarStr } from "@moor/schema/generated/moor-var/var-str";
 import { VarUnion } from "@moor/schema/generated/moor-var/var-union";
 import * as flatbuffers from "flatbuffers";
 
@@ -46,5 +49,41 @@ export function buildObjRefList(curies: string[]): Uint8Array {
     const varListOffset = VarList.createVarList(builder, elementsVectorOffset);
     const listVarOffset = FbVar.createVar(builder, VarUnion.VarList, varListOffset);
     builder.finish(listVarOffset);
+    return builder.asUint8Array();
+}
+
+/** Structured string/list/map arguments; object references remain explicit strings. */
+export type StructuredArgument = string | StructuredArgument[] | { [key: string]: StructuredArgument };
+
+export function buildStructuredArgs(values: StructuredArgument[]): Uint8Array {
+    const builder = new flatbuffers.Builder(1024);
+    const encode = (value: StructuredArgument, depth = 0): number => {
+        if (depth > 16) throw new Error("Argument nesting is too deep");
+        if (typeof value === "string") {
+            return FbVar.createVar(builder, VarUnion.VarStr, VarStr.createVarStr(builder, builder.createString(value)));
+        }
+        if (Array.isArray(value)) {
+            const elements = value.map(item => encode(item, depth + 1));
+            return FbVar.createVar(
+                builder,
+                VarUnion.VarList,
+                VarList.createVarList(builder, VarList.createElementsVector(builder, elements)),
+            );
+        }
+        const pairs = Object.entries(value).map(([key, item]) => {
+            const keyOffset = encode(key, depth + 1);
+            const valueOffset = encode(item, depth + 1);
+            VarMapPair.startVarMapPair(builder);
+            VarMapPair.addKey(builder, keyOffset);
+            VarMapPair.addValue(builder, valueOffset);
+            return VarMapPair.endVarMapPair(builder);
+        });
+        return FbVar.createVar(
+            builder,
+            VarUnion.VarMap,
+            VarMap.createVarMap(builder, VarMap.createPairsVector(builder, pairs)),
+        );
+    };
+    builder.finish(encode(values));
     return builder.asUint8Array();
 }

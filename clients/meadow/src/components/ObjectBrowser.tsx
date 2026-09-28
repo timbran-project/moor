@@ -44,11 +44,13 @@ import { useObjectCatalog } from "./object-browser/hooks/useObjectCatalog";
 import { useObjectMembers } from "./object-browser/hooks/useObjectMembers";
 import { useObjectMutations } from "./object-browser/hooks/useObjectMutations";
 import { ObjectInfoEditor } from "./object-browser/ObjectInfoEditor";
+import { MemberNavigation } from "./object-browser/types";
 import { ObjectData } from "./object-browser/types";
 import { PropertyValueEditor } from "./PropertyValueEditor.js";
 import { VerbEditor } from "./VerbEditor.js";
 
 interface ObjectBrowserProps {
+    memberNavigation?: MemberNavigation;
     visible: boolean;
     onClose: () => void;
     authToken: string;
@@ -77,6 +79,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     onToggleSplitMode,
     isInSplitMode = false,
     focusedObjectCurie,
+    memberNavigation,
     onOpenVerbInEditor,
 }) => {
     const { authState } = useAuthContext();
@@ -94,6 +97,13 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         { shouldPersist: persistNonNull },
     );
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const dirtyEditor = useRef(false);
+    const [navigationError, setNavigationError] = useState<string | null>(null);
+    const onEditorDirtyChange = useCallback((dirty: boolean) => {
+        dirtyEditor.current = dirty;
+    }, []);
+    const lastNavigation = useRef<number | null>(null);
+    const pendingNavigation = useRef<MemberNavigation | null>(null);
     const objectsPaneRef = useRef<HTMLDivElement | null>(null);
 
     const [browserPaneHeight, setBrowserPaneHeight] = useState(350); // Fixed pixel height for browser pane
@@ -131,6 +141,8 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     const {
         properties,
         verbs,
+        loadedObject,
+        memberError,
         loadPropertiesAndVerbs,
         selectedProperty,
         setSelectedProperty,
@@ -212,6 +224,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
     } = mutations;
 
     const handleObjectSelect = useCallback((obj: ObjectData) => {
+        pendingNavigation.current = null;
         setActionMessage(null);
         setSelectedObject(obj);
         setEditingName(obj.name);
@@ -230,7 +243,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
 
     // Focus on a specific object when presentation opens the browser
     useEffect(() => {
-        if (focusedObjectCurie && objects.length > 0) {
+        if (!memberNavigation && focusedObjectCurie && objects.length > 0) {
             // Use stringToCurie to normalize both the focused CURIE and object strings for comparison
             const normalizedFocusCurie = stringToCurie(focusedObjectCurie);
             const objectToFocus = objects.find(obj => stringToCurie(obj.obj) === normalizedFocusCurie);
@@ -241,7 +254,101 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 loadPropertiesAndVerbs(objectToFocus);
             }
         }
-    }, [focusedObjectCurie, objects]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [focusedObjectCurie, objects, memberNavigation]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (
+            !visible || !memberNavigation || isLoading || objects.length === 0
+            || lastNavigation.current === memberNavigation.requestId
+        ) return;
+        lastNavigation.current = memberNavigation.requestId;
+        setNavigationError(null);
+        if (dirtyEditor.current) {
+            setNavigationError("Save or close the current editor before following a member reference.");
+            return;
+        }
+        const target = objects.find(object => stringToCurie(object.obj) === memberNavigation.object);
+        if (!target) {
+            setNavigationError("The referenced object is unavailable.");
+            return;
+        }
+        restoration.clearAllRestoration();
+        setFilter("");
+        setShowMineOnly(false);
+        setPropertyFilter("");
+        setVerbFilter("");
+        setShowInheritedProperties(true);
+        setShowInheritedVerbs(true);
+        setShowTests(true);
+        setShowMethods(true);
+        setShowCommands(true);
+        handleObjectSelect(target);
+        pendingNavigation.current = memberNavigation;
+    }, [
+        visible,
+        memberNavigation,
+        isLoading,
+        objects,
+        handleObjectSelect,
+        restoration,
+        setNavigationError,
+        setFilter,
+        setShowMineOnly,
+        setPropertyFilter,
+        setVerbFilter,
+        setShowInheritedProperties,
+        setShowInheritedVerbs,
+        setShowTests,
+        setShowMethods,
+        setShowCommands,
+    ]);
+
+    useEffect(() => {
+        const target = pendingNavigation.current;
+        if (
+            !target || !selectedObject || stringToCurie(selectedObject.obj) !== target.object
+            || loadedObject !== target.object
+        ) return;
+        pendingNavigation.current = null;
+        if (target.kind === "property") {
+            const property = properties.find(property => property.name === target.name);
+            if (!property) {
+                setNavigationError("The referenced property is unavailable or has been renamed.");
+                return;
+            }
+            setActiveTab("properties");
+            void handlePropertySelect(property);
+            return;
+        }
+        const matching = verbs.filter(verb =>
+            verb.names.some(name =>
+                name === target.name || name.replace("*", "") === target.name || verb.names.join(" ") === target.name
+            )
+            && (!target.definer || stringToCurie(verb.location) === target.definer)
+        );
+        const nearest = matching[0]?.location;
+        const candidates = matching.filter(verb => verb.location === nearest);
+        if (candidates.length !== 1) {
+            setNavigationError(
+                candidates.length
+                    ? "The verb reference is ambiguous."
+                    : "The referenced verb is unavailable or has been renamed.",
+            );
+            return;
+        }
+        setActiveTab("verbs");
+        void handleVerbSelect(candidates[0]);
+    }, [loadedObject, selectedObject, properties, verbs, handlePropertySelect, handleVerbSelect, setActionMessage]);
+
+    useEffect(() => {
+        if (!memberNavigation) return;
+        const frame = requestAnimationFrame(() => {
+            containerRef.current?.querySelector<HTMLElement>("[data-member-kind].selected")?.scrollIntoView({
+                block: "nearest",
+            });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [memberNavigation, selectedProperty?.name, selectedVerb?.location, selectedVerb?.indexInLocation, activeTab]);
 
     // Scroll to selected object when it changes
     useEffect(() => {
@@ -250,10 +357,10 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                 `.browser-item[data-obj-id="${selectedObject.obj}"]`,
             );
             if (selectedElement) {
-                selectedElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                selectedElement.scrollIntoView({ behavior: memberNavigation ? "auto" : "smooth", block: "nearest" });
             }
         }
-    }, [selectedObject]);
+    }, [selectedObject, memberNavigation]);
 
     const objectTypeOptions = (() => {
         const options: Array<{ value: string; label: string }> = [];
@@ -278,7 +385,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
         if (visible) {
             loadObjects().then((loadedObjects) => {
                 // If we have a saved selection, restore it
-                if (selectedObject) {
+                if (selectedObject && !memberNavigation) {
                     // Find the object in the loaded list
                     const matchingObj = loadedObjects.find(obj => obj.obj === selectedObject.obj);
                     if (matchingObj) {
@@ -887,6 +994,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                                                 ? "selected"
                                                                 : ""
                                                         }`}
+                                                        data-member-kind="property"
                                                         onClick={() => handlePropertySelect(prop)}
                                                         onKeyDown={(e) => {
                                                             if (e.key === "Enter" || e.key === " ") {
@@ -1078,6 +1186,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                                                                 ? "selected"
                                                                 : ""
                                                         }`}
+                                                        data-member-kind="verb"
                                                         onClick={() => handleVerbSelect(verb)}
                                                         onKeyDown={(e) => {
                                                             if (e.key === "Enter" || e.key === " ") {
@@ -1139,6 +1248,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                     </div>
 
                     {/* Draggable splitter bar */}
+                    {(memberError || navigationError) && <p role="alert">{navigationError || memberError}</p>}
                     {(editorVisible || selectedObject) && (
                         <div
                             className={`browser-resize-handle ${isSplitDragging ? "dragging" : ""}`}
@@ -1196,6 +1306,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                             )}
                             {selectedProperty && selectedProperty.moorVar && selectedObject && (
                                 <PropertyValueEditor
+                                    onDirtyChange={onEditorDirtyChange}
                                     authToken={authToken}
                                     objectCurie={stringToCurie(selectedObject.obj)}
                                     propertyName={selectedProperty.name}
@@ -1245,6 +1356,7 @@ export const ObjectBrowser: React.FC<ObjectBrowserProps> = ({
                             )}
                             {selectedVerb && (
                                 <VerbEditor
+                                    onDirtyChange={onEditorDirtyChange}
                                     visible={true}
                                     onClose={() => {
                                         setSelectedVerb(null);

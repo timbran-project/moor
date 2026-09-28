@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_CODE [
   import_export_id -> "format_code",
   import_export_hierarchy -> {"format"}
@@ -113,7 +115,7 @@ object FORMAT_CODE [
     code = this:mk(content);
     event = $event:mk_paste($player, title, code);
     "Transform for djot like tell() does";
-    output = event:transform_for($player, 'text_djot);
+    output = event:transform_for($player, 'text_djot)["content"];
     "Output should be a list of strings";
     typeof(output) == TYPE_LIST || raise(E_ASSERT("Output should be list, got: " + typeof(output)));
     "Join the output to see the full djot";

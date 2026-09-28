@@ -12,6 +12,7 @@
 //
 
 import { parse, renderHTML } from "@djot/djot";
+import { ANNOTATION_ID, AnnotationTable } from "@moor/web-sdk";
 import { AnsiUp } from "ansi_up";
 import DOMPurify from "dompurify";
 import Prism from "prismjs";
@@ -22,6 +23,7 @@ import "./prism-moo";
  * Configuration options for djot rendering
  */
 export interface DjotRenderOptions {
+    annotations?: AnnotationTable;
     /**
      * Custom link handler - if provided, links will be rendered as spans with this data attribute
      * If not provided, regular anchor tags will be used
@@ -103,10 +105,9 @@ export const CONTENT_ALLOWED_ATTR = [
     "width",
     "height",
     "data-url",
+    "data-moor-annotation",
     "tabindex",
     "role",
-    "data-objid",
-    "data-uuobjid",
     "aria-label",
 ];
 
@@ -141,11 +142,6 @@ export function isSafeUrl(url: string): boolean {
         return false;
     }
 
-    // Allow moo:// protocol for internal links
-    if (url.toLowerCase().startsWith("moo://")) {
-        return true;
-    }
-
     if (/^[/#?]|^\.\.?\//.test(url)) {
         return true;
     }
@@ -171,19 +167,6 @@ export function isSafeUrl(url: string): boolean {
 const PLAIN_TEXT_URL_REGEX = /https?:\/\/[^\s<>"')\]\u201C\u201D\u2018\u2019]+/g;
 
 /**
- * Regex for detecting UuObjIds (e.g., #000A54-9B1A1A9B2E)
- * Matches optional # prefix, 6 hex digits, hyphen, 10 hex digits.
- */
-const UUOBJID_REGEX = /#?[\da-fA-F]{6}-[\da-fA-F]{10}/g;
-
-/**
- * Regex for detecting regular MOO object IDs (e.g., #123)
- * Matches # prefix followed by one or more digits, but NOT followed by
- * hex digits + hyphen (to avoid matching partial UUID-style objids).
- */
-const OBJID_REGEX = /#\d+(?![0-9a-fA-F]*-[0-9a-fA-F])/g;
-
-/**
  * Cleans up a detected URL by removing trailing punctuation that's likely
  * sentence-ending rather than part of the URL.
  */
@@ -201,8 +184,6 @@ function convertPlainTextUrls(html: string): string {
     tempDiv.innerHTML = html;
 
     processTextNodesForUrls(tempDiv);
-    processTextNodesForUuObjIds(tempDiv);
-    processTextNodesForObjIds(tempDiv);
 
     return tempDiv.innerHTML;
 }
@@ -243,7 +224,7 @@ function processTextNodesForUrls(node: Node): void {
                     span.setAttribute("data-url", url);
                     span.setAttribute("tabindex", "0");
                     span.setAttribute("role", "link");
-                    if (!url.startsWith("moo://")) span.title = url;
+                    span.title = url;
                     span.textContent = url;
                     fragment.appendChild(span);
 
@@ -272,7 +253,8 @@ function processTextNodesForUrls(node: Node): void {
         // Skip pre/code elements to avoid breaking code blocks
         // Skip anchor tags
         if (
-            element.hasAttribute("data-url")
+            element.hasAttribute("data-moor-annotation")
+            || element.hasAttribute("data-url")
             || element.tagName === "PRE"
             || element.tagName === "CODE"
             || element.tagName === "A"
@@ -285,145 +267,11 @@ function processTextNodesForUrls(node: Node): void {
 }
 
 /**
- * Recursively processes text nodes to detect and wrap UuObjIds.
- */
-function processTextNodesForUuObjIds(node: Node): void {
-    if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent || "";
-        UUOBJID_REGEX.lastIndex = 0;
-
-        if (UUOBJID_REGEX.test(text)) {
-            UUOBJID_REGEX.lastIndex = 0;
-
-            const fragment = document.createDocumentFragment();
-            let lastIndex = 0;
-            let match;
-
-            while ((match = UUOBJID_REGEX.exec(text)) !== null) {
-                // Add text before the UuObjId
-                if (match.index > lastIndex) {
-                    fragment.appendChild(
-                        document.createTextNode(text.slice(lastIndex, match.index)),
-                    );
-                }
-
-                const uuObjId = match[0];
-
-                // Create clickable span
-                const span = document.createElement("span");
-                span.className = "uuobjid-ref";
-                span.setAttribute("data-uuobjid", uuObjId);
-                span.setAttribute("tabindex", "0");
-                span.setAttribute("role", "button");
-                span.setAttribute("aria-label", `Copy Object ID ${uuObjId}`);
-                span.title = "Click to copy Object ID";
-                span.textContent = uuObjId;
-                fragment.appendChild(span);
-
-                lastIndex = match.index + uuObjId.length;
-            }
-
-            // Add remaining text
-            if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-            }
-
-            node.parentNode?.replaceChild(fragment, node);
-        }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
-        // Skip elements that are already links or uuobjids
-        if (
-            element.hasAttribute("data-url")
-            || element.hasAttribute("data-uuobjid")
-            || element.tagName === "A"
-        ) {
-            return;
-        }
-        Array.from(node.childNodes).forEach(child => processTextNodesForUuObjIds(child));
-    }
-}
-
-/**
- * Recursively processes text nodes to detect and wrap regular ObjIds.
- */
-function processTextNodesForObjIds(node: Node): void {
-    if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent || "";
-        OBJID_REGEX.lastIndex = 0;
-
-        if (OBJID_REGEX.test(text)) {
-            OBJID_REGEX.lastIndex = 0;
-
-            const fragment = document.createDocumentFragment();
-            let lastIndex = 0;
-            let match;
-
-            while ((match = OBJID_REGEX.exec(text)) !== null) {
-                // Add text before the ObjId
-                if (match.index > lastIndex) {
-                    fragment.appendChild(
-                        document.createTextNode(text.slice(lastIndex, match.index)),
-                    );
-                }
-
-                const objId = match[0];
-
-                // Create clickable span
-                const span = document.createElement("span");
-                span.className = "objid-ref";
-                span.setAttribute("data-objid", objId);
-                span.setAttribute("tabindex", "0");
-                span.setAttribute("role", "button");
-                span.setAttribute("aria-label", `Copy Object ID ${objId}`);
-                span.title = "Click to copy Object ID";
-                span.textContent = objId;
-                fragment.appendChild(span);
-
-                lastIndex = match.index + objId.length;
-            }
-
-            // Add remaining text
-            if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-            }
-
-            node.parentNode?.replaceChild(fragment, node);
-        }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = node as Element;
-        // Skip elements that are already links or objids
-        if (
-            element.hasAttribute("data-url")
-            || element.hasAttribute("data-objid")
-            || element.hasAttribute("data-uuobjid")
-            || element.tagName === "A"
-        ) {
-            return;
-        }
-        Array.from(node.childNodes).forEach(child => processTextNodesForObjIds(child));
-    }
-}
-
-/**
  * Determines the CSS class for a link based on its URL scheme.
  * Returns the appropriate moo-link-* class for styling.
  */
-export function getLinkClass(url: string): string {
-    if (url.startsWith("moo://cmd/") || url.startsWith("moo://exit/")) {
-        return "moo-link-cmd";
-    }
-    if (url.startsWith("moo://inspect/")) {
-        return "moo-link-inspect";
-    }
-    if (url.startsWith("moo://help/")) {
-        return "moo-link-help";
-    }
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        return "moo-link-external";
-    }
-    // Fallback for unknown moo:// schemes or other URLs
-    return "moo-link";
+export function getLinkClass(_url: string): string {
+    return "moo-link-external";
 }
 
 /**
@@ -570,7 +418,7 @@ function convertLinksAndTables(container: HTMLElement): void {
         span.setAttribute("data-url", href);
         span.setAttribute("tabindex", "0");
         span.setAttribute("role", "link");
-        if (!href.startsWith("moo://")) span.title = href;
+        span.title = href;
         span.textContent = linkText;
 
         link.parentNode?.replaceChild(span, link);
@@ -603,12 +451,6 @@ export function processHtmlContent(html: string, enableEmoji: boolean = false): 
     // Detect plain text URLs in text nodes and convert to clickable spans
     processTextNodesForUrls(tempDiv);
 
-    // Detect UuObjIds in text nodes and convert to clickable spans
-    processTextNodesForUuObjIds(tempDiv);
-
-    // Detect regular ObjIds in text nodes and convert to clickable spans
-    processTextNodesForObjIds(tempDiv);
-
     return tempDiv.innerHTML;
 }
 
@@ -618,12 +460,12 @@ export function processHtmlContent(html: string, enableEmoji: boolean = false): 
  * @param html - The HTML string to render
  * @param enableEmoji - Whether to convert emoticons to emoji (defaults to false)
  */
-export function renderHtmlContent(html: string, enableEmoji: boolean = false): string {
-    // First sanitize (moo:// is allowed for internal MOO links)
+export function renderHtmlContent(html: string, enableEmoji: boolean = false, annotations?: AnnotationTable): string {
+    // Sanitize before adding application-owned interaction attributes.
     const sanitizedHtml = DOMPurify.sanitize(html, {
         ALLOWED_TAGS: CONTENT_ALLOWED_TAGS,
         ALLOWED_ATTR: CONTENT_ALLOWED_ATTR,
-        ALLOWED_URI_REGEXP: /^(https?|mailto|tel|callto|cid|xmpp|moo):/i,
+        ALLOWED_URI_REGEXP: /^(https?):/i,
     });
 
     // Convert links and tables
@@ -634,18 +476,12 @@ export function renderHtmlContent(html: string, enableEmoji: boolean = false): s
     // Detect plain text URLs in text nodes and convert to clickable spans
     processTextNodesForUrls(tempDiv);
 
-    // Detect UuObjIds in text nodes and convert to clickable spans
-    processTextNodesForUuObjIds(tempDiv);
-
-    // Detect regular ObjIds in text nodes and convert to clickable spans
-    processTextNodesForObjIds(tempDiv);
-
     // Process ANSI and syntax highlighting
     const ansi_up = new AnsiUp();
     processCodeBlocks(tempDiv, ansi_up);
     processTextNodesForAnsi(tempDiv, ansi_up, enableEmoji);
 
-    return tempDiv.innerHTML;
+    return bindAnnotationMarkers(tempDiv.innerHTML, annotations);
 }
 
 /**
@@ -671,8 +507,6 @@ export function renderPlainText(text: string, enableEmoji: boolean = false): str
             "style",
             "class",
             "data-url",
-            "data-objid",
-            "data-uuobjid",
             "tabindex",
             "title",
             "role",
@@ -706,37 +540,29 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
         return context.renderChildren(node);
     };
 
+    overrides.span = (node: any, context: any) => {
+        const id = node.attributes?.annotation;
+        const children = context.renderChildren(node);
+        return typeof id === "string" && ANNOTATION_ID.test(id)
+            ? `<span data-moor-annotation="${id}">${children}</span>`
+            : `<span>${children}</span>`;
+    };
+
     // Link handling
     if (linkHandler) {
-        overrides.link = (node: any, _context: any) => {
+        overrides.link = (node: any, context: any) => {
             const href = node.destination || "";
-
-            let linkText = "";
-            if (node.children && node.children.length > 0) {
-                linkText = node.children.map((child: any) => {
-                    if (child.tag === "str") {
-                        return child.text || "";
-                    }
-                    return "";
-                }).join("");
-            }
-
-            if (!linkText.trim()) {
-                linkText = href;
-            }
-
-            if (!isSafeUrl(href)) {
-                return linkText;
-            }
-
-            // Determine CSS class based on URL scheme
-            const linkClass = getLinkClass(href);
-
-            // tabindex="0" + role="link" makes it keyboard-focusable and recognized by screen readers
-            // for link navigation commands (next/previous link)
-            return `<span class="${linkClass}" ${linkHandler.dataAttribute}="${href}"${
-                href.startsWith("moo://") ? "" : ` title="${href}"`
-            } tabindex="0" role="link">${linkText}</span>`;
+            const label = context.renderChildren(node);
+            if (!isSafeUrl(href)) return label;
+            const element = document.createElement("span");
+            element.className = getLinkClass(href);
+            element.setAttribute(linkHandler.dataAttribute, href);
+            element.title = href;
+            element.tabIndex = 0;
+            element.setAttribute("role", "link");
+            if (label) element.innerHTML = label;
+            else element.textContent = href;
+            return element.outerHTML;
         };
     }
 
@@ -771,5 +597,41 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
     });
 
     // Process for ANSI codes, syntax highlighting, and URL detection
-    return processHtmlContent(sanitizedHtml, enableEmoji);
+    return bindAnnotationMarkers(processHtmlContent(sanitizedHtml, enableEmoji), options.annotations);
+}
+
+/** Resolve anchors only against the enclosing event; unknown metadata stays inert. */
+export function bindAnnotationMarkers(html: string, annotations?: AnnotationTable): string {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    for (const element of container.querySelectorAll<HTMLElement>("[data-moor-annotation]")) {
+        const id = element.dataset.moorAnnotation ?? "";
+        const annotation = annotations && Object.prototype.hasOwnProperty.call(annotations, id)
+            ? annotations[id]
+            : undefined;
+        if (
+            !annotation || element.closest("[data-url], a") || element.parentElement?.closest("[data-moor-annotation]")
+        ) {
+            element.removeAttribute("data-moor-annotation");
+            element.removeAttribute("tabindex");
+            element.removeAttribute("role");
+            continue;
+        }
+        element.classList.add("semantic-annotation");
+        element.tabIndex = 0;
+        element.setAttribute("role", "button");
+        const action = {
+            object: "Inspect",
+            command: "Review command",
+            help: "Read help",
+            verb: "Browse verb",
+            property: "Browse property",
+        }[annotation.kind];
+        const sourceLink = annotation.kind === "verb" && element.textContent === "↗";
+        const label = sourceLink ? `${annotation.receiver}:${annotation.name}` : element.textContent;
+        if (sourceLink) element.classList.add("semantic-source-link");
+        element.title = sourceLink ? `${action}: ${label}` : action;
+        element.setAttribute("aria-label", `${action}: ${label}`);
+    }
+    return container.innerHTML;
 }

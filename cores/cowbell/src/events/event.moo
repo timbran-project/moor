@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object EVENT [
   import_export_id -> "event",
   import_export_hierarchy -> {"events"}
@@ -35,6 +37,7 @@ object EVENT [
     {render_for, ?content_type = 'text_plain} = args;
     this:validate() || raise(E_INVARG);
     composed = {};
+    let annotations = [];
     event_contents = flycontents(this);
     for raw_entry in (event_contents)
       entry = this:wrap_content_entry(raw_entry);
@@ -46,17 +49,21 @@ object EVENT [
       endif
       if (entry_type == 'flyweight)
         typeof(entry_value) == TYPE_FLYWEIGHT || raise(E_TYPE("Event flyweight content must be a flyweight"));
-        rendered = entry_value:compose(render_for, content_type, this);
+        const {body, table} = $format:unpack(entry_value:compose(render_for, content_type, this));
+        annotations = $format:merge_annotations(annotations, table);
+        rendered = body;
         composed = this:append_rendered(composed, rendered);
         continue;
       endif
       if (entry_type == 'list)
-        composed = this:append_rendered(composed, entry_value);
+        const {parts, table} = $format:compose_parts(entry_value, render_for, content_type, this);
+        annotations = $format:merge_annotations(annotations, table);
+        composed = this:append_rendered(composed, parts);
         continue;
       endif
       raise(E_INVARG("Unknown event content entry type: " + toliteral(entry_type)));
     endfor
-    return composed;
+    return ["content" -> composed, "annotations" -> annotations];
   endmethod
 
   method validate owner: HACKER

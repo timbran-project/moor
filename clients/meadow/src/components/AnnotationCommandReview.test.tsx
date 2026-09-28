@@ -1,0 +1,67 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { AnnotationCommandReview } from "./AnnotationCommandReview";
+
+describe("annotation command review", () => {
+    it("sends exactly the supplied command only on confirmation", async () => {
+        const submit = vi.fn(() => true);
+        const close = vi.fn();
+        render(
+            <AnnotationCommandReview
+                annotation={{ kind: "command", command: "go e" }}
+                onSubmit={submit}
+                onClose={close}
+            />,
+        );
+        expect(submit).not.toHaveBeenCalled();
+        expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("false");
+        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("go e"));
+        expect(close).toHaveBeenCalledOnce();
+    });
+    it("cancels without submitting and reports a server prompt refusal", async () => {
+        const submit = vi.fn(() => {
+            throw new Error("Finish the current prompt.");
+        });
+        const close = vi.fn();
+        render(
+            <AnnotationCommandReview
+                annotation={{ kind: "command", command: "take #47" }}
+                onSubmit={submit}
+                onClose={close}
+            />,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Finish the current prompt."));
+        expect(close).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Close command" }));
+        expect(submit).toHaveBeenCalledTimes(1);
+        expect(close).toHaveBeenCalledOnce();
+    });
+    it("collects both slots without submitting, then uses the exact template", async () => {
+        const submit = vi.fn(() => true);
+        render(
+            <AnnotationCommandReview
+                annotation={{
+                    kind: "command",
+                    template: "write {dobj} on {iobj}",
+                    arguments: {
+                        dobj: { label: "Words", expectedKind: "text" },
+                        iobj: { label: "Surface", expectedKind: "text" },
+                    },
+                }}
+                onSubmit={submit}
+                onClose={vi.fn()}
+            />,
+        );
+        expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBe("false");
+        fireEvent.change(screen.getByLabelText("Surface"), { target: { value: "wall" } });
+        fireEvent.change(screen.getByLabelText("Words"), { target: { value: "hello" } });
+        expect(submit).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Run command ↵" }));
+        await waitFor(() => expect(submit).toHaveBeenCalledExactlyOnceWith("write hello on wall"));
+    });
+});

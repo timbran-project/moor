@@ -25,8 +25,6 @@ interface PanelProps {
     contentId?: string;
     headerActions?: React.ReactNode;
     onLinkClick?: (url: string, position?: { x: number; y: number }) => void;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
 }
 
 export const Panel: React.FC<PanelProps> = ({
@@ -39,8 +37,6 @@ export const Panel: React.FC<PanelProps> = ({
     contentId,
     headerActions,
     onLinkClick,
-    onLinkHoldStart,
-    onLinkHoldEnd,
 }) => {
     const [isRoomLookRefreshing, setIsRoomLookRefreshing] = useState(false);
     const refreshTimeoutRef = useRef<number | null>(null);
@@ -126,10 +122,9 @@ export const Panel: React.FC<PanelProps> = ({
             <div id={contentId} className={contentClassName}>
                 <ContentRenderer
                     content={presentation.content}
+                    eventMetadata={{ annotations: presentation.annotations }}
                     contentType={presentation.contentType}
                     onLinkClick={onLinkClick}
-                    onLinkHoldStart={onLinkHoldStart}
-                    onLinkHoldEnd={onLinkHoldEnd}
                 />
             </div>
         </div>

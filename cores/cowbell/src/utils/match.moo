@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object MATCH [
   import_export_id -> "match",
   import_export_hierarchy -> {"utils"}
@@ -261,24 +263,75 @@ object MATCH [
     return result;
   endmethod
 
+  method input_context owner: HACKER
+    "Describe the active template slot and any already-bound arguments.";
+    const {template, ?active = "input", ?bindings = []} = args;
+    typeof(template) == TYPE_STR && length(template) <= 1024 && typeof(bindings) == TYPE_MAP || raise(E_INVARG);
+    active in {"input", "dobj", "iobj"} || raise(E_INVARG);
+    let slots = {};
+    for name in ({"input", "dobj", "iobj"})
+      const marker = "{" + name + "}";
+      if (index(template, marker))
+        index(template, marker) == rindex(template, marker) || raise(E_INVARG, "Repeated argument slot");
+        slots = {@slots, name};
+      endif
+    endfor
+    active in slots && length(slots) <= 2 || raise(E_INVARG, "Missing active argument slot");
+    for name in (mapkeys(bindings))
+      name in slots || raise(E_INVARG, "Unknown bound argument");
+      const value = bindings[name];
+      typeof(value) == TYPE_STR && length(value) <= 256 && !index(value, "\n") && !index(value, "\r") || raise(E_INVARG);
+    endfor
+    return ["template" -> template, "active" -> active, "bindings" -> bindings, "slots" -> slots];
+  endmethod
+
+  method normalize_input_context owner: HACKER
+    "Validate incoming context once, deriving unresolved slots from the template.";
+    const {context} = args;
+    typeof(context) == TYPE_MAP || raise(E_TYPE);
+    !length(context) && return [];
+    return this:input_context(context["template"], context["active"], `context["bindings"] ! E_RANGE => []');
+  endmethod
+
   method matching_suggestions owner: ARCH_WIZARD
-    "Parse a template once, then ask the command matcher whether each candidate fits its object slot.";
+    "Use the ordinary command matcher, with provisional signature checks for an unfilled second slot.";
     set_task_perms(caller_perms());
-    const {candidates, template, match_env, command_env} = args;
-    const slot = index(template, "{input}");
-    slot && slot == rindex(template, "{input}") || raise(E_INVARG, "Expected one input slot");
-    const parsed = parse_command(strsub(template, "{input}", "#-1"), match_env, true, 0.3);
-    const direct = parsed['dobjstr] == "#-1";
-    direct || parsed['iobjstr] == "#-1" || raise(E_INVARG, "Input must fill an object argument");
+    const {candidates, context, match_env, command_env} = args;
+    !length(context) && return candidates;
+    let template = context["template"];
+    for slot in (context["slots"])
+      const value = slot == context["active"] ? "#-2" | `context["bindings"][slot] ! E_RANGE => "#-3"';
+      template = strsub(template, "{" + slot + "}", value);
+    endfor
+    const parsed = parse_command(template, match_env, true, 0.3);
+    const direct = parsed['dobjstr] == "#-2";
+    direct || parsed['iobjstr] == "#-2" || raise(E_INVARG, "Input must fill an object argument");
+    const active_key = direct ? 'dobj | 'iobj;
     const other_key = direct ? 'iobj | 'dobj;
+    const other_string = direct ? 'iobjstr | 'dobjstr;
+    const provisional = parsed[other_string] == "#-3";
+    if (provisional)
+      "Probe possible receivers once, with a nonempty active sentinel. This accepts only an 'any' active argspec.";
+      "Receiver probes do not enumerate combinations of candidate arguments.";
+      const receivers = this:object_suggestions({@command_env, @match_env});
+      for receiver in (receivers)
+        let probe = parsed;
+        probe[active_key] = #-2;
+        probe[other_key] = toobj(receiver["value"]);
+        find_command_verb(probe, command_env) && return candidates;
+      endfor
+    endif
     const other_candidates = parsed[other_key] == $ambiguous_match
       ? parsed[direct ? 'ambiguous_iobj | 'ambiguous_dobj] | {parsed[other_key]};
     let result = {};
     for candidate in (candidates)
+      const object = toobj(candidate["value"]);
       let command = parsed;
-      command[direct ? 'dobj | 'iobj] = toobj(candidate["value"]);
+      command[active_key] = object;
       command[direct ? 'dobjstr | 'iobjstr] = candidate["value"];
-      for other in (other_candidates)
+      "An unfilled slot can be any object, or the same receiver for a 'this' constraint.";
+      const others = provisional ? {#-3, object} | other_candidates;
+      for other in (others)
         command[other_key] = other;
         if (find_command_verb(command, command_env))
           result = {@result, candidate};

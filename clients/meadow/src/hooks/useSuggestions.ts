@@ -11,14 +11,20 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { buildStructuredArgs } from "@moor/web-sdk";
 import { useEffect, useState } from "react";
-import { MoorVar } from "../lib/MoorVar";
 import { invokeVerbFlatBuffer } from "../lib/rpc-fb";
+
+export interface CommandInputContext {
+    template: string;
+    active: string;
+    bindings: Record<string, string>;
+}
 
 export interface SuggestionSource {
     provider: string;
     source: string;
-    template?: string;
+    context?: CommandInputContext;
 }
 
 export interface Suggestion {
@@ -45,8 +51,8 @@ export function useSuggestions(
 ) {
     const provider = source?.provider;
     const name = source?.source;
-    const template = source?.template ?? "";
-    const key = JSON.stringify([authToken, provider, name, template, query, revision]);
+    const context = JSON.stringify(source?.context ?? {});
+    const key = JSON.stringify([authToken, provider, name, context, query, revision]);
     const [response, setResponse] = useState<{ key: string; result?: SuggestionResult; error?: string }>();
     useEffect(() => {
         if (!enabled || !authToken || !provider || !name) return;
@@ -57,7 +63,7 @@ export function useSuggestions(
                     authToken,
                     provider,
                     "suggestions",
-                    MoorVar.buildStringList([name, query, template]),
+                    buildStructuredArgs([name, query, JSON.parse(context)]),
                 );
                 if (current) setResponse({ key, result: result as SuggestionResult });
             } catch {
@@ -68,7 +74,7 @@ export function useSuggestions(
             current = false;
             window.clearTimeout(timer);
         };
-    }, [authToken, provider, name, template, query, enabled, revision, key]);
+    }, [authToken, provider, name, context, query, enabled, revision, key]);
     const current = enabled && response?.key === key ? response : undefined;
     return {
         items: current?.result?.items ?? NO_SUGGESTIONS,

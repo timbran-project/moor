@@ -11,8 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { useFloatingCard } from "../hooks/useFloatingCard";
 import { SuggestionSource } from "../hooks/useSuggestions";
 import { SuggestionInput } from "./SuggestionInput";
 
@@ -42,6 +43,7 @@ export function inspectionCommand(action: InspectAction, input = ""): string {
 }
 
 interface InspectPopoverProps {
+    reference?: string;
     data: InspectData;
     position: { x: number; y: number };
     onClose: () => void;
@@ -52,23 +54,9 @@ interface InspectPopoverProps {
     revision?: number;
 }
 
-/** Keep the card inside the visible viewport, including when the mobile keyboard opens. */
-function placeInspector(card: HTMLDivElement, x: number, y: number, preferAbove = false) {
-    const viewport = window.visualViewport;
-    const left = (viewport?.offsetLeft ?? 0) + 16;
-    const top = (viewport?.offsetTop ?? 0) + 16;
-    const width = viewport?.width ?? window.innerWidth;
-    const height = viewport?.height ?? window.innerHeight;
-    card.style.maxWidth = `${Math.max(0, Math.min(360, width - 32))}px`;
-    card.style.maxHeight = `${Math.max(0, height - 32)}px`;
-    const rect = card.getBoundingClientRect();
-    if (preferAbove && y + rect.height > top + height - 32) y -= rect.height + 8;
-    card.style.left = `${Math.max(left, Math.min(x, left + width - 32 - rect.width))}px`;
-    card.style.top = `${Math.max(top, Math.min(y, top + height - 32 - rect.height))}px`;
-}
-
 export const InspectPopover: React.FC<InspectPopoverProps> = ({
     data,
+    reference,
     position,
     onClose,
     onCommand,
@@ -77,10 +65,34 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
     authToken = null,
     revision = 0,
 }) => {
-    const popoverRef = useRef<HTMLDivElement>(null);
-    const drag = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
+    const { cardRef: popoverRef, isDragging, dragHandlers } = useFloatingCard(position, !isPreview);
     const titleId = useId();
+    const [copyState, setCopyState] = useState("");
+    const copyFeedback = useRef({ request: 0, timer: undefined as ReturnType<typeof setTimeout> | undefined });
+    const displayReference = reference?.replace(/^(oid|uuid):/, "#");
+    useEffect(() => {
+        const feedback = copyFeedback.current;
+        setCopyState("");
+        return () => {
+            ++feedback.request;
+            clearTimeout(feedback.timer);
+        };
+    }, [reference]);
+    const copyReference = async () => {
+        if (!displayReference) return;
+        const feedback = copyFeedback.current;
+        const request = ++feedback.request;
+        clearTimeout(feedback.timer);
+        try {
+            await navigator.clipboard.writeText(displayReference);
+            if (request !== feedback.request) return;
+            setCopyState(`Copied ${displayReference}`);
+        } catch {
+            if (request !== feedback.request) return;
+            setCopyState("Could not copy the reference");
+        }
+        feedback.timer = setTimeout(() => setCopyState(""), 1800);
+    };
     const dismiss = useCallback(() => {
         if (returnFocusTo?.isConnected) returnFocusTo.focus({ preventScroll: true });
         onClose();
@@ -90,6 +102,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
         if (isPreview) return;
         popoverRef.current?.focus({ preventScroll: true });
         const outside = (event: PointerEvent) => {
+            if ((event.target as HTMLElement).closest("[data-moor-annotation]")) return;
             if (!popoverRef.current?.contains(event.target as Node)) dismiss();
         };
         const escape = (event: KeyboardEvent) => {
@@ -104,62 +117,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
             document.removeEventListener("pointerdown", outside);
             document.removeEventListener("keydown", escape);
         };
-    }, [dismiss, isPreview]);
-
-    // Feedback and refreshed descriptions can change the card's size after opening.
-    useLayoutEffect(() => {
-        const card = popoverRef.current;
-        if (!card) return;
-        let placed = false;
-        const place = () => {
-            const rect = card.getBoundingClientRect();
-            placeInspector(card, placed ? rect.left : position.x, placed ? rect.top : position.y, !placed);
-            placed = true;
-        };
-        place();
-        const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
-        observer?.observe(card);
-        window.addEventListener("resize", place);
-        window.visualViewport?.addEventListener("resize", place);
-        window.visualViewport?.addEventListener("scroll", place);
-        return () => {
-            observer?.disconnect();
-            window.removeEventListener("resize", place);
-            window.visualViewport?.removeEventListener("resize", place);
-            window.visualViewport?.removeEventListener("scroll", place);
-        };
-    }, [position]);
-
-    const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (isPreview || event.button !== 0 || drag.current || (event.target as Element).closest("button")) return;
-        const card = popoverRef.current;
-        if (!card) return;
-        const rect = card.getBoundingClientRect();
-        event.currentTarget.setPointerCapture(event.pointerId);
-        drag.current = {
-            pointerId: event.pointerId,
-            offsetX: event.clientX - rect.left,
-            offsetY: event.clientY - rect.top,
-        };
-        setIsDragging(true);
-        event.preventDefault();
-    };
-
-    const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-        const current = drag.current;
-        const card = popoverRef.current;
-        if (!current || current.pointerId !== event.pointerId || !card) return;
-        placeInspector(card, event.clientX - current.offsetX, event.clientY - current.offsetY);
-    };
-
-    const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (drag.current?.pointerId !== event.pointerId) return;
-        drag.current = null;
-        setIsDragging(false);
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-            event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-    };
+    }, [dismiss, isPreview, popoverRef]);
 
     const [activeInput, setActiveInput] = useState<string | null>(null);
     const [drafts, setDrafts] = useState<Record<string, { text: string; value: string }>>({});
@@ -197,15 +155,40 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                 className="inspect-popover-header"
                 title={isPreview ? undefined : "Drag to move"}
                 data-dragging={isDragging || undefined}
-                onPointerDown={startDrag}
-                onPointerMove={moveDrag}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onLostPointerCapture={endDrag}
+                {...dragHandlers}
             >
                 <div>
                     <div className="inspect-popover-eyebrow">Inspect</div>
-                    <div id={titleId} className="inspect-popover-title">{data.title}</div>
+                    <div className="inspect-popover-title-row">
+                        <div id={titleId} className="inspect-popover-title">{data.title}</div>
+                        {reference && !isPreview && (
+                            <div className="inspect-popover-copy-control">
+                                <button
+                                    type="button"
+                                    className="inspect-popover-copy"
+                                    aria-label="Copy reference"
+                                    title={`Copy reference ${displayReference}`}
+                                    onClick={() => void copyReference()}
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        width="18"
+                                        height="18"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.6"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3" />
+                                        <rect x="9" y="2" width="6" height="6" rx="1.5" />
+                                    </svg>
+                                </button>
+                                {copyState && (
+                                    <span className="inspect-popover-copy-feedback" role="status">{copyState}</span>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
                 {!isPreview && (
                     <button className="inspect-popover-close" onClick={dismiss} aria-label="Close inspection">×</button>
@@ -264,7 +247,7 @@ export const InspectPopover: React.FC<InspectPopoverProps> = ({
                                             revision={revision}
                                             source={action.input.suggestions && {
                                                 ...action.input.suggestions,
-                                                template: action.command,
+                                                context: { template: action.command, active: "input", bindings: {} },
                                             }}
                                             onChange={(text, selection) =>
                                                 setDrafts(current => ({

@@ -66,4 +66,25 @@ describe("useNarrativePipeline buffering", () => {
         });
         expect(addNarrativeContent).toHaveBeenCalledTimes(1);
     });
+    it("buffers annotation tables with their owning event", () => {
+        const { result } = renderHook(() => useNarrativePipeline(createEditorLaunchBridge()));
+        const annotations = { a1: { kind: "object" as const, ref: "oid:47" } };
+        act(() =>
+            result.current.handlers.handleNarrativeMessage(
+                "[Compass]{annotation=a1}",
+                undefined,
+                "text/djot",
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                { annotations },
+            )
+        );
+        const addNarrativeContent = vi.fn();
+        act(() => result.current.narrativeCallbackRef({ addNarrativeContent } as unknown as NarrativeRef));
+        expect(addNarrativeContent.mock.calls[0]).toContainEqual({ annotations });
+    });
 });

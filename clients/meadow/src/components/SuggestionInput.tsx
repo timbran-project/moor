@@ -11,7 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { forwardRef, useEffect, useId, useState } from "react";
+import React, { forwardRef, useEffect, useId, useRef, useState } from "react";
+import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { Suggestion, SuggestionSource, useSuggestions } from "../hooks/useSuggestions";
 
 interface SuggestionInputProps {
@@ -21,6 +22,7 @@ interface SuggestionInputProps {
     source?: SuggestionSource;
     authToken: string | null;
     revision?: number;
+    argumentLabel?: string;
     onChange: (text: string, selection?: Suggestion) => void;
 }
 
@@ -32,9 +34,37 @@ export const SuggestionInput = forwardRef<HTMLInputElement, SuggestionInputProps
     source,
     authToken,
     revision = 0,
+    argumentLabel,
     onChange,
 }, ref) {
     const listId = useId();
+    const coordinator = useArgumentCoordinator();
+    const [notice, setNotice] = useState("");
+    const input = useRef<HTMLInputElement | null>(null);
+    const latest = useRef(onChange);
+    latest.current = onChange;
+    const sourceKey = JSON.stringify(source);
+    const focusArgument = () => {
+        if (!source) {
+            coordinator?.focus();
+            return;
+        }
+        coordinator?.focus({
+            id: listId,
+            label: argumentLabel ?? "this argument",
+            source,
+            choose: item => {
+                latest.current(item.label, item);
+                input.current?.focus({ preventScroll: true });
+                setOpen(false);
+            },
+            feedback: setNotice,
+        });
+    };
+    useEffect(() => {
+        if (coordinator?.owns(listId)) focusArgument();
+    }, [sourceKey, revision]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => () => coordinator?.release(listId), [coordinator, listId]);
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
     const { items, more, loading, error } = useSuggestions(authToken, source, value, open, revision);
@@ -52,7 +82,11 @@ export const SuggestionInput = forwardRef<HTMLInputElement, SuggestionInputProps
     return (
         <div className="suggestion-input">
             <input
-                ref={ref}
+                ref={element => {
+                    input.current = element;
+                    if (typeof ref === "function") ref(element);
+                    else if (ref) ref.current = element;
+                }}
                 id={id}
                 value={value}
                 placeholder={placeholder}
@@ -63,10 +97,15 @@ export const SuggestionInput = forwardRef<HTMLInputElement, SuggestionInputProps
                 aria-expanded={source ? open : undefined}
                 aria-controls={source && open ? listId : undefined}
                 aria-activedescendant={open && active >= 0 && items[active] ? `${listId}-${active}` : undefined}
-                onFocus={() => setOpen(Boolean(source))}
+                onFocus={() => {
+                    setOpen(Boolean(source));
+                    focusArgument();
+                }}
                 onBlur={() => setOpen(false)}
                 onChange={event => {
+                    setNotice("");
                     onChange(event.target.value);
+                    coordinator?.invalidate();
                     setOpen(Boolean(source));
                     setActive(-1);
                 }}
@@ -93,6 +132,7 @@ export const SuggestionInput = forwardRef<HTMLInputElement, SuggestionInputProps
                     }
                 }}
             />
+            {notice && <small role="status">{notice}</small>}
             {source && open && (
                 <div className="suggestion-input-menu">
                     <div id={listId} role="listbox" aria-label="Suggestions" aria-busy={loading}>

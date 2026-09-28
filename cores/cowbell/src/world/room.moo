@@ -393,7 +393,7 @@ object ROOM [
       return;
     endif
     "Format exits with their room and passage identity.";
-    exit_links = { $format.link:exit(this, listed_dir) for listed_dir in (all_exits) };
+    exit_links = { $format.annotation:exit(this, listed_dir) for listed_dir in (all_exits) };
     exit_list = $format.list:mk(exit_links);
     exit_title = $format.title:mk("Ways out");
     content = $format.block:mk(exit_title, exit_list);
@@ -401,53 +401,19 @@ object ROOM [
     player:inform_current(event);
   endverb
 
-  method exit_link owner: HACKER
-    "Return a room-bound exit URL for a direction, or an empty string if unavailable.";
+  method exit_annotation owner: HACKER
+    "Describe a registered passage and its ordinary command invocation.";
     const {direction} = args;
     const area = this.location;
-    valid(area) && isa(area, $area) || return "";
+    valid(area) && isa(area, $area) || return [];
     const passage = area:find_passage_by_direction(this, direction);
-    typeof(passage) in {TYPE_OBJ, TYPE_FLYWEIGHT} || return "";
+    typeof(passage) in {TYPE_OBJ, TYPE_FLYWEIGHT} || return [];
     const destination = passage:other_room(this);
-    valid(destination) || return "";
-    const link_id = area:passage_link_id(this, destination);
-    link_id != "" || return "";
-    return "moo://exit/" + $url_utils:to_curie_str(this) + "/" + $url_utils:to_curie_str(destination) + "/" + link_id;
-  endmethod
-
-  method exit_link_matches owner: ARCH_WIZARD
-    "Check that an exit still identifies the same registered passage and destination. No suspension.";
-    const {source, destination, link_id, passage} = args;
-    valid(source) && valid(destination) || return false;
-    const area = source.location;
-    valid(area) && isa(area, $area) || return false;
-    link_id != "" && area:passage_link_id(source, destination) == link_id || return false;
-    area:passage_for(source, destination) == passage || return false;
-    return (passage.side_a_room == source && passage.side_b_room == destination)
-      || (passage.side_b_room == source && passage.side_a_room == destination);
-  endmethod
-
-  method follow_exit owner: ARCH_WIZARD
-    "RPC: traverse a registered exit as the authenticated player. Returns {moved, message}.";
-    const {destination, link_id} = args;
-    const actor = caller_perms();
-    actor == player && valid(actor) || raise(E_PERM);
-    set_task_perms(actor);
-    actor.location == this || return ["moved" -> false, "message" -> "That exit is in another room."];
-    const area = this.location;
-    valid(destination) && valid(area) && isa(area, $area)
-      || return ["moved" -> false, "message" -> "That exit no longer exists."];
-    const passage = area:passage_for(this, destination);
-    typeof(passage) in {TYPE_OBJ, TYPE_FLYWEIGHT}
-      || return ["moved" -> false, "message" -> "That exit no longer exists."];
-    $room:exit_link_matches(this, destination, link_id, passage)
-      || return ["moved" -> false, "message" -> "That exit has changed. Please look again."];
-    passage.is_open || return ["moved" -> false, "message" -> "That exit is closed."];
-    const moved = passage:travel_from(actor, this, [], link_id);
-    if (moved)
-      return ["moved" -> true, "message" -> ""];
-    endif
-    return ["moved" -> false, "message" -> "That exit is locked or is no longer available."];
+    valid(destination) || return [];
+    const identity = area:passage_link_id(this, destination);
+    identity != "" || return [];
+    return ["kind" -> "command", "command" -> "go " + direction,
+      "exit" -> ["source" -> $url_utils:to_curie_str(this), "destination" -> $url_utils:to_curie_str(destination), "passage" -> identity]];
   endmethod
 
   method action_go owner: ARCH_WIZARD
@@ -1194,7 +1160,7 @@ object ROOM [
         endif
       endif
     endfor
-    const exit_links = {["label" -> direction, "url" -> this:exit_link(direction)] for direction in (all_exits)};
+    const exit_links = {["label" -> direction, "annotation" -> this:exit_annotation(direction)] for direction in (all_exits)};
     available_actions = `look_data.actions ! E_PROPNF => {}';
     actors = {};
     things = {};

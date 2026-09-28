@@ -28,6 +28,7 @@ export type EditorMode =
     | "literal"; // MOO literal syntax editor
 
 export interface PropertyValueEditorProps {
+    onDirtyChange?: (dirty: boolean) => void;
     authToken: string;
     objectCurie: string;
     propertyName: string;
@@ -209,6 +210,7 @@ function fromEditorText(text: string, mode: EditorMode, originalTypeCode: VarUni
 }
 
 export function PropertyValueEditor({
+    onDirtyChange,
     authToken,
     objectCurie,
     propertyName,
@@ -349,6 +351,11 @@ export function PropertyValueEditor({
         || permissions?.readable !== editPermissions.readable
         || permissions?.writable !== editPermissions.writable
         || permissions?.chown !== editPermissions.chown;
+    useEffect(() => {
+        onDirtyChange?.(hasUnsavedChanges || hasMetadataChanges);
+        return () => onDirtyChange?.(false);
+    }, [hasUnsavedChanges, hasMetadataChanges, onDirtyChange]);
+
 
     const handleClose = () => {
         if (hasUnsavedChanges && !window.confirm("Discard unsaved property changes?")) return;

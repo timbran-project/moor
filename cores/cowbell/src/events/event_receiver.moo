@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object EVENT_RECEIVER [
   import_export_id -> "event_receiver",
   import_export_hierarchy -> {"events"}
@@ -26,14 +28,16 @@ object EVENT_RECEIVER [
     transformed_djot = event:transform_for(this, 'text_djot);
     output_djot = {};
     entry_num = 0;
-    for entry in (transformed_djot)
+    for entry in (transformed_djot["content"])
       entry_num = entry_num + 1;
       if (entry_num % 50 == 0)
         suspend_if_needed();
       endif
       output_djot = this:_extend_output(output_djot, entry, 'text_djot);
     endfor
-    this:_event_log(this, output_djot, 'text_djot, event_slots);
+    let log_slots = event_slots;
+    log_slots["annotations"] = transformed_djot["annotations"];
+    this:_event_log(this, output_djot, 'text_djot, log_slots);
     "Now render per-connection and notify each with appropriate content type";
     conns = this:_connections();
     if (!conns)
@@ -49,10 +53,12 @@ object EVENT_RECEIVER [
     entry_num = 0;
     for content in (contents)
       entry_num = entry_num + 1;
-      {conn, content_type, output} = content;
+      const {conn, content_type, output, annotations} = content;
       "Wrap each notify in error handling so one failure doesn't break the rest";
       try
-        this:_notify(conn, output, false, false, content_type, event_slots);
+        let rendered_slots = event_slots;
+        rendered_slots["annotations"] = annotations;
+        this:_notify(conn, output, false, false, content_type, rendered_slots);
       except e (ANY)
         "Notification failed for this connection - continue with others";
       endtry
@@ -69,9 +75,11 @@ object EVENT_RECEIVER [
     const contents = this:_event_render({info}, event);
     const event_slots = flyslots(event);
     for content in (contents)
-      const {conn, content_type, output} = content;
+      const {conn, content_type, output, annotations} = content;
       try
-        this:_notify(conn, output, false, false, content_type, event_slots);
+        let rendered_slots = event_slots;
+        rendered_slots["annotations"] = annotations;
+        this:_notify(conn, output, false, false, content_type, rendered_slots);
       except (E_PERM)
         "Rendering may suspend while the destination disconnects or changes player.";
         return 0;
@@ -150,11 +158,15 @@ object EVENT_RECEIVER [
         transformed = event:transform_for(this, content_type);
         "Iterate the transformed values and have it turn into its output form.";
         output = {};
-        for entry in (transformed)
+        for entry in (transformed["content"])
           output = this:_extend_output(output, entry, content_type);
         endfor
+        "HTML nodes form one document fragment; splitting inline nodes would introduce newlines in clients.";
+        if (content_type in {'text_html, "text/html"} && length(output))
+          output = {output:join("")};
+        endif
         if (length(output) > 0)
-          results = {@results, {connection_obj, content_type, output}};
+          results = {@results, {connection_obj, content_type, output, transformed["annotations"]}};
         endif
       except e (ANY)
         "Rendering failed for this connection - skip it and continue with others";

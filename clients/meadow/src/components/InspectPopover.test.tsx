@@ -92,3 +92,25 @@ it("keeps held previews noninteractive", () => {
     expect(screen.getByRole("tooltip")).toBeDefined();
     expect(screen.queryByRole("button")).toBeNull();
 });
+
+it("briefly flashes the copied reference beside its titled icon", async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const onClose = vi.fn();
+    render(
+        <InspectPopover data={data} reference="oid:42" position={position} onClose={onClose} onCommand={() => true} />,
+    );
+    const copy = screen.getByRole("button", { name: "Copy reference" });
+    expect(copy.closest(".inspect-popover-title-row")?.textContent).toBe("Cupboard");
+    expect(copy.querySelector("svg")).not.toBeNull();
+    expect(copy.textContent).toBe("");
+    expect(copy.title).toBe("Copy reference #42");
+    await act(async () => fireEvent.click(copy));
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("#42");
+    expect(screen.getByText("Copied #42").getAttribute("role")).toBe("status");
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1800));
+    expect(screen.queryByText("Copied #42")).toBeNull();
+    vi.useRealTimers();
+});

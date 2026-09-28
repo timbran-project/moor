@@ -20,12 +20,10 @@ interface BottomDockProps {
     presentations: Presentation[];
     onClosePresentation: (id: string) => void;
     onLinkClick?: (url: string, position?: { x: number; y: number }) => void;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
 }
 
 export const BottomDock: React.FC<BottomDockProps> = (
-    { presentations, onClosePresentation, onLinkClick, onLinkHoldStart, onLinkHoldEnd },
+    { presentations, onClosePresentation, onLinkClick },
 ) => {
     const { containerRef, hasOverflow, hasScroll } = useCarouselOverflow();
 
@@ -53,8 +51,6 @@ export const BottomDock: React.FC<BottomDockProps> = (
                         contentClassName="bottom_dock_panel_content"
                         closeButtonClassName="bottom_dock_panel_close"
                         onLinkClick={onLinkClick}
-                        onLinkHoldStart={onLinkHoldStart}
-                        onLinkHoldEnd={onLinkHoldEnd}
                     />
                 ))}
             </div>

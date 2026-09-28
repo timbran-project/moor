@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_LIST [
   import_export_id -> "format_list",
   import_export_hierarchy -> {"format"}
@@ -11,34 +13,24 @@ object FORMAT_LIST [
 
   method mk owner: HACKER
     "Create list flyweight with optional ordered attribute";
-    {content, ?ordered = false} = args;
+    const {content, ?ordered = false, ?columns = false} = args;
     typeof(content) != TYPE_LIST && raise(E_TYPE, "List content must be a list");
-    return <this, .ordered = ordered, {@content}>;
+    return <this, .ordered = ordered, .columns = columns, {@content}>;
   endmethod
 
   method compose owner: HACKER
-    "Compose list content into appropriate format";
-    {render_for, content_type, event} = args;
-    result = {};
-    contents = flycontents(this);
-    for item in (contents)
-      result = {@result, `item:compose(@args) ! E_VERBNF => tostr(item)'};
-    endfor
+    "Compose each list item while preserving its annotations.";
+    const {render_for, content_type, event} = args;
+    const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
     if (content_type == 'text_html)
-      "Create li-wrapped items for HTML";
-      li_items = {};
-      for item in (result)
-        li_items = {@li_items, <$html, {"li", {}, {item}}>};
-      endfor
-      tag = this.ordered ? "ol" | "ul";
-      return <$html, {tag, {}, li_items}>;
+      const items = { <$html, {"li", {}, {part}}> for part in (parts) };
+      return $format:result(<$html, {this.ordered ? "ol" | "ul", this.columns ? {"class", "reference-columns"} | {}, items}>, annotations);
     endif
-    prefix = this.ordered ? "1. " | "* ";
-    formatted = {};
-    for item in (result)
-      formatted = {@formatted, prefix + item};
-    endfor
-    return formatted:join("\n");
+    const prefix = this.ordered ? "1. " | "* ";
+    const lines = { prefix + part for part in (parts) };
+    const layout = content_type == 'text_djot && this.columns ? "{.reference-columns}\n" | "";
+    const body = layout + lines:join("\n");
+    return $format:result(content_type == 'text_djot ? "\n" + body + "\n" | body, annotations);
   endmethod
 
   method test_unordered_list owner: HACKER

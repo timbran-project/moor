@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_BLOCK [
   import_export_id -> "format_block",
   import_export_hierarchy -> {"format"}
@@ -23,38 +25,10 @@ object FORMAT_BLOCK [
   endmethod
 
   method compose owner: HACKER
-    {render_for, content_type, event} = args;
-    result = {};
-    contents = flycontents(this);
-    for line_no in [1..length(contents)]
-      content = contents[line_no];
-      composed = content:compose(@args);
-      result = {@result, composed};
-    endfor
-    if (content_type == 'text_html)
-      return <$html, {"div", {}, result}>;
-    endif
-    "For text formats, collect string elements";
-    text_lines = {};
-    for element in (result)
-      if (typeof(element) == TYPE_STR)
-        text_lines = {@text_lines, element};
-      elseif (typeof(element) == TYPE_LIST)
-        "Flatten nested lists";
-        for nested in (element)
-          typeof(nested) == TYPE_STR && (text_lines = {@text_lines, nested});
-        endfor
-      endif
-    endfor
-    "Join lines";
-    output = "";
-    for i in [1..length(text_lines)]
-      line = text_lines[i];
-      if (i > 1)
-        output = output + "\n";
-      endif
-      output = output + line;
-    endfor
-    return output;
+    "Compose block children while preserving their annotations.";
+    const {render_for, content_type, event} = args;
+    const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
+    const body = content_type == 'text_html ? <$html, {"div", {}, parts}> | parts:join("\n");
+    return $format:result(body, annotations);
   endmethod
 endobject

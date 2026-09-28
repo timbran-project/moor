@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object SUB [
   import_export_id -> "sub",
   import_export_hierarchy -> {"events"}
@@ -331,9 +333,18 @@ object SUB [
   endmethod
 
   method compose owner: HACKER
-    {render_for, content_type, event} = args;
-    content = this:eval_sub(event, render_for);
-    return `this.capitalize ! E_PROPNF => false' ? content:capitalize() | content;
+    "Associate object-name substitutions with their explicit object reference.";
+    const {render_for, content_type, event} = args;
+    const content = this:render_as(@args);
+    let target = false;
+    if (this.type in {'actor, 'location, 'this, 'dobj, 'iobj})
+      target = event:get_binding(this.type);
+    elseif (this.type in {'binding, 'article_a, 'article_the})
+      target = `event:get_binding(this.binding_name) ! E_VERBNF, E_PROPNF => false';
+    endif
+    typeof(target) == TYPE_OBJ && valid(target) || return content;
+    const annotation = $format.annotation:object(target, content);
+    return annotation:compose(@args);
   endmethod
 
   method phrase owner: HACKER
@@ -795,8 +806,8 @@ object SUB [
   method test_render_actor_perspective owner: HACKER
     "Test rendering adapts actor names and self-alternation to perspective.";
     event = $event:mk_social(player, this:nc(), " ", this:self_alt("wave", "waves"), " to ", this:the('d), "."):with_dobj(this);
-    actor_view = event:transform_for(player);
-    observer_view = event:transform_for(#0);
+    actor_view = event:transform_for(player)["content"];
+    observer_view = event:transform_for(#0)["content"];
     $test_utils:assert_eq(actor_view, {"You wave to the " + this.name + "."}, "actor should see second-person rendering");
     $test_utils:assert_eq(observer_view, {player:name() + " waves to the " + this.name + "."}, "observer should see third-person rendering");
     return true;

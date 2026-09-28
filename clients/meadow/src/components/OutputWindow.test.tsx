@@ -14,6 +14,7 @@
 import { virtual } from "@guidepup/virtual-screen-reader";
 import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { AnnotationContext } from "../context/AnnotationContext";
 import { OutputWindow } from "./OutputWindow";
 import { ToastProvider } from "./Toast";
 
@@ -275,34 +276,16 @@ describe("OutputWindow screen reader announcements", () => {
     });
 });
 
-describe("OutputWindow exit links", () => {
-    it("preserves the pending promise for an exit in history without expiring its message", async () => {
-        let resolve!: () => void;
-        const pending = new Promise<void>(done => {
-            resolve = done;
-        });
-        const onLinkClick = vi.fn(() => pending);
-        const onMessageLinkClicked = vi.fn();
-        const message = {
-            ...createMessage("old-room", "<a href=\"moo://exit/oid:10/oid:20/id\">East</a>", {
-                contentType: "text/html",
-            }),
-            isHistorical: true,
-        };
+describe("OutputWindow exit annotations", () => {
+    it("routes a historic occurrence with its own exact command for review", () => {
+        const activate = vi.fn();
+        const annotation = { kind: "command" as const, command: "go e", exit: { source: "oid:10", destination: "oid:20", passage: "id" } };
+        const message = { ...createMessage("old-room", '<span data-moor-annotation="a1">East</span>', { contentType: "text/html" }), isHistorical: true, eventMetadata: { annotations: { a1: annotation } } };
         const { container } = render(
-            <OutputWindow messages={[message]} onLinkClick={onLinkClick} onMessageLinkClicked={onMessageLinkClicked} />,
+            <AnnotationContext.Provider value={activate}><OutputWindow messages={[message]} /></AnnotationContext.Provider>,
             { wrapper: ToastProvider },
         );
-        const link = container.querySelector<HTMLElement>("[data-url]")!;
-        fireEvent.click(link);
-        expect(onLinkClick).toHaveBeenCalledTimes(1);
-        expect(link.getAttribute("aria-busy")).toBe("true");
-        expect(onMessageLinkClicked).not.toHaveBeenCalled();
-        await act(async () => {
-            resolve();
-            await pending;
-        });
-        expect(link.getAttribute("aria-busy")).toBeNull();
-        expect(link.tabIndex).toBe(0);
+        fireEvent.click(container.querySelector('[data-moor-annotation="a1"]')!);
+        expect(activate).toHaveBeenCalledWith(expect.objectContaining({ annotation }));
     });
 });

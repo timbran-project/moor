@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object HELP_UTILS [
   import_export_id -> "help_utils",
   import_export_hierarchy -> {"help"}
@@ -9,6 +11,99 @@ object HELP_UTILS [
   readable: true
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "Help utilities for documentation extraction and lookup. Provides verbs for extracting verb docstrings, object documentation, and parsing help references.";
+
+  method annotate_prose owner: ARCH_WIZARD
+    "Resolve authored inline-code verb mentions in the reader's command environment, without running them.";
+    const {content, viewer} = args;
+    set_task_perms(caller_perms());
+    valid(viewer) || return content;
+    const environment = {@viewer:command_environment(), @viewer.contents, @(`viewer.location.contents ! E_INVIND => {}')};
+    let parts = {};
+    let cursor = 1;
+    let resolved = [];
+    while (cursor <= length(content))
+      const start = index(content[cursor..$], "`");
+      if (!start)
+        break;
+      endif
+      const opening = cursor + start - 1;
+      let width = 1;
+      while (opening + width <= length(content) && content[opening + width] == "`")
+        width = width + 1;
+      endwhile
+      const delimiter = content[opening..opening + width - 1];
+      const after = opening + width;
+      const offset = index(content[after..$], delimiter);
+      if (!offset)
+        break;
+      endif
+      const closing = after + offset - 1;
+      const label = content[after..closing - 1];
+      let fragment = content[opening..closing + width - 1];
+      if (width == 1 && !index(label, "\n"))
+        const words = label:split(" ");
+        const name = length(words) ? words[1] | "";
+        if (!maphaskey(resolved, name))
+          resolved[name] = {};
+          for receiver in (environment)
+            const definer = `receiver:find_verb_definer(name) ! E_VERBNF, E_PERM => $nothing';
+            if (!valid(definer))
+              continue;
+            endif
+            const info = verb_info(definer, name);
+            if (index(info[2], "r") && verb_args(definer, name) != {"this", "none", "this"})
+              resolved[name] = {receiver, definer, verb_args(definer, name), receiver:inspection_commands(viewer)};
+              break;
+            endif
+          endfor
+        endif
+        const reference = resolved[name];
+        if (length(reference))
+          if (index(label, "<"))
+            const invocation = this:command_usage(label, viewer);
+            fragment = $obj_utils:command_with_source(invocation, reference[1], name, reference[2], viewer);
+          elseif (label != name && !index(label, "["))
+            fragment = $obj_utils:command_with_source($format.annotation:command(label), reference[1], name, reference[2], viewer);
+          else
+            fragment = $obj_utils:command_entry(reference[1], {name, reference[2], @reference[3]}, viewer, label, reference[4]);
+          endif
+        endif
+      endif
+      parts = {@parts, content[cursor..opening - 1], fragment};
+      cursor = closing + width;
+    endwhile
+    return $format.paragraph:mk(@parts, content[cursor..$]);
+  endmethod
+
+  method command_usage owner: ARCH_WIZARD
+    "Use an article's authored placeholders without binding an incidental nearby receiver.";
+    set_task_perms(caller_perms());
+    const {usage, viewer} = args;
+    let template = usage;
+    let fields = [];
+    for slot in ({"dobj", "iobj"})
+      const opening = index(template, "<");
+      if (!opening)
+        break;
+      endif
+      const closing = index(template[opening..$], ">");
+      closing > 1 || return usage;
+      const last = opening + closing - 1;
+      const label = template[opening + 1..last - 1];
+      template = template[1..opening - 1] + "{" + slot + "}" + template[last + 1..$];
+      fields[slot] = ["label" -> label:capitalize(), "expectedKind" -> "text"];
+    endfor
+    index(template, "<") && return usage;
+    const parsed = parse_command(strsub(strsub(template, "{dobj}", "#-2"), "{iobj}", "#-3"), {}, false);
+    for slot in (mapkeys(fields))
+      const marker = slot == "dobj" ? "#-2" | "#-3";
+      if (parsed['dobjstr] == marker || parsed['iobjstr] == marker)
+        fields[slot]["expectedKind"] = "object";
+        fields[slot]["suggestions"] = ["provider" -> $url_utils:to_curie_str(viewer), "source" -> "nearby"];
+      endif
+    endfor
+    return $format.annotation:command_template(template, fields, usage);
+  endmethod
 
   method extract_verb_documentation owner: ARCH_WIZARD
     "Extract documentation from a verb's code. Returns list of all comment lines (string literals ending with ;) from the start of the verb until the first non-comment line.";
@@ -108,21 +203,20 @@ object HELP_UTILS [
     location = player_obj.location;
     area = location.location;
     location_name = `location:display_name() ! ANY => "somewhere"';
-    location_desc = "You are in " + location_name;
+    location_desc = {"You are in ", $format.annotation:object(location, location_name)};
     if (valid(area))
       area_name = `area:display_name() ! ANY => "somewhere"';
-      location_desc = location_desc + " in " + area_name;
+      location_desc = {@location_desc, " in ", $format.annotation:object(area, area_name)};
     endif
-    content = {@content, location_desc};
+    content = {@content, $format.paragraph:mk(@location_desc)};
     "Inventory";
     inventory = player_obj:contents();
     if (inventory && length(inventory) > 0)
       inv_names = {};
       for item in (inventory)
-        inv_names = {@inv_names, `item:display_name() ! ANY => "something"'};
+        inv_names = {@inv_names, @(length(inv_names) ? {", "} | {}), $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
       endfor
-      inv_str = inv_names:english_list();
-      content = {@content, "You are carrying " + inv_str + "."};
+      content = {@content, $format.paragraph:mk("You are carrying ", @inv_names, ".")};
     endif
     "Ways to go (exits)";
     if (valid(area) && respond_to(area, 'passages_from))
@@ -140,12 +234,11 @@ object HELP_UTILS [
           endif
           {label, description, ambient} = info;
           if (label)
-            exit_labels = {@exit_labels, label};
+            exit_labels = {@exit_labels, @(length(exit_labels) ? {", "} | {}), $format.annotation:exit(location, label)};
           endif
         endfor
         if (exit_labels && length(exit_labels) > 0)
-          ways_str = exit_labels:english_list();
-          content = {@content, "You can go " + ways_str + "."};
+          content = {@content, $format.paragraph:mk("You can go ", @exit_labels, ".")};
         endif
       endif
     endif
@@ -160,10 +253,9 @@ object HELP_UTILS [
     if (nearby_items && length(nearby_items) > 0)
       nearby_names = {};
       for item in (nearby_items)
-        nearby_names = {@nearby_names, `item:display_name() ! ANY => "something"'};
+        nearby_names = {@nearby_names, @(length(nearby_names) ? {", "} | {}), $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
       endfor
-      nearby_str = nearby_names:english_list();
-      content = {@content, "Around you there is " + nearby_str + "."};
+      content = {@content, $format.paragraph:mk("Around you there is ", @nearby_names, ".")};
     endif
     return $format.block:mk(@content);
   endmethod

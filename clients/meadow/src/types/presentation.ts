@@ -11,11 +11,12 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import type { PresentationData as SdkPresentationData } from "@moor/web-sdk";
+import type { AnnotationTable, PresentationData as SdkPresentationData } from "@moor/web-sdk";
 
-export type PresentationData = SdkPresentationData & { eventId?: string };
+export type PresentationData = SdkPresentationData & { eventId?: string; annotations?: AnnotationTable };
 
 export interface Presentation {
+    readonly annotations?: AnnotationTable;
     readonly id: string;
     readonly target: string;
     readonly title: string;

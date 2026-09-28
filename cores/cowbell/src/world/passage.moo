@@ -304,17 +304,19 @@ object PASSAGE [
   endmethod
 
   method travel_from owner: ARCH_WIZARD
-    "Traverse a passage. Return command-handled status, or movement success for a bound exit.";
-    const {traveler, from_room, parsed, ?link_id = ""} = args;
+    "Traverse a passage using current policies and return command-handled status.";
+    const {traveler, from_room, parsed} = args;
     const actor = caller_perms();
     valid(traveler) && valid(actor) || raise(E_INVARG);
     actor == traveler || actor == traveler.owner || actor.wizard || raise(E_PERM);
     valid(traveler) || return false;
     valid(from_room) || return false;
     traveler.location == from_room || return false;
-    this:_value("is_open", true) || return link_id == "" ? this:_notify_blocked(traveler, from_room) | false;
-    const access_state = link_id == "" ? {} | {this.is_locked, this.unlock_rule, traveler.contents};
-    this:check_unlock(traveler, from_room) || return link_id == "" ? this:_notify_locked(traveler, from_room) | false;
+    this:_value("is_open", true) || return this:_notify_blocked(traveler, from_room);
+    const access_state = {this.is_locked, this.unlock_rule, traveler.contents};
+    const area = from_room.location;
+    const registration = valid(area) && isa(area, $area) ? area:passage_link_id(from_room, this:other_room(from_room)) | "";
+    this:check_unlock(traveler, from_room) || return this:_notify_locked(traveler, from_room);
     const to_room = this:other_room(from_room);
     valid(to_room) || return false;
     "Get passage metadata";
@@ -327,11 +329,12 @@ object PASSAGE [
     "Actually move the traveler before any expensive presentation work.";
     "Pre-exit callbacks may suspend or change the actor's location.";
     traveler.location == from_room || return false;
-    if (link_id != "")
-      "Policy and pre-exit callbacks can yield; revalidate the bound exit before moving.";
-      $room:exit_link_matches(from_room, to_room, link_id, this) || return false;
-      this.is_open && {this.is_locked, this.unlock_rule, traveler.contents} == access_state || return false;
+    "Callbacks may yield; normal travel must not use a replaced passage or outdated access state.";
+    if (registration != "")
+      valid(area) && from_room.location == area || return false;
+      area:passage_link_id(from_room, to_room) == registration && area:passage_for(from_room, to_room) == this || return false;
     endif
+    this.is_open && {this.is_locked, this.unlock_rule, traveler.contents} == access_state || return false;
     set_task_perms(actor);
     this:_move_actor(traveler, to_room);
     "Render and announce movement asynchronously after the move commits.";

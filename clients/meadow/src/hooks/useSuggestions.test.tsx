@@ -35,7 +35,7 @@ it("debounces requests and rejects late results from another query or identity",
             {
                 provider: "oid:66",
                 source: "contents",
-                template: "get {input} from #66",
+                context: { template: "get {input} from #66", active: "input", bindings: {} },
             },
             query,
             true,

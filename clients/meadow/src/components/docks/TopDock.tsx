@@ -20,12 +20,10 @@ interface TopDockProps {
     presentations: Presentation[];
     onClosePresentation: (id: string) => void;
     onLinkClick?: (url: string, position?: { x: number; y: number }) => void;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
 }
 
 export const TopDock: React.FC<TopDockProps> = (
-    { presentations, onClosePresentation, onLinkClick, onLinkHoldStart, onLinkHoldEnd },
+    { presentations, onClosePresentation, onLinkClick },
 ) => {
     const { containerRef, hasOverflow, hasScroll } = useCarouselOverflow();
     const [isDockCollapsed, setIsDockCollapsed] = useState(false);
@@ -175,8 +173,6 @@ export const TopDock: React.FC<TopDockProps> = (
                                     </button>
                                 }
                                 onLinkClick={onLinkClick}
-                                onLinkHoldStart={onLinkHoldStart}
-                                onLinkHoldEnd={onLinkHoldEnd}
                             />
                         );
                     })()

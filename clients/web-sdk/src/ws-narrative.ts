@@ -18,11 +18,13 @@ import { PresentEvent } from "@moor/schema/generated/moor-common/present-event";
 import { TracebackEvent } from "@moor/schema/generated/moor-common/traceback-event";
 import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-event";
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
+import { AnnotationTable, decodeAnnotations } from "./annotations.js";
 
 import { uuObjIdToString } from "./curie.js";
 import { parsePresentationValue, PresentationData } from "./presentations.js";
 
 export interface WsEventMetadata {
+    annotations?: AnnotationTable;
     verb?: string;
     actor?: any;
     actorName?: string;
@@ -169,7 +171,9 @@ export function parseWsNarrativeEventMessage(
                 const metaValue = metadata.value();
                 const decoded = metaValue ? decodeVarToJs(metaValue) : null;
 
-                if (keyValue === "presentation_hint" && typeof decoded === "string") {
+                if (keyValue === "annotations") {
+                    eventMeta.annotations = decodeAnnotations(decoded);
+                } else if (keyValue === "presentation_hint" && typeof decoded === "string") {
                     presentationHint = decoded;
                 } else if (keyValue === "group_id" && typeof decoded === "string") {
                     groupId = decoded;

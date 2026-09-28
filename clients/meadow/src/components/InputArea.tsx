@@ -11,9 +11,13 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { useAuthContext } from "../context/AuthContext";
+import { useCommandArgument } from "../hooks/useCommandArgument";
+import { Suggestion, useSuggestions } from "../hooks/useSuggestions";
 import { useVerbSuggestions } from "../hooks/useVerbSuggestions";
+import { CommandDraft, editDraft, plainDraft, prefixDraft, replaceArgument, sliceDraft } from "../lib/command-draft";
 import {
     extractFullVerbName,
     findCommonPrefix,
@@ -22,6 +26,7 @@ import {
     KNOWN_VERBS,
     parseVerbNames,
 } from "../lib/known-verbs";
+import { stringToCurie } from "../lib/var";
 import { InputMetadata } from "../types/input";
 import { RichInputPrompt } from "./RichInputPrompt";
 import { getSayModeEnabled } from "./SayModeToggle";
@@ -32,8 +37,8 @@ interface InputAreaProps {
     visible: boolean;
     disabled: boolean;
     onSendMessage: (message: string | Uint8Array | ArrayBuffer) => void;
-    commandHistory: string[];
-    onAddToHistory: (command: string) => void;
+    commandHistory: CommandDraft[];
+    onSubmitDraft: (draft: CommandDraft) => boolean;
     inputMetadata?: InputMetadata | null;
     onClearInputMetadata?: () => void;
 }
@@ -54,15 +59,21 @@ export const InputArea: React.FC<InputAreaProps> = ({
     disabled,
     onSendMessage,
     commandHistory,
-    onAddToHistory,
+    onSubmitDraft,
     inputMetadata,
     onClearInputMetadata,
 }) => {
-    const [input, setInput] = useState("");
+    const [draft, setDraft] = useState<CommandDraft>(() => plainDraft(""));
+    const input = draft.text;
+    const setInput = (text: string) => setDraft(previous => editDraft(previous, text));
+    const [cursor, setCursor] = useState(0);
+    const [argumentFocused, setArgumentFocused] = useState(false);
+    const argumentId = useId();
+    const coordinator = useArgumentCoordinator();
     const [historyOffset, setHistoryOffset] = useState(0);
     // Working buffer for history edits - preserves changes when navigating away
     // Key: historyOffset (0 = new input, 1+ = history entries)
-    const [historyBuffer, setHistoryBuffer] = useState<Record<number, string>>({});
+    const [historyBuffer, setHistoryBuffer] = useState<Record<number, CommandDraft>>({});
     const [placeholderIndex, setPlaceholderIndex] = useState(() =>
         Math.floor(Math.random() * ENCOURAGING_PLACEHOLDERS.length)
     );
@@ -87,6 +98,64 @@ export const InputArea: React.FC<InputAreaProps> = ({
     const { authState } = useAuthContext();
     const authToken = authState.player?.authToken ?? null;
     const playerOid = authState.player?.oid ?? null;
+
+    const commandPrefix = verbPill ? `${verbPill} ` : "";
+    const fullDraft = useMemo(() => prefixDraft(draft, commandPrefix), [draft, commandPrefix]);
+    const argument = useCommandArgument(
+        authToken,
+        playerOid ? stringToCurie(playerOid) : null,
+        fullDraft,
+        cursor + commandPrefix.length,
+        !disabled && !inputMetadata && !(sayModeEnabled && sayPillActive && !verbPill),
+    );
+    const argumentSuggestions = useSuggestions(
+        authToken,
+        argument?.source,
+        argument?.query ?? "",
+        argumentFocused && Boolean(argument),
+    );
+    const [argumentIndex, setArgumentIndex] = useState(-1);
+    const chooseArgument = (item: Suggestion) => {
+        if (!argument) return;
+        const reference = item.value.startsWith("#") ? stringToCurie(item.value) : item.id;
+        const start = argument.start - commandPrefix.length;
+        const end = argument.end - commandPrefix.length;
+        if (start < 0 || end < start) return;
+        setDraft(current => replaceArgument(current, start, end, item.label, reference));
+        const next = start + item.label.length;
+        setCursor(next);
+        setArgumentIndex(-1);
+        setArgumentFocused(false);
+        requestAnimationFrame(() => {
+            textareaRef.current?.focus({ preventScroll: true });
+            textareaRef.current?.setSelectionRange(next, next);
+        });
+    };
+    const latestChoose = useRef(chooseArgument);
+    latestChoose.current = chooseArgument;
+    const focusArgument = () => {
+        if (!argument) {
+            coordinator?.focus();
+            return;
+        }
+        coordinator?.focus({
+            id: argumentId,
+            source: argument.source,
+            label: argument.label,
+            choose: item => latestChoose.current(item),
+            feedback: setSrAnnouncement,
+        });
+    };
+    useEffect(() => {
+        setArgumentIndex(-1);
+        if (document.activeElement === textareaRef.current || coordinator?.owns(argumentId)) focusArgument();
+    }, [argument, inputMetadata, disabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => () => coordinator?.release(argumentId), [coordinator, argumentId]);
+    useEffect(() => {
+        setDraft(plainDraft(""));
+        setHistoryBuffer({});
+        setHistoryOffset(0);
+    }, [authToken]);
 
     // Fetch verb suggestions from server
     const {
@@ -213,28 +282,28 @@ export const InputArea: React.FC<InputAreaProps> = ({
         const newOffset = direction === "up" ? historyOffset + 1 : historyOffset - 1;
 
         // Compute the updated buffer (need to use it immediately, not wait for state)
-        const updatedBuffer = { ...historyBuffer, [historyOffset]: input };
+        const updatedBuffer = { ...historyBuffer, [historyOffset]: draft };
         setHistoryBuffer(updatedBuffer);
 
         setHistoryOffset(newOffset);
 
         // Check if we have a buffered (edited) version for this position
         if (newOffset in updatedBuffer) {
-            setInput(updatedBuffer[newOffset]);
+            setDraft(updatedBuffer[newOffset]);
             setSayPillActive(newOffset === 0 ? sayModeEnabled : false);
         } else {
             // No buffered version - use original history or empty for new input
             const historyIndex = commandHistory.length - newOffset;
             if (historyIndex >= 0 && historyIndex < commandHistory.length) {
                 const historyValue = commandHistory[historyIndex];
-                setInput(historyValue ? historyValue.trimEnd() : "");
+                setDraft(historyValue ?? plainDraft(""));
                 setSayPillActive(false);
             } else {
                 setInput("");
                 setSayPillActive(sayModeEnabled);
             }
         }
-    }, [historyOffset, commandHistory, sayModeEnabled, input, historyBuffer]);
+    }, [historyOffset, commandHistory, sayModeEnabled, draft, historyBuffer]);
 
     // Send input to server
     const sendInput = useCallback(() => {
@@ -245,29 +314,17 @@ export const InputArea: React.FC<InputAreaProps> = ({
             return;
         }
 
-        // Split by lines and send each non-empty line
-        const lines = trimmedInput ? input.split("\n") : [""];
-        const commandsSent: string[] = [];
+        // Each line keeps only its own explicit bindings; ordinary paste creates plain text.
+        const lines = input.split("\n");
+        let offset = 0;
         for (const line of lines) {
-            const trimmedLine = line.trim();
-            // Build the command
-            let messageToSend: string;
-            if (verbPill) {
-                messageToSend = trimmedLine ? `${verbPill} ${trimmedLine}` : verbPill;
-            } else if (sayModeEnabled && sayPillActive) {
-                messageToSend = `say ${trimmedLine}`;
-            } else {
-                messageToSend = trimmedLine;
-            }
-            if (messageToSend) {
-                onSendMessage(messageToSend);
-                commandsSent.push(messageToSend);
-            }
-        }
-
-        // Add the actual command(s) sent to history
-        for (const cmd of commandsSent) {
-            onAddToHistory(cmd);
+            const leading = line.length - line.trimStart().length;
+            const content = sliceDraft(draft, offset + leading, offset + line.trimEnd().length);
+            offset += line.length + 1;
+            const prefix = verbPill ? `${verbPill} ` : sayModeEnabled && sayPillActive ? "say " : "";
+            const command = prefixDraft(content, prefix);
+            if (!command.text.trim()) continue;
+            if (!onSubmitDraft(command)) return;
         }
 
         // Clear input and reset state
@@ -285,7 +342,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
         // Refresh verb suggestions (may have changed due to movement, inventory, etc.)
         refreshSuggestions();
-    }, [input, onSendMessage, onAddToHistory, sayModeEnabled, sayPillActive, verbPill, refreshSuggestions]);
+    }, [draft, input, onSubmitDraft, sayModeEnabled, sayPillActive, verbPill, refreshSuggestions]);
 
     // Announce to screen readers
     const announce = useCallback((message: string) => {
@@ -346,7 +403,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
             + textarea.value.substring(selEnd);
 
         // Update React state
-        setInput(newValue);
+        setDraft(current => editDraft(current, newValue));
+        setCursor(selStart + pastedData.length);
 
         // Place cursor after the pasted content
         const newPosition = selStart + pastedData.length;
@@ -361,7 +419,24 @@ export const InputArea: React.FC<InputAreaProps> = ({
     }, []);
 
     // Handle key events
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (argumentFocused && argumentSuggestions.items.length) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setArgumentIndex(index => (index + 1) % argumentSuggestions.items.length);
+                return;
+            }
+            if ((e.key === "Enter" || e.key === "Tab") && argumentIndex >= 0) {
+                e.preventDefault();
+                chooseArgument(argumentSuggestions.items[argumentIndex]);
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                setArgumentFocused(false);
+                return;
+            }
+        }
         // Handle backspace to remove verb pill or say pill when input is empty
         if (e.key === "Backspace" && input === "") {
             if (verbPill) {
@@ -453,22 +528,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
             e.preventDefault();
             sendInput();
         }
-    }, [
-        acceptCompletion,
-        announce,
-        clearVerbPill,
-        commandHistory,
-        completionIndex,
-        completionMatches,
-        currentCompletion,
-        historyOffset,
-        input,
-        navigateHistory,
-        sayModeEnabled,
-        sayPillActive,
-        sendInput,
-        verbPill,
-    ]);
+    };
 
     // Handler for rich input submission
     const handleRichInputSubmit = useCallback((value: string | Uint8Array) => {
@@ -567,7 +627,20 @@ export const InputArea: React.FC<InputAreaProps> = ({
                             currentCompletion && !activePill ? " input-completion-active" : ""
                         }`}
                         value={input}
-                        onChange={(e) => setInput(e.target.value)}
+                        onChange={(e) => {
+                            setInput(e.target.value);
+                            setCursor(e.target.selectionStart);
+                            setArgumentFocused(true);
+                            coordinator?.invalidate();
+                        }}
+                        onSelect={event => setCursor(event.currentTarget.selectionStart)}
+                        onFocus={() => {
+                            setArgumentFocused(true);
+                            focusArgument();
+                        }}
+                        onBlur={() => setArgumentFocused(false)}
+                        aria-controls={argumentFocused && argument ? `${argumentId}-choices` : undefined}
+                        aria-activedescendant={argumentIndex >= 0 ? `${argumentId}-${argumentIndex}` : undefined}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         disabled={disabled}
@@ -578,6 +651,41 @@ export const InputArea: React.FC<InputAreaProps> = ({
                     />
                 </div>
             </div>
+
+            {draft.bindings.length > 0 && (
+                <div className="command-bindings" aria-label="Bound objects">
+                    {draft.bindings.map(binding => (
+                        <span key={binding.start} title={binding.reference}>
+                            {draft.text.slice(binding.start, binding.end)}{" "}
+                            <code>{binding.reference.replace(/^(oid|uuid):/, "#")}</code>
+                        </span>
+                    ))}
+                    <small>Editing a name releases its reference.</small>
+                </div>
+            )}
+            {argumentFocused && argument && argumentSuggestions.items.length > 0 && (
+                <div
+                    id={`${argumentId}-choices`}
+                    className="command-argument-choices"
+                    role="listbox"
+                    aria-label={`Suggestions for ${argument.label}`}
+                >
+                    {argumentSuggestions.items.map((item, index) => (
+                        <button
+                            type="button"
+                            role="option"
+                            key={item.id}
+                            id={`${argumentId}-${index}`}
+                            aria-selected={index === argumentIndex}
+                            tabIndex={-1}
+                            onPointerDown={event => event.preventDefault()}
+                            onClick={() => chooseArgument(item)}
+                        >
+                            {item.label} <small>{item.detail}</small>
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Live region for screen reader announcements */}
             <div

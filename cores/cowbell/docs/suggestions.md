@@ -12,13 +12,22 @@ consumer; the request and response are independent of that UI.
 Any object inherits this endpoint:
 
 ```moo
-provider:suggestions(source, query, ?template = "", ?limit = 12)
+provider:suggestions(source, query, ?context = [], ?limit = 12)
 ```
 
-`source` names a candidate source, `query` is the text being entered, and `template` optionally binds
-the surrounding command. A template contains one `{input}` occupying a complete direct or indirect
-object argument, for example `put {input} in #48` or `unlock #66 with {input}`. A request may return at
-most 50 rows; query and template lengths are limited to 256 and 1024 characters respectively.
+`source` names a candidate source and `query` is the text being entered. An optional context
+identifies a template, its active slot, and already supplied arguments:
+
+```moo
+$match:input_context("put {dobj} in {iobj}", "dobj", ["iobj" -> "#48"])
+// ["template" -> "put {dobj} in {iobj}", "active" -> "dobj", "bindings" -> ["iobj" -> "#48"], ...]
+```
+
+Templates have at most two named slots (`dobj`, `iobj`, or the inspector's single `input` slot).
+The active slot must occupy a complete parser argument. Binding values are single-line command
+text, usually exact `#` references. Missing bindings are provisional arguments, not empty strings.
+A request returns at most 50 rows; query and template lengths are limited to 256 and 1024 characters.
+Omit the context for an unconstrained source query.
 
 The authenticated task player supplies the viewing identity. Callers cannot request another
 player's private inventory by changing the provider.
@@ -60,7 +69,7 @@ continues using that catalog's richer signature/hint metadata.
 
 ## Matching a known command
 
-When a template is supplied, `$match:matching_suggestions`:
+When a context is supplied, `$match:matching_suggestions`:
 
 1. Parses the template once using `parse_command`, with a placeholder in its unfilled object slot.
 2. Substitutes each scoped object into that slot in the parsed command map.
@@ -68,6 +77,16 @@ When a template is supplied, `$match:matching_suggestions`:
    and indirect targets and inherited verb signatures.
 4. Keeps candidates with a matching command verb. An ambiguous fixed argument is checked against
    each of its parser-provided candidates, as in normal command dispatch.
+
+With both slots unfilled, the matcher probes possible receivers for an `any` active argspec and
+checks candidate receivers for a `this` constraint. It does not enumerate every pair of arguments.
+Binding either slot narrows subsequent checks for the other.
+
+`provider:suggestion_eligibility(source, references, ?context = [])` checks up to 64 canonical
+references against that same complete candidate source before ranking. Each result has `eligible`
+and, when eligible, `label` and `value`. A refused reference has a generic `reason` without a label.
+An object need not appear on the current suggestion page to be eligible. This is the transcript
+selection path; its result remains advisory.
 
 This checks verb names, prepositions, and direct/indirect argspecs without calling
 `dispatch_command_verb`. It does not reveal the correct key by evaluating an unlock policy. Custom
@@ -79,7 +98,7 @@ It retains provider order within each rank and strips internal search keys from 
 
 ## Authoring sources
 
-Objects can override `suggestion_candidates(source, query, template)` for domain-specific choices,
+Objects can override `suggestion_candidates(source, query, context)` for domain-specific choices,
 returning candidate maps with `id`, `label`, `value`, optional `detail`, and optional `keys` (aliases).
 Use `pass(@args)` for the environmental sources. Keep providers side-effect-free and enforce viewing
 rules before returning any candidate. The shared endpoint handles query validation, ranking,
@@ -106,3 +125,12 @@ label clears its bound reference. Escape dismisses choices before dismissing the
 The inspector refreshes suggestions on the same connection state revisions as inspection data.
 There is no polling. Typed input remains usable if suggestions fail, and command execution always
 rechecks current state and authority.
+
+## Main command input
+
+`player:command_input_context(before_cursor, after_cursor)` parses a single-line draft with a
+cursor marker and returns its exact argument range as `before` and `after` strings, the argument's
+`query`, and its suggestion `source`/`context`. It does not dispatch the parsed command. If the
+parser's normalization prevents an exact raw-text round trip, it returns an empty map and ordinary
+text entry remains available. Meadow applies this to a serialized draft, mapping retained reference
+ranges back to their display labels.

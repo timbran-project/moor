@@ -11,16 +11,18 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnnotationTable } from "@moor/web-sdk";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useAnnotationActivation } from "../context/AnnotationContext";
+import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { renderDjot, renderHtmlContent, renderPlainText } from "../lib/djot-renderer";
-import { useToast } from "./Toast";
 
-/** Metadata about the event that produced this content */
 export interface EventMetadata {
     verb?: string;
     actorName?: string;
     thisName?: string;
     dobjName?: string;
+    annotations?: AnnotationTable;
 }
 
 interface ContentRendererProps {
@@ -31,23 +33,10 @@ interface ContentRendererProps {
         position?: { x: number; y: number },
         metadata?: { actorName?: string; verb?: string },
     ) => void | Promise<void>;
-    onLinkHoldStart?: (url: string, position: { x: number; y: number }) => void;
-    onLinkHoldEnd?: () => void;
     isStale?: boolean;
-    /** Whether to enable emoji conversion for this content. Defaults to false. */
     enableEmoji?: boolean;
-    /** Metadata about the event that produced this content (for link context) */
     eventMetadata?: EventMetadata;
 }
-
-const HOLD_THRESHOLD_MS = 300;
-const isExternalLink = (url: string) => url.startsWith("http://") || url.startsWith("https://");
-const isAllowedLinkUrl = (url: string) => isExternalLink(url) || url.startsWith("moo://");
-// Object references fetch current data; only context-dependent commands expire.
-const isLinkAvailable = (url: string, isStale: boolean) =>
-    isAllowedLinkUrl(url)
-    && (!isStale || isExternalLink(url) || url.startsWith("moo://inspect/") || url.startsWith("moo://help/")
-        || url.startsWith("moo://exit/"));
 
 export function normalizeEmbeddedUri(uri: string, baseUrl: string = window.location.href): string | null {
     try {
@@ -65,374 +54,86 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     content,
     contentType = "text/plain",
     onLinkClick,
-    onLinkHoldStart,
-    onLinkHoldEnd,
     isStale = false,
     enableEmoji = false,
     eventMetadata,
 }) => {
-    const { showToast } = useToast();
-    // Touch state tracking for tap vs hold detection
-    const touchStateRef = useRef<
-        {
-            url: string;
-            position: { x: number; y: number };
-            timer: number | null;
-            isHolding: boolean;
-        } | null
-    >(null);
-
-    const pendingLinksRef = useRef(new Set<string>());
-    const [pendingLinks, setPendingLinks] = useState<Set<string>>(new Set());
-    const activateLink = useCallback(async (url: string, position: { x: number; y: number }) => {
-        if (!onLinkClick || pendingLinksRef.current.has(url)) return;
-        const isExit = url.startsWith("moo://exit/");
-        if (isExit) {
-            pendingLinksRef.current.add(url);
-            setPendingLinks(new Set(pendingLinksRef.current));
-        }
-        try {
-            await onLinkClick(url, position, {
-                actorName: eventMetadata?.actorName,
-                verb: eventMetadata?.verb,
-            });
-        } finally {
-            if (isExit) {
-                pendingLinksRef.current.delete(url);
-                setPendingLinks(new Set(pendingLinksRef.current));
+    const activateAnnotation = useAnnotationActivation();
+    const coordinator = useArgumentCoordinator();
+    const container = useRef<HTMLSpanElement>(null);
+    const annotations = eventMetadata?.annotations;
+    const source = Array.isArray(content) ? content.join(contentType === "text/x-uri" ? "" : "\n") : String(content);
+    const html = useMemo(() => {
+        if (contentType === "text/html") return renderHtmlContent(source, enableEmoji, annotations);
+        if (contentType === "text/djot") {
+            try {
+                return renderDjot(source, {
+                    annotations,
+                    enableEmoji,
+                    addTableClass: true,
+                    linkHandler: { className: "moo-link", dataAttribute: "data-url" },
+                });
+            } catch (error) {
+                console.warn("Failed to parse Djot:", error);
             }
         }
-    }, [onLinkClick, eventMetadata]);
+        return renderPlainText(source, enableEmoji);
+    }, [source, contentType, enableEmoji, annotations]);
 
-    // Ref to container for updating tabindex on stale change
-    const containerRef = useRef<HTMLSpanElement>(null);
-
-    // Update tabindex on links when stale state or content changes
     useEffect(() => {
-        if (!containerRef.current) return;
-        const links = containerRef.current.querySelectorAll("[data-url]");
-        links.forEach((link) => {
-            const url = link.getAttribute("data-url") ?? "";
-            const pending = pendingLinks.has(url);
-            const available = isLinkAvailable(url, isStale) && !pending;
-            if (pending) link.setAttribute("aria-busy", "true");
-            else link.removeAttribute("aria-busy");
-            (link as HTMLElement).tabIndex = available ? 0 : -1;
-            if (available) {
-                link.removeAttribute("aria-disabled");
-            } else {
-                link.setAttribute("aria-disabled", "true");
+        const releases: (() => void)[] = [];
+        container.current?.querySelectorAll<HTMLElement>("[data-moor-annotation]").forEach(element => {
+            const annotation = annotations?.[element.dataset.moorAnnotation ?? ""];
+            if (coordinator && annotation?.kind === "object") {
+                releases.push(coordinator.register(element, annotation.ref));
             }
         });
-    }, [isStale, content, contentType, pendingLinks]);
+        return () => releases.forEach(release => release());
+    }, [html, annotations, coordinator]);
 
-    // Handle content that might be an array or string
-    const getContentString = useCallback((joinWith: string = "\n") => {
-        if (Array.isArray(content)) {
-            return content.join(joinWith);
-        }
-        return typeof content === "string" ? content : String(content);
-    }, [content]);
-
-    // Unified click handler for moo-link spans (all moo-link-* variants) and objids
-    const handleClick = useCallback((e: React.MouseEvent) => {
-        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
-        if (!target) return;
-
-        // Handle ObjId copy (regular MOO objids like #123)
-        const objid = target.getAttribute("data-objid");
-        if (objid) {
-            e.preventDefault();
-            e.stopPropagation();
-            navigator.clipboard.writeText(objid).then(() => {
-                target.classList.add("copied");
-                showToast("Copied to clipboard");
-                setTimeout(() => target.classList.remove("copied"), 1000);
-            }).catch(err => {
-                console.error("Failed to copy object ID:", err);
-            });
-            return;
-        }
-
-        // Handle UuObjId copy (UUID-style objids like #000A54-9B1A1A9B2E)
-        const uuobjid = target.getAttribute("data-uuobjid");
-        if (uuobjid) {
-            e.preventDefault();
-            e.stopPropagation();
-            navigator.clipboard.writeText(uuobjid).then(() => {
-                target.classList.add("copied");
-                showToast("Copied to clipboard");
-                setTimeout(() => target.classList.remove("copied"), 1000);
-            }).catch(err => {
-                console.error("Failed to copy object ID:", err);
-            });
-            return;
-        }
-
-        // Check for data-url attribute which all our link spans have
-        const url = target.getAttribute("data-url");
-        if (!url || !onLinkClick) return;
-        if (!isLinkAvailable(url, isStale)) return;
-
-        e.preventDefault();
-        target.focus({ preventScroll: true });
-        // Pass click position and event metadata for context
-        void activateLink(url, { x: e.clientX, y: e.clientY });
-    }, [onLinkClick, isStale, activateLink, showToast]);
-
-    // Keyboard handler for Enter/Space on focused links
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-
-        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
-        if (!target) return;
-
-        // Handle ObjId copy (regular MOO objids like #123)
-        const objid = target.getAttribute("data-objid");
-        if (objid) {
-            e.preventDefault();
-            e.stopPropagation();
-            navigator.clipboard.writeText(objid).then(() => {
-                target.classList.add("copied");
-                showToast("Copied to clipboard");
-                setTimeout(() => target.classList.remove("copied"), 1000);
-            });
-            return;
-        }
-
-        // Handle UuObjId copy (UUID-style objids like #000A54-9B1A1A9B2E)
-        const uuobjid = target.getAttribute("data-uuobjid");
-        if (uuobjid) {
-            e.preventDefault();
-            e.stopPropagation();
-            navigator.clipboard.writeText(uuobjid).then(() => {
-                target.classList.add("copied");
-                showToast("Copied to clipboard");
-                setTimeout(() => target.classList.remove("copied"), 1000);
-            });
-            return;
-        }
-
-        const url = target.getAttribute("data-url");
-        if (!url || !onLinkClick) return;
-        if (!isLinkAvailable(url, isStale)) return;
-
-        e.preventDefault();
-        // Use element position for popovers since there's no mouse position
+    const activate = useCallback((event: React.MouseEvent | React.KeyboardEvent) => {
+        const target = (event.target as HTMLElement).closest<HTMLElement>("[data-moor-annotation], [data-url]");
+        if (!target || !event.currentTarget.contains(target)) return;
+        // Preserve dragging to select prose and native copy on pointer/touch devices.
+        if (event.type === "click" && window.getSelection()?.isCollapsed === false) return;
         const rect = target.getBoundingClientRect();
-        void activateLink(url, { x: rect.left + rect.width / 2, y: rect.bottom });
-    }, [onLinkClick, isStale, activateLink, showToast]);
-
-    // Touch start: begin tracking for hold detection on inspect links
-    const handleTouchStart = useCallback((e: React.TouchEvent) => {
-        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
-        if (!target) return;
-        const url = target.getAttribute("data-url");
-
-        // Only handle inspect links with hold behavior
-        if (!url?.startsWith("moo://inspect/") || !onLinkHoldStart) return;
-
-        // Prevent native long-press context menu / text selection
-        e.preventDefault();
-
-        const touch = e.touches[0];
-        const position = { x: touch.clientX, y: touch.clientY };
-
-        // Clear any existing state
-        if (touchStateRef.current?.timer) {
-            clearTimeout(touchStateRef.current.timer);
+        const position = { x: rect.left + rect.width / 2, y: rect.bottom };
+        const id = target.dataset.moorAnnotation;
+        if (id && annotations && Object.prototype.hasOwnProperty.call(annotations, id) && activateAnnotation) {
+            event.preventDefault();
+            event.stopPropagation();
+            target.focus({ preventScroll: true });
+            activateAnnotation({ annotation: annotations[id], label: target.textContent ?? "", position });
+            return;
         }
+        const url = target.dataset.url;
+        if (!url || !/^https?:\/\//.test(url) || !onLinkClick) return;
+        event.preventDefault();
+        void onLinkClick(url, position, { actorName: eventMetadata?.actorName, verb: eventMetadata?.verb });
+    }, [activateAnnotation, annotations, onLinkClick, eventMetadata?.actorName, eventMetadata?.verb]);
 
-        // Start hold detection timer
-        const timer = window.setTimeout(() => {
-            if (touchStateRef.current) {
-                touchStateRef.current.isHolding = true;
-                onLinkHoldStart(url, position);
-            }
-        }, HOLD_THRESHOLD_MS);
-
-        touchStateRef.current = { url, position, timer, isHolding: false };
-    }, [onLinkHoldStart]);
-
-    // Touch end: either complete tap or end hold preview
-    const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-        const state = touchStateRef.current;
-        if (!state) return;
-
-        // Clear the hold timer
-        if (state.timer) {
-            clearTimeout(state.timer);
-        }
-
-        if (state.isHolding) {
-            // Was holding - dismiss the preview
-            e.preventDefault();
-            onLinkHoldEnd?.();
-        } else {
-            // Was a quick tap - let click handler show persistent popover
-            // The click event will fire naturally
-        }
-
-        touchStateRef.current = null;
-    }, [onLinkHoldEnd]);
-
-    // Touch cancel: clean up state
-    const handleTouchCancel = useCallback(() => {
-        if (touchStateRef.current?.timer) {
-            clearTimeout(touchStateRef.current.timer);
-        }
-        if (touchStateRef.current?.isHolding) {
-            onLinkHoldEnd?.();
-        }
-        touchStateRef.current = null;
-    }, [onLinkHoldEnd]);
-
-    // Prevent context menu on inspect links (Firefox long-press)
-    const handleContextMenu = useCallback((e: React.MouseEvent) => {
-        const target = (e.target as HTMLElement).closest<HTMLElement>("[data-url], [data-objid], [data-uuobjid]");
-        if (!target) return;
-        const url = target.getAttribute("data-url");
-        if (url?.startsWith("moo://inspect/")) {
-            e.preventDefault();
-        }
-    }, []);
+    const keyDown = useCallback((event: React.KeyboardEvent) => {
+        if (event.key === "Enter" || event.key === " ") activate(event);
+    }, [activate]);
 
     const staleClass = isStale ? " content-stale" : "";
-
-    // Helper to wrap content with sr-only link hint when links are present
-    const wrapWithLinkHint = useCallback((contentElement: React.ReactElement, html: string) => {
-        // Check if the HTML contains interactive links (data-url attributes)
-        const hasLinks = isStale
-            ? /data-url=["'](?:https?:\/\/|moo:\/\/(?:inspect|help|exit)\/)/.test(html)
-            : html.includes("data-url=");
-        if (!hasLinks) {
-            return contentElement;
-        }
-        return (
-            <>
-                {contentElement}
-                <span className="sr-only">
-                    Interactive links available. Press Shift+Tab to navigate.
-                </span>
-            </>
-        );
-    }, [isStale]);
-
-    const renderedContent = useMemo(() => {
-        switch (contentType) {
-            case "text/html": {
-                const htmlContent = getContentString("\n");
-                const processedHtml = renderHtmlContent(htmlContent, enableEmoji);
-
-                return wrapWithLinkHint(
-                    <span
-                        dangerouslySetInnerHTML={{ __html: processedHtml }}
-                        onClick={handleClick}
-                        onKeyDown={handleKeyDown}
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                        onTouchCancel={handleTouchCancel}
-                        onContextMenu={handleContextMenu}
-                        className={`content-html${staleClass}`}
-                    />,
-                    processedHtml,
-                );
-            }
-
-            case "text/djot": {
-                try {
-                    const djotContent = getContentString("\n");
-                    const processedDjotHtml = renderDjot(djotContent, {
-                        linkHandler: {
-                            className: "moo-link",
-                            dataAttribute: "data-url",
-                        },
-                        addTableClass: true,
-                        enableEmoji,
-                    });
-
-                    return wrapWithLinkHint(
-                        <span
-                            className={`text_djot content-html${staleClass}`}
-                            dangerouslySetInnerHTML={{ __html: processedDjotHtml }}
-                            onClick={handleClick}
-                            onKeyDown={handleKeyDown}
-                            onTouchStart={handleTouchStart}
-                            onTouchEnd={handleTouchEnd}
-                            onTouchCancel={handleTouchCancel}
-                            onContextMenu={handleContextMenu}
-                        />,
-                        processedDjotHtml,
-                    );
-                } catch (error) {
-                    console.warn("Failed to parse djot content:", error);
-                    return (
-                        <span className={`content-text${staleClass}`}>
-                            {content}
-                        </span>
-                    );
-                }
-            }
-
-            case "text/traceback": {
-                const tracebackContent = getContentString("\n");
-                return (
-                    <pre className={`traceback_narrative${staleClass}`}>
-                        {tracebackContent}
-                    </pre>
-                );
-            }
-
-            case "text/x-uri": {
-                const uri = getContentString("").trim();
-                const safeUri = normalizeEmbeddedUri(uri);
-                if (!safeUri) {
-                    return (
-                        <span className={`content-text${staleClass}`}>
-                            Embedded content was blocked because its URL is unsafe.
-                        </span>
-                    );
-                }
-                return (
-                    <iframe
-                        src={safeUri}
-                        className={`content-iframe${staleClass}`}
-                        title="Embedded content"
-                        sandbox="allow-scripts"
-                    />
-                );
-            }
-
-            case "text/plain":
-            default: {
-                const plainContent = getContentString("\n");
-                const renderedHtml = renderPlainText(plainContent, enableEmoji);
-
-                return wrapWithLinkHint(
-                    <span
-                        dangerouslySetInnerHTML={{ __html: renderedHtml }}
-                        onClick={handleClick}
-                        onKeyDown={handleKeyDown}
-                        className={`content-text${staleClass}`}
-                    />,
-                    renderedHtml,
-                );
-            }
-        }
-    }, [
-        contentType,
-        getContentString,
-        handleClick,
-        handleKeyDown,
-        handleTouchStart,
-        handleTouchEnd,
-        handleTouchCancel,
-        handleContextMenu,
-        content,
-        staleClass,
-        wrapWithLinkHint,
-        enableEmoji,
-    ]);
-
-    return <span ref={containerRef} className="content-renderer">{renderedContent}</span>;
+    if (contentType === "text/traceback") return <pre className={`traceback_narrative${staleClass}`}>{source}</pre>;
+    if (contentType === "text/x-uri") {
+        const uri = normalizeEmbeddedUri(source.trim());
+        return uri
+            ? <iframe src={uri} className="content-iframe" title="Embedded content" sandbox="allow-scripts" />
+            : <span className="content-text">Embedded content was blocked because its URL is unsafe.</span>;
+    }
+    return (
+        <span ref={container} className="content-renderer">
+            <span
+                className={`${contentType === "text/plain" ? "content-text" : "content-html"}${
+                    contentType === "text/djot" ? " text_djot" : ""
+                }${staleClass}`}
+                dangerouslySetInnerHTML={{ __html: html }}
+                onClick={activate}
+                onKeyDown={keyDown}
+            />
+        </span>
+    );
 };

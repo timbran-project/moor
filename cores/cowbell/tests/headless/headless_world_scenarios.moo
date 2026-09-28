@@ -346,73 +346,35 @@ object HEADLESS_WORLD_SCENARIOS
       recycle(room);
     endtry
   endmethod
-  method test_bound_exit_links owner: ARCH_WIZARD
-    "Bound exits survive looks and door updates but cannot redirect clicks from another room or a replacement.";
-    const who = player;
-    const prior_location = who.location;
+  method test_exit_command_annotations owner: ARCH_WIZARD
     const area = create($area, #90100, 2);
     const source = create($room, #90100, 2);
     const destination = create($room, #90100, 2);
-    const third = create($room, #90100, 2);
     try
-      for room in ({source, destination, third})
-        move(room, area);
-        for name in ({"enterfunc", "exitfunc", "announce"})
-          add_verb(room, {#90100, "rxd", name}, {"this", "none", "this"});
-          set_verb_code(room, name, {"return;"});
-        endfor
-      endfor
-      move(who, source);
+      move(source, area);
+      move(destination, area);
       const passage = $passage:mk(source, "east", {"e"}, "", false, destination, "west", {"w"}, "", false);
       area:set_passage(source, destination, passage);
-      area:set_passage(destination, third, $passage:mk(destination, "east", {}, "", false, third, "west", {}, "", false));
-      const link_id = area:passage_link_id(source, destination);
-      const url = source:exit_link("east");
-      $test_utils:assert_true(index(url, "moo://exit/") == 1, "link uses the bound exit scheme");
-      $test_utils:assert_eq(source:exit_link("e"), url, "aliases address the same registered passage");
-      source:look_self();
-      $test_utils:assert_eq(source:exit_link("east"), url, "looking again preserves the exit link");
-      const snapshot = source:room_snapshot(who);
-      $test_utils:assert_eq(snapshot["exit_links"][1]["url"], url, "HUD uses the same bound link");
-      $test_utils:assert_true(index($format.link:exit(source, "east"):to_djot(), url) > 0, "narrative formatter preserves binding");
-      $test_utils:assert_raises(E_PERM, this, "call_as_programmer", {source, "follow_exit", destination, link_id}, "exit RPC requires the task player's authority");
-      const forged = this:call_as_test_player(source, "follow_exit", destination, "not-the-passage-id");
-      $test_utils:assert_false(forged["moved"], "an arbitrary identity does not authorize movement");
-      const moved = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_true(moved["moved"], "bound traversal succeeds");
-      $test_utils:assert_eq(who.location, destination, "the bound destination is reached");
-      const repeated = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(repeated["moved"], "a repeated click cannot take the next room's east exit");
-      $test_utils:assert_eq(who.location, destination, "repeat preserves location");
-      move(who, source);
+      const descriptor = source:exit_annotation("east");
+      $test_utils:assert_eq(descriptor["command"], "go east", "Cowbell supplies the precise normal command");
+      $test_utils:assert_eq(descriptor["exit"]["source"], $url_utils:to_curie_str(source), "source is explicit");
+      $test_utils:assert_eq(descriptor["exit"]["destination"], $url_utils:to_curie_str(destination), "destination is explicit");
+      $test_utils:assert_eq(source:exit_annotation("e")["exit"], descriptor["exit"], "aliases describe the same passage");
+      const snapshot = source:room_snapshot(player);
+      $test_utils:assert_eq(snapshot["exit_links"][1]["annotation"], descriptor, "pinned room uses the same command descriptor");
       area:update_passage(source, destination, passage:with_open(false));
-      $test_utils:assert_eq(source:exit_link("east"), url, "closing preserves identity");
-      const closed = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(closed["moved"], "current closed state blocks an old link");
-      area:update_passage(source, destination, passage:with_locked(true));
-      const locked = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(locked["moved"], "current locked state blocks an old link");
-      area:update_passage(source, destination, passage);
-      const returned = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_true(returned["moved"], "returning to an open exit permits the original link");
-      move(who, source);
-      area:clear_passage(source, destination);
-      $test_utils:assert_eq(area:passage_link_id(source, destination), "", "removal discards the link identity");
+      $test_utils:assert_eq(source:exit_annotation("east"), descriptor, "door state does not change identity");
       area:set_passage(source, destination, passage);
-      $test_utils:assert_true(area:passage_link_id(source, destination) != link_id, "replacement has a new identity");
-      const replaced = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(replaced["moved"], "old identity cannot traverse a replacement");
-      $test_utils:assert_eq(who.location, source, "replacement rejection preserves location");
+      $test_utils:assert_true(source:exit_annotation("east")["exit"]["passage"] != descriptor["exit"]["passage"], "replacement has a new semantic identity");
     finally
-      move(who, prior_location);
       recycle(source);
       recycle(destination);
-      recycle(third);
       area:destroy();
     endtry
+    return true;
   endmethod
 
-  method test_bound_exit_rechecks_after_pre_exit_yield owner: ARCH_WIZARD
+  method test_travel_rechecks_after_pre_exit_yield owner: ARCH_WIZARD
     "A pre-exit callback cannot replace or close the checked passage before movement.";
     const who = player;
     const prior_location = who.location;
@@ -425,7 +387,6 @@ object HEADLESS_WORLD_SCENARIOS
       move(who, source);
       const passage = $passage:mk(source, "east", {}, "", false, destination, "west", {}, "", false);
       area:set_passage(source, destination, passage);
-      const link_id = area:passage_link_id(source, destination);
       add_property(source, "test_destination", destination, {#90100, "r"});
       add_verb(source, {#90100, "rxd", "notify_pre_exit"}, {"this", "none", "this"});
       set_verb_code(source, "notify_pre_exit", {
@@ -433,8 +394,8 @@ object HEADLESS_WORLD_SCENARIOS
         "const passage = area:passage_for(this, destination);",
         "area:update_passage(this, destination, passage:with_open(false)); suspend(0);"
       });
-      const closed = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(closed["moved"], "a close during callback prevents traversal");
+      const closed = this:call_as_test_player(area, "handle_passage_command", ['verb -> "go", 'dobjstr -> "east"]);
+      $test_utils:assert_false(closed, "a close during callback prevents traversal");
       $test_utils:assert_eq(who.location, source, "closing during callback preserves actor location");
       area:update_passage(source, destination, passage);
       set_verb_code(source, "notify_pre_exit", {
@@ -442,8 +403,8 @@ object HEADLESS_WORLD_SCENARIOS
         "const passage = area:passage_for(this, destination);",
         "area:set_passage(this, destination, passage); suspend(0);"
       });
-      const replaced = this:call_as_test_player(source, "follow_exit", destination, link_id);
-      $test_utils:assert_false(replaced["moved"], "replacement during callback prevents traversal");
+      const replaced = this:call_as_test_player(area, "handle_passage_command", ['verb -> "go", 'dobjstr -> "east"]);
+      $test_utils:assert_false(replaced, "replacement during callback prevents traversal");
       $test_utils:assert_eq(who.location, source, "replacement during callback preserves actor location");
     finally
       move(who, prior_location);
@@ -472,11 +433,18 @@ object HEADLESS_WORLD_SCENARIOS
       beta.name = "Copper token";
       add_verb(alpha, {player, "rd", "polish"}, {"this", "none", "none"});
       set_verb_code(alpha, "polish", {"raise(E_ASSERT, \"Suggestion executed a command\");"});
-      const filtered = player:suggestions("inventory", "token", "polish {input}");
+      const composer = player:command_input_context("polish ", "");
+      $test_utils:assert_eq(composer["source"]["context"]["template"], "polish {input}", "main composer context comes from the parser");
+      $test_utils:assert_eq(composer["before"], "polish ", "context preserves the exact raw prefix");
+      const middle = player:command_input_context("fit tok", "en with " + tostr(alpha));
+      $test_utils:assert_eq(middle["query"], "token", "cursor in a word identifies the whole argument");
+      $test_utils:assert_eq(middle["after"], " with " + tostr(alpha), "bound counterpart survives unchanged");
+      $test_utils:assert_eq(player:command_input_context("fit two  tok", "ens with " + tostr(alpha)), [], "normalized ranges are not guessed");
+      const filtered = player:suggestions("inventory", "token", $match:input_context("polish {input}"));
       $test_utils:assert_eq({row["value"] for row in (filtered["items"])}, {tostr(alpha)}, "argspec matcher excludes objects without the command");
-      $test_utils:assert_eq(player:suggestions("inventory", "token", "polish {input} with " + tostr(box))["items"], {}, "preposition mismatch is not suggested");
+      $test_utils:assert_eq(player:suggestions("inventory", "token", $match:input_context("polish {input} with " + tostr(box)))["items"], {}, "preposition mismatch is not suggested");
       $test_utils:assert_eq(player:suggestions("inventory", "COIN")["items"][1]["value"], tostr(alpha), "aliases match without case sensitivity");
-      const limited = player:suggestions("inventory", "token", "", 1);
+      const limited = player:suggestions("inventory", "token", [], 1);
       $test_utils:assert_eq(length(limited["items"]), 1, "limit bounds the response");
       $test_utils:assert_eq(limited["more"], true, "additional choices are indicated");
       const entries = $match:object_suggestions({alpha, {alpha, "scope alias"}});
@@ -484,10 +452,19 @@ object HEADLESS_WORLD_SCENARIOS
       $test_utils:assert_eq($match:rank_suggestions(entries, "scope alias", 12)["items"][1]["value"], tostr(alpha), "environment aliases survive duplicate entries");
       add_verb(alpha, {player, "rd", "fit"}, {"any", "with", "this"});
       set_verb_code(alpha, "fit", {"raise(E_ASSERT, \"Suggestion executed a command\");"});
-      $test_utils:assert_eq(player:suggestions("inventory", "token", "fit " + tostr(box) + " with {input}")["items"][1]["value"], tostr(alpha), "indirect argument slots use the same matcher");
+      $test_utils:assert_eq(player:suggestions("inventory", "token", $match:input_context("fit " + tostr(box) + " with {input}"))["items"][1]["value"], tostr(alpha), "indirect argument slots use the same matcher");
+      const partial_direct = $match:input_context("fit {dobj} with {iobj}", "dobj");
+      const partial_indirect = $match:input_context("fit {dobj} with {iobj}", "iobj");
+      $test_utils:assert_eq(length(player:suggestions("inventory", "token", partial_direct)["items"]), 2, "any direct argspec permits either candidate while receiver is unbound");
+      $test_utils:assert_eq({partial_row["value"] for partial_row in (player:suggestions("inventory", "token", partial_indirect)["items"])}, {tostr(alpha)}, "unbound direct argument does not erase the indirect this constraint");
+      const narrowed = $match:input_context("fit {dobj} with {iobj}", "dobj", ["iobj" -> tostr(beta)]);
+      $test_utils:assert_eq(player:suggestions("inventory", "", narrowed)["items"], {}, "binding an incompatible receiver invalidates dependent choices");
+      const beta_ref = $url_utils:to_curie_str(beta);
+      $test_utils:assert_true(player:suggestion_eligibility("inventory", {beta_ref})[beta_ref]["eligible"], "explicit eligibility checks the full scope, not the first ranked page");
       move(beta, box);
-      $test_utils:assert_eq(box:suggestions("contents", "", "get {input} from " + tostr(box))["items"][1]["value"], tostr(beta), "container scope can expand beyond ordinary nearby matches");
+      $test_utils:assert_eq(box:suggestions("contents", "", $match:input_context("get {input} from " + tostr(box)))["items"][1]["value"], tostr(beta), "container scope can expand beyond ordinary nearby matches");
       box.open = false;
+      $test_utils:assert_true(!box:suggestion_eligibility("contents", {beta_ref})[beta_ref]["eligible"], "closed content eligibility reveals no label");
       $test_utils:assert_eq(box:suggestions("contents", "")["items"], {}, "closed contents stay private");
       box.open = true;
       box.take_rule = $rule_engine:parse_expression("This owner_is(Accessor)?", 'owner_view);

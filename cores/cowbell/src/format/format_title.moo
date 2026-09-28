@@ -1,3 +1,5 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_TITLE [
   import_export_id -> "format_title",
   import_export_hierarchy -> {"format"}
@@ -18,29 +20,14 @@ object FORMAT_TITLE [
   endmethod
 
   method compose owner: HACKER
-    {render_for, content_type, event} = args;
-    pieces = {};
-    contents = flycontents(this);
-    for content in (contents)
-      composed = content:compose(@args);
-      "If composed result is a list (HTML mode), flatten it into pieces";
-      if (typeof(composed) == TYPE_LIST)
-        pieces = {@pieces, @composed};
-      else
-        pieces = {@pieces, composed};
-      endif
-    endfor
-    "Join without separator since content may already have spacing";
-    result = pieces:join("");
-    level = `this.level ! E_PROPNF => 2';
+    "Compose a heading while preserving inline annotations.";
+    const {render_for, content_type, event} = args;
+    const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
+    const level = this.level;
     if (content_type == 'text_html)
-      tag = "h" + tostr(level);
-      return <$html, {tag, {}, {result}}>;
-    elseif (content_type == 'text_djot)
-      prefix = "#":repeat(level);
-      return prefix + " " + result + "\n\n";
-    else
-      return result + "\n";
+      return $format:result(<$html, {"h" + tostr(level), {}, parts}>, annotations);
     endif
+    const body = content_type == 'text_djot ? "#":repeat(level) + " " + parts:join("") + "\n\n" | parts:join("") + "\n";
+    return $format:result(body, annotations);
   endmethod
 endobject

@@ -1,30 +1,16 @@
 // Copyright (C) 2026 The mooR Authors
 // SPDX-License-Identifier: GPL-3.0-or-later
 @wizard
-; #90108:set_passage(#90103, #90110, $passage:mk(#90103, "east", {"e"}, "", false, #90110, "west", {"w"}, "", false)); move(#90103, #90108); add_property(#90102, "exit_result", [], {#90102, "rc"}); add_verb(#90102, {#90102, "rd", "follow-bound-east follow-bound-west"}, {"none", "none", "none"}); set_verb_code(#90102, "follow-bound-east", {"const source = verb == \"follow-bound-west\" ? #90110 | #90103; const destination = verb == \"follow-bound-west\" ? #90103 | #90110; const result = source:follow_exit(destination, #90108:passage_link_id(source, destination)); this.exit_result = result;"}); return true;
-true
+; #90108:set_passage(#90103, #90110, $passage:mk(#90103, "east", {"e"}, "", true, #90110, "west", {"w"}, "", true)); move(#90103, #90108); return #90103:exit_annotation("east")["command"];
+"go east"
 @nonprogrammer
-% follow-bound-east
-@wizard
-; return #90102.exit_result["moved"] && #90102.location == #90110;
+% go east
+@programmer
+; return #90102.location == #90110;
 true
+@event text/plain narrative
 @nonprogrammer
-% look
-@event text/plain utility
-@event data:state room_snapshot
-% follow-bound-east
+@event text/plain narrative
 @wizard
-; return #90102.exit_result["message"] == "That exit is in another room." && #90102.location == #90110;
-true
-@nonprogrammer
-% follow-bound-west
-@wizard
-; return #90102.exit_result["moved"] && #90102.location == #90103;
-true
-@nonprogrammer
-% look
-@event text/plain utility
-@event data:state room_snapshot
-@wizard
-; return #90102.location == #90103;
+; return #90102.location == #90110 && #90110:exit_annotation("west")["command"] == "go west";
 true
