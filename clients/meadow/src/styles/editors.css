@@ -43,6 +43,8 @@
   padding: 0.65rem 0.9rem;
   border-bottom: 1px solid color-mix(in srgb, var(--color-border-light) 64%, transparent);
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
   justify-content: space-between;
   align-items: center;
   background: color-mix(in srgb, var(--color-bg-header) 72%, var(--color-bg-base));
@@ -63,12 +65,15 @@
   color: var(--color-text-primary);
   display: flex;
   align-items: baseline;
-  width: 100%;
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
   font-size: 1em;
   font-family: var(--font-sans);
 }
 
 .editor-title-label {
+  flex-shrink: 0;
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -96,8 +101,16 @@
 /* ====== EDITOR TOOLBAR ====== */
 .editor-toolbar {
   display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-sm);
+}
+
+.editor-toolbar > * {
+  flex-shrink: 0;
 }
 
 .editor-nav-group {
