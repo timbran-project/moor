@@ -111,13 +111,6 @@ impl SnapshotPlanes {
     pub(super) fn load_root(&self) -> Arc<WorldStateSnapshot> {
         self.root_state.load_full()
     }
-
-    pub(super) fn update_root<F>(&self, f: F)
-    where
-        F: FnMut(&Arc<WorldStateSnapshot>) -> Arc<WorldStateSnapshot>,
-    {
-        self.root_state.rcu(f);
-    }
 }
 
 /// Startup context for constructing a `WorldStateTransaction`.

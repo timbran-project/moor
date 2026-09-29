@@ -176,7 +176,10 @@ impl MoorDB {
             let _t = counters
                 .timers_hot
                 .start(WorldStateTimerOp::CommitCheckPhase);
-            if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
+            if let Err(error) = checkers.check_all(&mut relation_ws) {
+                let crate::tx::Error::Conflict(conflict_info) = error else {
+                    return Err(WorldStateError::DatabaseError(error.to_string()));
+                };
                 let conflict_info = enrich_conflict_info(&current_root, conflict_info);
                 trace!("Transaction conflict during commit: {conflict_info}");
                 return Ok(CommitResult::ConflictRetry {
