@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     model::{
-        CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropDefs, PropFlag, PropPerms,
+        CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropDefs, PropFlag, PropPerms,
         PropertySnapshot, VerbArgsSpec, VerbDef, VerbDefs, VerbFlag, WorldStateError,
     },
     util::BitEnum,
@@ -101,13 +101,10 @@ pub trait SnapshotInterface: Send {
         uuid: Uuid,
     ) -> Result<Vec<(Symbol, Var)>, WorldStateError>;
 
-    /// Returns all the property common from the root of the inheritance hierarchy down to the
-    /// bottom, for the given object.
-    #[allow(clippy::type_complexity)]
-    fn get_all_property_values(
-        &self,
-        objid: &Obj,
-    ) -> Result<Vec<(PropDef, (Option<Var>, PropPerms))>, WorldStateError>;
+    /// Read defined properties and local inherited rows without deriving values or permissions.
+    /// Inherited properties with no local value, permission row, or metadata are omitted.
+    fn get_property_snapshots(&self, objid: &Obj)
+    -> Result<Vec<PropertySnapshot>, WorldStateError>;
 }
 
 /// Interface exposed to be used by the textdump/objdef loader for loading data into the database.

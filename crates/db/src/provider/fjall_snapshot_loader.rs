@@ -915,42 +915,35 @@ impl SnapshotInterface for FjallSnapshotLoader {
         self.metadata_scan(|metadata_key| metadata_key.is_verb_key_for(*objid, uuid))
     }
 
-    #[allow(clippy::type_complexity)]
-    fn get_all_property_values(
-        &self,
-        this: &Obj,
-    ) -> Result<Vec<(PropDef, (Option<Var>, PropPerms))>, WorldStateError> {
-        // First get the entire inheritance hierarchy
-        let hierarchy = self.get_ancestors(this, true).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Failed to get ancestors for {this}: {e}"))
-        })?;
-
-        // Now get the property definitions for each of those objects, but only for the props which
-        // are defined by that object.
-        let mut properties = vec![];
-        for obj in hierarchy.iter() {
-            let obj_propdefs = self.get_properties(&obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!(
-                    "Failed to get properties for {obj} (in hierarchy of {this}): {e}"
-                ))
-            })?;
-            for p in obj_propdefs.iter() {
-                if p.definer() != obj {
+    fn get_property_snapshots(&self, this: &Obj) -> Result<Vec<PropertySnapshot>, WorldStateError> {
+        let hierarchy = self.get_ancestors(this, true)?;
+        let mut properties = Vec::new();
+        for ancestor in hierarchy.iter() {
+            for definition in self.get_properties(&ancestor)?.iter() {
+                if definition.definer() != ancestor {
                     continue;
                 }
-                match self.retrieve_property(this, p.uuid()) {
-                    Ok(value) => properties.push((p.clone(), value)),
-                    Err(WorldStateError::PropertyNotFound(_, _)) => continue,
-                    Err(e) => {
-                        return Err(WorldStateError::DatabaseError(format!(
-                            "Failed to retrieve property {} on {} (defined by {}): {}",
-                            p.name(),
-                            this,
-                            obj,
-                            e
-                        )));
-                    }
+                let uuid = definition.uuid();
+                let key = ObjAndUUIDHolder::new(this, uuid);
+                let value = self.get_property_value(&key)?;
+                let permissions = self.get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(
+                    &self.object_propflags_keyspace,
+                    &key,
+                )?;
+                let metadata = self.get_property_metadata(this, uuid)?;
+                if ancestor != *this
+                    && value.is_none()
+                    && permissions.is_none()
+                    && metadata.is_empty()
+                {
+                    continue;
                 }
+                properties.push(PropertySnapshot {
+                    definition,
+                    value,
+                    permissions,
+                    metadata,
+                });
             }
         }
         Ok(properties)

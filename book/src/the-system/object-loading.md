@@ -58,6 +58,11 @@ player.my_object_backup = dump_object($my_widget);
 write directly to the server's filesystem. A client or administration tool can save those lines as a
 `.moo` file.
 
+Dumps preserve explicit local property values even when they equal the parent's value, including
+case-only differences. Local permissions and property metadata are preserved independently of the
+value. A clear property continues to inherit its value after reimport; an explicit override remains
+local when the parent later changes.
+
 ### Loading Objects
 
 The `load_object` function recreates objects from their text definitions:

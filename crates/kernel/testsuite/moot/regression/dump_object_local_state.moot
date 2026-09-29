@@ -1,0 +1,32 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; return load_object({"object #9000", "parent: #-1", "owner: #3", "property title (owner: #3, flags: \"rw\") = \"Hello\";", "property case_value (owner: #3, flags: \"rw\") = \"Hello\";", "property annotated (owner: #3, flags: \"rc\") = 1;", "endobject"});
+#9000
+
+; return load_object({"object #9001", "parent: #9000", "owner: #3", "endobject"});
+#9001
+
+; #9001.title = "Hello"; #9001.case_value = "hello"; set_property_metadata(#9001, "annotated", "note", "local metadata");
+
+// Dump committed state, then import it onto a new child of the same parent.
+; add_property(#0, "dump_state", dump_object(#9001), {player, ""});
+
+; return load_object(#0.dump_state, [], #9002);
+#9002
+
+; #9000.title = "Changed"; #9000.case_value = "Changed"; #9000.annotated = 2;
+
+; return {#9002.title, #9002.case_value, is_clear_property(#9002, "title"), is_clear_property(#9002, "case_value"), #9002.annotated, is_clear_property(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
+{"Hello", "hello", 0, 0, 2, 1, "local metadata"}

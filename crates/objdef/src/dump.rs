@@ -13,9 +13,10 @@
 
 use crate::{import_export_hierarchy, import_export_id};
 use moor_common::model::{
-    HasUuid, Named, ObjFlag, PropFlag, ValSet,
+    HasUuid, Named, ObjFlag, ValSet,
     loader::{
-        SnapshotExportMetadata, SnapshotExportObject, SnapshotExportSession, SnapshotInterface,
+        SnapshotExportMetadata, SnapshotExportObject, SnapshotExportSession, SnapshotExportVerb,
+        SnapshotInterface,
     },
 };
 use moor_compiler::{ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition};
@@ -223,98 +224,40 @@ pub(crate) fn collect_export_object(
     Ok(definition)
 }
 
+/// Collect one snapshot object without discarding explicit local property state.
 pub fn collect_object(
     loader: &dyn SnapshotInterface,
     o: &Obj,
 ) -> Result<(usize, usize, usize, ObjectDefinition), ObjectDumpError> {
-    let mut num_verbdefs = 0;
-    let mut num_propdefs = 0;
-    let mut num_propoverrides = 0;
-
-    let obj_attrs = loader.get_object(o)?;
-
-    let mut od = ObjectDefinition {
+    let attrs = loader.get_object(o)?;
+    let mut object = SnapshotExportObject {
         oid: *o,
-        name: obj_attrs.name().unwrap_or("".to_string()),
-        parent: obj_attrs.parent().unwrap_or(NOTHING),
-        owner: obj_attrs.owner().unwrap_or(NOTHING),
-        location: obj_attrs.location().unwrap_or(NOTHING),
-        flags: obj_attrs.flags(),
+        name: attrs.name().unwrap_or_default(),
+        parent: attrs.parent().unwrap_or(NOTHING),
+        owner: attrs.owner().unwrap_or(NOTHING),
+        location: attrs.location().unwrap_or(NOTHING),
+        flags: attrs.flags(),
         metadata: loader.get_object_metadata(o)?,
-        verbs: vec![],
-        property_definitions: vec![],
-        property_overrides: vec![],
+        verbs: Vec::new(),
+        properties: loader.get_property_snapshots(o)?,
     };
-
-    let verbs = loader.get_object_verbs(o)?;
-    for v in verbs.iter() {
-        let binary = loader.get_verb_program(o, v.uuid())?;
-        let ov = ObjVerbDef {
-            names: v.names().to_vec(),
-            argspec: v.args(),
-            owner: v.owner(),
-            flags: v.flags(),
-            program: binary,
-            metadata: loader.get_verb_metadata(o, v.uuid())?,
-        };
-        od.verbs.push(ov);
-        num_verbdefs += 1;
+    for verb in loader.get_object_verbs(o)?.iter() {
+        object.verbs.push(SnapshotExportVerb {
+            names: verb.names().to_vec(),
+            argspec: verb.args(),
+            owner: verb.owner(),
+            flags: verb.flags(),
+            program: loader.get_verb_program(o, verb.uuid())?,
+            metadata: loader.get_verb_metadata(o, verb.uuid())?,
+        });
     }
-
-    let propdefs = loader.get_all_property_values(o)?;
-    for (p, (value, perms)) in propdefs.iter() {
-        if p.definer().eq(o) {
-            let pd = ObjPropDef {
-                name: p.name(),
-                perms: perms.clone(),
-                value: value.clone(),
-                metadata: loader.get_property_metadata(o, p.uuid())?,
-            };
-            od.property_definitions.push(pd);
-            num_propdefs += 1;
-        } else {
-            // We only need do a perms update if the perms actually different from the definer's
-            // So let's resolve the property to its parent and see if it's different
-            let mut perms_update = Some(perms.clone());
-            let mut override_value = value.clone();
-
-            if let Ok((definer_value, definer_perms)) =
-                loader.get_property_value(&p.definer(), p.uuid())
-            {
-                if perms.eq(&definer_perms)
-                    || definer_perms.flags().contains(PropFlag::Chown)
-                        && perms.owner() == obj_attrs.owner().unwrap_or(NOTHING)
-                {
-                    perms_update = None;
-                }
-
-                if value.eq(&definer_value) {
-                    override_value = None;
-                }
-            }
-
-            let metadata = loader.get_property_metadata(o, p.uuid())?;
-
-            // Just inheriting? Move on unless local metadata needs preserving.
-            if perms_update.is_none() && override_value.is_none() && metadata.is_empty() {
-                continue;
-            }
-
-            let ps = ObjPropOverride {
-                name: p.name(),
-                perms_update,
-                value: override_value,
-                metadata,
-            };
-            od.property_overrides.push(ps);
-            num_propoverrides += 1;
-        }
-    }
-
-    // Alphabetize properties. Verbs should remain in their original order.
-    od.property_definitions.sort_by_key(|a| a.name.as_arc_str());
-    od.property_overrides.sort_by_key(|a| a.name.as_arc_str());
-    Ok((num_verbdefs, num_propdefs, num_propoverrides, od))
+    let definition = collect_export_object(object)?;
+    Ok((
+        definition.verbs.len(),
+        definition.property_definitions.len(),
+        definition.property_overrides.len(),
+        definition,
+    ))
 }
 
 /// Extract the object->constant name mapping from object definitions.

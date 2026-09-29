@@ -252,3 +252,157 @@ fn collection_rejects_duplicate_missing_and_unreadable_targets() {
         })
     ));
 }
+
+#[test]
+fn single_object_dump_preserves_local_state_through_reimport() {
+    use crate::{collect_object, dump_object};
+    use std::collections::HashMap;
+
+    let db = database();
+    let mut world = db.new_world_state().unwrap();
+    for name in ["case", "permissions", "cleared", "inherited"] {
+        world
+            .define_property(
+                &permissions(ROOT),
+                &ROOT,
+                &ROOT,
+                Symbol::mk(name),
+                &ROOT,
+                BitEnum::new_with(PropFlag::Read) | PropFlag::Write,
+                Some(v_str("Hello")),
+            )
+            .unwrap();
+    }
+    for (name, value) in [
+        ("title", "Hello"),
+        ("case", "hello"),
+        ("cleared", "temporary"),
+    ] {
+        world
+            .update_property(&permissions(ROOT), &CHILD, Symbol::mk(name), &v_str(value))
+            .unwrap();
+    }
+    world
+        .clear_property(&permissions(ROOT), &CHILD, Symbol::mk("cleared"))
+        .unwrap();
+    world
+        .set_property_info(
+            &permissions(ROOT),
+            &CHILD,
+            Symbol::mk("permissions"),
+            PropAttrs {
+                flags: Some(BitEnum::new_with(PropFlag::Read) | PropFlag::Write),
+                ..PropAttrs::default()
+            },
+        )
+        .unwrap();
+    world
+        .set_property_metadata(
+            &permissions(ROOT),
+            &CHILD,
+            Symbol::mk("automatic_owner"),
+            Symbol::mk("doc"),
+            v_str("local metadata"),
+        )
+        .unwrap();
+    world.commit().unwrap();
+
+    let snapshot = db.create_snapshot().unwrap();
+    let (_, _, _, child) = collect_object(snapshot.as_ref(), &CHILD).unwrap();
+    let title = child
+        .property_overrides
+        .iter()
+        .find(|p| p.name == Symbol::mk("title"))
+        .expect("an explicit equal-valued override must survive dumping");
+    assert_eq!(title.value.as_ref().unwrap().as_string(), Some("Hello"));
+    assert!(title.perms_update.is_some());
+    let metadata = child
+        .property_overrides
+        .iter()
+        .find(|p| p.name == Symbol::mk("automatic_owner"))
+        .expect("holder metadata without a local permission row must survive dumping");
+    assert!(metadata.value.is_none());
+    assert!(metadata.perms_update.is_none());
+
+    let mut export = snapshot.begin_export(&[]).unwrap();
+    while let Some(record) = export.next_object().unwrap() {
+        let oid = record.oid;
+        let streamed = crate::dump::collect_export_object(record).unwrap();
+        let (_, _, _, point) = collect_object(snapshot.as_ref(), &oid).unwrap();
+        assert_eq!(
+            dump_object(&HashMap::new(), &point).unwrap(),
+            dump_object(&HashMap::new(), &streamed).unwrap()
+        );
+    }
+
+    let imported = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = imported.loader_client().unwrap();
+    for object in [ROOT, CHILD] {
+        let (_, _, _, definition) = collect_object(snapshot.as_ref(), &object).unwrap();
+        let lines = dump_object(&HashMap::new(), &definition).unwrap();
+        let source = lines
+            .iter()
+            .map(|line| line.as_string().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .load_single_object(&source, CompileOptions::default(), Default::default())
+            .unwrap();
+    }
+    loader.commit().unwrap();
+    let mut world = imported.new_world_state().unwrap();
+    for name in ["title", "case", "permissions", "cleared", "inherited"] {
+        world
+            .update_property(
+                &permissions(ROOT),
+                &ROOT,
+                Symbol::mk(name),
+                &v_str("Changed"),
+            )
+            .unwrap();
+    }
+    for (name, value) in [
+        ("title", "Hello"),
+        ("case", "hello"),
+        ("permissions", "Changed"),
+        ("cleared", "Changed"),
+        ("inherited", "Changed"),
+    ] {
+        assert_eq!(
+            world
+                .retrieve_property(&permissions(ROOT), &CHILD, Symbol::mk(name))
+                .unwrap()
+                .as_string(),
+            Some(value),
+            "{name}"
+        );
+    }
+    for name in ["title", "case", "permissions", "cleared"] {
+        let id = world
+            .get_property_info(&permissions(ROOT), &CHILD, Symbol::mk(name))
+            .unwrap()
+            .0
+            .uuid();
+        assert!(
+            world
+                .snapshot_property(&permissions(ROOT), &CHILD, id)
+                .unwrap()
+                .permissions
+                .is_some(),
+            "{name}"
+        );
+    }
+    let id = world
+        .get_property_info(&permissions(ROOT), &CHILD, Symbol::mk("automatic_owner"))
+        .unwrap()
+        .0
+        .uuid();
+    let state = world
+        .snapshot_property(&permissions(ROOT), &CHILD, id)
+        .unwrap();
+    assert!(state.permissions.is_none());
+    assert_eq!(
+        state.metadata,
+        [(Symbol::mk("doc"), v_str("local metadata"))]
+    );
+}
