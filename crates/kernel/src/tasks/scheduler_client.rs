@@ -942,7 +942,7 @@ mod tests {
         mpsc::Sender<()>,
         tempfile::TempDir,
     ) {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let mut world_state = database.new_world_state().unwrap();
         let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
         let system_object = world_state
@@ -988,7 +988,7 @@ mod tests {
         mpsc::Receiver<()>,
         mpsc::Sender<()>,
     ) {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let mut world_state = database.new_world_state().unwrap();
         let permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
         let system_object = world_state
@@ -1042,7 +1042,7 @@ mod tests {
 
     #[test]
     fn bounded_request_reports_scheduler_timeout() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),
@@ -1073,7 +1073,7 @@ mod tests {
 
     #[test]
     fn expired_submission_does_not_start_an_orphan_task() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),

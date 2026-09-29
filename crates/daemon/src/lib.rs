@@ -593,10 +593,8 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         configured_service_perf_cores = config.runtime.service_perf_cores,
         "Thread core reservations initialized"
     );
-    let (database, freshly_made) = TxDB::try_open(
-        Some(&paths.db_path),
-        config.database.clone().unwrap_or_default(),
-    )?;
+    let (database, freshly_made) =
+        TxDB::try_open_fjall(&paths.db_path, config.database.clone().unwrap_or_default())?;
     let database = Box::new(database);
     info!(path = ?paths.db_path, "Opened database");
 
