@@ -2016,7 +2016,7 @@ mod tests {
     /// Create a TxDB, populate it with a system object (wizard/programmer),
     /// optionally add verbs, and commit.
     fn setup_database(verbs: &[TestVerb]) -> TxDB {
-        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (db, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let mut tx = db.new_world_state().unwrap();
 
         let sysobj = tx
