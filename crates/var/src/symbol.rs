@@ -465,6 +465,12 @@ impl Symbol {
         self.as_arc_str_ref().as_str()
     }
 
+    /// Return the Unicode case-folded spelling for persistent, case-insensitive keys.
+    /// Equal symbols produce identical text, independent of interning order or original case.
+    pub fn to_folded_case(&self) -> String {
+        UniCase::new(self.as_str()).to_folded_case()
+    }
+
     /// Get cached string metadata for this symbol.
     /// Returns `(byte_len, char_len, is_ascii)`.
     #[inline]

@@ -137,12 +137,10 @@ pub struct ObjAndUUIDHolder {
     pub uuid: [u8; 16],
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, IntoBytes, FromBytes, Immutable)]
-#[repr(C)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EntityMetadataKey {
     obj: Obj,
     tag: u8,
-    _padding: [u8; 7],
     uuid: [u8; 16],
     key: Symbol,
 }
@@ -194,7 +192,6 @@ impl EntityMetadataKey {
         Self {
             obj,
             tag: Self::OBJECT,
-            _padding: [0; 7],
             uuid: [0; 16],
             key,
         }
@@ -204,7 +201,6 @@ impl EntityMetadataKey {
         Self {
             obj: holder,
             tag: Self::PROPERTY,
-            _padding: [0; 7],
             uuid: *uuid.as_bytes(),
             key,
         }
@@ -214,7 +210,6 @@ impl EntityMetadataKey {
         Self {
             obj: location,
             tag: Self::VERB,
-            _padding: [0; 7],
             uuid: *uuid.as_bytes(),
             key,
         }
@@ -398,8 +393,8 @@ impl ByteSized for EntityMetadataKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{EntityMetadataKey, ObjAndUUIDHolder};
-    use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
+    use crate::model::ObjAndUUIDHolder;
+    use moor_var::{Obj, SYSTEM_OBJECT};
     use std::hash::{Hash, Hasher};
     use uuid::Uuid;
     use zerocopy::{FromBytes, IntoBytes};
@@ -432,14 +427,6 @@ mod tests {
     fn object_uuid_keys_have_an_object_prefix() {
         let obj = Obj::mk_id(42);
         let key = ObjAndUUIDHolder::new(&obj, Uuid::new_v4());
-
-        assert!(key.as_bytes().starts_with(obj.as_bytes()));
-    }
-
-    #[test]
-    fn metadata_keys_have_an_object_prefix() {
-        let obj = Obj::mk_id(42);
-        let key = EntityMetadataKey::property(obj, Uuid::new_v4(), Symbol::mk("metadata"));
 
         assert!(key.as_bytes().starts_with(obj.as_bytes()));
     }

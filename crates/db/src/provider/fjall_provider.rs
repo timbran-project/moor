@@ -376,7 +376,7 @@ use moor_common::{
 };
 use moor_schema::convert::{encode_db_var, stored_to_program, var_from_db_flatbuffer_ref};
 use moor_schema::convert_program::encode_program_to_fb;
-use moor_var::{Obj, program::ProgramType};
+use moor_var::{Obj, Symbol, program::ProgramType};
 // Per-type encoding implementations
 // Each type can be encoded regardless of whether it's used as Domain or Codomain
 // We use a blanket impl for all FjallProvider<Domain, Codomain> combinations
@@ -429,13 +429,60 @@ macro_rules! impl_byteview_wrapper_encode {
 // Zerocopy types - direct byte access, no serialization overhead
 impl_zerocopy_encode!(Obj);
 impl_zerocopy_encode!(ObjAndUUIDHolder);
-impl_zerocopy_encode!(EntityMetadataKey);
 impl_zerocopy_encode!(AnonymousObjectMetadata);
 impl_zerocopy_encode!(BitEnum<ObjFlag>);
 
 // ByteView wrappers - zero-copy passthrough
 impl_byteview_wrapper_encode!(ObjSet);
 impl_byteview_wrapper_encode!(PropPerms);
+
+// Keep the object prefix in the same byte order as other relations for snapshot export.
+// Symbol IDs are process-local; the suffix stores their case-folded UTF-8 spelling.
+impl EncodeFor<EntityMetadataKey> for FjallCodec {
+    type Stored = ByteView;
+
+    fn encode(&self, value: &EntityMetadataKey) -> Result<Self::Stored, Error> {
+        use zerocopy::IntoBytes;
+
+        let name = value.key().to_folded_case();
+        let mut bytes = Vec::with_capacity(std::mem::size_of::<Obj>() + 17 + name.len());
+        bytes.extend_from_slice(value.obj().as_bytes());
+        let tag = if value.is_object() {
+            0
+        } else if value.is_property() {
+            1
+        } else if value.is_verb() {
+            2
+        } else {
+            return Err(Error::EncodingFailure);
+        };
+        bytes.push(tag);
+        bytes.extend_from_slice(value.uuid().unwrap_or_default().as_bytes());
+        bytes.extend_from_slice(name.as_bytes());
+        Ok(ByteView::from(bytes))
+    }
+
+    fn decode(&self, stored: Self::Stored) -> Result<EntityMetadataKey, Error> {
+        use zerocopy::FromBytes;
+
+        const OBJ_BYTES: usize = std::mem::size_of::<Obj>();
+        const HEADER_BYTES: usize = OBJ_BYTES + 17;
+        if stored.len() < HEADER_BYTES {
+            return Err(Error::EncodingFailure);
+        }
+        let obj = Obj::read_from_bytes(&stored[..OBJ_BYTES]).map_err(|_| Error::EncodingFailure)?;
+        let uuid = uuid::Uuid::from_slice(&stored[OBJ_BYTES + 1..HEADER_BYTES])
+            .map_err(|_| Error::EncodingFailure)?;
+        let name =
+            std::str::from_utf8(&stored[HEADER_BYTES..]).map_err(|_| Error::EncodingFailure)?;
+        match stored[OBJ_BYTES] {
+            0 if uuid.is_nil() => Ok(EntityMetadataKey::object(obj, Symbol::mk(name))),
+            1 => Ok(EntityMetadataKey::property(obj, uuid, Symbol::mk(name))),
+            2 => Ok(EntityMetadataKey::verb(obj, uuid, Symbol::mk(name))),
+            _ => Err(Error::EncodingFailure),
+        }
+    }
+}
 
 // Var - FlatBuffer encoding for DB storage (allows lambdas and anonymous objects)
 impl EncodeFor<Var> for FjallCodec {
@@ -698,6 +745,158 @@ mod tests {
     use crate::provider::Provider;
     use fjall::KeyspaceCreateOptions;
     use moor_var::v_str;
+
+    fn metadata_keys(variant: bool) -> Vec<EntityMetadataKey> {
+        let names = if variant {
+            ["RCS_ID", "STRASSE", "ς"]
+        } else {
+            ["rcs_id", "Straße", "σ"]
+        };
+        let obj = Obj::mk_id(7);
+        let uuid = uuid::Uuid::from_u128(42);
+        names
+            .into_iter()
+            .flat_map(|name| {
+                let name = Symbol::mk(name);
+                [
+                    EntityMetadataKey::object(obj, name),
+                    EntityMetadataKey::property(obj, uuid, name),
+                    EntityMetadataKey::verb(obj, uuid, name),
+                ]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn metadata_key_encoding_matches_symbol_equality() {
+        for (key, variant) in metadata_keys(false).into_iter().zip(metadata_keys(true)) {
+            assert_eq!(key, variant);
+            let encoded = FjallCodec.encode(&key).unwrap();
+            assert_eq!(encoded, FjallCodec.encode(&variant).unwrap());
+            let decoded: EntityMetadataKey = FjallCodec.decode(encoded).unwrap();
+            assert_eq!(decoded, key);
+        }
+    }
+
+    #[test]
+    fn metadata_key_encoding_preserves_object_prefix_and_entity_identity() {
+        use zerocopy::IntoBytes;
+
+        for obj in [Obj::mk_id(-1), Obj::mk_id(42), Obj::mk_uuobjid_generated()] {
+            let uuid = uuid::Uuid::new_v4();
+            let name = Symbol::mk("rcs_id");
+            let keys = [
+                EntityMetadataKey::object(obj, name),
+                EntityMetadataKey::property(obj, uuid, name),
+                EntityMetadataKey::verb(obj, uuid, name),
+            ];
+            let mut encoded_keys = std::collections::HashSet::new();
+            for key in keys {
+                let encoded = FjallCodec.encode(&key).unwrap();
+                assert!(encoded.starts_with(obj.as_bytes()));
+                assert!(encoded.ends_with(b"rcs_id"));
+                assert!(encoded_keys.insert(encoded.clone()));
+                let decoded: EntityMetadataKey = FjallCodec.decode(encoded).unwrap();
+                assert_eq!(decoded, key);
+            }
+        }
+    }
+
+    #[test]
+    fn metadata_key_decoder_rejects_malformed_keys() {
+        let key = EntityMetadataKey::object(Obj::mk_id(7), Symbol::mk("rcs_id"));
+        let encoded = FjallCodec.encode(&key).unwrap();
+        let decode = |bytes: Vec<u8>| {
+            <FjallCodec as EncodeFor<EntityMetadataKey>>::decode(&FjallCodec, bytes.into())
+        };
+        for len in 0..std::mem::size_of::<Obj>() + 17 {
+            assert!(decode(encoded[..len].to_vec()).is_err());
+        }
+        let mut invalid_tag = encoded.to_vec();
+        invalid_tag[std::mem::size_of::<Obj>()] = 3;
+        assert!(decode(invalid_tag).is_err());
+        let mut object_with_uuid = encoded.to_vec();
+        object_with_uuid[std::mem::size_of::<Obj>() + 1] = 1;
+        assert!(decode(object_with_uuid).is_err());
+        let mut invalid_utf8 = encoded.to_vec();
+        *invalid_utf8.last_mut().unwrap() = 0xff;
+        assert!(decode(invalid_utf8).is_err());
+    }
+
+    /// Each phase runs in a fresh process with a different symbol interning order.
+    #[test]
+    fn metadata_keys_survive_process_restart() {
+        const PHASE_ENV: &str = "MOOR_METADATA_KEY_TEST_PHASE";
+        const PATH_ENV: &str = "MOOR_METADATA_KEY_TEST_PATH";
+        let Ok(phase) = std::env::var(PHASE_ENV) else {
+            let directory = tempfile::tempdir().unwrap();
+            for phase in 0..4 {
+                let output = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "provider::fjall_provider::tests::metadata_keys_survive_process_restart",
+                        "--nocapture",
+                    ])
+                    .env(PHASE_ENV, phase.to_string())
+                    .env(PATH_ENV, directory.path())
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "metadata restart phase {phase} failed:\n{}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+            }
+            return;
+        };
+        let phase: usize = phase.parse().unwrap();
+        for index in 0..phase * 100 {
+            Symbol::mk(&format!("unrelated-{phase}-{index}"));
+        }
+        let database = fjall::Database::builder(std::env::var_os(PATH_ENV).unwrap())
+            .open()
+            .unwrap();
+        let partition = database
+            .keyspace("metadata", KeyspaceCreateOptions::default)
+            .unwrap();
+        let provider = FjallProvider::<EntityMetadataKey, Var>::new("metadata", partition);
+        let keys = metadata_keys(phase == 1 || phase == 3);
+        let initial = v_str("release:one");
+        let updated = v_str("release:two");
+        if phase == 0 {
+            for key in &keys {
+                provider.put(Timestamp(1), key, &initial).unwrap();
+            }
+            return;
+        }
+        let rows = provider.scan(&|_, _| true).unwrap();
+        if phase == 3 {
+            assert!(rows.is_empty());
+            for key in &keys {
+                assert_eq!(provider.get(key).unwrap(), None);
+            }
+            return;
+        }
+        assert_eq!(rows.len(), keys.len());
+        let expected = if phase == 1 { initial } else { updated.clone() };
+        for key in &keys {
+            assert_eq!(
+                provider.get(key).unwrap(),
+                Some((Timestamp(phase as u64), expected.clone()))
+            );
+            assert!(
+                rows.iter()
+                    .any(|(_, stored_key, value)| stored_key == key && value == &expected)
+            );
+            if phase == 1 {
+                provider.put(Timestamp(2), key, &updated).unwrap();
+            } else {
+                provider.del(Timestamp(3), key).unwrap();
+            }
+        }
+    }
 
     #[test]
     fn a_previous_miss_does_not_mask_a_later_value() {

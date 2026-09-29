@@ -13,9 +13,10 @@
 
 //! Fjall database-format marker handling.
 //!
-//! Database format 2.0 stores property values as bounded record chains. mooR accepts only an exact
-//! format match. An older database must be exported by a compatible server and imported into a
-//! fresh database.
+//! Database format 3.0 stores metadata keys with case-folded UTF-8 names and property values as
+//! bounded record chains. mooR accepts only an exact format match. Import a valid objdef export
+//! into a fresh database when changing formats; process-local metadata IDs cannot be recovered
+//! reliably after the process that interned them has exited.
 
 use fjall::KeyspaceCreateOptions;
 use semver::Version;
@@ -23,7 +24,7 @@ use std::path::Path;
 use tracing::info;
 
 /// Current database format version. This version is independent of the mooR release version.
-const CURRENT_DB_VERSION: &str = "2.0.0";
+const CURRENT_DB_VERSION: &str = "3.0.0";
 
 /// Database version marker key in sequences partition
 const VERSION_KEY: &[u8] = b"__db_version__";
@@ -108,10 +109,10 @@ mod tests {
     fn fresh_database_gets_current_format_marker() {
         let tmpdir = TempDir::new().unwrap();
         fjall_check_format(tmpdir.path()).unwrap();
-        assert_eq!(read_version(tmpdir.path()), "2.0.0");
+        assert_eq!(read_version(tmpdir.path()), "3.0.0");
 
         fjall_check_format(tmpdir.path()).unwrap();
-        assert_eq!(read_version(tmpdir.path()), "2.0.0");
+        assert_eq!(read_version(tmpdir.path()), "3.0.0");
     }
 
     #[test]
@@ -121,7 +122,7 @@ mod tests {
         assert!(!path.exists());
 
         fjall_check_format(&path).unwrap();
-        assert_eq!(read_version(&path), "2.0.0");
+        assert_eq!(read_version(&path), "3.0.0");
     }
 
     #[test]
@@ -132,13 +133,13 @@ mod tests {
         let sequences = database
             .keyspace("sequences", KeyspaceCreateOptions::default)
             .unwrap();
-        sequences.insert(VERSION_KEY, b"1.0.0").unwrap();
+        sequences.insert(VERSION_KEY, b"2.0.0").unwrap();
         drop(sequences);
         drop(database);
 
         let error = fjall_check_format(tmpdir.path()).unwrap_err();
         assert!(error.contains("export it with a compatible mooR version"));
-        assert_eq!(read_version(tmpdir.path()), "1.0.0");
+        assert_eq!(read_version(tmpdir.path()), "2.0.0");
     }
 
     #[test]
