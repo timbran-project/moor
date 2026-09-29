@@ -29,11 +29,11 @@ use crate::{
 };
 use moor_common::{
     model::{
-        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropPerms, ValSet, VerbArgsSpec,
-        VerbDefs, VerbFlag, WorldStateError,
+        HasUuid, ObjAttrs, ObjSet, ObjectRef, PropDef, PropDefs, PropPerms, PropertySnapshot,
+        ValSet, VerbArgsSpec, VerbDefs, VerbFlag, WorldStateError,
         loader::{
-            SnapshotExportMetadata, SnapshotExportObject, SnapshotExportProperty,
-            SnapshotExportSession, SnapshotExportVerb, SnapshotInterface,
+            SnapshotExportMetadata, SnapshotExportObject, SnapshotExportSession,
+            SnapshotExportVerb, SnapshotInterface,
         },
     },
     util::BitEnum,
@@ -779,7 +779,7 @@ fn collect_export_properties(
     metadata: &mut [(Uuid, Vec<(Symbol, Var)>)],
     uuid_scratch: &mut Vec<Uuid>,
     work: &mut ExportPropertyWork,
-) -> Result<Vec<SnapshotExportProperty>, WorldStateError> {
+) -> Result<Vec<PropertySnapshot>, WorldStateError> {
     let local_definitions = definitions.for_object(object);
     if !local_definitions.is_empty() {
         work.allocate_property_buffer();
@@ -797,7 +797,7 @@ fn collect_export_properties(
         })?;
         let mut entity_metadata = take_metadata(metadata, uuid);
         entity_metadata.sort_by_key(|(key, _)| key.as_string());
-        properties.push(SnapshotExportProperty {
+        properties.push(PropertySnapshot {
             definition: definition.clone(),
             value,
             permissions: Some(permission),
@@ -847,7 +847,7 @@ fn collect_export_properties(
         let permission = permissions.take(uuid);
         let mut entity_metadata = take_metadata(metadata, uuid);
         entity_metadata.sort_by_key(|(key, _)| key.as_string());
-        properties.push(SnapshotExportProperty {
+        properties.push(PropertySnapshot {
             definition: definition.clone(),
             value,
             permissions: permission,

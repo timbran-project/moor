@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::{
     model::{
         CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropDefs, PropFlag, PropPerms,
-        VerbArgsSpec, VerbDef, VerbDefs, VerbFlag, WorldStateError,
+        PropertySnapshot, VerbArgsSpec, VerbDef, VerbDefs, VerbFlag, WorldStateError,
     },
     util::BitEnum,
 };
@@ -32,17 +32,6 @@ pub struct SnapshotExportVerb {
     pub metadata: Vec<(Symbol, Var)>,
 }
 
-/// A property tuple as read by a sequential snapshot export.
-///
-/// `value` and `permissions` are local to the exported object. Permissions are always present for
-/// a property defined by that object and are optional for inherited properties.
-pub struct SnapshotExportProperty {
-    pub definition: PropDef,
-    pub value: Option<Var>,
-    pub permissions: Option<PropPerms>,
-    pub metadata: Vec<(Symbol, Var)>,
-}
-
 /// All persistent data needed to export one object.
 pub struct SnapshotExportObject {
     pub oid: Obj,
@@ -53,7 +42,7 @@ pub struct SnapshotExportObject {
     pub flags: BitEnum<ObjFlag>,
     pub metadata: Vec<(Symbol, Var)>,
     pub verbs: Vec<SnapshotExportVerb>,
-    pub properties: Vec<SnapshotExportProperty>,
+    pub properties: Vec<PropertySnapshot>,
 }
 
 /// Naming metadata retained across the two passes of a streaming export.

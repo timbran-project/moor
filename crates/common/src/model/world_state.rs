@@ -376,6 +376,16 @@ pub trait WorldState: Send {
         pname: Symbol,
     ) -> Result<(PropDef, PropPerms), WorldStateError>;
 
+    /// Read local value, permission-row presence, and metadata without resolving inherited values.
+    /// Resolves the UUID in this object's ancestry and requires property read permission using
+    /// its effective permissions. Missing bindings and denied access are errors, never clear state.
+    fn snapshot_property(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<crate::model::PropertySnapshot, WorldStateError>;
+
     /// Change the property info for the given property.
     fn set_property_info(
         &mut self,

@@ -638,6 +638,27 @@ impl WorldState for DbWorldState {
         Ok((pdef.clone(), propperms))
     }
 
+    fn snapshot_property(
+        &self,
+        permissions: &TaskPermissions,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<moor_common::model::PropertySnapshot, WorldStateError> {
+        if !self.valid(obj)? {
+            return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
+        }
+        let definition = self.get_tx().find_property_by_uuid(obj, uuid)?;
+        let effective_permissions = self.get_tx().retrieve_property_permissions(obj, uuid)?;
+        self.auth_context(permissions)?
+            .require(AuthRule::property_allows(
+                obj,
+                definition.name(),
+                &effective_permissions,
+                PropFlag::Read,
+            ))?;
+        self.get_tx().snapshot_property(obj, definition)
+    }
+
     fn set_property_info(
         &mut self,
         permissions: &TaskPermissions,

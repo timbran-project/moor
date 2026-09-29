@@ -15,6 +15,19 @@ use crate::util::{BitEnum, BitFlag};
 use byteview::ByteView;
 use moor_var::{ByteSized, Obj, Symbol, Var};
 
+/// Exact local state of a resolved property in one transaction.
+///
+/// An absent value means clear. An absent permissions row means permissions are derived from
+/// the definer (including chown behavior); an explicit equal-valued row remains present.
+/// Metadata belongs to this holder, not to the property's definer.
+#[derive(Debug, Clone)]
+pub struct PropertySnapshot {
+    pub definition: super::PropDef,
+    pub value: Option<Var>,
+    pub permissions: Option<PropPerms>,
+    pub metadata: Vec<(Symbol, Var)>,
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum PropFlag {

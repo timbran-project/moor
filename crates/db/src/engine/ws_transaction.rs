@@ -1765,6 +1765,31 @@ impl WorldStateTransaction {
         Ok(())
     }
 
+    /// Read local rows without synthesizing inherited permissions. The caller must validate the
+    /// property binding and authorize the read before exposing the result.
+    pub fn snapshot_property(
+        &self,
+        obj: &Obj,
+        definition: PropDef,
+    ) -> Result<moor_common::model::PropertySnapshot, WorldStateError> {
+        let holder = ObjAndUUIDHolder::new(obj, definition.uuid());
+        let value = self.object_propvalues.get(&holder).map_err(|e| {
+            WorldStateError::DatabaseError(format!("Error reading local property value: {e:?}"))
+        })?;
+        let permissions = self.object_propflags.get(&holder).map_err(|e| {
+            WorldStateError::DatabaseError(format!(
+                "Error reading local property permissions: {e:?}"
+            ))
+        })?;
+        let metadata = self.property_metadata(obj, definition.uuid())?;
+        Ok(moor_common::model::PropertySnapshot {
+            definition,
+            value,
+            permissions,
+            metadata,
+        })
+    }
+
     pub fn retrieve_property(
         &self,
         obj: &Obj,
@@ -1881,8 +1906,12 @@ impl WorldStateTransaction {
         Ok(final_perms)
     }
 
-    // Helper function to find property definition by UUID instead of name
-    fn find_property_by_uuid(&self, obj: &Obj, uuid: Uuid) -> Result<PropDef, WorldStateError> {
+    /// Resolve a property UUID in the current ancestry without reading its inherited value.
+    pub(crate) fn find_property_by_uuid(
+        &self,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<PropDef, WorldStateError> {
         // Walk up the ancestry chain looking for the property definition
         let ancestors = self.ancestors(obj, true)?;
         for ancestor in ancestors.iter() {

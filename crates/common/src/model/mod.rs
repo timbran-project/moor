@@ -17,7 +17,7 @@ pub use crate::model::{
     objects::{ObjAttr, ObjAttrs, ObjFlag, ObjectQuery, ObjectRef, obj_flags_string},
     objset::{ObjSet, ObjSetIter},
     propdef::{PropDef, PropDefs},
-    props::{PropAttr, PropAttrs, PropFlag, PropPerms, prop_flags_string},
+    props::{PropAttr, PropAttrs, PropFlag, PropPerms, PropertySnapshot, prop_flags_string},
     task_permissions::{CapabilityGrant, CapabilityGrants, TaskPermissions},
     verbdef::{ResolvedVerb, VerbDef, VerbDefs},
     verbs::{BinaryType, VerbAttr, VerbAttrs, VerbFlag, Vid, verb_perms_string},
