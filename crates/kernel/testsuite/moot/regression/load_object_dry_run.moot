@@ -1,0 +1,106 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; return load_object({"object #9000", "name: \"Parent\"", "parent: #-1", "owner: #3", "property inherited (owner: #3, flags: \"rc\") = 10;", "endobject"});
+#9000
+
+; return load_object({
+> "object #9001 [revision -> 1]",
+> "name: \"Original\"", "parent: #9000", "owner: #3", "readable: true",
+> "property value (owner: #3, flags: \"rc\") [revision -> 1] = 1;",
+> "verb test (this none this) owner: #3 flags: \"rxd\" [revision -> 1]",
+> "return 1;", "endverb", "endobject"});
+#9001
+
+; add_property(#0, "dry_run_source", {
+> "object #9001 [revision -> 2]",
+> "name: \"Incoming\"", "parent: #-1", "owner: #4", "location: #9000", "wizard: true",
+> "property value (owner: #4, flags: \"rw\") [revision -> 2] = 2;",
+> "property added (owner: #3, flags: \"rc\") = 20;",
+> "verb test (this none this) owner: #4 flags: \"rxd\" [revision -> 2]",
+> "return 2;", "endverb",
+> "verb added (this none this) owner: #3 flags: \"rxd\"",
+> "return 20;", "endverb", "endobject"}, {player, "rc"});
+
+// The call and earlier unrelated writes commit together. Inspect the next task's state.
+; #9001.value = 7; const result = load_object(#0.dry_run_source, ["conflict_mode" -> "detect"]);
+> let values = {};
+> for conflict in (result[2])
+>   if (conflict[2][1] == "property_value") values = {@values, conflict[2][3]}; endif
+> endfor
+> return {!result[1], values, result[3]};
+{1, {7}, {#9001}}
+
+; return {#9001.name, parent(#9001), #9001.owner, #9001.location, #9001.wizard, #9001.r, #9001.value, object_metadata(#9001, "revision"), property_metadata(#9001, "value", "revision"), verb_metadata(#9001, "test", "revision"), #9001:test(), properties(#9001), verbs(#9001)};
+{"Original", #9000, #3, #-1, 0, 1, 7, 1, 1, 1, 1, {"value"}, {"test"}}
+
+; return {property_info(#9001, "value"), verb_info(#9001, "test")};
+{{#3, "rc"}, {#3, "rxd", "test"}}
+
+// Explicit dry_run and selective overrides must also remain read-only.
+; const result = load_object(#0.dry_run_source, ["dry_run" -> true, "return_conflicts" -> true, "overrides" -> {{#9001, "object_flags"}}]); return {!result[1], length(result[2]) > 0};
+{1, 1}
+
+; return {#9001.value, #9001.wizard, object_metadata(#9001, "revision"), #9001:test()};
+{7, 0, 1, 1}
+
+// detect cannot be disabled by an explicit false dry_run option.
+; const result = load_object(#0.dry_run_source, ["conflict_mode" -> "detect", "dry_run" -> false, "return_conflicts" -> false]); return {!result[1], length(result[2]) > 0};
+{1, 1}
+
+; return {#9001.value, #9001.wizard};
+{7, 0}
+
+// Matching content still must not install metadata changes during a dry run.
+; return load_object({
+> "object #9001 [revision -> 3]", "name: \"Original\"", "parent: #9000", "owner: #3", "readable: true",
+> "property value (owner: #3, flags: \"rc\") [revision -> 3] = 7;",
+> "verb test (this none this) owner: #3 flags: \"rxd\" [revision -> 3]",
+> "return 1;", "endverb", "endobject"}, ["dry_run" -> true, "conflict_mode" -> "skip"]);
+#9001
+
+; return {object_metadata(#9001, "revision"), property_metadata(#9001, "value", "revision"), verb_metadata(#9001, "test", "revision")};
+{1, 1, 1}
+
+// Overrides and metadata on an inherited property must not be installed.
+; return load_object({"object #9001", "name: \"Original\"", "parent: #9000", "owner: #3", "override inherited [revision -> 2] = 99;", "endobject"}, ["dry_run" -> true]);
+#9001
+
+; return {#9001.inherited, is_clear_property(#9001, "inherited"), property_metadata(#9001, "inherited", "revision")};
+{10, 1, {}}
+
+// A fixed-ID preview must neither create an object nor advance the numeric sequence.
+; const before = max_object(); const result = load_object({"object #9002", "name: \"Preview\"", "parent: #-1", "owner: #3", "endobject"}, ["dry_run" -> true]); return {result, valid(#9002), max_object() == before};
+{#9002, 0, 1}
+
+; return valid(#9002);
+0
+
+// Allocating specs have no target until a real load: report NOTHING, without allocation.
+; const before = max_object(); let results = {}; for spec in ({0, 1, 2}) results = {@results, load_object(#0.dry_run_source, ["dry_run" -> true], spec)}; endfor return {results, max_object() == before};
+{{#-1, #-1, #-1}, 1}
+
+// Parse errors can be caught without losing prior writes or leaking preview changes.
+; #9001.value = 8; return `load_object({@#0.dry_run_source, "object"}, ["dry_run" -> true]) ! E_INVARG => "caught"';
+"caught"
+
+; return {#9001.value, object_metadata(#9001, "revision"), #9001:test()};
+{8, 1, 1}
+
+// A real load still applies the same definition after inspection.
+; return load_object(#0.dry_run_source);
+#9001
+
+; return {#9001.value, object_metadata(#9001, "revision"), property_metadata(#9001, "value", "revision"), verb_metadata(#9001, "test", "revision"), #9001:test(), #9001.added, #9001:added()};
+{2, 2, 2, 2, 2, 20, 20}

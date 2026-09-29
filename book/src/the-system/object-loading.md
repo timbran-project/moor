@@ -319,6 +319,16 @@ result = load_object(definition, [
 // Examine result[2] for conflict details
 ```
 
+Dry runs parse and compile the definition, then report conflicts against the current transaction,
+including edits made earlier in the same task. They do not change objects or metadata and do not
+reserve object IDs. Parent-change validation and other checks performed by database mutations still
+run only during a real load; a conflict report does not guarantee that a later load will succeed.
+
+For a fixed target, the result identifies that target even if it does not exist. With an allocating
+object kind (`0`, `1`, or `2`), the result uses `#-1` because no object was allocated. This also
+applies to the object list in a detailed result. `conflict_mode: detect` always enables dry-run
+behavior and returns conflict details, even if `dry_run` or `return_conflicts` is explicitly false.
+
 ### Selective Overrides
 
 **Option:** `overrides` **Type:** List of `{object, entity}` pairs **Default:** Empty list

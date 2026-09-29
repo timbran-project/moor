@@ -347,14 +347,14 @@ fn parse_obj_entity_pair(
 }
 
 /// Parse conflict mode from symbol
-fn parse_conflict_mode(mode_sym: Symbol) -> Result<(ConflictMode, bool, bool), BfErr> {
+fn parse_conflict_mode(mode_sym: Symbol) -> Result<(ConflictMode, bool), BfErr> {
     if mode_sym == *CLOBBER_SYM {
-        Ok((ConflictMode::Clobber, false, false))
+        Ok((ConflictMode::Clobber, false))
     } else if mode_sym == *SKIP_SYM {
-        Ok((ConflictMode::Skip, false, false))
+        Ok((ConflictMode::Skip, false))
     } else if mode_sym == *DETECT_SYM {
         // "detect" mode is essentially dry_run + return_conflicts
-        Ok((ConflictMode::Clobber, true, true))
+        Ok((ConflictMode::Clobber, true))
     } else {
         Err(BfErr::ErrValue(
             E_INVARG.msg("conflict_mode must be `clobber, `skip, or `detect"),
@@ -441,6 +441,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Extract options from the map using symbol constants
     let mut dry_run = false;
+    let mut detect_conflicts = false;
     let mut conflict_mode = ConflictMode::Clobber;
     let mut constants: Option<Constants> = None;
     let mut overrides = Vec::new();
@@ -457,14 +458,9 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
         if key_sym == *CONFLICT_MODE_SYM {
             let mode_sym = value.as_symbol().map_err(BfErr::ErrValue)?;
-            let (mode, dr, rc) = parse_conflict_mode(mode_sym)?;
+            let (mode, detect) = parse_conflict_mode(mode_sym)?;
             conflict_mode = mode;
-            if dr {
-                dry_run = true;
-            }
-            if rc {
-                return_conflicts = true;
-            }
+            detect_conflicts = detect;
             continue;
         }
 
@@ -525,6 +521,10 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Check permissions: wizard only (object creation with arbitrary properties/verbs)
     bf_args.require_wizard_or_builtin_call()?;
+
+    // Detection always stays read-only, regardless of option key ordering.
+    dry_run |= detect_conflicts;
+    return_conflicts |= detect_conflicts;
 
     // Create options object for the loader
     let loader_options = ObjDefLoaderOptions {

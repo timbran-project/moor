@@ -97,7 +97,8 @@ pub enum Entity {
 
 /// Options controlling objdef apply behavior.
 pub struct ObjDefLoaderOptions {
-    /// True if we're running in "dry-run" mode where we test, and collect conflicts.
+    /// Parse and collect conflicts against current state without allocating objects or writing.
+    /// Mutation-time validation, including parent changes, is performed only by a real load.
     pub dry_run: bool,
     /// How to handle conflicts.
     pub conflict_mode: ConflictMode,
@@ -144,11 +145,13 @@ pub enum ConflictEntity {
 /// Conflict entries identify the object and incoming entity that differed from existing state.
 #[derive(Debug)]
 pub struct ObjDefLoaderResults {
-    /// True if the caller should commit the transaction, otherwise it should be rolled back, either
-    /// because we have a critical error, or the loader was run in dry-run mode.
+    /// Whether the load applied changes. Dry runs leave the transaction unchanged, so callers may
+    /// still commit unrelated work when this is false.
     pub commit: bool,
     /// The set of conflicts discovered during loading, and handled using ConflictMode above
     pub conflicts: Vec<(Obj, ConflictEntity)>,
+    /// Loaded objects, or requested targets in dry-run mode. A dry run with an allocating
+    /// `ObjectKind` reports `NOTHING` because no object ID has been allocated.
     pub loaded_objects: Vec<Obj>,
     pub num_loaded_verbs: usize,
     pub num_loaded_property_definitions: usize,
@@ -324,7 +327,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         let objdef_set = ObjDefSet::parse_sources(&compile_options, Some(dirpath), None, sources)?;
         let constant_count = objdef_set.constants().len();
-        self.stage_objdef_set(objdef_set)?;
+        self.stage_objdef_set(objdef_set, &options)?;
 
         info!(
             directory = %dirpath.display(),
@@ -342,7 +345,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             self.object_definitions.len()
         );
         self.apply_attributes(&options)?;
-        self.apply_object_metadata()?;
+        self.apply_object_metadata(&options)?;
         info!("Defining {} properties...", num_loaded_property_definitions);
         self.define_properties(&options)?;
         info!(
@@ -354,7 +357,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.define_verbs(&options)?;
 
         // Create import_export_id metadata from constants when the input has no explicit IDs.
-        self.create_import_export_ids_if_needed()?;
+        if !options.dry_run {
+            self.create_import_export_ids_if_needed()?;
+        }
 
         Ok(ObjDefLoaderResults {
             commit: !options.dry_run,
@@ -399,10 +404,16 @@ impl<'a> ObjectDefinitionLoader<'a> {
     /// Placeholder creation keeps the existing import algorithm intact: all incoming objects exist
     /// before attributes, properties, and verbs are applied, so references inside the set can resolve
     /// during later phases.
-    fn stage_objdef_set(&mut self, objdef_set: ObjDefSet) -> Result<(), ObjdefLoaderError> {
+    fn stage_objdef_set(
+        &mut self,
+        objdef_set: ObjDefSet,
+        options: &ObjDefLoaderOptions,
+    ) -> Result<(), ObjdefLoaderError> {
         let (object_definitions, constants) = objdef_set.into_parts();
         self.object_definitions = object_definitions;
-        self.create_placeholder_objects()?;
+        if !options.dry_run {
+            self.create_placeholder_objects()?;
+        }
         self.parsed_constants = constants;
         Ok(())
     }
@@ -531,6 +542,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 if let Some(conflict) = conflict {
                     self.conflicts.push(conflict);
                 }
+                if options.dry_run {
+                    continue;
+                }
                 if should_proceed {
                     self.loader
                         .update_object_flags(obj, def.flags)
@@ -560,6 +574,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
             }
         }
 
+        if options.dry_run {
+            return Ok(());
+        }
+
         // Second phase: apply all the actions
         for (obj, kind, value, path) in attribute_actions {
             match kind {
@@ -583,7 +601,14 @@ impl<'a> ObjectDefinitionLoader<'a> {
         Ok(())
     }
 
-    fn apply_object_metadata(&mut self) -> Result<(), ObjdefLoaderError> {
+    fn apply_object_metadata(
+        &mut self,
+        options: &ObjDefLoaderOptions,
+    ) -> Result<(), ObjdefLoaderError> {
+        if options.dry_run {
+            return Ok(());
+        }
+
         for (obj, (path, def)) in &self.object_definitions {
             for (key, value) in &def.metadata {
                 self.loader
@@ -671,7 +696,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         };
                     }
 
-                    if should_proceed {
+                    if should_proceed && !options.dry_run {
                         // Use update_verb for existing verbs in Clobber mode
                         self.loader
                             .update_verb(
@@ -709,6 +734,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
                     verb_actions.push((*obj, v.clone(), path.clone()));
                 }
             }
+        }
+
+        if options.dry_run {
+            return Ok(());
         }
 
         // Second phase: apply all the verb actions
@@ -830,6 +859,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
                     create_actions.push((*obj, pd.clone(), path.clone()));
                 }
             }
+        }
+
+        if options.dry_run {
+            return Ok(());
         }
 
         // Apply create actions using define_property
@@ -961,6 +994,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
             }
         }
 
+        if options.dry_run {
+            return Ok(());
+        }
+
         // Second phase: apply all the override actions
         for (obj, prop_override, path) in override_actions {
             let pu = &prop_override.perms_update;
@@ -1047,7 +1084,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         };
 
         // Only create the object if it doesn't exist
-        let oid = if existing_obj.is_none() {
+        let oid = if options.dry_run {
+            expected_oid.unwrap_or(NOTHING)
+        } else if existing_obj.is_none() {
             self.loader
                 .create_object(
                     object_kind,
@@ -1077,7 +1116,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         // Use the conflict-aware methods instead of inline logic
         self.apply_attributes(&options)?;
-        self.apply_object_metadata()?;
+        self.apply_object_metadata(&options)?;
         self.define_properties(&options)?;
         self.set_properties(&options)?;
         self.define_verbs(&options)?;
@@ -1266,7 +1305,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         };
 
         self.apply_attributes(&apply_options)?;
-        self.apply_object_metadata()?;
+        self.apply_object_metadata(&apply_options)?;
         self.define_properties(&apply_options)?;
         self.set_properties(&apply_options)?;
         self.define_verbs(&apply_options)?;

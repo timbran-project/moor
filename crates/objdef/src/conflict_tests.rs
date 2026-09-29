@@ -430,8 +430,8 @@ mod tests {
         // Should recommend not to commit
         assert!(!_results.commit);
 
-        // Don't commit (as recommended)
-        // Verify nothing changed
+        // A caller may commit other work in the same transaction after a dry run.
+        loader.commit()?;
         let ws = db.new_world_state()?;
         let desc = ws.retrieve_property(
             &system_permissions(),
@@ -443,6 +443,79 @@ mod tests {
         assert_eq!(desc, v_str("initial value"));
         assert!(!flags.contains(ObjFlag::Wizard));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_directory_dry_run_does_not_create_objects_or_naming_metadata()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let db = setup_objects()?;
+        let sources = tempfile::tempdir()?;
+        std::fs::write(
+            sources.path().join("constants.moo"),
+            "define ROOT = #1; define NEW_OBJECT = #10;",
+        )?;
+        std::fs::write(
+            sources.path().join("objects.moo"),
+            r#"
+            object ROOT [revision -> 2]
+                name: "Incoming"
+                parent: #-1
+                owner: #0
+                wizard: true
+                override description = "incoming value";
+            endobject
+            object NEW_OBJECT [revision -> 2]
+                name: "New object"
+                parent: ROOT
+                owner: #0
+                property added (owner: #0, flags: "rc") = 42;
+                verb added (this none this) owner: #0 flags: "rxd"
+                    return 42;
+                endverb
+            endobject
+            "#,
+        )?;
+
+        for conflict_mode in [ConflictMode::Clobber, ConflictMode::Skip] {
+            let mut loader = db.loader_client()?;
+            let max_object = loader.max_object()?;
+            let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
+            let results = parser.load_objdef_directory(
+                CompileOptions::default(),
+                sources.path(),
+                ObjDefLoaderOptions {
+                    dry_run: true,
+                    conflict_mode,
+                    ..ObjDefLoaderOptions::default()
+                },
+            )?;
+            assert!(!results.commit);
+            assert!(!results.conflicts.is_empty());
+            assert_eq!(loader.max_object()?, max_object);
+            assert!(!loader.object_exists(&Obj::mk_id(10))?);
+            loader.commit()?;
+
+            let ws = db.new_world_state()?;
+            assert_eq!(
+                ws.retrieve_property(
+                    &system_permissions(),
+                    &Obj::mk_id(1),
+                    Symbol::mk("description"),
+                )?,
+                v_str("initial value")
+            );
+            for key in ["revision", "import_export_id"] {
+                assert_eq!(
+                    ws.get_object_metadata(
+                        &system_permissions(),
+                        &Obj::mk_id(1),
+                        Symbol::mk(key),
+                    )?,
+                    None
+                );
+            }
+        }
         Ok(())
     }
 
