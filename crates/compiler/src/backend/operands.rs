@@ -244,6 +244,7 @@ impl ProgramOperandParts {
         line_number_spans: Vec<(usize, usize)>,
     ) -> Program {
         Program(Arc::new(PrgInner {
+            lambda_entry_scope_count: 0,
             literals: self.literals,
             jump_labels,
             var_names,

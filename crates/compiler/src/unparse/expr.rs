@@ -391,6 +391,7 @@ impl<'a> Unparse<'a> {
                 params,
                 body,
                 self_name,
+                ..
             } => {
                 if let Some(name) = self_name {
                     let name = self.unparse_variable(name);

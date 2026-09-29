@@ -219,6 +219,8 @@ pub enum Expr {
     },
     Return(Option<Box<Expr>>),
     Lambda {
+        /// Lexical scopes present before the lambda body starts, including its parameter scope.
+        entry_scope_count: u16,
         params: Vec<ScatterItem>,
         body: Box<Stmt>,
         self_name: Option<Variable>, // For recursive lambdas, the variable to assign self to
@@ -355,11 +357,13 @@ pub fn assert_exprs_match(e1: &Expr, e2: &Expr) {
                 params: p1,
                 body: b1,
                 self_name: s1,
+                ..
             },
             Expr::Lambda {
                 params: p2,
                 body: b2,
                 self_name: s2,
+                ..
             },
         ) => {
             assert_eq!(p1, p2, "Lambda params mismatch");
@@ -1036,6 +1040,7 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
                     params,
                     body,
                     self_name,
+                    ..
                 } => {
                     let self_name = self_name
                         .as_ref()
@@ -1217,11 +1222,7 @@ pub trait AstVisitor {
                     self.visit_expr(expr);
                 }
             }
-            Expr::Lambda {
-                params,
-                body,
-                self_name: _,
-            } => {
+            Expr::Lambda { params, body, .. } => {
                 // For lambda parameters, we visit them but they don't count as "captures"
                 for param in params {
                     if let Some(default_expr) = &param.expr {

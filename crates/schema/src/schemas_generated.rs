@@ -117863,6 +117863,8 @@ mod root {
             /// The field `source_declarations` in the table `StoredMooRProgram`
             pub source_declarations:
                 ::core::option::Option<::planus::alloc::boxed::Box<self::SourceDeclarations>>,
+            /// The field `lambda_entry_scope_count` in the table `StoredMooRProgram`
+            pub lambda_entry_scope_count: u16,
         }
 
         #[allow(clippy::derivable_impls)]
@@ -117890,6 +117892,7 @@ mod root {
                     main_max_scope_depth: 0,
                     fork_max_scope_depths: ::core::default::Default::default(),
                     source_declarations: ::core::default::Default::default(),
+                    lambda_entry_scope_count: 0,
                 }
             }
         }
@@ -117951,6 +117954,7 @@ mod root {
                 field_source_declarations: impl ::planus::WriteAsOptional<
                     ::planus::Offset<self::SourceDeclarations>,
                 >,
+                field_lambda_entry_scope_count: impl ::planus::WriteAsDefault<u16, u16>,
             ) -> ::planus::Offset<Self> {
                 let prepared_version = field_version.prepare(builder, &0);
                 let prepared_builtin_signature = field_builtin_signature.prepare(builder, &0);
@@ -117973,8 +117977,10 @@ mod root {
                 let prepared_main_max_scope_depth = field_main_max_scope_depth.prepare(builder, &0);
                 let prepared_fork_max_scope_depths = field_fork_max_scope_depths.prepare(builder);
                 let prepared_source_declarations = field_source_declarations.prepare(builder);
+                let prepared_lambda_entry_scope_count =
+                    field_lambda_entry_scope_count.prepare(builder, &0);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<46> =
+                let mut table_writer: ::planus::table_writer::TableWriter<48> =
                     ::core::default::Default::default();
                 if prepared_builtin_signature.is_some() {
                     table_writer.write_entry::<u64>(1);
@@ -118025,6 +118031,9 @@ mod root {
                 if prepared_version.is_some() {
                     table_writer.write_entry::<u16>(0);
                 }
+                if prepared_lambda_entry_scope_count.is_some() {
+                    table_writer.write_entry::<u16>(21);
+                }
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
@@ -118074,6 +118083,11 @@ mod root {
                         }
                         if let ::core::option::Option::Some(prepared_version) = prepared_version {
                             object_writer.write::<_, _, 2>(&prepared_version);
+                        }
+                        if let ::core::option::Option::Some(prepared_lambda_entry_scope_count) =
+                            prepared_lambda_entry_scope_count
+                        {
+                            object_writer.write::<_, _, 2>(&prepared_lambda_entry_scope_count);
                         }
                     });
                 }
@@ -118134,6 +118148,7 @@ mod root {
                     self.main_max_scope_depth,
                     &self.fork_max_scope_depths,
                     &self.source_declarations,
+                    self.lambda_entry_scope_count,
                 )
             }
         }
@@ -119068,6 +119083,150 @@ mod root {
                 T20,
             )>
         {
+            /// Setter for the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn lambda_entry_scope_count<T21>(
+                self,
+                value: T21,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+            )>
+            where
+                T21: ::planus::WriteAsDefault<u16, u16>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                    v20,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, v20, value,
+                ))
+            }
+
+            /// Sets the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn lambda_entry_scope_count_as_default(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                ::planus::DefaultValue,
+            )> {
+                self.lambda_entry_scope_count(::planus::DefaultValue)
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+            T20,
+            T21,
+        >
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+            )>
+        {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredMooRProgram].
             #[inline]
             pub fn finish(
@@ -119103,6 +119262,7 @@ mod root {
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAs<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -119126,6 +119286,7 @@ mod root {
                 T18,
                 T19,
                 T20,
+                T21,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -119161,6 +119322,7 @@ mod root {
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAsOptional<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -119184,6 +119346,7 @@ mod root {
                 T18,
                 T19,
                 T20,
+                T21,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -119219,6 +119382,7 @@ mod root {
             T18: ::planus::WriteAsDefault<u64, u64>,
             T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
             T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAsOffset<StoredMooRProgram>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -119242,6 +119406,7 @@ mod root {
                 T18,
                 T19,
                 T20,
+                T21,
             )>
         {
             #[inline]
@@ -119271,10 +119436,11 @@ mod root {
                     v18,
                     v19,
                     v20,
+                    v21,
                 ) = &self.0;
                 StoredMooRProgram::create(
                     builder, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15,
-                    v16, v17, v18, v19, v20,
+                    v16, v17, v18, v19, v20, v21,
                 )
             }
         }
@@ -119490,6 +119656,16 @@ mod root {
                 self.0
                     .access(20, "StoredMooRProgram", "source_declarations")
             }
+
+            /// Getter for the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count).
+            #[inline]
+            pub fn lambda_entry_scope_count(&self) -> ::planus::Result<u16> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(21, "StoredMooRProgram", "lambda_entry_scope_count")?
+                        .unwrap_or(0),
+                )
+            }
         }
 
         impl<'a> ::core::fmt::Debug for StoredMooRProgramRef<'a> {
@@ -119528,6 +119704,7 @@ mod root {
                 {
                     f.field("source_declarations", &field_source_declarations);
                 }
+                f.field("lambda_entry_scope_count", &self.lambda_entry_scope_count());
                 f.finish()
             }
         }
@@ -119586,6 +119763,9 @@ mod root {
                     } else {
                         ::core::option::Option::None
                     },
+                    lambda_entry_scope_count: ::core::convert::TryInto::try_into(
+                        value.lambda_entry_scope_count()?,
+                    )?,
                 })
             }
         }
@@ -119666,7 +119846,7 @@ mod root {
         /// The union `StoredProgramLanguage` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:267`
+        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:270`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum StoredProgramLanguage {
             /// The variant of type `StoredMooRProgram` in the union `StoredProgramLanguage`
@@ -119819,7 +119999,7 @@ mod root {
         /// The table `StoredProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredProgram` in the file `moor_program.fbs:273`
+        /// * Table `StoredProgram` in the file `moor_program.fbs:276`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredProgram {
             /// The field `language` in the table `StoredProgram`
@@ -120056,7 +120236,7 @@ mod root {
         /// The table `LineSpan` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `LineSpan` in the file `moor_program.fbs:277`
+        /// * Table `LineSpan` in the file `moor_program.fbs:280`
         #[derive(
             Clone,
             Debug,
@@ -120359,7 +120539,7 @@ mod root {
         /// The table `ForkLineSpans` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkLineSpans` in the file `moor_program.fbs:282`
+        /// * Table `ForkLineSpans` in the file `moor_program.fbs:285`
         #[derive(
             Clone,
             Debug,

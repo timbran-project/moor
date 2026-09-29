@@ -261,6 +261,9 @@ table StoredMooRProgram {
 
     // Absent for programs compiled without exact declaration sites.
     source_declarations: SourceDeclarations;
+
+    // Scopes present at lambda entry, including its parameter scope; zero if unspecified.
+    lambda_entry_scope_count: ushort;
 }
 
 // Union for different program language implementations

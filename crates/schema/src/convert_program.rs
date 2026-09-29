@@ -50,7 +50,7 @@ use triomphe::Arc;
 
 const MIN_SUPPORTED_STORED_PROGRAM_VERSION: u16 = 3;
 const STORED_PROGRAM_VERSION_WITH_STACK_DEPTHS: u16 = 4;
-const STORED_PROGRAM_VERSION: u16 = 5;
+const STORED_PROGRAM_VERSION: u16 = 6;
 
 define_enum_mapping! {
     DeclarationKind <=> fb::DeclarationKind {
@@ -356,6 +356,7 @@ fn encode_moor_program(program: &Program) -> Result<fb::StoredMooRProgram, Encod
     // Build the FlatBuffer struct
     Ok(fb::StoredMooRProgram {
         version: STORED_PROGRAM_VERSION,
+        lambda_entry_scope_count: program.0.lambda_entry_scope_count,
         builtin_signature,
         main_vector,
         fork_vectors,
@@ -764,7 +765,15 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
         .map(|declarations| decode_source_declarations(declarations, &main_vector, &fork_vectors))
         .transpose()?;
 
+    let lambda_entry_scope_count = fb_decode!(fb_prog_ref, lambda_entry_scope_count);
+    if lambda_entry_scope_count == 1 || lambda_entry_scope_count > 256 {
+        return Err(DecodeError::DecodeFailed(
+            "invalid lambda entry scope count".to_string(),
+        ));
+    }
+
     let program = Program(Arc::new(PrgInner {
+        lambda_entry_scope_count,
         literals,
         jump_labels,
         var_names,
@@ -1176,6 +1185,7 @@ mod tests {
 
     fn test_program() -> Program {
         Program(Arc::new(PrgInner {
+            lambda_entry_scope_count: 0,
             literals: Vec::new(),
             jump_labels: Vec::new(),
             var_names: Names::new(0),
@@ -1216,6 +1226,26 @@ mod tests {
             }]],
         });
         program
+    }
+
+    #[test]
+    fn stored_program_preserves_lambda_entry_scopes() {
+        let mut program = test_program();
+        let mut lambda = test_program();
+        Arc::make_mut(&mut lambda.0).lambda_entry_scope_count = 4;
+        Arc::make_mut(&mut program.0).lambda_programs.push(lambda);
+        let restored = stored_to_program(&program_to_stored(&program).unwrap()).unwrap();
+        assert_eq!(restored, program);
+        assert_eq!(restored.0.lambda_programs[0].0.lambda_entry_scope_count, 4);
+    }
+
+    #[test]
+    fn stored_program_rejects_invalid_lambda_entry_scopes() {
+        for count in [1, 257, u16::MAX] {
+            let mut program = test_program();
+            Arc::make_mut(&mut program.0).lambda_entry_scope_count = count;
+            assert!(stored_to_program(&program_to_stored(&program).unwrap()).is_err());
+        }
     }
 
     #[test]

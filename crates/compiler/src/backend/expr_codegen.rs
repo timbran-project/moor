@@ -447,11 +447,12 @@ impl CodegenState {
                 self.push_stack(1);
             }
             Expr::Lambda {
+                entry_scope_count,
                 params,
                 body,
                 self_name,
             } => {
-                self.compile_lambda_body(params, body)?;
+                self.compile_lambda_body(params, body, *entry_scope_count)?;
                 if let Some(var) = self_name {
                     let self_var_name = self.find_name(var);
                     if let Some(Op::MakeLambda {

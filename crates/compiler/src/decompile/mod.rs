@@ -1608,6 +1608,7 @@ impl Decompile {
             } => {
                 // Retrieve lambda program and scatter specification
                 let lambda_program = self.program.lambda_program(program_offset);
+                let entry_scope_count = lambda_program.0.lambda_entry_scope_count;
                 let scatter_spec = self.program.scatter_table(scatter_offset).clone();
 
                 // Decompile lambda body from standalone Program
@@ -1621,6 +1622,7 @@ impl Decompile {
                     .and_then(|name| self.program.var_names().find_variable(&name).cloned());
 
                 self.push_expr(Expr::Lambda {
+                    entry_scope_count,
                     params,
                     body: Box::new(lambda_body),
                     self_name,

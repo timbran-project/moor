@@ -142,6 +142,67 @@ mod tests {
     }
 
     #[test]
+    fn nested_parameterless_lambda_scope_layout() {
+        use moor_schema::convert::{program_to_stored, stored_to_program};
+
+        let sources = [
+            "let make = fn () let inner = fn () let x = 42; return x; endfn; return inner(); endfn; return make();",
+            "begin let f = fn () let x = 42; return x; endfn; return f(); end",
+            "begin let unused = 1; end begin let f = fn () let x = 42; return x; endfn; return f(); end",
+            "let make = fn () return fn () let x = 42; return x; endfn; endfn; let inner = make(); return inner();",
+            "let make = fn () let middle = fn () let inner = fn () let x = 42; return x; endfn; return inner(); endfn; return middle(); endfn; return make();",
+            "let base = 40; let make = fn () let inner = fn () let x = base + 2; return x; endfn; return inner(); endfn; return make();",
+            "fn make() fn inner() let x = 42; return x; endfn return inner(); endfn return make();",
+        ];
+        for source in sources {
+            assert_eq!(run_moo(source).unwrap(), v_int(42), "{source}");
+            let program = compile(source, CompileOptions::default()).unwrap();
+            let stored = program_to_stored(&program).unwrap();
+            let loaded = stored_to_program(&stored).unwrap();
+            assert_eq!(loaded, program);
+            let db = test_db_with_verb("test", &loaded);
+            let result = call_verb(
+                db.new_world_state().unwrap(),
+                Arc::new(NoopClientSession::new()),
+                BuiltinRegistry::new(),
+                "test",
+                List::mk_list(&[]),
+            );
+            assert_eq!(result.unwrap(), v_int(42), "stored: {source}");
+        }
+    }
+
+    #[test]
+    fn stored_parameterless_closure_preserves_scope_layout() {
+        use moor_schema::convert::{encode_db_var, var_from_db_flatbuffer_ref};
+        use planus::ReadAsRoot;
+
+        let value = run_moo(
+            "let make = fn () return fn () let x = 42; return x; endfn; endfn; return make();",
+        )
+        .unwrap();
+        assert!(value.as_lambda().unwrap().0.captured_env.is_empty());
+        let mut builder = planus::Builder::new();
+        let bytes = encode_db_var(&mut builder, &value).unwrap();
+        let stored = moor_schema::var::VarRef::read_as_root(bytes).unwrap();
+        let loaded = var_from_db_flatbuffer_ref(stored).unwrap();
+        assert_eq!(
+            loaded
+                .as_lambda()
+                .unwrap()
+                .0
+                .body
+                .0
+                .lambda_entry_scope_count,
+            4
+        );
+        assert_eq!(
+            run_moo_with_args("return args[1]();", List::mk_list(&[loaded])).unwrap(),
+            v_int(42)
+        );
+    }
+
+    #[test]
     fn test_fromliteral_parses_value() {
         let program = "return fromliteral(args[1]);";
         let literal = r#"{1, "two", #-1, E_INVARG}"#;

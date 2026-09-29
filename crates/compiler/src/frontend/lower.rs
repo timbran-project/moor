@@ -495,6 +495,7 @@ impl<'a> Lowerer<'a> {
         )?;
 
         self.enter_scope();
+        let entry_scope_count = self.names.scopes.len() as u16;
         let params = self.lower_lambda_params(self.require_node(
             stmt.params(),
             stmt.syntax().text_range(),
@@ -528,6 +529,7 @@ impl<'a> Lowerer<'a> {
             .names
             .declare_or_use_name(name_token.text(), DeclType::Let);
         let lambda_expr = Expr::Lambda {
+            entry_scope_count,
             params,
             body,
             self_name: Some(id),
@@ -761,6 +763,7 @@ impl<'a> Lowerer<'a> {
 
     fn lower_lambda_expr(&mut self, expr: LambdaExpr) -> Result<Expr, CompileError> {
         self.enter_scope();
+        let entry_scope_count = self.names.scopes.len() as u16;
         let params = self.lower_lambda_params(expr.params().ok_or_else(|| {
             self.make_parse_error(
                 expr.syntax().text_range(),
@@ -778,6 +781,7 @@ impl<'a> Lowerer<'a> {
             let num_body_bindings = self.exit_scope();
             let _ = self.exit_scope();
             return Ok(Expr::Lambda {
+                entry_scope_count,
                 params,
                 body: Box::new(Stmt::new(
                     StmtNode::Scope {
@@ -812,6 +816,7 @@ impl<'a> Lowerer<'a> {
             self.line_col(expr.syntax().text_range()),
         );
         Ok(Expr::Lambda {
+            entry_scope_count,
             params,
             body: Box::new(return_stmt),
             self_name: None,

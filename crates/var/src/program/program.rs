@@ -98,6 +98,9 @@ pub struct PrgInner {
     pub fork_line_number_spans: Vec<Vec<(usize, usize)>>,
     /// None means the program predates explicit declaration-site metadata.
     pub source_declarations: Option<SourceDeclarations>,
+    /// Scopes present at lambda entry, including the parameter scope.
+    /// Zero for ordinary programs or programs compiled without this metadata.
+    pub lambda_entry_scope_count: u16,
 }
 impl Program {
     pub fn new() -> Self {
@@ -121,6 +124,7 @@ impl Program {
             line_number_spans: vec![],
             fork_line_number_spans: vec![],
             source_declarations: Some(SourceDeclarations::default()),
+            lambda_entry_scope_count: 0,
         }))
     }
 

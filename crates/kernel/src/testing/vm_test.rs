@@ -42,6 +42,7 @@ mod tests {
 
     fn mk_program(main_vector: Vec<Op>, literals: Vec<Var>, var_names: Names) -> Program {
         Program(TArc::new(PrgInner {
+            lambda_entry_scope_count: 0,
             literals,
             jump_labels: vec![],
             var_names,

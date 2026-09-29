@@ -197,6 +197,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
+  their bodies access local bindings ([#554](https://github.com/timbran-project/moor/issues/554)).
+  Stored program format 6 retains the entry layout; affected older programs need recompilation.
 - Preserve JSON `null` values as `$nothing` (`#-1`) across `parse_json()` and `generate_json()`
 - Handle failures while renewing a task transaction after commit without retrying or
   double-committing tasks in `suspend(0)`, immediate `task_recv()`, `commit()`, and fork dispatch

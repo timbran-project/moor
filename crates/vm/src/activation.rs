@@ -447,23 +447,13 @@ impl Activation {
             }
         }
 
-        // Ensure enough scopes exist for nested lambda execution.
-        //
-        // At compile time, each lambda gets TWO scopes:
-        //   - Parameter isolation scope (prevents param names colliding with outer vars)
-        //   - Body scope (for let bindings, created by BeginScope in bytecode)
-        //
-        // For nested lambdas, captured variables may reference high scope depths (0, 2, 4, ...)
-        // while the captured_env only contains entries for those specific depths. We need to
-        // ensure scopes exist up to (max_captured_depth + 1) so that BeginScope can create
-        // the body scope at the next level.
-        //
-        // Example: If captured vars are at scopes 0 and 2, we need scopes 0, 1, 2, 3 to exist,
-        // and BeginScope will create scope 4 for the lambda body.
-        let max_captured_depth = lambda.0.captured_env.len().saturating_sub(1);
-
-        // Ensure we have scopes 0 through (max_captured_depth + 1) for param isolation
-        let required_scopes = max_captured_depth + 2;
+        // Empty enclosing scopes still determine the absolute depth of body bindings.
+        let required_scopes = if lambda.0.body.0.lambda_entry_scope_count != 0 {
+            usize::from(lambda.0.body.0.lambda_entry_scope_count)
+        } else {
+            // Stored programs without entry-layout metadata use capture-based sizing.
+            lambda.0.captured_env.len().saturating_sub(1) + 2
+        };
         while temp_env.len() < required_scopes {
             temp_env.push(vec![]);
         }

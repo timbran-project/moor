@@ -28,6 +28,7 @@ impl CodegenState {
         &mut self,
         params: &[ScatterItem],
         body: &Stmt,
+        entry_scope_count: u16,
     ) -> Result<(), CompileError> {
         let base_line_offset = body.line_col.0;
         let outer_scope_depth = self.control.lambda_scope_depth();
@@ -101,7 +102,7 @@ impl CodegenState {
             )
         }
 
-        let lambda_program = self
+        let mut lambda_program = self
             .operands
             .take_program_parts(std::mem::take(&mut self.declaration_sites))
             .build_program(
@@ -112,6 +113,8 @@ impl CodegenState {
                 lambda_max_scope_depth,
                 std::mem::take(&mut self.line_number_spans),
             );
+
+        triomphe::Arc::make_mut(&mut lambda_program.0).lambda_entry_scope_count = entry_scope_count;
 
         self.emitter.replace_ops(stashed_ops);
         self.var_names = stashed_var_names;

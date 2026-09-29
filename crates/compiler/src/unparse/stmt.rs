@@ -224,6 +224,7 @@ impl<'a> Unparse<'a> {
                     params,
                     body,
                     self_name: Some(name),
+                    ..
                 } = right.as_ref()
                 else {
                     let var_name = self.unparse_variable(var);
@@ -260,6 +261,7 @@ impl<'a> Unparse<'a> {
                     params,
                     body,
                     self_name: Some(name),
+                    ..
                 } = expr.as_ref()
                 else {
                     let prefix = if *is_const { "const " } else { "let " };
