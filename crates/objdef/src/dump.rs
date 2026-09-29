@@ -161,9 +161,9 @@ fn collect_object_definitions_with_point_reads(
     Ok(object_defs)
 }
 
-fn collect_export_object(
+pub(crate) fn collect_export_object(
     object: SnapshotExportObject,
-) -> Result<ObjectDefinition, ObjectDumpError> {
+) -> Result<ObjectDefinition, moor_common::model::WorldStateError> {
     let mut definition = ObjectDefinition {
         oid: object.oid,
         name: object.name,
@@ -196,8 +196,7 @@ fn collect_export_object(
                     "Canonical property permissions not found on definer {} for property {}",
                     object.oid,
                     property.definition.uuid()
-                ))
-                .into());
+                )));
             };
             definition.property_definitions.push(ObjPropDef {
                 name,

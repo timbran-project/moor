@@ -13,6 +13,7 @@
 
 #![recursion_limit = "256"]
 
+mod collect;
 mod dump;
 mod load;
 mod set;
@@ -36,6 +37,8 @@ fn import_export_hierarchy() -> Symbol {
 }
 
 #[cfg(test)]
+mod collect_tests;
+#[cfg(test)]
 mod conflict_tests;
 
 use moor_common::model::{CompileError, WorldStateError};
@@ -43,6 +46,7 @@ use moor_compiler::ObjDefParseError;
 use moor_var::Obj;
 use std::{io, path::PathBuf};
 
+pub use collect::{ObjectCollectionError, collect_object_definitions};
 pub use dump::{
     ObjectDumpStats, collect_index_names, collect_object, dump_object,
     dump_snapshot_object_definitions,
