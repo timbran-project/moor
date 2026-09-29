@@ -220,7 +220,10 @@ impl<'a> Unparse<'a> {
                 Ok(())
             }
             Expr::Prop { location, property } => {
-                if is_system_object(location) && is_literal_name(property) {
+                if self.comparison_literals.is_none()
+                    && is_system_object(location)
+                    && is_literal_name(property)
+                {
                     write!(writer, "$")?;
                     write_literal_name(property, writer)?;
                     return Ok(());
@@ -245,7 +248,10 @@ impl<'a> Unparse<'a> {
                 verb,
                 args,
             } => {
-                if is_system_object(location) && is_system_verb_name(verb) {
+                if self.comparison_literals.is_none()
+                    && is_system_object(location)
+                    && is_system_verb_name(verb)
+                {
                     write!(writer, "$")?;
                     write_system_verb_name(self, verb, writer)?;
                     write!(writer, "(")?;
@@ -435,7 +441,7 @@ fn write_member_access<W: std::fmt::Write>(
     expr: &Expr,
     writer: &mut W,
 ) -> Result<(), DecompileError> {
-    if try_write_name(expr, writer)? {
+    if unparse.comparison_literals.is_none() && try_write_name(expr, writer)? {
         return Ok(());
     }
     write!(writer, "(")?;

@@ -23,6 +23,7 @@ use crate::{
 use base64::{Engine, engine::general_purpose};
 use moor_common::util::{write_i64_decimal, write_quoted_str};
 use moor_var::{Lambda, Obj, Var, Variant, program::opcode::ScatterLabel};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -33,6 +34,7 @@ pub(crate) struct Unparse<'a> {
     fully_paren: bool,
     indent_width: usize,
     name_subs: Option<&'a HashMap<Obj, String>>,
+    comparison_literals: Option<RefCell<Vec<Var>>>,
 }
 
 const INDENT_LEVEL: usize = 2;
@@ -45,6 +47,7 @@ impl<'a> Unparse<'a> {
             fully_paren,
             indent_width,
             name_subs: None,
+            comparison_literals: None,
         }
     }
 
@@ -143,6 +146,12 @@ impl<'a> Unparse<'a> {
         indent_depth: usize,
         writer: &mut W,
     ) -> Result<(), DecompileError> {
+        if let Some(literals) = &self.comparison_literals {
+            let mut literals = literals.borrow_mut();
+            write!(writer, "<literal {}>", literals.len())?;
+            literals.push(value.clone());
+            return Ok(());
+        }
         let Some(name_subs) = self.name_subs else {
             return write_literal(value, writer);
         };
@@ -284,6 +293,20 @@ pub fn unparse(
 
     unparse.unparse_stmts(&tree.stmts, &mut buffer, 0)?;
     Ok(buffer.lines().map(|s| s.to_string()).collect())
+}
+
+/// Render program structure with numbered placeholders and a separate literal table.
+///
+/// This is comparison input, not executable source or a versioned serialization. Separating
+/// literals lets callers compare exact typed values and bind object references without changing
+/// quoted strings. Member-access sugar is disabled so it cannot hide object or name literals.
+pub fn unparse_for_comparison(tree: &Parse) -> Result<(String, Vec<Var>), DecompileError> {
+    let mut unparse = Unparse::new(tree, true, false);
+    unparse.comparison_literals = Some(RefCell::new(Vec::new()));
+    let mut buffer = String::new();
+    unparse.unparse_stmts(&tree.stmts, &mut buffer, 0)?;
+    let literals = unparse.comparison_literals.unwrap().into_inner();
+    Ok((buffer, literals))
 }
 
 /// Walk a syntax tree and annotate each statement with line number that corresponds to what would
@@ -618,6 +641,63 @@ mod tests {
     use pretty_assertions::assert_eq;
     use test_case::test_case;
     use unindent::unindent;
+
+    fn comparison(source: &str) -> (String, Vec<Var>) {
+        let tree = parse_program_frontend(source, CompileOptions::default()).unwrap();
+        unparse_for_comparison(&tree).unwrap()
+    }
+
+    #[test]
+    fn comparison_separates_layout_structure_and_exact_literals() {
+        let a = comparison("return 1 + 2;");
+        assert_eq!(a, comparison("return    1+2 ;"));
+        let b = comparison("return 1 - 2;");
+        assert_ne!(a.0, b.0);
+        assert_eq!(a.1, b.1);
+
+        let (upper_shape, upper) = comparison(r#"return "Hello";"#);
+        let (lower_shape, lower) = comparison(r#"return "hello";"#);
+        assert_eq!(upper_shape, lower_shape);
+        // MOO equality folds string case, so inspect literal contents directly.
+        assert_eq!(upper[0].as_string(), Some("Hello"));
+        assert_eq!(lower[0].as_string(), Some("hello"));
+        let (int_shape, ints) = comparison("return 1;");
+        let (float_shape, floats) = comparison("return 1.0;");
+        assert_eq!(int_shape, float_shape);
+        assert!(matches!(ints[0].variant(), Variant::Int(1)));
+        assert!(
+            matches!(floats[0].variant(), Variant::Float(v) if v.to_bits() == 1.0f64.to_bits())
+        );
+    }
+
+    #[test]
+    fn comparison_exposes_member_and_system_reference_literals() {
+        let source = r##"return {#12.foo, #12:bar(), $baz, $qux(), "#12.foo"};"##;
+        let tree = parse_program_frontend(source, CompileOptions::default()).unwrap();
+        let original = unparse(&tree, false, true).unwrap();
+        let (shape, literals) = unparse_for_comparison(&tree).unwrap();
+        assert!(!shape.contains("foo"));
+        assert!(!shape.contains("$baz"));
+        let objects: Vec<_> = literals.iter().filter_map(|v| v.as_object()).collect();
+        assert_eq!(
+            objects,
+            [Obj::mk_id(12), Obj::mk_id(12), Obj::mk_id(0), Obj::mk_id(0)]
+        );
+        let strings: Vec<_> = literals.iter().filter_map(|v| v.as_string()).collect();
+        assert_eq!(strings, ["foo", "bar", "baz", "qux", "#12.foo"]);
+        assert_eq!(unparse(&tree, false, true).unwrap(), original);
+        assert_eq!(comparison("return $baz;"), comparison("return #0.baz;"));
+    }
+
+    #[test]
+    fn comparison_preserves_repeated_literal_occurrences() {
+        let (shape, literals) = comparison(r#"notify(player, "same"); return "same";"#);
+        assert_eq!(literals.len(), 2);
+        assert_eq!(literals[0].as_string(), Some("same"));
+        assert_eq!(literals[1].as_string(), Some("same"));
+        assert!(shape.contains("<literal 0>"));
+        assert!(shape.contains("<literal 1>"));
+    }
 
     #[test_case("a = 1;\n"; "assignment")]
     #[test_case("a = 1 + 2;\n"; "assignment with expr")]
