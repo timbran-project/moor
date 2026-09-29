@@ -27,6 +27,7 @@ function createMessage(id: string, content: string, opts: {
     eventMetadata?: {
         verb?: string;
         dobjName?: string;
+        collapseTitle?: string;
     };
 } = {}) {
     return {
@@ -106,6 +107,7 @@ describe("OutputWindow screen reader announcements", () => {
                 eventMetadata: {
                     verb: "look",
                     dobjName: "The Anteroom",
+                    collapseTitle: "The Anteroom",
                 },
             }),
             createMessage("3", "You arrive from the south."),
@@ -131,7 +133,7 @@ describe("OutputWindow screen reader announcements", () => {
                 presentationHint: "inset",
                 groupId: "room-1",
                 contentType: "text/djot",
-                eventMetadata: { verb: "look", dobjName: "Anteroom" },
+                eventMetadata: { verb: "look", dobjName: "Anteroom", collapseTitle: "Anteroom" },
             }),
             createMessage("3", "You arrive from the south."),
             createMessage("4", "You head south."),
@@ -139,7 +141,7 @@ describe("OutputWindow screen reader announcements", () => {
                 presentationHint: "inset",
                 groupId: "room-2",
                 contentType: "text/djot",
-                eventMetadata: { verb: "look", dobjName: "The First Room" },
+                eventMetadata: { verb: "look", dobjName: "The First Room", collapseTitle: "The First Room" },
             }),
             createMessage("6", "You arrive from the north."),
         ];
@@ -222,7 +224,7 @@ describe("OutputWindow screen reader announcements", () => {
             presentationHint: "inset",
             groupId: "room-1",
             contentType: "text/djot",
-            eventMetadata: { verb: "look", dobjName: "Anteroom" },
+            eventMetadata: { verb: "look", dobjName: "Anteroom", collapseTitle: "Anteroom" },
         }));
         await act(async () => {
             rerender(<OutputWindow messages={[...messages]} />);
@@ -298,4 +300,48 @@ describe("OutputWindow exit annotations", () => {
         fireEvent.click(container.querySelector("[data-moor-annotation=\"a1\"]")!);
         expect(activate).toHaveBeenCalledWith(expect.objectContaining({ annotation }));
     });
+});
+
+describe("Metadata-driven inset collapse", () => {
+    it.each([false, true])("collapses and expands help output (grouped: %s)", grouped => {
+        sessionStorage.clear();
+        const options = {
+            presentationHint: "inset",
+            groupId: "help:player",
+            eventMetadata: { verb: "info", collapseTitle: "Help" },
+        };
+        const messages = [createMessage("help-summary", "Help topics and commands", options)];
+        if (grouped) messages.push(createMessage("help-more", "More commands", options));
+        const { container } = renderOutputWindow(messages);
+        expect(container.querySelector(".inset_collapsed_summary")).toBeNull();
+        fireEvent.click(container.querySelector(".inset_toggle_button")!);
+        expect(container.querySelector(".inset_collapsed_name")?.textContent).toBe("Help");
+        expect(container.querySelector(".sr-only")?.textContent).toContain("Help topics and commands");
+        fireEvent.click(container.querySelector(".inset_toggle_button")!);
+        expect(container.querySelector(".inset_collapsed_summary")).toBeNull();
+        expect(container.querySelector(".inset_toggle_row")?.textContent).toContain("Help topics and commands");
+        sessionStorage.clear();
+    });
+});
+
+it("requires explicit collapse metadata and does not require a group", () => {
+    sessionStorage.clear();
+    const { container } = renderOutputWindow([
+        createMessage("plain-help", "Help without a collapse title", {
+            presentationHint: "inset",
+            eventMetadata: { verb: "help" },
+        }),
+        createMessage("plain-look", "Look without a collapse title", {
+            presentationHint: "inset",
+            eventMetadata: { verb: "look", dobjName: "Room" },
+        }),
+        createMessage("custom", "An authored report", {
+            presentationHint: "inset",
+            eventMetadata: { collapseTitle: "Report" },
+        }),
+    ]);
+    expect(container.querySelectorAll(".inset_toggle_button")).toHaveLength(1);
+    fireEvent.click(container.querySelector(".inset_toggle_button")!);
+    expect(container.querySelector(".inset_collapsed_name")?.textContent).toBe("Report");
+    sessionStorage.clear();
 });

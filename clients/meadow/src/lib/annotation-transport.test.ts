@@ -57,7 +57,13 @@ function notification() {
     EventMetadata.startEventMetadata(b);
     EventMetadata.addKey(b, key);
     EventMetadata.addValue(b, table);
-    const metadata = NotifyEvent.createMetadataVector(b, [EventMetadata.endEventMetadata(b)]);
+    const annotations = EventMetadata.endEventMetadata(b);
+    const titleKey = FbSymbol.createSymbol(b, b.createString("collapse_title"));
+    const title = string("Help");
+    EventMetadata.startEventMetadata(b);
+    EventMetadata.addKey(b, titleKey);
+    EventMetadata.addValue(b, title);
+    const metadata = NotifyEvent.createMetadataVector(b, [annotations, EventMetadata.endEventMetadata(b)]);
     const value = string("You picked up [Compass]{annotation=a1}.");
     const contentType = FbSymbol.createSymbol(b, b.createString("text_djot"));
     NotifyEvent.startNotifyEvent(b);
@@ -93,6 +99,7 @@ it("retains nested annotation metadata through live FlatBuffers and encrypted hi
     expect(live?.kind).toBe("notify");
     if (live?.kind !== "notify") throw new Error("notify missing");
     expect(live.eventMeta?.annotations).toEqual({ a1: { kind: "object", ref: "oid:47" } });
+    expect(live.eventMeta?.collapseTitle).toBe("Help");
     const identity = await generateIdentity();
     const encrypter = new Encrypter();
     encrypter.addRecipient(await identityToRecipient(identity));
@@ -103,4 +110,5 @@ it("retains nested annotation metadata through live FlatBuffers and encrypted hi
     if (history?.kind !== "notify") throw new Error("history missing");
     expect(history.annotations).toEqual(live.eventMeta?.annotations);
     expect(history.content).toEqual(live.content);
+    expect(history.collapseTitle).toBe("Help");
 });

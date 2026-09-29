@@ -72,6 +72,7 @@ export interface ParsedNarrativeEventEnvelope {
 
 export interface ParsedHistoricalNotifyEvent {
     annotations?: AnnotationTable;
+    collapseTitle?: string;
     kind: "notify";
     content: unknown;
     contentType: "text/plain" | "text/djot" | "text/html";
@@ -155,6 +156,7 @@ export function parseHistoricalNarrativeEvent(
             }
 
             let annotations: AnnotationTable | undefined;
+            let collapseTitle: string | undefined;
             let presentationHint: string | undefined;
             let groupId: string | undefined;
             let deliveryId: string | undefined;
@@ -175,6 +177,8 @@ export function parseHistoricalNarrativeEvent(
                     annotations = decodeAnnotations(decoded);
                 } else if (keyValue === "presentation_hint" && typeof decoded === "string") {
                     presentationHint = decoded;
+                } else if (keyValue === "collapse_title" && typeof decoded === "string" && decoded.trim()) {
+                    collapseTitle = decoded;
                 } else if (keyValue === "group_id" && typeof decoded === "string") {
                     groupId = decoded;
                 } else if (keyValue === "delivery_id" && typeof decoded === "string") {
@@ -194,6 +198,7 @@ export function parseHistoricalNarrativeEvent(
             return {
                 kind: "notify",
                 annotations,
+                collapseTitle,
                 content: decodeVarToJs(value),
                 contentType: normalizeContentType(notify.contentType()?.value() || null),
                 presentationHint,

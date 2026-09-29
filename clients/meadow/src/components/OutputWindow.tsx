@@ -18,7 +18,7 @@ import { ContentRenderer } from "./ContentRenderer";
 import { getEmojiEnabled } from "./EmojiToggle";
 import { LinkPreview, LinkPreviewCard } from "./LinkPreviewCard";
 
-const COLLAPSED_LOOKS_KEY = "moor-collapsed-looks";
+const COLLAPSED_INSETS_KEY = "moor-collapsed-insets";
 
 interface ObjRef {
     oid?: number;
@@ -27,6 +27,7 @@ interface ObjRef {
 
 interface EventMetadata {
     annotations?: AnnotationTable;
+    collapseTitle?: string;
     verb?: string;
     lookKind?: string;
     look_kind?: string;
@@ -111,29 +112,29 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     const [latestCurrentRoomLookMessageId, setLatestCurrentRoomLookMessageId] = useState<string | null>(null);
     const [isViewingHistory, setIsViewingHistory] = useState(false);
 
-    // Track collapsed look descriptions by groupId
-    const [collapsedLooks, setCollapsedLooks] = useState<Set<string>>(() => {
+    // Track collapsed insets by their first message ID.
+    const [collapsedInsets, setCollapsedInsets] = useState<Set<string>>(() => {
         if (typeof window === "undefined") return new Set();
         try {
-            const stored = sessionStorage.getItem(COLLAPSED_LOOKS_KEY);
+            const stored = sessionStorage.getItem(COLLAPSED_INSETS_KEY);
             return stored ? new Set(JSON.parse(stored)) : new Set();
         } catch {
             return new Set();
         }
     });
 
-    // Toggle collapse state for a look description
-    const toggleLookCollapse = useCallback((groupId: string) => {
-        setCollapsedLooks(prev => {
+    // Toggle the existing inset collapse control.
+    const toggleInsetCollapse = useCallback((messageId: string) => {
+        setCollapsedInsets(prev => {
             const next = new Set(prev);
-            if (next.has(groupId)) {
-                next.delete(groupId);
+            if (next.has(messageId)) {
+                next.delete(messageId);
             } else {
-                next.add(groupId);
+                next.add(messageId);
             }
             // Persist to session storage
             try {
-                sessionStorage.setItem(COLLAPSED_LOOKS_KEY, JSON.stringify([...next]));
+                sessionStorage.setItem(COLLAPSED_INSETS_KEY, JSON.stringify([...next]));
             } catch {
                 // Ignore storage errors
             }
@@ -307,14 +308,14 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         return baseClass;
     };
 
-    // Check if a message is a "look" event with a title to display
-    const isLookEvent = (
+    // The producer opts an inset into collapsing and supplies its summary title.
+    const getCollapseTitle = (
         presentationHint?: string,
         eventMetadata?: EventMetadata,
-    ): eventMetadata is EventMetadata & { dobjName: string } => {
-        return presentationHint === "inset"
-            && eventMetadata?.verb === "look"
-            && typeof eventMetadata?.dobjName === "string";
+    ): string | undefined => {
+        if (presentationHint !== "inset") return undefined;
+        const title = eventMetadata?.collapseTitle;
+        return typeof title === "string" && title.trim() ? title : undefined;
     };
 
     const encodeEventValue = useCallback((value: unknown): string | null => {
@@ -581,6 +582,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                         && nextMessage?.presentationHint === message.presentationHint
                         && !!message.groupId
                         && message.groupId === nextMessage?.groupId
+                        && message.eventMetadata?.collapseTitle === nextMessage?.eventMetadata?.collapseTitle
                         && sameActor();
                     const shouldContinueGroup = message.noNewline || sameHintGroup;
 
@@ -602,14 +604,13 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                         if (message.presentationHint) {
                             // If it has a presentationHint, wrap it like we do for groups
                             const baseClassName = getMessageClassName(message.type, message.isHistorical);
-                            const showLookTitle = isLookEvent(message.presentationHint, message.eventMetadata);
-                            const groupId = message.groupId;
+                            const collapseTitle = getCollapseTitle(message.presentationHint, message.eventMetadata);
                             const isMessageStale = staleMessageIds?.has(message.id) || message.isHistorical;
 
                             // Use message.id for collapse key (unique per event)
                             const collapseKey = message.id;
-                            const isCollapsible = showLookTitle && groupId;
-                            const isThisCollapsed = isCollapsible && collapsedLooks.has(collapseKey);
+                            const isCollapsible = collapseTitle !== undefined;
+                            const isThisCollapsed = isCollapsible && collapsedInsets.has(collapseKey);
 
                             const wrapperClassName = (() => {
                                 const classes: string[] = [];
@@ -631,17 +632,17 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                     {isCollapsible && isThisCollapsed && (
                                         <>
                                             {/* Visual collapsed state - hidden from screen readers */}
-                                            <div className="look_collapsed_summary" aria-hidden="true">
+                                            <div className="inset_collapsed_summary" aria-hidden="true">
                                                 <button
                                                     type="button"
-                                                    className="look_toggle_button"
-                                                    onClick={() => toggleLookCollapse(collapseKey)}
+                                                    className="inset_toggle_button"
+                                                    onClick={() => toggleInsetCollapse(collapseKey)}
                                                     tabIndex={-1}
                                                 >
-                                                    <span className="look_chevron collapsed">▼</span>
+                                                    <span className="inset_chevron collapsed">▼</span>
                                                 </button>
-                                                <span className="look_collapsed_name">
-                                                    {message.eventMetadata!.dobjName}
+                                                <span className="inset_collapsed_name">
+                                                    {collapseTitle}
                                                 </span>
                                             </div>
                                             {/* Full content for screen readers when visually collapsed */}
@@ -661,16 +662,16 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                         </>
                                     )}
                                     {!isThisCollapsed && isCollapsible && (
-                                        <div className="look_toggle_row">
+                                        <div className="inset_toggle_row">
                                             {/* Toggle button hidden from screen readers */}
                                             <button
                                                 type="button"
-                                                className="look_toggle_button"
-                                                onClick={() => toggleLookCollapse(collapseKey)}
+                                                className="inset_toggle_button"
+                                                onClick={() => toggleInsetCollapse(collapseKey)}
                                                 aria-hidden="true"
                                                 tabIndex={-1}
                                             >
-                                                <span className="look_chevron">▼</span>
+                                                <span className="inset_chevron">▼</span>
                                             </button>
                                             <div className={baseClassName}>
                                                 {renderContentWithTts(
@@ -751,18 +752,17 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                 firstMessage.type,
                                 firstMessage.isHistorical,
                             );
-                            const showLookTitle = isLookEvent(
+                            const collapseTitle = getCollapseTitle(
                                 firstMessage.presentationHint,
                                 firstMessage.eventMetadata,
                             );
-                            const groupId = firstMessage.groupId;
                             // Group is stale if any message in it is stale or historical
                             const isGroupStale = group.some(msg => staleMessageIds?.has(msg.id) || msg.isHistorical);
 
                             // Use firstMessage.id for collapse key (unique per event group)
                             const collapseKey = firstMessage.id;
-                            const isCollapsible = showLookTitle && groupId;
-                            const isThisCollapsed = isCollapsible && collapsedLooks.has(collapseKey);
+                            const isCollapsible = collapseTitle !== undefined;
+                            const isThisCollapsed = isCollapsible && collapsedInsets.has(collapseKey);
 
                             const wrapperClassName = (() => {
                                 const classes: string[] = [];
@@ -786,17 +786,17 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                     {isCollapsible && isThisCollapsed && (
                                         <>
                                             {/* Visual collapsed state - hidden from screen readers */}
-                                            <div className="look_collapsed_summary" aria-hidden="true">
+                                            <div className="inset_collapsed_summary" aria-hidden="true">
                                                 <button
                                                     type="button"
-                                                    className="look_toggle_button"
-                                                    onClick={() => toggleLookCollapse(collapseKey)}
+                                                    className="inset_toggle_button"
+                                                    onClick={() => toggleInsetCollapse(collapseKey)}
                                                     tabIndex={-1}
                                                 >
-                                                    <span className="look_chevron collapsed">▼</span>
+                                                    <span className="inset_chevron collapsed">▼</span>
                                                 </button>
-                                                <span className="look_collapsed_name">
-                                                    {firstMessage.eventMetadata!.dobjName}
+                                                <span className="inset_collapsed_name">
+                                                    {collapseTitle}
                                                 </span>
                                             </div>
                                             {/* Full content for screen readers when visually collapsed */}
@@ -820,16 +820,16 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                         </>
                                     )}
                                     {!isThisCollapsed && isCollapsible && (
-                                        <div className="look_toggle_row">
+                                        <div className="inset_toggle_row">
                                             {/* Toggle button hidden from screen readers */}
                                             <button
                                                 type="button"
-                                                className="look_toggle_button"
-                                                onClick={() => toggleLookCollapse(collapseKey)}
+                                                className="inset_toggle_button"
+                                                onClick={() => toggleInsetCollapse(collapseKey)}
                                                 aria-hidden="true"
                                                 tabIndex={-1}
                                             >
-                                                <span className="look_chevron">▼</span>
+                                                <span className="inset_chevron">▼</span>
                                             </button>
                                             <div>
                                                 {group.map(msg => (

@@ -25,6 +25,7 @@ import { parsePresentationValue, PresentationData } from "./presentations.js";
 
 export interface WsEventMetadata {
     annotations?: AnnotationTable;
+    collapseTitle?: string;
     verb?: string;
     actor?: any;
     actorName?: string;
@@ -175,6 +176,8 @@ export function parseWsNarrativeEventMessage(
                     eventMeta.annotations = decodeAnnotations(decoded);
                 } else if (keyValue === "presentation_hint" && typeof decoded === "string") {
                     presentationHint = decoded;
+                } else if (keyValue === "collapse_title" && typeof decoded === "string" && decoded.trim()) {
+                    eventMeta.collapseTitle = decoded;
                 } else if (keyValue === "group_id" && typeof decoded === "string") {
                     groupId = decoded;
                 } else if (keyValue === "tts_text" && typeof decoded === "string") {

@@ -139,6 +139,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                                 deliveryId: parsedEvent.deliveryId,
                                 delivery_id: parsedEvent.deliveryId,
                                 annotations: parsedEvent.annotations,
+                                collapseTitle: parsedEvent.collapseTitle,
                             },
                         },
                     };

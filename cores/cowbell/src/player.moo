@@ -846,7 +846,7 @@ object PLAYER [
         lines = {@lines, $format.code:mk("@doc object\n@doc object:verb")};
       endif
       content = $format.block:mk($format.title:mk("Help"), @lines);
-      event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_group('utility, this);
+      event = $event:mk_info(this, content):with_audience('utility):as_djot():as_inset():with_metadata('collapse_title, "Help"):with_group('help, this);
       this:inform_current(event);
       return;
     endif

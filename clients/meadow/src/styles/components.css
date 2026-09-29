@@ -143,14 +143,14 @@
   transition: opacity 0.3s ease;
 }
 
-/* Collapsed summary for look events (shows when description is collapsed) */
-.look_collapsed_summary {
+/* Collapsed summary for inset events (shows when description is collapsed) */
+.inset_collapsed_summary {
   display: flex;
   align-items: baseline;
   gap: 0.35rem;
 }
 
-.look_collapsed_name {
+.inset_collapsed_name {
   font-family: var(--font-sans);
   font-size: 1.1em;
   font-weight: 600;
@@ -158,8 +158,8 @@
   letter-spacing: 0.01em;
 }
 
-/* Toggle button for collapsing/expanding look descriptions - always on left */
-.look_toggle_button {
+/* Toggle button for collapsing/expanding narrative insets - always on left */
+.inset_toggle_button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -175,50 +175,50 @@
   vertical-align: baseline;
 }
 
-.look_toggle_button:hover {
+.inset_toggle_button:hover {
   color: var(--color-text-primary);
 }
 
-.look_toggle_button:focus-visible {
+.inset_toggle_button:focus-visible {
   outline: 2px solid var(--color-text-accent);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
 /* Chevron indicator */
-.look_chevron {
+.inset_chevron {
   display: inline-block;
   font-size: 0.6em;
   transition: transform 0.15s ease;
 }
 
-.look_chevron.collapsed {
+.inset_chevron.collapsed {
   transform: rotate(-90deg);
 }
 
 /* Dedicated flex row for toggle + content */
-.look_toggle_row {
+.inset_toggle_row {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   gap: 0.35rem;
 }
 
-.look_toggle_row > .look_toggle_button {
+.inset_toggle_row > .inset_toggle_button {
   flex-shrink: 0;
   height: calc(1em * var(--lh-relaxed)); /* Match narrative line box height */
   display: flex;
   align-items: center;
 }
 
-.look_toggle_row > .text_narrative,
-.look_toggle_row > .text_djot {
+.inset_toggle_row > .text_narrative,
+.inset_toggle_row > .text_djot {
   flex: 1;
   min-width: 0;
 }
 
 /* Remove top margin from h3 inside toggle row */
-.look_toggle_row h3:first-child {
+.inset_toggle_row h3:first-child {
   margin-top: 0;
 }
 

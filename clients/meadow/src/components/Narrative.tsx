@@ -23,6 +23,7 @@ import { OutputWindow } from "./OutputWindow";
 
 export interface EventMetadata {
     annotations?: AnnotationTable;
+    collapseTitle?: string;
     eventId?: string;
     deliveryId?: string;
     delivery_id?: string;
