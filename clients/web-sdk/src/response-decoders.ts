@@ -13,11 +13,12 @@
 
 import { ServerFeatures } from "@moor/schema/generated/moor-rpc/server-features";
 import { SysPropValue } from "@moor/schema/generated/moor-rpc/sys-prop-value";
+import { Var } from "@moor/schema/generated/moor-var/var";
 
 import { parseClientReplyUnion, parseHostReplyUnion } from "./reply.js";
 
 function replyTypeName(value: unknown): string {
-    return (value as any)?.constructor?.name ?? typeof value;
+    return value?.constructor?.name ?? typeof value;
 }
 
 export interface DecodedServerFeatures {
@@ -63,7 +64,7 @@ export function decodeServerFeatures(bytes: Uint8Array): DecodedServerFeatures {
 
 export function decodeSysPropValue<T>(
     bytes: Uint8Array,
-    decodeVarToJs: (value: unknown) => T,
+    decodeVarToJs: (value: Var) => T,
 ): T | null {
     const replyUnion = parseClientReplyUnion(bytes, "System property fetch");
     if (!(replyUnion instanceof SysPropValue)) {

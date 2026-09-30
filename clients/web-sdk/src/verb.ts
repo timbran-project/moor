@@ -32,7 +32,7 @@ import { VerbProgramSuccess } from "@moor/schema/generated/moor-rpc/verb-program
 import * as flatbuffers from "flatbuffers";
 
 function replyTypeName(value: unknown): string {
-    return (value as any)?.constructor?.name ?? typeof value;
+    return value?.constructor?.name ?? typeof value;
 }
 
 export function parseVerbCallUnionFromBytes(
@@ -100,7 +100,7 @@ function parseVerbCallUnionFromResponse(
     const outcomeType = verbCallResponse.outcomeType();
     const responseUnion = unionToInvocationOutcome(
         outcomeType,
-        (obj: any) => verbCallResponse.outcome(obj),
+        (obj) => verbCallResponse.outcome(obj),
     );
 
     if (!responseUnion) {
@@ -148,7 +148,7 @@ export function parseVerbProgramUnionFromReply(
     const responseType = response.responseType();
     const responseUnion = unionToVerbProgramResponseUnion(
         responseType,
-        (obj: any) => response.response(obj),
+        (obj) => response.response(obj),
     );
     if (!responseUnion) {
         throw new Error(`${context}: failed to parse verb program response union`);
@@ -190,7 +190,7 @@ export function parseVerbProgramCompileOutcome(
         case VerbProgramErrorUnion.VerbCompilationError: {
             const compError = unionToVerbProgramErrorUnion(
                 errorType,
-                (obj: any) => programError.error(obj),
+                (obj) => programError.error(obj),
             ) as VerbCompilationError | null;
             const compileError = compError?.error() ?? undefined;
             return {

@@ -11,7 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { AnnotationTable } from "@moor/web-sdk";
+import type { NarrativeContentType } from "@moor/web-sdk";
+import type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { CommandDraft, decodeDraft, draftEcho, plainDraft, serializeDraft } from "../lib/command-draft";
 import { createTranscript } from "../lib/transcript";
@@ -23,26 +24,7 @@ import { InputArea } from "./InputArea";
 import { LinkPreview } from "./LinkPreviewCard";
 import { OutputWindow } from "./OutputWindow";
 
-export interface EventMetadata {
-    annotations?: AnnotationTable;
-    lookRoom?: { oid?: number; uuid?: string } | string | number | null;
-    look_room?: { oid?: number; uuid?: string } | string | number | null;
-    enableEmojis?: boolean;
-    collapseTitle?: string;
-    eventId?: string;
-    deliveryId?: string;
-    delivery_id?: string;
-    verb?: string;
-    actor?: any;
-    actorName?: string;
-    content?: string;
-    thisObj?: any;
-    thisName?: string;
-    dobj?: any;
-    dobjName?: string;
-    iobj?: any;
-    timestamp?: number;
-}
+export type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
 
 export interface RewritableInfo {
     id: string;
@@ -59,7 +41,7 @@ export interface NarrativeMessage {
     type: "narrative" | "input_echo" | "system" | "error";
     timestamp?: number;
     isHistorical?: boolean;
-    contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback";
+    contentType?: NarrativeContentType;
     noNewline?: boolean;
     presentationHint?: string;
     groupId?: string;
@@ -95,7 +77,7 @@ export interface NarrativeRef {
     submitCommand: (command: string) => boolean;
     addNarrativeContent: (
         content: string | string[],
-        contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback",
+        contentType?: NarrativeContentType,
         noNewline?: boolean,
         presentationHint?: string,
         groupId?: string,
@@ -278,7 +260,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const addMessage = useCallback((
         content: string | string[],
         type: NarrativeMessage["type"] = "narrative",
-        contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback",
+        contentType?: NarrativeContentType,
         noNewline?: boolean,
         presentationHint?: string,
         groupId?: string,
@@ -315,8 +297,11 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                         const actor = eventMetadata?.actor;
                         if (!actor) return undefined;
                         if (typeof actor === "string") return stringToCurie(actor);
-                        if (actor.oid !== undefined) return `oid:${actor.oid}`;
-                        if (actor.uuid !== undefined) return `uuid:${uuObjIdToString(BigInt(actor.uuid))}`;
+                        if (typeof actor !== "object") return undefined;
+                        if ("oid" in actor && typeof actor.oid === "number") return `oid:${actor.oid}`;
+                        if ("uuid" in actor && typeof actor.uuid === "string" && /^\d{1,20}$/.test(actor.uuid)) {
+                            return `uuid:${uuObjIdToString(BigInt(actor.uuid))}`;
+                        }
                         return undefined;
                     })();
                     const ownerCurie = msg.rewritable?.owner;
@@ -472,7 +457,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const addNarrativeContent = useCallback(
         (
             content: string | string[],
-            contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback",
+            contentType?: NarrativeContentType,
             noNewline?: boolean,
             presentationHint?: string,
             groupId?: string,

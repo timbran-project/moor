@@ -11,23 +11,18 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { AnnotationTable } from "@moor/web-sdk";
+import type { NarrativeContentType } from "@moor/web-sdk";
+import type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAnnotationActivation } from "../context/AnnotationContext";
 import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { renderDjot, renderHtmlContent, renderPlainText } from "../lib/djot-renderer";
 
-export interface EventMetadata {
-    verb?: string;
-    actorName?: string;
-    thisName?: string;
-    dobjName?: string;
-    annotations?: AnnotationTable;
-}
+export type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
 
 interface ContentRendererProps {
     content: string | string[];
-    contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri";
+    contentType?: NarrativeContentType;
     onLinkClick?: (
         url: string,
         position?: { x: number; y: number },

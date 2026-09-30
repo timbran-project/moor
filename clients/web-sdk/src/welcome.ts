@@ -13,10 +13,12 @@
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
 import { InvocationResponse } from "@moor/schema/generated/moor-rpc/invocation-response";
+import { Var } from "@moor/schema/generated/moor-var/var";
 
 import { parseNarrativeEvent } from "./narrative.js";
 
-export type WelcomeContentType = "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri";
+import type { NarrativeContentType } from "./content-types.js";
+export type WelcomeContentType = NarrativeContentType;
 
 export interface WelcomeMessagePayload {
     welcomeMessage: string;
@@ -25,7 +27,7 @@ export interface WelcomeMessagePayload {
 
 export function extractWelcomeMessage(
     verbCallResponse: InvocationResponse,
-    decodeVarToJs: (value: unknown) => unknown,
+    decodeVarToJs: (value: Var) => unknown,
 ): WelcomeMessagePayload {
     let welcomeMessage = "";
     let contentType: WelcomeContentType = "text/plain";

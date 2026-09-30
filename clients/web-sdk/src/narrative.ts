@@ -11,166 +11,54 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { EventUnion, unionToEventUnion } from "@moor/schema/generated/moor-common/event-union";
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { PresentEvent } from "@moor/schema/generated/moor-common/present-event";
-import { ParsedPresentation, parsePresentationValue } from "./presentations.js";
-
-export type NarrativeNotifyContentType = "text/plain" | "text/djot" | "text/html" | "text/x-uri";
+import { Var } from "@moor/schema/generated/moor-var/var";
+import type { NarrativeContent, NarrativeNotifyContentType } from "./content-types.js";
+import type { ParsedPresentation } from "./presentations.js";
+import { parseNarrativeValue } from "./ws-narrative.js";
 
 export type ParsedNarrativeEvent =
-    | {
-        eventType: "NotifyEvent";
-        event: {
-            value: unknown;
-            contentType: NarrativeNotifyContentType;
-        };
-    }
-    | {
-        eventType: "PresentEvent";
-        event: {
-            presentation: ParsedPresentation | null;
-        };
-    }
-    | {
-        eventType: "UnpresentEvent";
-        event: {
-            presentationId: string | null;
-        };
-    }
+    | { eventType: "NotifyEvent"; event: { value: NarrativeContent; contentType: NarrativeNotifyContentType } }
+    | { eventType: "PresentEvent"; event: { presentation: ParsedPresentation } }
+    | { eventType: "UnpresentEvent"; event: { presentationId: string } }
     | {
         eventType: "TracebackEvent";
-        event: {
-            error: {
-                code: string | null;
-                message: string | null;
-            } | null;
-            backtrace: string[];
-        };
+        event: { error: { code: string | null; message: string | null } | null; backtrace: string[] };
     }
-    | {
-        eventType: "DataEvent";
-        event: {
-            namespace: string | null;
-            kind: string | null;
-            payload: unknown;
-        };
-    };
+    | { eventType: "DataEvent"; event: { namespace: string; kind: string; payload: unknown } };
 
-function normalizeContentType(contentType: string | null): NarrativeNotifyContentType {
-    if (!contentType) {
-        return "text/plain";
-    }
-    if (contentType === "text_djot" || contentType === "text/djot") {
-        return "text/djot";
-    }
-    if (contentType === "text_html" || contentType === "text/html") {
-        return "text/html";
-    }
-    if (contentType === "text_x_uri" || contentType === "text/x-uri") {
-        return "text/x-uri";
-    }
-    return "text/plain";
-}
-
+/** Adapt a validated narrative payload to captured invocation output. */
 export function parseNarrativeEvent(
     narrativeEvent: NarrativeEvent | null,
-    decodeVarToJs: (value: unknown) => unknown,
-    decodeVarToString: (value: unknown) => string | null,
+    decodeVarToJs: (value: Var) => unknown,
+    decodeVarToString: (value: Var) => string | null,
 ): ParsedNarrativeEvent | null {
-    if (!narrativeEvent) {
-        return null;
-    }
-
-    const eventObj = narrativeEvent.event();
-    if (!eventObj) {
-        return null;
-    }
-
-    const eventType = eventObj.eventType();
-    const eventUnion = unionToEventUnion(
-        eventType,
-        (obj: any) => eventObj.event(obj),
-    );
-    if (!eventUnion) {
-        return null;
-    }
-
-    switch (eventType) {
-        case EventUnion.NotifyEvent: {
-            const notifyEvent = eventUnion as any;
-            const value = notifyEvent.value();
-            const contentTypeSym = notifyEvent.contentType();
-            return {
-                eventType: "NotifyEvent",
-                event: {
-                    value: value ? decodeVarToJs(value) : "",
-                    contentType: normalizeContentType(contentTypeSym ? contentTypeSym.value() : null),
-                },
-            };
-        }
-        case EventUnion.PresentEvent: {
-            const presentEvent = eventUnion as PresentEvent;
+    const parsed = parseNarrativeValue(narrativeEvent, decodeVarToJs, decodeVarToString);
+    if (!parsed) return null;
+    switch (parsed.kind) {
+        case "notify":
+            return { eventType: "NotifyEvent", event: { value: parsed.content, contentType: parsed.contentType } };
+        case "present":
             return {
                 eventType: "PresentEvent",
-                event: { presentation: parsePresentationValue(presentEvent.presentation()) },
-            };
-        }
-        case EventUnion.UnpresentEvent: {
-            const unpresentEvent = eventUnion as any;
-            return {
-                eventType: "UnpresentEvent",
                 event: {
-                    presentationId: unpresentEvent.presentationId(),
+                    presentation: {
+                        id: parsed.presentData.id,
+                        target: parsed.presentData.target,
+                        content: parsed.presentData.content,
+                        contentType: parsed.presentData.content_type,
+                        attributes: parsed.presentData.attributes.map(([key, value]) => [key, value]),
+                    },
                 },
             };
-        }
-        case EventUnion.TracebackEvent: {
-            const tracebackEvent = eventUnion as any;
-            const exception = tracebackEvent.exception();
-            let errorInfo: { code: string | null; message: string | null } | null = null;
-            const backtrace: string[] = [];
-            if (exception) {
-                const error = exception.error();
-                if (error) {
-                    errorInfo = {
-                        code: error.code(),
-                        message: error.message(),
-                    };
-                }
-                const backtraceLen = exception.backtraceLength();
-                for (let i = 0; i < backtraceLen; i++) {
-                    const varFb = exception.backtrace(i);
-                    if (!varFb) {
-                        continue;
-                    }
-                    const frame = decodeVarToString(varFb);
-                    if (frame) {
-                        backtrace.push(frame);
-                    }
-                }
-            }
-            return {
-                eventType: "TracebackEvent",
-                event: {
-                    error: errorInfo,
-                    backtrace,
-                },
-            };
-        }
-        case EventUnion.DataEvent: {
-            const dataEvent = eventUnion as any;
-            const payload = dataEvent.payload();
+        case "unpresent":
+            return { eventType: "UnpresentEvent", event: { presentationId: parsed.presentationId } };
+        case "traceback":
+            return { eventType: "TracebackEvent", event: { error: parsed.error, backtrace: parsed.backtrace } };
+        case "data":
             return {
                 eventType: "DataEvent",
-                event: {
-                    namespace: dataEvent.domain()?.value() ?? null,
-                    kind: dataEvent.kind()?.value() ?? null,
-                    payload: payload ? decodeVarToJs(payload) : null,
-                },
+                event: { namespace: parsed.namespace, kind: parsed.eventKind, payload: parsed.payload },
             };
-        }
-        default:
-            return null;
     }
 }

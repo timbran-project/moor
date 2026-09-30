@@ -11,9 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { DataEvent } from "@moor/schema/generated/moor-common/data-event";
-import { EventUnion } from "@moor/schema/generated/moor-common/event-union";
-import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
+import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
 import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
 import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
 import {
@@ -24,6 +22,7 @@ import {
     PlayerIdentityUpdate,
     schedulerErrorToNarrative,
     SessionCredentialsUpdate,
+    type WsDataEvent,
 } from "@moor/web-sdk";
 import type { MutableRefObject } from "react";
 
@@ -31,104 +30,16 @@ import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 import { parseInputMetadata } from "./input-metadata.js";
 import { MoorVar } from "./MoorVar.js";
-import { EventMetadata, LinkPreview, NarrativeMessageHandler } from "./rpc-fb-shared";
+import { NarrativeMessageHandler } from "./rpc-fb-shared";
 
-export interface DataMessageHandlerEvent {
-    namespace: string;
-    eventKind: string;
-    payload: unknown;
+export type DataMessageHandlerEvent = Omit<WsDataEvent, "kind"> & {
     timestamp: string;
     eventId?: string;
-}
+};
 
-function tryDecodeDataMessageFromNarrative(
-    narrative: any,
-): { namespace: string; eventKind: string; payload: unknown } | null {
-    try {
-        const narrativeEvent = narrative?.event?.();
-        const eventUnion = narrativeEvent?.event?.();
-        if (!eventUnion || eventUnion.eventType() !== EventUnion.DataEvent) {
-            return null;
-        }
-
-        const data = eventUnion.event(new DataEvent()) as DataEvent | null;
-        if (!data) {
-            return null;
-        }
-
-        const namespace = data.domain()?.value();
-        const eventKind = data.kind()?.value();
-        const payloadRef = data.payload();
-        if (!namespace || !eventKind || !payloadRef) {
-            return null;
-        }
-
-        return {
-            namespace,
-            eventKind,
-            payload: new MoorVar(payloadRef as any).toJS(),
-        };
-    } catch {
-        return null;
-    }
-}
-
-function narrativeEventIdHex(narrative: any): string | undefined {
-    const eventIdBytes: Uint8Array | null | undefined = narrative?.event?.()?.eventId?.()?.dataArray?.();
-    if (!eventIdBytes || eventIdBytes.length === 0) {
-        return undefined;
-    }
-    return Array.from(eventIdBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function extractNotifyMetadataAugments(
-    narrative: any,
-): { lookKind?: string; lookRoom?: unknown; deliveryId?: string; delivery_id?: string } {
-    try {
-        const event = narrative?.event?.();
-        if (!event) {
-            return {};
-        }
-        const eventData = event.event();
-        if (!eventData) {
-            return {};
-        }
-        const notify = eventData.event(new NotifyEvent()) as NotifyEvent | null;
-        if (!notify) {
-            return {};
-        }
-
-        let lookKind: string | undefined;
-        let lookRoom: unknown = undefined;
-        let deliveryId: string | undefined;
-        const metadataLength = notify.metadataLength();
-        for (let i = 0; i < metadataLength; i++) {
-            const metadata = notify.metadata(i);
-            if (!metadata) {
-                continue;
-            }
-            const key = metadata.key()?.value();
-            if (!key) {
-                continue;
-            }
-            const rawValue = metadata.value();
-            const decodedValue = rawValue ? new MoorVar(rawValue as any).toJS() : null;
-            if (key === "look_kind" && typeof decodedValue === "string") {
-                lookKind = decodedValue;
-                continue;
-            }
-            if (key === "look_room") {
-                lookRoom = decodedValue;
-                continue;
-            }
-            if (key === "delivery_id" && typeof decodedValue === "string") {
-                deliveryId = decodedValue;
-            }
-        }
-        return { lookKind, lookRoom, deliveryId, delivery_id: deliveryId };
-    } catch {
-        return {};
-    }
+function narrativeEventIdHex(narrative: NarrativeEventMessage): string | undefined {
+    const bytes = narrative.event()?.eventId()?.dataArray();
+    return bytes?.length === 16 ? Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("") : undefined;
 }
 
 function handleTaskError(
@@ -210,23 +121,10 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
 
                 const parsedNarrativeEvent = parseWsNarrativeEventMessage(
                     narrative,
-                    (value) => new MoorVar(value as any).toJS(),
-                    (value) => new MoorVar(value as any).asString(),
+                    (value) => new MoorVar(value).toJS(),
+                    (value) => new MoorVar(value).asString(),
                 );
                 if (!parsedNarrativeEvent) {
-                    if (onDataMessage) {
-                        const decodedData = tryDecodeDataMessageFromNarrative(narrative);
-                        if (decodedData) {
-                            onDataMessage({
-                                namespace: decodedData.namespace,
-                                eventKind: decodedData.eventKind,
-                                payload: decodedData.payload,
-                                timestamp,
-                                eventId,
-                            });
-                            return;
-                        }
-                    }
                     console.warn("[WS] Unknown or invalid inner narrative event");
                     return;
                 }
@@ -234,22 +132,21 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                 switch (parsedNarrativeEvent.kind) {
                     case "notify":
                         if (onNarrativeMessage) {
-                            const metadataAugments = extractNotifyMetadataAugments(narrative);
                             const mergedEventMetadata = eventId
-                                ? { ...(parsedNarrativeEvent.eventMeta ?? {}), ...metadataAugments, eventId }
-                                : { ...(parsedNarrativeEvent.eventMeta ?? {}), ...metadataAugments };
+                                ? { ...(parsedNarrativeEvent.eventMeta ?? {}), eventId }
+                                : { ...(parsedNarrativeEvent.eventMeta ?? {}) };
                             onNarrativeMessage(
-                                parsedNarrativeEvent.content as string | string[],
+                                parsedNarrativeEvent.content,
                                 timestamp,
-                                parsedNarrativeEvent.contentType || undefined,
+                                parsedNarrativeEvent.contentType,
                                 false,
                                 parsedNarrativeEvent.noNewline,
                                 parsedNarrativeEvent.presentationHint,
                                 parsedNarrativeEvent.groupId,
                                 parsedNarrativeEvent.ttsText,
                                 parsedNarrativeEvent.thumbnail,
-                                parsedNarrativeEvent.linkPreview as LinkPreview | undefined,
-                                mergedEventMetadata as EventMetadata,
+                                parsedNarrativeEvent.linkPreview,
+                                mergedEventMetadata,
                                 parsedNarrativeEvent.rewritable,
                                 parsedNarrativeEvent.rewriteTarget,
                             );
@@ -282,39 +179,14 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                             );
                         }
                         break;
-                    default:
-                        // Meadow may typecheck against a web-sdk release that does not yet
-                        // include kind: "data" in the ParsedWsNarrativeEvent union.
-                        // Probe dynamically so runtime data events still flow through.
-                        if (onDataMessage) {
-                            const maybeData = parsedNarrativeEvent as {
-                                kind?: string;
-                                namespace?: string;
-                                eventKind?: string;
-                                payload?: unknown;
-                            };
-                            if (
-                                maybeData.kind === "data"
-                                && typeof maybeData.namespace === "string"
-                                && typeof maybeData.eventKind === "string"
-                            ) {
-                                console.debug("[WS] DataEvent (dynamic path)", {
-                                    namespace: maybeData.namespace,
-                                    eventKind: maybeData.eventKind,
-                                    payloadType: typeof maybeData.payload,
-                                    eventId,
-                                    timestamp,
-                                });
-                                onDataMessage({
-                                    namespace: maybeData.namespace,
-                                    eventKind: maybeData.eventKind,
-                                    payload: maybeData.payload,
-                                    timestamp,
-                                    eventId,
-                                });
-                            }
-                        }
-                        // Future narrative event kinds may be non-visual state channels.
+                    case "data":
+                        onDataMessage?.({
+                            namespace: parsedNarrativeEvent.namespace,
+                            eventKind: parsedNarrativeEvent.eventKind,
+                            payload: parsedNarrativeEvent.payload,
+                            timestamp,
+                            eventId,
+                        });
                         break;
                 }
             },

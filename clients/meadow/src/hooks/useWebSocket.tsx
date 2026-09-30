@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type { NarrativeMessageHandler } from "@moor/web-sdk";
 import { buildWsAttach } from "@moor/web-sdk";
 import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,7 +21,7 @@ import {
     ReconnectCredentials,
     setClientSessionActive,
 } from "../lib/auth-session";
-import { DataMessageHandlerEvent, EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
+import { DataMessageHandlerEvent, handleClientEventFlatBuffer } from "../lib/rpc-fb";
 import { getWebSocketBaseUrl } from "../lib/serverConfig";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
@@ -38,21 +39,7 @@ export const useWebSocket = (
     onPlayerConnectedChange?: (connected: boolean) => void,
     onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void,
     onCredentialsUpdated?: (credentials: ReconnectCredentials) => void,
-    onNarrativeMessage?: (
-        content: string | string[],
-        timestamp?: string,
-        contentType?: string,
-        isHistorical?: boolean,
-        noNewline?: boolean,
-        presentationHint?: string,
-        groupId?: string,
-        ttsText?: string,
-        thumbnail?: { contentType: string; data: string },
-        linkPreview?: LinkPreview,
-        eventMetadata?: EventMetadata,
-        rewritable?: { id: string; owner: string; ttl: number; fallback?: string },
-        rewriteTarget?: string,
-    ) => void,
+    onNarrativeMessage?: NarrativeMessageHandler,
     onPresentMessage?: (presentData: PresentationData) => void,
     onUnpresentMessage?: (id: string) => void,
     onDataMessage?: (event: DataMessageHandlerEvent) => void,

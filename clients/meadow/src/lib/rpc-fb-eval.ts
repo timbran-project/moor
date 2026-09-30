@@ -66,7 +66,7 @@ export async function getSystemPropertyFlatBuffer(
         if (bytes === null) {
             return null;
         }
-        return decodeSysPropValue(bytes, (value) => new MoorVar(value as any).toJS());
+        return decodeSysPropValue(bytes, (value) => new MoorVar(value).toJS());
     } catch (err) {
         console.error("Exception during FlatBuffer system property fetch:", err);
         throw err;

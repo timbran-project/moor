@@ -86,8 +86,8 @@ function notification() {
     b.finish(NarrativeEventMessage.endNarrativeEventMessage(b));
     return { liveBytes: b.asUint8Array(), historyBytes };
 }
-const decode = (value: unknown) => new MoorVar(value as Var).toJS();
-const string = (value: unknown) => new MoorVar(value as Var).asString();
+const decode = (value: Var) => new MoorVar(value).toJS();
+const string = (value: Var) => new MoorVar(value).asString();
 
 it("retains nested annotation metadata through live FlatBuffers and encrypted historical replay", async () => {
     const { liveBytes, historyBytes } = notification();
@@ -108,7 +108,7 @@ it("retains nested annotation metadata through live FlatBuffers and encrypted hi
     const history = parseHistoricalNarrativeEvent(envelope!.narrativeEvent, decode, string);
     expect(history?.kind).toBe("notify");
     if (history?.kind !== "notify") throw new Error("history missing");
-    expect(history.annotations).toEqual(live.eventMeta?.annotations);
+    expect(history.eventMeta?.annotations).toEqual(live.eventMeta?.annotations);
     expect(history.content).toEqual(live.content);
-    expect(history.collapseTitle).toBe("Help");
+    expect(history.eventMeta?.collapseTitle).toBe("Help");
 });

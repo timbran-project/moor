@@ -17,7 +17,7 @@ import * as flatbuffers from "flatbuffers";
 
 export interface ParsedClientEvent {
     eventType: ClientEventUnion;
-    eventUnion: unknown;
+    eventUnion: NonNullable<ReturnType<typeof unionToClientEventUnion>>;
 }
 
 export function parseClientEvent(bytes: Uint8Array, context: string = "WebSocket event"): ParsedClientEvent {
@@ -29,7 +29,7 @@ export function parseClientEvent(bytes: Uint8Array, context: string = "WebSocket
 
     const eventUnion = unionToClientEventUnion(
         eventType,
-        (obj: any) => clientEvent.event(obj),
+        (obj) => clientEvent.event(obj),
     );
     if (!eventUnion) {
         throw new Error(`${context}: failed to parse client event union`);

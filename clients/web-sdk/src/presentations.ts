@@ -13,6 +13,7 @@
 
 import { Presentation as PresentationFB } from "@moor/schema/generated/moor-common/presentation";
 import * as flatbuffers from "flatbuffers";
+import { parseNarrativeContentType } from "./content-types.js";
 
 export type PresentationContentType = "text/plain" | "text/djot" | "text/html";
 
@@ -55,14 +56,9 @@ export interface PresentationSnapshotLike {
     encryptedBlobArray(): Uint8Array | null;
 }
 
-export function normalizePresentationContentType(value: string | null | undefined): PresentationContentType {
-    if (value === "text_djot" || value === "text/djot") {
-        return "text/djot";
-    }
-    if (value === "text_html" || value === "text/html") {
-        return "text/html";
-    }
-    return "text/plain";
+export function normalizePresentationContentType(value: string | null | undefined): PresentationContentType | null {
+    const type = parseNarrativeContentType(value);
+    return type === "text/x-uri" ? null : type;
 }
 
 export function parsePresentationSnapshot(
@@ -117,13 +113,14 @@ export function parsePresentationValue(
         );
     }
 
+    const contentType = normalizePresentationContentType(presentation.contentType() ?? fallback.contentType);
+    if (!contentType) return null;
+
     return {
         id: resolvedId,
         target: presentation.target() || fallback.target || "window",
         content: presentation.content() || fallback.content || "",
-        contentType: normalizePresentationContentType(
-            presentation.contentType() || fallback.contentType,
-        ),
+        contentType,
         attributes,
     };
 }

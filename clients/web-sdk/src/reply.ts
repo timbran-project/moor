@@ -27,10 +27,13 @@ function parseReplyResult(bytes: Uint8Array): ReplyResult {
 }
 
 function replyTypeName(value: unknown): string {
-    return (value as any)?.constructor?.name ?? typeof value;
+    return value?.constructor?.name ?? typeof value;
 }
 
-export function parseClientReplyUnion(bytes: Uint8Array, context: string): unknown {
+export function parseClientReplyUnion(
+    bytes: Uint8Array,
+    context: string,
+): NonNullable<ReturnType<typeof unionToDaemonToClientReplyUnion>> {
     const replyResult = parseReplyResult(bytes);
     const resultType = replyResult.resultType();
 
@@ -48,10 +51,10 @@ export function parseClientReplyUnion(bytes: Uint8Array, context: string): unkno
 
     const clientSuccess = unionToReplyResultUnion(
         resultType,
-        (obj: any) => replyResult.result(obj),
-    ) as ClientSuccess | null;
+        (obj) => replyResult.result(obj),
+    );
 
-    if (!clientSuccess) {
+    if (!(clientSuccess instanceof ClientSuccess)) {
         throw new MoorApiError("decode", "Failed to parse ClientSuccess", { context });
     }
 
@@ -63,7 +66,7 @@ export function parseClientReplyUnion(bytes: Uint8Array, context: string): unkno
     const replyType = daemonReply.replyType();
     const replyUnion = unionToDaemonToClientReplyUnion(
         replyType,
-        (obj: any) => daemonReply.reply(obj),
+        (obj) => daemonReply.reply(obj),
     );
 
     if (!replyUnion) {
@@ -76,7 +79,7 @@ export function parseClientReplyUnion(bytes: Uint8Array, context: string): unkno
 export function parseClientReplyAs<T>(
     bytes: Uint8Array,
     context: string,
-    ctor: new(...args: any[]) => T,
+    ctor: new() => T,
 ): T {
     const replyUnion = parseClientReplyUnion(bytes, context);
     if (!(replyUnion instanceof ctor)) {
@@ -84,10 +87,13 @@ export function parseClientReplyAs<T>(
             context,
         });
     }
-    return replyUnion as T;
+    return replyUnion;
 }
 
-export function parseHostReplyUnion(bytes: Uint8Array, context: string): unknown {
+export function parseHostReplyUnion(
+    bytes: Uint8Array,
+    context: string,
+): NonNullable<ReturnType<typeof unionToDaemonToHostReplyUnion>> {
     const replyResult = parseReplyResult(bytes);
     const resultType = replyResult.resultType();
 
@@ -105,10 +111,10 @@ export function parseHostReplyUnion(bytes: Uint8Array, context: string): unknown
 
     const hostSuccess = unionToReplyResultUnion(
         resultType,
-        (obj: any) => replyResult.result(obj),
-    ) as HostSuccess | null;
+        (obj) => replyResult.result(obj),
+    );
 
-    if (!hostSuccess) {
+    if (!(hostSuccess instanceof HostSuccess)) {
         throw new MoorApiError("decode", "Missing host success payload", { context });
     }
 
@@ -120,7 +126,7 @@ export function parseHostReplyUnion(bytes: Uint8Array, context: string): unknown
     const replyType = daemonReply.replyType();
     const replyUnion = unionToDaemonToHostReplyUnion(
         replyType,
-        (obj: any) => daemonReply.reply(obj),
+        (obj) => daemonReply.reply(obj),
     );
 
     if (!replyUnion) {

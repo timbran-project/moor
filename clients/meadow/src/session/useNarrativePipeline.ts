@@ -11,6 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type { NarrativeMessageHandler } from "@moor/web-sdk";
+import type { NarrativeContentType } from "@moor/web-sdk";
 import { useCallback, useRef } from "react";
 import { NarrativeRef } from "../components/Narrative";
 import { usePresentationContext } from "../context/PresentationContext";
@@ -25,19 +27,7 @@ import { NarrativeMessageContent } from "./narrativePipelineTypes";
 const LIVE_EVENT_DIAG_RETENTION_MS = 5 * 60 * 1000;
 
 export interface WebSocketEventHandlers {
-    handleNarrativeMessage: (
-        content: string | string[],
-        timestamp?: string,
-        contentType?: string,
-        isHistorical?: boolean,
-        noNewline?: boolean,
-        presentationHint?: string,
-        groupId?: string,
-        ttsText?: string,
-        thumbnail?: { contentType: string; data: string },
-        linkPreview?: LinkPreview,
-        eventMetadata?: EventMetadata,
-    ) => void;
+    handleNarrativeMessage: NarrativeMessageHandler;
     handlePresentMessage: (presentData: import("../types/presentation").PresentationData) => void;
     handleUnpresentMessage: (id: string) => void;
     handleDataMessage: (event: DataMessageHandlerEvent) => void;
@@ -101,8 +91,8 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge, historyOwner: s
         } = message;
         if (narrativeRef.current) {
             narrativeRef.current.addNarrativeContent(
-                content as string | string[],
-                contentType as "text/plain" | "text/djot" | "text/html",
+                content,
+                contentType,
                 noNewline,
                 presentationHint,
                 groupId,
@@ -122,7 +112,7 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge, historyOwner: s
     const handleNarrativeMessage = useCallback((
         content: string | string[],
         timestamp?: string,
-        contentType?: string,
+        contentType?: NarrativeContentType,
         isHistorical?: boolean,
         noNewline?: boolean,
         presentationHint?: string,
@@ -136,11 +126,7 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge, historyOwner: s
     ) => {
         const parsedTimestamp = timestamp ? new Date(timestamp).getTime() : NaN;
         const eventTimestampMs = Number.isFinite(parsedTimestamp) ? parsedTimestamp : undefined;
-        const metadata = eventMetadata as {
-            eventId?: string;
-            verb?: string;
-        } | undefined;
-        const liveEventId = metadata?.eventId;
+        const liveEventId = eventMetadata?.eventId;
         if (!isHistorical && liveEventId) {
             const now = Date.now();
             const recentIds = recentLiveEventIdsRef.current;
@@ -270,8 +256,8 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge, historyOwner: s
             try {
                 for (const message of pending) {
                     node.addNarrativeContent(
-                        message.content as string | string[],
-                        message.contentType as "text/plain" | "text/djot" | "text/html",
+                        message.content,
+                        message.contentType,
                         message.noNewline,
                         message.presentationHint,
                         message.groupId,

@@ -28,8 +28,9 @@ export function canGroupMessages(left: NarrativeMessage, right: NarrativeMessage
     const a = left.eventMetadata?.actor;
     const b = right.eventMetadata?.actor;
     if (!a || !b) return true;
-    if (a.oid !== undefined && b.oid !== undefined) return a.oid === b.oid;
-    if (a.uuid !== undefined && b.uuid !== undefined) return a.uuid === b.uuid;
+    if (typeof a !== "object" || typeof b !== "object") return false;
+    if ("oid" in a && "oid" in b) return typeof a.oid === "number" && a.oid === b.oid;
+    if ("uuid" in a && "uuid" in b) return typeof a.uuid === "string" && a.uuid === b.uuid;
     return false;
 }
 

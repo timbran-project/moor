@@ -11,18 +11,22 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { parseEncryptedHistoryPage, parseNarrativeEventEnvelope } from "@moor/web-sdk";
+import {
+    ParsedHistoricalNarrativeEvent,
+    parseEncryptedHistoryPage,
+    parseHistoricalNarrativeEvent,
+    parseNarrativeEventEnvelope,
+} from "@moor/web-sdk";
 
 import { decryptEventBlob } from "./age-decrypt.js";
+import { MoorVar } from "./MoorVar.js";
 import { authHeaders, moorApi } from "./rpc-fb-shared";
 
 export interface HistoryEvent {
     event_id: string;
     timestamp: number;
     is_historical: boolean;
-    event: unknown;
-    narrative_event: NarrativeEvent;
+    event: ParsedHistoricalNarrativeEvent;
 }
 
 export interface HistoryPage {
@@ -74,12 +78,18 @@ export async function fetchHistoryFlatBuffer(
                     continue;
                 }
 
+                const event = parseHistoricalNarrativeEvent(
+                    envelope.narrativeEvent,
+                    value => new MoorVar(value).toJS(),
+                    value => new MoorVar(value).asString(),
+                );
+                if (!event) continue;
+
                 events.push({
                     event_id: envelope.eventId,
                     timestamp: envelope.timestampNanos / 1000000,
                     is_historical: historicalEvent.isHistorical,
-                    event: envelope.event,
-                    narrative_event: envelope.narrativeEvent,
+                    event,
                 });
             } catch (err) {
                 console.error("Failed to decrypt/parse event:", err);

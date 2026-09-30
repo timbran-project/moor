@@ -15,12 +15,7 @@
 // Handles decryption and JSON conversion off the main thread
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import {
-    buildAuthHeaders,
-    parseEncryptedHistoryPage,
-    parseHistoricalNarrativeEvent,
-    toPresentationData,
-} from "@moor/web-sdk";
+import { buildAuthHeaders, parseEncryptedHistoryPage, parseHistoricalNarrativeEvent } from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 import { decryptEventBlob } from "../lib/age-decrypt.js";
 import { MoorVar } from "../lib/MoorVar.js";
@@ -56,8 +51,8 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): ExportEvent {
 
     const parsed = parseHistoricalNarrativeEvent(
         narrativeEvent,
-        (value) => new MoorVar(value as any).toJS(),
-        (value) => new MoorVar(value as any).asString(),
+        (value) => new MoorVar(value).toJS(),
+        (value) => new MoorVar(value).asString(),
     );
     if (!parsed) {
         result.type = "unknown";
@@ -72,11 +67,11 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): ExportEvent {
             break;
         case "traceback":
             result.type = "traceback";
-            result.backtrace = parsed.tracebackText ? parsed.tracebackText.split("\n") : [];
+            result.backtrace = parsed.backtrace;
             break;
         case "present":
             result.type = "present";
-            result.presentation = toPresentationData(parsed.presentation);
+            result.presentation = parsed.presentData;
             break;
         case "unpresent":
             result.type = "unpresent";

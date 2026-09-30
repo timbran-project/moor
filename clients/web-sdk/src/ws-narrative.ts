@@ -12,29 +12,44 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { DataEvent } from "@moor/schema/generated/moor-common/data-event";
-import { EventUnion } from "@moor/schema/generated/moor-common/event-union";
+import { ErrorCode } from "@moor/schema/generated/moor-common/error-code";
+import { EventUnion, unionToEventUnion } from "@moor/schema/generated/moor-common/event-union";
+import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
 import { NotifyEvent } from "@moor/schema/generated/moor-common/notify-event";
 import { PresentEvent } from "@moor/schema/generated/moor-common/present-event";
 import { TracebackEvent } from "@moor/schema/generated/moor-common/traceback-event";
 import { UnpresentEvent } from "@moor/schema/generated/moor-common/unpresent-event";
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
+import { Var } from "@moor/schema/generated/moor-var/var";
 import { AnnotationTable, decodeAnnotations } from "./annotations.js";
+import {
+    isNarrativeContent,
+    NarrativeContent,
+    NarrativeNotifyContentType,
+    parseNarrativeContentType,
+} from "./content-types.js";
 
 import { uuObjIdToString } from "./curie.js";
 import { parsePresentationValue, PresentationData } from "./presentations.js";
 
 export interface WsEventMetadata {
+    eventId?: string;
+    lookKind?: string;
+    lookRoom?: unknown;
+    look_room?: unknown;
+    deliveryId?: string;
+    delivery_id?: string;
     annotations?: AnnotationTable;
     collapseTitle?: string;
     verb?: string;
-    actor?: any;
+    actor?: unknown;
     actorName?: string;
     content?: string;
-    thisObj?: any;
+    thisObj?: unknown;
     thisName?: string;
-    dobj?: any;
+    dobj?: unknown;
     dobjName?: string;
-    iobj?: any;
+    iobj?: unknown;
     timestamp?: number;
     enableEmojis?: boolean;
 }
@@ -56,8 +71,8 @@ export interface WsRewritable {
 
 export interface WsNotifyEvent {
     kind: "notify";
-    content: unknown;
-    contentType: string;
+    content: NarrativeContent;
+    contentType: NarrativeNotifyContentType;
     noNewline: boolean;
     presentationHint?: string;
     groupId?: string;
@@ -76,12 +91,14 @@ export interface WsPresentEvent {
 
 export interface WsUnpresentEvent {
     kind: "unpresent";
-    presentationId: string | null;
+    presentationId: string;
 }
 
 export interface WsTracebackEvent {
     kind: "traceback";
     tracebackText: string;
+    backtrace: string[];
+    error: { code: string | null; message: string | null } | null;
 }
 
 export interface WsDataEvent {
@@ -91,22 +108,14 @@ export interface WsDataEvent {
     payload: unknown;
 }
 
-export type ParsedWsNarrativeEvent =
+export type ParsedNarrativePayload =
     | WsNotifyEvent
     | WsPresentEvent
     | WsUnpresentEvent
     | WsTracebackEvent
     | WsDataEvent;
 
-function normalizeContentType(contentType: string | null): string {
-    if (contentType === "text_djot" || contentType === "text/djot") {
-        return "text/djot";
-    }
-    if (contentType === "text_html" || contentType === "text/html") {
-        return "text/html";
-    }
-    return "text/plain";
-}
+export type ParsedWsNarrativeEvent = ParsedNarrativePayload;
 
 function bytesToDataUrl(contentType: string, bytes: Uint8Array): string {
     let binary = "";
@@ -118,10 +127,18 @@ function bytesToDataUrl(contentType: string, bytes: Uint8Array): string {
 
 export function parseWsNarrativeEventMessage(
     narrative: NarrativeEventMessage,
-    decodeVarToJs: (value: unknown) => unknown,
-    decodeVarToString: (value: unknown) => string | null,
-): ParsedWsNarrativeEvent | null {
-    const event = narrative.event();
+    decodeVarToJs: (value: Var) => unknown,
+    decodeVarToString: (value: Var) => string | null,
+): ParsedNarrativePayload | null {
+    return parseNarrativeValue(narrative.event(), decodeVarToJs, decodeVarToString);
+}
+
+/** Decode each narrative payload once for live, captured, and historical events. */
+export function parseNarrativeValue(
+    event: NarrativeEvent | null,
+    decodeVarToJs: (value: Var) => unknown,
+    decodeVarToString: (value: Var) => string | null,
+): ParsedNarrativePayload | null {
     if (!event) {
         return null;
     }
@@ -132,12 +149,11 @@ export function parseWsNarrativeEventMessage(
     }
 
     const innerEventType = eventData.eventType();
+    const payload = unionToEventUnion(innerEventType, obj => eventData.event(obj));
     switch (innerEventType) {
         case EventUnion.NotifyEvent: {
-            const notify = eventData.event(new NotifyEvent()) as NotifyEvent | null;
-            if (!notify) {
-                return null;
-            }
+            if (!(payload instanceof NotifyEvent)) return null;
+            const notify = payload;
 
             const value = notify.value();
             if (!value) {
@@ -146,7 +162,8 @@ export function parseWsNarrativeEventMessage(
 
             const content = decodeVarToJs(value);
             const contentTypeSym = notify.contentType();
-            const contentType = normalizeContentType(contentTypeSym ? contentTypeSym.value() : null);
+            const contentType = parseNarrativeContentType(contentTypeSym ? contentTypeSym.value() : null);
+            if (!contentType || !isNarrativeContent(content)) return null;
             const noNewline = notify.noNewline();
 
             let presentationHint: string | undefined;
@@ -172,7 +189,14 @@ export function parseWsNarrativeEventMessage(
                 const metaValue = metadata.value();
                 const decoded = metaValue ? decodeVarToJs(metaValue) : null;
 
-                if (keyValue === "annotations") {
+                if (keyValue === "look_kind" && typeof decoded === "string") {
+                    eventMeta.lookKind = decoded;
+                } else if (keyValue === "look_room") {
+                    eventMeta.lookRoom = decoded;
+                } else if (keyValue === "delivery_id" && typeof decoded === "string") {
+                    eventMeta.deliveryId = decoded;
+                    eventMeta.delivery_id = decoded;
+                } else if (keyValue === "annotations") {
                     eventMeta.annotations = decodeAnnotations(decoded);
                 } else if (keyValue === "presentation_hint" && typeof decoded === "string") {
                     presentationHint = decoded;
@@ -209,27 +233,37 @@ export function parseWsNarrativeEventMessage(
                     eventMeta.dobjName = decoded;
                 } else if (keyValue === "iobj") {
                     eventMeta.iobj = decoded;
-                } else if (keyValue === "timestamp" && typeof decoded === "number") {
+                } else if (keyValue === "timestamp" && typeof decoded === "number" && Number.isFinite(decoded)) {
                     eventMeta.timestamp = decoded;
                 } else if (keyValue === "link_preview" && typeof decoded === "object" && decoded !== null) {
-                    const link = decoded as any;
-                    linkPreview = {
-                        url: link.url || "",
-                        title: link.title || undefined,
-                        description: link.description || undefined,
-                        image: link.image || undefined,
-                        site_name: link.site_name || undefined,
-                    };
+                    if ("url" in decoded && typeof decoded.url === "string") {
+                        linkPreview = {
+                            url: decoded.url,
+                            title: "title" in decoded && typeof decoded.title === "string" ? decoded.title : undefined,
+                            description: "description" in decoded && typeof decoded.description === "string"
+                                ? decoded.description
+                                : undefined,
+                            image: "image" in decoded && typeof decoded.image === "string" ? decoded.image : undefined,
+                            site_name: "site_name" in decoded && typeof decoded.site_name === "string"
+                                ? decoded.site_name
+                                : undefined,
+                        };
+                    }
                 } else if (keyValue === "rewritable_id" && typeof decoded === "string") {
                     rewritableId = decoded;
                 } else if (keyValue === "rewritable_owner" && decoded && typeof decoded === "object") {
-                    const ref = decoded as any;
-                    if (ref.oid !== undefined) {
-                        rewritableOwner = `oid:${ref.oid}`;
-                    } else if (ref.uuid !== undefined) {
-                        rewritableOwner = `uuid:${uuObjIdToString(BigInt(ref.uuid))}`;
+                    if ("oid" in decoded && typeof decoded.oid === "number" && Number.isSafeInteger(decoded.oid)) {
+                        rewritableOwner = `oid:${decoded.oid}`;
+                    } else if (
+                        "uuid" in decoded && typeof decoded.uuid === "string" && /^\d{1,20}$/.test(decoded.uuid)
+                    ) {
+                        const packed = BigInt(decoded.uuid);
+                        if (packed <= 0xffffffffffffffffn) rewritableOwner = `uuid:${uuObjIdToString(packed)}`;
                     }
-                } else if (keyValue === "rewritable_ttl" && typeof decoded === "number") {
+                } else if (
+                    keyValue === "rewritable_ttl" && typeof decoded === "number" && Number.isFinite(decoded)
+                    && decoded >= 0
+                ) {
                     rewritableTtl = decoded;
                 } else if (keyValue === "rewritable_fallback" && typeof decoded === "string") {
                     rewritableFallback = decoded;
@@ -263,10 +297,8 @@ export function parseWsNarrativeEventMessage(
             };
         }
         case EventUnion.PresentEvent: {
-            const present = eventData.event(new PresentEvent()) as PresentEvent | null;
-            if (!present) {
-                return null;
-            }
+            if (!(payload instanceof PresentEvent)) return null;
+            const present = payload;
             const parsedPresentation = parsePresentationValue(present.presentation());
             if (!parsedPresentation) {
                 return null;
@@ -283,20 +315,14 @@ export function parseWsNarrativeEventMessage(
             };
         }
         case EventUnion.UnpresentEvent: {
-            const unpresent = eventData.event(new UnpresentEvent()) as UnpresentEvent | null;
-            if (!unpresent) {
-                return null;
-            }
-            return {
-                kind: "unpresent",
-                presentationId: unpresent.presentationId(),
-            };
+            if (!(payload instanceof UnpresentEvent)) return null;
+            const unpresent = payload;
+            const presentationId = unpresent.presentationId();
+            return presentationId ? { kind: "unpresent", presentationId } : null;
         }
         case EventUnion.TracebackEvent: {
-            const traceback = eventData.event(new TracebackEvent()) as TracebackEvent | null;
-            if (!traceback) {
-                return null;
-            }
+            if (!(payload instanceof TracebackEvent)) return null;
+            const traceback = payload;
             const exception = traceback.exception();
             if (!exception) {
                 return null;
@@ -312,16 +338,22 @@ export function parseWsNarrativeEventMessage(
                     tracebackLines.push(line);
                 }
             }
+            const error = exception.error();
             return {
                 kind: "traceback",
                 tracebackText: tracebackLines.join("\n"),
+                backtrace: tracebackLines,
+                error: error
+                    ? {
+                        code: error.customSymbol()?.value() ?? ErrorCode[error.errType()] ?? null,
+                        message: error.msg(),
+                    }
+                    : null,
             };
         }
         case EventUnion.DataEvent: {
-            const data = eventData.event(new DataEvent()) as DataEvent | null;
-            if (!data) {
-                return null;
-            }
+            if (!(payload instanceof DataEvent)) return null;
+            const data = payload;
             const namespace = data.domain()?.value();
             const eventKind = data.kind()?.value();
             const payloadRef = data.payload();

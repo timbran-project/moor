@@ -11,12 +11,13 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import type { NarrativeContentType } from "./content-types.js";
 import type { WsEventMetadata, WsLinkPreview, WsRewritable } from "./ws-narrative.js";
 
 export type NarrativeMessageHandler = (
     content: string | string[],
     timestamp?: string,
-    contentType?: string,
+    contentType?: NarrativeContentType,
     isHistorical?: boolean,
     noNewline?: boolean,
     presentationHint?: string,

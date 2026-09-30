@@ -11,10 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { parseHistoricalNarrativeEvent } from "@moor/web-sdk";
 import { useCallback, useRef, useState } from "react";
 import { NarrativeMessage } from "../components/Narrative";
-import { MoorVar } from "../lib/MoorVar";
 import { fetchHistoryFlatBuffer, HistoryEvent } from "../lib/rpc-fb";
 import { PresentationData } from "../types/presentation";
 
@@ -94,65 +92,51 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
         return historyBoundary !== null && eventTimestamp < historyBoundary;
     }, [historyBoundary]);
 
-    const convertFlatBufferHistoricalEvent = useCallback((event: HistoryEvent): ConvertedHistoricalEvent => {
-        try {
-            const narrativeEvent = event.narrative_event;
-            const eventId = event.event_id;
-            const timestamp = event.timestamp;
+    const convertHistoricalEvent = useCallback((event: HistoryEvent): ConvertedHistoricalEvent => {
+        const parsedEvent = event.event;
+        const eventId = event.event_id;
+        const timestamp = event.timestamp;
 
-            const parsedEvent = parseHistoricalNarrativeEvent(
-                narrativeEvent,
-                (value) => new MoorVar(value as any).toJS(),
-                (value) => new MoorVar(value as any).asString(),
-            );
-            if (!parsedEvent) {
+        switch (parsedEvent.kind) {
+            case "present":
                 return { message: null };
-            }
-
-            switch (parsedEvent.kind) {
-                case "present":
-                    return { message: null };
-                case "unpresent":
-                    return { message: null };
-                case "traceback":
-                    return {
-                        message: {
-                            id: `history_${eventId}_${timestamp}`,
-                            eventId,
-                            content: parsedEvent.tracebackText,
-                            type: "narrative",
-                            timestamp,
-                            isHistorical: true,
-                            contentType: "text/traceback",
+            case "unpresent":
+                return { message: null };
+            case "traceback":
+                return {
+                    message: {
+                        id: `history_${eventId}_${timestamp}`,
+                        eventId,
+                        content: parsedEvent.tracebackText,
+                        type: "narrative",
+                        timestamp,
+                        isHistorical: true,
+                        contentType: "text/traceback",
+                    },
+                };
+            case "notify":
+                return {
+                    message: {
+                        id: `history_${eventId}_${timestamp}`,
+                        eventId,
+                        content: parsedEvent.content,
+                        type: "narrative",
+                        timestamp,
+                        isHistorical: true,
+                        contentType: parsedEvent.contentType,
+                        presentationHint: parsedEvent.presentationHint,
+                        groupId: parsedEvent.groupId,
+                        thumbnail: parsedEvent.thumbnail,
+                        eventMetadata: {
+                            deliveryId: parsedEvent.eventMeta?.deliveryId,
+                            delivery_id: parsedEvent.eventMeta?.deliveryId,
+                            annotations: parsedEvent.eventMeta?.annotations,
+                            collapseTitle: parsedEvent.eventMeta?.collapseTitle,
                         },
-                    };
-                case "notify":
-                    return {
-                        message: {
-                            id: `history_${eventId}_${timestamp}`,
-                            eventId,
-                            content: parsedEvent.content as string | string[],
-                            type: "narrative",
-                            timestamp,
-                            isHistorical: true,
-                            contentType: parsedEvent.contentType,
-                            presentationHint: parsedEvent.presentationHint,
-                            groupId: parsedEvent.groupId,
-                            thumbnail: parsedEvent.thumbnail,
-                            eventMetadata: {
-                                deliveryId: parsedEvent.deliveryId,
-                                delivery_id: parsedEvent.deliveryId,
-                                annotations: parsedEvent.annotations,
-                                collapseTitle: parsedEvent.collapseTitle,
-                            },
-                        },
-                    };
-                default:
-                    return { message: null };
-            }
-        } catch (error) {
-            console.error("Failed to convert FlatBuffer event:", error);
-            return { message: null };
+                    },
+                };
+            default:
+                return { message: null };
         }
     }, []);
 
@@ -209,7 +193,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
             const narrativeMessages: NarrativeMessage[] = [];
             const presentationActions: HistoryPresentationAction[] = [];
             for (const event of page.events) {
-                const converted = convertFlatBufferHistoricalEvent(event);
+                const converted = convertHistoricalEvent(event);
                 if (converted.presentationAction) {
                     presentationActions.push(converted.presentationAction);
                 }
@@ -241,7 +225,7 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                 setIsLoadingHistory(false);
             }
         }
-    }, [authToken, convertFlatBufferHistoricalEvent, encryptionKey]);
+    }, [authToken, convertHistoricalEvent, encryptionKey]);
 
     // Calculate optimal initial load based on viewport
     const calculateInitialLoad = useCallback(() => {

@@ -25,7 +25,7 @@ export function extractFailureError(replyResult: ReplyResult, context: string): 
     const resultType = replyResult.resultType();
     const failure = unionToReplyResultUnion(
         resultType,
-        (obj: any) => replyResult.result(obj),
+        (obj) => replyResult.result(obj),
     ) as Failure | null;
 
     if (!failure) {
@@ -44,7 +44,7 @@ export function extractFailureError(replyResult: ReplyResult, context: string): 
         const schedulerErrorType = schedulerError.errorType();
         const errorUnion = unionToSchedulerErrorUnion(
             schedulerErrorType,
-            (obj: any) => schedulerError.error(obj),
+            (obj) => schedulerError.error(obj),
         );
 
         if (schedulerErrorType === SchedulerErrorUnion.CompilationError && errorUnion) {
@@ -54,7 +54,7 @@ export function extractFailureError(replyResult: ReplyResult, context: string): 
                 const compileErrorType = compileError.errorType();
                 const errorDetail = unionToCompileErrorUnion(
                     compileErrorType,
-                    (obj: any) => compileError.error(obj),
+                    (obj) => compileError.error(obj),
                 );
 
                 if (compileErrorType === CompileErrorUnion.ParseError && errorDetail) {

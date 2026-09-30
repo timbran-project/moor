@@ -11,12 +11,13 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type { NarrativeMessageHandler } from "@moor/web-sdk";
 import type { PlayerIdentityUpdate } from "@moor/web-sdk";
 import React, { createContext, useContext } from "react";
 import { Player } from "../hooks/useAuth";
 import { useWebSocket, WebSocketState } from "../hooks/useWebSocket";
 import { ReconnectCredentials } from "../lib/auth-session";
-import { DataMessageHandlerEvent, EventMetadata, LinkPreview } from "../lib/rpc-fb";
+import { DataMessageHandlerEvent } from "../lib/rpc-fb";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 
@@ -44,19 +45,7 @@ interface WebSocketProviderProps {
         preserveHistory: boolean,
     ) => Promise<void>;
     updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
-    handleNarrativeMessage: (
-        content: string | string[],
-        timestamp?: string,
-        contentType?: string,
-        isHistorical?: boolean,
-        noNewline?: boolean,
-        presentationHint?: string,
-        groupId?: string,
-        ttsText?: string,
-        thumbnail?: { contentType: string; data: string },
-        linkPreview?: LinkPreview,
-        eventMetadata?: EventMetadata,
-    ) => void;
+    handleNarrativeMessage: NarrativeMessageHandler;
     handlePresentMessage: (presentData: PresentationData) => void;
     handleUnpresentMessage: (id: string) => void;
     handleDataMessage: (event: DataMessageHandlerEvent) => void;

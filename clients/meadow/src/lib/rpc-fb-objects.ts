@@ -20,6 +20,7 @@ import { PropertyUpdated } from "@moor/schema/generated/moor-rpc/property-update
 import { PropertyValue } from "@moor/schema/generated/moor-rpc/property-value";
 import { VerbValue } from "@moor/schema/generated/moor-rpc/verb-value";
 import { VerbsReply } from "@moor/schema/generated/moor-rpc/verbs-reply";
+import type { NarrativeContentType, ParsedNarrativeEvent } from "@moor/web-sdk";
 import {
     extractWelcomeMessage,
     parseClientReplyAs,
@@ -35,13 +36,13 @@ import { authHeaders, moorApi } from "./rpc-fb-shared";
 
 export interface VerbInvocationResult {
     result: unknown;
-    output: Array<{
-        eventId: string;
-        timestamp: Date;
-        author: unknown;
-        eventType: string;
-        event: unknown;
-    }>;
+    output: Array<
+        {
+            eventId: string;
+            timestamp: Date;
+            author: unknown;
+        } & ParsedNarrativeEvent
+    >;
 }
 
 export async function getVerbsFlatBuffer(
@@ -114,8 +115,8 @@ export async function invokeVerbFlatBuffer(
         const authorVar = narrativeEvent.author();
         const eventObj = parseNarrativeEvent(
             narrativeEvent,
-            (value) => new MoorVar(value as any).toJS(),
-            (value) => new MoorVar(value as any).asString(),
+            (value) => new MoorVar(value).toJS(),
+            (value) => new MoorVar(value).asString(),
         );
         if (!eventObj) {
             continue;
@@ -125,8 +126,7 @@ export async function invokeVerbFlatBuffer(
             eventId,
             timestamp,
             author: authorVar ? new MoorVar(authorVar).toJS() : null,
-            eventType: eventObj.eventType,
-            event: eventObj.event,
+            ...eventObj,
         });
     }
 
@@ -198,7 +198,7 @@ export async function compileVerbFlatBuffer(
 
 export async function invokeWelcomeMessageFlatBuffer(): Promise<{
     welcomeMessage: string;
-    contentType: "text/plain" | "text/djot" | "text/html" | "text/traceback" | "text/x-uri";
+    contentType: NarrativeContentType;
 }> {
     try {
         const bytes = await moorApi.getFlatBuffer(`/v1/invoke_welcome_message`, {
@@ -216,7 +216,7 @@ export async function invokeWelcomeMessageFlatBuffer(): Promise<{
 
         return extractWelcomeMessage(
             verbCallResponse,
-            (value) => new MoorVar(value as any).toJS(),
+            (value) => new MoorVar(value).toJS(),
         );
     } catch (err) {
         console.error("Exception during welcome message invocation:", err);

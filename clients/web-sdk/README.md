@@ -14,6 +14,25 @@ It provides TypesScript bindings to call the moor-web-host API.
 - WebSocket attach/reattach protocol helpers
 - FlatBuffer decoding/encoding helpers
 
+## Narrative decoding
+
+`parseNarrativeValue` returns the shared `ParsedNarrativePayload` discriminated union for
+notifications, presentations, tracebacks, unpresent events, and data events. WebSocket and history
+parsing use this same decoder. Captured invocation output adapts the decoded payload to its
+`eventType` envelope. Decoder callbacks receive the generated FlatBuffer `Var` type; decoded
+notification content must be a string or an array of strings.
+
+Notifications accept `text/plain`, `text/djot`, `text/html`, and `text/x-uri`, including their
+underscore wire spellings. An omitted content type defaults to plain text. Explicit unsupported or
+empty types return `null`, as do missing required payload fields and invalid notification content.
+Presentations accept the same types except `text/x-uri`. `text/traceback` is an application
+rendering type for traceback events, not a notification content type.
+
+Optional metadata is checked before it enters typed fields. Opaque MOO values remain `unknown` until
+a consumer narrows them. Malformed binary buffers can throw during FlatBuffer access or Var
+decoding; callers must catch those failures at the transport boundary. Meadow discards invalid
+live/history payloads and retains history pagination metadata independently of accepted events.
+
 ## 2.0 Development
 
 This package is a private npm workspace during the 2.0 development cycle. Install dependencies and

@@ -16,11 +16,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchHistoryFlatBuffer, type HistoryPage } from "../lib/rpc-fb";
 import { useHistory } from "./useHistory";
 
-vi.mock("@moor/web-sdk", async (importOriginal) => ({
-    ...await importOriginal<typeof import("@moor/web-sdk")>(),
-    parseHistoricalNarrativeEvent: vi.fn(() => null),
-}));
-
 vi.mock("../lib/rpc-fb", () => ({
     fetchHistoryFlatBuffer: vi.fn(),
 }));

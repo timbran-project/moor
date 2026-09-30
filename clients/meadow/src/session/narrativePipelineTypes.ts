@@ -11,6 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import type { NarrativeContentType } from "@moor/web-sdk";
 import type { EventMetadata, LinkPreview } from "../lib/rpc-fb";
 
 /**
@@ -18,7 +19,7 @@ import type { EventMetadata, LinkPreview } from "../lib/rpc-fb";
  */
 export interface NarrativeMessageContent {
     content: string | string[];
-    contentType?: string;
+    contentType?: NarrativeContentType;
     noNewline?: boolean;
     presentationHint?: string;
     groupId?: string;

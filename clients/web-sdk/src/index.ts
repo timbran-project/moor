@@ -14,6 +14,7 @@
 export * from "./api-client.js";
 export * from "./auth.js";
 export * from "./client-event.js";
+export * from "./content-types.js";
 export * from "./curie.js";
 export * from "./errors.js";
 export * from "./eval.js";

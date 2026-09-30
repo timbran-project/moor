@@ -12,6 +12,7 @@
 //
 
 import { parse, renderHTML } from "@djot/djot";
+import type { NarrativeContentType } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranscriptWindow } from "../hooks/useTranscriptWindow";
 import { roomLookKey as getRoomLookKeyFromMessage, type Transcript } from "../lib/transcript";
@@ -146,7 +147,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     // Render content with optional TTS text for screen readers
     const renderContentWithTts = useCallback((
         content: string | string[],
-        contentType: "text/plain" | "text/djot" | "text/html" | "text/traceback" | undefined,
+        contentType: NarrativeContentType | undefined,
         ttsText: string | undefined,
         thumbnail?: { contentType: string; data: string },
         linkPreview?: LinkPreview,
