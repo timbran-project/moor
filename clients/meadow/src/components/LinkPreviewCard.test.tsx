@@ -14,6 +14,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExternalNavigationProvider } from "../context/ExternalNavigationContext";
+import { createTranscript } from "../lib/transcript";
 import { addTrustedDomain, clearAllTrustedDomains, getTrustedDomains } from "../lib/trusted-domains";
 import { LinkPreview, LinkPreviewCard } from "./LinkPreviewCard";
 import { OutputWindow } from "./OutputWindow";
@@ -124,14 +125,18 @@ describe("link preview navigation and remote images", () => {
             <ExternalNavigationProvider>
                 <ToastProvider>
                     <OutputWindow
-                        messages={[{
-                            id: "preview-event",
-                            content: "A story was shared",
-                            type: "narrative",
-                            ttsText,
-                            linkPreview: preview,
-                            eventMetadata: { actorName: "Alex", verb: "say" },
-                        }]}
+                        transcript={(() => {
+                            const transcript = createTranscript();
+                            transcript.replace([{
+                                id: "preview-event",
+                                content: "A story was shared",
+                                type: "narrative",
+                                ttsText,
+                                linkPreview: preview,
+                                eventMetadata: { actorName: "Alex", verb: "say" },
+                            }]);
+                            return transcript;
+                        })()}
                     />
                 </ToastProvider>
             </ExternalNavigationProvider>,

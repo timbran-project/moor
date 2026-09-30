@@ -11,57 +11,40 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { AnnotationTable } from "@moor/web-sdk";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { extractRoomLookKey } from "../lib/var";
+import { parse, renderHTML } from "@djot/djot";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranscriptWindow } from "../hooks/useTranscriptWindow";
+import { roomLookKey as getRoomLookKeyFromMessage, type Transcript } from "../lib/transcript";
 import { ContentRenderer } from "./ContentRenderer";
 import { getEmojiEnabled } from "./EmojiToggle";
 import { LinkPreview, LinkPreviewCard } from "./LinkPreviewCard";
+import type { EventMetadata, NarrativeMessage } from "./Narrative";
+
+function announcementText(message: NarrativeMessage): string {
+    if (message.ttsText) return message.ttsText;
+    const source = Array.isArray(message.content) ? message.content.join("\n") : message.content;
+    if (message.contentType !== "text/djot" && message.contentType !== "text/html") return source;
+    try {
+        // Template contents stay inert: announcing offscreen HTML must not load its images.
+        const template = document.createElement("template");
+        template.innerHTML = message.contentType === "text/djot" ? renderHTML(parse(source)) : source;
+        template.content.querySelectorAll("script, style, template, iframe, object").forEach(node => node.remove());
+        template.content.querySelectorAll("img").forEach(image =>
+            image.replaceWith(document.createTextNode(image.alt))
+        );
+        template.content.querySelectorAll("br").forEach(node => node.replaceWith(document.createTextNode("\n")));
+        template.content.querySelectorAll("p, div, li, tr, h1, h2, h3, h4, h5, h6")
+            .forEach(node => node.appendChild(document.createTextNode("\n")));
+        return template.content.textContent || "";
+    } catch {
+        return source;
+    }
+}
 
 const COLLAPSED_INSETS_KEY = "moor-collapsed-insets";
 
-interface ObjRef {
-    oid?: number;
-    uuid?: string;
-}
-
-interface EventMetadata {
-    annotations?: AnnotationTable;
-    collapseTitle?: string;
-    verb?: string;
-    lookKind?: string;
-    look_kind?: string;
-    lookRoom?: ObjRef | string | number | null;
-    look_room?: ObjRef | string | number | null;
-    actor?: ObjRef | null;
-    actorName?: string;
-    content?: string;
-    thisObj?: ObjRef | null;
-    thisName?: string;
-    dobj?: ObjRef | null;
-    dobjName?: string;
-    iobj?: ObjRef | null;
-    timestamp?: number;
-    enableEmojis?: boolean;
-}
-
 interface OutputWindowProps {
-    messages: Array<{
-        id: string;
-        eventId?: string;
-        content: string | string[];
-        type: "narrative" | "input_echo" | "system" | "error";
-        timestamp?: number;
-        isHistorical?: boolean;
-        contentType?: "text/plain" | "text/djot" | "text/html" | "text/traceback";
-        noNewline?: boolean;
-        presentationHint?: string;
-        groupId?: string;
-        ttsText?: string;
-        thumbnail?: { contentType: string; data: string };
-        linkPreview?: LinkPreview;
-        eventMetadata?: EventMetadata;
-    }>;
+    transcript: Transcript;
     onLoadMoreHistory?: () => void;
     isLoadingHistory?: boolean;
     onLinkClick?: (
@@ -71,7 +54,6 @@ interface OutputWindowProps {
     ) => void;
     fontSize?: number;
     playerOid?: string | null;
-    staleMessageIds?: Set<string>;
     currentRoomLookKey?: string | null;
     onActiveRoomLookVisibilityChange?: (
         roomKey: string | null,
@@ -80,37 +62,50 @@ interface OutputWindowProps {
     ) => void;
 }
 
-const getRoomLookKeyFromMessage = (message: OutputWindowProps["messages"][number]): string | null => {
-    if (message.presentationHint !== "inset" || message.eventMetadata?.verb !== "look") {
-        return null;
-    }
-    return extractRoomLookKey([
-        message.eventMetadata?.lookRoom,
-        message.eventMetadata?.look_room,
-        message.eventMetadata?.dobj,
-        message.eventMetadata?.thisObj,
-    ]);
-};
-
 export const OutputWindow: React.FC<OutputWindowProps> = ({
-    messages,
+    transcript,
     onLoadMoreHistory,
     isLoadingHistory = false,
     onLinkClick,
     fontSize,
     playerOid: _playerOid,
-    staleMessageIds,
     currentRoomLookKey,
     onActiveRoomLookVisibilityChange,
 }) => {
-    const outputRef = useRef<HTMLDivElement>(null);
-    const shouldAutoScroll = useRef(true);
-    const previousScrollHeight = useRef<number>(0);
-    const latestLookMessageIdByRoomRef = useRef<Map<string, string>>(new Map());
-    const indexedMessageCountRef = useRef(0);
-    const indexedLastMessageIdRef = useRef<string | null>(null);
-    const [latestCurrentRoomLookMessageId, setLatestCurrentRoomLookMessageId] = useState<string | null>(null);
-    const [isViewingHistory, setIsViewingHistory] = useState(false);
+    const {
+        outputRef,
+        version,
+        visibleGroups,
+        start,
+        end,
+        handleScroll,
+        jumpToNow,
+        older,
+        newer,
+        hasOlder,
+        hasNewer,
+        isViewingHistory,
+    } = useTranscriptWindow(transcript, onLoadMoreHistory, isLoadingHistory);
+    const staleMessageIds = transcript.stale;
+    const latestCurrentRoomLookMessageId = currentRoomLookKey ? transcript.latestRoomLook(currentRoomLookKey) : null;
+    const announcedRevision = useRef(transcript.liveRevision);
+    const announcedGeneration = useRef(transcript.generation);
+    const [announcements, setAnnouncements] = useState<{ id: string; text: string }[]>([]);
+    const [omittedAnnouncements, setOmittedAnnouncements] = useState(0);
+    useLayoutEffect(() => {
+        if (announcedGeneration.current !== transcript.generation) {
+            announcedGeneration.current = transcript.generation;
+            announcedRevision.current = 0;
+            setAnnouncements([]);
+            setOmittedAnnouncements(0);
+        }
+        const revision = transcript.liveRevision;
+        if (revision === announcedRevision.current) return;
+        const messages = transcript.announcementsAfter(announcedRevision.current);
+        setOmittedAnnouncements(Math.max(0, revision - announcedRevision.current - messages.length));
+        setAnnouncements(messages.map(message => ({ id: message.id, text: announcementText(message) })));
+        announcedRevision.current = revision;
+    }, [transcript, version]);
 
     // Track collapsed insets by their first message ID.
     const [collapsedInsets, setCollapsedInsets] = useState<Set<string>>(() => {
@@ -207,79 +202,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         );
     }, [onLinkClick, createLinkClickHandler]);
 
-    // Auto-scroll to bottom when new messages arrive
-    useEffect(() => {
-        if (shouldAutoScroll.current && outputRef.current) {
-            outputRef.current.scrollTop = outputRef.current.scrollHeight;
-        }
-    }, [messages]);
-
-    // Handle container resize (e.g., when input area grows/shrinks)
-    useEffect(() => {
-        const outputElement = outputRef.current;
-        if (!outputElement) return;
-
-        const resizeObserver = new ResizeObserver(() => {
-            // If user was at or near the bottom, keep them there after resize
-            if (shouldAutoScroll.current) {
-                outputElement.scrollTop = outputElement.scrollHeight;
-            }
-        });
-
-        resizeObserver.observe(outputElement);
-
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, []);
-
-    // Maintain scroll position when history is loaded (prepended to top)
-    useEffect(() => {
-        if (outputRef.current && previousScrollHeight.current > 0) {
-            const currentScrollHeight = outputRef.current.scrollHeight;
-            const heightDifference = currentScrollHeight - previousScrollHeight.current;
-
-            if (heightDifference > 0) {
-                // Adjust scroll position to maintain user's view
-                outputRef.current.scrollTop += heightDifference;
-            }
-        }
-
-        // Update previous scroll height
-        if (outputRef.current) {
-            previousScrollHeight.current = outputRef.current.scrollHeight;
-        }
-    }, [messages.length]);
-
-    // Jump to the bottom (latest messages)
-    const jumpToNow = useCallback(() => {
-        if (outputRef.current) {
-            outputRef.current.scrollTop = outputRef.current.scrollHeight;
-            shouldAutoScroll.current = true;
-            setIsViewingHistory(false);
-        }
-    }, []);
-
-    // Handle scroll events to detect if user is viewing history
-    const handleScroll = useCallback(() => {
-        if (outputRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = outputRef.current;
-
-            const isNearBottom = (scrollTop + clientHeight) >= (scrollHeight - 100);
-            shouldAutoScroll.current = isNearBottom;
-
-            // Track if user is viewing history (not at bottom)
-            setIsViewingHistory(!isNearBottom);
-
-            // Check if user scrolled to the very top (within 50px)
-            const isAtTop = scrollTop <= 50;
-
-            if (isAtTop && onLoadMoreHistory && !isLoadingHistory) {
-                onLoadMoreHistory();
-            }
-        }
-    }, [onLoadMoreHistory, isLoadingHistory]);
-
     const getMessageClassName = (type: string, isHistorical?: boolean) => {
         let baseClass = "";
         switch (type) {
@@ -343,7 +265,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     }, []);
 
     const getMessageDebugAttrs = useCallback((
-        message: OutputWindowProps["messages"][number],
+        message: NarrativeMessage,
     ): Record<string, string> => {
         const attrs: Record<string, string> = {
             "data-message-id": message.id,
@@ -382,46 +304,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         }
         return attrs;
     }, [encodeEventValue]);
-
-    useEffect(() => {
-        const fullReindexNeeded = (() => {
-            if (messages.length < indexedMessageCountRef.current) {
-                return true;
-            }
-            if (messages.length === 0) {
-                return indexedMessageCountRef.current !== 0;
-            }
-            if (indexedMessageCountRef.current === 0) {
-                return false;
-            }
-            const expectedLastId = indexedLastMessageIdRef.current;
-            const actualLastIndexedId = messages[indexedMessageCountRef.current - 1]?.id || null;
-            return expectedLastId !== actualLastIndexedId;
-        })();
-
-        if (fullReindexNeeded) {
-            latestLookMessageIdByRoomRef.current.clear();
-            indexedMessageCountRef.current = 0;
-            indexedLastMessageIdRef.current = null;
-        }
-
-        for (let i = indexedMessageCountRef.current; i < messages.length; i += 1) {
-            const message = messages[i];
-            const roomLookKey = getRoomLookKeyFromMessage(message);
-            if (roomLookKey) {
-                latestLookMessageIdByRoomRef.current.set(roomLookKey, message.id);
-            }
-        }
-
-        indexedMessageCountRef.current = messages.length;
-        indexedLastMessageIdRef.current = messages.length > 0 ? messages[messages.length - 1].id : null;
-        const nextLatestCurrentRoomLookMessageId = currentRoomLookKey
-            ? (latestLookMessageIdByRoomRef.current.get(currentRoomLookKey) ?? null)
-            : null;
-        setLatestCurrentRoomLookMessageId((previous) =>
-            previous === nextLatestCurrentRoomLookMessageId ? previous : nextLatestCurrentRoomLookMessageId
-        );
-    }, [currentRoomLookKey, messages]);
 
     useEffect(() => {
         if (!onActiveRoomLookVisibilityChange) {
@@ -507,7 +389,15 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         return () => {
             observer.disconnect();
         };
-    }, [currentRoomLookKey, latestCurrentRoomLookMessageId, onActiveRoomLookVisibilityChange]);
+    }, [
+        currentRoomLookKey,
+        latestCurrentRoomLookMessageId,
+        onActiveRoomLookVisibilityChange,
+        start,
+        end,
+        version,
+        outputRef,
+    ]);
 
     const resolvedFontSize = fontSize ?? 14;
 
@@ -517,230 +407,94 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
             id="output_window"
             className="output_window"
             role="log"
-            aria-live="polite"
+            aria-live="off"
             aria-atomic="false"
             aria-relevant="additions"
             onScroll={handleScroll}
             style={{
                 paddingBottom: "1rem",
+                overflowAnchor: "none",
                 fontSize: `${resolvedFontSize}px`,
             }}
         >
-            {/* History indicator - "Jump to Now" button */}
-            {isViewingHistory && (
-                <div className="history_indicator">
-                    <span>Viewing history</span>
-                    <button
-                        onClick={jumpToNow}
-                        aria-label="Return to latest messages"
-                        aria-describedby="history-status"
-                        className="history_indicator_button"
-                    >
-                        Jump to Now
-                    </button>
-                    <div id="history-status" className="sr-only">
-                        Currently viewing message history
+            <div className="transcript_navigation" aria-label="Transcript navigation">
+                <button
+                    onClick={() => {
+                        if (hasOlder && !isLoadingHistory) older();
+                    }}
+                    aria-disabled={!hasOlder || isLoadingHistory}
+                >
+                    Older messages
+                </button>
+                <button
+                    onClick={() => {
+                        if (hasNewer) newer();
+                    }}
+                    aria-disabled={!hasNewer}
+                >
+                    Newer messages
+                </button>
+                <button onClick={jumpToNow} aria-disabled={!isViewingHistory} aria-label="Return to latest messages">
+                    Jump to Now
+                </button>
+                <span className="sr-only">
+                    Browser Find and Select All cover the displayed messages. Export includes full history.
+                </span>
+                {isLoadingHistory && <span role="status">Loading more history...</span>}
+            </div>
+            <div className="sr-only" aria-live="polite" aria-relevant="additions" aria-atomic="false">
+                {omittedAnnouncements > 0 && (
+                    <span key={`omitted-${transcript.liveRevision}`}>
+                        {omittedAnnouncements} additional new messages.
+                    </span>
+                )}
+                {announcements.map(message => (
+                    <div key={message.id}>
+                        {message.text}
                     </div>
-                </div>
-            )}
-
-            {/* Add minimal top padding to ensure scrollability */}
-            {onLoadMoreHistory && (
-                <div className="output_window_load_more">
-                    {isLoadingHistory && (
-                        <span role="status" aria-live="polite">
-                            Loading more history...
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {/* Render all messages, grouping no_newline messages and consecutive messages with same presentationHint+groupId */}
-            {(() => {
-                const groupedMessages: typeof messages[] = [];
-                let currentGroup: typeof messages = [];
-
-                for (let i = 0; i < messages.length; i++) {
-                    const message = messages[i];
-                    currentGroup.push(message);
-
-                    const nextMessage = i < messages.length - 1 ? messages[i + 1] : null;
-
-                    // Continue grouping if:
-                    // 1. This message has noNewline, OR
-                    // 2. This message has a presentationHint and the next message has the same hint AND same groupId
-                    //    AND same actor (for speech bubbles, we don't want to merge different speakers)
-                    const sameActor = () => {
-                        const a1 = message.eventMetadata?.actor;
-                        const a2 = nextMessage?.eventMetadata?.actor;
-                        if (!a1 || !a2) return true; // If no actor info, allow grouping
-                        if (a1.oid !== undefined && a2.oid !== undefined) return a1.oid === a2.oid;
-                        if (a1.uuid !== undefined && a2.uuid !== undefined) return a1.uuid === a2.uuid;
-                        return false; // Different actor representations = different actors
-                    };
-                    const sameHintGroup = message.presentationHint
-                        && nextMessage?.presentationHint === message.presentationHint
-                        && !!message.groupId
-                        && message.groupId === nextMessage?.groupId
-                        && message.eventMetadata?.collapseTitle === nextMessage?.eventMetadata?.collapseTitle
-                        && sameActor();
-                    const shouldContinueGroup = message.noNewline || sameHintGroup;
-
-                    // If we shouldn't continue grouping or it's the last message, complete the current group
-                    if (!shouldContinueGroup || i === messages.length - 1) {
-                        groupedMessages.push(currentGroup);
-                        currentGroup = [];
-                    }
-                }
-
-                return groupedMessages.map((group) => {
+                ))}
+            </div>
+            {visibleGroups.map(indexedGroup => {
+                const group = indexedGroup.messages;
+                const renderGroup = () => {
                     const firstMessage = group[0];
                     const result = [];
 
-                    if (group.length === 1) {
-                        // Single message
-                        const message = group[0];
-
-                        if (message.presentationHint) {
-                            // If it has a presentationHint, wrap it like we do for groups
-                            const baseClassName = getMessageClassName(message.type, message.isHistorical);
-                            const collapseTitle = getCollapseTitle(message.presentationHint, message.eventMetadata);
-                            const isMessageStale = staleMessageIds?.has(message.id) || message.isHistorical;
-
-                            // Use message.id for collapse key (unique per event)
-                            const collapseKey = message.id;
-                            const isCollapsible = collapseTitle !== undefined;
-                            const isThisCollapsed = isCollapsible && collapsedInsets.has(collapseKey);
-
-                            const wrapperClassName = (() => {
-                                const classes: string[] = [];
-                                if (message.presentationHint === "inset") classes.push("presentation_inset");
-                                if (message.presentationHint === "marker") classes.push("presentation_marker");
-                                if (message.presentationHint === "processing") {
-                                    classes.push("presentation_processing");
-                                }
-                                if (message.presentationHint === "expired") classes.push("presentation_expired");
-                                return classes.join(" ");
-                            })();
-
-                            result.push(
-                                <div
-                                    key={message.id}
-                                    className={wrapperClassName}
-                                    {...getMessageDebugAttrs(message)}
-                                >
-                                    {isCollapsible && isThisCollapsed && (
-                                        <>
-                                            {/* Visual collapsed state - hidden from screen readers */}
-                                            <div className="inset_collapsed_summary" aria-hidden="true">
-                                                <button
-                                                    type="button"
-                                                    className="inset_toggle_button"
-                                                    onClick={() => toggleInsetCollapse(collapseKey)}
-                                                    tabIndex={-1}
-                                                >
-                                                    <span className="inset_chevron collapsed">▼</span>
-                                                </button>
-                                                <span className="inset_collapsed_name">
-                                                    {collapseTitle}
-                                                </span>
-                                            </div>
-                                            {/* Full content for screen readers when visually collapsed */}
-                                            <div className={`${baseClassName} sr-only`}>
-                                                {renderContentWithTts(
-                                                    message.content,
-                                                    message.contentType,
-                                                    message.ttsText,
-                                                    message.thumbnail,
-                                                    message.linkPreview,
-                                                    message.id,
-                                                    isMessageStale,
-                                                    message.eventMetadata?.enableEmojis,
-                                                    message.eventMetadata,
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                    {!isThisCollapsed && isCollapsible && (
-                                        <div className="inset_toggle_row">
-                                            {/* Toggle button hidden from screen readers */}
-                                            <button
-                                                type="button"
-                                                className="inset_toggle_button"
-                                                onClick={() => toggleInsetCollapse(collapseKey)}
-                                                aria-hidden="true"
-                                                tabIndex={-1}
-                                            >
-                                                <span className="inset_chevron">▼</span>
-                                            </button>
-                                            <div className={baseClassName}>
-                                                {renderContentWithTts(
-                                                    message.content,
-                                                    message.contentType,
-                                                    message.ttsText,
-                                                    message.thumbnail,
-                                                    message.linkPreview,
-                                                    message.id,
-                                                    isMessageStale,
-                                                    message.eventMetadata?.enableEmojis,
-                                                    message.eventMetadata,
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {!isThisCollapsed && !isCollapsible && (
-                                        <div className={baseClassName}>
-                                            {renderContentWithTts(
-                                                message.content,
-                                                message.contentType,
-                                                message.ttsText,
-                                                message.thumbnail,
-                                                message.linkPreview,
-                                                message.id,
-                                                isMessageStale,
-                                                message.eventMetadata?.enableEmojis,
-                                                message.eventMetadata,
-                                            )}
-                                        </div>
-                                    )}
-                                </div>,
-                            );
-                        } else {
-                            // Regular message without presentationHint
-                            const isMessageStale = staleMessageIds?.has(message.id) || message.isHistorical;
-                            result.push(
-                                <span
-                                    key={message.id}
-                                    className={`${
-                                        getMessageClassName(
-                                            message.type,
-                                            message.isHistorical,
-                                        )
-                                    } message-block`}
-                                    {...getMessageDebugAttrs(message)}
-                                >
-                                    {renderContentWithTts(
-                                        message.content,
-                                        message.contentType,
-                                        message.ttsText,
-                                        message.thumbnail,
-                                        message.linkPreview,
-                                        message.id,
-                                        isMessageStale,
-                                        message.eventMetadata?.enableEmojis,
-                                        message.eventMetadata,
-                                    )}
-                                </span>,
-                            );
-                        }
-
+                    if (group.length === 1 && !firstMessage.presentationHint) {
+                        const message = firstMessage;
+                        // Regular message without presentationHint
+                        const isMessageStale = staleMessageIds?.has(message.id) || message.isHistorical;
+                        result.push(
+                            <span
+                                key={message.id}
+                                className={`${
+                                    getMessageClassName(
+                                        message.type,
+                                        message.isHistorical,
+                                    )
+                                } message-block`}
+                                {...getMessageDebugAttrs(message)}
+                            >
+                                {renderContentWithTts(
+                                    message.content,
+                                    message.contentType,
+                                    message.ttsText,
+                                    message.thumbnail,
+                                    message.linkPreview,
+                                    message.id,
+                                    isMessageStale,
+                                    message.eventMetadata?.enableEmojis,
+                                    message.eventMetadata,
+                                )}
+                            </span>,
+                        );
                         return result;
                     } else {
                         // Multiple messages grouped together
 
                         // Check if this group is for presentationHint or noNewline
                         const isHintGroup = firstMessage.presentationHint
-                            && !!firstMessage.groupId
+                            && (group.length === 1 || !!firstMessage.groupId)
                             && group.every(msg =>
                                 msg.presentationHint === firstMessage.presentationHint
                                 && msg.groupId === firstMessage.groupId
@@ -759,8 +513,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             // Group is stale if any message in it is stale or historical
                             const isGroupStale = group.some(msg => staleMessageIds?.has(msg.id) || msg.isHistorical);
 
-                            // Use firstMessage.id for collapse key (unique per event group)
-                            const collapseKey = firstMessage.id;
+                            const collapseKey = indexedGroup.id;
                             const isCollapsible = collapseTitle !== undefined;
                             const isThisCollapsed = isCollapsible && collapsedInsets.has(collapseKey);
 
@@ -779,7 +532,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
 
                             result.push(
                                 <div
-                                    key={`hint_${firstMessage.id}`}
+                                    key={`hint_${indexedGroup.id}`}
                                     className={wrapperClassName}
                                     {...getMessageDebugAttrs(firstMessage)}
                                 >
@@ -802,7 +555,11 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                             {/* Full content for screen readers when visually collapsed */}
                                             <div className="sr-only">
                                                 {group.map(msg => (
-                                                    <div key={msg.id} className={baseClassName}>
+                                                    <div
+                                                        key={msg.id}
+                                                        className={baseClassName}
+                                                        data-transcript-message={msg.id}
+                                                    >
                                                         {renderContentWithTts(
                                                             msg.content,
                                                             msg.contentType,
@@ -833,7 +590,11 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                             </button>
                                             <div>
                                                 {group.map(msg => (
-                                                    <div key={msg.id} className={baseClassName}>
+                                                    <div
+                                                        key={msg.id}
+                                                        className={baseClassName}
+                                                        data-transcript-message={msg.id}
+                                                    >
                                                         {renderContentWithTts(
                                                             msg.content,
                                                             msg.contentType,
@@ -853,7 +614,11 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                                     {!isThisCollapsed && !isCollapsible && (
                                         <>
                                             {group.map(msg => (
-                                                <div key={msg.id} className={baseClassName}>
+                                                <div
+                                                    key={msg.id}
+                                                    className={baseClassName}
+                                                    data-transcript-message={msg.id}
+                                                >
                                                     {renderContentWithTts(
                                                         msg.content,
                                                         msg.contentType,
@@ -906,7 +671,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
 
                             result.push(
                                 <div
-                                    key={`noline_${firstMessage.id}`}
+                                    key={`noline_${indexedGroup.id}`}
                                     className={getMessageClassName(
                                         firstMessage.type,
                                         firstMessage.isHistorical,
@@ -930,8 +695,9 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
 
                         return result;
                     }
-                });
-            })()}
+                };
+                return <div key={indexedGroup.id} data-transcript-group={indexedGroup.id}>{renderGroup()}</div>;
+            })}
         </div>
     );
 };

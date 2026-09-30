@@ -4190,3 +4190,24 @@ button:disabled {
     .command-card-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 }
 .verb-chip .semantic-icon-wrap { margin-inline-end: 0.35em; vertical-align: -0.15em; }
+
+/* Keep transcript navigation reachable while its complete-group window moves. */
+.transcript_navigation {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding-block: var(--space-sm);
+    background: var(--color-bg-primary);
+}
+
+[data-transcript-group] {
+    margin-bottom: var(--space-md);
+}
+
+.transcript_navigation button[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: default;
+}

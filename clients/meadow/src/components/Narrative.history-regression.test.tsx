@@ -11,9 +11,10 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { act, render } from "@testing-library/react";
-import { createRef } from "react";
+import { createRef, useSyncExternalStore } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { installMockWebHostFetch } from "../../../web-sdk/src/testing/mock-http-host";
+import type { Transcript } from "../lib/transcript";
 import { Narrative, NarrativeMessage, NarrativeRef } from "./Narrative";
 
 vi.mock("./InputArea", () => ({
@@ -21,13 +22,15 @@ vi.mock("./InputArea", () => ({
 }));
 
 vi.mock("./OutputWindow", () => ({
-    OutputWindow: ({ messages }: { messages: NarrativeMessage[] }) => (
-        <div data-testid="output-window" data-messages={JSON.stringify(messages)}>
-            {messages.map((message) =>
-                String(message.content)
-            ).join("|")}
-        </div>
-    ),
+    OutputWindow: ({ transcript }: { transcript: Transcript }) => {
+        useSyncExternalStore(transcript.subscribe, transcript.getVersion);
+        const messages = transcript.allMessages();
+        return (
+            <div data-testid="output-window" data-messages={JSON.stringify(messages)}>
+                {messages.map((message) => String(message.content)).join("|")}
+            </div>
+        );
+    },
 }));
 
 interface MockHistoryItem {

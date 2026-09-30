@@ -184,6 +184,50 @@ Measured on 2026-09-30 with `npm run build --workspace meadow` (decimal kB):
 The deferred Monaco editor chunk remains 5,699.71 kB (1,101.32 kB gzip). Vite still reports large
 chunks; the explicit budgets distinguish startup cost from editor loading cost.
 
+## Transcript window
+
+The transcript displays at most 200 complete message groups at a time. Scrolling near either end
+moves the window by 100 groups, keeping an overlapping group at its previous viewport offset.
+**Older messages** and **Newer messages** move to the start of the adjacent window; **Jump to Now**
+returns to the live tail. Older history is fetched only after reaching the beginning of the locally
+loaded groups. The scrollbar describes the displayed window, not the whole history.
+
+Selecting transcript text or focusing one of its controls holds the window and pauses automatic
+scrolling. The navigation buttons still work deliberately. After releasing selection or focus,
+scrolling to the live end or choosing **Jump to Now** resumes following output. Browser Find and
+Select All cover the mounted window; use the JSON export for full history.
+
+Historical rows are readable but are not live-announced when the window moves. A separate polite
+region announces new output, preferring supplied TTS text. A burst is limited to the newest 200
+announcements, with a count of additional messages. Announcements contain text, without duplicate
+interactive links or images.
+
+Loaded message data remains in memory so local navigation does not discard output. Rendering is
+bounded by group count, not bytes: a single large inset or no-newline group stays intact and can
+contain more than 200 messages. The transcript indexes message IDs, group positions, room looks, and
+live messages separately. Appending and ordinary rewrites do not rebuild historical groups; initial
+history replacement and rewrites that change group boundaries can rebuild the index.
+
+Tested on 2026-09-30 with 10,000 historical plain-text messages and one live append, using Vitest
+and jsdom. Representative isolated runs on the same development machine:
+
+| Measurement              | Before #502 | After #502 |
+| ------------------------ | ----------: | ---------: |
+| Initial index and render |     1463 ms |      99 ms |
+| Live append              |      241 ms |      22 ms |
+| Mounted message nodes    |      10,001 |        200 |
+
+The regression asserts the mounted-node limit and retained message count, without a machine-specific
+timing threshold. Timings exclude a real browser's layout and paint and are not browser benchmarks.
+Additional tests cover overlapping scroll anchors, resize/prepend stability, selection/focus holds,
+complete groups, keyboard-accessible controls, room-look visibility, and live announcements. Native
+browser and screen-reader smoke testing remains outstanding.
+
+```bash
+npm test --workspace meadow -- src/components/OutputWindow.performance.test.tsx
+npm test --workspace meadow -- src/hooks/useTranscriptWindow.test.tsx src/lib/transcript.test.ts src/components/OutputWindow.test.tsx
+```
+
 ## History exports
 
 On browsers with a Save File picker, **Download All History (JSON)** first asks for a destination,

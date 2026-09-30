@@ -14,6 +14,7 @@
 import { AnnotationTable } from "@moor/web-sdk";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { CommandDraft, decodeDraft, draftEcho, plainDraft, serializeDraft } from "../lib/command-draft";
+import { createTranscript } from "../lib/transcript";
 import { stringToCurie, uuObjIdToString } from "../lib/var";
 import { InputMetadata } from "../types/input";
 import { getCommandEchoEnabled } from "./CommandEchoToggle";
@@ -23,6 +24,9 @@ import { OutputWindow } from "./OutputWindow";
 
 export interface EventMetadata {
     annotations?: AnnotationTable;
+    lookRoom?: { oid?: number; uuid?: string } | string | number | null;
+    look_room?: { oid?: number; uuid?: string } | string | number | null;
+    enableEmojis?: boolean;
     collapseTitle?: string;
     eventId?: string;
     deliveryId?: string;
@@ -112,9 +116,6 @@ export interface NarrativeRef {
     markMessageStale: (messageId: string) => void;
 }
 
-// Verbs that trigger staleness - a new event with this verb makes previous events with the same verb stale
-const STALENESS_VERBS = new Set(["look"]);
-
 const COMMAND_HISTORY_STORAGE_PREFIX = "moor-command-history-v2";
 const MAX_COMMAND_HISTORY = 500;
 
@@ -166,9 +167,8 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     onClearInputMetadata,
 }, ref) => {
     const connected = connectionStatus === "connected";
-    const [messages, setMessages] = useState<NarrativeMessage[]>([]);
+    const [transcript] = useState(createTranscript);
     const [commandHistory, setCommandHistory] = useState<CommandDraft[]>([]);
-    const [staleMessageIds, setStaleMessageIds] = useState<Set<string>>(new Set());
     const narrativeContainerRef = useRef<HTMLDivElement>(null);
     const storageKeyRef = useRef<string | null>(null);
     const previousStorageKeyRef = useRef<string | null>(null);
@@ -185,7 +185,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     const pendingMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pendingMessagesRef = useRef<{
         message: NarrativeMessage;
-        idsToStale?: string[];
         isInputEcho?: boolean;
     }[]>([]);
 
@@ -200,7 +199,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     // Add a message to the DOM and update timestamp
     const commitMessageToDOM = useCallback((
         message: NarrativeMessage,
-        idsToStale?: string[],
         isInputEcho?: boolean,
     ) => {
         const dedupKey = messageDedupKey(message);
@@ -208,15 +206,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             return;
         }
 
-        if (idsToStale && idsToStale.length > 0) {
-            setStaleMessageIds(prevStale => {
-                const next = new Set(prevStale);
-                idsToStale.forEach(id => next.add(id));
-                return next;
-            });
-        }
-
-        setMessages(prev => [...prev, message]);
+        transcript.append(message);
         if (message.eventId) {
             seenEventIdsRef.current.add(message.eventId);
         }
@@ -228,7 +218,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         if (!isInputEcho) {
             onMessageAppended?.(message);
         }
-    }, [onMessageAppended]);
+    }, [onMessageAppended, transcript]);
 
     // Process queued messages one at a time with spacing
     const processNextPendingMessage = useCallback(() => {
@@ -237,7 +227,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         const item = pendingMessagesRef.current.shift();
         if (!item) return;
 
-        commitMessageToDOM(item.message, item.idsToStale, item.isInputEcho);
+        commitMessageToDOM(item.message, item.isInputEcho);
 
         if (pendingMessagesRef.current.length > 0) {
             pendingMessageTimerRef.current = setTimeout(
@@ -245,7 +235,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                 MIN_DOM_ADDITION_INTERVAL,
             );
         }
-    }, [commitMessageToDOM]);
+    }, [commitMessageToDOM, MIN_DOM_ADDITION_INTERVAL]);
 
     // Cleanup timer on unmount
     useEffect(() => {
@@ -281,15 +271,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         }
     }, []);
 
-    // Mark a message as stale (links no longer actionable)
-    const markMessageStale = useCallback((messageId: string) => {
-        setStaleMessageIds(prev => {
-            if (prev.has(messageId)) return prev;
-            const next = new Set(prev);
-            next.add(messageId);
-            return next;
-        });
-    }, []);
+    const markMessageStale = transcript.markStale;
 
     // Add a new message to the narrative (or rewrite an existing one)
     const addMessage = useCallback((
@@ -325,43 +307,40 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         if (rewriteTarget) {
             const targetMessageId = rewritableIndexRef.current.get(rewriteTarget);
             if (targetMessageId) {
-                setMessages(prev =>
-                    prev.map(msg => {
-                        if (msg.id !== targetMessageId) return msg;
-                        // Validate owner matches (security check)
-                        // Normalize both to CURIE format for comparison
-                        const actorCurie = (() => {
-                            const actor = eventMetadata?.actor;
-                            if (!actor) return undefined;
-                            if (typeof actor === "string") return stringToCurie(actor);
-                            if (actor.oid !== undefined) return `oid:${actor.oid}`;
-                            if (actor.uuid !== undefined) return `uuid:${uuObjIdToString(BigInt(actor.uuid))}`;
-                            return undefined;
-                        })();
-                        const ownerCurie = msg.rewritable?.owner;
-                        if (ownerCurie !== actorCurie) {
-                            console.warn("[Narrative] Rewrite rejected: owner mismatch", {
-                                expected: ownerCurie,
-                                got: actorCurie,
-                            });
-                            return msg;
-                        }
-                        // Check TTL hasn't expired
-                        if (msg.rewritable && now > msg.rewritable.expiresAt) {
-                            console.warn("[Narrative] Rewrite rejected: TTL expired");
-                            return msg;
-                        }
-                        // Replace the message content, clear rewritable status
-                        return {
-                            ...msg,
-                            content,
-                            eventMetadata,
-                            contentType: contentType || msg.contentType,
-                            presentationHint: presentationHint, // Clear processing hint
-                            rewritable: undefined,
-                        };
-                    })
-                );
+                transcript.update(targetMessageId, msg => {
+                    // Validate owner matches (security check)
+                    // Normalize both to CURIE format for comparison
+                    const actorCurie = (() => {
+                        const actor = eventMetadata?.actor;
+                        if (!actor) return undefined;
+                        if (typeof actor === "string") return stringToCurie(actor);
+                        if (actor.oid !== undefined) return `oid:${actor.oid}`;
+                        if (actor.uuid !== undefined) return `uuid:${uuObjIdToString(BigInt(actor.uuid))}`;
+                        return undefined;
+                    })();
+                    const ownerCurie = msg.rewritable?.owner;
+                    if (ownerCurie !== actorCurie) {
+                        console.warn("[Narrative] Rewrite rejected: owner mismatch", {
+                            expected: ownerCurie,
+                            got: actorCurie,
+                        });
+                        return msg;
+                    }
+                    // Check TTL hasn't expired
+                    if (msg.rewritable && now > msg.rewritable.expiresAt) {
+                        console.warn("[Narrative] Rewrite rejected: TTL expired");
+                        return msg;
+                    }
+                    // Replace the message content, clear rewritable status
+                    return {
+                        ...msg,
+                        content,
+                        eventMetadata,
+                        contentType: contentType || msg.contentType,
+                        presentationHint: presentationHint, // Clear processing hint
+                        rewritable: undefined,
+                    };
+                });
                 // Remove from index (one-shot rewrite)
                 rewritableIndexRef.current.delete(rewriteTarget);
                 return; // Successfully rewrote, don't add new message
@@ -400,18 +379,6 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
         // Track the latest message timestamp (update even for input echo)
         lastMessageTimestampRef.current = messageTimestamp;
 
-        // Compute staleness IDs upfront (need current messages state)
-        let idsToStale: string[] | undefined;
-        const verb = eventMetadata?.verb;
-        if (verb && STALENESS_VERBS.has(verb)) {
-            setMessages(prev => {
-                idsToStale = prev
-                    .filter(msg => msg.eventMetadata?.verb === verb)
-                    .map(msg => msg.id);
-                return prev; // Don't modify, just read
-            });
-        }
-
         const isInputEcho = type === "input_echo";
 
         // Smart delay: only stagger when messages arrive rapidly
@@ -420,12 +387,11 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
         if (timeSinceLastAddition >= MIN_DOM_ADDITION_INTERVAL && !hasPendingMessages) {
             // Enough time has passed - add immediately (zero delay)
-            commitMessageToDOM(newMessage, idsToStale, isInputEcho);
+            commitMessageToDOM(newMessage, isInputEcho);
         } else {
             // Too soon or queue active - add to queue for staggered processing
             pendingMessagesRef.current.push({
                 message: newMessage,
-                idsToStale,
                 isInputEcho,
             });
 
@@ -438,7 +404,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                 );
             }
         }
-    }, [commitMessageToDOM, processNextPendingMessage]);
+    }, [commitMessageToDOM, processNextPendingMessage, transcript, MIN_DOM_ADDITION_INTERVAL]);
 
     // Handle sending messages
     const handleSendMessage = useCallback((message: string | Uint8Array | ArrayBuffer) => {
@@ -566,100 +532,84 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             }
         }
 
-        setMessages(prev => {
-            // Preserve any live messages that arrived after history boundary
-            const liveMessages = prev.filter(msg => !msg.isHistorical);
-            const seenLiveEventIds = new Set<string>();
-            const seenLiveMessageKeys = new Set<string>();
-            for (const msg of liveMessages) {
-                if (msg.eventId) {
-                    seenLiveEventIds.add(msg.eventId);
-                }
-                const dedupKey = messageDedupKey(msg);
-                if (dedupKey) {
-                    seenLiveMessageKeys.add(dedupKey);
-                }
+        const liveMessages = transcript.liveMessages();
+        const seenLiveEventIds = new Set<string>();
+        const seenLiveMessageKeys = new Set<string>();
+        for (const msg of liveMessages) {
+            if (msg.eventId) {
+                seenLiveEventIds.add(msg.eventId);
+            }
+            const dedupKey = messageDedupKey(msg);
+            if (dedupKey) {
+                seenLiveMessageKeys.add(dedupKey);
+            }
+        }
+
+        const seenHistoryEventIds = new Set<string>();
+        const seenHistoryMessageKeys = new Set<string>();
+        const dedupedHistorical = historicalMessages.filter(msg => {
+            const dedupKey = messageDedupKey(msg);
+            if (dedupKey && (seenLiveMessageKeys.has(dedupKey) || seenHistoryMessageKeys.has(dedupKey))) {
+                return false;
+            }
+            if (dedupKey) {
+                seenHistoryMessageKeys.add(dedupKey);
             }
 
-            const seenHistoryEventIds = new Set<string>();
-            const seenHistoryMessageKeys = new Set<string>();
-            const dedupedHistorical = historicalMessages.filter(msg => {
-                const dedupKey = messageDedupKey(msg);
-                if (dedupKey && (seenLiveMessageKeys.has(dedupKey) || seenHistoryMessageKeys.has(dedupKey))) {
-                    return false;
-                }
-                if (dedupKey) {
-                    seenHistoryMessageKeys.add(dedupKey);
-                }
-
-                const eid = msg.eventId;
-                if (eid && (seenLiveEventIds.has(eid) || seenHistoryEventIds.has(eid))) {
-                    return false;
-                }
-                if (eid) {
-                    seenHistoryEventIds.add(eid);
-                }
-                return true;
-            });
-
-            const newMessages = sortMessagesChronologically([...dedupedHistorical, ...liveMessages]);
-            const nextSeenEventIds = new Set<string>();
-            const nextSeenMessageKeys = new Set<string>();
-            for (const msg of newMessages) {
-                if (msg.eventId) {
-                    nextSeenEventIds.add(msg.eventId);
-                }
-                const dedupKey = messageDedupKey(msg);
-                if (dedupKey) {
-                    nextSeenMessageKeys.add(dedupKey);
-                }
+            const eid = msg.eventId;
+            if (eid && (seenLiveEventIds.has(eid) || seenHistoryEventIds.has(eid))) {
+                return false;
             }
-            seenEventIdsRef.current = nextSeenEventIds;
-            seenMessageKeysRef.current = nextSeenMessageKeys;
-            return newMessages;
+            if (eid) {
+                seenHistoryEventIds.add(eid);
+            }
+            return true;
         });
-    }, []);
+
+        const newMessages = sortMessagesChronologically([...dedupedHistorical, ...liveMessages]);
+        const nextSeenEventIds = new Set<string>();
+        const nextSeenMessageKeys = new Set<string>();
+        for (const msg of newMessages) {
+            if (msg.eventId) {
+                nextSeenEventIds.add(msg.eventId);
+            }
+            const dedupKey = messageDedupKey(msg);
+            if (dedupKey) {
+                nextSeenMessageKeys.add(dedupKey);
+            }
+        }
+        seenEventIdsRef.current = nextSeenEventIds;
+        seenMessageKeysRef.current = nextSeenMessageKeys;
+        transcript.replace(newMessages);
+    }, [transcript]);
 
     // Prepend more historical messages (for infinite scroll)
     const prependHistoricalMessages = useCallback((moreHistoricalMessages: NarrativeMessage[]) => {
-        setMessages(prev => {
-            const seenEventIds = new Set<string>();
-            const seenMessageKeys = new Set<string>();
-            for (const msg of prev) {
-                if (msg.eventId) {
-                    seenEventIds.add(msg.eventId);
-                }
-                const dedupKey = messageDedupKey(msg);
-                if (dedupKey) {
-                    seenMessageKeys.add(dedupKey);
-                }
+        const seenEventIds = seenEventIdsRef.current;
+        const seenMessageKeys = seenMessageKeysRef.current;
+        const dedupedHistorical = moreHistoricalMessages.filter(msg => {
+            const dedupKey = messageDedupKey(msg);
+            if (dedupKey && seenMessageKeys.has(dedupKey)) {
+                return false;
             }
-            const dedupedHistorical = moreHistoricalMessages.filter(msg => {
-                const dedupKey = messageDedupKey(msg);
-                if (dedupKey && seenMessageKeys.has(dedupKey)) {
-                    return false;
-                }
-                if (dedupKey) {
-                    seenMessageKeys.add(dedupKey);
-                }
+            if (dedupKey) {
+                seenMessageKeys.add(dedupKey);
+            }
 
-                const eid = msg.eventId;
-                if (!eid) {
-                    return true;
-                }
-                if (seenEventIds.has(eid)) {
-                    return false;
-                }
-                seenEventIds.add(eid);
+            const eid = msg.eventId;
+            if (!eid) {
                 return true;
-            });
-            // Prepend to the beginning of existing messages
-            const newMessages = [...dedupedHistorical, ...prev];
-            seenEventIdsRef.current = seenEventIds;
-            seenMessageKeysRef.current = seenMessageKeys;
-            return newMessages;
+            }
+            if (seenEventIds.has(eid)) {
+                return false;
+            }
+            seenEventIds.add(eid);
+            return true;
         });
-    }, []);
+        transcript.prepend(dedupedHistorical);
+        seenEventIdsRef.current = seenEventIds;
+        seenMessageKeysRef.current = seenMessageKeys;
+    }, [transcript]);
 
     // Get container height for dynamic sizing
     const getContainerHeight = useCallback(() => {
@@ -674,57 +624,42 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             previousStorageKeyRef.current = null;
         }
 
-        setMessages([]);
+        if (pendingMessageTimerRef.current) clearTimeout(pendingMessageTimerRef.current);
+        pendingMessageTimerRef.current = null;
+        pendingMessagesRef.current = [];
+        transcript.replace([]);
         setCommandHistory([]);
-        setStaleMessageIds(new Set());
         rewritableIndexRef.current.clear();
         seenEventIdsRef.current.clear();
         seenMessageKeysRef.current.clear();
-    }, [clearStoredHistory]);
+    }, [clearStoredHistory, transcript]);
 
     // TTL expiry effect: check for expired rewritable messages periodically
     useEffect(() => {
         const checkExpiry = () => {
             const now = Date.now();
-            const expiredIds: string[] = [];
-
-            setMessages(prev => {
-                let hasChanges = false;
-                const updated = prev.map(msg => {
-                    if (!msg.rewritable) return msg;
-                    if (now <= msg.rewritable.expiresAt) return msg;
-                    // Message has expired
-                    hasChanges = true;
-                    expiredIds.push(msg.rewritable.id);
-                    if (msg.rewritable.fallback) {
-                        // Replace with fallback content
-                        return {
-                            ...msg,
-                            content: msg.rewritable.fallback,
-                            presentationHint: undefined, // Clear processing animation
-                            rewritable: undefined,
-                        };
-                    }
-                    // No fallback - just mark as expired (will fade via CSS)
-                    return {
-                        ...msg,
-                        presentationHint: "expired",
-                        rewritable: undefined,
-                    };
-                });
-                return hasChanges ? updated : prev;
-            });
-
-            // Clean up index for expired IDs
-            if (expiredIds.length > 0) {
-                expiredIds.forEach(id => rewritableIndexRef.current.delete(id));
+            for (const [rewriteId, messageId] of rewritableIndexRef.current) {
+                const message = transcript.get(messageId);
+                if (!message) continue; // A queued message has not reached the transcript yet.
+                if (!message.rewritable) {
+                    rewritableIndexRef.current.delete(rewriteId);
+                    continue;
+                }
+                if (now <= message.rewritable.expiresAt) continue;
+                transcript.update(messageId, current => ({
+                    ...current,
+                    content: current.rewritable?.fallback || current.content,
+                    presentationHint: current.rewritable?.fallback ? undefined : "expired",
+                    rewritable: undefined,
+                }));
+                rewritableIndexRef.current.delete(rewriteId);
             }
         };
 
         // Check every second for expired messages
         const interval = setInterval(checkExpiry, 1000);
         return () => clearInterval(interval);
-    }, []);
+    }, [transcript]);
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
@@ -816,13 +751,12 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
             {/* Output display area - should grow to fill space and handle its own scrolling */}
             <div className={`narrative-output-wrapper${promptActive ? " narrative-output-wrapper--dimmed" : ""}`}>
                 <OutputWindow
-                    messages={messages}
+                    transcript={transcript}
                     onLoadMoreHistory={onLoadMoreHistory}
                     isLoadingHistory={isLoadingHistory}
                     onLinkClick={onLinkClick}
                     fontSize={fontSize}
                     playerOid={playerOid}
-                    staleMessageIds={staleMessageIds}
                     currentRoomLookKey={currentRoomLookKey}
                     onActiveRoomLookVisibilityChange={onActiveRoomLookVisibilityChange}
                 />

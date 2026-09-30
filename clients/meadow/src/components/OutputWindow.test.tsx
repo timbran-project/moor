@@ -15,6 +15,7 @@ import { virtual } from "@guidepup/virtual-screen-reader";
 import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AnnotationContext } from "../context/AnnotationContext";
+import { createTranscript } from "../lib/transcript";
 import { OutputWindow } from "./OutputWindow";
 import { ToastProvider } from "./Toast";
 
@@ -44,7 +45,9 @@ function createMessage(id: string, content: string, opts: {
 }
 
 function renderOutputWindow(messages: ReturnType<typeof createMessage>[]) {
-    return render(<OutputWindow messages={messages} />, { wrapper: ToastProvider });
+    const transcript = createTranscript();
+    transcript.replace(messages);
+    return { ...render(<OutputWindow transcript={transcript} />, { wrapper: ToastProvider }), transcript };
 }
 
 // Helper to collect announcements from virtual screen reader
@@ -167,7 +170,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("1", "Initial message."),
         ];
 
-        const { container, rerender } = renderOutputWindow([...messages]);
+        const { container, transcript } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -176,19 +179,19 @@ describe("OutputWindow screen reader announcements", () => {
         // Add messages one at a time with delays
         messages.push(createMessage("2", "Second message."));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 50));
 
         messages.push(createMessage("3", "Third message."));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 50));
 
         messages.push(createMessage("4", "Fourth message."));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 50));
 
@@ -206,7 +209,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("initial", "You are in the starting room."),
         ];
 
-        const { container, rerender } = renderOutputWindow([...messages]);
+        const { container, transcript } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -215,7 +218,7 @@ describe("OutputWindow screen reader announcements", () => {
         // Movement message
         messages.push(createMessage("move", "You head north."));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 30));
 
@@ -227,14 +230,14 @@ describe("OutputWindow screen reader announcements", () => {
             eventMetadata: { verb: "look", dobjName: "Anteroom", collapseTitle: "Anteroom" },
         }));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 30));
 
         // Arrival message
         messages.push(createMessage("arrive", "You arrive from the south."));
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 30));
 
@@ -252,7 +255,7 @@ describe("OutputWindow screen reader announcements", () => {
             createMessage("1", "Initial message."),
         ];
 
-        const { container, rerender } = renderOutputWindow([...messages]);
+        const { container, transcript } = renderOutputWindow([...messages]);
         const outputWindow = container.querySelector("#output_window");
 
         await virtual.start({ container: outputWindow as Element });
@@ -264,7 +267,7 @@ describe("OutputWindow screen reader announcements", () => {
         messages.push(createMessage("4", "Batch message gamma."));
 
         await act(async () => {
-            rerender(<OutputWindow messages={[...messages]} />);
+            messages.forEach(message => transcript.append(message));
         });
         await new Promise(r => setTimeout(r, 100));
 
@@ -293,7 +296,13 @@ describe("OutputWindow exit annotations", () => {
         };
         const { container } = render(
             <AnnotationContext.Provider value={activate}>
-                <OutputWindow messages={[message]} />
+                <OutputWindow
+                    transcript={(() => {
+                        const transcript = createTranscript();
+                        transcript.replace([message]);
+                        return transcript;
+                    })()}
+                />
             </AnnotationContext.Provider>,
             { wrapper: ToastProvider },
         );
@@ -316,7 +325,9 @@ describe("Metadata-driven inset collapse", () => {
         expect(container.querySelector(".inset_collapsed_summary")).toBeNull();
         fireEvent.click(container.querySelector(".inset_toggle_button")!);
         expect(container.querySelector(".inset_collapsed_name")?.textContent).toBe("Help");
-        expect(container.querySelector(".sr-only")?.textContent).toContain("Help topics and commands");
+        expect(container.querySelector(".presentation_inset .sr-only")?.textContent).toContain(
+            "Help topics and commands",
+        );
         fireEvent.click(container.querySelector(".inset_toggle_button")!);
         expect(container.querySelector(".inset_collapsed_summary")).toBeNull();
         expect(container.querySelector(".inset_toggle_row")?.textContent).toContain("Help topics and commands");
@@ -344,4 +355,70 @@ it("requires explicit collapse metadata and does not require a group", () => {
     fireEvent.click(container.querySelector(".inset_toggle_button")!);
     expect(container.querySelector(".inset_collapsed_name")?.textContent).toBe("Report");
     sessionStorage.clear();
+});
+
+it("does not announce recycled or prepended history while continuing to announce live output", async () => {
+    const messages = Array.from(
+        { length: 500 },
+        (_, i) => ({ ...createMessage(String(i), `Old message ${i}`), isHistorical: true }),
+    );
+    const { container, transcript, getByText } = renderOutputWindow(messages);
+    await virtual.start({ container: container.querySelector("#output_window")! });
+    await act(async () => {
+        fireEvent.click(getByText("Older messages"));
+    });
+    await act(async () => transcript.prepend([{ ...createMessage("earlier", "Earlier history"), isHistorical: true }]));
+    expect(getLiveAnnouncements(await virtual.spokenPhraseLog())).toEqual([]);
+    await act(async () =>
+        transcript.append({
+            ...createMessage("live", "<b>New output</b>"),
+            contentType: "text/html",
+            ttsText: "Spoken new output",
+        })
+    );
+    const live = getLiveAnnouncements(await virtual.spokenPhraseLog());
+    await virtual.stop();
+    expect(live.some(phrase => phrase.includes("Spoken new output"))).toBe(true);
+    expect(live.some(phrase => /Old message|Earlier history/.test(phrase))).toBe(false);
+    expect(container.querySelector("[data-message-id=\"live\"]")).toBeNull();
+});
+
+it("bounds burst announcements, provides plain text, and clears them with the transcript", async () => {
+    const { container, transcript } = renderOutputWindow([]);
+    await act(async () => {
+        for (let i = 0; i < 250; i++) {
+            transcript.append(
+                createMessage(String(i), `[Link ${i}](https://example.com)`, { contentType: "text/djot" }),
+            );
+        }
+    });
+    const live = container.querySelector("[aria-live=\"polite\"]")!;
+    expect(live.children).toHaveLength(201);
+    expect(live.textContent).toContain("50 additional new messages");
+    expect(live.textContent).toContain("Link 249");
+    expect(live.querySelector("a, button, img")).toBeNull();
+    await act(async () => transcript.replace([]));
+    expect(live.textContent).toBe("");
+    await act(async () => transcript.append(createMessage("new-session", "New session output")));
+    expect(live.textContent).toBe("New session output");
+});
+
+it("reports an active room look as offscreen when its group leaves the window", async () => {
+    const transcript = createTranscript();
+    const report = vi.fn();
+    transcript.replace(Array.from({ length: 500 }, (_, i) => createMessage(String(i), `Old ${i}`)));
+    transcript.append({
+        ...createMessage("room", "Current room"),
+        presentationHint: "inset",
+        eventMetadata: { verb: "look", lookRoom: { oid: 1 } },
+    });
+    const { getByText } = render(
+        <OutputWindow transcript={transcript} currentRoomLookKey="oid:1" onActiveRoomLookVisibilityChange={report} />,
+        { wrapper: ToastProvider },
+    );
+    expect(report).toHaveBeenLastCalledWith("oid:1", true, "room");
+    fireEvent.click(getByText("Older messages"));
+    expect(report).toHaveBeenLastCalledWith("oid:1", false, null);
+    fireEvent.click(getByText("Jump to Now"));
+    expect(report).toHaveBeenLastCalledWith("oid:1", true, "room");
 });
