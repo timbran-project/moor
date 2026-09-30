@@ -7,8 +7,8 @@ make -C cores/cowbell check
 ```
 
 The check runs the style audit, method tests, headless scenarios, session scenarios, harness checks,
-export roundtrip, real telnet/restart checks, and source inventory checks. Targets run in order because they share generated
-directories.
+export roundtrip, real telnet/restart checks, and source inventory checks. Targets run in order
+because they share generated directories.
 
 `make -C cores/cowbell` exports the shipped core. `make rebuild` first checks export stability, then
 copies the exported sources into `src/`. Export removes source comments. Use this target only when
@@ -84,11 +84,11 @@ namespace and kind. The match can select a later queued event with the requested
 Assertions report the endpoint and retained events when no event matches. Recipient isolation is
 part of the assertion.
 
-`@event present:text/html tools` matches a committed presentation for the selected endpoint.
-Its MIME type and presentation target must match exactly.
-`@event history:text_plain authority-own-history` consumes a committed mock `Session::log_event` record.
-The selected endpoint's player, record type, and string value must match exactly.
-This history assertion does not prove durable event-log storage.
+`@event present:text/html tools` matches a committed presentation for the selected endpoint. Its
+MIME type and presentation target must match exactly.
+`@event history:text_plain authority-own-history` consumes a committed mock `Session::log_event`
+record. The selected endpoint's player, record type, and string value must match exactly. This
+history assertion does not prove durable event-log storage.
 
 `@quiet` checks that the selected endpoint has no pending output. `@noevents` checks its current
 committed event queue. This assertion is a snapshot. It does not prove that a delayed task can never
@@ -126,21 +126,26 @@ Cowbell-generated exports, overlays, and harness logs.
 
 ## Native scheduled work
 
-Cowbell uses the runtime `schedule_*` builtins directly. It has no core scheduler object or polling loop.
-Housekeeping creates one recurring schedule. Henri creates six adaptive recurring schedules and chooses a fresh delay after each firing.
+Cowbell uses the runtime `schedule_*` builtins directly. It has no core scheduler object or polling
+loop. Housekeeping creates one recurring schedule. Henri creates six adaptive recurring schedules
+and chooses a fresh delay after each firing.
 
-Schedule creation and cancellation commit with the calling transaction. Stored IDs and their schedule requests therefore commit together.
-`pass_elapsed` is false for these callbacks. Housekeeping disables adaptive returns so its swept-player count cannot change the interval.
-Henri enables adaptive returns. Each positive return adjusts the next native deadline; the native cadence uses scheduled deadlines, rather than callback completion times.
-Callback faults retain the base retry interval. The runtime default retires a schedule after 50 consecutive faults.
+Schedule creation and cancellation commit with the calling transaction. Stored IDs and their
+schedule requests therefore commit together. `pass_elapsed` is false for these callbacks.
+Housekeeping disables adaptive returns so its swept-player count cannot change the interval. Henri
+enables adaptive returns. Each positive return adjusts the next native deadline; the native cadence
+uses scheduled deadlines, rather than callback completion times. Callback faults retain the base
+retry interval. The runtime default retires a schedule after 50 consecutive faults.
 
-Native schedules persist in the runtime task database. An objdef export contains object properties, including stored IDs, but does not export the schedule store.
-Fresh objdef imports therefore contain no schedules. Housekeeping and Henri replace invalid stored IDs when started.
-No startup resume hook or legacy schedule-property conversion is required.
+Native schedules persist in the runtime task database. An objdef export contains object properties,
+including stored IDs, but does not export the schedule store. Fresh objdef imports therefore contain
+no schedules. Housekeeping and Henri replace invalid stored IDs when started. No startup resume hook
+or legacy schedule-property conversion is required.
 
-Headless scenario `#90001` tests actual housekeeping and Henri startup, duplicate starts, stale IDs, callback execution, adaptive delay ranges, cancellation, and caller controls.
-Its recording player captures command events without changing the production output interface.
-It also tests a two-player housekeeping sweep and one grouped room announcement.
+Headless scenario `#90001` tests actual housekeeping and Henri startup, duplicate starts, stale IDs,
+callback execution, adaptive delay ranges, cancellation, and caller controls. Its recording player
+captures command events without changing the production output interface. It also tests a two-player
+housekeeping sweep and one grouped room announcement.
 
 ## Real connections and restart
 
@@ -148,9 +153,9 @@ It also tests a two-player housekeeping sweep and one grouped room announcement.
 make -C cores/cowbell test-wire
 ```
 
-This target builds the server and runs `tests/wire.py` against an isolated temporary database.
-The script opens two real telnet connections for the same player. It checks committed world state
-and actual housekeeping schedule callbacks across server restart. It also checks committed schedule
+This target builds the server and runs `tests/wire.py` against an isolated temporary database. The
+script opens two real telnet connections for the same player. It checks committed world state and
+actual housekeeping schedule callbacks across server restart. It also checks committed schedule
 cancellation and checkpoint export. Schedule persistence uses the runtime task database. An objdef
 export remains a separate representation of world objects.
 
