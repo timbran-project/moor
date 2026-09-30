@@ -483,8 +483,8 @@ object BENCH_CONTROLLER [
     prop_cache_before = this:capture_property_cache_stats();
     verb_cache_before = this:capture_verb_cache_stats();
     $game_update:start();
-    rounds_per_second = target_subscribers * rounds_per_tick * update_hz;
-    fanout_calls_per_second = rounds_per_second * fanout;
+    rounds_per_second = tofloat(target_subscribers * rounds_per_tick) * update_hz;
+    fanout_calls_per_second = rounds_per_second * tofloat(fanout);
     server_log("=== COMBAT STRESS TEST RUNNING ===");
     server_log("Subscribers: " + tostr(target_subscribers));
     server_log("Rounds per tick: " + tostr(rounds_per_tick));
