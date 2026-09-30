@@ -11,15 +11,22 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
-
-export default defineConfig({
-    plugins: [react()],
-    test: {
-        environment: "jsdom",
-        globals: true,
-        include: ["src/**/*.{test,spec}.{ts,tsx}"],
-        setupFiles: ["./vitest.setup.ts"],
-    },
-});
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "vitest/globals",
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/vite-env.d.ts",
+    "vitest.setup.ts"
+  ],
+  "exclude": []
+}

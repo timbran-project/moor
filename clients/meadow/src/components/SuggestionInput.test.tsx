@@ -50,7 +50,7 @@ async function open(onCommand = vi.fn(() => true), onClose = vi.fn()) {
             onClose={onClose}
         />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Take from", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Take from" }));
     await act(async () => {
         await vi.advanceTimersByTimeAsync(125);
     });

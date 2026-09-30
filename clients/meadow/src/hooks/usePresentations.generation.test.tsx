@@ -14,6 +14,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCurrentPresentationsFlatBuffer } from "../lib/rpc-fb";
+import type { PresentationData } from "../types/presentation";
 import { usePresentations } from "./usePresentations";
 
 const sdkMocks = vi.hoisted(() => ({
@@ -92,7 +93,7 @@ describe("usePresentations request generations", () => {
                 content: "",
                 content_type: "text/plain",
                 attributes: [],
-            };
+            } satisfies PresentationData;
             const first = renderHook(() => usePresentations());
             act(() => {
                 first.result.current.addPresentation({ ...panel, eventId: "event-1" });

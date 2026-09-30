@@ -12,7 +12,7 @@
 //
 
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NarrativeMessage } from "../components/Narrative";
 import { useUnseenTitle } from "./useUnseenTitle";
 
@@ -34,25 +34,13 @@ describe("useUnseenTitle", () => {
         document.title = originalTitle;
     });
 
-    let originalHidden: boolean | undefined;
-    let originalHasFocus: (() => boolean) | undefined;
-
     function hideDocument() {
-        originalHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden")
-            ?.get.call(document) as boolean;
-        originalHasFocus = document.hasFocus.bind(document);
-        Object.defineProperty(document, "hidden", { configurable: true, value: true });
-        document.hasFocus = () => false;
-    }
-
-    function restoreDocument() {
-        if (originalHidden !== undefined) {
-            delete (document as any).hidden;
-            Object.defineProperty(document, "hidden", { configurable: true, value: originalHidden });
-        }
-        if (originalHasFocus) {
-            document.hasFocus = originalHasFocus;
-        }
+        const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+        const focused = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+        return () => {
+            hidden.mockRestore();
+            focused.mockRestore();
+        };
     }
 
     it("does not count messages while the document is visible and focused", () => {
@@ -73,7 +61,7 @@ describe("useUnseenTitle", () => {
     });
 
     it("counts live messages while hidden and resets on focus", () => {
-        hideDocument();
+        const restoreDocument = hideDocument();
         try {
             const { result } = renderHook(() => useUnseenTitle("mooR"));
 
@@ -97,7 +85,7 @@ describe("useUnseenTitle", () => {
     });
 
     it("ignores historical messages", () => {
-        hideDocument();
+        const restoreDocument = hideDocument();
         try {
             const { result } = renderHook(() => useUnseenTitle("mooR"));
 
@@ -112,7 +100,7 @@ describe("useUnseenTitle", () => {
     });
 
     it("caps the badge count", () => {
-        hideDocument();
+        const restoreDocument = hideDocument();
         try {
             const { result } = renderHook(() => useUnseenTitle("mooR"));
 

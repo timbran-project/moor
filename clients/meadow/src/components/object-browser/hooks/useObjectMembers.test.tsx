@@ -12,6 +12,7 @@
 
 // Copyright (C) 2026 The mooR Authors
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { VerbValue } from "@moor/schema/generated/moor-rpc/verb-value";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { getPropertyFlatBuffer, getVerbCodeFlatBuffer } from "../../../lib/rpc-fb";
@@ -32,6 +33,12 @@ afterEach(() => {
 });
 const object = { obj: "#65", name: "Key" } as ObjectData;
 const verb = { location: "#25", names: ["get"], indexInLocation: 1 } as VerbData;
+function verbSource(code: string): VerbValue {
+    const reply = new VerbValue();
+    vi.spyOn(reply, "codeLength").mockReturnValue(1);
+    vi.spyOn(reply, "code").mockReturnValue(code);
+    return reply;
+}
 it("ignores a late source reply after a new member selection", async () => {
     let resolve!: (value: Awaited<ReturnType<typeof getVerbCodeFlatBuffer>>) => void;
     vi.mocked(getVerbCodeFlatBuffer).mockReturnValueOnce(
@@ -45,11 +52,11 @@ it("ignores a late source reply after a new member selection", async () => {
         pending = result.current.handleVerbSelect(verb);
     });
     vi.mocked(getVerbCodeFlatBuffer).mockResolvedValueOnce(
-        { codeLength: () => 1, code: () => "return 2;" } as Awaited<ReturnType<typeof getVerbCodeFlatBuffer>>,
+        verbSource("return 2;"),
     );
     await act(async () => result.current.handleVerbSelect({ ...verb, names: ["drop"] }));
     await act(async () => {
-        resolve({ codeLength: () => 1, code: () => "return 1;" } as Awaited<ReturnType<typeof getVerbCodeFlatBuffer>>);
+        resolve(verbSource("return 1;"));
         await pending;
     });
     expect(result.current.selectedVerb?.names).toEqual(["drop"]);

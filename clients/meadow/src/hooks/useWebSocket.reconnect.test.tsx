@@ -13,6 +13,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { installMockWebHostWebSocket } from "../../../web-sdk/src/testing/mock-web-host";
+import type { Player } from "./useAuth";
 import { useWebSocket } from "./useWebSocket";
 
 function installLocalStorageMock() {
@@ -56,9 +57,11 @@ describe("useWebSocket reconnect behavior", () => {
             sessionStorage.setItem("client_token", "tok-1");
             localStorage.setItem("client_session_active", "true");
 
-            const player = {
+            const player: Player = {
                 oid: "oid:7",
                 authToken: "auth-1",
+                historyOid: "oid:7",
+                historyAuthToken: "auth-1",
                 connected: false,
                 flags: 0,
                 isInitialAttach: false,
@@ -127,9 +130,11 @@ describe("useWebSocket reconnect behavior", () => {
             sessionStorage.setItem("client_token", "tok-1");
             localStorage.setItem("client_session_active", "true");
 
-            const player = {
+            const player: Player = {
                 oid: "oid:7",
                 authToken: "auth-1",
+                historyOid: "oid:7",
+                historyAuthToken: "auth-1",
                 connected: false,
                 flags: 0,
                 isInitialAttach: false,
@@ -186,9 +191,11 @@ describe("useWebSocket reconnect behavior", () => {
             sessionStorage.setItem("client_token", "tok-1");
             localStorage.setItem("client_session_active", "false");
 
-            const player = {
+            const player: Player = {
                 oid: "oid:7",
                 authToken: "auth-1",
+                historyOid: "oid:7",
+                historyAuthToken: "auth-1",
                 connected: false,
                 flags: 0,
                 isInitialAttach: false,
@@ -224,9 +231,11 @@ describe("useWebSocket reconnect behavior", () => {
 
         try {
             installLocalStorageMock();
-            const player = {
+            const player: Player = {
                 oid: "oid:7",
                 authToken: "invalid-token",
+                historyOid: "oid:7",
+                historyAuthToken: "invalid-token",
                 connected: false,
                 flags: 0,
                 isInitialAttach: true,
@@ -271,9 +280,11 @@ describe("useWebSocket reconnect behavior", () => {
 
         try {
             installLocalStorageMock();
-            const player = {
+            const player: Player = {
                 oid: "oid:7",
                 authToken: "auth-1",
+                historyOid: "oid:7",
+                historyAuthToken: "auth-1",
                 connected: false,
                 flags: 0,
                 isInitialAttach: true,

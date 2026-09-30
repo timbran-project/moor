@@ -117,6 +117,26 @@ npm run typecheck --workspace meadow
 npm run lint --workspace meadow
 ```
 
+### Type checking
+
+`npm run typecheck --workspace meadow` checks four TypeScript projects in order:
+
+| Command            | Configuration          | Checked code and environment                                                                                              |
+| ------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `typecheck:app`    | `tsconfig.json`        | Browser application, DOM and Vite client types; excludes tests and worker entry points.                                   |
+| `typecheck:worker` | `tsconfig.worker.json` | Export worker and its helpers, with WebWorker types and no browser window, Node, or test globals.                         |
+| `typecheck:test`   | `tsconfig.test.json`   | All `src/**/*.test.{ts,tsx}` and `src/**/*.spec.{ts,tsx}` files, plus `vitest.setup.ts`; jsdom, Node, and Vitest globals. |
+| `typecheck:node`   | `tsconfig.node.json`   | `vite.config.ts` and `vitest.config.ts`, with Node types and no Vitest globals.                                           |
+
+The application and test projects also check their imported source files. Shared worker helpers can
+be checked from both the browser and worker projects. Each environment selects its own ambient
+types; Vitest's imported jsdom configuration types additionally bring DOM declarations into the Node
+configuration project. Node type definitions target the Node 20 runtime used in CI.
+
+`npm run build --workspace meadow` checks the application and worker projects before bundling. The
+existing web CI job runs `npm run web:typecheck`, which includes all four Meadow checks along with
+the SDK and MCP client checks. Test execution remains `npm test --workspace meadow`.
+
 ### Environment Variables
 
 - `MOOR_PATH`: Path to the mooR repository root (defaults to `../..`).

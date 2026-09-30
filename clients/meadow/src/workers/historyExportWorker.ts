@@ -15,10 +15,14 @@
 // Handles decryption and JSON conversion off the main thread
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { parseEncryptedHistoryPage, parseHistoricalNarrativeEvent, toPresentationData } from "@moor/web-sdk";
+import {
+    buildAuthHeaders,
+    parseEncryptedHistoryPage,
+    parseHistoricalNarrativeEvent,
+    toPresentationData,
+} from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 import { decryptEventBlob } from "../lib/age-decrypt.js";
-import { buildAuthHeaders } from "../lib/authHeaders";
 import { MoorVar } from "../lib/MoorVar.js";
 
 import { HISTORY_EXPORT_BATCH_SIZE, WorkerRequest, WorkerResponse } from "./historyExportProtocol";
@@ -83,7 +87,7 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): ExportEvent {
     return result;
 }
 
-declare const self: Worker;
+declare const self: DedicatedWorkerGlobalScope;
 
 // Only one chunk may be in flight; the main thread acknowledges it after writing.
 let acknowledge: (() => void) | null = null;

@@ -40,7 +40,7 @@ describe("useNarrativePipeline buffering", () => {
 
         expect(result.current.narrativeCallbackRef).toBe(callback);
 
-        const addNarrativeContent = vi.fn();
+        const addNarrativeContent = vi.fn<NarrativeRef["addNarrativeContent"]>();
         const narrative = { addNarrativeContent } as unknown as NarrativeRef;
         act(() => callback(narrative));
 
@@ -80,11 +80,13 @@ describe("useNarrativePipeline buffering", () => {
                 undefined,
                 undefined,
                 undefined,
+                undefined,
                 { annotations },
             )
         );
-        const addNarrativeContent = vi.fn();
+        const addNarrativeContent = vi.fn<NarrativeRef["addNarrativeContent"]>();
         act(() => result.current.narrativeCallbackRef({ addNarrativeContent } as unknown as NarrativeRef));
-        expect(addNarrativeContent.mock.calls[0]).toContainEqual({ annotations });
+        expect(addNarrativeContent.mock.calls[0][7]).toBeUndefined();
+        expect(addNarrativeContent.mock.calls[0][8]).toEqual({ annotations });
     });
 });
