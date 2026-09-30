@@ -134,6 +134,7 @@ export const MainSurface: React.FC = () => {
     const encryptionKeyForHistory = getKeyForHistoryRequest();
     const {
         isLoadingHistory,
+        hasMoreHistory,
         handleLoadMoreHistory,
         markHistoryForReload,
         noteLiveActivity,
@@ -583,7 +584,7 @@ export const MainSurface: React.FC = () => {
                                             visible={hasPlayer}
                                             connectionStatus={wsState.connectionStatus}
                                             onSendMessage={sendMessage}
-                                            onLoadMoreHistory={eventLogEnabled === false
+                                            onLoadMoreHistory={eventLogEnabled === false || !hasMoreHistory
                                                 ? undefined
                                                 : handleLoadMoreHistory}
                                             isLoadingHistory={eventLogEnabled === false ? false : isLoadingHistory}

@@ -12,7 +12,7 @@
 //
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import { parseEncryptedHistoryEvents, parseNarrativeEventEnvelope } from "@moor/web-sdk";
+import { parseEncryptedHistoryPage, parseNarrativeEventEnvelope } from "@moor/web-sdk";
 
 import { decryptEventBlob } from "./age-decrypt.js";
 import { authHeaders, moorApi } from "./rpc-fb-shared";
@@ -25,13 +25,20 @@ export interface HistoryEvent {
     narrative_event: NarrativeEvent;
 }
 
+export interface HistoryPage {
+    events: HistoryEvent[];
+    eventCount: number;
+    hasMoreBefore: boolean;
+    earliestEventId: string | null;
+}
+
 export async function fetchHistoryFlatBuffer(
     authToken: string,
     ageIdentity: string | null,
     limit?: number,
     sinceSeconds?: number,
     untilEvent?: string,
-): Promise<HistoryEvent[]> {
+): Promise<HistoryPage> {
     try {
         const params = new URLSearchParams();
         if (limit !== undefined) {
@@ -50,10 +57,10 @@ export async function fetchHistoryFlatBuffer(
             method: "GET",
             headers,
         });
-        const encryptedEvents = parseEncryptedHistoryEvents(bytes);
+        const page = parseEncryptedHistoryPage(bytes);
         const events: HistoryEvent[] = [];
 
-        for (const historicalEvent of encryptedEvents) {
+        for (const historicalEvent of page.events) {
             const { encryptedBlob } = historicalEvent;
             if (!ageIdentity) {
                 console.warn("No age identity provided, skipping encrypted event");
@@ -79,7 +86,7 @@ export async function fetchHistoryFlatBuffer(
             }
         }
 
-        return events;
+        return { ...page, events };
     } catch (err) {
         console.error("Exception during FlatBuffer history fetch:", err);
         throw err;

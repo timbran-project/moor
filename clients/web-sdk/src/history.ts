@@ -34,7 +34,15 @@ export interface EncryptedHistoricalEvent {
     isHistorical: boolean;
 }
 
-export function parseEncryptedHistoryEvents(bytes: Uint8Array): EncryptedHistoricalEvent[] {
+export interface EncryptedHistoryPage {
+    events: EncryptedHistoricalEvent[];
+    eventCount: number;
+    hasMoreBefore: boolean;
+    earliestEventId: string | null;
+}
+
+/** Reads pagination metadata independently of event decryption. */
+export function parseEncryptedHistoryPage(bytes: Uint8Array): EncryptedHistoryPage {
     const replyUnion = parseClientReplyUnion(bytes, "History fetch");
     if (!(replyUnion instanceof HistoryResponseReply)) {
         throw new Error(`Unexpected reply type: ${replyTypeName(replyUnion)}`);
@@ -60,7 +68,19 @@ export function parseEncryptedHistoryEvents(bytes: Uint8Array): EncryptedHistori
             isHistorical: historicalEvent.isHistorical(),
         });
     }
-    return events;
+    const cursorBytes = historyResponse.earliestEventId()?.dataArray();
+    return {
+        events,
+        eventCount: historyResponse.eventsLength(),
+        hasMoreBefore: historyResponse.hasMoreBefore(),
+        earliestEventId: cursorBytes?.length === 16
+            ? Array.from(cursorBytes, byte => byte.toString(16).padStart(2, "0")).join("")
+            : null,
+    };
+}
+
+export function parseEncryptedHistoryEvents(bytes: Uint8Array): EncryptedHistoricalEvent[] {
+    return parseEncryptedHistoryPage(bytes).events;
 }
 
 export interface ParsedNarrativeEventEnvelope {

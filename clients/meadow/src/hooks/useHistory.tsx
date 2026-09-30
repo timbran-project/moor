@@ -12,7 +12,7 @@
 //
 
 import { parseHistoricalNarrativeEvent } from "@moor/web-sdk";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { NarrativeMessage } from "../components/Narrative";
 import { MoorVar } from "../lib/MoorVar";
 import { fetchHistoryFlatBuffer, HistoryEvent } from "../lib/rpc-fb";
@@ -75,7 +75,11 @@ type IsCurrentHistoryRequest = () => boolean;
 
 export const useHistory = (authToken: string | null, encryptionKey: string | null = null) => {
     const [historyBoundary, setHistoryBoundary] = useState<number | null>(null);
-    const [earliestHistoryEventId, setEarliestHistoryEventId] = useState<string | null>(null);
+    const earliestHistoryEventId = useRef<string | null>(null);
+    const paginationInitialized = useRef(false);
+    const seenCursors = useRef(new Set<string>());
+    const activeRequest = useRef<object | null>(null);
+    const [hasMoreHistory, setHasMoreHistory] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
     // Set history boundary timestamp to prevent duplicates with WebSocket events
@@ -163,14 +167,17 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
             throw new Error("No auth token available");
         }
 
-        if (!isCurrent()) {
+        if (!isCurrent() || activeRequest.current) {
             return null;
         }
+        const request = {};
+        activeRequest.current = request;
+        const isCurrentRequest = () => isCurrent() && activeRequest.current === request;
         setIsLoadingHistory(true);
 
         try {
             // Use FlatBuffer endpoint with client-side decryption
-            const events = await fetchHistoryFlatBuffer(
+            const page = await fetchHistoryFlatBuffer(
                 authToken,
                 encryptionKey,
                 limit,
@@ -178,14 +185,30 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                 untilEvent,
             );
 
-            if (!isCurrent()) {
+            if (!isCurrentRequest()) {
                 return null;
+            }
+
+            // A time-limited resync must not rewind pagination or reopen an exhausted history.
+            if (sinceSeconds === undefined || !paginationInitialized.current) {
+                const cursor = page.earliestEventId;
+                if (page.eventCount > 0 && (!cursor || seenCursors.current.has(cursor))) {
+                    setHasMoreHistory(false);
+                    throw new Error("History pagination stopped because the page cursor is missing or repeated");
+                }
+                paginationInitialized.current = sinceSeconds === undefined || cursor !== null;
+                earliestHistoryEventId.current = cursor;
+                if (cursor) {
+                    seenCursors.current.add(cursor);
+                }
+                // The initial 24-hour window says nothing about events before that window.
+                setHasMoreHistory(page.eventCount > 0 && (sinceSeconds !== undefined || page.hasMoreBefore));
             }
 
             // Convert events to narrative messages
             const narrativeMessages: NarrativeMessage[] = [];
             const presentationActions: HistoryPresentationAction[] = [];
-            for (const event of events) {
+            for (const event of page.events) {
                 const converted = convertFlatBufferHistoricalEvent(event);
                 if (converted.presentationAction) {
                     presentationActions.push(converted.presentationAction);
@@ -198,13 +221,8 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
             // Filter out MCP sequences before returning
             const filteredMessages = filterMCPSequences(narrativeMessages);
 
-            if (!isCurrent()) {
+            if (!isCurrentRequest()) {
                 return null;
-            }
-
-            // Update earliest event ID for pagination
-            if (events.length > 0) {
-                setEarliestHistoryEventId(events[0].event_id);
             }
 
             return {
@@ -212,13 +230,14 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
                 presentationActions,
             };
         } catch (error) {
-            if (!isCurrent()) {
+            if (!isCurrentRequest()) {
                 return null;
             }
             console.error("Failed to fetch more history:", error);
             throw error;
         } finally {
-            if (isCurrent()) {
+            if (isCurrentRequest()) {
+                activeRequest.current = null;
                 setIsLoadingHistory(false);
             }
         }
@@ -249,17 +268,21 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
     const fetchMoreHistory = useCallback(async (
         isCurrent?: IsCurrentHistoryRequest,
     ): Promise<HistoryFetchResult | null> => {
-        if (!earliestHistoryEventId) {
+        if (!hasMoreHistory || !earliestHistoryEventId.current) {
             return { messages: [], presentationActions: [] };
         }
-        return await fetchHistory(50, undefined, earliestHistoryEventId, isCurrent);
-    }, [fetchHistory, earliestHistoryEventId]);
+        return await fetchHistory(50, undefined, earliestHistoryEventId.current, isCurrent);
+    }, [fetchHistory, hasMoreHistory]);
 
     /** Clears request-owned state after invalidation. */
     const resetHistoryRequestState = useCallback((resetPagination: boolean = false) => {
         setIsLoadingHistory(false);
+        activeRequest.current = null;
         if (resetPagination) {
-            setEarliestHistoryEventId(null);
+            earliestHistoryEventId.current = null;
+            paginationInitialized.current = false;
+            seenCursors.current.clear();
+            setHasMoreHistory(false);
         }
     }, []);
 
@@ -271,5 +294,6 @@ export const useHistory = (authToken: string | null, encryptionKey: string | nul
         fetchMoreHistory,
         resetHistoryRequestState,
         isLoadingHistory,
+        hasMoreHistory,
     };
 };

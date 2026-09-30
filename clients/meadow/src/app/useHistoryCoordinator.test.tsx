@@ -17,6 +17,7 @@ import type { NarrativeMessage, NarrativeRef } from "../components/Narrative";
 import { useHistoryCoordinator } from "./useHistoryCoordinator";
 
 const mocks = vi.hoisted(() => ({
+    hasMoreHistory: true,
     addPresentation: vi.fn(),
     connectWS: vi.fn(),
     fetchCurrentPresentations: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock("../hooks/useHistory", () => ({
         fetchMoreHistory: mocks.fetchMoreHistory,
         resetHistoryRequestState: mocks.resetHistoryRequestState,
         isLoadingHistory: false,
+        hasMoreHistory: mocks.hasMoreHistory,
     }),
 }));
 
@@ -78,6 +80,29 @@ const message: NarrativeMessage = {
 describe("useHistoryCoordinator generations", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.hasMoreHistory = true;
+    });
+
+    it("disables pagination after exhaustion", async () => {
+        mocks.hasMoreHistory = false;
+        const { result } = renderHook(() =>
+            useHistoryCoordinator({
+                authToken: "auth",
+                historyAuthToken: "history",
+                encryptionKeyForHistory: "key",
+                encryptionHasCheckedOnce: false,
+                encryptionStatusError: null,
+                eventLogEnabled: true,
+                loginMode: "connect",
+                narrativeRef: { current: null },
+                showMessage: vi.fn(),
+            })
+        );
+        expect(result.current.hasMoreHistory).toBe(false);
+        await act(async () => {
+            await result.current.handleLoadMoreHistory();
+        });
+        expect(mocks.fetchMoreHistory).not.toHaveBeenCalled();
     });
 
     it("does not prepend a pagination result after the history identity changes", async () => {

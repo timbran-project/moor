@@ -106,6 +106,7 @@ export const useHistoryCoordinator = ({
         fetchMoreHistory,
         resetHistoryRequestState,
         isLoadingHistory,
+        hasMoreHistory,
     } = useHistory(historyAuthToken, encryptionKeyForHistory);
 
     /** Requests a full history reload on the next pass (e.g. after unlock/setup),
@@ -361,7 +362,7 @@ export const useHistoryCoordinator = ({
 
     // Handle loading more history for infinite scroll
     const handleLoadMoreHistory = useCallback(async () => {
-        if (!authToken || isLoadingHistory || eventLogEnabled === false) {
+        if (!authToken || !hasMoreHistory || isLoadingHistory || eventLogEnabled === false) {
             return;
         }
 
@@ -384,11 +385,12 @@ export const useHistoryCoordinator = ({
             }
             console.warn("Failed to load more history:", error);
         }
-    }, [authToken, eventLogEnabled, fetchMoreHistory, isLoadingHistory, narrativeRef]);
+    }, [authToken, eventLogEnabled, fetchMoreHistory, hasMoreHistory, isLoadingHistory, narrativeRef]);
 
     return {
         historyLoaded,
         isLoadingHistory,
+        hasMoreHistory,
         handleLoadMoreHistory,
         markHistoryForReload,
         noteLiveActivity,
