@@ -1,12 +1,12 @@
 {
   "productName": "Meadow",
-  "version": "1.1.0-dev",
+  "version": "../package.json",
   "identifier": "org.moor.meadow",
   "build": {
     "devUrl": "http://localhost:3000",
     "frontendDist": "../dist",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npx vite build"
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "withGlobalTauri": true,

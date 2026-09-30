@@ -27,7 +27,10 @@
     "typecheck:app": "node ../../tools/tsc.mjs --noEmit -p tsconfig.json",
     "typecheck:worker": "node ../../tools/tsc.mjs --noEmit -p tsconfig.worker.json",
     "typecheck:test": "node ../../tools/tsc.mjs --noEmit -p tsconfig.test.json",
-    "typecheck:node": "node ../../tools/tsc.mjs --noEmit -p tsconfig.node.json"
+    "typecheck:node": "node ../../tools/tsc.mjs --noEmit -p tsconfig.node.json",
+    "version:check": "node scripts/version.mjs check",
+    "test:version": "node --test scripts/version.test.mjs",
+    "prebuild": "npm run version:check"
   },
   "keywords": [
     "moo",

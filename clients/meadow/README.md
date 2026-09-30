@@ -14,20 +14,28 @@ communicating with the backend through WebSocket connections and RESTful API cal
 Meadow can run as a web application served alongside a mooR backend, or as a standalone desktop
 application built with [Tauri](https://v2.tauri.app/) that connects to any remote mooR server.
 
-## Version Lines
+## Versioning
 
-Meadow and `moor` currently have two active version lines:
+`package.json` in this directory is the authoritative Meadow version. The `main` branch is the 2.0
+development line; `v1.0-release` is the stable 1.0 line. Use matching branches across the stack.
+Development dependencies are built from the local npm workspaces.
 
-- `v1.0-release`: the stable 1.0 line
-- `main`: the post-1.0 development line
+Tauri reads its app version directly from `../package.json`. Cargo requires a version in
+`src-tauri/Cargo.toml`; CI and the frontend production build validate that it and the root npm
+lockfile's Meadow entry match the authoritative version.
 
-Use matching branches across the stack. A Meadow checkout on `v1.0-release` should be used with the
-`v1.0-release` line of `moor` and the corresponding `1.0.0-rc1-dev...` published packages. A Meadow
-checkout on `main` should be used with `moor` `main` and the corresponding `1.1.0-dev...` published
-packages.
+When changing Meadow's version:
 
-`main` in the `moor` repository tracks post-1.0 development. If you want the stable 1.0 setup, use
-the `v1.0-release` line rather than `main`.
+1. Update `clients/meadow/package.json` and the matching package version in
+   `clients/meadow/src-tauri/Cargo.toml`.
+2. Run `npm install --package-lock-only` from the repository root to refresh the npm lockfile.
+3. Run `npm run version:check --workspace meadow` and `npm run test:version --workspace meadow`.
+
+The web client's Debian build derives its version from the same source, replacing the prerelease
+separator with `~` so prereleases sort before releases. For example, `2.0.0-dev` becomes
+`2.0.0~dev-1`, and `2.0.0` becomes `2.0.0-1`. Build metadata after `+` is retained. The packaging
+revision defaults to `1`; use a positive integer `DEBIAN_REVISION` to rebuild the same upstream
+version, for example `DEBIAN_REVISION=2 npm run meadow:build:deb` from the repository root.
 
 ## Features
 

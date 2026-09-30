@@ -95,6 +95,11 @@ jobs:
           sudo chmod +x /usr/local/bin/flatc
           flatc --version
 
+      - name: Check Meadow versions
+        run: |
+          npm run version:check --workspace meadow
+          npm run test:version --workspace meadow
+
       - name: Install Node.js dependencies
         run: npm ci
 

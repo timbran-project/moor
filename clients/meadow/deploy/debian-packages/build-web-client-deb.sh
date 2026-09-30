@@ -19,15 +19,17 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-VERSION="1.0.0~beta1-1"
+MEADOW_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+VERSION="$(node "$MEADOW_ROOT/scripts/version.mjs" debian)"
 PACKAGE_NAME="moor-web-client"
-BUILD_DIR="debian-pkg-web-client"
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+chmod 755 "$BUILD_DIR"
 OUTPUT_DIR="$REPO_ROOT/target/debian"
 
 echo "Building ${PACKAGE_NAME} ${VERSION}..."
 
 # Clean up any previous build
-rm -rf "$BUILD_DIR"
 rm -f "$OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
 
 # Create package directory structure
@@ -38,10 +40,10 @@ mkdir -p "$OUTPUT_DIR"
 
 # Copy built web client files
 echo "Copying web client files from dist/..."
-cp -r dist/. "$BUILD_DIR/usr/share/moor/web-client/"
+cp -r "$MEADOW_ROOT/dist/." "$BUILD_DIR/usr/share/moor/web-client/"
 
 # Copy documentation
-cp deploy/debian-packages/nginx-for-debian.conf "$BUILD_DIR/usr/share/doc/$PACKAGE_NAME/"
+cp "$SCRIPT_DIR/nginx-for-debian.conf" "$BUILD_DIR/usr/share/doc/$PACKAGE_NAME/"
 
 # Create control file
 cat > "$BUILD_DIR/DEBIAN/control" <<EOF
@@ -77,6 +79,3 @@ else
 fi
 
 echo "Package built successfully: $OUTPUT_DIR/${PACKAGE_NAME}_${VERSION}_all.deb"
-
-# Clean up
-rm -rf "$BUILD_DIR"
