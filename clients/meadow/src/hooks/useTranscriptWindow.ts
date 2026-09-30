@@ -151,36 +151,48 @@ export function useTranscriptWindow(transcript: Transcript, loadOlder?: () => vo
         }
         expectedScroll.current = null;
         captureAnchor();
-        if (protectedInteraction()) {
-            pin();
-            return;
-        }
         const nearBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 100;
+        const interacting = protectedInteraction();
         if (nearBottom && range.current.end === transcript.end) {
             follow.current = true;
             setFollowing(true);
-            setPinnedEnd(null);
+            if (!interacting) setPinnedEnd(null);
         } else {
             pin();
         }
+        if (interacting) return;
         if (element.scrollTop <= 50) move(-1);
         else if (nearBottom && range.current.end < transcript.end) move(1);
     }, [captureAnchor, protectedInteraction, pin, transcript, move]);
 
     useEffect(() => {
-        const hold = () => {
-            if (!protectedInteraction()) return;
-            captureAnchor();
-            pin();
+        let disposed = false;
+        const updateInteraction = () => {
+            if (disposed) return;
+            if (protectedInteraction()) {
+                captureAnchor();
+                // Keep interactive rows mounted without treating focus or selection as scrolling.
+                setPinnedEnd(transcript.group(range.current.end - 1)?.id ?? null);
+                return;
+            }
+            if (follow.current) {
+                setPinnedEnd(null);
+                restore();
+            }
         };
-        document.addEventListener("selectionchange", hold);
+        // The next focused element is available after focusout has finished dispatching.
+        const releaseFocus = () => queueMicrotask(updateInteraction);
+        document.addEventListener("selectionchange", updateInteraction);
         const element = outputRef.current;
-        element?.addEventListener("focusin", hold);
+        element?.addEventListener("focusin", updateInteraction);
+        element?.addEventListener("focusout", releaseFocus);
         return () => {
-            document.removeEventListener("selectionchange", hold);
-            element?.removeEventListener("focusin", hold);
+            disposed = true;
+            document.removeEventListener("selectionchange", updateInteraction);
+            element?.removeEventListener("focusin", updateInteraction);
+            element?.removeEventListener("focusout", releaseFocus);
         };
-    }, [captureAnchor, pin, protectedInteraction]);
+    }, [captureAnchor, protectedInteraction, restore, transcript]);
 
     useLayoutEffect(() => {
         if (transcript.size === 0) {

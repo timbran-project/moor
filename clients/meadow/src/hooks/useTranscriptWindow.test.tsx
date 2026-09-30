@@ -27,7 +27,12 @@ const messages = (start: number, count: number) =>
 function Harness({ transcript, loadOlder }: { transcript: Transcript; loadOlder?: () => void }) {
     const window = useTranscriptWindow(transcript, loadOlder);
     return (
-        <div ref={window.outputRef} data-testid="output" onScroll={window.handleScroll}>
+        <div
+            ref={window.outputRef}
+            data-testid="output"
+            data-history={window.isViewingHistory}
+            onScroll={window.handleScroll}
+        >
             <button onClick={window.older} disabled={!window.hasOlder}>Older</button>
             <button onClick={window.newer} disabled={!window.hasNewer}>Newer</button>
             <button onClick={window.jumpToNow}>Now</button>
@@ -119,7 +124,7 @@ function scroll(output: HTMLElement, top: number) {
 }
 
 describe("transcript moving window", () => {
-    it("pages by complete groups with explicit controls and returns to the live tail", () => {
+    it("pages by complete groups with explicit controls and returns to the live tail", async () => {
         const { transcript, output, first } = setup();
         expect(first()).toBe("300");
         act(() => screen.getByText("Older").focus());
@@ -131,7 +136,7 @@ describe("transcript moving window", () => {
         expect(first()).toBe("300");
         fireEvent.click(screen.getByText("Now"));
         expect(output.scrollTop).toBe(output.scrollHeight - output.clientHeight);
-        act(() => {
+        await act(async () => {
             (document.activeElement as HTMLElement).blur();
             transcript.append(messages(500, 1)[0]);
         });
@@ -178,6 +183,53 @@ describe("transcript moving window", () => {
         if (interaction === "selection") expect(document.getSelection()!.toString()).toBe("message 300");
         fireEvent.click(screen.getByText("Older"));
         expect(first()).toBe("200");
+    });
+
+    it.each(["selection", "focus"])("resumes the live tail after %s ends without scrolling", async (interaction) => {
+        const { transcript, output, first } = setup();
+        if (interaction === "selection") {
+            const range = document.createRange();
+            range.selectNodeContents(output.querySelector("[data-transcript-group=\"499\"]")!);
+            document.getSelection()!.addRange(range);
+            fireEvent(document, new Event("selectionchange"));
+        } else act(() => screen.getByText("Older").focus());
+        expect(output.dataset.history).toBe("false");
+        // A scroll event at the same live position must not turn focus into history either.
+        scroll(output, output.scrollHeight - output.clientHeight);
+        scroll(output, output.scrollHeight - output.clientHeight);
+        expect(output.dataset.history).toBe("false");
+        act(() => transcript.append(messages(500, 1)[0]));
+        expect(first()).toBe("300");
+        expect(output.dataset.history).toBe("true");
+        await act(async () => {
+            if (interaction === "selection") {
+                document.getSelection()!.removeAllRanges();
+                document.dispatchEvent(new Event("selectionchange"));
+            } else (document.activeElement as HTMLElement).blur();
+        });
+        expect(first()).toBe("301");
+        expect(output.dataset.history).toBe("false");
+        expect(output.scrollTop).toBe(output.scrollHeight - output.clientHeight);
+    });
+
+    it("keeps the reading position when focus ends after scrolling into history", async () => {
+        const { transcript, output, first } = setup();
+        act(() => screen.getByText("Older").focus());
+        scroll(output, 1020);
+        await act(async () => (document.activeElement as HTMLElement).blur());
+        act(() => transcript.append(messages(500, 1)[0]));
+        expect(first()).toBe("300");
+        expect(output.dataset.history).toBe("true");
+        expect(output.scrollTop).toBe(1020);
+    });
+
+    it("recognizes scrolling back to the live tail while a control remains focused", () => {
+        const { output } = setup();
+        act(() => screen.getByText("Older").focus());
+        scroll(output, 1020);
+        expect(output.dataset.history).toBe("true");
+        scroll(output, output.scrollHeight - output.clientHeight);
+        expect(output.dataset.history).toBe("false");
     });
 
     it("uses cached groups before fetching and displays a requested older page", () => {

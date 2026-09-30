@@ -79,6 +79,29 @@ it("shows Jump to Now only in the past and navigates history by scrolling", () =
     expect(queryByText("Jump to Now")).toBeNull();
 });
 
+it("activates an object on its first click without showing Jump to Now", () => {
+    const transcript = createTranscript();
+    transcript.append({
+        ...createMessage("room", "You see [a brass key]{annotation=a1} here.", { contentType: "text/djot" }),
+        eventMetadata: { annotations: { a1: { kind: "object", ref: "oid:42" } } },
+    });
+    const activate = vi.fn();
+    const { getByText, queryByText } = render(
+        <AnnotationContext.Provider value={activate}>
+            <OutputWindow transcript={transcript} />
+        </AnnotationContext.Provider>,
+        { wrapper: ToastProvider },
+    );
+    const key = getByText("a brass key");
+    fireEvent.mouseDown(key);
+    act(() => key.focus());
+    expect(queryByText("Jump to Now")).toBeNull();
+    fireEvent.mouseUp(key);
+    fireEvent.click(key);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(queryByText("Jump to Now")).toBeNull();
+});
+
 // Helper to collect announcements from virtual screen reader
 async function collectAnnouncements(maxIterations = 50): Promise<string[]> {
     const announcements: string[] = [];
