@@ -585,6 +585,7 @@ export const MainSurface: React.FC = () => {
                                             ref={narrativeCallbackRef}
                                             visible={hasPlayer}
                                             connectionStatus={wsState.connectionStatus}
+                                            connectionError={wsState.connectionError}
                                             onSendMessage={sendMessage}
                                             onLoadMoreHistory={eventLogEnabled === false || !hasMoreHistory
                                                 ? undefined

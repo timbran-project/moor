@@ -68,6 +68,39 @@ export default defineConfig({
             "/ws": {
                 target: process.env.MOOR_WS_URL || "ws://localhost:8080",
                 ws: true,
+                configure(proxy) {
+                    proxy.on("proxyReqWs", (request, incoming) => {
+                        const value = new URL(incoming.url ?? "/", "http://localhost").searchParams.get("attempt");
+                        // Log only the bounded correlation ID, never headers or credentials.
+                        const attempt = value && /^[0-9a-f-]{36}$/i.test(value) ? value : undefined;
+                        const startedAt = performance.now();
+                        const log = (phase: string, status?: number) => {
+                            const elapsedMs = Math.round(performance.now() - startedAt);
+                            const noteworthy = phase === "error" || phase === "rejected"
+                                || (phase === "upgraded" && elapsedMs >= 1000);
+                            if (!noteworthy && process.env.VITE_WS_DEBUG !== "true") return;
+                            const write = noteworthy ? console.warn : console.debug;
+                            write(
+                                "[WebSocket proxy] handshake",
+                                JSON.stringify({
+                                    attempt,
+                                    phase,
+                                    at: new Date().toISOString(),
+                                    elapsedMs,
+                                    ...(status === undefined ? {} : { status }),
+                                }),
+                            );
+                        };
+                        log("forwarding");
+                        request.once("socket", socket => {
+                            socket.once("lookup", () => log("upstream_dns_finished"));
+                            socket.once("connect", () => log("upstream_connected"));
+                        });
+                        request.once("upgrade", response => log("upgraded", response.statusCode));
+                        request.once("response", response => log("rejected", response.statusCode));
+                        request.once("error", () => log("error"));
+                    });
+                },
             },
             "/health": process.env.MOOR_API_URL || "http://localhost:8080",
             "/version": process.env.MOOR_API_URL || "http://localhost:8080",

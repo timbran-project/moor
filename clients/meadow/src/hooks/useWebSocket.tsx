@@ -30,6 +30,9 @@ import { Player } from "./useAuth";
 // Application-level keepalive interval (45s) to prevent proxy idle timeouts
 // WebSocket-level pings don't count as traffic for proxies like Cloudflare
 const KEEPALIVE_INTERVAL_MS = 45000;
+const HANDSHAKE_TIMEOUT_MS = 15000;
+const AUTH_CHECK_TIMEOUT_MS = 5000;
+const RECONNECT_DELAY_MS = 3000;
 // Single zero byte marker - definitely not a valid FlatBuffer (needs >= 4 bytes)
 const KEEPALIVE_MARKER = new Uint8Array([0x00]);
 
@@ -41,10 +44,22 @@ const HEARTBEAT_RESPONSE = new Uint8Array([0x01]);
 const RESUME_STALE_THRESHOLD_MS = 120000;
 const RESUME_RECONNECT_COOLDOWN_MS = 10000;
 
+/** Correlate attempts even on HTTP development origins without randomUUID. */
+function createHandshakeId(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    return Array.from(
+        bytes,
+        (byte, index) => ([4, 6, 8, 10].includes(index) ? "-" : "") + byte.toString(16).padStart(2, "0"),
+    ).join("");
+}
+
 export interface WebSocketState {
     socket: WebSocket | null;
     isConnected: boolean;
     connectionStatus: "disconnected" | "connecting" | "connected" | "error";
+    connectionError?: string;
 }
 
 export const useWebSocket = (
@@ -71,6 +86,10 @@ export const useWebSocket = (
 
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<number | null>(null);
+    const handshakeTimeoutRef = useRef<number | null>(null);
+    const authCheckRef = useRef<AbortController | null>(null);
+    const attemptGenerationRef = useRef(0);
+
     const keepaliveIntervalRef = useRef<number | null>(null);
     const lastEventTimestampRef = useRef<bigint | null>(null);
     const processingRef = useRef<Promise<void>>(Promise.resolve());
@@ -82,6 +101,24 @@ export const useWebSocket = (
     const lastConnectModeRef = useRef<"connect" | "create">("connect");
     const lastSocketActivityAtRef = useRef<number>(Date.now());
     const lastResumeReconnectAtRef = useRef<number>(0);
+
+    const stopConnection = useCallback(() => {
+        attemptGenerationRef.current++;
+        for (const ref of [handshakeTimeoutRef, reconnectTimeoutRef, keepaliveIntervalRef]) {
+            if (ref.current !== null) clearTimeout(ref.current);
+            ref.current = null;
+        }
+        authCheckRef.current?.abort();
+        authCheckRef.current = null;
+        const ws = socketRef.current;
+        socketRef.current = null;
+        if (!ws) return;
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        ws.close(1000, "Closing connection");
+    }, []);
 
     useEffect(() => {
         connectionStatusRef.current = wsState.connectionStatus;
@@ -161,27 +198,47 @@ export const useWebSocket = (
         }
 
         if (!force && socketRef.current?.readyState === WebSocket.OPEN) {
-            console.log("[WebSocket] Already connected, skipping");
+            console.debug("[WebSocket] Already connected, skipping");
             return;
         }
 
-        console.log("[WebSocket] Starting connection for player:", player.oid);
+        stopConnection();
+        const generation = attemptGenerationRef.current;
+        const attempt = createHandshakeId();
+        const startedAt = performance.now();
+        const logTiming = (phase: string, code?: number) => {
+            const elapsedMs = Math.round(performance.now() - startedAt);
+            const noteworthy = phase === "timed_out" || phase === "creation_failed"
+                || phase === "session_validation_unavailable"
+                || (phase === "closed" && code !== 1000)
+                || (phase === "session_validated" && code !== 200)
+                || (phase === "opened" && elapsedMs >= 1000);
+            if (!noteworthy && import.meta.env.VITE_WS_DEBUG !== "true") return;
+            const write = noteworthy ? console.warn : console.debug;
+            write(
+                "[WebSocket] handshake",
+                JSON.stringify({
+                    attempt,
+                    phase,
+                    at: new Date().toISOString(),
+                    elapsedMs,
+                    ...(code === undefined ? {} : { code }),
+                }),
+            );
+        };
+        const scheduleReconnect = () => {
+            if (generation !== attemptGenerationRef.current) return;
+            reconnectTimeoutRef.current = window.setTimeout(() => {
+                reconnectTimeoutRef.current = null;
+                if (generation === attemptGenerationRef.current) {
+                    void connectRef.current?.("connect");
+                }
+            }, RECONNECT_DELAY_MS);
+        };
         lastConnectModeRef.current = mode;
 
-        // If there's an existing socket that's not closed, close it first
-        if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
-            console.warn("[WebSocket] Found existing socket, closing it first. State:", socketRef.current.readyState);
-            const oldSocket = socketRef.current;
-            socketRef.current = null;
-            oldSocket.onopen = null;
-            oldSocket.onmessage = null;
-            oldSocket.onerror = null;
-            oldSocket.onclose = null;
-            oldSocket.close(1000, "Replacing with new connection");
-        }
-
         try {
-            setWsState(prev => ({ ...prev, connectionStatus: "connecting" }));
+            setWsState(prev => ({ ...prev, connectionStatus: "connecting", connectionError: undefined }));
             onSystemMessage("Establishing connection...", 2);
 
             // Build WebSocket URL
@@ -196,14 +253,14 @@ export const useWebSocket = (
             const includeClientHint = reconnectCredentials !== null;
 
             if (player.isInitialAttach) {
-                console.log("[WebSocket] Initial attach - will trigger user_connected");
+                console.debug("[WebSocket] Initial attach - will trigger user_connected");
             }
             if (includeClientHint) {
-                console.log("[WebSocket] Reconnecting with existing client_id:", clientId);
+                console.debug("[WebSocket] Reconnecting with existing client_id:", clientId);
             } else {
-                console.log("[WebSocket] New connection (no stored tokens)");
+                console.debug("[WebSocket] New connection (no stored tokens)");
             }
-            console.log("[WebSocket] Attach decision:", {
+            console.debug("[WebSocket] Attach decision:", {
                 mode,
                 force,
                 isInitialAttach: player.isInitialAttach,
@@ -224,19 +281,52 @@ export const useWebSocket = (
                 },
             });
 
-            console.log("[WebSocket] Creating new WebSocket to:", wsUrl);
-            const ws = new WebSocket(wsUrl, wsProtocols);
+            const url = new URL(wsUrl);
+            url.searchParams.set("attempt", attempt);
+            logTiming("starting");
+            const ws = new WebSocket(url.toString(), wsProtocols);
             socketRef.current = ws;
-            console.log("[WebSocket] Socket created, readyState:", ws.readyState);
+            let opened = false;
+            const clearHandshakeTimeout = () => {
+                if (handshakeTimeoutRef.current !== null) {
+                    clearTimeout(handshakeTimeoutRef.current);
+                    handshakeTimeoutRef.current = null;
+                }
+            };
+            handshakeTimeoutRef.current = window.setTimeout(() => {
+                if (socketRef.current !== ws || opened) return;
+                clearHandshakeTimeout();
+                logTiming("timed_out");
+                // Retire this attempt before closing: late events must not affect its replacement.
+                socketRef.current = null;
+                ws.onopen = null;
+                ws.onmessage = null;
+                ws.onerror = null;
+                ws.onclose = null;
+                ws.close();
+                setWsState({
+                    socket: null,
+                    isConnected: false,
+                    connectionStatus: "error",
+                    connectionError: "Connection timed out after 15 seconds",
+                });
+                onPlayerConnectedChange?.(false);
+                scheduleReconnect();
+            }, HANDSHAKE_TIMEOUT_MS);
 
             // Set up event handlers
             ws.onopen = () => {
+                if (socketRef.current !== ws) return;
+                opened = true;
+                clearHandshakeTimeout();
+                logTiming("opened");
                 lastSocketActivityAtRef.current = Date.now();
                 setWsState(prev => ({
                     ...prev,
                     socket: ws,
                     isConnected: true,
                     connectionStatus: "connected",
+                    connectionError: undefined,
                 }));
                 onSystemMessage("Connected!", 2);
                 setClientSessionActive(true);
@@ -271,75 +361,81 @@ export const useWebSocket = (
 
             ws.onmessage = handleMessage;
 
-            ws.onerror = (_error) => {
-                setWsState(prev => ({ ...prev, connectionStatus: "error" }));
-                onSystemMessage("Connection error", 5);
+            ws.onerror = () => {
+                if (socketRef.current !== ws) return;
+                logTiming("error");
             };
 
-            ws.onclose = (event) => {
-                setWsState(prev => ({
-                    ...prev,
+            ws.onclose = async (event) => {
+                if (socketRef.current !== ws) return;
+                clearHandshakeTimeout();
+                logTiming("closed", event.code);
+                socketRef.current = null;
+                setWsState({
                     socket: null,
                     isConnected: false,
-                    connectionStatus: "disconnected",
-                }));
-                socketRef.current = null;
+                    connectionStatus: event.code === 1000 ? "disconnected" : "error",
+                    connectionError: event.code === 1000
+                        ? undefined
+                        : opened
+                        ? "Connection to server lost"
+                        : "Unable to connect to server",
+                });
 
-                // Stop keepalive interval
                 if (keepaliveIntervalRef.current) {
                     clearInterval(keepaliveIntervalRef.current);
                     keepaliveIntervalRef.current = null;
                 }
+                if (event.reason === "LOGOUT") setClientSessionActive(false);
+                onPlayerConnectedChange?.(false);
+                if (event.code === 1000) return;
 
-                if (event.reason === "LOGOUT") {
-                    setClientSessionActive(false);
-                }
-
-                // Update player connection status
-                if (onPlayerConnectedChange) {
-                    onPlayerConnectedChange(false);
-                }
-
-                if (event.code !== 1000) { // 1000 is normal closure
-                    // If we've never successfully connected, this is likely an auth failure
-                    if (!hasEverConnectedRef.current) {
-                        console.log("[WebSocket] Connection failed on initial attempt - likely auth failure");
-                        onSystemMessage("Authentication failed - please log in again", 5);
-                        if (onAuthFailure) {
-                            onAuthFailure();
-                        }
-                        return;
-                    }
-
-                    onSystemMessage(
-                        `Connection closed: ${event.reason || "Server disconnected"}`,
-                        5,
-                    );
-
-                    // Schedule reconnect for non-normal closures (only if we've connected before)
-                    // Uses connectRef to get current connect function, avoiding stale closure issues
-                    const delay = 3000;
-                    if (!reconnectTimeoutRef.current) {
-                        reconnectTimeoutRef.current = window.setTimeout(() => {
-                            reconnectTimeoutRef.current = null;
-                            if (connectionStatusRef.current !== "connected" && connectRef.current) {
-                                // Always reconnect as "connect", never "create" --
-                                // the create path is one-time for new accounts.
-                                connectRef.current("connect");
-                            }
-                        }, delay);
+                let unauthorized = event.code === 4401;
+                // Browsers hide failed upgrade HTTP statuses behind close code 1006.
+                // A transport failure alone is not evidence that credentials have expired.
+                if (!opened && !unauthorized) {
+                    const controller = new AbortController();
+                    authCheckRef.current = controller;
+                    const timer = window.setTimeout(() => controller.abort(), AUTH_CHECK_TIMEOUT_MS);
+                    logTiming("validating_session");
+                    try {
+                        const response = await fetch("/auth/validate", {
+                            headers: { "X-Moor-Auth-Token": player.authToken },
+                            signal: controller.signal,
+                        });
+                        unauthorized = response.status === 401;
+                        logTiming("session_validated", response.status);
+                    } catch {
+                        logTiming("session_validation_unavailable");
+                    } finally {
+                        clearTimeout(timer);
+                        if (authCheckRef.current === controller) authCheckRef.current = null;
                     }
                 }
+                if (generation !== attemptGenerationRef.current) return;
+                if (unauthorized) {
+                    setWsState(prev => ({ ...prev, connectionError: "Session expired — please log in again" }));
+                    onSystemMessage("Session expired — please log in again", 5);
+                    onAuthFailure?.();
+                    return;
+                }
+                scheduleReconnect();
             };
         } catch (error) {
-            console.error("Failed to create WebSocket connection:", error);
-            setWsState(prev => ({ ...prev, connectionStatus: "error" }));
+            logTiming("creation_failed");
+            setWsState(prev => ({
+                ...prev,
+                connectionStatus: "error",
+                connectionError: "Unable to connect to server",
+            }));
+            scheduleReconnect();
             onSystemMessage(
                 `Connection error: ${error instanceof Error ? error.message : "Unknown error"}`,
                 5,
             );
         }
     }, [
+        stopConnection,
         handleMessage,
         onAuthFailure,
         onInitialAttachComplete,
@@ -375,7 +471,7 @@ export const useWebSocket = (
             const now = Date.now();
             const idleMs = now - lastSocketActivityAtRef.current;
             if (idleMs < RESUME_STALE_THRESHOLD_MS) {
-                console.log("[WebSocket] Resume check skipped (fresh activity)", {
+                console.debug("[WebSocket] Resume check skipped (fresh activity)", {
                     idleMs,
                     thresholdMs: RESUME_STALE_THRESHOLD_MS,
                 });
@@ -384,14 +480,14 @@ export const useWebSocket = (
 
             const sinceLastResumeReconnect = now - lastResumeReconnectAtRef.current;
             if (sinceLastResumeReconnect < RESUME_RECONNECT_COOLDOWN_MS) {
-                console.log("[WebSocket] Resume check skipped (cooldown)", {
+                console.debug("[WebSocket] Resume check skipped (cooldown)", {
                     sinceLastResumeReconnect,
                     cooldownMs: RESUME_RECONNECT_COOLDOWN_MS,
                 });
                 return;
             }
 
-            console.log("[WebSocket] Resume-triggered reconnect", {
+            console.debug("[WebSocket] Resume-triggered reconnect", {
                 idleMs,
                 sinceLastResumeReconnect,
                 socketState: socketRef.current?.readyState,
@@ -422,38 +518,9 @@ export const useWebSocket = (
     // Disconnect from WebSocket
     const disconnect = useCallback((reason?: string) => {
         isDisconnectingRef.current = true;
+        stopConnection();
 
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-
-        if (keepaliveIntervalRef.current) {
-            clearInterval(keepaliveIntervalRef.current);
-            keepaliveIntervalRef.current = null;
-        }
-
-        if (socketRef.current) {
-            const oldSocket = socketRef.current;
-            socketRef.current = null;
-
-            // Remove event handlers to prevent them from firing
-            oldSocket.onopen = null;
-            oldSocket.onmessage = null;
-            oldSocket.onerror = null;
-            oldSocket.onclose = null;
-
-            // Close the socket
-            oldSocket.close(1000, reason ?? "Manual disconnect");
-
-            // Immediately clear state
-            setWsState({
-                socket: null,
-                isConnected: false,
-                connectionStatus: "disconnected",
-            });
-        }
-
+        setWsState({ socket: null, isConnected: false, connectionStatus: "disconnected" });
         if (reason === "LOGOUT") {
             setClientSessionActive(false);
         }
@@ -462,7 +529,7 @@ export const useWebSocket = (
         setTimeout(() => {
             isDisconnectingRef.current = false;
         }, 100);
-    }, []);
+    }, [stopConnection]);
 
     // Send message (text string or binary data)
     const sendMessage = useCallback((message: string | Uint8Array | ArrayBuffer) => {
@@ -484,24 +551,12 @@ export const useWebSocket = (
         setInputMetadata(null);
     }, []);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-            }
-            if (keepaliveIntervalRef.current) {
-                clearInterval(keepaliveIntervalRef.current);
-            }
-            if (socketRef.current) {
-                socketRef.current.close(1000, "Component unmounting");
-            }
-        };
-    }, []);
+    useEffect(() => stopConnection, [stopConnection]);
 
     // Reset state when player becomes null (logout)
     useEffect(() => {
         if (!player) {
+            stopConnection();
             // Clear WebSocket state for new login
             setWsState({
                 socket: null,
@@ -511,7 +566,7 @@ export const useWebSocket = (
             lastEventTimestampRef.current = null;
             hasEverConnectedRef.current = false;
         }
-    }, [player]);
+    }, [player, stopConnection]);
 
     return {
         stateRevision,

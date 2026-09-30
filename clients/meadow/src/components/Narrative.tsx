@@ -56,6 +56,7 @@ export interface NarrativeMessage {
 interface NarrativeProps {
     visible: boolean;
     connectionStatus: "disconnected" | "connecting" | "connected" | "error";
+    connectionError?: string;
     onSendMessage: (message: string | Uint8Array | ArrayBuffer) => boolean;
     onLoadMoreHistory?: () => void;
     isLoadingHistory?: boolean;
@@ -137,6 +138,7 @@ const messageDedupKey = (message: Pick<NarrativeMessage, "eventId" | "eventMetad
 export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
     visible,
     connectionStatus,
+    connectionError,
     onSendMessage,
     onLoadMoreHistory,
     isLoadingHistory = false,
@@ -837,7 +839,7 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
                                             fontFamily: "var(--font-ui)",
                                         }}
                                     >
-                                        Connection error
+                                        {connectionError ?? "Connection error"}
                                     </div>
                                     <div
                                         style={{

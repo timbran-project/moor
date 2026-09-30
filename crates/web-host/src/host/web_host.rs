@@ -51,10 +51,10 @@ use std::{
         Arc, LazyLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::time::timeout;
-use tracing::{debug, error, info, warn};
+use tracing::{Instrument, debug, error, info, warn};
 use uuid::Uuid;
 
 /// Extract the real client IP address from proxy headers or ConnectInfo.
@@ -257,6 +257,26 @@ static DNS_RESOLVER: LazyLock<Result<TokioResolver, String>> = LazyLock::new(|| 
 
 /// Perform async reverse DNS lookup for an IP address with timeout
 async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
+    let started = Instant::now();
+    let handshake = tracing::Span::current()
+        .metadata()
+        .is_some_and(|metadata| metadata.name() == "websocket_handshake");
+    if handshake {
+        debug!(phase = "dns_started", "WebSocket handshake");
+    }
+    let result = resolve_hostname_inner(ip).await;
+    if handshake {
+        debug!(
+            phase = "dns_finished",
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            resolved = result.is_ok(),
+            "WebSocket handshake"
+        );
+    }
+    result
+}
+
+async fn resolve_hostname_inner(ip: IpAddr) -> Result<String, eyre::Error> {
     debug!(
         "resolve_hostname: Acquiring DNS resolver reference for {}",
         ip
@@ -866,12 +886,13 @@ async fn attach(
         reattach_succeeded,
         effective_connect_type
     );
-    if has_client_hint && !reattach_succeeded {
+    if attempt_reattach && !reattach_succeeded {
         warn!(
             "WebSocket attach fallback: client_hint_present_but_reattach_failed; is_initial_attach={}, effective_connect_type={:?}",
             is_initial_attach, effective_connect_type
         );
     }
+    debug!(phase = "authenticated", "WebSocket handshake");
     let (player, client_id, client_token, rpc_client, _player_flags) = connection_details;
 
     let Ok(mut connection) = host
@@ -889,32 +910,53 @@ async fn attach(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    ws.on_upgrade(
-        move |socket| async move { connection.handle(effective_connect_type, socket).await },
-    )
+    let handshake_span = tracing::Span::current();
+    ws.on_upgrade(move |socket| {
+        async move {
+            debug!(phase = "upgraded", "WebSocket handshake");
+            connection.handle(effective_connect_type, socket).await
+        }
+        .instrument(handshake_span)
+    })
+}
+
+/// Optional client-generated identifier used only to correlate handshake timings.
+#[derive(serde::Deserialize)]
+pub struct WsHandshakeQuery {
+    attempt: Option<Uuid>,
 }
 
 /// Websocket upgrade handler for authenticated users who are connecting to an existing user
+#[tracing::instrument(name = "websocket_handshake", skip_all, fields(attempt = ?query.attempt))]
 pub async fn ws_connect_attach_handler(
     headers: HeaderMap,
+    Query(query): Query<WsHandshakeQuery>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ws_host): State<WebHost>,
     ws: WebSocketUpgrade,
 ) -> Response {
+    let started = Instant::now();
     debug!(
         "ws_connect_attach_handler called, ConnectInfo addr: {}",
         addr
     );
     let client_addr = get_client_addr(&headers, addr, &ws_host.trusted_proxy_cidrs);
-    info!("WebSocket connection from {}", client_addr);
+    debug!("WebSocket connection from {}", client_addr);
 
     let attach_info = match extract_ws_attach_info(&headers) {
         Ok(info) => info,
-        Err(status) => return status.into_response(),
+        Err(status) => {
+            warn!(
+                phase = "rejected",
+                status = status.as_u16(),
+                "WebSocket handshake"
+            );
+            return status.into_response();
+        }
     };
 
     let ws = ws.protocols(["moor"]);
-    attach(
+    let response = attach(
         ws,
         client_addr,
         moor_rpc::ConnectType::Connected,
@@ -923,30 +965,57 @@ pub async fn ws_connect_attach_handler(
         attach_info.client_hint,
         attach_info.is_initial_attach,
     )
-    .await
+    .await;
+    let elapsed = started.elapsed();
+    if response.status() != StatusCode::SWITCHING_PROTOCOLS || elapsed >= Duration::from_secs(1) {
+        warn!(
+            phase = "response",
+            elapsed_ms = elapsed.as_millis() as u64,
+            status = response.status().as_u16(),
+            "WebSocket handshake slow or rejected"
+        );
+    } else {
+        debug!(
+            phase = "response",
+            elapsed_ms = elapsed.as_millis() as u64,
+            status = response.status().as_u16(),
+            "WebSocket handshake"
+        );
+    }
+    response
 }
 
 /// Websocket upgrade handler for authenticated users who are connecting to a new user
+#[tracing::instrument(name = "websocket_handshake", skip_all, fields(attempt = ?query.attempt))]
 pub async fn ws_create_attach_handler(
     headers: HeaderMap,
+    Query(query): Query<WsHandshakeQuery>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(ws_host): State<WebHost>,
     ws: WebSocketUpgrade,
 ) -> Response {
+    let started = Instant::now();
     debug!(
         "ws_create_attach_handler called, ConnectInfo addr: {}",
         addr
     );
     let client_addr = get_client_addr(&headers, addr, &ws_host.trusted_proxy_cidrs);
-    info!("WebSocket connection from {}", client_addr);
+    debug!("WebSocket connection from {}", client_addr);
 
     let attach_info = match extract_ws_attach_info(&headers) {
         Ok(info) => info,
-        Err(status) => return status.into_response(),
+        Err(status) => {
+            warn!(
+                phase = "rejected",
+                status = status.as_u16(),
+                "WebSocket handshake"
+            );
+            return status.into_response();
+        }
     };
 
     let ws = ws.protocols(["moor"]);
-    attach(
+    let response = attach(
         ws,
         client_addr,
         moor_rpc::ConnectType::Created,
@@ -955,7 +1024,24 @@ pub async fn ws_create_attach_handler(
         attach_info.client_hint,
         attach_info.is_initial_attach,
     )
-    .await
+    .await;
+    let elapsed = started.elapsed();
+    if response.status() != StatusCode::SWITCHING_PROTOCOLS || elapsed >= Duration::from_secs(1) {
+        warn!(
+            phase = "response",
+            elapsed_ms = elapsed.as_millis() as u64,
+            status = response.status().as_u16(),
+            "WebSocket handshake slow or rejected"
+        );
+    } else {
+        debug!(
+            phase = "response",
+            elapsed_ms = elapsed.as_millis() as u64,
+            status = response.status().as_u16(),
+            "WebSocket handshake"
+        );
+    }
+    response
 }
 
 pub async fn resolve_objref_handler(
@@ -1130,6 +1216,20 @@ pub async fn openapi_handler() -> impl IntoResponse {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn handshake_correlation_id_is_optional_and_parses_uuid() {
+        let uri = "/ws/attach/connect".parse().unwrap();
+        let axum::extract::Query(query) =
+            axum::extract::Query::<super::WsHandshakeQuery>::try_from_uri(&uri).unwrap();
+        assert!(query.attempt.is_none());
+
+        let id = uuid::Uuid::new_v4();
+        let uri = format!("/ws/attach/connect?attempt={id}").parse().unwrap();
+        let axum::extract::Query(query) =
+            axum::extract::Query::<super::WsHandshakeQuery>::try_from_uri(&uri).unwrap();
+        assert_eq!(query.attempt, Some(id));
+    }
+
     use super::moor_rpc::ConnectType;
     use super::{effective_connect_type_for_fresh_attach, should_attempt_reattach};
 

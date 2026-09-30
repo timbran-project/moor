@@ -147,6 +147,27 @@ configuration project. Node type definitions target the Node 24 runtime used in 
 existing web CI job runs `npm run web:typecheck`, which includes all four Meadow checks along with
 the SDK and MCP client checks. Test execution remains `npm test --workspace meadow`.
 
+### Connection diagnostics
+
+A WebSocket handshake has a 15-second deadline. A timeout appears in the existing connection error
+overlay, followed by another attempt after three seconds. An ambiguous failed handshake checks the
+auth token with a five-second deadline; network errors and server unavailability do not discard the
+login. A confirmed HTTP 401 or WebSocket 4401 returns to login.
+
+Routine handshake traces are off by default. Failures and completed handshakes taking at least one
+second remain warnings. Enable detailed tracing with `VITE_WS_DEBUG=true` when starting Vite and
+`RUST_LOG=info,moor_web_host::host::web_host=debug` when starting the server. Enable Debug/Verbose
+messages in the browser console to see its routine phases. Proxy and browser timing records use
+single-line JSON.
+
+Search for the same `attempt` UUID in the browser's `[WebSocket] handshake` messages, Vite's
+`[WebSocket proxy] handshake` messages, and web-host's `websocket_handshake` span. These show
+browser initiation, proxy forwarding and upstream connection, server DNS start/completion,
+authentication, upgrade response, and browser open or timeout. Timing records include no auth tokens
+or subprotocol headers. Compare local elapsed times; absolute timestamps across machines can differ
+with clock skew. A gap before proxy forwarding points upstream of Vite; DNS and server response
+timings separate hostname lookup from server attach work.
+
 ### Environment Variables
 
 - `MOOR_PATH`: Path to the mooR repository root (defaults to `../..`).

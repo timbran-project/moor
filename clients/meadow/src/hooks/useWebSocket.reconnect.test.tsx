@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installMockWebHostWebSocket } from "../../../web-sdk/src/testing/mock-web-host";
 import type { Player } from "./useAuth";
 import { useWebSocket } from "./useWebSocket";
@@ -317,5 +317,188 @@ describe("useWebSocket reconnect behavior", () => {
         } finally {
             mockHost.restore();
         }
+    });
+});
+
+describe("WebSocket handshake recovery", () => {
+    let mockHost: ReturnType<typeof installMockWebHostWebSocket>;
+    const player: Player = {
+        oid: "oid:7",
+        authToken: "auth-1",
+        historyOid: "oid:7",
+        historyAuthToken: "auth-1",
+        connected: false,
+        flags: 0,
+        isInitialAttach: true,
+    };
+
+    function renderConnection() {
+        const onAuthFailure = vi.fn();
+        const onSystemMessage = vi.fn();
+        const hook = renderHook(() =>
+            useWebSocket(
+                player,
+                onSystemMessage,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                onAuthFailure,
+            )
+        );
+        return { ...hook, onAuthFailure };
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        installLocalStorageMock();
+        mockHost = installMockWebHostWebSocket();
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    });
+
+    afterEach(() => {
+        mockHost.restore();
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        sessionStorage.clear();
+    });
+
+    it("times out a stalled handshake, preserves credentials and reconnects with a new attempt ID", async () => {
+        const { result, onAuthFailure } = renderConnection();
+        sessionStorage.setItem("client_id", "11111111-1111-1111-1111-111111111111");
+        sessionStorage.setItem("client_token", "keep-token");
+        await act(async () => {
+            await result.current.connect("create");
+        });
+        const firstAttempt = new URL(mockHost.connections[0].url).searchParams.get("attempt");
+        expect(firstAttempt).toMatch(/^[0-9a-f-]{36}$/);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(14999);
+        });
+        expect(result.current.wsState.connectionStatus).toBe("connecting");
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(result.current.wsState.connectionStatus).toBe("error");
+        expect(result.current.wsState.connectionError).toBe("Connection timed out after 15 seconds");
+        expect(onAuthFailure).not.toHaveBeenCalled();
+        expect(sessionStorage.getItem("client_token")).toBe("keep-token");
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3000);
+        });
+        expect(mockHost.connections).toHaveLength(2);
+        expect(mockHost.connections[1].url).toContain("/ws/attach/connect");
+        expect(new URL(mockHost.connections[1].url).searchParams.get("attempt")).not.toBe(firstAttempt);
+        act(() => {
+            mockHost.takeConnection(1)?.serverOpen();
+            mockHost.takeConnection(0)?.serverClose(4401, "late rejection");
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(15000);
+        });
+        expect(result.current.wsState.isConnected).toBe(true);
+        expect(result.current.wsState.connectionError).toBeUndefined();
+        expect(onAuthFailure).not.toHaveBeenCalled();
+        expect(mockHost.connections).toHaveLength(2);
+    });
+
+    it.each([200, 503])("retries a failed first handshake when validation returns %i", async status => {
+        vi.mocked(fetch).mockResolvedValue(new Response(null, { status }));
+        const { result, onAuthFailure } = renderConnection();
+        await act(async () => {
+            await result.current.connect("connect");
+        });
+        await act(async () => {
+            mockHost.takeConnection()?.serverClose(1006);
+        });
+        expect(onAuthFailure).not.toHaveBeenCalled();
+        expect(result.current.wsState.connectionStatus).toBe("error");
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(3000);
+        });
+        expect(mockHost.connections).toHaveLength(2);
+    });
+
+    it("returns to login only after HTTP validation confirms rejection", async () => {
+        vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 401 }));
+        const { result, onAuthFailure } = renderConnection();
+        await act(async () => {
+            await result.current.connect("connect");
+        });
+        await act(async () => {
+            mockHost.takeConnection()?.serverClose(1006);
+        });
+        expect(onAuthFailure).toHaveBeenCalledOnce();
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(30000);
+        });
+        expect(mockHost.connections).toHaveLength(1);
+    });
+
+    it("bounds an unavailable validation request and retries without logging out", async () => {
+        vi.mocked(fetch).mockImplementation((_input, init) =>
+            new Promise((_resolve, reject) => {
+                init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+            })
+        );
+        const { result, onAuthFailure } = renderConnection();
+        await act(async () => {
+            await result.current.connect("connect");
+        });
+        await act(async () => {
+            mockHost.takeConnection()?.serverClose(1006);
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(8000);
+        });
+        expect(mockHost.connections).toHaveLength(2);
+        expect(onAuthFailure).not.toHaveBeenCalled();
+    });
+
+    it("ignores validation responses from a superseded attempt", async () => {
+        let finish!: (response: Response) => void;
+        vi.mocked(fetch).mockReturnValue(
+            new Promise(resolve => {
+                finish = resolve;
+            }),
+        );
+        const { result, onAuthFailure } = renderConnection();
+        await act(async () => {
+            await result.current.connect("connect");
+        });
+        await act(async () => {
+            mockHost.takeConnection()?.serverClose(1006);
+        });
+        await act(async () => {
+            await result.current.connect("connect", true);
+        });
+        act(() => {
+            mockHost.takeConnection(1)?.serverOpen();
+        });
+        await act(async () => {
+            finish(new Response(null, { status: 401 }));
+        });
+        expect(onAuthFailure).not.toHaveBeenCalled();
+        expect(result.current.wsState.isConnected).toBe(true);
+    });
+
+    it.each(["disconnect", "unmount"])("cancels pending handshake work on %s", async action => {
+        const { result, unmount, onAuthFailure } = renderConnection();
+        await act(async () => {
+            await result.current.connect("connect");
+        });
+        act(() => {
+            if (action === "unmount") unmount();
+            else result.current.disconnect("LOGOUT");
+        });
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(60000);
+        });
+        expect(mockHost.connections).toHaveLength(1);
+        expect(onAuthFailure).not.toHaveBeenCalled();
+        expect(fetch).not.toHaveBeenCalled();
     });
 });
