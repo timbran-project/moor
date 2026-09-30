@@ -229,15 +229,16 @@ framework/browser diagnostics. Review console output before sharing it.
 ## Transcript window
 
 The transcript displays at most 200 complete message groups at a time. Scrolling near either end
-moves the window by 100 groups, keeping an overlapping group at its previous viewport offset.
-**Older messages** and **Newer messages** move to the start of the adjacent window; **Jump to Now**
-returns to the live tail. Older history is fetched only after reaching the beginning of the locally
-loaded groups. The scrollbar describes the displayed window, not the whole history.
+moves the window by 100 groups, keeping an overlapping group at its previous viewport offset. Scroll
+up to read older messages and down to return toward the live tail. **Jump to Now** appears only
+while viewing the past and returns to the latest output. Older history is fetched only after
+reaching the beginning of the locally loaded groups. The scrollbar describes the displayed window,
+not the whole history.
 
 Selecting transcript text or focusing one of its controls holds the window and pauses automatic
-scrolling. The navigation buttons still work deliberately. After releasing selection or focus,
-scrolling to the live end or choosing **Jump to Now** resumes following output. Browser Find and
-Select All cover the mounted window; use the JSON export for full history.
+scrolling. After releasing selection or focus, scrolling to the live end or choosing **Jump to Now**
+resumes following output. Browser Find and Select All cover the mounted window; use the JSON export
+for full history.
 
 Historical rows are readable but are not live-announced when the window moves. A separate polite
 region announces new output, preferring supplied TTS text. A burst is limited to the newest 200

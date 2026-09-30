@@ -50,6 +50,35 @@ function renderOutputWindow(messages: ReturnType<typeof createMessage>[]) {
     return { ...render(<OutputWindow transcript={transcript} />, { wrapper: ToastProvider }), transcript };
 }
 
+function scrollTranscript(container: HTMLElement, top: number) {
+    const output = container.querySelector<HTMLElement>("#output_window")!;
+    Object.defineProperties(output, {
+        scrollHeight: { configurable: true, value: 2000 },
+        clientHeight: { configurable: true, value: 500 },
+    });
+    fireEvent.scroll(output, { target: { scrollTop: top } });
+}
+
+it("shows Jump to Now only in the past and navigates history by scrolling", () => {
+    const { container, queryByText, getByText } = renderOutputWindow(
+        Array.from({ length: 500 }, (_, i) => createMessage(String(i), `Message ${i}`)),
+    );
+    expect(queryByText("Older messages")).toBeNull();
+    expect(queryByText("Newer messages")).toBeNull();
+    expect(queryByText("Jump to Now")).toBeNull();
+    scrollTranscript(container, 1);
+    expect(container.querySelector("[data-message-id=\"499\"]")).toBeNull();
+    expect(getByText("Jump to Now")).toBeTruthy();
+    scrollTranscript(container, 1500);
+    expect(container.querySelector("[data-message-id=\"499\"]")).not.toBeNull();
+    scrollTranscript(container, 1499);
+    expect(queryByText("Jump to Now")).toBeNull();
+    scrollTranscript(container, 1);
+    fireEvent.click(getByText("Jump to Now"));
+    expect(container.querySelector("[data-message-id=\"499\"]")).not.toBeNull();
+    expect(queryByText("Jump to Now")).toBeNull();
+});
+
 // Helper to collect announcements from virtual screen reader
 async function collectAnnouncements(maxIterations = 50): Promise<string[]> {
     const announcements: string[] = [];
@@ -362,10 +391,10 @@ it("does not announce recycled or prepended history while continuing to announce
         { length: 500 },
         (_, i) => ({ ...createMessage(String(i), `Old message ${i}`), isHistorical: true }),
     );
-    const { container, transcript, getByText } = renderOutputWindow(messages);
+    const { container, transcript } = renderOutputWindow(messages);
     await virtual.start({ container: container.querySelector("#output_window")! });
     await act(async () => {
-        fireEvent.click(getByText("Older messages"));
+        scrollTranscript(container, 1);
     });
     await act(async () => transcript.prepend([{ ...createMessage("earlier", "Earlier history"), isHistorical: true }]));
     expect(getLiveAnnouncements(await virtual.spokenPhraseLog())).toEqual([]);
@@ -412,12 +441,12 @@ it("reports an active room look as offscreen when its group leaves the window", 
         presentationHint: "inset",
         eventMetadata: { verb: "look", lookRoom: { oid: 1 } },
     });
-    const { getByText } = render(
+    const { container, getByText } = render(
         <OutputWindow transcript={transcript} currentRoomLookKey="oid:1" onActiveRoomLookVisibilityChange={report} />,
         { wrapper: ToastProvider },
     );
     expect(report).toHaveBeenLastCalledWith("oid:1", true, "room");
-    fireEvent.click(getByText("Older messages"));
+    scrollTranscript(container, 1);
     expect(report).toHaveBeenLastCalledWith("oid:1", false, null);
     fireEvent.click(getByText("Jump to Now"));
     expect(report).toHaveBeenLastCalledWith("oid:1", true, "room");

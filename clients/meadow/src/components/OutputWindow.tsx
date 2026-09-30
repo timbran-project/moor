@@ -80,10 +80,6 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
         end,
         handleScroll,
         jumpToNow,
-        older,
-        newer,
-        hasOlder,
-        hasNewer,
         isViewingHistory,
     } = useTranscriptWindow(transcript, onLoadMoreHistory, isLoadingHistory);
     const staleMessageIds = transcript.stale;
@@ -417,31 +413,14 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                 fontSize: `${resolvedFontSize}px`,
             }}
         >
-            <div className="transcript_navigation" aria-label="Transcript navigation">
-                <button
-                    onClick={() => {
-                        if (hasOlder && !isLoadingHistory) older();
-                    }}
-                    aria-disabled={!hasOlder || isLoadingHistory}
-                >
-                    Older messages
-                </button>
-                <button
-                    onClick={() => {
-                        if (hasNewer) newer();
-                    }}
-                    aria-disabled={!hasNewer}
-                >
-                    Newer messages
-                </button>
-                <button onClick={jumpToNow} aria-disabled={!isViewingHistory} aria-label="Return to latest messages">
-                    Jump to Now
-                </button>
-                <span className="sr-only">
-                    Browser Find and Select All cover the displayed messages. Export includes full history.
-                </span>
-                {isLoadingHistory && <span role="status">Loading more history...</span>}
-            </div>
+            {isViewingHistory && (
+                <div className="history_indicator">
+                    <button onClick={jumpToNow} aria-label="Return to latest messages">
+                        Jump to Now
+                    </button>
+                </div>
+            )}
+            {isLoadingHistory && <div role="status">Loading more history...</div>}
             <div className="sr-only" aria-live="polite" aria-relevant="additions" aria-atomic="false">
                 {omittedAnnouncements > 0 && (
                     <span key={`omitted-${transcript.liveRevision}`}>
