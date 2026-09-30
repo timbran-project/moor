@@ -1711,19 +1711,18 @@ fn bf_parse_command(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 /// 3. iobj from the parsed command (if present and valid)
 ///
 /// Returns a list of [target_object, verb_info] pairs where:
-/// - `target_object` is the object where the matching verb was found
+/// - `target_object` is the searched receiver, even when the verb is inherited
 /// - `verb_info` is a list [owner, permissions, verb_display_names, matched_verb_name] describing the verb
 ///   - `verb_display_names` is the full concatenated display form (e.g., "d*rop th*row")
 ///   - `matched_verb_name` is the actual verb that was matched from the command (e.g., "drop")
 ///
-/// When used together with `parse_command`, these two functions emulate the behavior of the
-/// built-in MOO command parser:
-/// 1. First call `parse_command` to parse the command string into a specification
-/// 2. Then call `find_command_verb` with the specification and command environment
-/// 3. Dispatch to the found verb (if any) to execute the command
+/// Each target contributes its first name-and-argspec match, searching local definitions in
+/// order before ancestors. Targets are not deduplicated; invalid objects and non-objects are
+/// skipped. The x flag is not required, but the selected verb must pass read authorization.
+/// Read denial skips the target without trying another overload or ancestor.
 ///
-/// This allows custom command parsing and dispatching while maintaining compatibility with
-/// the standard MOO command parsing logic.
+/// Matches are returned in target traversal order. The caller chooses which match to execute
+/// with `dispatch_command_verb`; this function does not stop after the first successful target.
 fn bf_find_command_verb(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() != 2 {
         return Err(BfErr::ErrValue(

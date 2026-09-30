@@ -1,0 +1,68 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
+@wizard
+// Two distinct providers, reversed traversal, duplicate targets, and no match.
+; a = create(#-1); b = create(#-1);
+> for target in ({a, b})
+>   add_verb(target, {player, "rxd", "probe"}, {"none", "none", "none"});
+> endfor
+> pc = parse_command("probe", {a, b});
+> result = {};
+> for env in ({{a, b}, {b, a}, {a, a, b}})
+>   for repeat in [1..2]
+>     matches = find_command_verb(pc, env);
+>     targets = {};
+>     for row in (matches)
+>       targets = {@targets, row[1]};
+>     endfor
+>     result = {@result, length(matches), targets == env ? 1 | 0};
+>   endfor
+> endfor
+> result = {@result, length(find_command_verb(parse_command("missing", {a, b}), {a, b}))};
+> recycle(a); recycle(b); return result;
+{2, 1, 2, 1, 2, 1, 2, 1, 3, 1, 3, 1, 0}
+
+// Full sequence, with duplicates and invalid/non-object entries.
+; a = create(#-1); b = create(#-1); c = create(#-1); d = create(#-1); dead = create(#-1); recycle(dead);
+> for target in ({a, b, c, d})
+>   add_verb(target, {player, "rd", "probe"}, {"any", "any", "any"});
+> endfor
+> pc = parse_command("probe", {a, b});
+> pc[maphaskey(pc, 'dobj) ? 'dobj | "dobj"] = c;
+> pc[maphaskey(pc, 'iobj) ? 'iobj | "iobj"] = d;
+> targets = {};
+> for row in (find_command_verb(pc, {b, a, a, c, #-1, dead, 123, "invalid"}))
+>   targets = {@targets, row[1]};
+> endfor
+> result = {length(targets), targets == {b, a, a, c, c, d} ? 1 | 0};
+> for target in ({a, b, c, d})
+>   recycle(target);
+> endfor
+> return result;
+{6, 1}
+
+// An inherited match reports the searched receiver, not the defining ancestor.
+; parent = create(#-1); child = create(parent);
+> add_verb(parent, {player, "rd", "probe"}, {"none", "none", "none"});
+> matches = find_command_verb(parse_command("probe", {child}), {child});
+> result = {length(matches), matches[1][1] == child ? 1 | 0, matches[1][2][1] == player ? 1 | 0};
+> recycle(child); recycle(parent); return result;
+{1, 1, 1}
+
+// Read denial skips the receiver, not just its first overload; x is unnecessary.
+; parent = create(#-1); a = create(parent); b = create(#-1);
+> add_verb(parent, {player, "rd", "probe"}, {"none", "none", "none"});
+> add_verb(a, {player, "xd", "probe"}, {"none", "none", "none"});
+> add_verb(a, {player, "rd", "fallback"}, {"none", "none", "none"});
+> set_verb_info(a, "fallback", {player, "rd", "probe"});
+> add_verb(b, {player, "rd", "probe"}, {"none", "none", "none"});
+> pc = parse_command("probe", {a, b});
+> set_task_perms($programmer_player);
+> result = {};
+> for repeat in [1..2]
+>   matches = find_command_verb(pc, {a, b});
+>   result = {@result, length(matches), matches[1][1] == b ? 1 | 0};
+> endfor
+> return result;
+{1, 1, 1, 1}

@@ -932,7 +932,7 @@ Searches for command verbs that match a parsed command specification across a se
 
 **Returns:** A list of matches. Each match is a list `[target_object, verb_info]` where:
 
-- `target_object`: The object where the matching verb was found
+- `target_object`: The searched object, including when the verb is inherited from an ancestor
 - `verb_info`: A list `[owner, permissions, display_names, matched_verb_name]` where:
   - `owner`: The object that owns the verb
   - `permissions`: Permission string (combination of `r`, `w`, `x`, `d`)
@@ -941,11 +941,20 @@ Searches for command verbs that match a parsed command specification across a se
 
 **Notes:**
 
-- Searches verbs in order: command_environment objects, then dobj, then iobj
-- Returns first matching verb for each target; stops at first successful match overall
-- Respects verb argument specifiers (dobj/prep/iobj requirements)
-- Permission errors are skipped silently; continue searching other targets
-- Returns empty list if no matching verbs are found
+- Searches `command_environment` in list order, followed by valid `dobj` and `iobj` objects from the
+  parsed command. Invalid objects and non-object entries are skipped.
+- Returns the first matching verb for each searched target, in target traversal order. Searching
+  continues after a match; the caller chooses which returned command to execute.
+- Targets are not deduplicated. Repeated targets, including a `dobj` or `iobj` already present in
+  `command_environment`, can produce repeated matches.
+- For each target, searches its verb definitions in order, then those of its ancestors. A match must
+  satisfy both the verb name and the argument specifiers (`dobj`/`prep`/`iobj`). The `x` flag is not
+  required.
+- The selected verb must be readable by the caller (through ownership, wizard permissions, the `r`
+  flag, or a read grant). If read authorization fails, that target is skipped silently; lookup does
+  not try another overload or ancestor for that target. This read check is specific to introspection
+  and is not a requirement for command execution.
+- Returns an empty list if no matches can be returned.
 
 **Example:**
 
