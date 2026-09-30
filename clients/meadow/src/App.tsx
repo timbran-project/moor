@@ -12,7 +12,12 @@
 //
 
 import { AppShell } from "./app/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export function App() {
-    return <AppShell />;
+    return (
+        <ErrorBoundary scope="application">
+            <AppShell />
+        </ErrorBoundary>
+    );
 }

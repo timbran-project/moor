@@ -12,7 +12,7 @@
 //
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, it, vi } from "vitest";
 import { lazySurface } from "./lazySurface";
 
@@ -82,13 +82,62 @@ it("contains a failed import and retries without unmounting the transcript", asy
                 </>,
             );
         });
-        expect(screen.getByRole("status").textContent).toContain("Could not open test editor");
+        expect(screen.getByRole("alert").textContent).toContain("test editor stopped working");
         expect(screen.getByText("Live transcript")).not.toBeNull();
         await act(async () => fireEvent.click(screen.getByRole("button", { name: "Retry" })));
         expect(screen.getByRole("textbox")).not.toBeNull();
         expect(load).toHaveBeenCalledTimes(2);
     } finally {
         window.removeEventListener("error", ignoreExpectedError);
+        errorLog.mockRestore();
+    }
+});
+
+it.each(["editor", "object browser"])("contains a runtime %s failure while preserving sibling state", async name => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ignoreError = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener("error", ignoreError);
+    let fail = false;
+    let unmounts = 0;
+    function Transcript() {
+        useEffect(() => () => {
+            unmounts++;
+        }, []);
+        return <input aria-label="Command draft" defaultValue="look" />;
+    }
+    function Surface(props: { visible: boolean; onClose: () => void }) {
+        if (fail) throw new Error("runtime failure after loading");
+        return <Editor {...props} />;
+    }
+    const LazyEditor = lazySurface(name, async () => ({ default: Surface }));
+    const close = vi.fn();
+    const view = () => (
+        <>
+            <Transcript />
+            <LazyEditor visible onClose={close} />
+        </>
+    );
+    try {
+        const rendered = render(view());
+        await act(async () => {});
+        fireEvent.change(screen.getByRole("textbox", { name: "Command draft" }), {
+            target: { value: "unfinished command" },
+        });
+        fail = true;
+        rendered.rerender(view());
+        expect(screen.getByRole("alert").textContent).toContain("stopped working");
+        fireEvent.click(screen.getByRole("button", { name: "Close" }));
+        expect(close).toHaveBeenCalledOnce();
+        expect(unmounts).toBe(0);
+        fail = false;
+        await act(async () => fireEvent.click(screen.getByRole("button", { name: "Retry" })));
+        expect(screen.getByRole("textbox", { name: "Editor content" })).not.toBeNull();
+        expect((screen.getByRole("textbox", { name: "Command draft" }) as HTMLInputElement).value).toBe(
+            "unfinished command",
+        );
+        expect(unmounts).toBe(0);
+    } finally {
+        window.removeEventListener("error", ignoreError);
         errorLog.mockRestore();
     }
 });

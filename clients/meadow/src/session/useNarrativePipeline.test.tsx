@@ -90,3 +90,51 @@ describe("useNarrativePipeline buffering", () => {
         expect(addNarrativeContent.mock.calls[0][8]).toEqual({ annotations });
     });
 });
+
+it("buffers messages during recovery without requiring a render between receipt and retry", () => {
+    const bridge = createEditorLaunchBridge();
+    const { result } = renderHook(() => useNarrativePipeline(bridge, "owner"));
+    const addNarrativeContent = vi.fn<NarrativeRef["addNarrativeContent"]>();
+    const narrative = { addNarrativeContent } as unknown as NarrativeRef;
+    act(() => {
+        result.current.narrativeCallbackRef(narrative);
+        result.current.narrativeCallbackRef(null);
+        result.current.handlers.handleNarrativeMessage("during recovery", undefined, "text/plain");
+        result.current.narrativeCallbackRef(narrative);
+        result.current.narrativeCallbackRef(null);
+        result.current.narrativeCallbackRef(narrative);
+    });
+    expect(addNarrativeContent).toHaveBeenCalledOnce();
+    expect(addNarrativeContent.mock.calls[0][0]).toBe("during recovery");
+});
+it.each([null, "other-owner"])("drops buffered output when the history owner becomes %s during recovery", owner => {
+    const bridge = createEditorLaunchBridge();
+    const { result, rerender } = renderHook(
+        ({ owner }: { owner: string | null }) => useNarrativePipeline(bridge, owner),
+        { initialProps: { owner: "first-owner" as string | null } },
+    );
+    act(() => result.current.handlers.handleNarrativeMessage("private old output"));
+    rerender({ owner });
+    act(() => result.current.handlers.handleNarrativeMessage("current output"));
+    const addNarrativeContent = vi.fn<NarrativeRef["addNarrativeContent"]>();
+    act(() => result.current.narrativeCallbackRef({ addNarrativeContent } as unknown as NarrativeRef));
+    expect(addNarrativeContent.mock.calls.map(call => call[0])).toEqual(["current output"]);
+});
+
+it("does not replay successfully flushed messages when a later append fails during retry", () => {
+    const bridge = createEditorLaunchBridge();
+    const { result } = renderHook(() => useNarrativePipeline(bridge, "owner"));
+    act(() => {
+        result.current.handlers.handleNarrativeMessage("accepted");
+        result.current.handlers.handleNarrativeMessage("try again");
+    });
+    const addNarrativeContent = vi.fn<NarrativeRef["addNarrativeContent"]>()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+            throw new Error("append failed");
+        });
+    const narrative = { addNarrativeContent } as unknown as NarrativeRef;
+    expect(() => result.current.narrativeCallbackRef(narrative)).toThrow("append failed");
+    act(() => result.current.narrativeCallbackRef(narrative));
+    expect(addNarrativeContent.mock.calls.map(call => call[0])).toEqual(["accepted", "try again", "try again"]);
+});

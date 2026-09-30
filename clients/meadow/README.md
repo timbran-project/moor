@@ -204,6 +204,28 @@ Measured on 2026-09-30 with `npm run build --workspace meadow` (decimal kB):
 The deferred Monaco editor chunk remains 5,699.71 kB (1,101.32 kB gzip). Vite still reports large
 chunks; the explicit budgets distinguish startup cost from editor loading cost.
 
+## Recovering from UI failures
+
+React render and lifecycle failures are contained at the nearest recovery boundary:
+
+| Failed area                | Recovery                  | Retained state                                                                                                                                                              |
+| -------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Editor or object browser   | Retry or close that panel | Session, transcript, and other panels remain mounted; the failed panel's unsaved edits can be lost.                                                                         |
+| Transcript rendering       | Retry transcript          | Loaded messages, incoming output, and command input remain available.                                                                                                       |
+| Main interface             | Retry interface           | Authentication, encryption, and WebSocket providers stay mounted. The display and unsaved UI edits reset; messages received during recovery are buffered and replayed once. |
+| Application/provider stack | Reload Meadow             | Reload restarts the connection. Recovery does not clear saved sign-in or encryption settings; in-memory state and unsaved edits are lost.                                   |
+
+The interface buffer belongs to the history owner and is discarded when that owner changes or the
+session ends. Recovering the interface can load encrypted history again through the normal history
+flow. Retries are explicit; a persistent rendering error returns to the fallback instead of looping.
+Event-handler exceptions and rejected asynchronous work still need handling at their call sites.
+
+Boundaries write a local `MEADOW_UI_FAILURE` console record containing scope, error category, build
+revision, time, and allowlisted surface/component names. These records omit exception messages, raw
+stacks, URLs, credentials, and narrative contents, and are not sent to a service. React 18 and the
+browser can separately log original exceptions; the structured record does not sanitize those
+framework/browser diagnostics. Review console output before sharing it.
+
 ## Transcript window
 
 The transcript displays at most 200 complete message groups at a time. Scrolling near either end

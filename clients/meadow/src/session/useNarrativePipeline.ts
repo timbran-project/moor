@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { NarrativeRef } from "../components/Narrative";
 import { usePresentationContext } from "../context/PresentationContext";
 import { useMCPHandler } from "../hooks/useMCPHandler";
@@ -52,7 +52,7 @@ export interface WebSocketEventHandlers {
  * Takes the editor launch bridge directly: this hook runs above the bridge's
  * context provider (inside SessionCoordinator), so it cannot consume it.
  */
-export const useNarrativePipeline = (bridge: EditorLaunchBridge) => {
+export const useNarrativePipeline = (bridge: EditorLaunchBridge, historyOwner: string | null = null) => {
     const { addPresentation, removePresentation } = usePresentationContext();
 
     const narrativeRef = useRef<NarrativeRef | null>(null);
@@ -60,7 +60,13 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge) => {
         new Map(),
     );
 
-    const [pendingMessages, setPendingMessages] = useState<NarrativeMessageContent[]>([]);
+    const pendingMessagesRef = useRef<NarrativeMessageContent[]>([]);
+    const pendingOwnerRef = useRef(historyOwner);
+    if (pendingOwnerRef.current !== historyOwner) {
+        pendingOwnerRef.current = historyOwner;
+        pendingMessagesRef.current = [];
+        recentLiveEventIdsRef.current.clear();
+    }
 
     // MCP handler for parsing edit commands; editors are launched through the shared bridge
     const { handleNarrativeMessage: mcpHandler } = useMCPHandler(
@@ -109,7 +115,7 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge) => {
                 eventTimestampMs,
             );
         } else {
-            setPendingMessages(prev => [...prev, message]);
+            pendingMessagesRef.current.push(message);
         }
     }, []);
 
@@ -256,33 +262,32 @@ export const useNarrativePipeline = (bridge: EditorLaunchBridge) => {
         addPresentation(presentation);
     }, [addPresentation]);
 
-    // Flush buffered messages when the narrative surface becomes available.
-    // The callback must stay identity-stable: SessionCoordinator publishes it
-    // once through a ref-backed context, so it reads the current buffer
-    // through a ref instead of closing over state.
-    const pendingMessagesRef = useRef(pendingMessages);
-    pendingMessagesRef.current = pendingMessages;
-
+    // The callback stays stable while an interface boundary unmounts and retries its children.
     const narrativeCallbackRef = useCallback((node: NarrativeRef | null) => {
         if (node) {
-            for (const message of pendingMessagesRef.current) {
-                node.addNarrativeContent(
-                    message.content as string | string[],
-                    message.contentType as "text/plain" | "text/djot" | "text/html",
-                    message.noNewline,
-                    message.presentationHint,
-                    message.groupId,
-                    message.ttsText,
-                    message.thumbnail,
-                    message.linkPreview,
-                    message.eventMetadata,
-                    message.rewritable,
-                    message.rewriteTarget,
-                    message.eventTimestampMs,
-                );
-            }
-            if (pendingMessagesRef.current.length > 0) {
-                setPendingMessages([]);
+            const pending = pendingMessagesRef.current;
+            let flushed = 0;
+            try {
+                for (const message of pending) {
+                    node.addNarrativeContent(
+                        message.content as string | string[],
+                        message.contentType as "text/plain" | "text/djot" | "text/html",
+                        message.noNewline,
+                        message.presentationHint,
+                        message.groupId,
+                        message.ttsText,
+                        message.thumbnail,
+                        message.linkPreview,
+                        message.eventMetadata,
+                        message.rewritable,
+                        message.rewriteTarget,
+                        message.eventTimestampMs,
+                    );
+                    flushed++;
+                }
+            } finally {
+                // A failed flush must not replay messages already accepted on the next retry.
+                pending.splice(0, flushed);
             }
         }
         narrativeRef.current = node;

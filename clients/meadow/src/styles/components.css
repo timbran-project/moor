@@ -4211,3 +4211,19 @@ button:disabled {
     opacity: 0.5;
     cursor: default;
 }
+
+
+.recovery_notice {
+    margin: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: var(--radius-md);
+    overflow: auto;
+}
+
+.recovery_notice p {
+    max-width: 65ch;
+    margin-block: var(--space-md);
+}

@@ -12,6 +12,7 @@
 //
 
 import React, { createContext, useContext, useRef } from "react";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useSystemMessage } from "../components/MessageBoard";
 import { NarrativeRef } from "../components/Narrative";
 import { useAuthContext } from "../context/AuthContext";
@@ -58,7 +59,7 @@ export const SessionCoordinator: React.FC<{ children: React.ReactNode }> = ({ ch
     const bridge = bridgeRef.current;
 
     // The pipeline runs above the bridge context, so it receives the bridge directly
-    const pipeline = useNarrativePipeline(bridge);
+    const pipeline = useNarrativePipeline(bridge, authState.player?.historyOid ?? null);
 
     const pipelineContext = useRef<NarrativePipelineContextType | null>(null);
     if (pipelineContext.current === null) {
@@ -84,7 +85,7 @@ export const SessionCoordinator: React.FC<{ children: React.ReactNode }> = ({ ch
                     onAuthFailure={disconnect}
                     onInitialAttachComplete={clearInitialAttach}
                 >
-                    {children}
+                    <ErrorBoundary scope="interface">{children}</ErrorBoundary>
                 </WebSocketProvider>
             </NarrativePipelineContext.Provider>
         </EditorLaunchBridgeContext.Provider>

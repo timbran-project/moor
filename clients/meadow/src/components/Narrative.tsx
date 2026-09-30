@@ -18,6 +18,7 @@ import { createTranscript } from "../lib/transcript";
 import { stringToCurie, uuObjIdToString } from "../lib/var";
 import { InputMetadata } from "../types/input";
 import { getCommandEchoEnabled } from "./CommandEchoToggle";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { InputArea } from "./InputArea";
 import { LinkPreview } from "./LinkPreviewCard";
 import { OutputWindow } from "./OutputWindow";
@@ -750,16 +751,18 @@ export const Narrative = forwardRef<NarrativeRef, NarrativeProps>(({
 
             {/* Output display area - should grow to fill space and handle its own scrolling */}
             <div className={`narrative-output-wrapper${promptActive ? " narrative-output-wrapper--dimmed" : ""}`}>
-                <OutputWindow
-                    transcript={transcript}
-                    onLoadMoreHistory={onLoadMoreHistory}
-                    isLoadingHistory={isLoadingHistory}
-                    onLinkClick={onLinkClick}
-                    fontSize={fontSize}
-                    playerOid={playerOid}
-                    currentRoomLookKey={currentRoomLookKey}
-                    onActiveRoomLookVisibilityChange={onActiveRoomLookVisibilityChange}
-                />
+                <ErrorBoundary scope="transcript">
+                    <OutputWindow
+                        transcript={transcript}
+                        onLoadMoreHistory={onLoadMoreHistory}
+                        isLoadingHistory={isLoadingHistory}
+                        onLinkClick={onLinkClick}
+                        fontSize={fontSize}
+                        playerOid={playerOid}
+                        currentRoomLookKey={currentRoomLookKey}
+                        onActiveRoomLookVisibilityChange={onActiveRoomLookVisibilityChange}
+                    />
+                </ErrorBoundary>
                 {promptActive && (
                     <>
                         <div className="narrative_output_scrim" aria-hidden="true" />

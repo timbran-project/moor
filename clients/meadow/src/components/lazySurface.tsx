@@ -11,7 +11,9 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { Component, lazy, ReactNode, Suspense, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+
+import { ErrorBoundary } from "./ErrorBoundary";
 
 interface SurfaceProps {
     visible: boolean;
@@ -22,9 +24,15 @@ interface SurfaceProps {
 function SurfaceStatus(
     { name, onClose, splitMode, retry, visible }: SurfaceProps & { name: string; retry?: () => void },
 ) {
+    const notice = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (visible && retry) notice.current?.focus({ preventScroll: true });
+    }, [visible, retry]);
     if (!visible) return null;
     return (
         <div
+            ref={notice}
+            tabIndex={retry ? -1 : undefined}
             style={splitMode ? { padding: "1rem" } : {
                 position: "fixed",
                 bottom: "1rem",
@@ -36,21 +44,13 @@ function SurfaceStatus(
                 borderRadius: "8px",
             }}
         >
-            <p role="status">{retry ? `Could not open ${name}.` : `Loading ${name}…`}</p>
+            <p role={retry ? "alert" : "status"}>
+                {retry ? `${name} stopped working. Unsaved edits in this panel may be lost.` : `Loading ${name}…`}
+            </p>
             {retry && <button type="button" className="btn btn-secondary" onClick={retry}>Retry</button>}
             <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
         </div>
     );
-}
-
-class SurfaceBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
-    state = { failed: false };
-    static getDerivedStateFromError() {
-        return { failed: true };
-    }
-    render() {
-        return this.state.failed ? this.props.fallback : this.props.children;
-    }
 }
 
 /** Keep a pending or failed editor import local to that surface, preserving the transcript. */
@@ -60,14 +60,22 @@ export function lazySurface<P extends SurfaceProps>(name: string, load: () => Pr
         const [{ Surface, attempt }, setAttempt] = useState({ Surface: Initial, attempt: 0 });
         const [opened, setOpened] = useState(props.visible);
         if (props.visible && !opened) setOpened(true);
+        const retry = useCallback(
+            () => setAttempt(previous => ({ Surface: lazy(load), attempt: previous.attempt + 1 })),
+            [],
+        );
         if (!props.visible && !opened) return null;
-        const retry = () => setAttempt(previous => ({ Surface: lazy(load), attempt: previous.attempt + 1 }));
         return (
-            <SurfaceBoundary key={attempt} fallback={<SurfaceStatus {...props} name={name} retry={retry} />}>
+            <ErrorBoundary
+                scope="optional-surface"
+                surface={name}
+                key={attempt}
+                fallback={() => <SurfaceStatus {...props} name={name} retry={retry} />}
+            >
                 <Suspense fallback={<SurfaceStatus {...props} name={name} />}>
                     <Surface key="surface" {...(props as React.PropsWithRef<P>)} />
                 </Suspense>
-            </SurfaceBoundary>
+            </ErrorBoundary>
         );
     };
 }
