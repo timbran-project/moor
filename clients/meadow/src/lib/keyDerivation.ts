@@ -11,6 +11,8 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { identityFromDerivedBytes, publicKeyFromIdentity } from "./age-decrypt";
+
 // Argon2 key derivation for event log encryption
 // Used to derive age keypairs from user passwords
 
@@ -69,8 +71,6 @@ export async function generateKeypairFromPassword(
     password: string,
     identifier: string,
 ): Promise<{ identity: string; publicKey: string }> {
-    const { identityFromDerivedBytes, publicKeyFromIdentity } = await import("./age-decrypt");
-
     const bytes = await deriveKeyBytes(password, identifier);
     const identity = identityFromDerivedBytes(bytes);
     const publicKey = await publicKeyFromIdentity(identity);

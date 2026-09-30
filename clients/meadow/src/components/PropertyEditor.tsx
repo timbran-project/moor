@@ -15,12 +15,12 @@
 // Optimized for plain text with future support for HTML and markdown
 
 import Editor, { Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useTouchDevice } from "../hooks/useTouchDevice";
 import { buildAuthHeaders } from "../lib/authHeaders";
+import * as monaco from "../lib/monaco";
 import { EditorWindow, useTitleBarDrag } from "./EditorWindow";
 import { useTheme } from "./ThemeProvider";
 import { monacoThemeFor } from "./themeSupport";

@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "../context/AuthContext";
 import { OAuth2UserInfo } from "../lib/oauth2";
+import { getSystemPropertyFlatBuffer, invokeWelcomeMessageFlatBuffer } from "../lib/rpc-fb";
 import { ContentRenderer } from "./ContentRenderer";
 import { OAuth2Buttons } from "./OAuth2Buttons";
 import { useTheme } from "./ThemeProvider";
@@ -82,9 +83,6 @@ export const useWelcomeMessage = () => {
 
         const fetchWelcome = async (): Promise<boolean> => {
             try {
-                // Import FlatBuffer function
-                const { invokeWelcomeMessageFlatBuffer } = await import("../lib/rpc-fb");
-
                 // Invoke welcome message system verb using FlatBuffer protocol
                 const { welcomeMessage: welcomeText, contentType: contentTypeValue } =
                     await invokeWelcomeMessageFlatBuffer();
@@ -526,8 +524,6 @@ export const Login: React.FC<LoginProps> = (
 
         const fetchPrivacyPolicy = async () => {
             try {
-                const { getSystemPropertyFlatBuffer } = await import("../lib/rpc-fb");
-
                 // Fetch privacy policy
                 const policyValue = await getSystemPropertyFlatBuffer(["login"], "privacy_policy");
                 if (policyValue !== null) {
@@ -581,8 +577,6 @@ export const Login: React.FC<LoginProps> = (
 
         const fetchHelpMessage = async () => {
             try {
-                const { getSystemPropertyFlatBuffer } = await import("../lib/rpc-fb");
-
                 // Fetch help message
                 const helpValue = await getSystemPropertyFlatBuffer(["login"], "help_message");
                 if (helpValue !== null) {

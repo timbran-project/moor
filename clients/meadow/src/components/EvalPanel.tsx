@@ -14,12 +14,12 @@
 // MOO code evaluation panel - executes MOO code and displays results
 
 import Editor, { Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useTouchDevice } from "../hooks/useTouchDevice";
+import * as monaco from "../lib/monaco";
 import { registerMooLanguage } from "../lib/monaco-moo";
 import { mooCompletionManager } from "../lib/monaco-moo-completions";
 import { performEvalMoorVar } from "../lib/rpc-fb.js";

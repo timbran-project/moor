@@ -12,6 +12,8 @@
 //
 
 import { useCallback, useState } from "react";
+import { getVerbCodeFlatBuffer } from "../lib/rpc-fb";
+import { objToString } from "../lib/var";
 
 export interface VerbMetadata {
     location: string;
@@ -49,9 +51,6 @@ export const useVerbEditor = () => {
     ) => {
         try {
             // Fetch verb content from server using FlatBuffer API
-            const { getVerbCodeFlatBuffer } = await import("../lib/rpc-fb");
-            const { objToString } = await import("../lib/var");
-
             const verbValue = await getVerbCodeFlatBuffer(authToken, objectCurie, verbName);
 
             // Extract code from FlatBuffer VerbValue

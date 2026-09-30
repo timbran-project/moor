@@ -18,6 +18,7 @@ import { usePersistentState } from "../hooks/usePersistentState.js";
 import { useTouchDevice } from "../hooks/useTouchDevice.js";
 import { stringToCurie } from "../lib/var.js";
 import { EditorWindow, useTitleBarDrag } from "./EditorWindow.js";
+import { VerbEditor } from "./lazyEditors";
 import {
     clampFontSize,
     describeObject,
@@ -47,7 +48,6 @@ import { ObjectInfoEditor } from "./object-browser/ObjectInfoEditor";
 import { MemberNavigation } from "./object-browser/types";
 import { ObjectData } from "./object-browser/types";
 import { PropertyValueEditor } from "./PropertyValueEditor.js";
-import { VerbEditor } from "./VerbEditor.js";
 
 interface ObjectBrowserProps {
     memberNavigation?: MemberNavigation;

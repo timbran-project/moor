@@ -12,14 +12,16 @@
 //
 
 import Editor, { Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
+import { unionToCompileErrorUnion } from "@moor/schema/generated/moor-common/compile-error-union";
+import { ParseError } from "@moor/schema/generated/moor-common/parse-error";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useTouchDevice } from "../hooks/useTouchDevice";
+import * as monaco from "../lib/monaco";
 import { registerMooLanguage } from "../lib/monaco-moo";
 import { mooCompletionManager } from "../lib/monaco-moo-completions";
-import { getVerbCodeFlatBuffer, performEvalFlatBuffer } from "../lib/rpc-fb.js";
+import { compileVerbFlatBuffer, getVerbCodeFlatBuffer, performEvalFlatBuffer } from "../lib/rpc-fb.js";
 import { DialogSheet } from "./DialogSheet";
 import { EditorWindow, useTitleBarDrag } from "./EditorWindow";
 import { useTheme } from "./ThemeProvider";
@@ -515,11 +517,6 @@ export const VerbEditor: React.FC<VerbEditorProps> = ({
                 console.log("WebSocket compilation completed");
             } else {
                 // REST API compilation for present-triggered editors
-                const { compileVerbFlatBuffer } = await import("../lib/rpc-fb.js");
-                const { unionToCompileErrorUnion } = await import(
-                    "@moor/schema/generated/moor-common/compile-error-union"
-                );
-                const { ParseError } = await import("@moor/schema/generated/moor-common/parse-error");
                 const result = await compileVerbFlatBuffer(authToken, objectCurie, verbName, contentAtCompile);
 
                 // Check for compilation errors

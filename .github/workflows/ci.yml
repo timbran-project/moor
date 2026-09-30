@@ -103,6 +103,11 @@ jobs:
           npm run web:build
           npm run web-mcp:build
 
+      - name: Check Meadow bundle budgets
+        run: |
+          npm run test:bundle --workspace meadow
+          npm run bundle:check --workspace meadow
+
       - name: Type-check web clients and packages
         run: npm run web:typecheck
 

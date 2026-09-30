@@ -1,0 +1,7 @@
+{
+  "startupBytes": 1800000,
+  "startupGzipBytes": 320000,
+  "totalJavaScriptBytes": 10000000,
+  "totalJavaScriptGzipBytes": 2000000,
+  "workerBytes": 1350000
+}

@@ -22,21 +22,23 @@ import { RightDock } from "../components/docks/RightDock";
 import { TopDock } from "../components/docks/TopDock";
 import { EncryptionPasswordPrompt } from "../components/EncryptionPasswordPrompt";
 import { EncryptionSetupPrompt } from "../components/EncryptionSetupPrompt";
-import { EvalPanel } from "../components/EvalPanel";
 import { InspectPopover } from "../components/InspectPopover";
+import {
+    EvalPanel,
+    ObjectBrowser,
+    PropertyEditor,
+    PropertyValueEditorWindow,
+    TextEditor,
+    VerbEditor,
+} from "../components/lazyEditors";
 import { Login, useWelcomeMessage } from "../components/Login";
 import { MessageBoard, useSystemMessage } from "../components/MessageBoard";
 import { NarrativeRef } from "../components/Narrative";
 import { Narrative } from "../components/Narrative";
 import { MemberNavigation } from "../components/object-browser/types";
-import { ObjectBrowser } from "../components/ObjectBrowser";
 import { ProfileSetupPanel } from "../components/ProfileSetupPanel";
-import { PropertyEditor } from "../components/PropertyEditor";
-import { PropertyValueEditorWindow } from "../components/PropertyValueEditorWindow";
 import { SettingsPanel } from "../components/SettingsPanel";
-import { TextEditor } from "../components/TextEditor";
 import { TopNavBar } from "../components/TopNavBar";
-import { VerbEditor } from "../components/VerbEditor";
 import { AnnotationActivation, AnnotationContext } from "../context/AnnotationContext";
 import { ArgumentContext, ArgumentCoordinator } from "../context/ArgumentContext";
 import { useAuthContext } from "../context/AuthContext";

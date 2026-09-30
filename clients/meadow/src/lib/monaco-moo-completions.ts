@@ -15,8 +15,9 @@
 
 import type { Monaco } from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
+import { curieORef, MoorRemoteObject } from "./rpc";
 import { performEvalFlatBuffer } from "./rpc-fb";
-import { objToString } from "./var";
+import { objToString, oidRef, sysobjRef } from "./var";
 
 // Shared cache for verb/property/builtin lookups across all editor instances
 const completionCache = new Map<
@@ -386,8 +387,6 @@ async function provideCompletionsForContext(
 
     // Smart completion for this: verbs
     if (thisVerbMatch && objectCurie) {
-        const { MoorRemoteObject, curieORef } = await import("./rpc");
-        const { oidRef } = await import("./var");
         const currentObject = actualObjectId
             ? new MoorRemoteObject(oidRef(actualObjectId), authToken)
             : new MoorRemoteObject(curieORef(objectCurie), authToken);
@@ -405,8 +404,6 @@ async function provideCompletionsForContext(
         );
     } else if (thisPropMatch && objectCurie) {
         // Smart completion for this. properties
-        const { MoorRemoteObject, curieORef } = await import("./rpc");
-        const { oidRef } = await import("./var");
         const currentObject = actualObjectId
             ? new MoorRemoteObject(oidRef(actualObjectId), authToken)
             : new MoorRemoteObject(curieORef(objectCurie), authToken);
@@ -424,8 +421,6 @@ async function provideCompletionsForContext(
         );
     } else if (objVerbMatch) {
         // Smart completion for #123: object verb calls
-        const { MoorRemoteObject } = await import("./rpc");
-        const { oidRef } = await import("./var");
         const objectId = parseInt(objVerbMatch[1]);
         const targetObject = new MoorRemoteObject(oidRef(objectId), authToken);
 
@@ -441,8 +436,6 @@ async function provideCompletionsForContext(
         );
     } else if (objPropMatch) {
         // Smart completion for #123. object property access
-        const { MoorRemoteObject } = await import("./rpc");
-        const { oidRef } = await import("./var");
         const objectId = parseInt(objPropMatch[1]);
         const targetObject = new MoorRemoteObject(oidRef(objectId), authToken);
 
@@ -458,8 +451,6 @@ async function provideCompletionsForContext(
         );
     } else if (sysPropMatch) {
         // Smart completion for $thing. property access
-        const { MoorRemoteObject } = await import("./rpc");
-        const { sysobjRef } = await import("./var");
         const targetObject = new MoorRemoteObject(sysobjRef([sysPropMatch[1]]), authToken);
 
         await addPropertyCompletions(
@@ -474,8 +465,6 @@ async function provideCompletionsForContext(
         );
     } else if (sysVerbMatch) {
         // Smart completion for $thing: verb calls
-        const { MoorRemoteObject } = await import("./rpc");
-        const { sysobjRef } = await import("./var");
         const targetObject = new MoorRemoteObject(sysobjRef([sysVerbMatch[1]]), authToken);
 
         await addVerbCompletions(

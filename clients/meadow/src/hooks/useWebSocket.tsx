@@ -21,6 +21,7 @@ import {
     setClientSessionActive,
 } from "../lib/auth-session";
 import { DataMessageHandlerEvent, EventMetadata, handleClientEventFlatBuffer, LinkPreview } from "../lib/rpc-fb";
+import { getWebSocketBaseUrl } from "../lib/serverConfig";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 import { Player } from "./useAuth";
@@ -197,7 +198,7 @@ export const useWebSocket = (
             onSystemMessage("Establishing connection...", 2);
 
             // Build WebSocket URL
-            const { host: baseUrl, secure: isSecure } = (await import("../lib/serverConfig")).getWebSocketBaseUrl();
+            const { host: baseUrl, secure: isSecure } = getWebSocketBaseUrl();
 
             const reconnectCredentials = readReconnectCredentials();
             const clientToken = reconnectCredentials?.clientToken ?? null;

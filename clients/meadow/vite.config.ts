@@ -35,7 +35,8 @@ export default defineConfig({
         target: "esnext",
         outDir: "../dist",
         emptyOutDir: true,
-        sourcemap: true,
+        sourcemap: process.env.MEADOW_SOURCEMAPS === "true",
+        manifest: true,
         rollupOptions: {
             input: {
                 main: resolve(__dirname, "src/index.html"),
@@ -52,7 +53,7 @@ export default defineConfig({
         "__GIT_HASH__": JSON.stringify(getGitHash()),
     },
     optimizeDeps: {
-        include: ["monaco-editor"],
+        include: ["monaco-editor/esm/vs/editor/editor.api.js"],
         exclude: ["@moor/schema"],
     },
     resolve: {

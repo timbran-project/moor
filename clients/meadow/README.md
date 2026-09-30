@@ -138,6 +138,52 @@ To run the stable 1.0 line, use:
 
 The `main` branch is the 2.0 development line and builds its client dependencies locally.
 
+## Editor loading and bundle budgets
+
+The verb, text, and property editors, object browser, and evaluation panel load when first opened.
+Each surface has a loading message and a local retry/close control if loading fails; the transcript
+stays mounted. Covering a docked editor preserves its local edits.
+
+Monaco uses the bundled npm package through the
+[React loader configuration](https://github.com/suren-atoyan/monaco-react#use-monaco-editor-as-an-npm-package).
+MOO and plaintext use the editor worker, Djot uses Markdown highlighting, and HTML retains its
+language services and worker. TypeScript, JavaScript, JSON, and CSS language services are not
+bundled.
+
+Production source maps are disabled by default. To include them explicitly:
+
+```bash
+MEADOW_SOURCEMAPS=true npm run build --workspace meadow
+```
+
+After building, run the budget report from the repository root:
+
+```bash
+npm run bundle:check --workspace meadow
+npm run test:bundle --workspace meadow
+```
+
+The check writes `dist/bundle-report.json` and runs in web CI. `bundle-budget.json` caps startup
+JavaScript at 1,800,000 bytes / 320,000 bytes gzip, all JavaScript at 10,000,000 bytes / 2,000,000
+bytes gzip, and aggregate workers at 1,350,000 bytes. Startup includes every transitive static
+import from the Vite manifest, counted once; moving code into a statically imported chunk does not
+reduce that measurement. Totals include deferred chunks, workers, and public JavaScript. Gzip totals
+sum individually compressed files. Budget changes should accompany measurements and an explanation.
+
+Measured on 2026-09-30 with `npm run build --workspace meadow` (decimal kB):
+
+| Asset                                               |            Before #503 |  After #503 |
+| --------------------------------------------------- | ---------------------: | ----------: |
+| Main/startup JavaScript                             |            7,733.59 kB | 1,554.80 kB |
+| Main/startup JavaScript, gzip                       |            1,436.57 kB |   264.85 kB |
+| All JavaScript, including workers and public assets |           17,597.99 kB | 8,652.41 kB |
+| TypeScript worker                                   |            7,010.05 kB | Not emitted |
+| HTML worker                                         |              693.10 kB |   693.05 kB |
+| Editor worker                                       | Not emitted separately |   251.66 kB |
+
+The deferred Monaco editor chunk remains 5,699.71 kB (1,101.32 kB gzip). Vite still reports large
+chunks; the explicit budgets distinguish startup cost from editor loading cost.
+
 ## History exports
 
 On browsers with a Save File picker, **Download All History (JSON)** first asks for a destination,

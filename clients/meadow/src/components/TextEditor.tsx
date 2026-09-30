@@ -15,11 +15,11 @@
 // Saves via verb invocation rather than property REST API
 
 import Editor, { Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { useTouchDevice } from "../hooks/useTouchDevice";
+import * as monaco from "../lib/monaco";
 import { MoorVar } from "../lib/MoorVar";
 import { invokeVerbFlatBuffer } from "../lib/rpc-fb";
 import { EditorWindow, useTitleBarDrag } from "./EditorWindow";

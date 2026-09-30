@@ -39,7 +39,7 @@ vi.mock("@monaco-editor/react", async () => {
 
     const MockEditor = (props: {
         beforeMount?: (monaco: typeof monacoInstance) => void;
-        onMount?: (editor: typeof editor, monaco: typeof monacoInstance) => void;
+        onMount?: (instance: typeof editor, monaco: typeof monacoInstance) => void;
         onChange?: (value: string) => void;
         value?: string;
     }) => {
@@ -62,7 +62,7 @@ vi.mock("@monaco-editor/react", async () => {
     };
 });
 
-vi.mock("monaco-editor", () => ({
+vi.mock("../lib/monaco", () => ({
     KeyCode: { Enter: 3 },
     KeyMod: { CtrlCmd: 1 },
     MarkerSeverity: { Error: 8 },
@@ -104,7 +104,7 @@ describe("VerbEditor compile shortcut", () => {
     });
 
     it("compiles the current model content after editing", async () => {
-        const onSendMessage = vi.fn(() => true);
+        const onSendMessage = vi.fn((_message: string) => true);
         render(
             <VerbEditor
                 visible

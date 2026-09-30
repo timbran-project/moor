@@ -21,7 +21,9 @@
     "moor:dev": "cd ${MOOR_PATH:-../..} && npm run moor:dev",
     "moor:dev:oauth2": "cd ${MOOR_PATH:-../..} && npm run moor:dev:oauth2",
     "full:dev": "concurrently \"npm run dev\" \"npm run moor:dev\"",
-    "full:dev:oauth2": "concurrently \"npm run dev\" \"npm run moor:dev:oauth2\""
+    "full:dev:oauth2": "concurrently \"npm run dev\" \"npm run moor:dev:oauth2\"",
+    "bundle:check": "node scripts/check-bundle.mjs",
+    "test:bundle": "node --test scripts/check-bundle.test.mjs"
   },
   "keywords": [
     "moo",
