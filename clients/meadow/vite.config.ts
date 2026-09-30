@@ -15,7 +15,6 @@ import react from "@vitejs/plugin-react";
 import { execSync } from "child_process";
 import { resolve } from "path";
 import { defineConfig } from "vite";
-import topLevelAwait from "vite-plugin-top-level-await";
 import wasm from "vite-plugin-wasm";
 
 // Get git commit hash at build time
@@ -28,7 +27,7 @@ const getGitHash = () => {
 };
 
 export default defineConfig({
-    plugins: [react(), wasm(), topLevelAwait()],
+    plugins: [react(), wasm()],
     root: "src",
     publicDir: "../public",
     build: {
@@ -53,7 +52,7 @@ export default defineConfig({
         "__GIT_HASH__": JSON.stringify(getGitHash()),
     },
     optimizeDeps: {
-        include: ["monaco-editor/esm/vs/editor/editor.api.js"],
+        include: ["monaco-editor/editor"],
         exclude: ["@moor/schema"],
     },
     resolve: {

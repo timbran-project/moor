@@ -12,12 +12,13 @@
 //
 
 import { loader } from "@monaco-editor/react";
-import * as monaco from "monaco-editor/esm/vs/editor/editor.api.js";
-import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker.js?worker";
-import HtmlWorker from "monaco-editor/esm/vs/language/html/html.worker.js?worker";
-import "monaco-editor/esm/vs/basic-languages/html/html.contribution.js";
-import "monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution.js";
-import "monaco-editor/esm/vs/language/html/monaco.contribution.js";
+import * as monaco from "monaco-editor/editor";
+import "monaco-editor/features/register.all";
+import EditorWorker from "monaco-editor/editor/editor.worker?worker";
+import HtmlWorker from "monaco-editor/languages/features/html/html.worker?worker";
+import "monaco-editor/languages/definitions/html/register";
+import "monaco-editor/languages/definitions/markdown/register";
+import "monaco-editor/languages/features/html/register";
 
 // MOO, plaintext, and Markdown use the editor worker; HTML retains its language services.
 self.MonacoEnvironment = {
@@ -25,4 +26,4 @@ self.MonacoEnvironment = {
 };
 loader.config({ monaco });
 
-export * from "monaco-editor/esm/vs/editor/editor.api.js";
+export * from "monaco-editor/editor";
