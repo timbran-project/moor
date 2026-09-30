@@ -18,6 +18,7 @@ import DOMPurify from "dompurify";
 import Prism from "prismjs";
 import { convertEmoticons } from "../components/EmojiToggle";
 import { semanticIconMarkup } from "./semantic-icons";
+import { parseHttpUrl } from "./url-policy";
 import "./prism-moo";
 
 /**
@@ -147,12 +148,7 @@ export function isSafeUrl(url: string): boolean {
         return true;
     }
 
-    try {
-        const urlObj = new URL(url);
-        return urlObj.protocol === "http:" || urlObj.protocol === "https:";
-    } catch {
-        return false;
-    }
+    return parseHttpUrl(url) !== null;
 }
 
 /**

@@ -11,6 +11,10 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
+import { useState } from "react";
+import { ExternalLinkMetadata, useExternalNavigation } from "../context/ExternalNavigationContext";
+import { parseHttpUrl } from "../lib/url-policy";
+
 export interface LinkPreview {
     url: string;
     title?: string;
@@ -21,49 +25,57 @@ export interface LinkPreview {
 
 interface LinkPreviewCardProps {
     preview: LinkPreview;
+    metadata?: ExternalLinkMetadata;
 }
 
-export function LinkPreviewCard({ preview }: LinkPreviewCardProps) {
-    const { url, title, description, image, site_name } = preview;
+function PreviewImage({ image }: { image: URL }) {
+    const [loaded, setLoaded] = useState(false);
+    if (!loaded) {
+        return (
+            <button type="button" className="link-preview-load-image" onClick={() => setLoaded(true)}>
+                Load image from {image.hostname}
+            </button>
+        );
+    }
+    return (
+        <div className="link-preview-image" aria-hidden="true">
+            <img src={image.href} alt="" loading="lazy" referrerPolicy="no-referrer" />
+        </div>
+    );
+}
 
-    const displayTitle = title || url;
-    const hostname = (() => {
-        try {
-            return new URL(url).hostname;
-        } catch {
-            return site_name || "";
-        }
-    })();
-    const siteName = site_name || hostname;
-    const accessibleLabel = title
-        ? `Link preview: ${title} from ${siteName}`
-        : `Link to ${siteName}`;
+export function LinkPreviewCard({ preview, metadata }: LinkPreviewCardProps) {
+    const { openExternalLink } = useExternalNavigation();
+    const { url, title, description, image, site_name } = preview;
+    const target = parseHttpUrl(url);
+    if (!target) return null;
+
+    const imageUrl = image ? parseHttpUrl(image) : null;
+    const siteName = site_name || target.hostname;
+    const accessibleLabel = `Open link preview: ${title || siteName} from ${target.hostname}`;
 
     return (
-        <article
-            className="link-preview-card"
-            role="article"
-            aria-label={accessibleLabel}
-        >
-            <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
+        <article className="link-preview-card" aria-label={`Link preview from ${target.hostname}`}>
+            <button
+                type="button"
+                className="link-preview-link"
+                onClick={() => openExternalLink(target.href, metadata)}
                 aria-label={accessibleLabel}
             >
-                {image && (
-                    <div className="link-preview-image" aria-hidden="true">
-                        <img src={image} alt="" loading="lazy" />
-                    </div>
-                )}
-                <div className="link-preview-content">
-                    <div className="link-preview-title">{displayTitle}</div>
-                    {description && <div className="link-preview-description">{description}</div>}
-                    <div className="link-preview-hostname">
-                        {siteName}
-                    </div>
-                </div>
-            </a>
+                <span className="link-preview-content">
+                    <span className="link-preview-title">{title || url}</span>
+                    {description && <span className="link-preview-description">{description}</span>}
+                    <span className="link-preview-hostname">
+                        {siteName === target.hostname ? siteName : `${siteName} · ${target.hostname}`}
+                    </span>
+                </span>
+            </button>
+            {imageUrl && (
+                <PreviewImage
+                    key={`${target.href}\n${imageUrl.href}`}
+                    image={imageUrl}
+                />
+            )}
         </article>
     );
 }

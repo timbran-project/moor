@@ -187,7 +187,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                             eventMetadata={eventMetadata}
                         />
                     </span>
-                    {linkPreview && <LinkPreviewCard preview={linkPreview} />}
+                    {linkPreview && <LinkPreviewCard preview={linkPreview} metadata={eventMetadata} />}
                 </>
             );
         }
@@ -202,7 +202,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
                     enableEmoji={enableEmoji}
                     eventMetadata={eventMetadata}
                 />
-                {linkPreview && <LinkPreviewCard preview={linkPreview} />}
+                {linkPreview && <LinkPreviewCard preview={linkPreview} metadata={eventMetadata} />}
             </>
         );
     }, [onLinkClick, createLinkClickHandler]);

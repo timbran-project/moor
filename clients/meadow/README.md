@@ -138,6 +138,18 @@ To run the stable 1.0 line, use:
 
 The `main` branch is the 2.0 development line and builds its client dependencies locally.
 
+## Link previews
+
+Preview destinations and images must use absolute HTTP(S) URLs. Opening a preview uses the same
+external-link confirmation and remembered navigation domains as narrative links. The card shows the
+destination hostname even when the server supplies a site name.
+
+Preview images load only after selecting **Load image from [host]**, including images from domains
+trusted for navigation. This permission applies to that card and image until it is replaced or
+unmounted; it is not stored. Loading contacts the image host (and any redirects) and may send
+cookies subject to browser policy. The image request omits the referrer. Loading an image neither
+opens the preview link nor trusts its domain for navigation.
+
 ## Browser credential storage
 
 Meadow remembers authentication/history tokens in localStorage and copies the active identity into

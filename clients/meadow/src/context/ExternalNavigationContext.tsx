@@ -15,6 +15,8 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 import { ExternalLinkModal } from "../components/ExternalLinkModal";
 import { addTrustedDomain, getHostname, isDomainTrusted } from "../lib/trusted-domains";
 
+import { parseHttpUrl } from "../lib/url-policy";
+
 export interface ExternalLinkMetadata {
     actorName?: string;
     verb?: string;
@@ -45,6 +47,7 @@ export const ExternalNavigationProvider: React.FC<{ children: React.ReactNode }>
     const [pendingLink, setPendingLink] = useState<PendingExternalLink | null>(null);
 
     const openExternalLink = useCallback((url: string, metadata?: ExternalLinkMetadata) => {
+        if (!parseHttpUrl(url)) return;
         if (isDomainTrusted(url)) {
             window.open(url, "_blank", "noopener,noreferrer");
             return;

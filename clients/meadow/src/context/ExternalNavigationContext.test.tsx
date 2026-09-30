@@ -146,6 +146,34 @@ describe("ExternalNavigationProvider", () => {
         });
     });
 
+    it.each([
+        "javascript:alert(1)",
+        "java\nscript:alert(1)",
+        "data:text/html,test",
+        "file:///tmp/test",
+        "ftp://trusted.example/page",
+        "blob:https://trusted.example/id",
+        "//trusted.example/page",
+        "/relative",
+        "not a URL",
+        "",
+    ])("rejects unsafe URLs even for trusted hosts: %s", (url) => {
+        installLocalStorageMock();
+        localStorage.setItem(
+            "moor-trusted-external-domains",
+            JSON.stringify({ domains: ["trusted.example"], version: 1 }),
+        );
+        const open = vi.spyOn(window, "open").mockReturnValue(null);
+        render(
+            <ExternalNavigationProvider>
+                <NavigationProbe url={url} />
+            </ExternalNavigationProvider>,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "navigate" }));
+        expect(open).not.toHaveBeenCalled();
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+
     it("throws when used outside the provider", () => {
         function Orphan() {
             useExternalNavigation();
