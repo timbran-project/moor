@@ -555,7 +555,7 @@ export const EvalPanel: React.FC<EvalPanelProps> = ({
                         height="100%"
                         defaultLanguage="moo"
                         value={content}
-                        onChange={(value) => {
+                        onChange={(value: string | undefined) => {
                             setContent(value || "");
                             // Clear error when user starts typing
                             if (error) {

@@ -14,7 +14,7 @@
 // ! Modal for setting up player profile after account creation
 
 import React, { useRef, useState } from "react";
-import AvatarEditor from "react-avatar-editor";
+import AvatarEditor, { type AvatarEditorRef } from "react-avatar-editor";
 import { usePlayerDescription } from "../hooks/usePlayerDescription";
 import { useProfilePicture } from "../hooks/useProfilePicture";
 import { usePronouns } from "../hooks/usePronouns";
@@ -42,7 +42,7 @@ export const ProfileSetupPanel: React.FC<ProfileSetupPanelProps> = ({
 
     // Profile picture state
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const editorRef = useRef<AvatarEditor>(null);
+    const editorRef = useRef<AvatarEditorRef>(null);
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [editorScale, setEditorScale] = useState(1.0);
     const [croppedImageBlob, setCroppedImageBlob] = useState<Blob | null>(null);

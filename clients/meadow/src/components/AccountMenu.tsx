@@ -14,7 +14,7 @@
 // ! Account menu with user-specific settings and logout
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import AvatarEditor from "react-avatar-editor";
+import AvatarEditor, { type AvatarEditorRef } from "react-avatar-editor";
 import { usePlayerDescription } from "../hooks/usePlayerDescription";
 import { useProfilePicture } from "../hooks/useProfilePicture";
 import { usePronouns } from "../hooks/usePronouns";
@@ -59,7 +59,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
     } = usePronouns(authToken, playerOid);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const editorRef = useRef<AvatarEditor>(null);
+    const editorRef = useRef<AvatarEditorRef>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const previousActiveElementRef = useRef<HTMLElement | null>(null);

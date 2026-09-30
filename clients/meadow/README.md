@@ -225,7 +225,7 @@ Event-handler exceptions and rejected asynchronous work still need handling at t
 
 Boundaries write a local `MEADOW_UI_FAILURE` console record containing scope, error category, build
 revision, time, and allowlisted surface/component names. These records omit exception messages, raw
-stacks, URLs, credentials, and narrative contents, and are not sent to a service. React 18 and the
+stacks, URLs, credentials, and narrative contents, and are not sent to a service. React and the
 browser can separately log original exceptions; the structured record does not sanitize those
 framework/browser diagnostics. Review console output before sharing it.
 
