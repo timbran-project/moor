@@ -15,47 +15,17 @@
 // Handles decryption and JSON conversion off the main thread
 
 import { NarrativeEvent } from "@moor/schema/generated/moor-common/narrative-event";
-import {
-    parseEncryptedHistoryEvents,
-    parseHistoricalNarrativeEvent,
-    parseNarrativeEventEnvelope,
-    toPresentationData,
-} from "@moor/web-sdk";
+import { parseEncryptedHistoryPage, parseHistoricalNarrativeEvent, toPresentationData } from "@moor/web-sdk";
 import * as flatbuffers from "flatbuffers";
 import { decryptEventBlob } from "../lib/age-decrypt.js";
 import { buildAuthHeaders } from "../lib/authHeaders";
 import { MoorVar } from "../lib/MoorVar.js";
-import { advanceHistoryExportCursor } from "./historyExportPagination";
 
-// Message types
-export interface StartExportMessage {
-    type: "start";
-    authToken: string;
-    ageIdentity: string;
-    systemTitle: string;
-    playerOid: string;
-}
-
-export interface ProgressMessage {
-    type: "progress";
-    processed: number;
-    total?: number;
-}
-
-export interface ErrorMessage {
-    type: "error";
-    error: string;
-}
-
-export interface CompleteMessage {
-    type: "complete";
-    jsonBlob: Blob;
-}
-
-export type WorkerResponse = ProgressMessage | ErrorMessage | CompleteMessage;
+import { HISTORY_EXPORT_BATCH_SIZE, WorkerRequest, WorkerResponse } from "./historyExportProtocol";
+import { ExportEvent, readExportPage, streamHistoryExport } from "./historyExportStream";
 
 // Convert a decrypted NarrativeEvent to a JSON-serializable object
-function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
+function narrativeEventToJSON(narrativeEvent: NarrativeEvent): ExportEvent {
     const eventId = narrativeEvent.eventId()?.dataArray();
     const eventIdStr = eventId
         ? Array.from(eventId).map((b: number) => b.toString(16).padStart(2, "0")).join("")
@@ -65,7 +35,7 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
     const timestampMs = timestamp / 1000000; // Convert from nanoseconds to milliseconds
     const timestampISO = new Date(timestampMs).toISOString();
 
-    const result: any = {
+    const result: ExportEvent = {
         event_id: eventIdStr,
         timestamp: timestampISO,
         timestamp_ms: timestampMs,
@@ -113,166 +83,51 @@ function narrativeEventToJSON(narrativeEvent: NarrativeEvent): any {
     return result;
 }
 
-// Fetch all history in batches
-async function fetchAllHistoryEncrypted(authToken: string, ageIdentity: string): Promise<Uint8Array[]> {
-    const allEncryptedBlobs: Uint8Array[] = [];
-    let hasMore = true;
-    let oldestEventId: string | undefined = undefined;
-    const batchSize = 1000; // Fetch in large batches
+declare const self: Worker;
 
-    while (hasMore) {
-        const params = new URLSearchParams();
-        params.set("limit", batchSize.toString());
+// Only one chunk may be in flight; the main thread acknowledges it after writing.
+let acknowledge: (() => void) | null = null;
+let running = false;
+const send = (message: WorkerResponse, transfer: Transferable[] = []) => self.postMessage(message, transfer);
 
-        // On first request, get all history by using a very large time range
-        // Use 10 years (315,360,000 seconds) to ensure we get everything
-        if (!oldestEventId) {
-            params.set("since_seconds", "315360000"); // ~10 years
-        } else {
-            // On subsequent requests, use until_event for pagination
-            params.set("until_event", oldestEventId);
-        }
-
-        const url = `/v1/history?${params}`;
-
-        console.log(`[Worker] Fetching batch: ${url}`);
-        const response = await fetch(url, {
-            method: "GET",
-            headers: buildAuthHeaders(authToken),
-        });
-
-        if (!response.ok) {
-            throw new Error(`History fetch failed: ${response.status} ${response.statusText}`);
-        }
-
-        const arrayBuffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-
-        const historicalEvents = parseEncryptedHistoryEvents(bytes);
-        const eventsLength = historicalEvents.length;
-
-        console.log(`[Worker] Received ${eventsLength} events in this batch`);
-
-        if (eventsLength === 0) {
-            hasMore = false;
-            break;
-        }
-
-        // Extract encrypted blobs from this page.
-        for (let i = 0; i < eventsLength; i++) {
-            const encryptedBlob = historicalEvents[i]?.encryptedBlob;
-            if (!encryptedBlob) continue;
-            allEncryptedBlobs.push(encryptedBlob);
-        }
-
-        // A short page is terminal and does not need another cursor.
-        if (eventsLength < batchSize) {
-            hasMore = false;
-            continue;
-        }
-
-        const cursorBlob = historicalEvents[0]?.encryptedBlob;
-        if (!cursorBlob) {
-            throw new Error("History export cannot continue because the cursor event has no encrypted payload");
-        }
-
-        let candidateCursor: string | undefined;
-        try {
-            const decryptedBytes = await decryptEventBlob(cursorBlob, ageIdentity);
-            const envelope = parseNarrativeEventEnvelope(decryptedBytes);
-            candidateCursor = envelope?.eventId;
-        } catch (error) {
-            console.error("Failed to extract event ID for pagination:", error);
-            throw new Error("History export cannot continue because the page cursor could not be decrypted");
-        }
-
-        oldestEventId = advanceHistoryExportCursor(oldestEventId, candidateCursor);
-    }
-
-    return allEncryptedBlobs;
-}
-
-// Worker state
-declare const self: Worker & { ageIdentityCache: string };
-
-// Handle messages from main thread
-self.addEventListener("message", async (event: MessageEvent<StartExportMessage>) => {
-    const { type, authToken, ageIdentity, systemTitle, playerOid } = event.data;
-
-    if (type !== "start") {
-        self.postMessage({ type: "error", error: "Invalid message type" } as ErrorMessage);
+self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
+    const message = event.data;
+    if (message.type === "ack") {
+        const resolve = acknowledge;
+        acknowledge = null;
+        resolve?.();
         return;
     }
+    if (message.type !== "start" || running) return;
+    running = true;
 
     try {
-        // Cache the age identity for the worker's lifetime
-        self.ageIdentityCache = ageIdentity;
-
-        // Step 1: Fetch all encrypted history
-        self.postMessage({ type: "progress", processed: 0 } as ProgressMessage);
-
-        const exportStartTime = Date.now();
-        const encryptedBlobs = await fetchAllHistoryEncrypted(authToken, ageIdentity);
-        const total = encryptedBlobs.length;
-
-        // Step 2: Decrypt and convert to JSON
-        const events: any[] = [];
-
-        for (let i = 0; i < encryptedBlobs.length; i++) {
-            const encryptedBlob = encryptedBlobs[i];
-
-            try {
-                const decryptedBytes = await decryptEventBlob(encryptedBlob, ageIdentity);
-                const narrativeEvent = NarrativeEvent.getRootAsNarrativeEvent(
-                    new flatbuffers.ByteBuffer(decryptedBytes),
-                );
-
-                const eventJSON = narrativeEventToJSON(narrativeEvent);
-                if (eventJSON) {
-                    events.push(eventJSON);
-                }
-            } catch (err) {
-                console.error("Failed to decrypt/convert event:", err);
-                // Continue with next event rather than failing the entire export
-            }
-
-            // Report progress every 100 events
-            if ((i + 1) % 100 === 0 || i === total - 1) {
-                self.postMessage({ type: "progress", processed: i + 1, total } as ProgressMessage);
-            }
-        }
-
-        // Step 3: Create JSON blob with comprehensive metadata
-        const exportEndTime = Date.now();
-        const oldestEvent = events.length > 0 ? events[events.length - 1] : null;
-        const newestEvent = events.length > 0 ? events[0] : null;
-
-        const jsonString = JSON.stringify(
-            {
-                export_version: "1.0",
-                export_date: new Date().toISOString(),
-                system_title: systemTitle,
-                player_oid: playerOid,
-                event_count: events.length,
-                time_range: {
-                    oldest_event: oldestEvent ? oldestEvent.timestamp : null,
-                    newest_event: newestEvent ? newestEvent.timestamp : null,
-                    export_duration_ms: exportEndTime - exportStartTime,
-                },
-                events,
+        const result = await streamHistoryExport({
+            systemTitle: message.systemTitle,
+            playerOid: message.playerOid,
+            fetchPage: async (cursor) => {
+                const params = new URLSearchParams({ limit: String(HISTORY_EXPORT_BATCH_SIZE) });
+                if (cursor) params.set("until_event", cursor);
+                else params.set("since_seconds", "315360000");
+                const response = await fetch(`/v1/history?${params}`, {
+                    headers: buildAuthHeaders(message.authToken),
+                });
+                if (!response.ok) throw new Error(`History fetch failed: ${response.status}`);
+                return parseEncryptedHistoryPage(await readExportPage(response));
             },
-            null,
-            2,
-        );
-
-        const jsonBlob = new Blob([jsonString], { type: "application/json" });
-
-        // Step 4: Send completion message
-        self.postMessage({ type: "complete", jsonBlob } as CompleteMessage);
+            convertEvent: async (blob) => {
+                const bytes = await decryptEventBlob(blob, message.ageIdentity);
+                return narrativeEventToJSON(NarrativeEvent.getRootAsNarrativeEvent(new flatbuffers.ByteBuffer(bytes)));
+            },
+            write: (bytes) =>
+                new Promise<void>((resolve) => {
+                    acknowledge = resolve;
+                    send({ type: "chunk", bytes }, [bytes.buffer]);
+                }),
+            onProgress: (processed) => send({ type: "progress", processed }),
+        });
+        send({ type: "complete", skipped: result.skipped });
     } catch (error) {
-        self.postMessage({
-            type: "error",
-            error: error instanceof Error ? error.message : String(error),
-        } as ErrorMessage);
+        send({ type: "error", error: error instanceof Error ? error.message : "History export failed" });
     }
 });

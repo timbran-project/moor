@@ -29,7 +29,8 @@ interface EncryptionSettingsProps {
 export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvailable }) => {
     const { authState } = useAuthContext();
     const { encryptionState, forgetKey, setupEncryption, unlockEncryption } = useEncryptionContext();
-    const { exportState, startExport, cancelExport, downloadReady, dismissReady } = useHistoryExport();
+    const { exportState, supportsStreaming, startExport, cancelExport, downloadReady, dismissReady } =
+        useHistoryExport();
     const systemTitle = useTitle();
     const [showForgetConfirm, setShowForgetConfirm] = useState(false);
     const [showSetupPrompt, setShowSetupPrompt] = useState(false);
@@ -46,6 +47,10 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
             setIsDeleting(false);
         }
     }, [isAvailable]);
+
+    useEffect(() => {
+        cancelExport();
+    }, [authState.player?.authToken, encryptionState.ageIdentity, isAvailable, cancelExport]);
 
     const handleForgetKey = () => {
         forgetKey();
@@ -101,15 +106,6 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
 
         if (!playerOid) {
             alert("No player ID found");
-            return;
-        }
-
-        // Warn user about potential wait time
-        if (
-            !confirm(
-                "This will download and decrypt your entire event history. Depending on the size of your history, this may take several minutes. Continue?",
-            )
-        ) {
             return;
         }
 
@@ -253,6 +249,19 @@ export const EncryptionSettings: React.FC<EncryptionSettingsProps> = ({ isAvaila
                     <div className="encryption-section-title">
                         <div className="font-semibold mb-sm">History Management</div>
                         <div className="flex-col gap-sm">
+                            <p className="settings-description">
+                                {supportsStreaming
+                                    ? "Choose a file to save your decrypted history. Large exports may take several minutes."
+                                    : "Exports are limited to 64 MiB in this browser. Large exports require a browser with file streaming support."}
+                            </p>
+                            {exportState.savedFilename && (
+                                <div className="encryption-message-box-success" role="status">
+                                    History saved to <strong>{exportState.savedFilename}</strong>.
+                                </div>
+                            )}
+                            {exportState.skipped > 0 && (
+                                <p role="status">Skipped {exportState.skipped} events that could not be exported.</p>
+                            )}
                             {exportState.readyBlob && exportState.readyFilename && (
                                 <div className="encryption-message-box-success">
                                     <div className="font-semibold mb-sm text-success">

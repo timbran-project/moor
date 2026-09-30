@@ -13,37 +13,48 @@
 
 // Hook for exporting event history using a Web Worker
 
-import { useCallback, useRef, useState } from "react";
-import type {
-    CompleteMessage,
-    ErrorMessage,
-    ProgressMessage,
-    StartExportMessage,
-} from "../workers/historyExportWorker";
-
-interface ExportProgress {
-    processed: number;
-    total?: number;
-}
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    HistoryExportOutput,
+    openHistoryExportOutput,
+    runHistoryExportWorker,
+    supportsHistoryExportStreaming,
+} from "../lib/historyExportDownload";
 
 interface ExportState {
     isExporting: boolean;
-    progress: ExportProgress | null;
+    progress: { processed: number; total?: number } | null;
     error: string | null;
-    readyBlob: Blob | null; // Blob ready for download
-    readyFilename: string | null; // Filename for the ready blob
+    readyBlob: Blob | null;
+    readyFilename: string | null;
+    savedFilename: string | null;
+    skipped: number;
 }
 
-export const useHistoryExport = () => {
-    const [exportState, setExportState] = useState<ExportState>({
-        isExporting: false,
-        progress: null,
-        error: null,
-        readyBlob: null,
-        readyFilename: null,
-    });
+const idleState: ExportState = {
+    isExporting: false,
+    progress: null,
+    error: null,
+    readyBlob: null,
+    readyFilename: null,
+    savedFilename: null,
+    skipped: 0,
+};
 
-    const workerRef = useRef<Worker | null>(null);
+export const useHistoryExport = () => {
+    const [exportState, setExportState] = useState<ExportState>(idleState);
+    const active = useRef<AbortController | null>(null);
+
+    useEffect(() => () => {
+        active.current?.abort();
+        active.current = null;
+    }, []);
+
+    const cancelExport = useCallback(() => {
+        active.current?.abort();
+        active.current = null;
+        setExportState(idleState);
+    }, []);
 
     const startExport = useCallback(async (
         authToken: string,
@@ -51,117 +62,68 @@ export const useHistoryExport = () => {
         systemTitle: string,
         playerOid: string,
     ): Promise<void> => {
-        // Clean up any existing worker
-        if (workerRef.current) {
-            workerRef.current.terminate();
-            workerRef.current = null;
-        }
-
-        return new Promise<void>((resolve, reject) => {
-            try {
-                // Create worker
-                const worker = new Worker(
-                    new URL("../workers/historyExportWorker.ts", import.meta.url),
-                    { type: "module" },
-                );
-                workerRef.current = worker;
-
-                setExportState({
-                    isExporting: true,
-                    progress: { processed: 0 },
-                    error: null,
-                    readyBlob: null,
-                    readyFilename: null,
-                });
-
-                // Handle worker messages
-                worker.onmessage = (event: MessageEvent<ProgressMessage | ErrorMessage | CompleteMessage>) => {
-                    const message = event.data;
-
-                    if (message.type === "progress") {
-                        setExportState((prev) => ({
-                            ...prev,
-                            progress: {
-                                processed: message.processed,
-                                total: message.total,
-                            },
-                        }));
-                    } else if (message.type === "error") {
-                        setExportState({
-                            isExporting: false,
-                            progress: null,
-                            error: message.error,
-                            readyBlob: null,
-                            readyFilename: null,
-                        });
-                        worker.terminate();
-                        workerRef.current = null;
-                        reject(new Error(message.error));
-                    } else if (message.type === "complete") {
-                        // Store the blob and filename - don't auto-download
-                        const sanitizedTitle = systemTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-                        const filename = `${sanitizedTitle}-history-${new Date().toISOString().split("T")[0]}.json`;
-
-                        setExportState({
-                            isExporting: false,
-                            progress: null,
-                            error: null,
-                            readyBlob: message.jsonBlob,
-                            readyFilename: filename,
-                        });
-                        worker.terminate();
-                        workerRef.current = null;
-                        resolve();
-                    }
-                };
-
-                worker.onerror = (error) => {
-                    setExportState({
-                        isExporting: false,
-                        progress: null,
-                        error: error.message || "Worker error",
-                        readyBlob: null,
-                        readyFilename: null,
-                    });
-                    worker.terminate();
-                    workerRef.current = null;
-                    reject(error);
-                };
-
-                // Start the export
-                const message: StartExportMessage = {
+        active.current?.abort();
+        const controller = new AbortController();
+        active.current = controller;
+        setExportState({ ...idleState, isExporting: true, progress: { processed: 0 } });
+        const title = systemTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const filename = `${title}-history-${new Date().toISOString().split("T")[0]}.json`;
+        let output: HistoryExportOutput | undefined;
+        let completed = false;
+        try {
+            output = await openHistoryExportOutput(filename);
+            if (controller.signal.aborted) return;
+            const worker = new Worker(new URL("../workers/historyExportWorker.ts", import.meta.url), {
+                type: "module",
+            });
+            const result = await runHistoryExportWorker(
+                worker,
+                {
                     type: "start",
                     authToken,
                     ageIdentity,
                     systemTitle,
                     playerOid,
-                };
-                worker.postMessage(message);
-            } catch (error) {
-                setExportState({
-                    isExporting: false,
-                    progress: null,
-                    error: error instanceof Error ? error.message : "Unknown error",
-                    readyBlob: null,
-                    readyFilename: null,
-                });
-                reject(error);
+                },
+                output,
+                controller.signal,
+                (processed) => {
+                    if (active.current !== controller) return;
+                    setExportState(prev => ({ ...prev, progress: { processed } }));
+                },
+            );
+            completed = true;
+            if (active.current !== controller) return;
+            setExportState({
+                ...idleState,
+                readyBlob: result.blob,
+                readyFilename: result.blob ? filename : null,
+                savedFilename: result.blob ? null : filename,
+                skipped: result.skipped,
+            });
+        } catch (error) {
+            if (controller.signal.aborted) return;
+            if (error instanceof DOMException && error.name === "AbortError") {
+                if (active.current === controller) setExportState(idleState);
+                return;
             }
-        });
-    }, []);
-
-    const cancelExport = useCallback(() => {
-        if (workerRef.current) {
-            workerRef.current.terminate();
-            workerRef.current = null;
+            if (active.current === controller) {
+                setExportState({
+                    ...idleState,
+                    error: error instanceof Error ? error.message : "History export failed",
+                });
+            }
+            throw error;
+        } finally {
+            if (!completed && output) {
+                try {
+                    await output.abort();
+                } catch {
+                    // An errored or already-aborted writable may reject abort as well.
+                }
+            }
+            if (active.current === controller) active.current = null;
         }
-        setExportState({
-            isExporting: false,
-            progress: null,
-            error: null,
-            readyBlob: null,
-            readyFilename: null,
-        });
     }, []);
 
     const downloadReady = useCallback(() => {
@@ -198,6 +160,7 @@ export const useHistoryExport = () => {
 
     return {
         exportState,
+        supportsStreaming: supportsHistoryExportStreaming(),
         startExport,
         cancelExport,
         downloadReady,

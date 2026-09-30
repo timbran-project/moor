@@ -138,6 +138,29 @@ To run the stable 1.0 line, use:
 
 The `main` branch is the 2.0 development line and builds its client dependencies locally.
 
+## History exports
+
+On browsers with a Save File picker, **Download All History (JSON)** first asks for a destination,
+then writes the export to that file as it is processed. The file is committed only after the export
+finishes and the
+[file stream closes](https://developer.mozilla.org/en-US/docs/Web/API/FileSystemFileHandle/createWritable).
+Cancelling, closing settings, or changing the active credentials stops the export and aborts the
+pending write. The browser may leave an empty file if a new destination was selected.
+
+Other browsers prepare a download in memory with a **64 MiB limit on the encoded JSON**, including
+metadata. Exceeding the limit stops the export with an error; no partial download is offered. Larger
+exports require a browser with file streaming support.
+
+The worker fetches up to 250 events per page, decrypts and serializes one event at a time, and waits
+for each 64 KiB output chunk to be accepted before continuing. Responses larger than 16 MiB are
+rejected to bound page buffering, even in streaming mode. Memory use depends on a page and the
+current event, plus at most 64 MiB of buffered output for the download fallback. Constructing the
+final Blob may temporarily duplicate that output buffer.
+
+Exports contain compact JSON with the existing `events` array and metadata fields. Metadata follows
+the array so event counts and the timestamp range can be calculated while writing. Events that
+cannot be decoded are skipped and reported in `skipped_event_count` and the completion message.
+
 ## Link previews
 
 Preview destinations and images must use absolute HTTP(S) URLs. Opening a preview uses the same
