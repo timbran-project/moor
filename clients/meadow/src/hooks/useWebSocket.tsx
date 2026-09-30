@@ -27,6 +27,20 @@ import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 import { Player } from "./useAuth";
 
+// Application-level keepalive interval (45s) to prevent proxy idle timeouts
+// WebSocket-level pings don't count as traffic for proxies like Cloudflare
+const KEEPALIVE_INTERVAL_MS = 45000;
+// Single zero byte marker - definitely not a valid FlatBuffer (needs >= 4 bytes)
+const KEEPALIVE_MARKER = new Uint8Array([0x00]);
+
+// Application-level heartbeat markers
+// Server sends 0x02 to request heartbeat, client responds with 0x01
+// This proves JavaScript is actually processing messages (unlike WS ping/pong)
+const HEARTBEAT_REQUEST = 0x02;
+const HEARTBEAT_RESPONSE = new Uint8Array([0x01]);
+const RESUME_STALE_THRESHOLD_MS = 120000;
+const RESUME_RECONNECT_COOLDOWN_MS = 10000;
+
 export interface WebSocketState {
     socket: WebSocket | null;
     isConnected: boolean;
@@ -68,20 +82,6 @@ export const useWebSocket = (
     const lastConnectModeRef = useRef<"connect" | "create">("connect");
     const lastSocketActivityAtRef = useRef<number>(Date.now());
     const lastResumeReconnectAtRef = useRef<number>(0);
-
-    // Application-level keepalive interval (45s) to prevent proxy idle timeouts
-    // WebSocket-level pings don't count as traffic for proxies like Cloudflare
-    const KEEPALIVE_INTERVAL_MS = 45000;
-    // Single zero byte marker - definitely not a valid FlatBuffer (needs >= 4 bytes)
-    const KEEPALIVE_MARKER = new Uint8Array([0x00]);
-
-    // Application-level heartbeat markers
-    // Server sends 0x02 to request heartbeat, client responds with 0x01
-    // This proves JavaScript is actually processing messages (unlike WS ping/pong)
-    const HEARTBEAT_REQUEST = 0x02;
-    const HEARTBEAT_RESPONSE = new Uint8Array([0x01]);
-    const RESUME_STALE_THRESHOLD_MS = 120000;
-    const RESUME_RECONNECT_COOLDOWN_MS = 10000;
 
     useEffect(() => {
         connectionStatusRef.current = wsState.connectionStatus;

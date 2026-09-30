@@ -19,10 +19,19 @@ import { curieORef, MoorRemoteObject } from "./rpc";
 import { performEvalFlatBuffer } from "./rpc-fb";
 import { objToString, oidRef, sysobjRef } from "./var";
 
+type VerbsReply = Awaited<ReturnType<MoorRemoteObject["getVerbs"]>>;
+type PropertiesReply = Awaited<ReturnType<MoorRemoteObject["getProperties"]>>;
+interface BuiltinInfo {
+    name: string;
+    minArgs: number;
+    maxArgs: number;
+    argTypes: unknown[];
+}
+
 // Shared cache for verb/property/builtin lookups across all editor instances
 const completionCache = new Map<
     string,
-    { verbs?: any; properties?: any; builtins?: any; timestamp: number }
+    { verbs?: VerbsReply; properties?: PropertiesReply; builtins?: BuiltinInfo[]; timestamp: number }
 >();
 const CACHE_TTL = 30000; // 30 seconds
 
@@ -118,7 +127,7 @@ class MooCompletionManager {
 // Export the singleton instance
 export const mooCompletionManager = MooCompletionManager.getInstance();
 
-const getCachedVerbs = async (cacheKey: string, fetchFn: () => Promise<any>) => {
+const getCachedVerbs = async (cacheKey: string, fetchFn: () => Promise<VerbsReply>) => {
     const cached = completionCache.get(cacheKey);
     if (cached && cached.verbs && Date.now() - cached.timestamp < CACHE_TTL) {
         return cached.verbs;
@@ -128,7 +137,7 @@ const getCachedVerbs = async (cacheKey: string, fetchFn: () => Promise<any>) => 
     return verbs;
 };
 
-const getCachedProperties = async (cacheKey: string, fetchFn: () => Promise<any>) => {
+const getCachedProperties = async (cacheKey: string, fetchFn: () => Promise<PropertiesReply>) => {
     const cached = completionCache.get(cacheKey);
     if (cached && cached.properties && Date.now() - cached.timestamp < CACHE_TTL) {
         return cached.properties;
@@ -138,7 +147,7 @@ const getCachedProperties = async (cacheKey: string, fetchFn: () => Promise<any>
     return properties;
 };
 
-const getCachedBuiltins = async (cacheKey: string, fetchFn: () => Promise<any>) => {
+const getCachedBuiltins = async (cacheKey: string, fetchFn: () => Promise<BuiltinInfo[]>) => {
     const cached = completionCache.get(cacheKey);
     if (cached && cached.builtins && Date.now() - cached.timestamp < CACHE_TTL) {
         return cached.builtins;
@@ -149,7 +158,7 @@ const getCachedBuiltins = async (cacheKey: string, fetchFn: () => Promise<any>) 
 };
 
 // Type code to string mapping for builtin function arguments
-const typeToString = (typeCode: number): string => {
+const typeToString = (typeCode: unknown): string => {
     switch (typeCode) {
         case -2:
             return "num";
@@ -179,12 +188,12 @@ const typeToString = (typeCode: number): string => {
 // Generic property completion for any object reference
 const addPropertyCompletions = async (
     monacoInstance: Monaco,
-    objectRef: any,
+    objectRef: MoorRemoteObject,
     cacheKey: string,
     contextLabel: string,
     prefix: string,
     startColumn: number,
-    position: any,
+    position: monaco.Position,
     suggestions: monaco.languages.CompletionItem[],
 ) => {
     try {
@@ -229,12 +238,12 @@ const addPropertyCompletions = async (
 // Generic verb completion for any object reference
 const addVerbCompletions = async (
     monacoInstance: Monaco,
-    objectRef: any,
+    objectRef: MoorRemoteObject,
     cacheKey: string,
     contextLabel: string,
     prefix: string,
     startColumn: number,
-    position: any,
+    position: monaco.Position,
     suggestions: monaco.languages.CompletionItem[],
 ) => {
     try {
@@ -289,13 +298,13 @@ const addBuiltinCompletions = async (
     authToken: string,
     prefix: string,
     startColumn: number,
-    position: any,
+    position: monaco.Position,
     suggestions: monaco.languages.CompletionItem[],
 ) => {
     try {
         const builtins = await getCachedBuiltins("builtins", async () => {
             const result = await performEvalFlatBuffer(authToken, "return function_info();");
-            const builtinList = [];
+            const builtinList: BuiltinInfo[] = [];
             if (Array.isArray(result)) {
                 for (const item of result) {
                     if (Array.isArray(item) && item.length >= 4) {
@@ -322,7 +331,7 @@ const addBuiltinCompletions = async (
             if (!builtin.name.startsWith(prefix)) continue;
 
             const argSig = builtin.argTypes.length > 0
-                ? builtin.argTypes.map((t: number) => typeToString(t)).join(", ")
+                ? builtin.argTypes.map(typeToString).join(", ")
                 : "";
             const argsDesc = builtin.minArgs === builtin.maxArgs
                 ? `${builtin.minArgs} arg${builtin.minArgs === 1 ? "" : "s"}`

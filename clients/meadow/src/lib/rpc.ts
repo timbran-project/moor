@@ -74,7 +74,7 @@ export class MoorRemoteObject {
      * @returns Promise resolving to the result of the verb invocation
      * @throws Error if the object is anonymous (cannot perform operations on anonymous objects)
      */
-    async callVerb(verbName: string, args?: Uint8Array): Promise<any> {
+    async callVerb(verbName: string, args?: Uint8Array): Promise<unknown> {
         if (this.isAnonymous()) {
             throw new Error("Cannot invoke verbs on anonymous objects");
         }
@@ -134,7 +134,10 @@ export class MoorRemoteObject {
      * @returns Promise resolving to compilation results (empty object if successful, errors otherwise)
      * @throws Error if the object is anonymous (cannot modify anonymous objects)
      */
-    async compileVerb(verbName: string, code: string): Promise<Record<string, any>> {
+    async compileVerb(
+        verbName: string,
+        code: string,
+    ): Promise<Awaited<ReturnType<typeof compileVerbFlatBuffer>> | { error: string }> {
         if (this.isAnonymous()) {
             return { "error": "Cannot compile code on anonymous objects" };
         }
@@ -159,7 +162,7 @@ export class MoorRemoteObject {
      * @returns Promise resolving to the property value (transformed to JavaScript equivalents)
      * @throws Error if the object is anonymous or fetch operation fails
      */
-    async getProperty(propertyName: string): Promise<any> {
+    async getProperty(propertyName: string): Promise<unknown> {
         if (this.isAnonymous()) {
             throw new Error("Cannot retrieve properties from anonymous objects");
         }
@@ -200,6 +203,7 @@ export class MoorRemoteObject {
  * @throws Error if the object reference type is unknown
  */
 export function orefCurie(oref: ObjectRef): string {
+    const kind = oref.kind;
     switch (oref.kind) {
         case ORefKind.Oid:
             return oref.curie;
@@ -211,7 +215,7 @@ export function orefCurie(oref: ObjectRef): string {
             return `match("${encodeURIComponent(oref.match)}")`;
 
         default:
-            throw new Error(`Unknown ObjectRef kind: ${(oref as any).kind}`);
+            throw new Error(`Unknown ObjectRef kind: ${kind}`);
     }
 }
 

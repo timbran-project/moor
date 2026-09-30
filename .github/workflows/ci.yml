@@ -108,6 +108,9 @@ jobs:
           npm run test:bundle --workspace meadow
           npm run bundle:check --workspace meadow
 
+      - name: Lint Meadow
+        run: npm run lint --workspace meadow
+
       - name: Type-check web clients and packages
         run: npm run web:typecheck
 

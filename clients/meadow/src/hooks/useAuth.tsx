@@ -291,7 +291,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
             const replyType = daemonReply.replyType();
             const replyUnion = unionToDaemonToClientReplyUnion(
                 replyType,
-                (obj: any) => daemonReply.reply(obj),
+                (obj) => daemonReply.reply(obj),
             );
 
             if (!replyUnion || !(replyUnion instanceof LoginResult)) {

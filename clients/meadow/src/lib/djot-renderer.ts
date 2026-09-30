@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { parse, renderHTML } from "@djot/djot";
+import { type HTMLRenderer, parse, renderHTML, type Visitor } from "@djot/djot";
 import { ANNOTATION_ID, AnnotationTable } from "@moor/web-sdk";
 import { AnsiUp } from "ansi_up";
 import DOMPurify from "dompurify";
@@ -530,14 +530,14 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
 
     // Parse djot and render to HTML
     const djotAst = parse(escapedContent);
-    const overrides: any = {};
+    const overrides: Visitor<HTMLRenderer, string> = {};
 
     // Override doc element to not wrap in a div (prevents screenreader "group" announcement)
-    overrides.doc = (node: any, context: any) => {
+    overrides.doc = (node, context) => {
         return context.renderChildren(node);
     };
 
-    overrides.span = (node: any, context: any) => {
+    overrides.span = (node, context) => {
         const id = node.attributes?.annotation;
         const children = context.renderChildren(node);
         return typeof id === "string" && ANNOTATION_ID.test(id)
@@ -547,7 +547,7 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
 
     // Link handling
     if (linkHandler) {
-        overrides.link = (node: any, context: any) => {
+        overrides.link = (node, context) => {
             const href = node.destination || "";
             const label = context.renderChildren(node);
             if (!isSafeUrl(href)) return label;
@@ -565,23 +565,8 @@ export function renderDjot(content: string, options: DjotRenderOptions = {}): st
 
     // Table handling
     if (addTableClass) {
-        overrides.table = (node: any, context: any) => {
+        overrides.table = (node, context) => {
             return `<table class="narrative-table">${context.renderChildren(node)}</table>`;
-        };
-        overrides.thead = (node: any, context: any) => {
-            return `<thead>${context.renderChildren(node)}</thead>`;
-        };
-        overrides.tbody = (node: any, context: any) => {
-            return `<tbody>${context.renderChildren(node)}</tbody>`;
-        };
-        overrides.tr = (node: any, context: any) => {
-            return `<tr>${context.renderChildren(node)}</tr>`;
-        };
-        overrides.th = (node: any, context: any) => {
-            return `<th>${context.renderChildren(node)}</th>`;
-        };
-        overrides.td = (node: any, context: any) => {
-            return `<td>${context.renderChildren(node)}</td>`;
         };
     }
 

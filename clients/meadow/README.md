@@ -119,6 +119,9 @@ npm run lint --workspace meadow
 
 ### Type checking
 
+`npm run lint --workspace meadow` requires zero warnings and runs in the web CI job. React hook
+dependency violations are errors; explicit `any` and unused suppression warnings also fail the gate.
+
 `npm run typecheck --workspace meadow` checks four TypeScript projects in order:
 
 | Command            | Configuration          | Checked code and environment                                                                                              |
