@@ -138,6 +138,34 @@ To run the stable 1.0 line, use:
 
 The `main` branch is the 2.0 development line and builds its client dependencies locally.
 
+## Browser credential storage
+
+Meadow remembers authentication/history tokens in localStorage and copies the active identity into
+sessionStorage for each tab. Reconnect credentials are held in sessionStorage. The age private
+identity is stored in localStorage under the history owner's player OID so history can be decrypted
+after a reload without entering the encryption password again.
+
+This persistence is a usability tradeoff: JavaScript executing in Meadow's origin can read those
+tokens and private identities, fetch history, and decrypt it. Client-side history encryption does
+not protect against a compromised client bundle, same-origin script injection, or access to the
+browser profile. Serve the client from an origin you trust and use a separate browser profile on
+shared devices.
+
+The pending OAuth encryption password is held only in memory, separately from the persisted auth
+session. It is consumed once for setup and discarded on logout, identity replacement, cancellation,
+or when automatic setup is unnecessary. Reloading before setup completes requires entering the
+password again. JavaScript strings cannot be reliably zeroized; dropping references limits retention
+but does not provide secure memory erasure.
+
+Logout clears session credentials but retains the cached history identity for later use. Use Remove
+Password in encryption settings, or clear site data, to remove that local identity. Encryption
+diagnostics must not include passwords, private keys, fragments, or raw cryptographic exception
+payloads.
+
+The current Tauri shell uses the same frontend credential storage and makes no stronger credential
+protection claim than the web build. OS credential-store integration remains deferred with the other
+Tauri work.
+
 ## Desktop App (Tauri)
 
 Meadow can be built as a native desktop application using Tauri. This wraps the web frontend in a

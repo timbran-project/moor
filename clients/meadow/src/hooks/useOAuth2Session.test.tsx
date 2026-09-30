@@ -61,6 +61,8 @@ describe("useOAuth2Session", () => {
                 )
             ),
         );
+        const sessionWrites = vi.spyOn(sessionStorage, "setItem");
+        const localWrites = vi.spyOn(localStorage, "setItem");
         const establishSession = vi.fn();
         const showMessage = vi.fn();
         const { result } = renderHook(() => useOAuth2Session(establishSession, showMessage));
@@ -84,7 +86,67 @@ describe("useOAuth2Session", () => {
                 clientToken: "client-token",
                 clientId: "11111111-1111-1111-1111-111111111111",
             },
+        }, { encryptionPassword: "encryption-password" });
+        expect(sessionWrites).not.toHaveBeenCalled();
+        expect(localWrites).not.toHaveBeenCalled();
+        const request = vi.mocked(fetch).mock.calls[0][1];
+        expect(String(request?.body)).not.toContain("encryption-password");
+    });
+});
+
+describe("OAuth account request cancellation", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+    });
+
+    it("aborts a cancelled request and ignores a response that still arrives", async () => {
+        window.history.replaceState({}, "", "/");
+        let resolve!: (response: Response) => void;
+        const pending = new Promise<Response>(done => {
+            resolve = done;
         });
-        expect(sessionStorage.getItem("pending_encrypt_password")).toBe("encryption-password");
+        const fetchMock = vi.fn(() => pending);
+        vi.stubGlobal("fetch", fetchMock);
+        const establishSession = vi.fn();
+        const showMessage = vi.fn();
+        const { result } = renderHook(() => useOAuth2Session(establishSession, showMessage));
+        let request!: Promise<void>;
+        act(() => {
+            request = result.current.handleOAuth2AccountChoice({
+                mode: "oauth2_create",
+                oauth2_code: "code",
+                encrypt_password: "private-password",
+            });
+        });
+        const signal = vi.mocked(fetch).mock.calls[0][1]?.signal;
+        act(() => result.current.clearOAuth2UserInfo());
+        expect(signal?.aborted).toBe(true);
+        await act(async () => {
+            resolve(new Response(JSON.stringify({ success: true, auth_token: "old-token", player: "oid:7" })));
+            await request;
+        });
+        expect(establishSession).not.toHaveBeenCalled();
+        expect(showMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not log a rejected request's credential-bearing error payload", async () => {
+        const secret = "private-password";
+        window.history.replaceState({}, "", "/");
+        vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error(secret)));
+        const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+        const establishSession = vi.fn();
+        const showMessage = vi.fn();
+        const { result } = renderHook(() => useOAuth2Session(establishSession, showMessage));
+        await act(async () => {
+            await result.current.handleOAuth2AccountChoice({
+                mode: "oauth2_create",
+                oauth2_code: "code",
+                encrypt_password: secret,
+            });
+        });
+        expect(establishSession).not.toHaveBeenCalled();
+        expect(errorLog).toHaveBeenCalledWith("OAuth2 account choice failed");
+        expect(JSON.stringify(showMessage.mock.calls)).not.toContain(secret);
     });
 });

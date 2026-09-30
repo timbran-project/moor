@@ -15,15 +15,15 @@ import { RefObject, useCallback } from "react";
 import { NarrativeRef } from "../components/Narrative";
 import { useAuthContext } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/WebSocketContext";
+import type { EstablishSession } from "../hooks/useAuth";
 import { useOAuth2Session } from "../hooks/useOAuth2Session";
-import { AuthSession } from "../lib/auth-session";
 
 /**
  * Owns the interactive session entry points: login (connect/create), logout,
  * and the OAuth2 account-choice flow.
  */
 export const useSessionControls = (
-    establishSession: (session: AuthSession, isInitialAttach?: boolean) => void,
+    establishSession: EstablishSession,
     showMessage: (message: string, duration?: number) => void,
     narrativeRef: RefObject<NarrativeRef | null>,
     onEncryptionStateReset: () => void,
@@ -45,12 +45,14 @@ export const useSessionControls = (
         password: string,
         encryptPassword?: string,
     ) => {
+        clearOAuth2UserInfo();
         setLoginMode(mode);
         await connect(mode, username, password, encryptPassword);
-    }, [connect, setLoginMode]);
+    }, [clearOAuth2UserInfo, connect, setLoginMode]);
 
-    // Comprehensive logout handler
+    // Release pending OAuth work before ending the session.
     const handleLogout = useCallback(() => {
+        clearOAuth2UserInfo();
         if (narrativeRef.current) {
             narrativeRef.current.clearAll();
         }
@@ -69,7 +71,7 @@ export const useSessionControls = (
         }
         // Just disconnect from auth - identity-change effects handle the rest of cleanup
         disconnect();
-    }, [authState.player, disconnect, disconnectWS, narrativeRef, onEncryptionStateReset]);
+    }, [authState.player, clearOAuth2UserInfo, disconnect, disconnectWS, narrativeRef, onEncryptionStateReset]);
 
     return {
         oauth2UserInfo,

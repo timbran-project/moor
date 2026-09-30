@@ -12,8 +12,8 @@
 //
 
 import React, { createContext, useContext } from "react";
-import { AuthState, useAuth } from "../hooks/useAuth";
-import { AuthSession, ReconnectCredentials } from "../lib/auth-session";
+import { AuthState, EstablishSession, useAuth } from "../hooks/useAuth";
+import { ReconnectCredentials } from "../lib/auth-session";
 
 interface AuthContextType {
     authState: AuthState;
@@ -24,7 +24,8 @@ interface AuthContextType {
         encryptPassword?: string,
     ) => Promise<void>;
     disconnect: () => void;
-    establishSession: (session: AuthSession, isInitialAttach?: boolean) => void;
+    establishSession: EstablishSession;
+    takePendingEncryptionPassword: (authToken: string, historyPlayerOid: string) => string | null;
     setPlayerConnected: (connected: boolean) => void;
     updateReconnectCredentials: (credentials: ReconnectCredentials) => void;
     rotatePlayerIdentity: (

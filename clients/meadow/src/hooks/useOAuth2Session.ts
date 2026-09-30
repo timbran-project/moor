@@ -10,9 +10,9 @@
 // You should have received a copy of the GNU General Public License along with
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { useCallback, useEffect, useState } from "react";
-import { AuthSession } from "../lib/auth-session";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { exchangeAuthCode, OAuth2UserInfo } from "../lib/oauth2";
+import type { EstablishSession } from "./useAuth";
 
 export interface OAuth2AccountChoice {
     mode: "oauth2_create" | "oauth2_connect";
@@ -33,11 +33,22 @@ interface OAuth2AccountResult {
     error?: string;
 }
 
-type EstablishSession = (session: AuthSession, isInitialAttach?: boolean) => void;
 type ShowMessage = (message: string, duration?: number) => void;
 
 export function useOAuth2Session(establishSession: EstablishSession, showMessage: ShowMessage) {
     const [oauth2UserInfo, setOAuth2UserInfo] = useState<OAuth2UserInfo | null>(null);
+    const accountRequest = useRef<AbortController | null>(null);
+
+    const clearOAuth2UserInfo = useCallback(() => {
+        accountRequest.current?.abort();
+        accountRequest.current = null;
+        setOAuth2UserInfo(null);
+    }, []);
+
+    useEffect(() => () => {
+        accountRequest.current?.abort();
+        accountRequest.current = null;
+    }, []);
 
     useEffect(() => {
         const hashParams = new URLSearchParams(
@@ -119,9 +130,13 @@ export function useOAuth2Session(establishSession: EstablishSession, showMessage
     }, [establishSession, showMessage]);
 
     const handleOAuth2AccountChoice = useCallback(async (choice: OAuth2AccountChoice) => {
+        accountRequest.current?.abort();
+        const request = new AbortController();
+        accountRequest.current = request;
         try {
             const response = await fetch("/auth/oauth2/account", {
                 method: "POST",
+                signal: request.signal,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     mode: choice.mode,
@@ -134,20 +149,19 @@ export function useOAuth2Session(establishSession: EstablishSession, showMessage
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: "Unknown error" })) as { error?: string };
+                if (accountRequest.current !== request) return;
                 showMessage(`Failed: ${errorData.error || response.statusText}`, 5);
                 return;
             }
 
             const result = await response.json() as OAuth2AccountResult;
+            if (accountRequest.current !== request) return;
             if (!result.success || !result.auth_token || !result.player) {
                 showMessage(result.error || "Failed to complete account setup. Please try again.", 5);
                 return;
             }
 
             setOAuth2UserInfo(null);
-            if (choice.encrypt_password) {
-                sessionStorage.setItem("pending_encrypt_password", choice.encrypt_password);
-            }
 
             establishSession({
                 authToken: result.auth_token,
@@ -161,17 +175,16 @@ export function useOAuth2Session(establishSession: EstablishSession, showMessage
                         clientId: result.client_id,
                     }
                     : null,
-            });
+            }, { encryptionPassword: choice.encrypt_password });
             showMessage(`Account ${choice.mode === "oauth2_create" ? "created" : "linked"}! Connecting...`, 2);
-        } catch (error) {
-            console.error("OAuth2 account choice failed:", error);
-            showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`, 5);
+        } catch {
+            if (accountRequest.current !== request) return;
+            console.error("OAuth2 account choice failed");
+            showMessage("Failed to complete account setup. Please try again.", 5);
+        } finally {
+            if (accountRequest.current === request) accountRequest.current = null;
         }
     }, [establishSession, showMessage]);
-
-    const clearOAuth2UserInfo = useCallback(() => {
-        setOAuth2UserInfo(null);
-    }, []);
 
     return {
         oauth2UserInfo,

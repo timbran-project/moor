@@ -57,8 +57,9 @@ export async function decryptEventBlob(
         // Decrypt and return the plaintext bytes
         const decrypted = await decrypter.decrypt(encryptedBlob, "uint8array");
         return decrypted;
-    } catch (error) {
-        throw new Error(`Failed to decrypt event blob: ${error instanceof Error ? error.message : String(error)}`);
+    } catch {
+        // Crypto errors can contain the supplied private identity.
+        throw new Error("Failed to decrypt event blob");
     }
 }
 
@@ -93,9 +94,7 @@ export async function publicKeyFromIdentity(identityStr: string): Promise<string
     try {
         const recipient = await identityToRecipient(identityStr);
         return recipient;
-    } catch (error) {
-        throw new Error(
-            `Failed to derive public key from identity: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    } catch {
+        throw new Error("Failed to derive public key from identity");
     }
 }

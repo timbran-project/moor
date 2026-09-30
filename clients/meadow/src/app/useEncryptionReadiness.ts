@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "../context/AuthContext";
 import { useEncryptionContext } from "../context/EncryptionContext";
 import { usePersistentState } from "../hooks/usePersistentState";
@@ -27,7 +27,9 @@ export const useEncryptionReadiness = (
     eventLogEnabled: boolean | null,
     markHistoryForReload: () => void,
 ) => {
-    const { authState } = useAuthContext();
+    const { authState, takePendingEncryptionPassword } = useAuthContext();
+    const player = authState.player;
+    const autoSetupRequest = useRef<AbortController | null>(null);
     const {
         encryptionState,
         setupEncryption,
@@ -42,95 +44,92 @@ export const useEncryptionReadiness = (
         false,
     );
 
-    // Encryption prompts are meaningless without the event log
+    // An old setup result must not change prompts or reload another session's history.
+    useEffect(() => () => {
+        autoSetupRequest.current?.abort();
+        autoSetupRequest.current = null;
+    }, [player?.authToken, player?.historyOid]);
+
     useEffect(() => {
-        if (eventLogEnabled === false) {
-            setShowEncryptionSetup(false);
-            setShowPasswordPrompt(false);
-        }
-    }, [eventLogEnabled]);
+        if (!player || eventLogEnabled === null) return;
 
-    // Check encryption setup after login
-    useEffect(() => {
-        if (eventLogEnabled === false) {
-            return;
-        }
-
-        // Wait until we've checked the backend at least once before making decisions
-        // Otherwise we briefly show setup prompt before knowing actual backend state
-        if (
-            authState.player
-            && !encryptionState.isChecking
-            && encryptionState.hasCheckedOnce
-            && !encryptionState.statusError
-            && !userSkippedEncryption
-        ) {
-            const hasLocalKey = !!encryptionState.ageIdentity;
-            const backendHasPubkey = encryptionState.hasEncryption;
-
-            // Check for pending encryption password from OAuth2 flow
-            const pendingEncryptPassword = sessionStorage.getItem("pending_encrypt_password");
-
-            // If no local key but backend has pubkey, prompt for existing password (NOT setup!)
-            if (!hasLocalKey && backendHasPubkey) {
-                console.log("Backend has pubkey but no local key - prompting for existing password");
-                if (!showPasswordPrompt) {
-                    setShowPasswordPrompt(true);
-                }
-                // Make sure setup screen is NOT showing
-                if (showEncryptionSetup) {
-                    setShowEncryptionSetup(false);
-                }
-            } // If no local key and backend has no pubkey, check for pending password or prompt for new setup
-            else if (!hasLocalKey && !backendHasPubkey) {
-                // If we have a pending encryption password from OAuth2, auto-setup
-                if (pendingEncryptPassword) {
-                    console.log("Auto-setting up encryption with pending OAuth2 password");
-                    sessionStorage.removeItem("pending_encrypt_password");
-                    setupEncryption(pendingEncryptPassword).catch((err) => {
-                        console.error("Failed to auto-setup encryption:", err);
-                        // Fall back to showing setup prompt
-                        setShowEncryptionSetup(true);
-                    });
-                } else {
-                    console.log("No encryption key anywhere - prompting for new setup");
-                    if (!showEncryptionSetup) {
-                        setShowEncryptionSetup(true);
-                    }
-                    // Make sure password prompt is NOT showing
-                    if (showPasswordPrompt) {
-                        setShowPasswordPrompt(false);
-                    }
-                }
-            } // If we have a local key but backend doesn't have our pubkey (DB was reset), clear and re-prompt
-            else if (hasLocalKey && !backendHasPubkey) {
-                console.log(
-                    "Backend missing pubkey but localStorage has key - clearing stale key and prompting for fresh setup",
-                );
-                forgetKey();
-                setUserSkippedEncryption(false);
-                setShowEncryptionSetup(true);
-                setShowPasswordPrompt(false);
-            } // If we have both local key and backend has pubkey, we're good - hide prompts
-            else if (hasLocalKey && backendHasPubkey) {
+        if (eventLogEnabled === false || userSkippedEncryption || encryptionState.statusError) {
+            takePendingEncryptionPassword(player.authToken, player.historyOid);
+            autoSetupRequest.current?.abort();
+            autoSetupRequest.current = null;
+            if (eventLogEnabled === false) {
                 setShowEncryptionSetup(false);
                 setShowPasswordPrompt(false);
             }
+            return;
         }
+
+        if (encryptionState.isChecking || !encryptionState.hasCheckedOnce || autoSetupRequest.current) return;
+
+        const hasLocalKey = !!encryptionState.ageIdentity;
+        const backendHasPubkey = encryptionState.hasEncryption;
+        // Consume once, including when a registered/local key makes automatic setup unnecessary.
+        const pendingPassword = takePendingEncryptionPassword(player.authToken, player.historyOid);
+
+        if (!hasLocalKey && backendHasPubkey) {
+            setShowPasswordPrompt(true);
+            setShowEncryptionSetup(false);
+            return;
+        }
+
+        if (!hasLocalKey && !backendHasPubkey) {
+            setShowPasswordPrompt(false);
+            if (!pendingPassword) {
+                setShowEncryptionSetup(true);
+                return;
+            }
+
+            const request = new AbortController();
+            autoSetupRequest.current = request;
+            setShowEncryptionSetup(false);
+            void setupEncryption(pendingPassword, { signal: request.signal }).then(result => {
+                if (autoSetupRequest.current !== request) return;
+                autoSetupRequest.current = null;
+                if (!result.success) {
+                    setShowEncryptionSetup(true);
+                    return;
+                }
+                setShowEncryptionSetup(false);
+                setUserSkippedEncryption(false);
+                markHistoryForReload();
+            }).catch(() => {
+                if (autoSetupRequest.current !== request) return;
+                autoSetupRequest.current = null;
+                console.error("Failed to auto-setup encryption");
+                setShowEncryptionSetup(true);
+            });
+            return;
+        }
+
+        if (hasLocalKey && !backendHasPubkey) {
+            forgetKey();
+            setUserSkippedEncryption(false);
+            setShowEncryptionSetup(true);
+            setShowPasswordPrompt(false);
+            return;
+        }
+
+        setShowEncryptionSetup(false);
+        setShowPasswordPrompt(false);
     }, [
-        authState.player,
+        player,
         encryptionState.hasEncryption,
         encryptionState.ageIdentity,
         encryptionState.isChecking,
         encryptionState.hasCheckedOnce,
         encryptionState.statusError,
-        showEncryptionSetup,
-        showPasswordPrompt,
         forgetKey,
         setUserSkippedEncryption,
         userSkippedEncryption,
         eventLogEnabled,
         setupEncryption,
+        takePendingEncryptionPassword,
+        markHistoryForReload,
     ]);
 
     const handleUnlock = useCallback(async (password: string) => {

@@ -17,7 +17,7 @@ import { LoginResult } from "@moor/schema/generated/moor-rpc/login-result";
 import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { ReplyResultUnion, unionToReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
 import * as flatbuffers from "flatbuffers";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     AuthSession,
     clearAuthSession,
@@ -51,7 +51,25 @@ export interface AuthState {
     error: string | null;
 }
 
+export type EstablishSession = (
+    session: AuthSession,
+    options?: { isInitialAttach?: boolean; encryptionPassword?: string },
+) => void;
+
 export const useAuth = (onSystemMessage: (message: string, duration?: number) => void) => {
+    // Transient credentials are never part of the persisted AuthSession or rendered state.
+    const pendingEncryptionPassword = useRef<
+        {
+            authToken: string;
+            historyPlayerOid: string;
+            password: string;
+        } | null
+    >(null);
+
+    useEffect(() => () => {
+        pendingEncryptionPassword.current = null;
+    }, []);
+
     const [authState, setAuthState] = useState<AuthState>({
         player: null,
         isConnecting: false,
@@ -134,8 +152,16 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         validateAndRestore();
     }, [onSystemMessage]);
 
-    const establishSession = useCallback((session: AuthSession, isInitialAttach = true) => {
+    const establishSession = useCallback<EstablishSession>((session, options) => {
+        pendingEncryptionPassword.current = null;
         persistAuthSession(session);
+        if (options?.encryptionPassword) {
+            pendingEncryptionPassword.current = {
+                authToken: session.authToken,
+                historyPlayerOid: session.historyPlayerOid,
+                password: options.encryptionPassword,
+            };
+        }
         setAuthState({
             player: {
                 oid: session.playerOid,
@@ -146,11 +172,21 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 flags: session.playerFlags,
                 clientToken: session.reconnectCredentials?.clientToken,
                 clientId: session.reconnectCredentials?.clientId,
-                isInitialAttach,
+                isInitialAttach: options?.isInitialAttach ?? true,
             },
             isConnecting: false,
             error: null,
         });
+    }, []);
+
+    /** Consumes the pending password only for the session that supplied it. */
+    const takePendingEncryptionPassword = useCallback((authToken: string, historyPlayerOid: string): string | null => {
+        const pending = pendingEncryptionPassword.current;
+        if (pending?.authToken !== authToken || pending.historyPlayerOid !== historyPlayerOid) {
+            return null;
+        }
+        pendingEncryptionPassword.current = null;
+        return pending.password;
     }, []);
 
     const connect = useCallback(async (
@@ -159,6 +195,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         password: string,
         encryptPassword?: string,
     ) => {
+        pendingEncryptionPassword.current = null;
         try {
             setAuthState(prev => ({ ...prev, isConnecting: true, error: null }));
 
@@ -321,8 +358,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
 
                     // Store the private identity locally only after the public key is registered
                     localStorage.setItem(`moor_event_log_identity_${playerOid}`, identity);
-                } catch (keyError) {
-                    console.error("Failed to register event-log encryption:", keyError);
+                } catch {
+                    console.error("Failed to register event-log encryption");
                     encryptionSetupFailed = true;
                 }
             }
@@ -365,6 +402,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
     }, [establishSession, onSystemMessage]);
 
     const disconnect = useCallback(() => {
+        pendingEncryptionPassword.current = null;
         clearAuthSession();
 
         setAuthState({
@@ -402,6 +440,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         silent: boolean,
         preserveHistory: boolean,
     ) => {
+        pendingEncryptionPassword.current = null;
         const reconnectCredentials = readReconnectCredentials();
         const previousSession = readAuthSession();
         const historyPlayerOid = preserveHistory
@@ -500,6 +539,7 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         connect,
         disconnect,
         establishSession,
+        takePendingEncryptionPassword,
         setPlayerConnected,
         updateReconnectCredentials,
         rotatePlayerIdentity,

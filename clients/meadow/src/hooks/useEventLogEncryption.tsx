@@ -46,9 +46,10 @@ function initialEncryptionState(playerOid: string | null): EncryptionState {
 
 /// Fetch the age public key registered with the server for the authenticated player,
 /// or null when the player has no event-log encryption registered.
-async function fetchRegisteredPublicKey(authToken: string): Promise<string | null> {
+async function fetchRegisteredPublicKey(authToken: string, signal?: AbortSignal): Promise<string | null> {
     const response = await fetch("/v1/event-log/pubkey", {
         headers: buildAuthHeaders(authToken),
+        signal,
     });
     if (!response.ok) {
         throw new Error(`Unable to check encryption status (${response.status})`);
@@ -132,18 +133,24 @@ export const useEventLogEncryption = (
 
     const setupEncryption = useCallback(async (
         password: string,
-        options?: { allowRekey?: boolean },
+        options?: { allowRekey?: boolean; signal?: AbortSignal },
     ): Promise<{ success: boolean; error?: string }> => {
         if (!authToken || !playerOid) {
             return { success: false, error: "Not authenticated" };
         }
 
+        const signal = options?.signal;
+        if (signal?.aborted) return { success: false };
+
         try {
-            const registeredPublicKey = await fetchRegisteredPublicKey(authToken);
+            const registeredPublicKey = await fetchRegisteredPublicKey(authToken, signal);
+            if (signal?.aborted) return { success: false };
 
             const bytes = await deriveKeyBytes(password, playerOid);
+            if (signal?.aborted) return { success: false };
             const identity = identityFromDerivedBytes(bytes);
             const publicKey = await publicKeyFromIdentity(identity);
+            if (signal?.aborted) return { success: false };
 
             // A key is already registered: only overwrite it when the caller explicitly
             // requested a reset. Otherwise this is a validate-and-restore operation.
@@ -169,12 +176,13 @@ export const useEventLogEncryption = (
             const response = await fetch("/v1/event-log/pubkey", {
                 method: "PUT",
                 headers,
+                signal,
                 body: JSON.stringify({ public_key: publicKey }),
             });
+            if (signal?.aborted) return { success: false };
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error("Pubkey setup failed:", errorText);
+                console.error("Pubkey setup failed:", response.status);
                 return { success: false, error: `Server error: ${response.status}` };
             }
 
@@ -190,9 +198,10 @@ export const useEventLogEncryption = (
             });
 
             return { success: true };
-        } catch (error) {
-            console.error("Encryption setup failed:", error);
-            return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+        } catch {
+            if (signal?.aborted) return { success: false };
+            console.error("Encryption setup failed");
+            return { success: false, error: "Unable to set up encryption. Please try again." };
         }
     }, [authToken, playerOid]);
 
@@ -224,9 +233,9 @@ export const useEventLogEncryption = (
             }));
 
             return { success: true };
-        } catch (error) {
-            console.error("Failed to unlock encryption:", error);
-            return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+        } catch {
+            console.error("Failed to unlock encryption");
+            return { success: false, error: "Unable to unlock encryption. Please try again." };
         }
     }, [authToken, playerOid]);
 

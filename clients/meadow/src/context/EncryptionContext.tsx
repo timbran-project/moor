@@ -25,7 +25,7 @@ interface EncryptionContextType {
     checkEncryptionStatus: () => Promise<void>;
     setupEncryption: (
         password: string,
-        options?: { allowRekey?: boolean },
+        options?: { allowRekey?: boolean; signal?: AbortSignal },
     ) => Promise<{ success: boolean; error?: string }>;
     unlockEncryption: (password: string) => Promise<{ success: boolean; error?: string }>;
     forgetKey: () => void;
