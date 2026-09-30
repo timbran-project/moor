@@ -291,7 +291,7 @@ export function getCompletionSuffix(pattern: string, prefix: string): string | n
     const fullName = extractFullVerbName(pattern);
     const hasWildcard = pattern.includes("*");
 
-    let isMatch = false;
+    let isMatch: boolean;
 
     if (hasWildcard) {
         // Use verbcasecmp for patterns with wildcards (respects minimum prefix)

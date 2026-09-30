@@ -2,7 +2,7 @@
 # This is used by build-and-deploy.fish for building ARM64 images on x86_64 hardware
 
 # Multi-stage build: Frontend build stage
-FROM node:20-bookworm AS frontend-build
+FROM node:24-bookworm AS frontend-build
 WORKDIR /moor-frontend
 # Install the schema compiler used by the npm and Dart FlatBuffers runtimes.
 ARG FLATBUFFERS_VERSION=25.9.23
@@ -21,6 +21,7 @@ COPY clients/meadow/ ./clients/meadow/
 COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
 COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
+COPY tools/tsc.mjs tools/tsc.mjs
 RUN npm ci
 RUN npm run web:build
 

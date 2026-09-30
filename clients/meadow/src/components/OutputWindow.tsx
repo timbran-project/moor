@@ -200,7 +200,7 @@ export const OutputWindow: React.FC<OutputWindowProps> = ({
     }, [onLinkClick, createLinkClickHandler]);
 
     const getMessageClassName = (type: string, isHistorical?: boolean) => {
-        let baseClass = "";
+        let baseClass: string;
         switch (type) {
             case "input_echo":
                 baseClass = "input_echo";

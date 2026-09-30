@@ -25,12 +25,12 @@
   ],
   "scripts": {
     "generate": "node generate-typescript.mjs",
-    "build": "npm run generate && rm -rf dist && tsc -p tsconfig.json"
+    "build": "npm run generate && rm -rf dist && node ../../../tools/tsc.mjs -p tsconfig.json"
   },
   "dependencies": {
     "flatbuffers": "^25.9.23"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^7.0.2"
   }
 }

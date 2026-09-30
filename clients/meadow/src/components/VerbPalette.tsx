@@ -261,7 +261,7 @@ export const VerbPalette: React.FC<VerbPaletteProps> = ({ visible, onVerbSelect 
         const count = buttons.length;
         if (count === 0) return;
 
-        let newIndex = index;
+        let newIndex: number;
 
         switch (e.key) {
             case "ArrowRight":

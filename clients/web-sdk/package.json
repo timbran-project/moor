@@ -29,14 +29,14 @@
     "LICENSE"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+    "typecheck": "node ../../tools/tsc.mjs --noEmit",
+    "build": "rm -rf dist && node ../../tools/tsc.mjs -p tsconfig.build.json"
   },
   "dependencies": {
     "@moor/schema": "^2.0.0-dev"
   },
   "devDependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^7.0.2"
   },
   "license": "LGPL-3.0-or-later"
 }

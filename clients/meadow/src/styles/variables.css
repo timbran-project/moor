@@ -261,13 +261,13 @@
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.3s ease;
+}
 
-  /* CRT Animations */
-  @keyframes crt-scanline {
-    0% { bottom: 100%; }
-    50% { bottom: 50%; }
-    100% { bottom: -120px; }
-  }
+/* CRT Animations */
+@keyframes crt-scanline {
+  0% { bottom: 100%; }
+  50% { bottom: 50%; }
+  100% { bottom: -120px; }
 }
 
 /* Light Theme Class - Applied to body or other container */

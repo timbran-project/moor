@@ -278,7 +278,9 @@ export const useObjectMutations = ({
                     await performEvalFlatBuffer(authToken, nameExpr);
                 } catch (error) {
                     console.error("Failed to set name:", error);
-                    throw new Error(`Failed to set name: ${error instanceof Error ? error.message : String(error)}`);
+                    throw new Error(`Failed to set name: ${error instanceof Error ? error.message : String(error)}`, {
+                        cause: error,
+                    });
                 }
             }
 
@@ -308,6 +310,7 @@ export const useObjectMutations = ({
                         console.error("Failed to set flags:", error);
                         throw new Error(
                             `Failed to set flags: ${error instanceof Error ? error.message : String(error)}`,
+                            { cause: error },
                         );
                     }
                 }

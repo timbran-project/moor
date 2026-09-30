@@ -43,7 +43,7 @@ export const ExternalLinkModal: React.FC<ExternalLinkModalProps> = ({
 
     // Parse URL components for display
     let protocol = "";
-    let hostname = "";
+    let hostname: string;
     let path = "";
 
     try {

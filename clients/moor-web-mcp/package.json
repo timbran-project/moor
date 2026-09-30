@@ -13,8 +13,8 @@
   ],
   "scripts": {
     "start": "node --import tsx src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "node ../../tools/tsc.mjs -p tsconfig.json",
+    "typecheck": "node ../../tools/tsc.mjs --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@moor/schema": "2.0.0-dev",
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@types/node": "^24.3.0",
     "@types/ws": "^8.18.1",
-    "typescript": "^5.9.2"
+    "typescript": "^7.0.2"
   },
   "license": "GPL-3.0"
 }

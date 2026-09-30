@@ -1,5 +1,5 @@
 # Frontend build stage
-FROM node:20-bookworm AS frontend-build
+FROM node:24-bookworm AS frontend-build
 WORKDIR /moor-frontend
 ARG FLATBUFFERS_VERSION=25.9.23
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git unzip && \
@@ -15,6 +15,7 @@ COPY clients/meadow/ ./clients/meadow/
 COPY clients/moor-web-mcp/ ./clients/moor-web-mcp/
 COPY clients/web-sdk/ ./clients/web-sdk/
 COPY crates/schema/schema/ ./crates/schema/schema/
+COPY tools/tsc.mjs tools/tsc.mjs
 RUN npm ci
 RUN npm run web:build
 

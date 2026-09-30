@@ -36,9 +36,9 @@ export default defineConfig({
         emptyOutDir: true,
         sourcemap: process.env.MEADOW_SOURCEMAPS === "true",
         manifest: true,
-        rollupOptions: {
+        rolldownOptions: {
             input: {
-                main: resolve(__dirname, "src/index.html"),
+                main: resolve(import.meta.dirname, "src/index.html"),
             },
         },
     },
@@ -57,8 +57,8 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            "@": resolve(__dirname, "./src"),
-            "@/components": resolve(__dirname, "./src/components"),
+            "@": resolve(import.meta.dirname, "./src"),
+            "@/components": resolve(import.meta.dirname, "./src/components"),
         },
     },
     server: {

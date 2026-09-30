@@ -467,7 +467,11 @@ export const useWebSocket = (
     // Send message (text string or binary data)
     const sendMessage = useCallback((message: string | Uint8Array | ArrayBuffer) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-            socketRef.current.send(message);
+            // WebSocket does not accept views over shared memory.
+            if (message instanceof Uint8Array && !(message.buffer instanceof ArrayBuffer)) {
+                throw new TypeError("WebSocket messages must use an ArrayBuffer");
+            }
+            socketRef.current.send(message as string | Uint8Array<ArrayBuffer> | ArrayBuffer);
             return true;
         } else {
             onSystemMessage("Not connected to server", 3);

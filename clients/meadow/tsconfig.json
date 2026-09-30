@@ -14,7 +14,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "types": ["vite/client"],
@@ -34,7 +34,6 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Path mapping */
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],

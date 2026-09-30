@@ -43,7 +43,13 @@
   "author": "Ryan Daum <ryan.daum@gmail.com>",
   "license": "AGPL-3.0-only",
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "dprint": "0.55.2"
+    "concurrently": "^10.0.5",
+    "dprint": "0.55.2",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "ts-api-utils": {
+      "typescript": "npm:@typescript/typescript6@^6.0.2"
+    }
   }
 }

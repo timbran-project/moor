@@ -94,8 +94,8 @@ Meadow is a React application built with Vite and TypeScript, with an optional
 
 ## Development
 
-Run these commands from the mooR repository root so npm resolves the local schema and SDK
-workspaces:
+Use Node.js 24.15 or later. Run these commands from the mooR repository root so npm resolves the
+local schema and SDK workspaces:
 
 ```bash
 # Install dependencies
@@ -122,6 +122,13 @@ npm run lint --workspace meadow
 `npm run lint --workspace meadow` requires zero warnings and runs in the web CI job. React hook
 dependency violations are errors; explicit `any` and unused suppression warnings also fail the gate.
 
+Builds and typechecks use the root TypeScript 7 native compiler through `tools/tsc.mjs`. The
+launcher resolves the root package directly because npm can link the transitive TypeScript 6 binary
+over `tsc`. Meadow aliases its local `typescript` dependency to `@typescript/typescript6` because
+ESLint still requires the JavaScript compiler API. The root override keeps ESLint's `ts-api-utils`
+on that API too, since its peer range also accepts TypeScript 7 despite requiring the removed
+JavaScript API. Keep the root compiler version aligned with the schema, SDK, and MCP workspaces.
+
 `npm run typecheck --workspace meadow` checks four TypeScript projects in order:
 
 | Command            | Configuration          | Checked code and environment                                                                                              |
@@ -134,7 +141,7 @@ dependency violations are errors; explicit `any` and unused suppression warnings
 The application and test projects also check their imported source files. Shared worker helpers can
 be checked from both the browser and worker projects. Each environment selects its own ambient
 types; Vitest's imported jsdom configuration types additionally bring DOM declarations into the Node
-configuration project. Node type definitions target the Node 20 runtime used in CI.
+configuration project. Node type definitions target the Node 24 runtime used in CI.
 
 `npm run build --workspace meadow` checks the application and worker projects before bundling. The
 existing web CI job runs `npm run web:typecheck`, which includes all four Meadow checks along with
