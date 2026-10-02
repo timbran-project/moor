@@ -42,7 +42,6 @@ path = "src/bin/moor-daemon.rs"
 
 [dependencies]
 # Telemetry
-fast-telemetry.workspace = true
 
 # Internal Dependencies
 moor-common = { path = "../common" }

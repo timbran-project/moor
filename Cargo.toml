@@ -175,14 +175,12 @@ iana-time-zone = "0.1"
 
 # Text Processing & Regex
 arcstr = "1.2"
-encoding_rs = "0.8"
 natord = "1.0"
 onig = { version = "6.5", default-features = false }
 regex = "1.11"
 scraper = "0.27"
 strsim = "0.11"
 unicase = "2.8"
-unicode-width = "0.2"
 
 # Compiler & Language Processing
 ariadne = "0.6"
@@ -207,7 +205,6 @@ eyre = "0.6"
 log = "0.4"
 thiserror = "2.0"
 tracing = "0.1"
-tracing-log = "0.2"
 tracing-subscriber = "0.3"
 
 # Utilities & Helpers
@@ -217,7 +214,6 @@ diffy = "0.5"
 hostname = "0.4"
 micromeasure = "0.16"
 paste = "1.0"
-perf_event = { package = "perf-event2", version = "0.7" }
 rand = "0.10"
 semver = { version = "1.0", features = ["serde"] }
 strum = { version = "0.28", features = ["derive"] }
@@ -245,6 +241,8 @@ test_each_file = "0.3"
 unindent = "0.2"
 
 # Terminal & UI
+anstream = { version = "1.0", features = ["test"] }
+anstyle = "1.0"
 colored = "3.0"
 crossterm = "0.29"
 jotdown = { version = "0.10", default-features = false }

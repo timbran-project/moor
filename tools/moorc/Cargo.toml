@@ -44,7 +44,6 @@ clap_derive.workspace = true
 color-eyre.workspace = true
 eyre.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 
 # Utilities & Helpers
 semver.workspace = true

@@ -153,27 +153,12 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43d5b281e737544384e969a5ccad3f1cdd24b48086a0fc1b2a5262a26b8f4f4a"
-dependencies = [
- "anstyle",
- "anstyle-parse 0.2.7",
- "anstyle-query",
- "anstyle-wincon",
- "colorchoice",
- "is_terminal_polyfill",
- "utf8parse",
-]
-
-[[package]]
-name = "anstream"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
 dependencies = [
  "anstyle",
- "anstyle-parse 1.0.0",
+ "anstyle-parse",
  "anstyle-query",
  "anstyle-wincon",
  "colorchoice",
@@ -186,15 +171,6 @@ name = "anstyle"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
-
-[[package]]
-name = "anstyle-parse"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e7644824f0aa2c7b9384579234ef10eb7efb6a0deb83f9630a49594dd9c15c2"
-dependencies = [
- "utf8parse",
-]
 
 [[package]]
 name = "anstyle-parse"
@@ -839,7 +815,7 @@ version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d"
 dependencies = [
- "anstream 1.0.0",
+ "anstream",
  "anstyle",
  "clap_lex",
  "strsim",
@@ -987,12 +963,6 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
-
-[[package]]
-name = "core_detect"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 
 [[package]]
 name = "corosensei"
@@ -1595,21 +1565,6 @@ dependencies = [
  "sec1",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "encoding_rs"
-version = "0.8.41"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5ef0006ac9ab233c38522f5ae99cae3625151de8f706cacee1cba4b8e2832a"
-dependencies = [
- "cfg-if",
- "core_detect",
- "multiversion",
- "multiversion_no_op",
- "rustversion",
- "scopeguard",
- "simdutf8",
 ]
 
 [[package]]
@@ -2933,9 +2888,7 @@ dependencies = [
  "clap",
  "clap_derive",
  "csv",
- "libc",
  "tabled",
- "tempfile",
  "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
@@ -3286,7 +3239,6 @@ dependencies = [
 name = "moor-builtin-docs-macro"
 version = "2.0.0-dev"
 dependencies = [
- "proc-macro2",
  "quote",
  "syn 2.0.119",
 ]
@@ -3311,7 +3263,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
- "tracing-log",
  "tracing-subscriber",
  "triomphe",
  "uuid 1.26.1",
@@ -3326,14 +3277,12 @@ version = "2.0.0-dev"
 dependencies = [
  "ariadne",
  "base64 0.22.1",
- "byteview",
  "chrono",
  "itertools 0.15.0",
  "md5",
  "micromeasure",
  "moor-common",
  "moor-var",
- "planus",
  "pretty_assertions",
  "proptest",
  "rowan",
@@ -3379,7 +3328,6 @@ dependencies = [
  "color-eyre",
  "ed25519-dalek",
  "eyre",
- "fast-telemetry",
  "fjall",
  "flume",
  "fs2",
@@ -3493,14 +3441,12 @@ version = "2.0.0-dev"
 dependencies = [
  "age",
  "ahash",
- "anstream 0.6.21",
- "anstyle",
+ "anstream",
  "arc-swap",
  "argon2",
  "arrayvec",
  "base32",
  "base64 0.22.1",
- "byteview",
  "chrono",
  "chrono-tz",
  "eyre",
@@ -3528,7 +3474,6 @@ dependencies = [
  "onig",
  "papaya",
  "parking_lot",
- "paste",
  "planus",
  "pretty_assertions",
  "rand 0.10.3",
@@ -3540,7 +3485,6 @@ dependencies = [
  "serde_json",
  "sha1 0.11.0",
  "sha2 0.11.0",
- "smallvec",
  "ssh-key",
  "strum",
  "tempfile",
@@ -3562,21 +3506,17 @@ dependencies = [
  "color-eyre",
  "diffy",
  "eyre",
- "futures-util",
  "moor-common",
  "moor-compiler",
  "moor-runtime-api",
  "moor-schema",
  "moor-var",
  "moor-zmq-client",
- "planus",
  "serde",
  "serde_derive",
  "serde_json",
- "thiserror 2.0.21",
  "tmq",
  "tokio",
- "tokio-util",
  "tracing",
  "tracing-subscriber",
  "uuid 1.26.1",
@@ -3602,7 +3542,6 @@ dependencies = [
  "moor-schema",
  "moor-var",
  "moor-zmq-client",
- "planus",
  "rand 0.10.3",
  "semver",
  "tabled",
@@ -3610,7 +3549,6 @@ dependencies = [
  "tmq",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "uuid 1.26.1",
 ]
 
@@ -3618,13 +3556,12 @@ dependencies = [
 name = "moor-moot"
 version = "2.0.0-dev"
 dependencies = [
- "anstream 0.6.21",
+ "anstream",
  "anstyle",
  "eyre",
  "moor-var",
  "pest",
  "pest_derive",
- "pretty_assertions",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3650,7 +3587,6 @@ name = "moor-runtime-api"
 version = "2.0.0-dev"
 dependencies = [
  "async-trait",
- "byteview",
  "clap",
  "clap_derive",
  "ed25519-dalek",
@@ -3671,7 +3607,6 @@ name = "moor-schema"
 version = "2.0.0-dev"
 dependencies = [
  "byteview",
- "eyre",
  "micromeasure",
  "moor-common",
  "moor-schema-macros",
@@ -3679,8 +3614,6 @@ dependencies = [
  "planus",
  "serde",
  "thiserror 2.0.21",
- "tracing",
- "tracing-subscriber",
  "triomphe",
  "uuid 1.26.1",
 ]
@@ -3748,7 +3681,6 @@ dependencies = [
  "moor-schema",
  "moor-var",
  "moor-zmq-client",
- "planus",
  "regex",
  "serde",
  "serial_test",
@@ -3768,7 +3700,6 @@ name = "moor-textdump"
 version = "2.0.0-dev"
 dependencies = [
  "base64 0.22.1",
- "encoding_rs",
  "moor-common",
  "moor-compiler",
  "moor-db",
@@ -3792,7 +3723,6 @@ dependencies = [
  "micromeasure",
  "minicbor",
  "papaya",
- "paste",
  "rand 0.10.3",
  "serde",
  "serde_json",
@@ -3846,11 +3776,9 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sha2 0.11.0",
- "tempfile",
  "thiserror 2.0.21",
  "tmq",
  "tokio",
- "tower",
  "tower-http 0.7.1",
  "tower_governor",
  "tracing",
@@ -3906,35 +3834,7 @@ dependencies = [
  "tabled",
  "tempfile",
  "tracing",
- "tracing-subscriber",
 ]
-
-[[package]]
-name = "multiversion"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ca4bea16ffc3f443cf7d866912118196bfef4c6a1556ca00f9f9b00bb43f7c"
-dependencies = [
- "multiversion-macros",
-]
-
-[[package]]
-name = "multiversion-macros"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d416831a7317ef4b08bee00b69cbbb9c8763da7959a7026244d6266869f9c83"
-dependencies = [
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 3.0.5",
-]
-
-[[package]]
-name = "multiversion_no_op"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "munge"

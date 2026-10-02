@@ -59,7 +59,6 @@ hickory-resolver.workspace = true
 ipnet.workspace = true
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 tmq.workspace = true
-tower.workspace = true
 tower-http.workspace = true
 tower_governor.workspace = true
 webrtc.workspace = true
@@ -83,4 +82,3 @@ uuid.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
-tempfile.workspace = true

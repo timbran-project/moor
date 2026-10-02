@@ -28,12 +28,7 @@ test-case.workspace = true
 test_each_file.workspace = true
 tracing.workspace = true
 
-# SOURCE OF TRUTH FOR VERSIONS: crates/testing/moot/Cargo.toml
-# Optional dependencies are not supported for workspace-inherited dependencies.
-# Alternative to optional color support is enforced color support; then we can move `anstream`
-# and `anstyle` to the top level as usual.
-anstream = { version = "0.6.18", features = ["test"] }
-anstyle = { version = "1.0.10" }
+anstream.workspace = true
 
 [[test]]
 name = "regression-suite"
@@ -130,7 +125,6 @@ scraper.workspace = true
 ahash.workspace = true
 arrayvec.workspace = true
 hierarchical_hash_wheel_timer.workspace = true
-smallvec.workspace = true
 triomphe.workspace = true
 
 # Error Handling & Logging
@@ -138,8 +132,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # Utilities & Helpers
-byteview.workspace = true
-paste.workspace = true
 rand.workspace = true
 semver.workspace = true
 strum.workspace = true

@@ -22,7 +22,6 @@ clap.workspace = true
 clap_derive.workspace = true
 
 # Serialization & Data Formats
-byteview.workspace = true
 planus.workspace = true
 serde.workspace = true
 

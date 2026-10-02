@@ -26,7 +26,6 @@ base64.workspace = true
 serde.workspace = true
 
 # Text Processing & Regex
-encoding_rs.workspace = true
 
 # Error Handling & Logging
 thiserror.workspace = true

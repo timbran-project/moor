@@ -60,7 +60,6 @@ thiserror.workspace = true
 
 # Utilities & Helpers
 byteview.workspace = true
-paste.workspace = true
 rand.workspace = true
 strum.workspace = true
 zerocopy.workspace = true

@@ -12,6 +12,5 @@ description = "Proc macro for extracting builtin function documentation at compi
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0"
-quote = "1.0"
-syn = { version = "2.0", features = ["full", "parsing", "visit"] }
+quote.workspace = true
+syn = { workspace = true, features = ["visit"] }

@@ -47,7 +47,6 @@ clap.workspace = true
 clap_derive.workspace = true
 
 # Serialization & Data Formats
-planus.workspace = true
 serde.workspace = true
 
 # Networking & Communication
