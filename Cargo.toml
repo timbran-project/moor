@@ -153,7 +153,7 @@ tokio = { version = "1.52", features = ["full"] }
 tokio-util = { version = "0.7", features = ["full"] }
 
 # Authentication & Security
-age = "0.11"
+age = "0.12"
 argon2 = "0.5"
 base32 = "0.5"
 base64 = "0.22"
@@ -250,5 +250,3 @@ rustyline = "18.0"
 # Patch to forked (maintained by me) version of ZeroMQ
 [patch.crates-io]
 zmq = { git = "https://github.com/rdaum/rust-zmq" }
-age = { git = "https://github.com/str4d/rage", rev = "d1912012424ccb7b63172813ee2776cc570684fa" }
-age-core = { git = "https://github.com/str4d/rage", rev = "d1912012424ccb7b63172813ee2776cc570684fa" }

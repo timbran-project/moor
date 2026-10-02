@@ -79,6 +79,21 @@ mod tests {
     use age::secrecy::ExposeSecret;
 
     #[test]
+    fn decrypts_event_log_ciphertext_from_pinned_age() {
+        use base64::Engine;
+
+        // Public fixture produced by Age at d1912012424ccb7b63172813ee2776cc570684fa.
+        let key = "AGE-SECRET-KEY-1KUF4NDDMYHZAE93E3A3QETYCS5JNJ4VP2AN7F3R4Z0ADKGCKMK4S6FXEHW";
+        let ciphertext = base64::engine::general_purpose::STANDARD
+            .decode("YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBSNlhoQ1JmV0lKM2wwTjV0RDBGNGVMNERVRTdyMjNxYnFOUVpyMHdFQmxFClZTaDc0c0Z3ZWFVcmcxcmt2K00wRUFiTjdMdDFVSEgxVzQyOGxwdmlla0EKLT4ga1IlLDRzQGEtZ3JlYXNlIH5RaXkKbkhLVlhNRVVTVTBpeEpxaHFoYmhyQQotLS0gYlBicVYvTWZ0ZjJxWTdDYzFZZk9NSW84REpVOVJTN2twU2RSMEVKY3gyOApn4QZS0N94cAGz56ojeGw+L2j9OLRzDVn9wA52/8vhzgHsH40TjVBR/zD9x3cHhav3XdJTpvc6LgCgem9rFGq/")
+            .unwrap();
+        assert_eq!(
+            decrypt(&ciphertext, key).unwrap(),
+            b"persisted mooR event log fixture"
+        );
+    }
+
+    #[test]
     fn test_encrypt_decrypt_roundtrip() {
         // Generate a key pair
         let identity = x25519::Identity::generate();
