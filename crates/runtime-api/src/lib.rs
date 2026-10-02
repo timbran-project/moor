@@ -181,6 +181,8 @@ impl<T> RpcErr<T> for Result<T, String> {
 /// Note: This is an internal Rust error type, converted to FlatBuffer format for serialization.
 #[derive(Debug, PartialEq, Error, Clone)]
 pub enum RpcMessageError {
+    #[error("Event stream retention or generation expired")]
+    EventStreamExpired,
     #[error("Already connected")]
     AlreadyConnected,
     #[error("Invalid request")]

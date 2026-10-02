@@ -169,6 +169,24 @@ impl RuntimeApi for RpcMessageHandler {
         request: ClientRequest,
     ) -> Result<ClientReply, RpcMessageError> {
         match request {
+            ClientRequest::EventStream {
+                client_token,
+                request,
+            } => {
+                let connection = self.client_auth(client_token, client_id)?;
+                let keep_alive = matches!(
+                    request.operation,
+                    moor_runtime_api::api::EventStreamOperation::Open
+                        | moor_runtime_api::api::EventStreamOperation::Acknowledge
+                );
+                let state = self.client_events.stream(client_id, request)?;
+                if keep_alive {
+                    self.connections
+                        .notify_is_alive(client_id, connection)
+                        .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
+                }
+                Ok(ClientReply::EventStream(state))
+            }
             ClientRequest::ConnectionEstablish {
                 peer_addr,
                 local_port,

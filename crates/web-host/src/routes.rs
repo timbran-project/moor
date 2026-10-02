@@ -173,6 +173,14 @@ pub fn mk_routes(
             "/v1/system_property/{*path}",
             get(host::system_property_handler),
         )
+        .route("/v1/session", post(host::attach_stream_handler))
+        .route("/v1/session/command", post(host::session_command_handler))
+        .route(
+            "/v1/session/input/{request_id}",
+            post(host::session_input_handler),
+        )
+        .route("/v1/events/stream", get(host::event_stream_handler))
+        .route("/v1/events/ack", post(host::acknowledge_events_handler))
         .route("/v1/command", post(host::command_handler))
         .route("/v1/eval", post(host::eval_handler))
         .route("/v1/features", get(host::features_handler))

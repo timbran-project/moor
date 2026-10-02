@@ -147,6 +147,20 @@ impl HostServices for ZmqHostServices {
         ))
     }
 
+    fn client_event_notifications(
+        &self,
+        client_id: Uuid,
+    ) -> Result<Box<dyn moor_runtime_api::api::ClientEventSubscription>, RpcError> {
+        let subscribe = self
+            .subscriber()?
+            .connect(self.events_address.as_str())
+            .and_then(|subscriber| subscriber.subscribe(&client_id.as_bytes()[..]))
+            .map_err(|e| RpcError::CouldNotInitiateSession(e.to_string()))?;
+        Ok(Box::new(ZmqClientEventSubscription::new(
+            client_id, subscribe,
+        )))
+    }
+
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError> {
         let events_sub = self
             .subscriber()?

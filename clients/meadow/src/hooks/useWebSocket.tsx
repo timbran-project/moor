@@ -12,8 +12,8 @@
 //
 
 import type { NarrativeMessageHandler } from "@moor/web-sdk";
-import { buildWsAttach } from "@moor/web-sdk";
-import type { PlayerIdentityUpdate } from "@moor/web-sdk";
+import { buildWsAttach, SseSessionTransport } from "@moor/web-sdk";
+import type { PlayerIdentityUpdate, SessionTransport, SseResumeState } from "@moor/web-sdk";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     isClientSessionActive,
@@ -22,7 +22,7 @@ import {
     setClientSessionActive,
 } from "../lib/auth-session";
 import { DataMessageHandlerEvent, handleClientEventFlatBuffer } from "../lib/rpc-fb";
-import { getWebSocketBaseUrl } from "../lib/serverConfig";
+import { getServerBaseUrl, getWebSocketBaseUrl } from "../lib/serverConfig";
 import { InputMetadata } from "../types/input";
 import { PresentationData } from "../types/presentation";
 import { Player } from "./useAuth";
@@ -56,7 +56,7 @@ function createHandshakeId(): string {
 }
 
 export interface WebSocketState {
-    socket: WebSocket | null;
+    socket: SessionTransport | null;
     isConnected: boolean;
     connectionStatus: "disconnected" | "connecting" | "connected" | "error";
     connectionError?: string;
@@ -84,7 +84,9 @@ export const useWebSocket = (
     const [stateRevision, setStateRevision] = useState(0);
     const [inputMetadata, setInputMetadata] = useState<InputMetadata | null>(null);
 
-    const socketRef = useRef<WebSocket | null>(null);
+    const socketRef = useRef<SessionTransport | null>(null);
+    const sseResume = useRef<SseResumeState>({ sequence: 0n, inputRequests: [], pendingTask: false });
+    const useSse = new URLSearchParams(window.location.search).get("transport") === "sse";
     const reconnectTimeoutRef = useRef<number | null>(null);
     const handshakeTimeoutRef = useRef<number | null>(null);
     const authCheckRef = useRef<AbortController | null>(null);
@@ -128,7 +130,7 @@ export const useWebSocket = (
     const handleMessage = useCallback(async (event: MessageEvent) => {
         // Queue message processing to ensure sequential handling
         // This prevents race conditions when async processing causes reordering
-        processingRef.current = processingRef.current.then(async () => {
+        processingRef.current = processingRef.current.catch(() => {}).then(async () => {
             try {
                 // All messages are now binary FlatBuffer format
                 if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
@@ -152,6 +154,7 @@ export const useWebSocket = (
                     lastSocketActivityAtRef.current = Date.now();
 
                     handleClientEventFlatBuffer(data, {
+                        throwOnError: useSse,
                         onSystemMessage,
                         onNarrativeMessage,
                         onPresentMessage,
@@ -173,9 +176,12 @@ export const useWebSocket = (
                 }
             } catch (error) {
                 console.error("Failed to parse WebSocket message:", error);
+                if (useSse) throw error;
             }
         });
+        return processingRef.current;
     }, [
+        useSse,
         onSystemMessage,
         onNarrativeMessage,
         onPresentMessage,
@@ -284,7 +290,22 @@ export const useWebSocket = (
             const url = new URL(wsUrl);
             url.searchParams.set("attempt", attempt);
             logTiming("starting");
-            const ws = new WebSocket(url.toString(), wsProtocols);
+            const ws: SessionTransport = useSse
+                ? new SseSessionTransport(
+                    getServerBaseUrl(),
+                    {
+                        mode,
+                        credentials: {
+                            authToken: player.authToken,
+                            isInitialAttach: player.isInitialAttach,
+                            clientId,
+                            clientToken,
+                        },
+                    },
+                    sseResume.current,
+                    credentials => onCredentialsUpdated?.(credentials),
+                )
+                : new WebSocket(url.toString(), wsProtocols);
             socketRef.current = ws;
             let opened = false;
             const clearHandshakeTimeout = () => {
@@ -374,7 +395,7 @@ export const useWebSocket = (
                 setWsState({
                     socket: null,
                     isConnected: false,
-                    connectionStatus: event.code === 1000 ? "disconnected" : "error",
+                    connectionStatus: event.code === 1000 || event.code === 4009 ? "disconnected" : "error",
                     connectionError: event.code === 1000
                         ? undefined
                         : opened
@@ -435,6 +456,8 @@ export const useWebSocket = (
             );
         }
     }, [
+        useSse,
+        onCredentialsUpdated,
         stopConnection,
         handleMessage,
         onAuthFailure,

@@ -55,6 +55,13 @@ impl HostServices for LocalRuntimeServices {
         ))
     }
 
+    fn client_event_notifications(
+        &self,
+        client_id: Uuid,
+    ) -> Result<Box<dyn moor_runtime_api::api::ClientEventSubscription>, RpcError> {
+        Ok(Box::new(self.event_bus.subscribe_client_events(client_id)))
+    }
+
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError> {
         Ok(Box::new(self.event_bus.subscribe_host_events()))
     }

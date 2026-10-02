@@ -455,6 +455,11 @@ impl RpcTransport {
                         Some(msg.clone()),
                         None,
                     ),
+                    RpcMessageError::EventStreamExpired => (
+                        moor_rpc::RpcMessageErrorCode::EventStreamExpired,
+                        None,
+                        None,
+                    ),
                     RpcMessageError::InternalError(msg) => (
                         moor_rpc::RpcMessageErrorCode::InternalError,
                         Some(msg.clone()),
@@ -548,6 +553,11 @@ impl RpcTransport {
                     RpcMessageError::EntityRetrievalError(msg) => (
                         moor_rpc::RpcMessageErrorCode::EntityRetrievalError,
                         Some(msg.clone()),
+                        None,
+                    ),
+                    RpcMessageError::EventStreamExpired => (
+                        moor_rpc::RpcMessageErrorCode::EventStreamExpired,
+                        None,
                         None,
                     ),
                     RpcMessageError::InternalError(msg) => (

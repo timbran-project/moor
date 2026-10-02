@@ -410,6 +410,7 @@ pub fn rpc_message_error_from_ref(
         rpc::RpcMessageErrorCode::EntityRetrievalError => {
             Ok(RpcMessageError::EntityRetrievalError(message))
         }
+        rpc::RpcMessageErrorCode::EventStreamExpired => Ok(RpcMessageError::EventStreamExpired),
         rpc::RpcMessageErrorCode::InternalError => Ok(RpcMessageError::InternalError(message)),
     }
 }

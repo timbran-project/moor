@@ -945,7 +945,8 @@ impl TelnetConnection {
                                 self.handle_connection_option(option_name, Some(value)).await?;
                             }
                         }
-                        ClientEvent::CredentialsUpdated { .. } => {
+                        ClientEvent::EventsAvailable => bail!("Connection delivery ownership changed"),
+            ClientEvent::CredentialsUpdated { .. } => {
                             // Not relevant for telnet - only used by web clients
                         }
                     }
@@ -1433,6 +1434,7 @@ impl TelnetConnection {
         event: ClientEvent,
     ) -> Result<Option<(Uuid, InputMetadata)>, eyre::Error> {
         match event {
+            ClientEvent::EventsAvailable => bail!("Connection delivery ownership changed"),
             ClientEvent::SystemMessage { message, .. } => {
                 self.send_line(&message)
                     .await

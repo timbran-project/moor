@@ -195,3 +195,39 @@ For load balancers and orchestrators:
 - [Server Architecture](../the-system/server-architecture.md)
 - [Running a mooR Server](../the-system/running-the-server.md)
 - [Server Configuration](../the-system/server-configuration.md)
+
+## SSE event delivery
+
+To select SSE, add `?transport=sse` to the Meadow URL. WebSocket remains the default transport.
+
+Delivery mode applies to each connection. Telnet and WebSocket connections keep host-owned
+acknowledgement and full event delivery. Only an explicit SSE session open enables browser-owned
+acknowledgement. The daemon does not require a web-host for other connection types.
+
+The daemon retains live event payloads until the browser acknowledges them. The SSE response carries
+base64-encoded FlatBuffer payloads with generation and sequence IDs. Meadow decodes and processes
+each payload without a separate HTTP retrieval request. It coalesces cumulative acknowledgements
+over 100 milliseconds. Acknowledgement responses do not block event delivery or commands. Idle
+clients repeat their acknowledgement every 10 seconds.
+
+The web-host does not retain a delivery backlog. Attachment, streaming, and acknowledgement requests
+can reach different web-host instances connected to the same daemon. No sticky routing is required.
+An open SSE response occupies one HTTP connection and holds at most one bounded daemon batch. The
+browser resumes from its last processed sequence; this cursor does not acknowledge delivery.
+
+The daemon limits retention to 8,192 events and 16 MiB per connection, with a 256 MiB global payload
+limit. Browser-owned payloads expire after five minutes. A backlog that exceeds a limit disconnects
+the connection. Connections without liveness updates expire after 30 seconds, which can shorten the
+reconnect window.
+
+An expired connection or delivery gap requires a fresh session. Meadow then uses history and current
+presentation snapshots for recovery. This recovery depends on the existing event-log configuration
+and encryption key. Connection-specific events cannot be recovered after expiry or a daemon restart.
+The stream generation prevents an old acknowledgement from removing events in a new stream.
+
+The SSE endpoint sends `X-Accel-Buffering: no` and `Cache-Control: no-store`. The proxy must
+preserve streaming responses and pass the client credential headers. Meadow uses streaming fetch
+because its authentication headers do not fit the native EventSource constructor.
+
+The [HTTP API reference](http-api-reference.md#eventdelivery) describes the session, streaming, and
+acknowledgement endpoints. SSE delivery does not establish a WebRTC data channel.

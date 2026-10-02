@@ -3,7 +3,7 @@
 
 # HTTP API Reference
 
-HTTP/WebSocket API for the mooR virtual-world server.
+HTTP, WebSocket, and SSE API for the mooR virtual-world server.
 
 **Content negotiation** — Most `/v1/*` endpoints support two response formats selected via the
 `Accept` header:
@@ -404,6 +404,183 @@ Requires: `X-Moor-Auth-Token`
 - **101**: WebSocket upgrade successful
 - **401**: Missing or invalid auth token
 - **500**: Internal server error
+
+---
+
+## EventDelivery
+
+Daemon-owned delivery queues with SSE payloads and browser acknowledgements
+
+### `POST /v1/session`
+
+**Attach a browser-acknowledged session**
+
+Attaches a connection or reuses valid per-tab connection credentials. The optional client headers
+select a connection to reattach. The initial flag requests the login lifecycle callback. The create
+flag selects the new-player callback. The daemon retains all live payloads. Streaming a payload
+never acknowledges delivery. The JSON reply contains client_id, client_token, stream_id,
+acknowledged_sequence, available_after, and latest_sequence. Sequence fields are decimal strings.
+Each stream generation has its own sequence space.
+
+Requires: `X-Moor-Auth-Token`
+
+**Request body** (required)
+
+- Content-Type: `application/json`
+
+  | Field     | Type    | Required | Description |
+  | --------- | ------- | -------- | ----------- |
+  | `initial` | boolean | No       |             |
+  | `create`  | boolean | No       |             |
+
+**Responses**
+
+- **200**: Session credentials and stream metadata
+  - Content-Type: `application/json`
+- **400**: Invalid request or sequence beyond the stream watermark
+- **401**: Missing or invalid credentials
+- **410**: Connection, stream generation, or retained delivery expired
+- **502**: Daemon request failed
+
+---
+
+### `GET /v1/events/stream`
+
+**Stream base64 FlatBuffer event payloads**
+
+Each delivery event carries a standard base64-encoded ClientEvent FlatBuffer in data. Its SSE id is
+<stream_id>:<sequence>, matching the generation and payload sequence.
+
+The after cursor is exclusive and identifies the last event processed by the browser. Neither after
+nor Last-Event-ID acknowledges delivery. Only the explicit ACK releases payloads.
+
+The web-host reads bounded batches from the daemon as the HTTP response is consumed. Periodic reads
+recover missed pubsub notifications. Idle streams emit heartbeat events; these contain a decimal
+cursor and do not advance the browser's processed sequence.
+
+A reset event requires a fresh connection and history/presentation recovery. A retry event indicates
+a delivery error. An expired cursor returns 410 before streaming starts.
+
+Reconnects and ACK requests can use different web-host instances sharing the same daemon. The
+response disables proxy buffering with X-Accel-Buffering: no.
+
+**Parameters**
+
+| Name                  | In     | Type             | Required | Description                                                           |
+| --------------------- | ------ | ---------------- | -------- | --------------------------------------------------------------------- |
+| `X-Moor-Client-Token` | header | string           | Yes      | Client session token from login response                              |
+| `X-Moor-Client-Id`    | header | string (uuid)    | Yes      | Client session UUID from login response                               |
+| `stream_id`           | query  | string (uuid)    | Yes      | Stream generation from session attachment                             |
+| `after`               | query  | integer (uint64) | No       | Last processed sequence; does not acknowledge delivery (default: `0`) |
+
+**Responses**
+
+- **200**: SSE payload stream with periodic heartbeats
+  - Content-Type: `text/event-stream`
+- **400**: Invalid request or sequence beyond the stream watermark
+- **401**: Missing or invalid credentials
+- **410**: Connection, stream generation, or retained delivery expired
+- **502**: Daemon request failed
+
+---
+
+### `POST /v1/events/ack`
+
+**Acknowledge all processed deliveries through a sequence**
+
+Acknowledges the highest contiguous sequence that the application processed. The daemon removes
+payloads through that sequence. Duplicate and older acknowledgements are harmless. An
+acknowledgement beyond the stream watermark is invalid. The stream generation rejects late
+acknowledgements from another generation. An expired unacknowledged gap requires recovery.
+Acknowledgement also renews connection liveness. Idle clients send their current acknowledgement
+every 10 seconds.
+
+**Parameters**
+
+| Name                  | In     | Type          | Required | Description                              |
+| --------------------- | ------ | ------------- | -------- | ---------------------------------------- |
+| `X-Moor-Client-Token` | header | string        | Yes      | Client session token from login response |
+| `X-Moor-Client-Id`    | header | string (uuid) | Yes      | Client session UUID from login response  |
+
+**Request body** (required)
+
+- Content-Type: `application/json`
+
+  | Field       | Type          | Required | Description |
+  | ----------- | ------------- | -------- | ----------- |
+  | `stream_id` | string (uuid) | Yes      |             |
+  | `sequence`  | string        | Yes      |             |
+
+**Responses**
+
+- **204**: Acknowledgement accepted
+- **400**: Invalid request or sequence beyond the stream watermark
+- **401**: Missing or invalid credentials
+- **410**: Connection, stream generation, or retained delivery expired
+- **502**: Daemon request failed
+
+---
+
+### `POST /v1/session/command`
+
+**Submit a command on the attached connection**
+
+Runs the command with connected invocation semantics. Output and task completion arrive through the
+event stream. The client serializes commands until completion or suspension. The client does not
+automatically retry commands after a lost HTTP response.
+
+Requires: `X-Moor-Auth-Token`
+
+**Parameters**
+
+| Name                  | In     | Type          | Required | Description                              |
+| --------------------- | ------ | ------------- | -------- | ---------------------------------------- |
+| `X-Moor-Client-Token` | header | string        | Yes      | Client session token from login response |
+| `X-Moor-Client-Id`    | header | string (uuid) | Yes      | Client session UUID from login response  |
+
+**Request body** (required)
+
+- Content-Type: `text/plain`
+
+**Responses**
+
+- **202**: Command submitted
+- **400**: Invalid request or sequence beyond the stream watermark
+- **401**: Missing or invalid credentials
+- **410**: Connection, stream generation, or retained delivery expired
+- **502**: Daemon request failed
+
+---
+
+### `POST /v1/session/input/{request_id}`
+
+**Reply to a connection input request**
+
+Submits input for the request UUID from RequestInputEvent. Text bodies become MOO strings. A
+FlatBuffer body contains a serialized Var. Input requests take precedence over queued commands.
+
+Requires: `X-Moor-Auth-Token`
+
+**Parameters**
+
+| Name                  | In     | Type          | Required | Description                              |
+| --------------------- | ------ | ------------- | -------- | ---------------------------------------- |
+| `X-Moor-Client-Token` | header | string        | Yes      | Client session token from login response |
+| `X-Moor-Client-Id`    | header | string (uuid) | Yes      | Client session UUID from login response  |
+| `request_id`          | path   | string (uuid) | Yes      | Input request UUID                       |
+
+**Request body** (required)
+
+- Content-Type: `text/plain`
+- Content-Type: `application/x-flatbuffers`
+
+**Responses**
+
+- **204**: Input accepted
+- **400**: Invalid request or sequence beyond the stream watermark
+- **401**: Missing or invalid credentials
+- **410**: Connection, stream generation, or retained delivery expired
+- **502**: Daemon request failed
 
 ---
 

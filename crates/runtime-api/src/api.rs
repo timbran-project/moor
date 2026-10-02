@@ -275,9 +275,38 @@ pub struct ClientEventMessage {
     pub event: ClientEvent,
 }
 
+/// Operations on the daemon-owned delivery queue. Reads never acknowledge delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventStreamOperation {
+    Open,
+    Status,
+    Read,
+    Acknowledge,
+}
+
+#[derive(Debug, Clone)]
+pub struct EventStreamRequest {
+    pub operation: EventStreamOperation,
+    pub stream_id: Option<Uuid>,
+    pub sequence: u64,
+    pub limit: usize,
+}
+
+/// Stream metadata and optional serialized ClientEvent payloads.
+#[derive(Debug, Clone)]
+pub struct EventStreamState {
+    pub stream_id: Uuid,
+    pub acknowledged_sequence: u64,
+    pub available_after: u64,
+    pub latest_sequence: u64,
+    pub payloads: Vec<Arc<[u8]>>,
+}
+
 /// Events the daemon publishes to one client session.
 #[derive(Debug, Clone)]
 pub enum ClientEvent {
+    /// A watermark notification; retrieve the retained payloads through EventStream.
+    EventsAvailable,
     Narrative {
         player: Obj,
         event: NarrativeEvent,
@@ -380,6 +409,12 @@ pub trait HostServices: Send + Sync {
         client_token: ClientToken,
     ) -> Result<ClientSubscriptions, RpcError>;
 
+    /// Subscribe without host acknowledgements. Browser-owned streams publish only watermarks.
+    fn client_event_notifications(
+        &self,
+        client_id: Uuid,
+    ) -> Result<Box<dyn ClientEventSubscription>, RpcError>;
+
     fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError>;
 }
 
@@ -438,6 +473,10 @@ pub enum InvocationMode {
 /// Requests a client (via a host) sends to the daemon.
 #[derive(Debug, Clone)]
 pub enum ClientRequest {
+    EventStream {
+        client_token: ClientToken,
+        request: EventStreamRequest,
+    },
     ConnectionEstablish {
         peer_addr: String,
         local_port: u16,
@@ -609,6 +648,7 @@ pub enum ClientRequest {
 /// Replies the daemon returns to a client (via a host).
 #[derive(Debug, Clone)]
 pub enum ClientReply {
+    EventStream(EventStreamState),
     NewConnection {
         client_token: ClientToken,
         connection_obj: Obj,

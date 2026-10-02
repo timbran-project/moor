@@ -304,6 +304,7 @@ impl MessageHandler for RpcMessageHandler {
     }
 
     fn ping_pong(&self) -> Result<(), SessionError> {
+        self.client_events.expire();
         // Send ping to all clients
         let client_event = BroadcastEvent::PingPong;
         self.transport

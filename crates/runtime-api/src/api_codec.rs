@@ -188,6 +188,9 @@ pub fn encode_client_event(
     message: &ClientEventMessage,
 ) -> Result<moor_rpc::ClientEvent, RpcMessageError> {
     let event = match &message.event {
+        ClientEvent::EventsAvailable => moor_rpc::ClientEventUnion::EventsAvailableEvent(Box::new(
+            moor_rpc::EventsAvailableEvent {},
+        )),
         ClientEvent::Narrative { player, event } => {
             let event = convert::narrative_event_to_flatbuffer_struct(event)
                 .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
@@ -474,6 +477,7 @@ pub fn decode_client_event_ref(
                 value,
             })
         }
+        moor_rpc::ClientEventUnionRef::EventsAvailableEvent(_) => Ok(ClientEvent::EventsAvailable),
         moor_rpc::ClientEventUnionRef::CredentialsUpdatedEvent(credentials) => {
             let client_id = credentials
                 .client_id()
@@ -734,6 +738,30 @@ pub fn decode_client_request(
                 player,
                 host_type,
                 socket_addr,
+            })
+        }
+        U::EventStreamRequest(req) => {
+            let operation = match req.operation().rpc_err()? {
+                moor_rpc::EventStreamOperation::Open => api::EventStreamOperation::Open,
+                moor_rpc::EventStreamOperation::Status => api::EventStreamOperation::Status,
+                moor_rpc::EventStreamOperation::Read => api::EventStreamOperation::Read,
+                moor_rpc::EventStreamOperation::Acknowledge => {
+                    api::EventStreamOperation::Acknowledge
+                }
+            };
+            Ok(ClientRequest::EventStream {
+                client_token: client_token_from_ref(req.client_token().rpc_err()?).rpc_err()?,
+                request: api::EventStreamRequest {
+                    operation,
+                    stream_id: req
+                        .stream_id()
+                        .rpc_err()?
+                        .map(convert::uuid_from_ref)
+                        .transpose()
+                        .rpc_err()?,
+                    sequence: req.sequence().rpc_err()?,
+                    limit: req.limit().rpc_err()? as usize,
+                },
             })
         }
         U::ReplayClientEvents(replay) => {
@@ -1416,6 +1444,21 @@ pub fn encode_client_reply(
             }
         }
         ClientReply::ThanksPong { timestamp } => mk_thanks_pong_reply(timestamp),
+        ClientReply::EventStream(state) => moor_rpc::DaemonToClientReply {
+            reply: U::EventStreamState(Box::new(moor_rpc::EventStreamState {
+                stream_id: uuid_fb(state.stream_id),
+                acknowledged_sequence: state.acknowledged_sequence,
+                available_after: state.available_after,
+                latest_sequence: state.latest_sequence,
+                payloads: state
+                    .payloads
+                    .into_iter()
+                    .map(|data| moor_rpc::EventStreamPayload {
+                        data: data.to_vec(),
+                    })
+                    .collect(),
+            })),
+        },
         ClientReply::ClientEvents {
             events,
             latest_sequence,
