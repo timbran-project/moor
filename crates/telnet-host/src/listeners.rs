@@ -23,11 +23,9 @@ use moor_runtime_api::{
 };
 use moor_var::{Obj, Symbol};
 use moor_zmq_client::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
-use rustls_pemfile::{certs, private_key};
 use std::{
     collections::HashMap,
     fs::File,
-    io::BufReader,
     net::{IpAddr, SocketAddr},
     os::fd::{AsRawFd, RawFd},
     path::Path,
@@ -40,7 +38,13 @@ use tokio::{
     net::{TcpListener, TcpStream},
     select,
 };
-use tokio_rustls::{TlsAcceptor, rustls::ServerConfig};
+use tokio_rustls::{
+    TlsAcceptor,
+    rustls::{
+        ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+    },
+};
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -55,10 +59,7 @@ pub fn load_tls_config(
     let key_file = File::open(key_path)
         .map_err(|e| eyre::eyre!("Failed to open key file {:?}: {}", key_path, e))?;
 
-    let mut cert_reader = BufReader::new(cert_file);
-    let mut key_reader = BufReader::new(key_file);
-
-    let cert_chain: Vec<_> = certs(&mut cert_reader)
+    let cert_chain: Vec<_> = CertificateDer::pem_reader_iter(cert_file)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| eyre::eyre!("Failed to parse certificate: {}", e))?;
 
@@ -66,9 +67,10 @@ pub fn load_tls_config(
         return Err(eyre::eyre!("No certificates found in {:?}", cert_path));
     }
 
-    let key = private_key(&mut key_reader)
-        .map_err(|e| eyre::eyre!("Failed to parse private key: {}", e))?
-        .ok_or_else(|| eyre::eyre!("No private key found in {:?}", key_path))?;
+    let key = PrivateKeyDer::pem_reader_iter(key_file)
+        .next()
+        .ok_or_else(|| eyre::eyre!("No private key found in {:?}", key_path))?
+        .map_err(|e| eyre::eyre!("Failed to parse private key: {e}"))?;
 
     let config = ServerConfig::builder()
         .with_no_client_auth()

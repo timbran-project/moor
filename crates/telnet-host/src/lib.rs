@@ -29,7 +29,8 @@ use std::{
 };
 
 use eyre::{Result, bail, eyre};
-use listeners::{Listeners, load_tls_config};
+use listeners::Listeners;
+pub use listeners::load_tls_config;
 use moor_runtime_api::{HostType, api::HostServices, client_args::RpcClientConfig};
 use moor_var::SYSTEM_OBJECT;
 use moor_zmq_client::{

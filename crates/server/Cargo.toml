@@ -68,6 +68,7 @@ zmq.workspace = true
 [dev-dependencies]
 libc.workspace = true
 tempfile.workspace = true
+tokio-rustls.workspace = true
 
 [features]
 trace_events = ["moor-daemon/trace_events"]
