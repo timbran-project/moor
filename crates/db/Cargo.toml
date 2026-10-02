@@ -74,7 +74,7 @@ tracing.workspace = true
 
 # Utilities & Helpers
 byteview.workspace = true
-paste.workspace = true
+pastey.workspace = true
 rand.workspace = true
 semver.workspace = true
 smallvec.workspace = true

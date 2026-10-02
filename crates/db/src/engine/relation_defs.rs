@@ -110,7 +110,7 @@ where
 ///
 /// # Dependencies
 ///
-/// The macro requires the `paste` crate for token concatenation to generate
+/// The macro requires the `pastey` crate for token concatenation to generate
 /// unique variable names for each relation during initialization.
 macro_rules! define_relations {
     (@seed_relation object_propvalues, $this:expr, $db_path:ident, $committed_ts:ident, $index:ident, $max_timestamp:ident) => {};
@@ -145,7 +145,7 @@ macro_rules! define_relations {
 
     // Main processing rule
     (@process [ $( ($field:ident, $domain:ty, $codomain:ty, $arrow:tt) ),* ]) => {
-        paste::paste! {
+        pastey::paste! {
             /// Type alias for Relations to reduce verbosity in macro.
             type R<Domain, Codomain> = Relation<Domain, Codomain, FjallProvider<Domain, Codomain>>;
 
