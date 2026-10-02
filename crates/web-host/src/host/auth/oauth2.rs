@@ -305,6 +305,51 @@ pub struct OAuth2Manager {
     http_client: reqwest::Client,
 }
 
+// Keep outbound trust on WebPKI roots and select Ring independently of process initialization.
+fn http_client_builder() -> reqwest::ClientBuilder {
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .expect("Ring supports the default TLS protocol versions")
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    reqwest::Client::builder().tls_backend_preconfigured(tls)
+}
+
+// Keep OAuth2's HTTP transport independent of its built-in Reqwest integration.
+struct OAuthHttpClient<'a>(&'a reqwest::Client);
+
+impl<'c> oauth2::AsyncHttpClient<'c> for OAuthHttpClient<'_> {
+    type Error = oauth2::HttpClientError<reqwest::Error>;
+    type Future = std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<oauth2::HttpResponse, Self::Error>>
+                + Send
+                + Sync
+                + 'c,
+        >,
+    >;
+
+    fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
+        Box::pin(async move {
+            let response = self
+                .0
+                .execute(request.try_into().map_err(Box::new)?)
+                .await
+                .map_err(Box::new)?;
+            let mut result = oauth2::http::Response::builder()
+                .status(response.status())
+                .version(response.version());
+            *result.headers_mut().expect("valid HTTP response") = response.headers().clone();
+            Ok(result.body(response.bytes().await.map_err(Box::new)?.to_vec())?)
+        })
+    }
+}
+
 impl OAuth2Manager {
     /// Create a new OAuth2Manager from configuration
     pub fn new(config: OAuth2Config) -> Result<Self, eyre::Error> {
@@ -312,12 +357,12 @@ impl OAuth2Manager {
             return Ok(Self {
                 config,
                 clients: HashMap::new(),
-                http_client: reqwest::Client::new(),
+                http_client: http_client_builder().build()?,
             });
         }
 
         let mut clients = HashMap::new();
-        let http_client = reqwest::ClientBuilder::new()
+        let http_client = http_client_builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()?;
 
@@ -433,7 +478,7 @@ impl OAuth2Manager {
 
         let token_result = client
             .exchange_code(AuthorizationCode::new(code))
-            .request_async(&self.http_client)
+            .request_async(&OAuthHttpClient(&self.http_client))
             .await
             .map_err(|e| eyre::eyre!("Token exchange failed: {}", e))?;
 

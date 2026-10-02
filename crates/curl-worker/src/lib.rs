@@ -254,6 +254,21 @@ fn spawn_health_check(
     });
 }
 
+// Keep outbound trust on WebPKI roots and select Ring independently of process initialization.
+fn http_client_builder() -> reqwest::ClientBuilder {
+    let roots = rustls::RootCertStore {
+        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+    };
+    let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .expect("Ring supports the default TLS protocol versions")
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    reqwest::Client::builder().tls_backend_preconfigured(tls)
+}
+
 async fn perform_http_request(
     _request_id: Uuid,
     _worker_type: Symbol,
@@ -267,16 +282,13 @@ async fn perform_http_request(
         ));
     }
 
-    let client = if let Some(timeout) = timeout {
-        reqwest::Client::builder()
-            .timeout(timeout)
-            .build()
-            .map_err(|e| {
-                WorkerError::RequestError(format!("Failed to build client with timeout: {e}"))
-            })?
-    } else {
-        reqwest::Client::new()
-    };
+    let mut builder = http_client_builder();
+    if let Some(timeout) = timeout {
+        builder = builder.timeout(timeout);
+    }
+    let client = builder
+        .build()
+        .map_err(|e| WorkerError::RequestError(format!("Failed to build HTTP client: {e}")))?;
     let method = arguments[0].as_symbol().map_err(|_| {
         WorkerError::RequestError("First argument must be a symbol or string".to_string())
     })?;
@@ -437,4 +449,100 @@ async fn perform_http_request(
     let body = v_str(body.as_str());
 
     Ok(v_list(&[status_code, headers, body]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_var::SYSTEM_OBJECT;
+    use tokio::io::AsyncReadExt;
+
+    async fn read_request(socket: &mut tokio::net::TcpStream) -> (String, Vec<u8>) {
+        let mut headers = Vec::new();
+        while !headers.ends_with(b"\r\n\r\n") {
+            headers.push(socket.read_u8().await.unwrap());
+            assert!(headers.len() < 8192);
+        }
+        let headers = String::from_utf8(headers).unwrap();
+        let length = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().unwrap())
+            })
+            .unwrap_or(0);
+        let mut body = vec![0; length];
+        socket.read_exact(&mut body).await.unwrap();
+        (headers, body)
+    }
+
+    #[tokio::test]
+    async fn sends_body_and_headers_and_follows_redirects() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/start", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let (headers, body) = read_request(&mut socket).await;
+            assert!(headers.starts_with("POST /start HTTP/1.1"));
+            assert!(headers.to_ascii_lowercase().contains("x-marker: fixture"));
+            assert_eq!(body, b"request body");
+            socket.write_all(b"HTTP/1.1 303 See Other\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+            drop(socket);
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let (headers, _) = read_request(&mut socket).await;
+            assert!(headers.starts_with("GET /final HTTP/1.1"));
+            socket.write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 8\r\nConnection: close\r\n\r\ncomplete").await.unwrap();
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let result = perform_http_request(
+                Uuid::nil(),
+                Symbol::mk("curl"),
+                SYSTEM_OBJECT,
+                vec![
+                    v_str("POST"),
+                    v_str(&url),
+                    v_str("request body"),
+                    v_list(&[v_list(&[v_str("X-Marker"), v_str("fixture")])]),
+                ],
+                Some(Duration::from_secs(2)),
+            )
+            .await
+            .unwrap();
+            let result = result.as_list().unwrap();
+            assert_eq!(result[0], v_int(201));
+            assert_eq!(result[2], v_str("complete"));
+            server.await.unwrap();
+        })
+        .await
+        .expect("curl worker request timed out");
+    }
+
+    #[tokio::test]
+    async fn respects_the_requested_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        });
+        let error = tokio::time::timeout(
+            Duration::from_secs(5),
+            perform_http_request(
+                Uuid::nil(),
+                Symbol::mk("curl"),
+                SYSTEM_OBJECT,
+                vec![v_str("GET"), v_str(&url)],
+                Some(Duration::from_millis(25)),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        assert!(
+            matches!(error, WorkerError::RequestError(message) if message.contains("Failed to send GET request"))
+        );
+        server.abort();
+    }
 }

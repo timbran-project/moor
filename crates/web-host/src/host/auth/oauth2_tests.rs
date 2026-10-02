@@ -11,13 +11,16 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{OAuth2Config, OAuth2Manager, OAuth2ProviderConfig};
+use super::{
+    OAuth2Config, OAuth2Manager, OAuth2ProviderConfig, OAuthHttpClient, http_client_builder,
+};
 use axum::{
     Json, Router,
     http::HeaderMap,
     response::Redirect,
     routing::{get, post},
 };
+use oauth2::AsyncHttpClient;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -36,7 +39,16 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
     let app = Router::new()
         .route(
             "/token",
-            post(|| async {
+            post(|headers: HeaderMap, body: String| async move {
+                assert_eq!(
+                    headers["authorization"],
+                    "Basic dGVzdC1jbGllbnQ6dGVzdC1zZWNyZXQ="
+                );
+                assert_eq!(headers["content-type"], "application/x-www-form-urlencoded");
+                let fields =
+                    url::form_urlencoded::parse(body.as_bytes()).collect::<HashMap<_, _>>();
+                assert_eq!(fields.get("code").unwrap(), "test-code");
+                assert_eq!(fields.get("grant_type").unwrap(), "authorization_code");
                 Json(serde_json::json!({"access_token": "test-token", "token_type": "bearer"}))
             }),
         )
@@ -130,11 +142,11 @@ async fn https_requires_a_trusted_certificate() {
         tls.shutdown().await.unwrap();
     });
     tokio::time::timeout(Duration::from_secs(5), async {
-        let untrusted = reqwest::Client::builder().no_proxy().build().unwrap();
+        let untrusted = http_client_builder().no_proxy().build().unwrap();
         assert!(untrusted.get(&url).send().await.is_err());
         let trusted = reqwest::Client::builder()
             .no_proxy()
-            .add_root_certificate(reqwest::Certificate::from_pem(CA).unwrap())
+            .tls_certs_only([reqwest::Certificate::from_pem(CA).unwrap()])
             .build()
             .unwrap();
         assert_eq!(
@@ -152,4 +164,102 @@ async fn https_requires_a_trusted_certificate() {
     })
     .await
     .expect("HTTPS exchange timed out");
+}
+
+#[tokio::test]
+async fn oauth_adapter_preserves_http_data_and_transport_errors() {
+    use axum::http::{Response, StatusCode, Version};
+
+    let app = Router::new()
+        .route(
+            "/echo",
+            post(|headers: HeaderMap, body: String| async move {
+                assert_eq!(headers["x-request-marker"], "request-value");
+                assert_eq!(body, "raw request body");
+                Response::builder()
+                    .status(StatusCode::CREATED)
+                    .header("x-response-marker", "first")
+                    .header("x-response-marker", "second")
+                    .body(axum::body::Body::from("raw response body"))
+                    .unwrap()
+            }),
+        )
+        .route(
+            "/denied",
+            post(|| async {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({"error": "invalid_grant"})),
+                )
+            }),
+        )
+        .route(
+            "/slow",
+            post(|| async {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                "too late"
+            }),
+        );
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let manager = OAuth2Manager::new(OAuth2Config::default()).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let request = oauth2::http::Request::builder()
+            .method("POST")
+            .uri(format!("{base}/echo"))
+            .header("x-request-marker", "request-value")
+            .body(b"raw request body".to_vec())
+            .unwrap();
+        let response = OAuthHttpClient(&manager.http_client)
+            .call(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(response.version(), Version::HTTP_11);
+        assert_eq!(
+            response
+                .headers()
+                .get_all("x-response-marker")
+                .iter()
+                .map(|v| v.to_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["first", "second"]
+        );
+        assert_eq!(response.body(), b"raw response body");
+
+        let request = oauth2::http::Request::builder()
+            .method("POST")
+            .uri(format!("{base}/denied"))
+            .body(Vec::new())
+            .unwrap();
+        let response = OAuthHttpClient(&manager.http_client)
+            .call(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(response.body()).unwrap()["error"],
+            "invalid_grant"
+        );
+
+        let mut short_timeout = manager;
+        short_timeout.http_client = http_client_builder()
+            .timeout(Duration::from_millis(25))
+            .build()
+            .unwrap();
+        let request = oauth2::http::Request::builder()
+            .method("POST")
+            .uri(format!("{base}/slow"))
+            .body(Vec::new())
+            .unwrap();
+        let error = OAuthHttpClient(&short_timeout.http_client)
+            .call(request)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, oauth2::HttpClientError::Reqwest(e) if e.is_timeout()));
+    })
+    .await
+    .expect("OAuth adapter tests timed out");
+    server.abort();
 }
