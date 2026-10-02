@@ -6,12 +6,18 @@ FROM node:24-bookworm AS frontend-build
 WORKDIR /moor-frontend
 # Install the schema compiler used by the npm and Dart FlatBuffers runtimes.
 ARG FLATBUFFERS_VERSION=25.9.23
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git unzip && \
-    curl -fsSL "https://github.com/google/flatbuffers/releases/download/v${FLATBUFFERS_VERSION}/Linux.flatc.binary.clang%2B%2B-18.zip" -o /tmp/flatc.zip && \
-    unzip -q /tmp/flatc.zip -d /usr/local/bin && \
-    chmod +x /usr/local/bin/flatc && \
+# Build for the container's architecture; upstream Linux binaries are x86-64 only.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git cmake g++ make && \
+    curl -fsSL "https://github.com/google/flatbuffers/archive/refs/tags/v${FLATBUFFERS_VERSION}.tar.gz" -o /tmp/flatbuffers.tar.gz && \
+    mkdir -p /tmp/flatbuffers && \
+    tar -xzf /tmp/flatbuffers.tar.gz --strip-components=1 -C /tmp/flatbuffers && \
+    cmake -S /tmp/flatbuffers -B /tmp/flatbuffers/build \
+        -DCMAKE_BUILD_TYPE=Release -DFLATBUFFERS_BUILD_TESTS=OFF \
+        -DFLATBUFFERS_BUILD_FLATLIB=OFF && \
+    cmake --build /tmp/flatbuffers/build --target flatc --parallel 2 && \
+    install -m 755 /tmp/flatbuffers/build/flatc /usr/local/bin/flatc && \
     flatc --version && \
-    rm -rf /var/lib/apt/lists/* /tmp/flatc.zip
+    rm -rf /var/lib/apt/lists/* /tmp/flatbuffers /tmp/flatbuffers.tar.gz
 # Copy minimal Git metadata so Vite can get the commit hash.
 COPY ./.git ./.git
 RUN mkdir -p .git/objects
