@@ -1,0 +1,42 @@
+name: Rust dependency audit
+
+on:
+  push:
+    paths:
+      - '**/Cargo.toml'
+      - Cargo.lock
+      - deny.toml
+      - .github/workflows/dependency-audit.yml
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - Cargo.lock
+      - deny.toml
+      - .github/workflows/dependency-audit.yml
+  schedule:
+    - cron: '23 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    name: Advisories, sources, and duplicate versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check advisories, source overrides, and duplicate versions
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
+        with:
+          rust-version: '1.98.1'
+          arguments: --all-features --locked
+          command: check
+          command-arguments: advisories sources bans

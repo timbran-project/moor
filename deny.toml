@@ -1,0 +1,22 @@
+[advisories]
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+unused-ignored-advisory = "deny"
+ignore = [
+    # SSH-RSA exposure is documented in book/src/the-moo-programming-language/built-in-functions/crypto.md.
+    # Revisit when patched versions or Age's RSA implementation change.
+    { id = "RUSTSEC-2023-0071", reason = "Preserve Age SSH-RSA compatibility; secret-key decryption of untrusted ciphertext must not be exposed by MOO verbs" },
+]
+
+[bans]
+# Upstream API generations coexist; review their owners before adding exclusions.
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    # The ZeroMQ fork is maintained in a separate workstream.
+    "https://github.com/rdaum/rust-zmq",
+]
