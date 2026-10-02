@@ -325,51 +325,5 @@ pub fn encode_signaling_message(msg: &SignalingMessage) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-    use tokio::sync::mpsc;
-
-    #[tokio::test]
-    async fn negotiates_a_local_data_channel_and_sends_events() {
-        tokio::time::timeout(Duration::from_secs(15), async {
-            let client = APIBuilder::new()
-                .build()
-                .new_peer_connection(RTCConfiguration::default())
-                .await
-                .unwrap();
-            let channel = client.create_data_channel("realtime", None).await.unwrap();
-            let (messages, mut received) = mpsc::unbounded_channel();
-            channel.on_message(Box::new(move |message| {
-                messages.send(message.data).unwrap();
-                Box::pin(async {})
-            }));
-            let offer = client.create_offer(None).await.unwrap();
-            let mut gathered = client.gathering_complete_promise().await;
-            client.set_local_description(offer).await.unwrap();
-            gathered.recv().await;
-            let offer = client.local_description().await.unwrap();
-
-            let config = WebRtcConfig {
-                enabled: true,
-                ice_servers: vec![],
-                ..Default::default()
-            };
-            let (peer, _) = WebRtcPeer::new(&config, &offer.sdp).await.unwrap();
-            let mut gathered = peer.peer_connection.gathering_complete_promise().await;
-            gathered.recv().await;
-            let answer = peer.peer_connection.local_description().await.unwrap();
-            client.set_remote_description(answer).await.unwrap();
-
-            while !peer.is_open() {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-            peer.send(b"event fixture").await.unwrap();
-            assert_eq!(&received.recv().await.unwrap()[..], b"event fixture");
-            peer.close().await;
-            client.close().await.unwrap();
-        })
-        .await
-        .expect("local WebRTC negotiation and data delivery timed out");
-    }
-}
+#[path = "webrtc_tests.rs"]
+mod tests;
