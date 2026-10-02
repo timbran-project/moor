@@ -23,7 +23,6 @@ use clap::Parser;
 use clap_derive::Parser as DeriveParser;
 use crossterm::style::Stylize;
 use eyre::{Report, bail, eyre};
-use fs2::FileExt;
 use moor_common::{
     build,
     model::{Named, ValSet},
@@ -177,7 +176,7 @@ fn acquire_data_directory_lock(data_dir: &PathBuf) -> Result<File, Report> {
         .truncate(true)
         .open(&lock_file_path)?;
 
-    let Err(e) = lock_file.try_lock_exclusive() else {
+    let Err(e) = lock_file.try_lock() else {
         info!("Acquired exclusive lock on data directory: {:?}", data_dir);
         return Ok(lock_file);
     };
@@ -827,3 +826,7 @@ fn main() -> Result<(), Report> {
 
     repl_result
 }
+
+#[cfg(test)]
+#[path = "../../../crates/daemon/src/directory_lock_tests.rs"]
+mod directory_lock_tests;

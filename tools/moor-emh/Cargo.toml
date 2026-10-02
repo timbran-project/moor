@@ -38,9 +38,6 @@ moor-var = { path = "../../crates/var" }
 clap.workspace = true
 clap_derive.workspace = true
 
-# Database & Persistence
-fs2.workspace = true
-
 # Error Handling & Logging
 color-eyre.workspace = true
 eyre.workspace = true
@@ -55,3 +52,6 @@ uuid.workspace = true
 crossterm.workspace = true
 rustyline.workspace = true
 tabled.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

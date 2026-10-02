@@ -13,7 +13,6 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use eyre::{bail, eyre};
-use fs2::FileExt;
 use std::io::IsTerminal;
 use std::{
     fs::{self, File, OpenOptions},
@@ -196,7 +195,7 @@ fn acquire_data_directory_lock(data_dir: &PathBuf) -> Result<File, Report> {
         .open(&lock_file_path)?;
 
     // Try to acquire exclusive lock
-    match lock_file.try_lock_exclusive() {
+    match lock_file.try_lock() {
         Ok(()) => {
             info!("Acquired exclusive lock on data directory: {:?}", data_dir);
             Ok(lock_file)
@@ -1025,3 +1024,6 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     info!("Done.");
     Ok(())
 }
+
+#[cfg(test)]
+mod directory_lock_tests;

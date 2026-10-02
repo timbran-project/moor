@@ -67,7 +67,6 @@ serde_json.workspace = true
 
 # Database & Persistence
 fjall.workspace = true
-fs2.workspace = true
 zerocopy.workspace = true
 
 # Networking & Communication
