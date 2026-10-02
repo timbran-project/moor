@@ -149,7 +149,7 @@ oneshot = { version = "0.2", default-features = false, features = ["std"] }
 papaya = "0.2"
 parking_lot = "0.12"
 shuttle = "0.9"
-tabled = "0.21"
+tabled = "0.22"
 tokio = { version = "1.52", features = ["full"] }
 tokio-util = { version = "0.7", features = ["full"] }
 
