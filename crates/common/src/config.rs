@@ -13,8 +13,8 @@
 
 use eyre::{WrapErr, bail, eyre};
 use serde::{Serialize, de::DeserializeOwned};
-use serde_yaml::{Mapping, Value};
 use std::{path::Path, time::Duration};
+use yaml_serde::{Mapping, Value};
 
 /// The longest capture deadline any daemon will accept for a verb call whose output is collected
 /// and returned in the reply.
@@ -48,17 +48,17 @@ where
         return Ok(base);
     };
 
-    let mut base = serde_yaml::to_value(base).wrap_err("failed to serialize default config")?;
+    let mut base = yaml_serde::to_value(base).wrap_err("failed to serialize default config")?;
     let reader = std::fs::File::open(path)
         .map_err(|e| eyre!("failed to open configuration file {path:?}: {e}"))?;
-    let mut overlay: Value = serde_yaml::from_reader(reader)
+    let mut overlay: Value = yaml_serde::from_reader(reader)
         .map_err(|e| eyre!("failed to parse configuration file {path:?}: {e}"))?;
 
     flatten_sections(&mut overlay, flattened_sections)?;
     reject_unknown_fields(&base, &overlay, "$")?;
     merge_yaml(&mut base, overlay);
 
-    serde_yaml::from_value(base)
+    yaml_serde::from_value(base)
         .map_err(|e| eyre!("failed to deserialize merged configuration from {path:?}: {e}"))
 }
 
@@ -220,5 +220,50 @@ legacy:
         .unwrap();
 
         assert!(config.enabled);
+    }
+
+    #[test]
+    fn replaces_lists_and_scalars_and_accepts_null_options() {
+        #[derive(Debug, Deserialize, PartialEq, Serialize)]
+        struct Config {
+            addresses: Vec<String>,
+            labels: std::collections::BTreeMap<String, String>,
+            optional: Option<String>,
+            enabled: bool,
+        }
+
+        let base = Config {
+            addresses: vec!["old".into()],
+            labels: Default::default(),
+            optional: Some("default".into()),
+            enabled: false,
+        };
+        let (_dir, path) = write_config(
+            "addresses: [localhost, '::1']\nlabels: {region: local}\noptional: null\nenabled: true\n",
+        );
+        let config = apply_yaml_config_file(base, Some(&path)).unwrap();
+
+        assert_eq!(config.addresses, ["localhost", "::1"]);
+        assert_eq!(config.labels.get("region").unwrap(), "local");
+        assert_eq!(config.optional, None);
+        assert!(config.enabled);
+    }
+
+    #[test]
+    fn reports_configuration_path_for_parse_and_type_errors() {
+        for (yaml, expected) in [
+            ("nested: [", "failed to parse configuration file"),
+            (
+                "nested: {count: not-a-number}",
+                "failed to deserialize merged configuration",
+            ),
+        ] {
+            let (_dir, path) = write_config(yaml);
+            let error = apply_yaml_config_file(TestConfig::default(), Some(&path))
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(expected), "{error}");
+            assert!(error.contains(path.to_str().unwrap()), "{error}");
+        }
     }
 }

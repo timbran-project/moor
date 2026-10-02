@@ -22,7 +22,7 @@ moor-var = { path = "../var" }
 # Serialization & Data Formats
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml.workspace = true
+yaml_serde.workspace = true
 
 # Collections & Data Structures
 itertools.workspace = true
