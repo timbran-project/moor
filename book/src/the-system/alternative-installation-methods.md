@@ -147,8 +147,7 @@ When building from source, you'll need to manually set up:
   - Multi-machine clustered: TCP with CURVE encryption requires enrollment tokens (see
     `--rotate-enrollment-token` flag)
 
-The `docker-compose.yml` and `process-compose.yaml` files provide excellent examples of how to
-configure each component.
+The `docker-compose.yml` file provides an example of how to configure a single-process deployment.
 
 ### When to Build from Source
 

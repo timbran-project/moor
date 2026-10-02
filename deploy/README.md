@@ -65,33 +65,6 @@ Uses a local build of the combined backend plus the Meadow frontend container.
 docker compose up
 ```
 
-#### process-compose (Native)
-
-**Location**: [../process-compose.yaml](../process-compose.yaml) and
-[../process-compose-dev.yaml](../process-compose-dev.yaml)
-
-**Purpose**: Run all mooR services natively on your host using process orchestration
-
-Runs all mooR services natively on your host with no Docker overhead, managing them as local
-processes using IPC for inter-service communication. The `process-compose-dev.yaml` variant uses
-debug builds for faster iteration, while `process-compose.yaml` uses release builds (slow build
-times but optimized runtime performance).
-
-**Prerequisites**: Install [process-compose](https://github.com/F1bonacc1/process-compose)
-
-**More info**:
-[process-compose documentation](https://f1bonacc1.github.io/process-compose/launcher/)
-
-**Quick start**:
-
-```bash
-# Development mode (debug builds)
-process-compose -f process-compose-dev.yaml up
-
-# Production-like mode (release builds)
-process-compose up
-```
-
 #### bacon (File-Watching Development)
 
 **Location**: [../bacon.toml](../bacon.toml)
@@ -163,11 +136,6 @@ npm run full:build           # Build web client + single-process backend (releas
    ```bash
    bacon moor            # Terminal 1: single-process backend with file watching
    npm run meadow:dev    # Terminal 2: Meadow dev server only
-   ```
-
-4. **Testing full stack natively**: Use process-compose
-   ```bash
-   process-compose -f process-compose-dev.yaml up
    ```
 
 ---
