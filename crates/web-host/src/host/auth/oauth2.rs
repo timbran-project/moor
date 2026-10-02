@@ -582,3 +582,7 @@ fn verify_pkce(code_verifier: &str, expected_challenge: &str, method: &str) -> b
     let calculated = URL_SAFE_NO_PAD.encode(digest);
     calculated == expected_challenge
 }
+
+#[cfg(test)]
+#[path = "oauth2_tests.rs"]
+mod tests;

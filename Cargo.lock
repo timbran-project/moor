@@ -3843,6 +3843,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tmq",
  "tokio",
+ "tokio-rustls",
  "tower-http 0.7.1",
  "tower_governor",
  "tracing",
