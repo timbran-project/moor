@@ -29,7 +29,7 @@ use tracing::{debug, error, info, trace, warn};
 /// Binds to inproc://zeromq.zap.01 and validates CURVE client public keys
 /// against the AllowedHostsRegistry.
 pub struct ZapAuthHandler {
-    zmq_context: zmq::Context,
+    zmq_context: r0z::Context,
     kill_switch: Arc<AtomicBool>,
     allowed_hosts: AllowedHostsRegistry,
 }
@@ -37,7 +37,7 @@ pub struct ZapAuthHandler {
 impl ZapAuthHandler {
     /// Create a new ZAP authentication handler
     pub fn new(
-        zmq_context: zmq::Context,
+        zmq_context: r0z::Context,
         kill_switch: Arc<AtomicBool>,
         allowed_hosts: AllowedHostsRegistry,
     ) -> Self {
@@ -55,7 +55,7 @@ impl ZapAuthHandler {
     pub fn run(&self) -> Result<()> {
         let socket = self
             .zmq_context
-            .socket(zmq::REP)
+            .socket(r0z::REP)
             .context("Failed to create ZAP handler socket")?;
 
         // Bind to the ZAP endpoint
@@ -73,7 +73,7 @@ impl ZapAuthHandler {
 
             // Poll with timeout so we can check kill switch
             let poll_result = socket
-                .poll(zmq::POLLIN, 1000)
+                .poll(r0z::POLLIN, 1000)
                 .context("Failed to poll ZAP socket")?;
 
             if poll_result == 0 {
@@ -99,7 +99,7 @@ impl ZapAuthHandler {
     /// Frame 4: identity (ZMQ identity if set)
     /// Frame 5: mechanism ("CURVE", "PLAIN", or "NULL")
     /// Frame 6+: credentials (for CURVE: 32-byte public key)
-    fn handle_request(&self, socket: &zmq::Socket) -> Result<()> {
+    fn handle_request(&self, socket: &r0z::Socket) -> Result<()> {
         // Receive ZAP request (multi-part message)
         let version = socket
             .recv_string(0)
@@ -188,7 +188,7 @@ impl ZapAuthHandler {
 
         // Convert raw bytes to Z85 encoding for lookup
         let client_public_key =
-            zmq::z85_encode(&credentials).context("Failed to Z85-encode client public key")?;
+            r0z::z85_encode(&credentials).context("Failed to Z85-encode client public key")?;
 
         debug!(
             client_public_key = %client_public_key,
@@ -235,7 +235,7 @@ impl ZapAuthHandler {
     /// Frame 5: metadata (application-defined metadata)
     fn send_reply(
         &self,
-        socket: &zmq::Socket,
+        socket: &r0z::Socket,
         version: &str,
         request_id: &str,
         status_code: &str,
@@ -243,19 +243,19 @@ impl ZapAuthHandler {
         user_id: &str,
     ) -> Result<()> {
         socket
-            .send(version, zmq::SNDMORE)
+            .send(version, r0z::SNDMORE)
             .context("Failed to send version")?;
         socket
-            .send(request_id, zmq::SNDMORE)
+            .send(request_id, r0z::SNDMORE)
             .context("Failed to send request_id")?;
         socket
-            .send(status_code, zmq::SNDMORE)
+            .send(status_code, r0z::SNDMORE)
             .context("Failed to send status_code")?;
         socket
-            .send(status_text, zmq::SNDMORE)
+            .send(status_text, r0z::SNDMORE)
             .context("Failed to send status_text")?;
         socket
-            .send(user_id, zmq::SNDMORE)
+            .send(user_id, r0z::SNDMORE)
             .context("Failed to send user_id")?;
         socket
             .send("", 0) // Empty metadata frame

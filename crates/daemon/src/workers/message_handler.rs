@@ -29,6 +29,7 @@ use moor_runtime_api::{
 };
 use moor_var::{Obj, Symbol, Var};
 use planus::Builder;
+use r0z::{Socket, SocketType};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex, RwLock},
@@ -36,7 +37,6 @@ use std::{
 };
 use tracing::{error, info, warn};
 use uuid::Uuid;
-use zmq::{Socket, SocketType};
 
 pub const WORKER_TIMEOUT: Duration = Duration::from_secs(10);
 pub const PING_FREQUENCY: Duration = Duration::from_secs(5);
@@ -86,7 +86,7 @@ pub struct WorkersMessageHandlerImpl {
 
 impl WorkersMessageHandlerImpl {
     pub fn new_zmq(
-        zmq_context: zmq::Context,
+        zmq_context: r0z::Context,
         workers_broadcast: &str,
         scheduler_send: flume::Sender<WorkerResponse>,
         curve_secret_key: Option<String>, // Z85-encoded CURVE secret key
@@ -109,7 +109,7 @@ impl WorkersMessageHandlerImpl {
 
             // Decode Z85-encoded secret key to bytes
             let secret_key_bytes =
-                zmq::z85_decode(secret_key).context("Failed to decode Z85 secret key")?;
+                r0z::z85_decode(secret_key).context("Failed to decode Z85 secret key")?;
             publish
                 .set_curve_secretkey(&secret_key_bytes)
                 .context("Failed to set CURVE secret key on workers PUB socket")?;

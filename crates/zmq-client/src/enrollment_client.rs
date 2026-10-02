@@ -46,9 +46,9 @@ pub fn enroll_with_daemon(
     );
 
     // Create ZMQ context and REQ socket
-    let ctx = zmq::Context::new();
+    let ctx = r0z::Context::new();
     let socket = ctx
-        .socket(zmq::REQ)
+        .socket(r0z::REQ)
         .context("Failed to create enrollment socket")?;
 
     // Connect to enrollment endpoint

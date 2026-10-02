@@ -29,12 +29,12 @@ use moor_schema::convert::{narrative_event_from_ref, var_from_flatbuffer_ref};
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
 use moor_zmq_client::pubsub_client::{broadcast_recv, events_recv};
+use moor_zmq_client::r0z;
 use moor_zmq_client::rpc_client::{CurveKeys, RpcClient};
-use moor_zmq_client::zmq;
+use r0z_async::subscribe;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
-use tmq::subscribe;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing::{debug, error, info, trace, warn};
@@ -65,7 +65,7 @@ pub struct MoorClientConfig {
 /// Manages the connection to the mooR daemon and provides high-level
 /// methods for interacting with the MOO world.
 pub struct MoorClient {
-    zmq_context: tmq::Context,
+    zmq_context: r0z_async::Context,
     rpc_client: RpcClient,
     config: MoorClientConfig,
     #[allow(dead_code)]
@@ -106,7 +106,7 @@ pub enum MoorResult {
 impl MoorClient {
     /// Create a new mooR client
     pub fn new(config: MoorClientConfig) -> Result<Self> {
-        let zmq_context = tmq::Context::new();
+        let zmq_context = r0z_async::Context::new();
         let host_id = Uuid::new_v4();
         let client_id = Uuid::new_v4();
 
@@ -382,11 +382,11 @@ impl MoorClient {
         // Configure CURVE encryption if keys provided
         if let Some((client_secret, client_public, server_public)) = &self.config.curve_keys {
             let client_secret_bytes =
-                zmq::z85_decode(client_secret).map_err(|_| eyre!("Invalid client secret key"))?;
+                r0z::z85_decode(client_secret).map_err(|_| eyre!("Invalid client secret key"))?;
             let client_public_bytes =
-                zmq::z85_decode(client_public).map_err(|_| eyre!("Invalid client public key"))?;
+                r0z::z85_decode(client_public).map_err(|_| eyre!("Invalid client public key"))?;
             let server_public_bytes =
-                zmq::z85_decode(server_public).map_err(|_| eyre!("Invalid server public key"))?;
+                r0z::z85_decode(server_public).map_err(|_| eyre!("Invalid server public key"))?;
 
             socket_builder = socket_builder
                 .set_curve_secretkey(&client_secret_bytes)
@@ -737,17 +737,17 @@ impl MoorClient {
     }
 
     /// Create an events subscriber for this client
-    async fn create_events_subscriber(&self) -> Result<tmq::subscribe::Subscribe> {
+    async fn create_events_subscriber(&self) -> Result<r0z_async::subscribe::Subscribe> {
         let mut socket_builder = subscribe(&self.zmq_context);
 
         // Configure CURVE encryption if keys provided
         if let Some((client_secret, client_public, server_public)) = &self.config.curve_keys {
             let client_secret_bytes =
-                zmq::z85_decode(client_secret).map_err(|_| eyre!("Invalid client secret key"))?;
+                r0z::z85_decode(client_secret).map_err(|_| eyre!("Invalid client secret key"))?;
             let client_public_bytes =
-                zmq::z85_decode(client_public).map_err(|_| eyre!("Invalid client public key"))?;
+                r0z::z85_decode(client_public).map_err(|_| eyre!("Invalid client public key"))?;
             let server_public_bytes =
-                zmq::z85_decode(server_public).map_err(|_| eyre!("Invalid server public key"))?;
+                r0z::z85_decode(server_public).map_err(|_| eyre!("Invalid server public key"))?;
 
             socket_builder = socket_builder
                 .set_curve_secretkey(&client_secret_bytes)
@@ -797,7 +797,7 @@ impl MoorClient {
     /// Wait for task completion, collecting narrative messages along the way
     async fn wait_for_task_completion(
         &self,
-        events_sub: &mut tmq::subscribe::Subscribe,
+        events_sub: &mut r0z_async::subscribe::Subscribe,
         task_id: u64,
     ) -> Result<TaskResult> {
         let mut narrative = Vec::new();

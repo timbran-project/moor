@@ -32,7 +32,7 @@ use super::{
 
 /// Coordinator for workers server that delegates business logic to message handler
 pub struct WorkersServer {
-    zmq_context: zmq::Context,
+    zmq_context: r0z::Context,
     kill_switch: Arc<AtomicBool>,
 
     // Core business logic handler
@@ -50,7 +50,7 @@ impl WorkersServer {
     /// Create a new workers server coordinator with a pre-built message handler.
     pub fn new(
         kill_switch: Arc<AtomicBool>,
-        zmq_context: zmq::Context,
+        zmq_context: r0z::Context,
         message_handler: Arc<WorkersMessageHandlerImpl>,
         curve_secret_key: Option<String>,
     ) -> Self {

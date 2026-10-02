@@ -123,7 +123,7 @@ fn main() -> Result<(), Report> {
         trace_output_path: args.resolved_trace_output_path(),
     };
     let runtime = DaemonRuntime {
-        zmq_context: zmq::Context::new(),
+        zmq_context: r0z::Context::new(),
         kill_switch,
         emergency_checkpoint: Some(emergency_checkpoint),
         ready_signal: None,

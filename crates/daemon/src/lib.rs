@@ -129,7 +129,7 @@ pub struct DaemonRuntimeConfig {
 
 #[derive(Clone)]
 pub struct DaemonRuntime {
-    pub zmq_context: zmq::Context,
+    pub zmq_context: r0z::Context,
     pub kill_switch: Arc<AtomicBool>,
     pub emergency_checkpoint: Option<Arc<AtomicBool>>,
     pub ready_signal: Option<ReadySignal>,
@@ -141,7 +141,7 @@ pub struct DaemonRuntime {
 impl Default for DaemonRuntime {
     fn default() -> Self {
         Self {
-            zmq_context: zmq::Context::new(),
+            zmq_context: r0z::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
             emergency_checkpoint: None,
             ready_signal: None,
@@ -401,7 +401,7 @@ pub fn rotate_enrollment_token(token_path: &std::path::Path) -> Result<String, R
 
 /// Create the RPC transport layer for production use
 fn create_rpc_transport(
-    zmq_context: zmq::Context,
+    zmq_context: r0z::Context,
     kill_switch: Arc<AtomicBool>,
     events_listen: &str,
     rpc_listen: &str,

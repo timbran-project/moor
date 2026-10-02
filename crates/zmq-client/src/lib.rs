@@ -19,10 +19,10 @@ pub use host::{
 };
 pub use host_services::ZmqHostServices;
 pub use listeners::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
+pub use r0z;
 pub use worker::attach_worker;
 pub use worker_loop::{WorkerRpcError, worker_loop, worker_loop_with_context};
 pub use worker_rpc_client::WorkerRpcSendClient;
-pub use zmq;
 
 pub mod curve_keys;
 pub mod enrollment_client;
@@ -36,10 +36,10 @@ mod worker;
 mod worker_loop;
 mod worker_rpc_client;
 
-/// Helper function to configure CURVE encryption on a tmq socket builder
+/// Helper function to configure CURVE encryption on an r0z-async socket builder
 ///
 /// # Arguments
-/// * `socket_builder` - The tmq socket builder to configure
+/// * `socket_builder` - The r0z-async socket builder to configure
 /// * `client_secret` - Z85-encoded client secret key
 /// * `client_public` - Z85-encoded client public key
 /// * `server_public` - Z85-encoded server public key
@@ -49,10 +49,10 @@ mod worker_rpc_client;
 ///
 /// # Example
 /// ```no_run
-/// use tmq::request;
+/// use r0z_async::request;
 /// use moor_zmq_client::configure_curve_client;
 ///
-/// let ctx = tmq::Context::new();
+/// let ctx = r0z_async::Context::new();
 /// let socket_builder = request(&ctx);
 /// let secure_socket = configure_curve_client(
 ///     socket_builder,
@@ -65,18 +65,18 @@ mod worker_rpc_client;
 /// }
 /// ```
 pub fn configure_curve_client(
-    socket_builder: tmq::SocketBuilder<tmq::request_reply::RequestSender>,
+    socket_builder: r0z_async::SocketBuilder<r0z_async::request_reply::RequestReply>,
     client_secret: &str,
     client_public: &str,
     server_public: &str,
-) -> Result<tmq::SocketBuilder<tmq::request_reply::RequestSender>, String> {
+) -> Result<r0z_async::SocketBuilder<r0z_async::request_reply::RequestReply>, String> {
     // Decode Z85 keys to bytes
     let client_secret_bytes =
-        zmq::z85_decode(client_secret).map_err(|_| "Invalid client secret key")?;
+        r0z::z85_decode(client_secret).map_err(|_| "Invalid client secret key")?;
     let client_public_bytes =
-        zmq::z85_decode(client_public).map_err(|_| "Invalid client public key")?;
+        r0z::z85_decode(client_public).map_err(|_| "Invalid client public key")?;
     let server_public_bytes =
-        zmq::z85_decode(server_public).map_err(|_| "Invalid server public key")?;
+        r0z::z85_decode(server_public).map_err(|_| "Invalid server public key")?;
 
     Ok(socket_builder
         .set_curve_secretkey(&client_secret_bytes)

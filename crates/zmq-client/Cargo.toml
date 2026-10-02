@@ -24,8 +24,8 @@ serde.workspace = true
 serde_json.workspace = true
 
 # Networking & Communication
-tmq.workspace = true
-zmq.workspace = true
+r0z.workspace = true
+r0z-async.workspace = true
 
 # Async Runtime & Concurrency
 async-trait.workspace = true

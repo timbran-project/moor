@@ -16,24 +16,24 @@
 use eyre::Context;
 use moor_schema::rpc as moor_rpc;
 use planus::{Builder, ReadAsRoot};
+use r0z::Socket;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use tracing::{error, info, warn};
-use zmq::Socket;
 
 use super::message_handler::WorkersMessageHandler;
 
 pub struct WorkersTransport {
-    zmq_context: zmq::Context,
+    zmq_context: r0z::Context,
     kill_switch: Arc<AtomicBool>,
     curve_secret_key: Option<String>, // Z85-encoded CURVE secret key
 }
 
 impl WorkersTransport {
     pub fn new(
-        zmq_context: zmq::Context,
+        zmq_context: r0z::Context,
         kill_switch: Arc<AtomicBool>,
         curve_secret_key: Option<String>,
     ) -> Self {
@@ -50,7 +50,7 @@ impl WorkersTransport {
         workers_endpoint: &str,
         message_handler: Arc<H>,
     ) -> eyre::Result<()> {
-        let rpc_socket = self.zmq_context.socket(zmq::REP)?;
+        let rpc_socket = self.zmq_context.socket(r0z::REP)?;
 
         // Configure CURVE encryption if key provided
         if let Some(ref secret_key) = self.curve_secret_key {
@@ -65,7 +65,7 @@ impl WorkersTransport {
 
             // Decode Z85-encoded secret key to bytes
             let secret_key_bytes =
-                zmq::z85_decode(secret_key).context("Failed to decode Z85 secret key")?;
+                r0z::z85_decode(secret_key).context("Failed to decode Z85 secret key")?;
             rpc_socket
                 .set_curve_secretkey(&secret_key_bytes)
                 .context("Failed to set CURVE secret key on workers REP socket")?;
@@ -88,7 +88,7 @@ impl WorkersTransport {
             }
 
             let poll_result = rpc_socket
-                .poll(zmq::POLLIN, 100)
+                .poll(r0z::POLLIN, 100)
                 .with_context(|| "Error polling ZMQ socket. Bailing out.")?;
             if poll_result == 0 {
                 continue;

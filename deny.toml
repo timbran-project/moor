@@ -16,7 +16,3 @@ multiple-versions = "warn"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = [
-    # The ZeroMQ fork is maintained in a separate workstream.
-    "https://github.com/rdaum/rust-zmq",
-]

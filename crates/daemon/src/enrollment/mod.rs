@@ -37,7 +37,7 @@ use uuid::Uuid;
 
 /// Enrollment server that listens for host registration requests
 pub struct EnrollmentServer {
-    zmq_context: zmq::Context,
+    zmq_context: r0z::Context,
     kill_switch: Arc<AtomicBool>,
     daemon_curve_public_key: String,
     allowed_hosts: AllowedHostsRegistry,
@@ -47,7 +47,7 @@ pub struct EnrollmentServer {
 impl EnrollmentServer {
     /// Create a new enrollment server
     pub fn new(
-        zmq_context: zmq::Context,
+        zmq_context: r0z::Context,
         kill_switch: Arc<AtomicBool>,
         daemon_curve_public_key: String,
         allowed_hosts: AllowedHostsRegistry,
@@ -69,7 +69,7 @@ impl EnrollmentServer {
     pub fn listen(&self, endpoint: &str) -> Result<()> {
         let socket = self
             .zmq_context
-            .socket(zmq::REP)
+            .socket(r0z::REP)
             .context("Failed to create enrollment socket")?;
 
         socket
@@ -86,7 +86,7 @@ impl EnrollmentServer {
 
             // Poll with timeout so we can check kill switch
             let poll_result = socket
-                .poll(zmq::POLLIN, 1000)
+                .poll(r0z::POLLIN, 1000)
                 .context("Failed to poll enrollment socket")?;
 
             if poll_result == 0 {

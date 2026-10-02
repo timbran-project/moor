@@ -70,7 +70,7 @@ fjall.workspace = true
 zerocopy.workspace = true
 
 # Networking & Communication
-zmq.workspace = true
+r0z.workspace = true
 
 # Async Runtime & Concurrency
 arc-swap.workspace = true

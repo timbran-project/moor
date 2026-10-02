@@ -20,20 +20,20 @@ use moor_runtime_api::{
     RpcError,
     api::{ClientSubscriptions, HostEventSubscription, HostServices, RuntimeClient},
 };
-use tmq::subscribe;
+use r0z_async::subscribe;
 use uuid::Uuid;
 
 use crate::{
     pubsub_client::{
         ZmqClientBroadcastSubscription, ZmqClientEventSubscription, ZmqHostEventSubscription,
     },
+    r0z,
     rpc_client::{CurveKeys, RpcClient},
-    zmq,
 };
 
 #[derive(Clone)]
 pub struct ZmqHostServices {
-    zmq_context: tmq::Context,
+    zmq_context: r0z_async::Context,
     rpc_address: String,
     events_address: String,
     curve_keys: Option<(String, String, String)>,
@@ -41,7 +41,7 @@ pub struct ZmqHostServices {
 
 impl ZmqHostServices {
     pub fn new(
-        zmq_context: tmq::Context,
+        zmq_context: r0z_async::Context,
         rpc_address: String,
         events_address: String,
         curve_keys: Option<(String, String, String)>,
@@ -70,17 +70,18 @@ impl ZmqHostServices {
 
     fn subscriber(
         &self,
-    ) -> Result<tmq::SocketBuilder<tmq::subscribe::SubscribeWithoutTopic>, RpcError> {
+    ) -> Result<r0z_async::SocketBuilder<r0z_async::subscribe::SubscribeWithoutTopic>, RpcError>
+    {
         let mut builder = subscribe(&self.zmq_context);
 
         if let Some((client_secret, client_public, server_public)) = &self.curve_keys {
-            let client_secret_bytes = zmq::z85_decode(client_secret).map_err(|_| {
+            let client_secret_bytes = r0z::z85_decode(client_secret).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid client secret key".to_string())
             })?;
-            let client_public_bytes = zmq::z85_decode(client_public).map_err(|_| {
+            let client_public_bytes = r0z::z85_decode(client_public).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid client public key".to_string())
             })?;
-            let server_public_bytes = zmq::z85_decode(server_public).map_err(|_| {
+            let server_public_bytes = r0z::z85_decode(server_public).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid server public key".to_string())
             })?;
 

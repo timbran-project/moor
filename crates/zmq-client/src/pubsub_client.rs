@@ -14,7 +14,7 @@
 /// RPC related functions, for talking to/from the RPC daemon over ZMQ.
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use tmq::subscribe::Subscribe;
+use r0z_async::subscribe::Subscribe;
 use uuid::Uuid;
 
 use moor_runtime_api::RpcError;

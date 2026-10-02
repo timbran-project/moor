@@ -56,6 +56,7 @@ eyre.workspace = true
 flume.workspace = true
 mimalloc.workspace = true
 oneshot.workspace = true
+r0z.workspace = true
 rusty_paseto.workspace = true
 semver.workspace = true
 serde.workspace = true
@@ -63,7 +64,6 @@ signal-hook.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true
-zmq.workspace = true
 
 [dev-dependencies]
 libc.workspace = true

@@ -147,7 +147,7 @@ return 1;
 #[allow(clippy::too_many_arguments)]
 async fn continuous_workload(
     args: Args,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     _process_id: usize,
     connection_oid: Obj,
@@ -233,7 +233,7 @@ async fn continuous_workload(
 #[allow(clippy::too_many_arguments)]
 async fn workload(
     args: Args,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     _process_id: usize,
     connection_oid: Obj,
@@ -312,7 +312,7 @@ async fn workload(
 }
 
 async fn request_counters(
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     host_id: Uuid,
 ) -> Result<HashMap<Symbol, HashMap<Symbol, (isize, isize)>>, eyre::Error> {
@@ -780,7 +780,7 @@ async fn main() -> Result<(), eyre::Error> {
         Err(e) => info!(error = ?e, "Failed to pin benchmark executor thread"),
     }
 
-    let zmq_ctx = tmq::Context::new();
+    let zmq_ctx = r0z_async::Context::new();
     let kill_switch = Arc::new(AtomicBool::new(false));
 
     let (listeners, _ljh) = setup::noop_listeners_loop().await;

@@ -32,7 +32,7 @@ use uuid::Uuid;
 /// communication.
 pub async fn start_host_session(
     host_id: Uuid,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     kill_switch: Arc<AtomicBool>,
     listeners: ListenersClient,
@@ -126,7 +126,7 @@ pub async fn start_host_session_with_services(
 pub async fn process_hosts_events(
     rpc_client: RpcClient,
     host_id: Uuid,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     events_zmq_address: String,
     listen_address: String,
     kill_switch: Arc<AtomicBool>,

@@ -29,13 +29,13 @@ pub struct CurveKeyPair {
 
 /// Generate a new CURVE25519 keypair
 pub fn generate_keypair() -> Result<CurveKeyPair> {
-    let keypair = zmq::CurveKeyPair::new().context("Failed to generate CURVE keypair")?;
+    let keypair = r0z::CurveKeyPair::new().context("Failed to generate CURVE keypair")?;
 
     let secret =
-        zmq::z85_encode(&keypair.secret_key).context("Failed to encode secret key to Z85")?;
+        r0z::z85_encode(&keypair.secret_key).context("Failed to encode secret key to Z85")?;
 
     let public =
-        zmq::z85_encode(&keypair.public_key).context("Failed to encode public key to Z85")?;
+        r0z::z85_encode(&keypair.public_key).context("Failed to encode public key to Z85")?;
 
     Ok(CurveKeyPair { secret, public })
 }

@@ -82,7 +82,7 @@ pub async fn run(config: ZmqTelnetHostConfig, runtime: HostRuntime) -> Result<()
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
 
     let host_services = Arc::new(ZmqHostServices::new(
-        tmq::Context::new(),
+        r0z_async::Context::new(),
         config.connection.rpc_address.clone(),
         config.connection.events_address.clone(),
         curve_keys.clone(),

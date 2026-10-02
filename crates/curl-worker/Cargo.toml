@@ -37,5 +37,5 @@ webpki-roots.workspace = true
 tracing.workspace = true
 
 ## ZMQ / RPC
-tmq.workspace = true
+r0z-async.workspace = true
 uuid.workspace = true

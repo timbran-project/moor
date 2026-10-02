@@ -30,13 +30,13 @@ use moor_zmq_client::{
     pubsub_client::{broadcast_recv, events_recv},
     rpc_client::RpcClient,
 };
+use r0z_async::{subscribe, subscribe::Subscribe};
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, SocketAddr},
     sync::{Arc, atomic::AtomicBool},
     time::{Instant, SystemTime},
 };
-use tmq::{subscribe, subscribe::Subscribe};
 use tokio::{
     sync::{Mutex, Notify},
     task::JoinHandle,
@@ -69,7 +69,7 @@ pub async fn noop_listeners_loop() -> (ListenersClient, JoinHandle<()>) {
 }
 
 pub async fn broadcast_handle(
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     mut broadcast_sub: Subscribe,
     client_id: Uuid,
@@ -113,7 +113,7 @@ pub async fn broadcast_handle(
 }
 
 pub async fn create_user_session(
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     events_address: String,
 ) -> Result<
@@ -383,7 +383,7 @@ pub async fn initialization_session(
 }
 
 pub struct ExecutionContext {
-    pub zmq_ctx: tmq::Context,
+    pub zmq_ctx: r0z_async::Context,
     pub kill_switch: Arc<std::sync::atomic::AtomicBool>,
 }
 

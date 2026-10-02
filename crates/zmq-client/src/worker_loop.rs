@@ -23,6 +23,7 @@ use moor_schema::{
 
 use moor_runtime_api::WORKER_BROADCAST_TOPIC;
 use moor_var::{Obj, Symbol, Var};
+use r0z_async::{TmqError, request};
 use std::{
     future::Future,
     sync::{
@@ -32,7 +33,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use thiserror::Error;
-use tmq::{TmqError, request};
 use tokio::time::timeout;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -60,7 +60,7 @@ where
         Fn(Uuid, Symbol, Obj, Vec<Var>, Option<std::time::Duration>) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<Var, WorkerError>> + Send + 'static + Sync,
 {
-    let zmq_ctx = tmq::Context::new();
+    let zmq_ctx = r0z_async::Context::new();
 
     worker_loop_with_context(
         kill_switch,
@@ -79,7 +79,7 @@ where
 pub async fn worker_loop_with_context<ProcessFunc, Fut>(
     kill_switch: &Arc<AtomicBool>,
     my_id: Uuid,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     worker_response_rpc_addr: &str,
     worker_request_rpc_addr: &str,
     worker_type: Symbol,
@@ -104,7 +104,7 @@ where
     .map_err(WorkerRpcError::RpcError)?;
 
     // Now make the pub-sub client to the daemon and listen.
-    let mut socket_builder = tmq::subscribe(&zmq_ctx);
+    let mut socket_builder = r0z_async::subscribe(&zmq_ctx);
 
     // Configure CURVE encryption if keys provided
     if let Some((client_secret, client_public, server_public)) = &curve_keys {
@@ -112,17 +112,17 @@ where
         use tracing::info;
 
         // Decode Z85 keys to bytes
-        let client_secret_bytes = zmq::z85_decode(client_secret).map_err(|_| {
+        let client_secret_bytes = r0z::z85_decode(client_secret).map_err(|_| {
             WorkerRpcError::RpcError(RpcError::CouldNotInitiateSession(
                 "Invalid client secret key".to_string(),
             ))
         })?;
-        let client_public_bytes = zmq::z85_decode(client_public).map_err(|_| {
+        let client_public_bytes = r0z::z85_decode(client_public).map_err(|_| {
             WorkerRpcError::RpcError(RpcError::CouldNotInitiateSession(
                 "Invalid client public key".to_string(),
             ))
         })?;
-        let server_public_bytes = zmq::z85_decode(server_public).map_err(|_| {
+        let server_public_bytes = r0z::z85_decode(server_public).map_err(|_| {
             WorkerRpcError::RpcError(RpcError::CouldNotInitiateSession(
                 "Invalid server public key".to_string(),
             ))
@@ -173,7 +173,7 @@ where
 
 async fn process_fb<ProcessFunc, Fut>(
     event: WorkerMessage,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: String,
     my_id: Uuid,
     worker_type: Symbol,
@@ -195,21 +195,21 @@ async fn process_fb<ProcessFunc, Fut>(
     // Configure CURVE encryption if keys provided
     if let Some((client_secret, client_public, server_public)) = &curve_keys {
         // Decode Z85 keys to bytes
-        let client_secret_bytes = match zmq::z85_decode(client_secret) {
+        let client_secret_bytes = match r0z::z85_decode(client_secret) {
             Ok(bytes) => bytes,
             Err(_) => {
                 error!("Invalid client secret key for worker task");
                 return;
             }
         };
-        let client_public_bytes = match zmq::z85_decode(client_public) {
+        let client_public_bytes = match r0z::z85_decode(client_public) {
             Ok(bytes) => bytes,
             Err(_) => {
                 error!("Invalid client public key for worker task");
                 return;
             }
         };
-        let server_public_bytes = match zmq::z85_decode(server_public) {
+        let server_public_bytes = match r0z::z85_decode(server_public) {
             Ok(bytes) => bytes,
             Err(_) => {
                 error!("Invalid server public key for worker task");

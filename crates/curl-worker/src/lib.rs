@@ -42,7 +42,7 @@ pub struct CurlWorkerConfig {
 
 #[derive(Clone)]
 pub struct WorkerRuntime {
-    pub zmq_context: tmq::Context,
+    pub zmq_context: r0z_async::Context,
     pub kill_switch: Arc<AtomicBool>,
 }
 
@@ -54,7 +54,7 @@ pub struct LocalWorkerRuntime {
 impl Default for WorkerRuntime {
     fn default() -> Self {
         Self {
-            zmq_context: tmq::Context::new(),
+            zmq_context: r0z_async::Context::new(),
             kill_switch: Arc::new(AtomicBool::new(false)),
         }
     }

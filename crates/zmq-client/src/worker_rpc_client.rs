@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::rpc_client::exchange;
 use moor_common::tasks::WorkerError;
 use moor_runtime_api::{
     DaemonToWorkerReply, RpcError, mk_attach_worker_msg, mk_request_error_msg,
@@ -19,67 +20,45 @@ use moor_runtime_api::{
 use moor_schema::{convert::var_to_flatbuffer, rpc as moor_rpc};
 use moor_var::{Symbol, Var};
 use planus::{Builder, ReadAsRoot};
-use std::sync::Arc;
-use tmq::{Multipart, request_reply::RequestSender};
-use tokio::sync::Mutex;
-use tracing::error;
+use r0z_async::{
+    Multipart,
+    request_reply::{RequestReply, RequestReplyState},
+};
+use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
-/// Socket guard that ensures socket cleanup regardless of cancellation
-struct WorkerSocketGuard {
-    client: Arc<Mutex<Option<RequestSender>>>,
-    socket: Option<RequestSender>,
+/// Keep exclusive access to the worker socket through the complete exchange.
+struct WorkerSocketGuard<'a> {
+    socket: MutexGuard<'a, Option<RequestReply>>,
 }
 
-impl WorkerSocketGuard {
-    /// Create a new socket guard with the given socket
-    fn new(client: Arc<Mutex<Option<RequestSender>>>, socket: RequestSender) -> Self {
-        Self {
-            client,
-            socket: Some(socket),
-        }
-    }
-
-    /// Take the socket for use in an RPC call
-    fn take_socket(&mut self) -> Result<RequestSender, RpcError> {
-        self.socket.take().ok_or_else(|| {
-            RpcError::CouldNotInitiateSession(
-                "Worker socket guard invariant violated: missing socket".to_string(),
-            )
-        })
-    }
-
-    /// Return the socket after successful completion
-    async fn return_socket(&mut self, socket: RequestSender) {
-        self.socket = Some(socket);
+impl WorkerSocketGuard<'_> {
+    fn socket_mut(&mut self) -> &mut RequestReply {
+        self.socket.as_mut().expect("worker guard owns its socket")
     }
 }
 
-impl Drop for WorkerSocketGuard {
+impl Drop for WorkerSocketGuard<'_> {
     fn drop(&mut self) {
-        // If the socket is still present when the guard is dropped,
-        // return it to the client. This handles cancellation scenarios.
-        if let Some(socket) = self.socket.take() {
-            // Use tokio::spawn to return the socket asynchronously
-            let client = self.client.clone();
-            tokio::spawn(async move {
-                let mut socket_guard = client.lock().await;
-                *socket_guard = Some(socket);
-            });
+        if self
+            .socket
+            .as_ref()
+            .is_some_and(|socket| socket.state() != RequestReplyState::SendReady)
+        {
+            self.socket.take();
         }
     }
 }
 
-/// Lightweight wrapper around the TMQ RequestSender to make it slightly simpler to make RPC
-/// requests, reducing some boiler plate.
+/// Serializes worker RPC exchanges on a request socket.
 pub struct WorkerRpcSendClient {
-    socket: Arc<Mutex<Option<RequestSender>>>,
+    socket: Mutex<Option<RequestReply>>,
 }
 
 impl WorkerRpcSendClient {
-    pub fn new(request_sender: RequestSender) -> Self {
+    pub fn new(request_sender: RequestReply) -> Self {
         Self {
-            socket: Arc::new(Mutex::new(Some(request_sender))),
+            socket: Mutex::new(Some(request_sender)),
         }
     }
 
@@ -88,10 +67,7 @@ impl WorkerRpcSendClient {
         worker_id: Uuid,
         worker_type: Symbol,
     ) -> Result<(), RpcError> {
-        // Acquire socket and create guard for cancellation safety
-        let socket = self.acquire_socket().await?;
-        let mut socket_guard = WorkerSocketGuard::new(self.socket.clone(), socket);
-        let socket = socket_guard.take_socket()?;
+        let mut socket_guard = self.acquire_socket().await?;
 
         let fb_message = mk_worker_pong_msg(worker_id, &worker_type);
 
@@ -102,18 +78,8 @@ impl WorkerRpcSendClient {
 
         let message = Multipart::from(vec![worker_id_bytes, rpc_msg_payload.to_vec()]);
 
-        // Perform the RPC call - socket cleanup is guaranteed by the guard
-        match Self::perform_worker_rpc_call(socket, message).await {
-            Ok(socket) => {
-                // Successfully completed - return socket
-                socket_guard.return_socket(socket).await;
-                Ok(())
-            }
-            Err(error) => {
-                // Socket is already cleaned up by the guard on error
-                Err(error)
-            }
-        }
+        exchange(socket_guard.socket_mut(), message).await?;
+        Ok(())
     }
 
     pub async fn make_worker_rpc_call_fb_result(
@@ -122,10 +88,7 @@ impl WorkerRpcSendClient {
         request_id: Uuid,
         result: Var,
     ) -> Result<(), RpcError> {
-        // Acquire socket and create guard for cancellation safety
-        let socket = self.acquire_socket().await?;
-        let mut socket_guard = WorkerSocketGuard::new(self.socket.clone(), socket);
-        let socket = socket_guard.take_socket()?;
+        let mut socket_guard = self.acquire_socket().await?;
 
         let result_fb = var_to_flatbuffer(&result)
             .map_err(|e| RpcError::CouldNotSend(format!("Failed to serialize result: {e}")))?;
@@ -139,18 +102,8 @@ impl WorkerRpcSendClient {
 
         let message = Multipart::from(vec![worker_id_bytes, rpc_msg_payload.to_vec()]);
 
-        // Perform the RPC call - socket cleanup is guaranteed by the guard
-        match Self::perform_worker_rpc_call(socket, message).await {
-            Ok(socket) => {
-                // Successfully completed - return socket
-                socket_guard.return_socket(socket).await;
-                Ok(())
-            }
-            Err(error) => {
-                // Socket is already cleaned up by the guard on error
-                Err(error)
-            }
-        }
+        exchange(socket_guard.socket_mut(), message).await?;
+        Ok(())
     }
 
     pub async fn make_worker_rpc_call_fb_attach(
@@ -158,10 +111,7 @@ impl WorkerRpcSendClient {
         worker_id: Uuid,
         worker_type: Symbol,
     ) -> Result<DaemonToWorkerReply, RpcError> {
-        // Acquire socket and create guard for cancellation safety
-        let socket = self.acquire_socket().await?;
-        let mut socket_guard = WorkerSocketGuard::new(self.socket.clone(), socket);
-        let socket = socket_guard.take_socket()?;
+        let mut socket_guard = self.acquire_socket().await?;
 
         let fb_message = mk_attach_worker_msg(worker_id, &worker_type);
 
@@ -173,13 +123,12 @@ impl WorkerRpcSendClient {
         let message = Multipart::from(vec![worker_id_bytes, rpc_msg_payload.to_vec()]);
 
         // Perform the RPC call - socket cleanup is guaranteed by the guard
-        match Self::perform_worker_rpc_call_with_response(socket, message).await {
-            Ok((reply_bytes, socket)) => {
-                // Successfully completed - return socket
-                socket_guard.return_socket(socket).await;
+        match exchange(socket_guard.socket_mut(), message).await {
+            Ok(reply) => {
+                let reply_bytes = &reply[0];
 
                 // Decode flatbuffer response
-                let fb_reply = moor_rpc::DaemonToWorkerReplyRef::read_as_root(&reply_bytes)
+                let fb_reply = moor_rpc::DaemonToWorkerReplyRef::read_as_root(reply_bytes)
                     .map_err(|e| {
                         RpcError::CouldNotDecode(format!(
                             "Unable to decode flatbuffer daemon reply: {e}"
@@ -288,10 +237,7 @@ impl WorkerRpcSendClient {
         request_id: Uuid,
         error: WorkerError,
     ) -> Result<(), RpcError> {
-        // Acquire socket and create guard for cancellation safety
-        let socket = self.acquire_socket().await?;
-        let mut socket_guard = WorkerSocketGuard::new(self.socket.clone(), socket);
-        let socket = socket_guard.take_socket()?;
+        let mut socket_guard = self.acquire_socket().await?;
 
         let fb_error = match error {
             WorkerError::PermissionDenied(msg) => {
@@ -340,75 +286,84 @@ impl WorkerRpcSendClient {
 
         let message = Multipart::from(vec![worker_id_bytes, rpc_msg_payload.to_vec()]);
 
-        // Perform the RPC call - socket cleanup is guaranteed by the guard
-        match Self::perform_worker_rpc_call(socket, message).await {
-            Ok(socket) => {
-                // Successfully completed - return socket
-                socket_guard.return_socket(socket).await;
-                Ok(())
+        exchange(socket_guard.socket_mut(), message).await?;
+        Ok(())
+    }
+
+    async fn acquire_socket(&self) -> Result<WorkerSocketGuard<'_>, RpcError> {
+        let socket = self.socket.lock().await;
+        if socket.is_none() {
+            return Err(RpcError::CouldNotSend(
+                "RPC request socket not initialized".to_string(),
+            ));
+        }
+        Ok(WorkerSocketGuard { socket })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn socket_fixture() -> (WorkerRpcSendClient, RequestReply) {
+        let context = r0z::Context::new();
+        let endpoint = format!("inproc://worker-rpc-test-{}", Uuid::new_v4());
+        let server = r0z_async::reply(&context).bind(&endpoint).unwrap();
+        let socket = r0z_async::request(&context)
+            .set_sndtimeo(1000)
+            .set_rcvtimeo(1000)
+            .connect(&endpoint)
+            .unwrap();
+        (WorkerRpcSendClient::new(socket), server)
+    }
+
+    #[tokio::test]
+    async fn concurrent_calls_serialize_and_reuse_socket() {
+        let (client, mut server) = socket_fixture();
+        let peer = async {
+            for _ in 0..2 {
+                assert_eq!(server.recv().await.unwrap().len(), 2);
+                server.send(vec!["ack"].into()).await.unwrap();
             }
-            Err(error) => {
-                // Socket is already cleaned up by the guard on error
-                Err(error)
+        };
+        let calls = async {
+            let (first, second) = tokio::join!(
+                client.make_worker_rpc_call_fb_pong(Uuid::new_v4(), Symbol::mk("test")),
+                client.make_worker_rpc_call_fb_pong(Uuid::new_v4(), Symbol::mk("test"))
+            );
+            first.unwrap();
+            second.unwrap();
+            assert_eq!(
+                client.socket.lock().await.as_ref().unwrap().state(),
+                RequestReplyState::SendReady
+            );
+        };
+        tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::join!(peer, calls);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn cancellation_discards_worker_socket() {
+        let (client, mut server) = socket_fixture();
+        {
+            let call = client.make_worker_rpc_call_fb_pong(Uuid::new_v4(), Symbol::mk("test"));
+            tokio::pin!(call);
+            tokio::select! {
+                result = &mut call => panic!("call completed before reply: {result:?}"),
+                request = server.recv() => { request.unwrap(); }
             }
         }
-    }
-
-    /// Acquire the socket from the shared state
-    async fn acquire_socket(&self) -> Result<RequestSender, RpcError> {
-        let mut socket_guard = self.socket.lock().await;
-        socket_guard
-            .take()
-            .ok_or_else(|| RpcError::CouldNotSend("RPC request socket not initialized".to_string()))
-    }
-
-    /// Perform a worker RPC call that doesn't return response data
-    async fn perform_worker_rpc_call(
-        socket: RequestSender,
-        message: Multipart,
-    ) -> Result<RequestSender, RpcError> {
-        let rpc_reply_sock = match socket.send(message).await {
-            Ok(rpc_reply_sock) => rpc_reply_sock,
-            Err(e) => {
-                error!("Unable to send worker request to RPC server: {}", e);
-                return Err(RpcError::CouldNotSend(e.to_string()));
-            }
-        };
-
-        let (_msg, recv_sock) = match rpc_reply_sock.recv().await {
-            Ok((msg, recv_sock)) => (msg, recv_sock),
-            Err(e) => {
-                error!("Unable to receive worker reply from RPC server: {}", e);
-                return Err(RpcError::CouldNotReceive(e.to_string()));
-            }
-        };
-
-        Ok(recv_sock)
-    }
-
-    /// Perform a worker RPC call that returns response data
-    async fn perform_worker_rpc_call_with_response(
-        socket: RequestSender,
-        message: Multipart,
-    ) -> Result<(Vec<u8>, RequestSender), RpcError> {
-        let rpc_reply_sock = match socket.send(message).await {
-            Ok(rpc_reply_sock) => rpc_reply_sock,
-            Err(e) => {
-                error!("Unable to send worker request to RPC server: {}", e);
-                return Err(RpcError::CouldNotSend(e.to_string()));
-            }
-        };
-
-        let (msg, recv_sock) = match rpc_reply_sock.recv().await {
-            Ok((msg, recv_sock)) => (msg, recv_sock),
-            Err(e) => {
-                error!("Unable to receive worker reply from RPC server: {}", e);
-                return Err(RpcError::CouldNotReceive(e.to_string()));
-            }
-        };
-
-        // Return raw reply bytes
-        let reply_bytes = msg[0].to_vec();
-        Ok((reply_bytes, recv_sock))
+        assert!(client.socket.lock().await.is_none());
+        assert!(matches!(
+            client
+                .make_worker_rpc_call_fb_pong(Uuid::new_v4(), Symbol::mk("test"))
+                .await,
+            Err(RpcError::CouldNotSend(_))
+        ));
+        server.send(vec!["late reply"].into()).await.unwrap();
     }
 }

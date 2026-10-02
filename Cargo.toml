@@ -126,17 +126,17 @@ fjall = "3.1"
 axum = { version = "0.8", features = ["ws"] }
 hickory-resolver = "0.26"
 ipnet = "2.11"
+r0z = "0.1.0"
+r0z-async = "0.1.0"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 socket2 = { version = "0.6", features = ["all"] }
-tmq = "0.5"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "logging", "tls12"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["cors"] }
 tower_governor = "0.8"
 webpki-roots = "1.0"
 webrtc = "0.17"
-zmq = "0.10"
 
 # Async Runtime & Concurrency
 arc-swap = "1.9"
@@ -248,7 +248,3 @@ colored = "3.0"
 crossterm = "0.29"
 jotdown = { version = "0.10", default-features = false }
 rustyline = "18.0"
-
-# Patch to forked (maintained by me) version of ZeroMQ
-[patch.crates-io]
-zmq = { git = "https://github.com/rdaum/rust-zmq" }

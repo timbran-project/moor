@@ -14,7 +14,7 @@
 use crate::worker_rpc_client::WorkerRpcSendClient;
 use moor_runtime_api::{DaemonToWorkerReply, RpcError};
 use moor_var::Symbol;
-use tmq::request;
+use r0z_async::request;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -23,7 +23,7 @@ use uuid::Uuid;
 pub async fn attach_worker(
     worker_type: Symbol,
     worker_id: Uuid,
-    zmq_ctx: tmq::Context,
+    zmq_ctx: r0z_async::Context,
     rpc_address: &str,
     curve_keys: Option<(String, String, String)>, // (client_secret, client_public, server_public) - Z85 encoded
 ) -> Result<WorkerRpcSendClient, RpcError> {
@@ -39,13 +39,13 @@ pub async fn attach_worker(
         // Configure CURVE encryption if keys provided
         if let Some((client_secret, client_public, server_public)) = &curve_keys {
             // Decode Z85 keys to bytes
-            let client_secret_bytes = zmq::z85_decode(client_secret).map_err(|_| {
+            let client_secret_bytes = r0z::z85_decode(client_secret).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid client secret key".to_string())
             })?;
-            let client_public_bytes = zmq::z85_decode(client_public).map_err(|_| {
+            let client_public_bytes = r0z::z85_decode(client_public).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid client public key".to_string())
             })?;
-            let server_public_bytes = zmq::z85_decode(server_public).map_err(|_| {
+            let server_public_bytes = r0z::z85_decode(server_public).map_err(|_| {
                 RpcError::CouldNotInitiateSession("Invalid server public key".to_string())
             })?;
 

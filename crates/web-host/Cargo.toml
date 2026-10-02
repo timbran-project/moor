@@ -57,9 +57,9 @@ sha2.workspace = true
 axum.workspace = true
 hickory-resolver.workspace = true
 ipnet.workspace = true
+r0z-async.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 rustls.workspace = true
-tmq.workspace = true
 tower-http.workspace = true
 tower_governor.workspace = true
 webpki-roots.workspace = true

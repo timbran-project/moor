@@ -358,7 +358,7 @@ async fn main() -> Result<(), Report> {
     let daemon_curve_keypair = load_or_generate_daemon_curve_keypair(&args.data_dir)?;
     let _enrollment_token = ensure_enrollment_token(&enrollment_token_path)?;
 
-    let zmq_context = zmq::Context::new();
+    let zmq_context = r0z::Context::new();
 
     let kill_switch = Arc::new(AtomicBool::new(false));
     let emergency_checkpoint = Arc::new(AtomicBool::new(false));
