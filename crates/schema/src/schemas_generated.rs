@@ -66221,6 +66221,9 @@ mod root {
 
             /// The variant of type `VerifiedOAuthLogin` in the union `HostClientToDaemonMessageUnion`
             VerifiedOAuthLogin(::planus::alloc::boxed::Box<self::VerifiedOAuthLogin>),
+
+            /// The variant of type `EventStreamRequest` in the union `HostClientToDaemonMessageUnion`
+            EventStreamRequest(::planus::alloc::boxed::Box<self::EventStreamRequest>),
         }
 
         impl HostClientToDaemonMessageUnion {
@@ -66477,6 +66480,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(31, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_event_stream_request(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::EventStreamRequest>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(32, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<HostClientToDaemonMessageUnion> for HostClientToDaemonMessageUnion {
@@ -66535,6 +66546,9 @@ mod root {
                     }
                     Self::VerifiedOAuthLogin(value) => {
                         Self::create_verified_o_auth_login(builder, value)
+                    }
+                    Self::EventStreamRequest(value) => {
+                        Self::create_event_stream_request(builder, value)
                     }
                 }
             }
@@ -66928,6 +66942,18 @@ mod root {
             ) -> HostClientToDaemonMessageUnionBuilder<::planus::Initialized<31, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerifiedOAuthLogin>,
+            {
+                HostClientToDaemonMessageUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`EventStreamRequest` variant](HostClientToDaemonMessageUnion#variant.EventStreamRequest).
+            #[inline]
+            pub fn event_stream_request<T>(
+                self,
+                value: T,
+            ) -> HostClientToDaemonMessageUnionBuilder<::planus::Initialized<32, T>>
+            where
+                T: ::planus::WriteAsOffset<self::EventStreamRequest>,
             {
                 HostClientToDaemonMessageUnionBuilder(::planus::Initialized(value))
             }
@@ -67815,6 +67841,34 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<HostClientToDaemonMessageUnion>
+            for HostClientToDaemonMessageUnionBuilder<::planus::Initialized<32, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventStreamRequest>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<HostClientToDaemonMessageUnion> {
+                ::planus::UnionOffset::new(32, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<HostClientToDaemonMessageUnion>
+            for HostClientToDaemonMessageUnionBuilder<::planus::Initialized<32, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventStreamRequest>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<HostClientToDaemonMessageUnion>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [HostClientToDaemonMessageUnion].
         #[derive(Copy, Clone, Debug)]
@@ -67850,6 +67904,7 @@ mod root {
             BatchWorldState(self::BatchWorldStateRef<'a>),
             ReplayClientEvents(self::ReplayClientEventsRef<'a>),
             VerifiedOAuthLogin(self::VerifiedOAuthLoginRef<'a>),
+            EventStreamRequest(self::EventStreamRequestRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<HostClientToDaemonMessageUnionRef<'a>>
@@ -68044,6 +68099,12 @@ mod root {
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
+
+                    HostClientToDaemonMessageUnionRef::EventStreamRequest(value) => {
+                        Self::EventStreamRequest(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
                 })
             }
         }
@@ -68150,6 +68211,9 @@ mod root {
                     31 => ::core::result::Result::Ok(Self::VerifiedOAuthLogin(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    32 => ::core::result::Result::Ok(Self::EventStreamRequest(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -68166,7 +68230,7 @@ mod root {
         /// The table `ConnectionEstablish` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:716`
+        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:717`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionEstablish {
             /// The field `peer_addr` in the table `ConnectionEstablish`
@@ -68697,7 +68761,7 @@ mod root {
         /// The table `Reattach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Reattach` in the file `moor_rpc.fbs:724`
+        /// * Table `Reattach` in the file `moor_rpc.fbs:725`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Reattach {
             /// The field `client_token` in the table `Reattach`
@@ -69284,7 +69348,7 @@ mod root {
         /// The table `RequestSysProp` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:734`
+        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:735`
         #[derive(
             Clone,
             Debug,
@@ -69624,7 +69688,7 @@ mod root {
         /// The table `VerifiedOAuthLogin` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:742`
+        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:743`
         #[derive(
             Clone,
             Debug,
@@ -69989,7 +70053,7 @@ mod root {
         /// The table `LoginCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginCommand` in the file `moor_rpc.fbs:748`
+        /// * Table `LoginCommand` in the file `moor_rpc.fbs:749`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct LoginCommand {
             /// The field `client_token` in the table `LoginCommand`
@@ -70414,7 +70478,7 @@ mod root {
         /// The table `Attach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Attach` in the file `moor_rpc.fbs:759`
+        /// * Table `Attach` in the file `moor_rpc.fbs:760`
         #[derive(
             Clone,
             Debug,
@@ -70947,7 +71011,7 @@ mod root {
         /// The table `Verbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Verbs` in the file `moor_rpc.fbs:769`
+        /// * Table `Verbs` in the file `moor_rpc.fbs:770`
         #[derive(
             Clone,
             Debug,
@@ -71266,7 +71330,7 @@ mod root {
         /// The table `ConnectedInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:777`
+        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:778`
         #[derive(
             Clone,
             Debug,
@@ -71541,7 +71605,7 @@ mod root {
         /// The table `CaptureOutputInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:788`
+        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:789`
         #[derive(
             Clone,
             Debug,
@@ -71839,7 +71903,7 @@ mod root {
         /// The union `InvocationMode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationMode` in the file `moor_rpc.fbs:792`
+        /// * Union `InvocationMode` in the file `moor_rpc.fbs:793`
         #[derive(
             Clone,
             Debug,
@@ -72065,7 +72129,7 @@ mod root {
         /// The table `Command` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Command` in the file `moor_rpc.fbs:797`
+        /// * Table `Command` in the file `moor_rpc.fbs:798`
         #[derive(
             Clone,
             Debug,
@@ -72411,7 +72475,7 @@ mod root {
         /// The table `InvokeVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:804`
+        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:805`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeVerb {
             /// The field `auth_token` in the table `InvokeVerb`
@@ -72791,7 +72855,7 @@ mod root {
         /// The table `Properties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Properties` in the file `moor_rpc.fbs:812`
+        /// * Table `Properties` in the file `moor_rpc.fbs:813`
         #[derive(
             Clone,
             Debug,
@@ -73121,7 +73185,7 @@ mod root {
         /// The table `Retrieve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Retrieve` in the file `moor_rpc.fbs:818`
+        /// * Table `Retrieve` in the file `moor_rpc.fbs:819`
         #[derive(
             Clone,
             Debug,
@@ -73487,7 +73551,7 @@ mod root {
         /// The table `Program` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Program` in the file `moor_rpc.fbs:825`
+        /// * Table `Program` in the file `moor_rpc.fbs:826`
         #[derive(
             Clone,
             Debug,
@@ -73836,7 +73900,7 @@ mod root {
         /// The table `RequestedInput` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestedInput` in the file `moor_rpc.fbs:832`
+        /// * Table `RequestedInput` in the file `moor_rpc.fbs:833`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestedInput {
             /// The field `client_token` in the table `RequestedInput`
@@ -74179,7 +74243,7 @@ mod root {
         /// The table `OutOfBand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `OutOfBand` in the file `moor_rpc.fbs:839`
+        /// * Table `OutOfBand` in the file `moor_rpc.fbs:840`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct OutOfBand {
             /// The field `client_token` in the table `OutOfBand`
@@ -74555,7 +74619,7 @@ mod root {
         /// The table `Eval` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Eval` in the file `moor_rpc.fbs:847`
+        /// * Table `Eval` in the file `moor_rpc.fbs:848`
         #[derive(
             Clone,
             Debug,
@@ -74862,7 +74926,7 @@ mod root {
         /// The table `Resolve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Resolve` in the file `moor_rpc.fbs:853`
+        /// * Table `Resolve` in the file `moor_rpc.fbs:854`
         #[derive(
             Clone,
             Debug,
@@ -75139,7 +75203,7 @@ mod root {
         /// The table `ClientPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientPong` in the file `moor_rpc.fbs:858`
+        /// * Table `ClientPong` in the file `moor_rpc.fbs:859`
         #[derive(
             Clone,
             Debug,
@@ -75556,7 +75620,7 @@ mod root {
         /// The table `ReplayClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:866`
+        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:867`
         #[derive(
             Clone,
             Debug,
@@ -75935,7 +75999,7 @@ mod root {
         /// The table `RequestHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestHistory` in the file `moor_rpc.fbs:872`
+        /// * Table `RequestHistory` in the file `moor_rpc.fbs:873`
         #[derive(
             Clone,
             Debug,
@@ -76218,7 +76282,7 @@ mod root {
         /// The table `RequestCurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:877`
+        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:878`
         #[derive(
             Clone,
             Debug,
@@ -76506,7 +76570,7 @@ mod root {
         /// The table `DismissPresentation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:881`
+        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:882`
         #[derive(
             Clone,
             Debug,
@@ -76816,7 +76880,7 @@ mod root {
         /// The table `SetClientAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:886`
+        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:887`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetClientAttribute {
             /// The field `client_token` in the table `SetClientAttribute`
@@ -77208,7 +77272,7 @@ mod root {
         /// The table `Detach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Detach` in the file `moor_rpc.fbs:893`
+        /// * Table `Detach` in the file `moor_rpc.fbs:894`
         #[derive(
             Clone,
             Debug,
@@ -77508,7 +77572,7 @@ mod root {
         /// The table `GetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:898`
+        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:899`
         #[derive(
             Clone,
             Debug,
@@ -77783,7 +77847,7 @@ mod root {
         /// The table `SetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:902`
+        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:903`
         #[derive(
             Clone,
             Debug,
@@ -78093,7 +78157,7 @@ mod root {
         /// The table `DeleteEventLogHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:907`
+        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:908`
         #[derive(
             Clone,
             Debug,
@@ -78370,7 +78434,7 @@ mod root {
         /// The table `ListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjects` in the file `moor_rpc.fbs:911`
+        /// * Table `ListObjects` in the file `moor_rpc.fbs:912`
         #[derive(
             Clone,
             Debug,
@@ -78625,7 +78689,7 @@ mod root {
         /// The table `UpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:915`
+        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:916`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct UpdateProperty {
             /// The field `auth_token` in the table `UpdateProperty`
@@ -78968,7 +79032,7 @@ mod root {
         /// The table `InvokeSystemHandler` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:922`
+        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:923`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeSystemHandler {
             /// The field `host_id` in the table `InvokeSystemHandler`
@@ -79423,7 +79487,7 @@ mod root {
         /// The table `InvokeWelcomeMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:934`
+        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:935`
         #[derive(
             Clone,
             Debug,
@@ -79653,7 +79717,7 @@ mod root {
         /// The table `HostClientToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:937`
+        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:938`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMessage {
             /// The field `message` in the table `HostClientToDaemonMessage`
@@ -79919,7 +79983,7 @@ mod root {
         /// The union `DaemonToClientReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:945`
+        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:946`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToClientReplyUnion {
             /// The variant of type `NewConnection` in the union `DaemonToClientReplyUnion`
@@ -80004,6 +80068,9 @@ mod root {
 
             /// The variant of type `ClientEvents` in the union `DaemonToClientReplyUnion`
             ClientEvents(::planus::alloc::boxed::Box<self::ClientEvents>),
+
+            /// The variant of type `EventStreamState` in the union `DaemonToClientReplyUnion`
+            EventStreamState(::planus::alloc::boxed::Box<self::EventStreamState>),
         }
 
         impl DaemonToClientReplyUnion {
@@ -80228,6 +80295,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(27, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_event_stream_state(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::EventStreamState>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(28, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<DaemonToClientReplyUnion> for DaemonToClientReplyUnion {
@@ -80283,6 +80358,9 @@ mod root {
                         Self::create_batch_world_state_reply(builder, value)
                     }
                     Self::ClientEvents(value) => Self::create_client_events(builder, value),
+                    Self::EventStreamState(value) => {
+                        Self::create_event_stream_state(builder, value)
+                    }
                 }
             }
         }
@@ -80625,6 +80703,18 @@ mod root {
             ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<27, T>>
             where
                 T: ::planus::WriteAsOffset<self::ClientEvents>,
+            {
+                DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`EventStreamState` variant](DaemonToClientReplyUnion#variant.EventStreamState).
+            #[inline]
+            pub fn event_stream_state<T>(
+                self,
+                value: T,
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
+            where
+                T: ::planus::WriteAsOffset<self::EventStreamState>,
             {
                 DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
             }
@@ -81400,6 +81490,34 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
+            for DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventStreamState>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<DaemonToClientReplyUnion> {
+                ::planus::UnionOffset::new(28, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
+            for DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventStreamState>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<DaemonToClientReplyUnion>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [DaemonToClientReplyUnion].
         #[derive(Copy, Clone, Debug)]
@@ -81431,6 +81549,7 @@ mod root {
             InvocationResponse(self::InvocationResponseRef<'a>),
             BatchWorldStateReply(self::BatchWorldStateReplyRef<'a>),
             ClientEvents(self::ClientEventsRef<'a>),
+            EventStreamState(self::EventStreamStateRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<DaemonToClientReplyUnionRef<'a>> for DaemonToClientReplyUnion {
@@ -81599,6 +81718,12 @@ mod root {
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
+
+                    DaemonToClientReplyUnionRef::EventStreamState(value) => {
+                        Self::EventStreamState(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
                 })
             }
         }
@@ -81691,6 +81816,9 @@ mod root {
                     27 => ::core::result::Result::Ok(Self::ClientEvents(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    28 => ::core::result::Result::Ok(Self::EventStreamState(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -81707,7 +81835,7 @@ mod root {
         /// The table `NewConnection` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NewConnection` in the file `moor_rpc.fbs:975`
+        /// * Table `NewConnection` in the file `moor_rpc.fbs:977`
         #[derive(
             Clone,
             Debug,
@@ -81989,7 +82117,7 @@ mod root {
         /// The table `LoginResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginResult` in the file `moor_rpc.fbs:980`
+        /// * Table `LoginResult` in the file `moor_rpc.fbs:982`
         #[derive(
             Clone,
             Debug,
@@ -82480,7 +82608,7 @@ mod root {
         /// The table `AttachResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachResult` in the file `moor_rpc.fbs:988`
+        /// * Table `AttachResult` in the file `moor_rpc.fbs:990`
         #[derive(
             Clone,
             Debug,
@@ -82922,7 +83050,7 @@ mod root {
         /// The table `SysPropValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SysPropValue` in the file `moor_rpc.fbs:995`
+        /// * Table `SysPropValue` in the file `moor_rpc.fbs:997`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SysPropValue {
             /// The field `value` in the table `SysPropValue`
@@ -83187,7 +83315,7 @@ mod root {
         /// The table `TaskSubmitted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:999`
+        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:1001`
         #[derive(
             Clone,
             Debug,
@@ -83452,7 +83580,7 @@ mod root {
         /// The table `InputThanks` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputThanks` in the file `moor_rpc.fbs:1003`
+        /// * Table `InputThanks` in the file `moor_rpc.fbs:1005`
         #[derive(
             Clone,
             Debug,
@@ -83663,7 +83791,7 @@ mod root {
         /// The table `EvalResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EvalResult` in the file `moor_rpc.fbs:1006`
+        /// * Table `EvalResult` in the file `moor_rpc.fbs:1008`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EvalResult {
             /// The field `result` in the table `EvalResult`
@@ -83899,7 +84027,7 @@ mod root {
         /// The table `ThanksPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1010`
+        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1012`
         #[derive(
             Clone,
             Debug,
@@ -84164,7 +84292,7 @@ mod root {
         /// The table `ClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1014`
+        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1016`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvents {
             /// The field `events` in the table `ClientEvents`
@@ -84467,7 +84595,7 @@ mod root {
         /// The table `VerbsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1019`
+        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1021`
         #[derive(
             Clone,
             Debug,
@@ -84731,7 +84859,7 @@ mod root {
         /// The table `PropertiesReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1023`
+        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1025`
         #[derive(
             Clone,
             Debug,
@@ -85011,7 +85139,7 @@ mod root {
         /// The table `VerbProgramResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1027`
+        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1029`
         #[derive(
             Clone,
             Debug,
@@ -85286,7 +85414,7 @@ mod root {
         /// The table `PropertyValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1031`
+        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1033`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct PropertyValue {
             /// The field `prop_info` in the table `PropertyValue`
@@ -85558,7 +85686,7 @@ mod root {
         /// The table `VerbValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbValue` in the file `moor_rpc.fbs:1036`
+        /// * Table `VerbValue` in the file `moor_rpc.fbs:1038`
         #[derive(
             Clone,
             Debug,
@@ -85840,7 +85968,7 @@ mod root {
         /// The table `ResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1041`
+        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1043`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ResolveResult {
             /// The field `result` in the table `ResolveResult`
@@ -86077,7 +86205,7 @@ mod root {
         /// The table `HistoryResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1045`
+        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1047`
         #[derive(
             Clone,
             Debug,
@@ -86352,7 +86480,7 @@ mod root {
         /// The table `PresentationSnapshot` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1049`
+        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1051`
         #[derive(
             Clone,
             Debug,
@@ -86659,7 +86787,7 @@ mod root {
         /// The table `CurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1054`
+        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1056`
         #[derive(
             Clone,
             Debug,
@@ -86943,7 +87071,7 @@ mod root {
         /// The table `PresentationDismissed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1058`
+        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1060`
         #[derive(
             Clone,
             Debug,
@@ -87177,7 +87305,7 @@ mod root {
         /// The table `ClientAttributeSet` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1061`
+        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1063`
         #[derive(
             Clone,
             Debug,
@@ -87405,7 +87533,7 @@ mod root {
         /// The table `Disconnected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Disconnected` in the file `moor_rpc.fbs:1064`
+        /// * Table `Disconnected` in the file `moor_rpc.fbs:1066`
         #[derive(
             Clone,
             Debug,
@@ -87616,7 +87744,7 @@ mod root {
         /// The table `EventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1067`
+        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1069`
         #[derive(
             Clone,
             Debug,
@@ -87907,7 +88035,7 @@ mod root {
         /// The table `EventLogHistoryDeleted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1071`
+        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1073`
         #[derive(
             Clone,
             Debug,
@@ -88199,7 +88327,7 @@ mod root {
         /// The table `ObjectInfo` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1075`
+        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1077`
         #[derive(
             Clone,
             Debug,
@@ -88856,7 +88984,7 @@ mod root {
         /// The table `ListObjectsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1087`
+        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1089`
         #[derive(
             Clone,
             Debug,
@@ -89132,7 +89260,7 @@ mod root {
         /// The table `PropertyUpdated` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1091`
+        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1093`
         #[derive(
             Clone,
             Debug,
@@ -89358,7 +89486,7 @@ mod root {
         /// The union `SystemHandlerResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1094`
+        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1096`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum SystemHandlerResponseUnion {
             /// The variant of type `SystemHandlerSuccess` in the union `SystemHandlerResponseUnion`
@@ -89578,7 +89706,7 @@ mod root {
         /// The table `SystemHandlerSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1099`
+        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1101`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerSuccess {
             /// The field `result` in the table `SystemHandlerSuccess`
@@ -89833,7 +89961,7 @@ mod root {
         /// The table `SystemHandlerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1103`
+        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1105`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerError {
             /// The field `error` in the table `SystemHandlerError`
@@ -90086,7 +90214,7 @@ mod root {
         /// The table `SystemHandlerResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1107`
+        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1109`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerResponseReply {
             /// The field `response` in the table `SystemHandlerResponseReply`
@@ -90355,7 +90483,7 @@ mod root {
         /// The union `InvocationOutcome` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1111`
+        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1113`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum InvocationOutcome {
             /// The variant of type `InvocationSuccess` in the union `InvocationOutcome`
@@ -90569,7 +90697,7 @@ mod root {
         /// The table `InvocationSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1116`
+        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1118`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationSuccess {
             /// The field `result` in the table `InvocationSuccess`
@@ -90822,7 +90950,7 @@ mod root {
         /// The table `InvocationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationError` in the file `moor_rpc.fbs:1120`
+        /// * Table `InvocationError` in the file `moor_rpc.fbs:1122`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationError {
             /// The field `error` in the table `InvocationError`
@@ -91074,7 +91202,7 @@ mod root {
         /// The table `InvocationResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1124`
+        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1126`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationResponse {
             /// The field `outcome` in the table `InvocationResponse`
@@ -91377,7 +91505,7 @@ mod root {
         /// The table `DaemonToClientReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1129`
+        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1131`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToClientReply {
             /// The field `reply` in the table `DaemonToClientReply`
@@ -91633,7 +91761,7 @@ mod root {
         /// The union `ClientEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1137`
+        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1139`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ClientEventUnion {
             /// The variant of type `NarrativeEventMessage` in the union `ClientEventUnion`
@@ -91665,6 +91793,9 @@ mod root {
 
             /// The variant of type `CredentialsUpdatedEvent` in the union `ClientEventUnion`
             CredentialsUpdatedEvent(::planus::alloc::boxed::Box<self::CredentialsUpdatedEvent>),
+
+            /// The variant of type `EventsAvailableEvent` in the union `ClientEventUnion`
+            EventsAvailableEvent(::planus::alloc::boxed::Box<self::EventsAvailableEvent>),
         }
 
         impl ClientEventUnion {
@@ -91753,6 +91884,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_events_available_event(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::EventsAvailableEvent>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<ClientEventUnion> for ClientEventUnion {
@@ -91784,6 +91923,9 @@ mod root {
                     }
                     Self::CredentialsUpdatedEvent(value) => {
                         Self::create_credentials_updated_event(builder, value)
+                    }
+                    Self::EventsAvailableEvent(value) => {
+                        Self::create_events_available_event(builder, value)
                     }
                 }
             }
@@ -91923,6 +92065,18 @@ mod root {
             ) -> ClientEventUnionBuilder<::planus::Initialized<10, T>>
             where
                 T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
+            {
+                ClientEventUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`EventsAvailableEvent` variant](ClientEventUnion#variant.EventsAvailableEvent).
+            #[inline]
+            pub fn events_available_event<T>(
+                self,
+                value: T,
+            ) -> ClientEventUnionBuilder<::planus::Initialized<11, T>>
+            where
+                T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
             {
                 ClientEventUnionBuilder(::planus::Initialized(value))
             }
@@ -92212,6 +92366,33 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<ClientEventUnion>
+            for ClientEventUnionBuilder<::planus::Initialized<11, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<ClientEventUnion> {
+                ::planus::UnionOffset::new(11, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
+            for ClientEventUnionBuilder<::planus::Initialized<11, T>>
+        where
+            T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<ClientEventUnion>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [ClientEventUnion].
         #[derive(Copy, Clone, Debug)]
@@ -92226,6 +92407,7 @@ mod root {
             PlayerSwitchedEvent(self::PlayerSwitchedEventRef<'a>),
             SetConnectionOptionEvent(self::SetConnectionOptionEventRef<'a>),
             CredentialsUpdatedEvent(self::CredentialsUpdatedEventRef<'a>),
+            EventsAvailableEvent(self::EventsAvailableEventRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<ClientEventUnionRef<'a>> for ClientEventUnion {
@@ -92292,6 +92474,12 @@ mod root {
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
+
+                    ClientEventUnionRef::EventsAvailableEvent(value) => {
+                        Self::EventsAvailableEvent(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
                 })
             }
         }
@@ -92333,6 +92521,9 @@ mod root {
                     10 => ::core::result::Result::Ok(Self::CredentialsUpdatedEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    11 => ::core::result::Result::Ok(Self::EventsAvailableEvent(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -92349,7 +92540,7 @@ mod root {
         /// The table `NarrativeEventMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1150`
+        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1153`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEventMessage {
             /// The field `player` in the table `NarrativeEventMessage`
@@ -92644,7 +92835,7 @@ mod root {
         /// The table `MetadataPair` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1155`
+        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1158`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetadataPair {
             /// The field `key` in the table `MetadataPair`
@@ -92916,7 +93107,7 @@ mod root {
         /// The table `RequestInputEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1160`
+        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1163`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestInputEvent {
             /// The field `request_id` in the table `RequestInputEvent`
@@ -93240,7 +93431,7 @@ mod root {
         /// The table `SystemMessageEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1165`
+        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1168`
         #[derive(
             Clone,
             Debug,
@@ -93536,7 +93727,7 @@ mod root {
         /// The table `DisconnectEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1170`
+        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1173`
         #[derive(
             Clone,
             Debug,
@@ -93762,7 +93953,7 @@ mod root {
         /// The table `TaskErrorEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1173`
+        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1176`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskErrorEvent {
             /// The field `task_id` in the table `TaskErrorEvent`
@@ -94045,7 +94236,7 @@ mod root {
         /// The table `TaskSuccessEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1178`
+        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1181`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskSuccessEvent {
             /// The field `task_id` in the table `TaskSuccessEvent`
@@ -94346,7 +94537,7 @@ mod root {
         /// The table `TaskSuspendedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1183`
+        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1186`
         #[derive(
             Clone,
             Debug,
@@ -94631,7 +94822,7 @@ mod root {
         /// The table `PlayerSwitchedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1187`
+        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1190`
         #[derive(
             Clone,
             Debug,
@@ -95041,7 +95232,7 @@ mod root {
         /// The table `SetConnectionOptionEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1194`
+        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1197`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetConnectionOptionEvent {
             /// The field `connection_obj` in the table `SetConnectionOptionEvent`
@@ -95380,7 +95571,7 @@ mod root {
         /// The table `CredentialsUpdatedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1202`
+        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1205`
         #[derive(
             Clone,
             Debug,
@@ -95701,7 +95892,7 @@ mod root {
         /// The table `ClientEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1207`
+        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1210`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvent {
             /// The field `event` in the table `ClientEvent`
@@ -95984,7 +96175,7 @@ mod root {
         /// The union `ClientsBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1216`
+        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1219`
         #[derive(
             Clone,
             Debug,
@@ -96150,7 +96341,7 @@ mod root {
         /// The table `ClientsBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1220`
+        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1223`
         #[derive(
             Clone,
             Debug,
@@ -96447,7 +96638,7 @@ mod root {
         /// The table `ClientsBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1224`
+        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1227`
         #[derive(
             Clone,
             Debug,
@@ -96715,7 +96906,7 @@ mod root {
         /// The union `DaemonToWorkerMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1232`
+        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1235`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToWorkerMessageUnion {
             /// The variant of type `PingWorkers` in the union `DaemonToWorkerMessageUnion`
@@ -96993,7 +97184,7 @@ mod root {
         /// The table `PingWorkers` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1238`
+        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1241`
         #[derive(
             Clone,
             Debug,
@@ -97204,7 +97395,7 @@ mod root {
         /// The table `WorkerRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1241`
+        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1244`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerRequest {
             /// The field `worker_id` in the table `WorkerRequest`
@@ -97601,7 +97792,7 @@ mod root {
         /// The table `PleaseDie` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1249`
+        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1252`
         #[derive(
             Clone,
             Debug,
@@ -97856,7 +98047,7 @@ mod root {
         /// The table `DaemonToWorkerMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1253`
+        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1256`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToWorkerMessage {
             /// The field `message` in the table `DaemonToWorkerMessage`
@@ -98114,7 +98305,7 @@ mod root {
         /// The union `WorkerToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1257`
+        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1260`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorkerToDaemonMessageUnion {
             /// The variant of type `AttachWorker` in the union `WorkerToDaemonMessageUnion`
@@ -98516,7 +98707,7 @@ mod root {
         /// The table `AttachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1265`
+        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1268`
         #[derive(
             Clone,
             Debug,
@@ -98808,7 +98999,7 @@ mod root {
         /// The table `WorkerPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1270`
+        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1273`
         #[derive(
             Clone,
             Debug,
@@ -99099,7 +99290,7 @@ mod root {
         /// The table `DetachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1275`
+        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1278`
         #[derive(
             Clone,
             Debug,
@@ -99355,7 +99546,7 @@ mod root {
         /// The table `RequestResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestResult` in the file `moor_rpc.fbs:1279`
+        /// * Table `RequestResult` in the file `moor_rpc.fbs:1282`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestResult {
             /// The field `worker_id` in the table `RequestResult`
@@ -99660,7 +99851,7 @@ mod root {
         /// The table `RequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestError` in the file `moor_rpc.fbs:1285`
+        /// * Table `RequestError` in the file `moor_rpc.fbs:1288`
         #[derive(
             Clone,
             Debug,
@@ -99974,7 +100165,7 @@ mod root {
         /// The table `WorkerToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1291`
+        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1294`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerToDaemonMessage {
             /// The field `message` in the table `WorkerToDaemonMessage`
@@ -100232,7 +100423,7 @@ mod root {
         /// The union `DaemonToWorkerReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1295`
+        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1298`
         #[derive(
             Clone,
             Debug,
@@ -100774,7 +100965,7 @@ mod root {
         /// The table `WorkerAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1305`
+        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1308`
         #[derive(
             Clone,
             Debug,
@@ -100985,7 +101176,7 @@ mod root {
         /// The table `WorkerRejected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1308`
+        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1311`
         #[derive(
             Clone,
             Debug,
@@ -101254,7 +101445,7 @@ mod root {
         /// The table `WorkerAttached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1312`
+        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1315`
         #[derive(
             Clone,
             Debug,
@@ -101510,7 +101701,7 @@ mod root {
         /// The table `WorkerAuthFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1316`
+        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1319`
         #[derive(
             Clone,
             Debug,
@@ -101780,7 +101971,7 @@ mod root {
         /// The table `WorkerInvalidPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1320`
+        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1323`
         #[derive(
             Clone,
             Debug,
@@ -102052,7 +102243,7 @@ mod root {
         /// The table `WorkerUnknownRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1324`
+        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1327`
         #[derive(
             Clone,
             Debug,
@@ -102327,7 +102518,7 @@ mod root {
         /// The table `WorkerNotRegistered` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1328`
+        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1331`
         #[derive(
             Clone,
             Debug,
@@ -102602,7 +102793,7 @@ mod root {
         /// The table `DaemonToWorkerReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1332`
+        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1335`
         #[derive(
             Clone,
             Debug,
@@ -102868,7 +103059,7 @@ mod root {
         /// The enum `RpcMessageErrorCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1340`
+        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1343`
         #[derive(
             Copy,
             Clone,
@@ -102912,11 +103103,14 @@ mod root {
 
             /// The variant `InternalError` in the enum `RpcMessageErrorCode`
             InternalError = 9,
+
+            /// The variant `EventStreamExpired` in the enum `RpcMessageErrorCode`
+            EventStreamExpired = 10,
         }
 
         impl RpcMessageErrorCode {
             /// Array containing all valid variants of RpcMessageErrorCode
-            pub const ENUM_VALUES: [Self; 10] = [
+            pub const ENUM_VALUES: [Self; 11] = [
                 Self::AlreadyConnected,
                 Self::InvalidRequest,
                 Self::NoConnection,
@@ -102927,6 +103121,7 @@ mod root {
                 Self::TaskError,
                 Self::EntityRetrievalError,
                 Self::InternalError,
+                Self::EventStreamExpired,
             ];
         }
 
@@ -102950,6 +103145,7 @@ mod root {
                     7 => ::core::result::Result::Ok(RpcMessageErrorCode::TaskError),
                     8 => ::core::result::Result::Ok(RpcMessageErrorCode::EntityRetrievalError),
                     9 => ::core::result::Result::Ok(RpcMessageErrorCode::InternalError),
+                    10 => ::core::result::Result::Ok(RpcMessageErrorCode::EventStreamExpired),
 
                     _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
                         tag: value as i128,
@@ -103082,7 +103278,7 @@ mod root {
         /// The table `RpcMessageError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1353`
+        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1357`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RpcMessageError {
             /// The field `error_code` in the table `RpcMessageError`
@@ -103480,7 +103676,7 @@ mod root {
         /// The union `MessageTypeUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1359`
+        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1363`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum MessageTypeUnion {
             /// The variant of type `HostToDaemonMsg` in the union `MessageTypeUnion`
@@ -103694,7 +103890,7 @@ mod root {
         /// The table `HostToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1364`
+        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1368`
         #[derive(
             Clone,
             Debug,
@@ -103992,7 +104188,7 @@ mod root {
         /// The table `HostClientToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1369`
+        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1373`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMsg {
             /// The field `client_data` in the table `HostClientToDaemonMsg`
@@ -104285,7 +104481,7 @@ mod root {
         /// The table `MessageType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MessageType` in the file `moor_rpc.fbs:1374`
+        /// * Table `MessageType` in the file `moor_rpc.fbs:1378`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MessageType {
             /// The field `message` in the table `MessageType`
@@ -104521,7 +104717,7 @@ mod root {
         /// The union `ReplyResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1378`
+        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1382`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ReplyResultUnion {
             /// The variant of type `HostSuccess` in the union `ReplyResultUnion`
@@ -104794,7 +104990,7 @@ mod root {
         /// The table `HostSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1384`
+        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1388`
         #[derive(
             Clone,
             Debug,
@@ -105040,7 +105236,7 @@ mod root {
         /// The table `ClientSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1388`
+        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1392`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientSuccess {
             /// The field `reply` in the table `ClientSuccess`
@@ -105277,7 +105473,7 @@ mod root {
         /// The table `Failure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Failure` in the file `moor_rpc.fbs:1392`
+        /// * Table `Failure` in the file `moor_rpc.fbs:1396`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Failure {
             /// The field `error` in the table `Failure`
@@ -105518,7 +105714,7 @@ mod root {
         /// The table `ReplyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1396`
+        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1400`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ReplyResult {
             /// The field `result` in the table `ReplyResult`
@@ -105754,7 +105950,7 @@ mod root {
         /// The union `HistoryRecallUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1404`
+        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1408`
         #[derive(
             Clone,
             Debug,
@@ -106106,7 +106302,7 @@ mod root {
         /// The table `HistoryRecallSinceEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1411`
+        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1415`
         #[derive(
             Clone,
             Debug,
@@ -106441,7 +106637,7 @@ mod root {
         /// The table `HistoryRecallUntilEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1416`
+        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1420`
         #[derive(
             Clone,
             Debug,
@@ -106776,7 +106972,7 @@ mod root {
         /// The table `HistoryRecallSinceSeconds` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1421`
+        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1425`
         #[derive(
             Clone,
             Debug,
@@ -107121,7 +107317,7 @@ mod root {
         /// The table `HistoryRecallNone` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1426`
+        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1430`
         #[derive(
             Clone,
             Debug,
@@ -107349,7 +107545,7 @@ mod root {
         /// The table `HistoryRecall` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1429`
+        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1433`
         #[derive(
             Clone,
             Debug,
@@ -107596,7 +107792,7 @@ mod root {
         /// The table `HistoricalNarrativeEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1433`
+        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1437`
         #[derive(
             Clone,
             Debug,
@@ -108048,7 +108244,7 @@ mod root {
         /// The table `HistoryResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1441`
+        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1445`
         #[derive(
             Clone,
             Debug,
@@ -108671,6 +108867,1653 @@ mod root {
                 )
                 .map_err(|error_kind| {
                     error_kind.with_error_location("[HistoryResponseRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The enum `EventStreamOperation` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Enum `EventStreamOperation` in the file `moor_rpc.fbs:1463`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        #[repr(u8)]
+        pub enum EventStreamOperation {
+            /// The variant `Open` in the enum `EventStreamOperation`
+            Open = 0,
+
+            /// The variant `Status` in the enum `EventStreamOperation`
+            Status = 1,
+
+            /// The variant `Read` in the enum `EventStreamOperation`
+            Read = 2,
+
+            /// The variant `Acknowledge` in the enum `EventStreamOperation`
+            Acknowledge = 3,
+        }
+
+        impl EventStreamOperation {
+            /// Array containing all valid variants of EventStreamOperation
+            pub const ENUM_VALUES: [Self; 4] =
+                [Self::Open, Self::Status, Self::Read, Self::Acknowledge];
+        }
+
+        impl ::core::convert::TryFrom<u8> for EventStreamOperation {
+            type Error = ::planus::errors::UnknownEnumTagKind;
+            #[inline]
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(EventStreamOperation::Open),
+                    1 => ::core::result::Result::Ok(EventStreamOperation::Status),
+                    2 => ::core::result::Result::Ok(EventStreamOperation::Read),
+                    3 => ::core::result::Result::Ok(EventStreamOperation::Acknowledge),
+
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
+                }
+            }
+        }
+
+        impl ::core::convert::From<EventStreamOperation> for u8 {
+            #[inline]
+            fn from(value: EventStreamOperation) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for EventStreamOperation {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<EventStreamOperation> for EventStreamOperation {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<EventStreamOperation> for EventStreamOperation {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> EventStreamOperation {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsDefault<EventStreamOperation, EventStreamOperation> for EventStreamOperation {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+                default: &EventStreamOperation,
+            ) -> ::core::option::Option<EventStreamOperation> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptional<EventStreamOperation> for EventStreamOperation {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<EventStreamOperation> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        impl<'buf> ::planus::TableRead<'buf> for EventStreamOperation {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
+            }
+        }
+
+        impl<'buf> ::planus::VectorReadInner<'buf> for EventStreamOperation {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "EventStreamOperation",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<EventStreamOperation> for EventStreamOperation {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[Self],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - i as u32,
+                    );
+                }
+            }
+        }
+
+        /// The table `EventStreamRequest` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `EventStreamRequest` in the file `moor_rpc.fbs:1465`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct EventStreamRequest {
+            /// The field `client_token` in the table `EventStreamRequest`
+            pub client_token: ::planus::alloc::boxed::Box<self::ClientToken>,
+            /// The field `operation` in the table `EventStreamRequest`
+            pub operation: self::EventStreamOperation,
+            /// The field `stream_id` in the table `EventStreamRequest`
+            pub stream_id:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Uuid>>,
+            /// The field `sequence` in the table `EventStreamRequest`
+            pub sequence: u64,
+            /// The field `limit` in the table `EventStreamRequest`
+            pub limit: u32,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for EventStreamRequest {
+            fn default() -> Self {
+                Self {
+                    client_token: ::core::default::Default::default(),
+                    operation: self::EventStreamOperation::Open,
+                    stream_id: ::core::default::Default::default(),
+                    sequence: 0,
+                    limit: 0,
+                }
+            }
+        }
+
+        impl EventStreamRequest {
+            /// Creates a [EventStreamRequestBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> EventStreamRequestBuilder<()> {
+                EventStreamRequestBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_client_token: impl ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+                field_operation: impl ::planus::WriteAsDefault<
+                    self::EventStreamOperation,
+                    self::EventStreamOperation,
+                >,
+                field_stream_id: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<super::moor_common::Uuid>,
+                >,
+                field_sequence: impl ::planus::WriteAsDefault<u64, u64>,
+                field_limit: impl ::planus::WriteAsDefault<u32, u32>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_client_token = field_client_token.prepare(builder);
+                let prepared_operation =
+                    field_operation.prepare(builder, &self::EventStreamOperation::Open);
+                let prepared_stream_id = field_stream_id.prepare(builder);
+                let prepared_sequence = field_sequence.prepare(builder, &0);
+                let prepared_limit = field_limit.prepare(builder, &0);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                if prepared_sequence.is_some() {
+                    table_writer.write_entry::<u64>(3);
+                }
+                table_writer.write_entry::<::planus::Offset<self::ClientToken>>(0);
+                if prepared_stream_id.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_common::Uuid>>(2);
+                }
+                if prepared_limit.is_some() {
+                    table_writer.write_entry::<u32>(4);
+                }
+                if prepared_operation.is_some() {
+                    table_writer.write_entry::<self::EventStreamOperation>(1);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_sequence) = prepared_sequence {
+                            object_writer.write::<_, _, 8>(&prepared_sequence);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_client_token);
+                        if let ::core::option::Option::Some(prepared_stream_id) = prepared_stream_id
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_stream_id);
+                        }
+                        if let ::core::option::Option::Some(prepared_limit) = prepared_limit {
+                            object_writer.write::<_, _, 4>(&prepared_limit);
+                        }
+                        if let ::core::option::Option::Some(prepared_operation) = prepared_operation
+                        {
+                            object_writer.write::<_, _, 1>(&prepared_operation);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<EventStreamRequest>> for EventStreamRequest {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamRequest> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<EventStreamRequest>> for EventStreamRequest {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamRequest>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<EventStreamRequest> for EventStreamRequest {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamRequest> {
+                EventStreamRequest::create(
+                    builder,
+                    &self.client_token,
+                    self.operation,
+                    &self.stream_id,
+                    self.sequence,
+                    self.limit,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [EventStreamRequest] type.
+        ///
+        /// Can be created using the [EventStreamRequest::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct EventStreamRequestBuilder<State>(State);
+
+        impl EventStreamRequestBuilder<()> {
+            /// Setter for the [`client_token` field](EventStreamRequest#structfield.client_token).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn client_token<T0>(self, value: T0) -> EventStreamRequestBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            {
+                EventStreamRequestBuilder((value,))
+            }
+        }
+
+        impl<T0> EventStreamRequestBuilder<(T0,)> {
+            /// Setter for the [`operation` field](EventStreamRequest#structfield.operation).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn operation<T1>(self, value: T1) -> EventStreamRequestBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsDefault<self::EventStreamOperation, self::EventStreamOperation>,
+            {
+                let (v0,) = self.0;
+                EventStreamRequestBuilder((v0, value))
+            }
+
+            /// Sets the [`operation` field](EventStreamRequest#structfield.operation) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn operation_as_default(
+                self,
+            ) -> EventStreamRequestBuilder<(T0, ::planus::DefaultValue)> {
+                self.operation(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1> EventStreamRequestBuilder<(T0, T1)> {
+            /// Setter for the [`stream_id` field](EventStreamRequest#structfield.stream_id).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn stream_id<T2>(self, value: T2) -> EventStreamRequestBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            {
+                let (v0, v1) = self.0;
+                EventStreamRequestBuilder((v0, v1, value))
+            }
+
+            /// Sets the [`stream_id` field](EventStreamRequest#structfield.stream_id) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn stream_id_as_null(self) -> EventStreamRequestBuilder<(T0, T1, ())> {
+                self.stream_id(())
+            }
+        }
+
+        impl<T0, T1, T2> EventStreamRequestBuilder<(T0, T1, T2)> {
+            /// Setter for the [`sequence` field](EventStreamRequest#structfield.sequence).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sequence<T3>(self, value: T3) -> EventStreamRequestBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2) = self.0;
+                EventStreamRequestBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`sequence` field](EventStreamRequest#structfield.sequence) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sequence_as_default(
+                self,
+            ) -> EventStreamRequestBuilder<(T0, T1, T2, ::planus::DefaultValue)> {
+                self.sequence(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3> EventStreamRequestBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`limit` field](EventStreamRequest#structfield.limit).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn limit<T4>(self, value: T4) -> EventStreamRequestBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAsDefault<u32, u32>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                EventStreamRequestBuilder((v0, v1, v2, v3, value))
+            }
+
+            /// Sets the [`limit` field](EventStreamRequest#structfield.limit) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn limit_as_default(
+                self,
+            ) -> EventStreamRequestBuilder<(T0, T1, T2, T3, ::planus::DefaultValue)> {
+                self.limit(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> EventStreamRequestBuilder<(T0, T1, T2, T3, T4)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [EventStreamRequest].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamRequest>
+            where
+                Self: ::planus::WriteAsOffset<EventStreamRequest>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<self::EventStreamOperation, self::EventStreamOperation>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAs<::planus::Offset<EventStreamRequest>>
+            for EventStreamRequestBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<EventStreamRequest>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamRequest> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<self::EventStreamOperation, self::EventStreamOperation>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAsOptional<::planus::Offset<EventStreamRequest>>
+            for EventStreamRequestBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<EventStreamRequest>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamRequest>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<self::ClientToken>>,
+            T1: ::planus::WriteAsDefault<self::EventStreamOperation, self::EventStreamOperation>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Uuid>>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAsDefault<u32, u32>,
+        > ::planus::WriteAsOffset<EventStreamRequest>
+            for EventStreamRequestBuilder<(T0, T1, T2, T3, T4)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamRequest> {
+                let (v0, v1, v2, v3, v4) = &self.0;
+                EventStreamRequest::create(builder, v0, v1, v2, v3, v4)
+            }
+        }
+
+        /// Reference to a deserialized [EventStreamRequest].
+        #[derive(Copy, Clone)]
+        pub struct EventStreamRequestRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> EventStreamRequestRef<'a> {
+            /// Getter for the [`client_token` field](EventStreamRequest#structfield.client_token).
+            #[inline]
+            pub fn client_token(&self) -> ::planus::Result<self::ClientTokenRef<'a>> {
+                self.0
+                    .access_required(0, "EventStreamRequest", "client_token")
+            }
+
+            /// Getter for the [`operation` field](EventStreamRequest#structfield.operation).
+            #[inline]
+            pub fn operation(&self) -> ::planus::Result<self::EventStreamOperation> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(1, "EventStreamRequest", "operation")?
+                        .unwrap_or(self::EventStreamOperation::Open),
+                )
+            }
+
+            /// Getter for the [`stream_id` field](EventStreamRequest#structfield.stream_id).
+            #[inline]
+            pub fn stream_id(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_common::UuidRef<'a>>>
+            {
+                self.0.access(2, "EventStreamRequest", "stream_id")
+            }
+
+            /// Getter for the [`sequence` field](EventStreamRequest#structfield.sequence).
+            #[inline]
+            pub fn sequence(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(3, "EventStreamRequest", "sequence")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`limit` field](EventStreamRequest#structfield.limit).
+            #[inline]
+            pub fn limit(&self) -> ::planus::Result<u32> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(4, "EventStreamRequest", "limit")?
+                        .unwrap_or(0),
+                )
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for EventStreamRequestRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("EventStreamRequestRef");
+                f.field("client_token", &self.client_token());
+                f.field("operation", &self.operation());
+                if let ::core::option::Option::Some(field_stream_id) = self.stream_id().transpose()
+                {
+                    f.field("stream_id", &field_stream_id);
+                }
+                f.field("sequence", &self.sequence());
+                f.field("limit", &self.limit());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<EventStreamRequestRef<'a>> for EventStreamRequest {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: EventStreamRequestRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    client_token: ::planus::alloc::boxed::Box::new(
+                        ::core::convert::TryInto::try_into(value.client_token()?)?,
+                    ),
+                    operation: ::core::convert::TryInto::try_into(value.operation()?)?,
+                    stream_id: if let ::core::option::Option::Some(stream_id) = value.stream_id()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(stream_id)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    sequence: ::core::convert::TryInto::try_into(value.sequence()?)?,
+                    limit: ::core::convert::TryInto::try_into(value.limit()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for EventStreamRequestRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for EventStreamRequestRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[EventStreamRequestRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<EventStreamRequest>> for EventStreamRequest {
+            type Value = ::planus::Offset<EventStreamRequest>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<EventStreamRequest>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for EventStreamRequestRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[EventStreamRequestRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `EventStreamPayload` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `EventStreamPayload` in the file `moor_rpc.fbs:1473`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct EventStreamPayload {
+            /// The field `data` in the table `EventStreamPayload`
+            pub data: ::planus::alloc::vec::Vec<u8>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for EventStreamPayload {
+            fn default() -> Self {
+                Self {
+                    data: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl EventStreamPayload {
+            /// Creates a [EventStreamPayloadBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> EventStreamPayloadBuilder<()> {
+                EventStreamPayloadBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_data: impl ::planus::WriteAs<::planus::Offset<[u8]>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_data = field_data.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<[u8]>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_data);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<EventStreamPayload>> for EventStreamPayload {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamPayload> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<EventStreamPayload>> for EventStreamPayload {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamPayload>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<EventStreamPayload> for EventStreamPayload {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamPayload> {
+                EventStreamPayload::create(builder, &self.data)
+            }
+        }
+
+        /// Builder for serializing an instance of the [EventStreamPayload] type.
+        ///
+        /// Can be created using the [EventStreamPayload::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct EventStreamPayloadBuilder<State>(State);
+
+        impl EventStreamPayloadBuilder<()> {
+            /// Setter for the [`data` field](EventStreamPayload#structfield.data).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn data<T0>(self, value: T0) -> EventStreamPayloadBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            {
+                EventStreamPayloadBuilder((value,))
+            }
+        }
+
+        impl<T0> EventStreamPayloadBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [EventStreamPayload].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamPayload>
+            where
+                Self: ::planus::WriteAsOffset<EventStreamPayload>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[u8]>>>
+            ::planus::WriteAs<::planus::Offset<EventStreamPayload>>
+            for EventStreamPayloadBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<EventStreamPayload>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamPayload> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[u8]>>>
+            ::planus::WriteAsOptional<::planus::Offset<EventStreamPayload>>
+            for EventStreamPayloadBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<EventStreamPayload>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamPayload>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[u8]>>>
+            ::planus::WriteAsOffset<EventStreamPayload> for EventStreamPayloadBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamPayload> {
+                let (v0,) = &self.0;
+                EventStreamPayload::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [EventStreamPayload].
+        #[derive(Copy, Clone)]
+        pub struct EventStreamPayloadRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> EventStreamPayloadRef<'a> {
+            /// Getter for the [`data` field](EventStreamPayload#structfield.data).
+            #[inline]
+            pub fn data(&self) -> ::planus::Result<&'a [u8]> {
+                self.0.access_required(0, "EventStreamPayload", "data")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for EventStreamPayloadRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("EventStreamPayloadRef");
+                f.field("data", &self.data());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<EventStreamPayloadRef<'a>> for EventStreamPayload {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: EventStreamPayloadRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    data: value.data()?.to_vec(),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for EventStreamPayloadRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for EventStreamPayloadRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[EventStreamPayloadRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<EventStreamPayload>> for EventStreamPayload {
+            type Value = ::planus::Offset<EventStreamPayload>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<EventStreamPayload>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for EventStreamPayloadRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[EventStreamPayloadRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `EventStreamState` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `EventStreamState` in the file `moor_rpc.fbs:1475`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct EventStreamState {
+            /// The field `stream_id` in the table `EventStreamState`
+            pub stream_id: ::planus::alloc::boxed::Box<super::moor_common::Uuid>,
+            /// The field `acknowledged_sequence` in the table `EventStreamState`
+            pub acknowledged_sequence: u64,
+            /// The field `available_after` in the table `EventStreamState`
+            pub available_after: u64,
+            /// The field `latest_sequence` in the table `EventStreamState`
+            pub latest_sequence: u64,
+            /// The field `payloads` in the table `EventStreamState`
+            pub payloads: ::planus::alloc::vec::Vec<self::EventStreamPayload>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for EventStreamState {
+            fn default() -> Self {
+                Self {
+                    stream_id: ::core::default::Default::default(),
+                    acknowledged_sequence: 0,
+                    available_after: 0,
+                    latest_sequence: 0,
+                    payloads: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl EventStreamState {
+            /// Creates a [EventStreamStateBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> EventStreamStateBuilder<()> {
+                EventStreamStateBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_stream_id: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+                field_acknowledged_sequence: impl ::planus::WriteAsDefault<u64, u64>,
+                field_available_after: impl ::planus::WriteAsDefault<u64, u64>,
+                field_latest_sequence: impl ::planus::WriteAsDefault<u64, u64>,
+                field_payloads: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_stream_id = field_stream_id.prepare(builder);
+                let prepared_acknowledged_sequence =
+                    field_acknowledged_sequence.prepare(builder, &0);
+                let prepared_available_after = field_available_after.prepare(builder, &0);
+                let prepared_latest_sequence = field_latest_sequence.prepare(builder, &0);
+                let prepared_payloads = field_payloads.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                if prepared_acknowledged_sequence.is_some() {
+                    table_writer.write_entry::<u64>(1);
+                }
+                if prepared_available_after.is_some() {
+                    table_writer.write_entry::<u64>(2);
+                }
+                if prepared_latest_sequence.is_some() {
+                    table_writer.write_entry::<u64>(3);
+                }
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Uuid>>(0);
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>>(
+                        4,
+                    );
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_acknowledged_sequence) =
+                            prepared_acknowledged_sequence
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_acknowledged_sequence);
+                        }
+                        if let ::core::option::Option::Some(prepared_available_after) =
+                            prepared_available_after
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_available_after);
+                        }
+                        if let ::core::option::Option::Some(prepared_latest_sequence) =
+                            prepared_latest_sequence
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_latest_sequence);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_stream_id);
+                        object_writer.write::<_, _, 4>(&prepared_payloads);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<EventStreamState>> for EventStreamState {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamState> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<EventStreamState>> for EventStreamState {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamState>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<EventStreamState> for EventStreamState {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamState> {
+                EventStreamState::create(
+                    builder,
+                    &self.stream_id,
+                    self.acknowledged_sequence,
+                    self.available_after,
+                    self.latest_sequence,
+                    &self.payloads,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [EventStreamState] type.
+        ///
+        /// Can be created using the [EventStreamState::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct EventStreamStateBuilder<State>(State);
+
+        impl EventStreamStateBuilder<()> {
+            /// Setter for the [`stream_id` field](EventStreamState#structfield.stream_id).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn stream_id<T0>(self, value: T0) -> EventStreamStateBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            {
+                EventStreamStateBuilder((value,))
+            }
+        }
+
+        impl<T0> EventStreamStateBuilder<(T0,)> {
+            /// Setter for the [`acknowledged_sequence` field](EventStreamState#structfield.acknowledged_sequence).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn acknowledged_sequence<T1>(self, value: T1) -> EventStreamStateBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0,) = self.0;
+                EventStreamStateBuilder((v0, value))
+            }
+
+            /// Sets the [`acknowledged_sequence` field](EventStreamState#structfield.acknowledged_sequence) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn acknowledged_sequence_as_default(
+                self,
+            ) -> EventStreamStateBuilder<(T0, ::planus::DefaultValue)> {
+                self.acknowledged_sequence(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1> EventStreamStateBuilder<(T0, T1)> {
+            /// Setter for the [`available_after` field](EventStreamState#structfield.available_after).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn available_after<T2>(self, value: T2) -> EventStreamStateBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1) = self.0;
+                EventStreamStateBuilder((v0, v1, value))
+            }
+
+            /// Sets the [`available_after` field](EventStreamState#structfield.available_after) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn available_after_as_default(
+                self,
+            ) -> EventStreamStateBuilder<(T0, T1, ::planus::DefaultValue)> {
+                self.available_after(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2> EventStreamStateBuilder<(T0, T1, T2)> {
+            /// Setter for the [`latest_sequence` field](EventStreamState#structfield.latest_sequence).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn latest_sequence<T3>(self, value: T3) -> EventStreamStateBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2) = self.0;
+                EventStreamStateBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`latest_sequence` field](EventStreamState#structfield.latest_sequence) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn latest_sequence_as_default(
+                self,
+            ) -> EventStreamStateBuilder<(T0, T1, T2, ::planus::DefaultValue)> {
+                self.latest_sequence(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3> EventStreamStateBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`payloads` field](EventStreamState#structfield.payloads).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn payloads<T4>(self, value: T4) -> EventStreamStateBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAs<
+                        ::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>,
+                    >,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                EventStreamStateBuilder((v0, v1, v2, v3, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> EventStreamStateBuilder<(T0, T1, T2, T3, T4)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [EventStreamState].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamState>
+            where
+                Self: ::planus::WriteAsOffset<EventStreamState>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>>,
+        > ::planus::WriteAs<::planus::Offset<EventStreamState>>
+            for EventStreamStateBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<EventStreamState>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamState> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<EventStreamState>>
+            for EventStreamStateBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<EventStreamState>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventStreamState>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Uuid>>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAsDefault<u64, u64>,
+            T3: ::planus::WriteAsDefault<u64, u64>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::EventStreamPayload>]>>,
+        > ::planus::WriteAsOffset<EventStreamState>
+            for EventStreamStateBuilder<(T0, T1, T2, T3, T4)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventStreamState> {
+                let (v0, v1, v2, v3, v4) = &self.0;
+                EventStreamState::create(builder, v0, v1, v2, v3, v4)
+            }
+        }
+
+        /// Reference to a deserialized [EventStreamState].
+        #[derive(Copy, Clone)]
+        pub struct EventStreamStateRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> EventStreamStateRef<'a> {
+            /// Getter for the [`stream_id` field](EventStreamState#structfield.stream_id).
+            #[inline]
+            pub fn stream_id(&self) -> ::planus::Result<super::moor_common::UuidRef<'a>> {
+                self.0.access_required(0, "EventStreamState", "stream_id")
+            }
+
+            /// Getter for the [`acknowledged_sequence` field](EventStreamState#structfield.acknowledged_sequence).
+            #[inline]
+            pub fn acknowledged_sequence(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(1, "EventStreamState", "acknowledged_sequence")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`available_after` field](EventStreamState#structfield.available_after).
+            #[inline]
+            pub fn available_after(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(2, "EventStreamState", "available_after")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`latest_sequence` field](EventStreamState#structfield.latest_sequence).
+            #[inline]
+            pub fn latest_sequence(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(3, "EventStreamState", "latest_sequence")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`payloads` field](EventStreamState#structfield.payloads).
+            #[inline]
+            pub fn payloads(
+                &self,
+            ) -> ::planus::Result<
+                ::planus::Vector<'a, ::planus::Result<self::EventStreamPayloadRef<'a>>>,
+            > {
+                self.0.access_required(4, "EventStreamState", "payloads")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for EventStreamStateRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("EventStreamStateRef");
+                f.field("stream_id", &self.stream_id());
+                f.field("acknowledged_sequence", &self.acknowledged_sequence());
+                f.field("available_after", &self.available_after());
+                f.field("latest_sequence", &self.latest_sequence());
+                f.field("payloads", &self.payloads());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<EventStreamStateRef<'a>> for EventStreamState {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: EventStreamStateRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    stream_id: ::planus::alloc::boxed::Box::new(
+                        ::core::convert::TryInto::try_into(value.stream_id()?)?,
+                    ),
+                    acknowledged_sequence: ::core::convert::TryInto::try_into(
+                        value.acknowledged_sequence()?,
+                    )?,
+                    available_after: ::core::convert::TryInto::try_into(value.available_after()?)?,
+                    latest_sequence: ::core::convert::TryInto::try_into(value.latest_sequence()?)?,
+                    payloads: value.payloads()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for EventStreamStateRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for EventStreamStateRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[EventStreamStateRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<EventStreamState>> for EventStreamState {
+            type Value = ::planus::Offset<EventStreamState>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<EventStreamState>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for EventStreamStateRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[EventStreamStateRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `EventsAvailableEvent` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `EventsAvailableEvent` in the file `moor_rpc.fbs:1483`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct EventsAvailableEvent {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for EventsAvailableEvent {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl EventsAvailableEvent {
+            /// Creates a [EventsAvailableEventBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> EventsAvailableEventBuilder<()> {
+                EventsAvailableEventBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<EventsAvailableEvent>> for EventsAvailableEvent {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventsAvailableEvent> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<EventsAvailableEvent>> for EventsAvailableEvent {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventsAvailableEvent>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<EventsAvailableEvent> for EventsAvailableEvent {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventsAvailableEvent> {
+                EventsAvailableEvent::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [EventsAvailableEvent] type.
+        ///
+        /// Can be created using the [EventsAvailableEvent::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct EventsAvailableEventBuilder<State>(State);
+
+        impl EventsAvailableEventBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [EventsAvailableEvent].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventsAvailableEvent>
+            where
+                Self: ::planus::WriteAsOffset<EventsAvailableEvent>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<EventsAvailableEvent>> for EventsAvailableEventBuilder<()> {
+            type Prepared = ::planus::Offset<EventsAvailableEvent>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventsAvailableEvent> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<EventsAvailableEvent>>
+            for EventsAvailableEventBuilder<()>
+        {
+            type Prepared = ::planus::Offset<EventsAvailableEvent>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<EventsAvailableEvent>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<EventsAvailableEvent> for EventsAvailableEventBuilder<()> {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<EventsAvailableEvent> {
+                EventsAvailableEvent::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [EventsAvailableEvent].
+        #[derive(Copy, Clone)]
+        pub struct EventsAvailableEventRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> EventsAvailableEventRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for EventsAvailableEventRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("EventsAvailableEventRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<EventsAvailableEventRef<'a>> for EventsAvailableEvent {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: EventsAvailableEventRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for EventsAvailableEventRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for EventsAvailableEventRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[EventsAvailableEventRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<EventsAvailableEvent>> for EventsAvailableEvent {
+            type Value = ::planus::Offset<EventsAvailableEvent>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<EventsAvailableEvent>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for EventsAvailableEventRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[EventsAvailableEventRef]", "read_as_root", 0)
                 })
             }
         }

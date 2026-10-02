@@ -396,6 +396,7 @@ async fn dispatcher_loop(
         };
 
         match event_msg.event {
+            ClientEvent::EventsAvailable => break,
             // ----- Task-correlated events → resolve waiters -----
             ClientEvent::TaskSuccess { task_id, result } => {
                 let sender = waiters.lock().unwrap().remove(&task_id);

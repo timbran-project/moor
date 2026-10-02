@@ -16,6 +16,11 @@
 mod batch;
 mod commands;
 mod event_log;
+mod event_stream;
+pub use event_stream::{
+    acknowledge_events_handler, attach_stream_handler, event_stream_handler,
+    session_command_handler, session_input_handler,
+};
 mod objects;
 mod props;
 mod verbs;

@@ -79,6 +79,7 @@ export interface ClientEventHandlers {
     onPlayerSwitched?: (identity: PlayerIdentityUpdate) => void;
     onCredentialsUpdated?: (credentials: SessionCredentialsUpdate) => void;
     lastEventTimestampRef?: MutableRefObject<bigint | null>;
+    throwOnError?: boolean;
     onInputMetadata?: (metadata: InputMetadata | null) => void;
 }
 
@@ -243,10 +244,12 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                 console.warn(`[WS] Unknown event type: ${eventType}`);
             },
             onMalformedEvent: (eventType, expected) => {
+                if (handlers.throwOnError) throw new Error(`Failed to parse ${expected} for event type ${eventType}`);
                 console.error(`[WS] Failed to parse ${expected} for event type ${eventType}`);
             },
         });
     } catch (err) {
+        if (handlers.throwOnError) throw err;
         console.error("[WS] Failed to parse ClientEvent FlatBuffer:", err);
     }
 }

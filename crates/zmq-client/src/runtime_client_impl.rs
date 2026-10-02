@@ -173,6 +173,27 @@ fn encode_client_request(
                 socket_addr,
             )
         }
+        ClientRequest::EventStream {
+            client_token,
+            request,
+        } => moor_rpc::HostClientToDaemonMessage {
+            message: moor_rpc::HostClientToDaemonMessageUnion::EventStreamRequest(Box::new(
+                moor_rpc::EventStreamRequest {
+                    client_token: moor_runtime_api::client_token_fb(&client_token),
+                    operation: match request.operation {
+                        api::EventStreamOperation::Open => moor_rpc::EventStreamOperation::Open,
+                        api::EventStreamOperation::Status => moor_rpc::EventStreamOperation::Status,
+                        api::EventStreamOperation::Read => moor_rpc::EventStreamOperation::Read,
+                        api::EventStreamOperation::Acknowledge => {
+                            moor_rpc::EventStreamOperation::Acknowledge
+                        }
+                    },
+                    stream_id: request.stream_id.map(uuid_fb),
+                    sequence: request.sequence,
+                    limit: u32::try_from(request.limit).unwrap_or(u32::MAX),
+                },
+            )),
+        },
         ClientRequest::ReplayClientEvents {
             client_token,
             after_sequence,
@@ -616,6 +637,30 @@ fn decode_client_reply_ref(
         U::ThanksPong(tp) => {
             let timestamp = tp.timestamp().unwrap_or(0);
             ClientReply::ThanksPong { timestamp }
+        }
+        U::EventStreamState(state) => {
+            let decode_error =
+                |e| RpcError::CouldNotDecode(format!("Invalid event stream state: {e}"));
+            ClientReply::EventStream(api::EventStreamState {
+                stream_id: convert::uuid_from_ref(state.stream_id().map_err(decode_error)?)
+                    .map_err(RpcError::CouldNotDecode)?,
+                acknowledged_sequence: state.acknowledged_sequence().map_err(decode_error)?,
+                available_after: state.available_after().map_err(decode_error)?,
+                latest_sequence: state.latest_sequence().map_err(decode_error)?,
+                payloads: state
+                    .payloads()
+                    .map_err(decode_error)?
+                    .iter()
+                    .map(|payload| {
+                        Ok(std::sync::Arc::from(
+                            payload
+                                .map_err(decode_error)?
+                                .data()
+                                .map_err(decode_error)?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, RpcError>>()?,
+            })
         }
         U::ClientEvents(replay) => {
             let events = replay
@@ -1501,6 +1546,61 @@ mod tests {
     use moor_var::{Obj, v_obj, v_str};
 
     use super::decode_client_reply_bytes;
+
+    #[test]
+    fn browser_event_stream_protocol_round_trip() {
+        use super::{ClientRequest, Uuid, encode_client_request, moor_rpc};
+        use moor_runtime_api::api::{EventStreamOperation, EventStreamRequest, EventStreamState};
+        use moor_runtime_api::api_codec::{decode_client_request, encode_client_success_bytes};
+        use planus::ReadAsRoot;
+        let id = Uuid::new_v4();
+        for operation in [
+            EventStreamOperation::Open,
+            EventStreamOperation::Status,
+            EventStreamOperation::Read,
+            EventStreamOperation::Acknowledge,
+        ] {
+            let encoded = encode_client_request(ClientRequest::EventStream {
+                client_token: moor_runtime_api::ClientToken("token".into()),
+                request: EventStreamRequest {
+                    operation,
+                    stream_id: Some(id),
+                    sequence: u64::MAX - 1,
+                    limit: 128,
+                },
+            })
+            .unwrap();
+            let mut builder = planus::Builder::new();
+            let bytes = builder.finish(&encoded, None);
+            let decoded = decode_client_request(
+                moor_rpc::HostClientToDaemonMessageRef::read_as_root(bytes).unwrap(),
+            )
+            .unwrap();
+            let ClientRequest::EventStream { request, .. } = decoded else {
+                panic!("wrong reply")
+            };
+            assert_eq!(request.operation, operation);
+            assert_eq!(request.stream_id, Some(id));
+            assert_eq!(request.sequence, u64::MAX - 1);
+        }
+        let original = EventStreamState {
+            stream_id: id,
+            acknowledged_sequence: 42,
+            available_after: 42,
+            latest_sequence: 43,
+            payloads: vec![std::sync::Arc::from([1u8, 2, 3].as_slice())],
+        };
+        let bytes =
+            encode_client_success_bytes(ClientReply::EventStream(original.clone())).unwrap();
+        let ClientReply::EventStream(decoded) = decode_client_reply_bytes(&bytes).unwrap() else {
+            panic!("wrong reply")
+        };
+        assert_eq!(decoded.stream_id, id);
+        assert_eq!(decoded.payloads, original.payloads);
+        assert_eq!(decoded.acknowledged_sequence, 42);
+        assert_eq!(decoded.available_after, 42);
+        assert_eq!(decoded.latest_sequence, 43);
+    }
 
     #[test]
     fn failed_verb_call_round_trip_preserves_output() {

@@ -993,6 +993,12 @@ mod tests {
         ) -> Result<ClientSubscriptions, RpcError> {
             panic!("unexpected subscription")
         }
+        fn client_event_notifications(
+            &self,
+            _: Uuid,
+        ) -> Result<Box<dyn moor_runtime_api::api::ClientEventSubscription>, RpcError> {
+            unimplemented!()
+        }
         fn host_events(&self) -> Result<Box<dyn HostEventSubscription>, RpcError> {
             panic!("unexpected subscription")
         }

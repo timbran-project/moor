@@ -344,7 +344,7 @@ pub struct WebHost {
     local_port: u16,
     pub(crate) host_id: Uuid,
     last_daemon_ping: Arc<AtomicU64>,
-    host_services: Arc<dyn HostServices>,
+    pub(crate) host_services: Arc<dyn HostServices>,
     pub(crate) trusted_proxy_cidrs: Arc<Vec<IpNet>>,
     /// Cached server features response (features don't change at runtime).
     features_cache: Arc<tokio::sync::OnceCell<Vec<u8>>>,

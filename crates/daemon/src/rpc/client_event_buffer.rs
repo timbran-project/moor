@@ -11,23 +11,30 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Bounded retention for client events awaiting host acknowledgement.
+//! Bounded daemon-owned retention for host or browser acknowledged delivery.
 
+use moor_runtime_api::{
+    RpcMessageError,
+    api::{
+        ClientEvent, ClientEventMessage, EventStreamOperation, EventStreamRequest, EventStreamState,
+    },
+    api_codec::{decode_client_event_message_ref, encode_client_event_bytes},
+};
+use moor_schema::rpc::ClientEventRef;
+use planus::ReadAsRoot;
 use std::{
     collections::{HashMap, VecDeque},
     fmt,
-    sync::Mutex,
-};
-
-use moor_runtime_api::{
-    api::{ClientEvent, ClientEventMessage},
-    api_codec::encode_client_event_bytes,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 use uuid::Uuid;
 
 const MAX_EVENTS_PER_CLIENT: usize = 8_192;
 const MAX_BYTES_PER_CLIENT: usize = 16 * 1024 * 1024;
 const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
+const STREAM_RETENTION: Duration = Duration::from_secs(300);
+const MAX_BATCH_BYTES: usize = 1024 * 1024;
 pub(crate) const MAX_REPLAY_EVENTS: usize = 512;
 
 #[derive(Debug)]
@@ -47,9 +54,9 @@ pub(crate) enum ClientEventBufferError {
         requested: u64,
         available_from: u64,
     },
+    BrowserOwned,
     Encoding(String),
 }
-
 impl fmt::Display for ClientEventBufferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -59,7 +66,7 @@ impl fmt::Display for ClientEventBufferError {
                 bytes,
             } => write!(
                 f,
-                "client {client_id} event backlog exceeded its limit ({events} events, {bytes} bytes)"
+                "client {client_id} backlog exceeded its limit ({events} events, {bytes} bytes)"
             ),
             Self::InvalidAcknowledgement {
                 client_id,
@@ -67,7 +74,7 @@ impl fmt::Display for ClientEventBufferError {
                 latest,
             } => write!(
                 f,
-                "client {client_id} acknowledged sequence {acknowledged}, but latest is {latest}"
+                "client {client_id} acknowledged {acknowledged}, latest is {latest}"
             ),
             Self::ReplayUnavailable {
                 client_id,
@@ -75,55 +82,100 @@ impl fmt::Display for ClientEventBufferError {
                 available_from,
             } => write!(
                 f,
-                "client {client_id} requested sequence {requested}, but replay starts at {available_from}"
+                "client {client_id} requested {requested}, replay starts at {available_from}"
             ),
-            Self::Encoding(error) => write!(f, "could not encode client event: {error}"),
+            Self::BrowserOwned => f.write_str("delivery is acknowledged by the browser"),
+            Self::Encoding(error) => f.write_str(error),
         }
     }
 }
-
 impl std::error::Error for ClientEventBufferError {}
 
-#[derive(Clone)]
 struct BufferedEvent {
-    message: ClientEventMessage,
-    encoded_len: usize,
+    sequence: u64,
+    bytes: Arc<[u8]>,
+    created: Instant,
 }
 
 struct ClientBuffer {
+    stream_id: Uuid,
+    browser_owned: bool,
     next_sequence: u64,
+    acknowledged: u64,
+    available_after: u64,
     bytes: usize,
     events: VecDeque<BufferedEvent>,
 }
-
 impl Default for ClientBuffer {
     fn default() -> Self {
         Self {
+            stream_id: Uuid::new_v4(),
+            browser_owned: false,
             next_sequence: 1,
+            acknowledged: 0,
+            available_after: 0,
             bytes: 0,
             events: VecDeque::new(),
         }
     }
 }
-
+impl ClientBuffer {
+    fn remove_front(&mut self) -> usize {
+        let event = self.events.pop_front().unwrap();
+        self.available_after = event.sequence;
+        self.bytes -= event.bytes.len();
+        event.bytes.len()
+    }
+    fn expire(&mut self, now: Instant) -> usize {
+        let mut removed = 0;
+        while self.browser_owned
+            && self
+                .events
+                .front()
+                .is_some_and(|e| now.duration_since(e.created) >= STREAM_RETENTION)
+        {
+            removed += self.remove_front();
+        }
+        removed
+    }
+    fn acknowledge(&mut self, sequence: u64) -> usize {
+        self.acknowledged = self.acknowledged.max(sequence);
+        let mut removed = 0;
+        while self
+            .events
+            .front()
+            .is_some_and(|e| e.sequence <= self.acknowledged)
+        {
+            removed += self.remove_front();
+        }
+        removed
+    }
+    fn metadata(&self, payloads: Vec<Arc<[u8]>>) -> EventStreamState {
+        EventStreamState {
+            stream_id: self.stream_id,
+            acknowledged_sequence: self.acknowledged,
+            available_after: self.available_after,
+            latest_sequence: self.next_sequence - 1,
+            payloads,
+        }
+    }
+}
 struct BufferState {
     clients: HashMap<Uuid, ClientBuffer>,
     total_bytes: usize,
 }
 
-/// Retains each per-client event until the host confirms a sequence after it.
+/// Stores one encoded payload per delivery. Browser-owned streams publish watermarks only.
 pub(crate) struct ClientEventBuffer {
     state: Mutex<BufferState>,
     max_events_per_client: usize,
     max_bytes_per_client: usize,
     max_total_bytes: usize,
 }
-
 impl ClientEventBuffer {
     pub(crate) fn new() -> Self {
         Self::with_limits(MAX_EVENTS_PER_CLIENT, MAX_BYTES_PER_CLIENT, MAX_TOTAL_BYTES)
     }
-
     fn with_limits(
         max_events_per_client: usize,
         max_bytes_per_client: usize,
@@ -146,22 +198,23 @@ impl ClientEventBuffer {
         event: ClientEvent,
     ) -> Result<(ClientEventMessage, Vec<u8>), ClientEventBufferError> {
         let mut state = self.state.lock().unwrap();
-        let sequence = state
+        let expired = state
             .clients
-            .get(&client_id)
-            .map_or(1, |client| client.next_sequence);
+            .get_mut(&client_id)
+            .map_or(0, |c| c.expire(Instant::now()));
+        state.total_bytes -= expired;
+        let client = state.clients.entry(client_id).or_default();
+        let sequence = client.next_sequence;
+        let browser_owned = client.browser_owned;
         let message = ClientEventMessage { sequence, event };
         let encoded = encode_client_event_bytes(&message)
-            .map_err(|error| ClientEventBufferError::Encoding(error.to_string()))?;
-        let encoded_len = encoded.len();
-
-        let next_total_bytes = state.total_bytes.saturating_add(encoded_len);
-        let client = state.clients.entry(client_id).or_default();
+            .map_err(|e| ClientEventBufferError::Encoding(e.to_string()))?;
+        let bytes = encoded.len();
         let next_events = client.events.len() + 1;
-        let next_client_bytes = client.bytes.saturating_add(encoded_len);
+        let next_client_bytes = client.bytes + bytes;
         if next_events > self.max_events_per_client
             || next_client_bytes > self.max_bytes_per_client
-            || next_total_bytes > self.max_total_bytes
+            || state.total_bytes + bytes > self.max_total_bytes
         {
             return Err(ClientEventBufferError::BacklogExceeded {
                 client_id,
@@ -169,17 +222,30 @@ impl ClientEventBuffer {
                 bytes: next_client_bytes,
             });
         }
-
-        client.next_sequence = client.next_sequence.saturating_add(1);
+        let client = state.clients.get_mut(&client_id).unwrap();
+        client.next_sequence = sequence
+            .checked_add(1)
+            .ok_or_else(|| ClientEventBufferError::Encoding("event sequence exhausted".into()))?;
         client.bytes = next_client_bytes;
         client.events.push_back(BufferedEvent {
-            message: message.clone(),
-            encoded_len,
+            sequence,
+            bytes: Arc::from(encoded.as_slice()),
+            created: Instant::now(),
         });
-        state.total_bytes = next_total_bytes;
+        state.total_bytes += bytes;
+        if browser_owned {
+            let notification = ClientEventMessage {
+                sequence,
+                event: ClientEvent::EventsAvailable,
+            };
+            let encoded = encode_client_event_bytes(&notification)
+                .map_err(|e| ClientEventBufferError::Encoding(e.to_string()))?;
+            return Ok((notification, encoded));
+        }
         Ok((message, encoded))
     }
 
+    /// Host delivery and browser delivery have separate acknowledgement authorities.
     pub(crate) fn replay(
         &self,
         client_id: Uuid,
@@ -187,58 +253,121 @@ impl ClientEventBuffer {
         limit: usize,
     ) -> Result<(Vec<ClientEventMessage>, u64), ClientEventBufferError> {
         let mut state = self.state.lock().unwrap();
-        let (events, latest_sequence, acknowledged_bytes) = {
-            let Some(client) = state.clients.get_mut(&client_id) else {
-                return Ok((Vec::new(), 0));
-            };
-            let latest_sequence = client.next_sequence.saturating_sub(1);
-            if after_sequence > latest_sequence {
-                return Err(ClientEventBufferError::InvalidAcknowledgement {
-                    client_id,
-                    acknowledged: after_sequence,
-                    latest: latest_sequence,
-                });
-            }
-
-            let mut acknowledged_bytes = 0;
-            while client
-                .events
-                .front()
-                .is_some_and(|event| event.message.sequence <= after_sequence)
-            {
-                let event = client.events.pop_front().unwrap();
-                acknowledged_bytes += event.encoded_len;
-            }
-            client.bytes = client.bytes.saturating_sub(acknowledged_bytes);
-
-            if after_sequence != 0
-                && let Some(first) = client.events.front()
-                && first.message.sequence > after_sequence.saturating_add(1)
-            {
-                return Err(ClientEventBufferError::ReplayUnavailable {
-                    client_id,
-                    requested: after_sequence.saturating_add(1),
-                    available_from: first.message.sequence,
-                });
-            }
-
-            let limit = limit.clamp(1, MAX_REPLAY_EVENTS);
-            let events = client
-                .events
-                .iter()
-                .take(limit)
-                .map(|event| event.message.clone())
-                .collect();
-            (events, latest_sequence, acknowledged_bytes)
+        let Some(client) = state.clients.get_mut(&client_id) else {
+            return Ok((Vec::new(), 0));
         };
-        state.total_bytes = state.total_bytes.saturating_sub(acknowledged_bytes);
-        Ok((events, latest_sequence))
+        if client.browser_owned {
+            return Err(ClientEventBufferError::BrowserOwned);
+        }
+        let latest = client.next_sequence - 1;
+        if after_sequence > latest {
+            return Err(ClientEventBufferError::InvalidAcknowledgement {
+                client_id,
+                acknowledged: after_sequence,
+                latest,
+            });
+        }
+        if after_sequence != 0 && after_sequence < client.available_after {
+            return Err(ClientEventBufferError::ReplayUnavailable {
+                client_id,
+                requested: after_sequence + 1,
+                available_from: client.available_after + 1,
+            });
+        }
+        let removed = client.acknowledge(after_sequence);
+        let events = client
+            .events
+            .iter()
+            .take(limit.clamp(1, MAX_REPLAY_EVENTS))
+            .map(|e| {
+                let event = ClientEventRef::read_as_root(&e.bytes)
+                    .map_err(|e| ClientEventBufferError::Encoding(e.to_string()))?;
+                decode_client_event_message_ref(event)
+                    .map_err(|e| ClientEventBufferError::Encoding(e.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>();
+        state.total_bytes -= removed;
+        Ok((events?, latest))
     }
 
+    pub(crate) fn stream(
+        &self,
+        client_id: Uuid,
+        request: EventStreamRequest,
+    ) -> Result<EventStreamState, RpcMessageError> {
+        let mut state = self.state.lock().unwrap();
+        if request.operation == EventStreamOperation::Open {
+            let client = state.clients.entry(client_id).or_default();
+            client.browser_owned = true;
+        }
+        let Some(client) = state.clients.get_mut(&client_id) else {
+            return Err(RpcMessageError::EventStreamExpired);
+        };
+        if !client.browser_owned
+            || (request.operation != EventStreamOperation::Open
+                && request.stream_id != Some(client.stream_id))
+        {
+            return Err(RpcMessageError::EventStreamExpired);
+        }
+        let removed = client.expire(Instant::now());
+        state.total_bytes -= removed;
+        let client = state.clients.get_mut(&client_id).unwrap();
+        if matches!(
+            request.operation,
+            EventStreamOperation::Read | EventStreamOperation::Acknowledge
+        ) && request.sequence >= client.next_sequence
+        {
+            return Err(RpcMessageError::InvalidRequest(
+                "sequence exceeds the stream watermark".into(),
+            ));
+        }
+        match request.operation {
+            EventStreamOperation::Read => {
+                if request.sequence < client.available_after {
+                    return Err(RpcMessageError::EventStreamExpired);
+                }
+                let mut bytes = 0;
+                let payloads = client
+                    .events
+                    .iter()
+                    .filter(|e| e.sequence > request.sequence)
+                    .take(request.limit.clamp(1, MAX_REPLAY_EVENTS))
+                    .take_while(|e| {
+                        let include = bytes == 0 || bytes + e.bytes.len() <= MAX_BATCH_BYTES;
+                        if include {
+                            bytes += e.bytes.len();
+                        }
+                        include
+                    })
+                    .map(|e| e.bytes.clone())
+                    .collect();
+                Ok(client.metadata(payloads))
+            }
+            EventStreamOperation::Acknowledge => {
+                // Once unacknowledged data expires, an ACK cannot erase that gap.
+                if client.available_after > client.acknowledged {
+                    return Err(RpcMessageError::EventStreamExpired);
+                }
+                let removed = client.acknowledge(request.sequence);
+                let result = client.metadata(Vec::new());
+                state.total_bytes -= removed;
+                Ok(result)
+            }
+            _ => Ok(client.metadata(Vec::new())),
+        }
+    }
+
+    /// Expire idle payloads too, without requiring a subsequent read or publish.
+    pub(crate) fn expire(&self) {
+        let mut state = self.state.lock().unwrap();
+        let now = Instant::now();
+        let removed: usize = state.clients.values_mut().map(|c| c.expire(now)).sum();
+        state.total_bytes -= removed;
+    }
     pub(crate) fn remove_client(&self, client_id: Uuid) {
         let mut state = self.state.lock().unwrap();
         if let Some(client) = state.clients.remove(&client_id) {
-            state.total_bytes = state.total_bytes.saturating_sub(client.bytes);
+            state.total_bytes -= client.bytes;
         }
     }
 }
@@ -249,6 +378,187 @@ mod tests {
     use uuid::Uuid;
 
     use super::{ClientEventBuffer, ClientEventBufferError};
+
+    use super::*;
+
+    fn request(
+        operation: EventStreamOperation,
+        stream_id: Option<Uuid>,
+        sequence: u64,
+    ) -> EventStreamRequest {
+        EventStreamRequest {
+            operation,
+            stream_id,
+            sequence,
+            limit: 128,
+        }
+    }
+
+    #[test]
+    fn browser_reads_are_retryable_and_only_cumulative_ack_reclaims_payloads() {
+        let buffer = ClientEventBuffer::new();
+        let client = Uuid::new_v4();
+        let stream = buffer
+            .stream(client, request(EventStreamOperation::Open, None, 0))
+            .unwrap()
+            .stream_id;
+        for _ in 0..3 {
+            let (published, _) = buffer.push(client, ClientEvent::Disconnect).unwrap();
+            assert!(matches!(published.event, ClientEvent::EventsAvailable));
+        }
+        let first = buffer
+            .stream(client, request(EventStreamOperation::Read, Some(stream), 0))
+            .unwrap();
+        let retry = buffer
+            .stream(client, request(EventStreamOperation::Read, Some(stream), 0))
+            .unwrap();
+        assert_eq!(first.payloads, retry.payloads);
+        assert_eq!(first.payloads.len(), 3);
+        assert_eq!(first.acknowledged_sequence, 0);
+        assert!(matches!(
+            buffer.replay(client, 3, 128),
+            Err(ClientEventBufferError::BrowserOwned)
+        ));
+        buffer
+            .stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(stream), 2),
+            )
+            .unwrap();
+        // Requests through separate hosts can arrive out of order; ACKs must never move backwards.
+        let duplicate = buffer
+            .stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(stream), 1),
+            )
+            .unwrap();
+        assert_eq!(duplicate.acknowledged_sequence, 2);
+        let remaining = buffer
+            .stream(client, request(EventStreamOperation::Read, Some(stream), 2))
+            .unwrap();
+        assert_eq!(remaining.payloads.len(), 1);
+        assert_eq!(remaining.payloads[0], first.payloads[2]);
+        assert_eq!(
+            buffer.state.lock().unwrap().total_bytes,
+            remaining.payloads[0].len()
+        );
+        assert!(matches!(
+            buffer.stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(stream), 4)
+            ),
+            Err(RpcMessageError::InvalidRequest(_))
+        ));
+        buffer
+            .stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(stream), 3),
+            )
+            .unwrap();
+        assert_eq!(buffer.state.lock().unwrap().total_bytes, 0);
+    }
+
+    #[test]
+    fn stream_generations_fence_late_acknowledgements() {
+        let buffer = ClientEventBuffer::new();
+        let client = Uuid::new_v4();
+        let old = buffer
+            .stream(client, request(EventStreamOperation::Open, None, 0))
+            .unwrap()
+            .stream_id;
+        buffer.remove_client(client);
+        let new = buffer
+            .stream(client, request(EventStreamOperation::Open, None, 0))
+            .unwrap()
+            .stream_id;
+        assert_ne!(old, new);
+        buffer.push(client, ClientEvent::Disconnect).unwrap();
+        assert!(matches!(
+            buffer.stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(old), 1)
+            ),
+            Err(RpcMessageError::EventStreamExpired)
+        ));
+        assert_eq!(
+            buffer
+                .stream(client, request(EventStreamOperation::Read, Some(new), 0))
+                .unwrap()
+                .payloads
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn expiry_reclaims_idle_bytes_and_reports_gap_even_when_the_queue_is_empty() {
+        let buffer = ClientEventBuffer::new();
+        let client = Uuid::new_v4();
+        let stream = buffer
+            .stream(client, request(EventStreamOperation::Open, None, 0))
+            .unwrap()
+            .stream_id;
+        buffer.push(client, ClientEvent::Disconnect).unwrap();
+        buffer
+            .state
+            .lock()
+            .unwrap()
+            .clients
+            .get_mut(&client)
+            .unwrap()
+            .events
+            .front_mut()
+            .unwrap()
+            .created -= STREAM_RETENTION;
+        buffer.expire();
+        assert_eq!(buffer.state.lock().unwrap().total_bytes, 0);
+        let status = buffer
+            .stream(
+                client,
+                request(EventStreamOperation::Status, Some(stream), 0),
+            )
+            .unwrap();
+        assert_eq!(status.available_after, 1);
+        assert_eq!(status.acknowledged_sequence, 0);
+        for operation in [
+            EventStreamOperation::Read,
+            EventStreamOperation::Acknowledge,
+        ] {
+            assert!(matches!(
+                buffer.stream(client, request(operation, Some(stream), 0)),
+                Err(RpcMessageError::EventStreamExpired)
+            ));
+        }
+        assert!(matches!(
+            buffer.stream(
+                client,
+                request(EventStreamOperation::Acknowledge, Some(stream), 1)
+            ),
+            Err(RpcMessageError::EventStreamExpired)
+        ));
+    }
+
+    #[test]
+    fn payload_bytes_have_per_client_and_global_bounds() {
+        let buffer = ClientEventBuffer::with_limits(100, 256, 300);
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        let event = || ClientEvent::SystemMessage {
+            player: moor_var::Obj::mk_id(1),
+            message: "x".repeat(100),
+        };
+        buffer.push(first, event()).unwrap();
+        assert!(matches!(
+            buffer.push(first, event()),
+            Err(ClientEventBufferError::BacklogExceeded { .. })
+        ));
+        assert!(matches!(
+            buffer.push(second, event()),
+            Err(ClientEventBufferError::BacklogExceeded { .. })
+        ));
+        buffer.remove_client(first);
+        buffer.push(second, event()).unwrap();
+    }
 
     #[test]
     fn replay_acknowledges_and_returns_following_events() {

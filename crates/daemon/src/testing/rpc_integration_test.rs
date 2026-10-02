@@ -37,6 +37,131 @@ mod tests {
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
     use planus::ReadAsRoot;
 
+    #[test]
+    fn browser_event_stream_authentication_and_portable_ack() {
+        use crate::rpc::SessionActions;
+        use moor_runtime_api::api::{
+            ClientReply, ClientRequest, EventStreamOperation, EventStreamRequest,
+        };
+        let env = setup_test_environment();
+        let client = Uuid::new_v4();
+        let (token, connection) = establish_connection(&env, client, "127.0.0.1", 9876);
+        let other = Uuid::new_v4();
+        let (other_token, _) = establish_connection(&env, other, "127.0.0.1", 9877);
+        let call = |id, token: ClientToken, operation, stream_id, sequence| {
+            env.message_handler.handle_client_request(
+                env.scheduler_client.clone(),
+                id,
+                ClientRequest::EventStream {
+                    client_token: token,
+                    request: EventStreamRequest {
+                        operation,
+                        stream_id,
+                        sequence,
+                        limit: 128,
+                    },
+                },
+            )
+        };
+        let ClientReply::EventStream(open) =
+            call(client, token.clone(), EventStreamOperation::Open, None, 0).unwrap()
+        else {
+            panic!("expected stream")
+        };
+        env.message_handler
+            .handle_session_event(
+                &env.scheduler_client,
+                SessionActions::SendSystemMessage {
+                    client_id: client,
+                    connection,
+                    system_message: "transient payload".into(),
+                },
+            )
+            .unwrap();
+        let ClientReply::EventStream(first) = call(
+            client,
+            token.clone(),
+            EventStreamOperation::Read,
+            Some(open.stream_id),
+            0,
+        )
+        .unwrap() else {
+            panic!("expected payload")
+        };
+        assert_eq!(first.payloads.len(), 1);
+        assert_eq!(first.acknowledged_sequence, 0);
+        assert!(
+            call(
+                client,
+                other_token.clone(),
+                EventStreamOperation::Read,
+                Some(open.stream_id),
+                0
+            )
+            .is_err()
+        );
+        // Validate the other token for its own connection before testing cache hits.
+        call(
+            other,
+            other_token.clone(),
+            EventStreamOperation::Open,
+            None,
+            0,
+        )
+        .unwrap();
+        for operation in [
+            EventStreamOperation::Open,
+            EventStreamOperation::Status,
+            EventStreamOperation::Read,
+            EventStreamOperation::Acknowledge,
+        ] {
+            assert!(
+                matches!(
+                    call(
+                        client,
+                        other_token.clone(),
+                        operation,
+                        Some(open.stream_id),
+                        1
+                    ),
+                    Err(RpcMessageError::PermissionDenied)
+                ),
+                "cached token must remain bound to its client for {operation:?}"
+            );
+        }
+        assert!(
+            call(
+                other,
+                other_token,
+                EventStreamOperation::Read,
+                Some(open.stream_id),
+                0
+            )
+            .is_err()
+        );
+        // There is no host identity in either request. Each can be forwarded by a different host.
+        call(
+            client,
+            token.clone(),
+            EventStreamOperation::Acknowledge,
+            Some(open.stream_id),
+            1,
+        )
+        .unwrap();
+        let ClientReply::EventStream(after) = call(
+            client,
+            token,
+            EventStreamOperation::Read,
+            Some(open.stream_id),
+            1,
+        )
+        .unwrap() else {
+            panic!("expected stream")
+        };
+        assert!(after.payloads.is_empty());
+        assert_eq!(after.acknowledged_sequence, 1);
+    }
+
     fn systemtime_to_nanos(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
