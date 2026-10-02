@@ -35,6 +35,9 @@ impl RpcMessageHandler {
             if let Some((t, o)) = guard.get(&token)
                 && t.elapsed().as_secs() <= 60
             {
+                if objid.is_some_and(|expected| expected != o) {
+                    return Err(RpcMessageError::PermissionDenied);
+                }
                 return Ok(*o);
             }
         }
@@ -136,9 +139,12 @@ impl RpcMessageHandler {
     ) -> Result<(), RpcMessageError> {
         {
             let guard = self.client_token_cache.pin();
-            if let Some(t) = guard.get(&token)
+            if let Some((t, token_client_id)) = guard.get(&token)
                 && t.elapsed().as_secs() <= 60
             {
+                if client_id != *token_client_id {
+                    return Err(RpcMessageError::PermissionDenied);
+                }
                 return Ok(());
             }
         }
@@ -185,7 +191,7 @@ impl RpcMessageHandler {
         }
 
         let guard = self.client_token_cache.pin();
-        guard.insert(token.clone(), Instant::now());
+        guard.insert(token.clone(), (Instant::now(), token_client_id));
 
         Ok(())
     }
@@ -201,5 +207,72 @@ impl RpcMessageHandler {
             return Err(e);
         }
         Ok(connection)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        connections::ConnectionRegistryFactory,
+        tasks::task_monitor::TaskMonitor,
+        testing::{MockEventLog, MockTransport, test_env::create_test_keys},
+    };
+    use std::sync::{Arc, RwLock};
+
+    fn handler() -> RpcMessageHandler {
+        let (public, private) = create_test_keys();
+        let (sender, _) = flume::unbounded();
+        RpcMessageHandler::new(
+            Arc::new(moor_kernel::config::Config::default()),
+            public,
+            private,
+            ConnectionRegistryFactory::in_memory_only().unwrap(),
+            Arc::new(RwLock::new(Default::default())),
+            sender.clone(),
+            Arc::new(MockEventLog::new()),
+            TaskMonitor::new(sender),
+            Arc::new(MockTransport::new()),
+        )
+    }
+
+    #[test]
+    fn cached_auth_token_preserves_requested_player_check() {
+        let handler = handler();
+        let player = Obj::mk_id(1);
+        let other = Obj::mk_id(2);
+        let token = handler.make_auth_token(&player);
+        assert_eq!(
+            handler.validate_auth_token(token.clone(), None).unwrap(),
+            player
+        );
+        assert!(matches!(
+            handler.validate_auth_token(token.clone(), Some(&other)),
+            Err(RpcMessageError::PermissionDenied)
+        ));
+        assert_eq!(
+            handler.validate_auth_token(token, Some(&player)).unwrap(),
+            player
+        );
+    }
+
+    #[test]
+    fn cached_client_token_preserves_client_binding() {
+        let handler = handler();
+        let client = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let token = handler.make_client_token(client);
+        assert!(matches!(
+            handler.validate_client_token_impl(token.clone(), other),
+            Err(RpcMessageError::PermissionDenied)
+        ));
+        handler
+            .validate_client_token_impl(token.clone(), client)
+            .unwrap();
+        assert!(matches!(
+            handler.validate_client_token_impl(token.clone(), other),
+            Err(RpcMessageError::PermissionDenied)
+        ));
+        handler.validate_client_token_impl(token, client).unwrap();
     }
 }

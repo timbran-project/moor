@@ -177,7 +177,8 @@ pub struct RpcMessageHandler {
 
     pub(crate) auth_token_cache:
         PapayaHashMap<AuthToken, (Instant, Obj), BuildHasherDefault<AHasher>>,
-    pub(crate) client_token_cache: PapayaHashMap<ClientToken, Instant, BuildHasherDefault<AHasher>>,
+    pub(crate) client_token_cache:
+        PapayaHashMap<ClientToken, (Instant, Uuid), BuildHasherDefault<AHasher>>,
 
     pub(crate) mailbox_sender: Sender<SessionActions>,
     #[cfg(test)]
