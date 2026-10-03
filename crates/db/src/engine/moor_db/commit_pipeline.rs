@@ -225,8 +225,7 @@ impl MoorDB {
             })?;
 
         self.coordinator
-            .prepare(&relation_ws, tx_timestamp, &mut admission)
-            .map_err(WorldStateError::DatabaseError)?;
+            .prepare(&relation_ws, tx_timestamp, &mut admission)?;
 
         // Phase 2: Try to publish
         let publication_version = next_root.version;
