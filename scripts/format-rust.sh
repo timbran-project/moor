@@ -21,7 +21,7 @@
 #
 # Note: This is the only place we use nightly features - all production code runs on stable Rust.
 #
-# Usage: ./format-rust.sh [OPTIONS]
+# Usage: ./scripts/format-rust.sh [OPTIONS]
 
 set -euo pipefail
 
@@ -56,28 +56,33 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Check if nightly toolchain is available
-if ! rustup toolchain list | grep -q nightly; then
-    echo "Error: Nightly toolchain not found. Install with: rustup toolchain install nightly"
+# Run against this workspace regardless of the caller's working directory.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+
+# Check the exact toolchain and component used below.
+if ! rustup run nightly rustfmt --version >/dev/null 2>&1; then
+    echo "Error: Nightly rustfmt is unavailable. Install with: rustup toolchain install nightly --profile minimal --component rustfmt" >&2
     exit 1
 fi
 
 # Build the command
-CMD="cargo +nightly fmt"
+CMD=(cargo +nightly fmt --all)
 
 if [ "$CHECK_ONLY" = true ]; then
-    CMD="$CMD -- --check"
+    CMD+=(--check)
 fi
 
 # Add project-specific formatting configuration
-CMD="$CMD -- --config reorder_imports=true,imports_indent=Block,imports_layout=Mixed"
+CMD+=(-- --config reorder_imports=true,imports_indent=Block,imports_layout=Mixed)
 
 if [ "$VERBOSE" = true ]; then
-    echo "Running: $CMD"
+    printf 'Running:'
+    printf ' %q' "${CMD[@]}"
+    printf '\n'
 fi
 
 # Execute the command
-eval "$CMD"
+"${CMD[@]}"
 
 if [ "$CHECK_ONLY" = true ]; then
     echo "✓ Format check completed"

@@ -34,8 +34,8 @@ relevant code and local documentation for details.
   the problem, the change, and the validation. Mark breaking changes with `!` or a
   `BREAKING CHANGE:` footer.
 - Keep history linear and bisectable. Each commit must build and pass the relevant tests.
-- Keep each commit focused on one logical change. Include its tests and changelog entry in the same
-  commit.
+- Keep each commit focused on one logical change. Include relevant tests and, when warranted, a
+  changelog entry in the same commit.
 - Do not create merge commits. Fold temporary fixes into unpublished commits before submission.
 - Do not rewrite published history without explicit permission.
 - Before committing, review the staged changes. Include only files that belong to the task.
@@ -50,7 +50,11 @@ relevant code and local documentation for details.
   commit that document.
 - Maintain requested project documentation and `ChangeLog.md` in place. Do not add unsolicited
   documents.
-- Update `ChangeLog.md` for changes, under the appropriate unreleased section. Use short,
-  human-readable entries in simple English. Explain the effect on users or contributors.
+- Update `ChangeLog.md` only for relevant, user-facing changes: features, significant bug fixes,
+  compatibility changes, and changes that affect upgrades or operation. Use the appropriate
+  unreleased section and explain the user-facing effect in short, simple English.
+- Omit routine internal maintenance, development script fixes, formatting, refactoring, and
+  test-only changes unless they have a significant user-facing effect. Not every commit needs an
+  entry.
 - Use factual language in code, comments, documentation, and responses. Avoid praise, marketing
   claims, and filler.
