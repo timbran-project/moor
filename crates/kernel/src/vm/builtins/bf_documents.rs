@@ -19,9 +19,10 @@ use crate::{
 };
 use moor_compiler::{offset_for_builtin, to_literal};
 use moor_var::{
-    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, Flyweight, List, Map, NOTHING,
-    SYSTEM_OBJECT, Sequence, Symbol, VarType, Variant, v_bool, v_bool_int, v_flyweight, v_int,
-    v_list, v_map, v_nothing, v_obj, v_str, v_string,
+    Associative, E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, Flyweight, List, Map, SYSTEM_OBJECT,
+    Sequence, Symbol, VarType, Variant,
+    json::{JsonConversionError, json_to_var, var_to_json},
+    v_flyweight, v_list, v_map, v_obj, v_str, v_string,
 };
 use scraper::{Html, Selector};
 use serde_json::{self, Value as JsonValue};
@@ -700,8 +701,7 @@ fn bf_generate_json(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_ARGS));
     }
 
-    let value = &bf_args.args[0];
-    let json_value = moo_value_to_json(value)?;
+    let json_value = var_to_json(&bf_args.args[0]).map_err(json_conversion_bf_err)?;
 
     match serde_json::to_string(&json_value) {
         Ok(json_str) => Ok(Ret(v_string(json_str))),
@@ -709,93 +709,12 @@ fn bf_generate_json(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     }
 }
 
-/// Convert a MOO value to a JSON value
-fn moo_value_to_json(value: &moor_var::Var) -> Result<JsonValue, BfErr> {
-    match value.variant() {
-        Variant::Int(i) => Ok(JsonValue::Number((i).into())),
-        Variant::Float(f) => {
-            let num = serde_json::Number::from_f64(f).ok_or_else(|| BfErr::Code(E_INVARG))?;
-            Ok(JsonValue::Number(num))
-        }
-        Variant::Str(s) => Ok(JsonValue::String(s.as_str().to_string())),
-        Variant::Obj(o) if o == NOTHING => Ok(JsonValue::Null),
-        Variant::Obj(o) => Ok(JsonValue::String(format!("{o}"))),
-        Variant::List(list) => {
-            let mut json_array = Vec::new();
-            for item in list.iter() {
-                json_array.push(moo_value_to_json(&item)?);
-            }
-            Ok(JsonValue::Array(json_array))
-        }
-        Variant::Map(map) => {
-            let mut json_obj = serde_json::Map::new();
-            for (k, v) in map.iter() {
-                // JSON only allows string keys
-                let key = match k.variant() {
-                    Variant::Str(s) => s.as_str().to_string(),
-                    Variant::Int(i) => i.to_string(),
-                    Variant::Float(f) => f.to_string(),
-                    Variant::Obj(o) => format!("{o}"),
-                    _ => {
-                        return Err(BfErr::ErrValue(E_TYPE.with_msg(|| {
-                            format!(
-                                "Cannot use {} as a json map key",
-                                k.type_code().to_literal()
-                            )
-                        })));
-                    } // Complex keys not supported
-                };
-                json_obj.insert(key, moo_value_to_json(&v)?);
-            }
-            Ok(JsonValue::Object(json_obj))
-        }
-        Variant::Bool(b) => Ok(JsonValue::Bool(b)),
-        _ => Err(BfErr::ErrValue(E_TYPE.with_msg(|| {
-            format!(
-                "Cannot translate values of type {} to JSON",
-                value.type_code().to_literal()
-            )
-        }))), // Other types not supported
-    }
-}
-
-/// Convert a JSON value to a MOO value
-fn json_value_to_moo(
-    json_value: &JsonValue,
-    use_boolean_returns: bool,
-) -> Result<moor_var::Var, BfErr> {
-    match json_value {
-        JsonValue::Null => Ok(v_nothing()),
-        JsonValue::Bool(b) => {
-            if use_boolean_returns {
-                Ok(v_bool(*b))
-            } else {
-                Ok(v_bool_int(*b))
-            }
-        }
-        JsonValue::Number(n) => {
-            if n.is_i64() {
-                Ok(v_int(n.as_i64().unwrap()))
-            } else {
-                Ok(moor_var::v_float(n.as_f64().unwrap()))
-            }
-        }
-        JsonValue::String(s) => Ok(v_str(s)),
-        JsonValue::Array(arr) => {
-            let mut list_items = Vec::new();
-            for item in arr {
-                list_items.push(json_value_to_moo(item, use_boolean_returns)?);
-            }
-            Ok(v_list(&list_items))
-        }
-        JsonValue::Object(obj) => {
-            let mut map_items = Vec::new();
-            for (k, v) in obj {
-                let key = v_str(k);
-                let value = json_value_to_moo(v, use_boolean_returns)?;
-                map_items.push((key, value));
-            }
-            Ok(v_map(&map_items))
+/// Map a JSON conversion failure to the error `generate_json` raises.
+fn json_conversion_bf_err(e: JsonConversionError) -> BfErr {
+    match e {
+        JsonConversionError::NonFiniteFloat => BfErr::Code(E_INVARG),
+        JsonConversionError::UnsupportedType(_) | JsonConversionError::UnsupportedKeyType(_) => {
+            BfErr::ErrValue(E_TYPE.with_msg(|| e.to_string()))
         }
     }
 }
@@ -812,10 +731,10 @@ fn bf_parse_json(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     };
 
     match serde_json::from_str::<JsonValue>(json_str) {
-        Ok(json_value) => {
-            let moo_value = json_value_to_moo(&json_value, bf_args.config.use_boolean_returns)?;
-            Ok(Ret(moo_value))
-        }
+        Ok(json_value) => Ok(Ret(json_to_var(
+            &json_value,
+            bf_args.config.use_boolean_returns,
+        ))),
         Err(_) => Err(BfErr::Code(E_INVARG)),
     }
 }
@@ -954,7 +873,7 @@ pub(crate) fn register_bf_documents(builtins: &mut [BuiltinFunction]) {
 mod tests {
     use super::*;
     use crate::vm::vm_host::VmHost;
-    use moor_var::v_objid;
+    use moor_var::{v_bool, v_int, v_nothing, v_objid};
     use moor_vm::FeaturesConfig;
     use std::time::Duration;
 
@@ -1145,55 +1064,116 @@ mod tests {
         }
     }
 
+    fn call_json_bf(
+        bf: BuiltinFunction,
+        name: &str,
+        arg: moor_var::Var,
+        use_boolean_returns: bool,
+    ) -> Result<BfRet, BfErr> {
+        let args = List::mk_list(&[arg]);
+        let config = FeaturesConfig {
+            use_boolean_returns,
+            ..FeaturesConfig::default()
+        };
+        let mut host = VmHost::new(0, 20, 1_000, Duration::from_secs(1));
+        let mut call = BfCallState {
+            name: Symbol::mk(name),
+            args: &args,
+            exec_state: host.vm_exec_state_mut(),
+            config: &config,
+        };
+        bf(&mut call)
+    }
+
+    fn generate_json(v: moor_var::Var) -> Result<String, BfErr> {
+        match call_json_bf(bf_generate_json, "generate_json", v, false)? {
+            Ret(s) => Ok(s.as_string().unwrap().to_string()),
+            _ => panic!("generate_json should return a value"),
+        }
+    }
+
+    fn parse_json(s: &str, use_boolean_returns: bool) -> Result<moor_var::Var, BfErr> {
+        match call_json_bf(bf_parse_json, "parse_json", v_str(s), use_boolean_returns)? {
+            Ret(v) => Ok(v),
+            _ => panic!("parse_json should return a value"),
+        }
+    }
+
+    fn expect_type_error(r: Result<String, BfErr>, msg: &str) {
+        let Err(BfErr::ErrValue(e)) = r else {
+            panic!("expected E_TYPE, got {r:?}");
+        };
+        assert_eq!(e.err_type(), E_TYPE);
+        assert_eq!(e.msg(), Some(msg));
+    }
+
     #[test]
-    fn test_json_uuid_objects() {
-        use moor_var::{Obj, UuObjid, Var};
+    fn test_generate_json_values() {
+        use moor_var::{Obj, UuObjid, Var, v_sym};
 
-        // Test regular object
-        let regular_obj = v_objid(42);
-        let regular_json = moo_value_to_json(&regular_obj).unwrap();
-        assert_eq!(regular_json.as_str().unwrap(), "#42");
-
-        // Test UUID object
-        let uuid = UuObjid::new(0x1234, 0x5, 0x1234567890);
-        let uuid_obj = Var::from(Obj::mk_uuobjid(uuid));
-        let uuid_json = moo_value_to_json(&uuid_obj).unwrap();
-        assert_eq!(uuid_json.as_str().unwrap(), "#048D05-1234567890");
-
-        // Test in a list context
-        let list_with_objects = v_list(&[regular_obj.clone(), uuid_obj.clone()]);
-        let list_json = moo_value_to_json(&list_with_objects).unwrap();
-        let json_array = list_json.as_array().unwrap();
-        assert_eq!(json_array[0].as_str().unwrap(), "#42");
-        assert_eq!(json_array[1].as_str().unwrap(), "#048D05-1234567890");
-
-        // Test in a map context (as key)
-        let map_with_obj_keys =
-            v_map(&[(regular_obj, v_str("regular")), (uuid_obj, v_str("uuid"))]);
-        let map_json = moo_value_to_json(&map_with_obj_keys).unwrap();
-        let json_obj = map_json.as_object().unwrap();
-        assert_eq!(json_obj.get("#42").unwrap().as_str().unwrap(), "regular");
+        let uuid_obj = Var::from(Obj::mk_uuobjid(UuObjid::new(0x1234, 0x5, 0x1234567890)));
+        let v = v_map(&[
+            (
+                v_objid(42),
+                v_list(&[v_objid(42), uuid_obj.clone(), v_nothing()]),
+            ),
+            (uuid_obj, v_str("uuid")),
+            (v_sym("kind"), v_sym("vitals")),
+        ]);
+        let out: JsonValue = serde_json::from_str(&generate_json(v).unwrap()).unwrap();
         assert_eq!(
-            json_obj
-                .get("#048D05-1234567890")
-                .unwrap()
-                .as_str()
-                .unwrap(),
-            "uuid"
+            out,
+            serde_json::json!({
+                "#42": ["#42", "#048D05-1234567890", null],
+                "#048D05-1234567890": "uuid",
+                "kind": "vitals",
+            })
         );
     }
 
     #[test]
-    fn test_json_null_round_trip() {
-        let nothing = json_value_to_moo(&JsonValue::Null, false).unwrap();
-        assert_eq!(nothing, v_nothing());
-        assert_eq!(moo_value_to_json(&nothing).unwrap(), JsonValue::Null);
+    fn test_generate_json_errors() {
+        use moor_var::{E_PERM, v_err, v_float};
 
-        let json = serde_json::json!({
-            "field": null,
-            "array": [1, null, "null", "#-1"]
-        });
-        let moo_value = json_value_to_moo(&json, false).unwrap();
-        assert_eq!(moo_value_to_json(&moo_value).unwrap(), json);
+        expect_type_error(
+            generate_json(v_err(E_PERM)),
+            "Cannot translate values of type TYPE_ERR to JSON",
+        );
+        expect_type_error(
+            generate_json(v_map(&[(v_list(&[]), v_float(1.0))])),
+            "Cannot use TYPE_LIST as a json map key",
+        );
+        assert!(matches!(
+            json_conversion_bf_err(JsonConversionError::NonFiniteFloat),
+            BfErr::Code(E_INVARG)
+        ));
+    }
+
+    #[test]
+    fn test_parse_json_values() {
+        assert_eq!(
+            parse_json("[true, false, null, 1, 1.5, \"#42\"]", false).unwrap(),
+            v_list(&[
+                v_int(1),
+                v_int(0),
+                v_nothing(),
+                v_int(1),
+                moor_var::v_float(1.5),
+                v_str("#42"),
+            ])
+        );
+        assert_eq!(
+            parse_json("{\"b\": true}", true).unwrap(),
+            v_map(&[(v_str("b"), v_bool(true))])
+        );
+        assert!(matches!(parse_json("{", false), Err(BfErr::Code(E_INVARG))));
+    }
+
+    #[test]
+    fn test_json_null_round_trip() {
+        let json = r##"{"array":[1,null,"null","#-1"],"field":null}"##;
+        let v = parse_json(json, false).unwrap();
+        let out: JsonValue = serde_json::from_str(&generate_json(v).unwrap()).unwrap();
+        assert_eq!(out, serde_json::from_str::<JsonValue>(json).unwrap());
     }
 }

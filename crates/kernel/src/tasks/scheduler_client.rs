@@ -13,7 +13,7 @@
 
 use std::{
     sync::{
-        Arc,
+        Arc, LazyLock,
         atomic::{AtomicU8, Ordering},
     },
     time::{Duration, Instant},
@@ -22,7 +22,7 @@ use std::{
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{SchedulerError, SchedulerError::CompilationError, Session};
 use moor_compiler::compile;
-use moor_var::{List, Obj, Symbol, Var};
+use moor_var::{List, Obj, Symbol, Var, v_empty_str, v_obj, v_sym};
 
 use crate::tasks::scheduler::{Scheduler, SchedulerState};
 use crate::tasks::world_state_action::{
@@ -34,6 +34,10 @@ use crate::{
 };
 
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+static DO_OUT_OF_BAND_COMMAND: LazyLock<Symbol> =
+    LazyLock::new(|| Symbol::mk("do_out_of_band_command"));
+static DO_CLIENT_DATA: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("do_client_data"));
 
 const GC_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const LONG_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
@@ -339,6 +343,7 @@ impl SchedulerClient {
         })
     }
 
+    /// Submit `handler_object:do_out_of_band_command(@command)` as `player`.
     pub fn submit_out_of_band_task(
         &self,
         handler_object: &Obj,
@@ -347,14 +352,70 @@ impl SchedulerClient {
         argstr: Var,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
+        self.submit_handler_task(
+            *handler_object,
+            *DO_OUT_OF_BAND_COMMAND,
+            *player,
+            *player,
+            command,
+            argstr,
+            session,
+        )
+    }
+
+    /// Submit `handler_object:do_client_data(connection, namespace, kind, payload)`.
+    ///
+    /// Before login `player` is the connection object and `authority_principal` is the system
+    /// object; after login both are the logged-in player.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_client_data_task(
+        &self,
+        handler_object: &Obj,
+        connection: &Obj,
+        player: &Obj,
+        authority_principal: &Obj,
+        namespace: Symbol,
+        kind: Symbol,
+        payload: Var,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        let args = List::from_iter([v_obj(*connection), v_sym(namespace), v_sym(kind), payload]);
+        self.submit_handler_task(
+            *handler_object,
+            *DO_CLIENT_DATA,
+            *player,
+            *authority_principal,
+            args,
+            v_empty_str(),
+            session,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn submit_handler_task(
+        &self,
+        handler_object: Obj,
+        verb: Symbol,
+        player: Obj,
+        authority_principal: Obj,
+        args: List,
+        argstr: Var,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::SubmitOobTaskLatency);
 
-        let handler_object = *handler_object;
-        let player = *player;
         self.request_with_timeout(DEFAULT_REQUEST_TIMEOUT, move |scheduler| {
-            scheduler.submit_oob_task_inner(handler_object, player, command, argstr, session)
+            scheduler.submit_handler_task_inner(
+                handler_object,
+                verb,
+                player,
+                authority_principal,
+                args,
+                argstr,
+                session,
+            )
         })
     }
 

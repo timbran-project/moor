@@ -17,6 +17,8 @@ mod diff;
 pub mod encode;
 mod error;
 mod flyweight;
+#[cfg(feature = "json")]
+pub mod json;
 mod lambda;
 mod list;
 mod map;

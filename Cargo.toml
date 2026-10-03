@@ -212,6 +212,7 @@ tracing-subscriber = "0.3"
 bytes = "1.10"
 byteview = "0.10"
 diffy = "0.5"
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 hostname = "0.4"
 micromeasure = "0.16"
 pastey = "0.2"

@@ -3741,9 +3741,11 @@ dependencies = [
  "colored",
  "escargot",
  "eyre",
+ "flate2",
  "futures-util",
  "hickory-resolver",
  "jotdown",
+ "libc",
  "moor-common",
  "moor-moot",
  "moor-runtime-api",
@@ -3753,6 +3755,7 @@ dependencies = [
  "r0z-async",
  "regex",
  "serde",
+ "serde_json",
  "serial_test",
  "socket2 0.6.5",
  "tabled",
@@ -3761,6 +3764,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-util",
  "tracing",
+ "urlencoding",
  "uuid 1.26.1",
 ]
 

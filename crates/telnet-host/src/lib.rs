@@ -15,6 +15,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+pub mod config;
 mod health;
 pub mod listeners;
 pub mod session;
@@ -24,23 +25,29 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
+    time::SystemTime,
 };
 
 use eyre::{Result, bail, eyre};
-use listeners::Listeners;
 pub use listeners::load_tls_config;
-use moor_runtime_api::{HostType, api::HostServices, client_args::RpcClientConfig};
+use listeners::{Listeners, SessionSettings};
+use moor_runtime_api::{
+    HostType,
+    api::{HostReply, HostRequest, HostServices},
+    client_args::RpcClientConfig,
+};
 use moor_var::SYSTEM_OBJECT;
 use moor_zmq_client::{
     ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
 };
 use tokio::select;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::health::spawn_health_check;
+pub use config::TelnetProtocolConfig;
 
 #[derive(Clone, Debug)]
 pub struct TelnetHostConfig {
@@ -50,6 +57,8 @@ pub struct TelnetHostConfig {
     pub tls_port: Option<u16>,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
+    /// Out-of-band telnet protocols; all off by default.
+    pub protocols: TelnetProtocolConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -112,10 +121,22 @@ async fn run_with_host_services(
     let last_daemon_ping = Arc::new(AtomicU64::new(0));
     let tls_config = load_optional_tls_config(&config)?;
 
+    let started_at = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default();
+    let settings = SessionSettings {
+        protocols: Arc::new(config.protocols.clone()),
+        boolean_returns: Arc::new(AtomicBool::new(false)),
+        started_at,
+    };
+    let boolean_returns = settings.boolean_returns.clone();
+
     let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
         runtime.kill_switch.clone(),
         host_services.clone(),
         tls_config,
+        settings,
     );
 
     let listeners_thread = tokio::spawn(async move {
@@ -154,6 +175,11 @@ async fn run_with_host_services(
     .await
     .map_err(|e| eyre!("Unable to establish initial host session: {e}"))?;
 
+    // Inbound GMCP JSON booleans follow the daemon's `use_boolean_returns`.
+    if config.protocols.gmcp {
+        fetch_boolean_returns(host_id, host_services.as_ref(), &boolean_returns).await;
+    }
+
     let host_listen_loop = process_hosts_events_with_services(
         host_id,
         config.telnet_address.clone(),
@@ -175,6 +201,24 @@ async fn run_with_host_services(
 
     info!("Done.");
     Ok(())
+}
+
+async fn fetch_boolean_returns(
+    host_id: Uuid,
+    host_services: &dyn HostServices,
+    boolean_returns: &AtomicBool,
+) {
+    match host_services
+        .runtime_client()
+        .host_call(host_id, HostRequest::GetServerFeatures)
+        .await
+    {
+        Ok(HostReply::ServerFeatures(features)) => {
+            boolean_returns.store(features.use_boolean_returns, Ordering::Relaxed);
+        }
+        Ok(other) => warn!(?other, "unexpected reply to GetServerFeatures"),
+        Err(e) => warn!("unable to fetch server features: {e}"),
+    }
 }
 
 fn load_optional_tls_config(

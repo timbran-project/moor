@@ -39,7 +39,7 @@ moor-common = { path = "../common" }
 moor-moot = { path = "../testing/moot", features = ["colors"] }
 moor-runtime-api = { path = "../runtime-api" }
 moor-schema = { path = "../schema" }
-moor-var = { path = "../var" }
+moor-var = { path = "../var", features = ["json"] }
 moor-zmq-client = { path = "../zmq-client" }
 
 # Command Line & Configuration
@@ -48,9 +48,11 @@ clap_derive.workspace = true
 
 # Serialization & Data Formats
 serde.workspace = true
+serde_json.workspace = true
 
 # Networking & Communication
 bytes.workspace = true
+flate2.workspace = true
 hickory-resolver.workspace = true
 r0z-async.workspace = true
 socket2.workspace = true
@@ -73,10 +75,12 @@ regex.workspace = true
 tabled.workspace = true
 
 # Utilities & Helpers
+urlencoding.workspace = true
 uuid.workspace = true
 
 # Testing
 [dev-dependencies]
 escargot.workspace = true
+libc.workspace = true
 serial_test.workspace = true
 tempfile.workspace = true
