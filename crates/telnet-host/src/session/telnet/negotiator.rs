@@ -30,7 +30,7 @@ use super::{
     charset::{self, Charset, CharsetMessage},
     consts::*,
     event::{TelnetEvent, Verb, write_subneg},
-    gmcp::{self, GmcpError, GmcpSupports, JsonCodec},
+    gmcp::{self, GmcpError, GmcpSupports},
     msdp, mssp, naws,
     options::{Allow, OptionTable, Outcome, Policy, QState, Side},
     ttype::{self, TtypeCycle},
@@ -206,7 +206,6 @@ pub struct TelnetNegotiator {
     policy: ProtocolPolicy,
     passive: bool,
     options: OptionTable,
-    json: JsonCodec,
     boolean_returns: bool,
     attributes: HashMap<Symbol, Var>,
     prompt_mark: PromptMark,
@@ -226,7 +225,6 @@ impl TelnetNegotiator {
             policy,
             passive,
             options,
-            json: JsonCodec::default(),
             boolean_returns: false,
             attributes: HashMap::new(),
             prompt_mark: PromptMark::None,
@@ -239,11 +237,6 @@ impl TelnetNegotiator {
         };
         n.prompt_mark = n.compute_prompt_mark();
         n
-    }
-
-    /// Replace the value <-> JSON mapping.
-    pub fn set_json_codec(&mut self, json: JsonCodec) {
-        self.json = json;
     }
 
     /// The daemon's `use_boolean_returns`, for JSON `true`/`false` received from the client.
@@ -362,7 +355,7 @@ impl TelnetNegotiator {
                 if !self.supports.wants(kind) {
                     return Err(DataDrop::NotSupported);
                 }
-                let body = gmcp::encode(kind, payload, &self.json).map_err(|e| match e {
+                let body = gmcp::encode(kind, payload).map_err(|e| match e {
                     GmcpError::InvalidPackageName(_) => DataDrop::InvalidName,
                     GmcpError::Json(j) => DataDrop::Unconvertible(j.0),
                 })?;
@@ -633,7 +626,7 @@ impl TelnetNegotiator {
     }
 
     fn on_gmcp(&mut self, data: &[u8], out: &mut Vec<Action>) {
-        let Some(message) = gmcp::decode(data, &self.json, self.boolean_returns) else {
+        let Some(message) = gmcp::decode(data, self.boolean_returns) else {
             warn!("GMCP message with an invalid package name");
             return;
         };
