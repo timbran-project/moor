@@ -132,8 +132,7 @@ handler_object:do_client_data(obj connection, sym namespace, sym kind, any paylo
 
 If the hook verb does not exist, the task ends with no output to the client.
 
-`do_out_of_band_command` is unchanged. It still receives `#$#` lines and, as a fallback, unknown
-telnet options (below).
+`do_out_of_band_command` is unchanged. It still receives `#$#` lines.
 
 ### Unknown options
 
@@ -147,6 +146,11 @@ ClientData('telnet, 'negotiate, ["option" -> <int>, "verb" -> 'will|'wont|'do|'d
 
 The host refuses the option (`DONT`/`WONT`) per RFC 1143 unless policy says otherwise. The world
 can reply with `notify(conn, <binary>)` for an option the host does not implement.
+
+Passive mode. When every protocol in the configuration is off, the host behaves as before this
+change: it does not refuse anything on the wire, marks no prompts, and forwards each received
+telnet sequence as raw bytes to `do_out_of_band_command` (after login only, as today). It sends no
+`ClientData('telnet, ...)`. Once any protocol is on, unknown options go only to `ClientData`.
 
 ### Capability changes
 
