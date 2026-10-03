@@ -675,6 +675,11 @@ impl TelnetConnection {
                 };
                 debug!("Requesting telnet option {option_str} {enable}");
                 self.request_option(option, enable).await?;
+                // The daemon stored the MOO value under this name before passing the event on;
+                // put back the negotiated state, which may differ (refused, pending, repeated).
+                let negotiated = self.negotiator.attributes().get(&option_name).cloned();
+                self.update_connection_attribute(option_name, negotiated)
+                    .await;
             }
             "flush-command" => {
                 let flush_cmd = value

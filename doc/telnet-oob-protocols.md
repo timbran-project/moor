@@ -197,6 +197,12 @@ there are no deployments to migrate). The daemon:
 sends `WILL`/`WONT`/`DO`/`DONT` only if the state requires it, so repeated calls do not cause loops.
 `client-echo` is routed through the negotiator. Disabling an option clears its attribute.
 
+The daemon records the value MOO passed under the option's name before the host sees the
+request. After asking the negotiator, the host sends `SetClientAttribute` with the negotiated
+value (or none, while the request is pending or refused), so `connection_options` reports the
+option's state as a BOOL and not the argument (`{'gmcp, 0}`, or `{'eor, 1}` after the client
+refused).
+
 `echo` is server echo, the inverse of `client-echo`: `echo` true is `client-echo` false.
 
 On a passive connection (no protocol configured) `client-echo` writes `IAC WONT ECHO` (true) or
