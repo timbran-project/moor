@@ -27,10 +27,10 @@ use moor_runtime_api::api::{
 };
 use moor_runtime_api::{
     HostType, RpcError, auth_token_from_ref, client_token_from_ref, mk_attach_msg,
-    mk_batch_world_state_msg, mk_client_pong_msg, mk_command_capture_msg, mk_command_msg,
-    mk_connection_establish_msg, mk_delete_event_log_history_msg, mk_detach_host_msg,
-    mk_detach_msg, mk_dismiss_presentation_msg, mk_eval_capture_msg, mk_eval_msg,
-    mk_get_event_log_pubkey_msg, mk_get_server_features_msg, mk_host_pong_msg,
+    mk_batch_world_state_msg, mk_client_data_msg, mk_client_pong_msg, mk_command_capture_msg,
+    mk_command_msg, mk_connection_establish_msg, mk_delete_event_log_history_msg,
+    mk_detach_host_msg, mk_detach_msg, mk_dismiss_presentation_msg, mk_eval_capture_msg,
+    mk_eval_msg, mk_get_event_log_pubkey_msg, mk_get_server_features_msg, mk_host_pong_msg,
     mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
     mk_invoke_welcome_message_msg, mk_list_objects_msg, mk_login_command_msg, mk_out_of_band_msg,
     mk_program_msg, mk_properties_msg, mk_reattach_msg, mk_register_host_msg,
@@ -297,6 +297,24 @@ fn encode_client_request(
             argstr,
         } => mk_out_of_band_msg(&client_token, &auth_token, &handler_object, &args, &argstr)
             .ok_or_else(|| RpcError::CouldNotDecode("Failed to encode OOB vars".to_string()))?,
+        ClientRequest::ClientData {
+            client_token,
+            auth_token,
+            handler_object,
+            namespace,
+            kind,
+            payload,
+        } => mk_client_data_msg(
+            &client_token,
+            auth_token.as_ref(),
+            &handler_object,
+            &namespace,
+            &kind,
+            &payload,
+        )
+        .ok_or_else(|| {
+            RpcError::CouldNotDecode("Failed to encode client data payload".to_string())
+        })?,
         ClientRequest::Eval {
             auth_token,
             expression,
@@ -369,7 +387,7 @@ fn encode_client_request(
             auth_token,
             key,
             value,
-        } => mk_set_client_attribute_msg(&client_token, &auth_token, &key, value.as_ref())
+        } => mk_set_client_attribute_msg(&client_token, auth_token.as_ref(), &key, value.as_ref())
             .ok_or_else(|| {
                 RpcError::CouldNotDecode("Failed to encode set client attribute value".to_string())
             })?,

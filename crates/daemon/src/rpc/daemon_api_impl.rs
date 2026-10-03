@@ -491,6 +491,40 @@ impl RuntimeApi for RpcMessageHandler {
                 })
             }
 
+            ClientRequest::ClientData {
+                client_token,
+                auth_token,
+                handler_object,
+                namespace,
+                kind,
+                payload,
+            } => {
+                let (connection, player, authority) =
+                    self.client_data_identity(client_token, auth_token, client_id)?;
+                let session = Arc::new(self.new_rpc_session(client_id, connection, player));
+                // Fire and forget: the handle is dropped, so neither the result nor a missing
+                // `do_client_data` verb is reported back to the client.
+                let task_handle = match scheduler_client.submit_client_data_task(
+                    &handler_object,
+                    &connection,
+                    &player,
+                    &authority,
+                    namespace,
+                    kind,
+                    payload,
+                    session,
+                ) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        error!(error = ?e, "Error submitting client data task");
+                        return Err(RpcMessageError::InternalError(e.to_string()));
+                    }
+                };
+                Ok(ClientReply::TaskSubmitted {
+                    task_id: task_handle.task_id() as u64,
+                })
+            }
+
             ClientRequest::Eval {
                 auth_token,
                 expression,
@@ -733,8 +767,7 @@ impl RuntimeApi for RpcMessageHandler {
                 key,
                 value,
             } => {
-                let (_connection, _player) =
-                    self.verify_tokens(client_token, auth_token, client_id)?;
+                self.client_data_identity(client_token, auth_token, client_id)?;
                 self.connections
                     .set_client_attribute(client_id, key, value)?;
                 Ok(ClientReply::ClientAttributeSet)
@@ -1678,6 +1711,33 @@ impl RpcMessageHandler {
                 }
             }
         }
+    }
+
+    /// Authenticate a request that may arrive before login (`ClientData`,
+    /// `SetClientAttribute`). Returns `(connection, player, authority)`.
+    ///
+    /// With an auth token this is `verify_tokens`, and the player is its own authority. Without
+    /// one the client must not have a logged-in player; the connection object stands in for the
+    /// player and the system object is the authority, as for `do_login_command`.
+    fn client_data_identity(
+        &self,
+        client_token: ClientToken,
+        auth_token: Option<AuthToken>,
+        client_id: Uuid,
+    ) -> Result<(Obj, Obj, Obj), RpcMessageError> {
+        if let Some(auth_token) = auth_token {
+            let (connection, player) = self.verify_tokens(client_token, auth_token, client_id)?;
+            return Ok((connection, player, player));
+        }
+        let connection = self.client_auth(client_token, client_id)?;
+        if self
+            .connections
+            .player_object_for_client(client_id)
+            .is_some()
+        {
+            return Err(RpcMessageError::PermissionDenied);
+        }
+        Ok((connection, connection, SYSTEM_OBJECT))
     }
 
     /// Extract and verify both client token and auth token from a typed request.

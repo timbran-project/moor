@@ -14,9 +14,6 @@
 use super::*;
 use moor_common::model::ObjectRef;
 
-static DO_OUT_OF_BAND_COMMAND: LazyLock<Symbol> =
-    LazyLock::new(|| Symbol::mk("do_out_of_band_command"));
-
 impl Scheduler {
     pub(crate) fn submit_command_task_inner(
         &self,
@@ -137,11 +134,17 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn submit_oob_task_inner(
+    /// Start `handler_object:verb` for a connection-level hook (`do_out_of_band_command`,
+    /// `do_client_data`). The handler is a plain object id, so no transaction is needed to
+    /// resolve it.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_handler_task_inner(
         &self,
         handler_object: Obj,
+        verb: Symbol,
         player: Obj,
-        command: List,
+        authority_principal: Obj,
+        args: List,
         argstr: Var,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
@@ -152,13 +155,19 @@ impl Scheduler {
         let task_start = TaskStart::StartVerb {
             player,
             vloc: v_obj(handler_object),
-            verb: *DO_OUT_OF_BAND_COMMAND,
-            args: command,
+            verb,
+            args,
             argstr,
         };
 
         self.submit_task(
-            &mut lc, task_id, &player, &player, task_start, None, session,
+            &mut lc,
+            task_id,
+            &player,
+            &authority_principal,
+            task_start,
+            None,
+            session,
         )
     }
 
