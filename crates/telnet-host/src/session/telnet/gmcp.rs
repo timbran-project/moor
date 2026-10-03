@@ -20,35 +20,15 @@
 use std::collections::BTreeMap;
 
 use moor_var::{
-    Map, NOTHING, Var, Variant, v_bool, v_bool_int, v_float, v_int, v_list, v_map, v_obj, v_str,
+    Map, Var, Variant,
+    json::{json_to_var, var_to_json},
+    v_int, v_map, v_str,
 };
 use serde_json::Value as JsonValue;
 
 /// Why a value could not be turned into JSON.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JsonError(pub String);
-
-/// MOO value to JSON.
-pub type JsonEncode = fn(&Var) -> Result<JsonValue, JsonError>;
-/// JSON to MOO value; the flag is the daemon's `use_boolean_returns`.
-pub type JsonDecode = fn(&JsonValue, bool) -> Var;
-
-/// The value <-> JSON mapping the GMCP code uses.
-#[derive(Copy, Clone, Debug)]
-pub struct JsonCodec {
-    pub encode: JsonEncode,
-    pub decode: JsonDecode,
-}
-
-impl Default for JsonCodec {
-    fn default() -> Self {
-        // Replaced by moor_var::json when that module is merged.
-        Self {
-            encode: local_json::var_to_json,
-            decode: local_json::json_to_var,
-        }
-    }
-}
 
 /// Why an outbound message was not built.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,7 +47,7 @@ pub fn valid_package_name(name: &str) -> bool {
 
 /// Build the subnegotiation body (unescaped, no framing) for `kind` with `payload`. The empty
 /// map is sent as the bare package name.
-pub fn encode(kind: &str, payload: &Var, json: &JsonCodec) -> Result<Vec<u8>, GmcpError> {
+pub fn encode(kind: &str, payload: &Var) -> Result<Vec<u8>, GmcpError> {
     if !valid_package_name(kind) {
         return Err(GmcpError::InvalidPackageName(kind.to_string()));
     }
@@ -75,7 +55,7 @@ pub fn encode(kind: &str, payload: &Var, json: &JsonCodec) -> Result<Vec<u8>, Gm
     if is_empty_map(payload) {
         return Ok(body);
     }
-    let value = (json.encode)(payload).map_err(GmcpError::Json)?;
+    let value = var_to_json(payload).map_err(|e| GmcpError::Json(JsonError(e.to_string())))?;
     body.push(b' ');
     serde_json::to_writer(&mut body, &value)
         .map_err(|e| GmcpError::Json(JsonError(e.to_string())))?;
@@ -94,7 +74,7 @@ pub struct Message {
 }
 
 /// Parse a subnegotiation body. `None` when the package name is missing or invalid.
-pub fn decode(data: &[u8], json: &JsonCodec, boolean_returns: bool) -> Option<Message> {
+pub fn decode(data: &[u8], boolean_returns: bool) -> Option<Message> {
     let text = String::from_utf8_lossy(data);
     let text = text.trim_start();
     let (package, body) = match text.find(|c: char| c.is_ascii_whitespace()) {
@@ -108,7 +88,7 @@ pub fn decode(data: &[u8], json: &JsonCodec, boolean_returns: bool) -> Option<Me
         v_map(&[])
     } else {
         match serde_json::from_str::<JsonValue>(body) {
-            Ok(value) => (json.decode)(&value, boolean_returns),
+            Ok(value) => json_to_var(&value, boolean_returns),
             Err(_) => v_str(body),
         }
     };
@@ -241,82 +221,10 @@ fn map_string(map: &Map, key: &str) -> Option<String> {
 }
 
 /// Minimal MOO <-> JSON conversion following the contract table.
-mod local_json {
-    use super::*;
-
-    pub fn var_to_json(v: &Var) -> Result<JsonValue, JsonError> {
-        match v.variant() {
-            Variant::Int(i) => Ok(JsonValue::from(i)),
-            Variant::Float(f) => serde_json::Number::from_f64(f)
-                .map(JsonValue::Number)
-                .ok_or_else(|| JsonError(format!("non-finite float {f}"))),
-            Variant::Str(s) => Ok(JsonValue::String(s.as_str().to_string())),
-            Variant::Sym(s) => Ok(JsonValue::String(s.as_string())),
-            Variant::Bool(b) => Ok(JsonValue::Bool(b)),
-            Variant::Obj(o) if o == NOTHING => Ok(JsonValue::Null),
-            Variant::Obj(o) => Ok(JsonValue::String(o.to_string())),
-            Variant::List(l) => l
-                .iter()
-                .map(|e| var_to_json(&e))
-                .collect::<Result<_, _>>()
-                .map(JsonValue::Array),
-            Variant::Map(m) => {
-                let mut out = serde_json::Map::new();
-                for (k, val) in m.iter_ref() {
-                    out.insert(map_key(k)?, var_to_json(val)?);
-                }
-                Ok(JsonValue::Object(out))
-            }
-            _ => Err(JsonError(format!(
-                "cannot convert {} to JSON",
-                v.type_code().to_literal()
-            ))),
-        }
-    }
-
-    fn map_key(k: &Var) -> Result<String, JsonError> {
-        match k.variant() {
-            Variant::Str(s) => Ok(s.as_str().to_string()),
-            Variant::Sym(s) => Ok(s.as_string()),
-            Variant::Int(i) => Ok(i.to_string()),
-            Variant::Float(f) if f.is_finite() => Ok(f.to_string()),
-            Variant::Obj(o) => Ok(o.to_string()),
-            _ => Err(JsonError(format!(
-                "cannot use {} as a JSON key",
-                k.type_code().to_literal()
-            ))),
-        }
-    }
-
-    pub fn json_to_var(j: &JsonValue, boolean_returns: bool) -> Var {
-        match j {
-            JsonValue::Null => v_obj(NOTHING),
-            JsonValue::Bool(b) if boolean_returns => v_bool(*b),
-            JsonValue::Bool(b) => v_bool_int(*b),
-            JsonValue::Number(n) => match n.as_i64() {
-                Some(i) => v_int(i),
-                None => v_float(n.as_f64().unwrap_or(0.0)),
-            },
-            JsonValue::String(s) => v_str(s),
-            JsonValue::Array(a) => {
-                let items: Vec<Var> = a.iter().map(|e| json_to_var(e, boolean_returns)).collect();
-                v_list(&items)
-            }
-            JsonValue::Object(o) => {
-                let pairs: Vec<(Var, Var)> = o
-                    .iter()
-                    .map(|(k, v)| (v_str(k), json_to_var(v, boolean_returns)))
-                    .collect();
-                v_map(&pairs)
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_var::{E_PERM, Obj, Symbol, v_binary, v_err, v_sym};
+    use moor_var::{E_PERM, NOTHING, v_binary, v_bool, v_err, v_float, v_list, v_obj};
 
     fn json(body: &[u8]) -> JsonValue {
         serde_json::from_slice(body).unwrap()
@@ -336,9 +244,8 @@ mod tests {
 
     #[test]
     fn encode_with_body() {
-        let codec = JsonCodec::default();
         let payload = v_map(&[(v_str("hp"), v_int(12))]);
-        let body = encode("Char.Vitals", &payload, &codec).unwrap();
+        let body = encode("Char.Vitals", &payload).unwrap();
         let (name, rest) = body.split_at(12);
         assert_eq!(name, b"Char.Vitals ");
         assert_eq!(json(rest), serde_json::json!({"hp": 12}));
@@ -346,92 +253,54 @@ mod tests {
 
     #[test]
     fn encode_empty_map_has_no_body() {
-        let codec = JsonCodec::default();
-        assert_eq!(
-            encode("Core.Ping", &v_map(&[]), &codec).unwrap(),
-            b"Core.Ping"
-        );
+        assert_eq!(encode("Core.Ping", &v_map(&[])).unwrap(), b"Core.Ping");
         // The empty list is a value, not "no body".
-        assert_eq!(encode("X.Y", &v_list(&[]), &codec).unwrap(), b"X.Y []");
+        assert_eq!(encode("X.Y", &v_list(&[])).unwrap(), b"X.Y []");
     }
 
     #[test]
     fn encode_rejects_bad_name_and_unconvertible() {
-        let codec = JsonCodec::default();
         assert!(matches!(
-            encode("bad name", &v_int(1), &codec),
+            encode("bad name", &v_int(1)),
             Err(GmcpError::InvalidPackageName(_))
         ));
         // MOO values cannot hold non-finite floats, so that row is not reachable here.
         for v in [v_err(E_PERM), v_binary(vec![1])] {
-            assert!(matches!(encode("A.B", &v, &codec), Err(GmcpError::Json(_))));
+            assert!(matches!(encode("A.B", &v), Err(GmcpError::Json(_))));
         }
         let err_key = v_map(&[(v_err(E_PERM), v_int(1))]);
-        assert!(matches!(
-            encode("A.B", &err_key, &codec),
-            Err(GmcpError::Json(_))
-        ));
-    }
-
-    #[test]
-    fn json_conversion_table() {
-        let enc = JsonCodec::default().encode;
-        assert_eq!(enc(&v_int(-3)).unwrap(), serde_json::json!(-3));
-        assert_eq!(enc(&v_float(1.5)).unwrap(), serde_json::json!(1.5));
-        assert_eq!(enc(&v_str("x")).unwrap(), serde_json::json!("x"));
-        assert_eq!(enc(&v_sym("foo")).unwrap(), serde_json::json!("foo"));
-        assert_eq!(enc(&v_bool(true)).unwrap(), serde_json::json!(true));
-        assert_eq!(enc(&v_obj(NOTHING)).unwrap(), JsonValue::Null);
-        assert_eq!(
-            enc(&v_obj(Obj::mk_id(42))).unwrap(),
-            serde_json::json!("#42")
-        );
-        assert_eq!(
-            enc(&v_list(&[v_int(1), v_str("a")])).unwrap(),
-            serde_json::json!([1, "a"])
-        );
-        let m = v_map(&[
-            (v_str("s"), v_int(1)),
-            (Var::mk_symbol(Symbol::mk("y")), v_int(2)),
-            (v_int(3), v_int(3)),
-            (v_obj(Obj::mk_id(7)), v_int(4)),
-        ]);
-        assert_eq!(
-            enc(&m).unwrap(),
-            serde_json::json!({"s": 1, "y": 2, "3": 3, "#7": 4})
-        );
+        assert!(matches!(encode("A.B", &err_key), Err(GmcpError::Json(_))));
     }
 
     #[test]
     fn decode_messages() {
-        let codec = JsonCodec::default();
-        let m = decode(b"Char.Vitals {\"hp\": 5, \"ok\": true}", &codec, false).unwrap();
+        let m = decode(b"Char.Vitals {\"hp\": 5, \"ok\": true}", false).unwrap();
         assert_eq!(m.package, "Char.Vitals");
         assert_eq!(
             m.payload,
             v_map(&[(v_str("hp"), v_int(5)), (v_str("ok"), v_int(1))])
         );
-        let m = decode(b"A.B {\"ok\": true, \"n\": null}", &codec, true).unwrap();
+        let m = decode(b"A.B {\"ok\": true, \"n\": null}", true).unwrap();
         assert_eq!(
             m.payload,
             v_map(&[(v_str("ok"), v_bool(true)), (v_str("n"), v_obj(NOTHING))])
         );
         // No body and explicit {} both mean the empty map.
-        let m = decode(b"Core.Ping", &codec, false).unwrap();
+        let m = decode(b"Core.Ping", false).unwrap();
         assert_eq!(m.payload, v_map(&[]));
-        let m = decode(b"Core.Ping {}", &codec, false).unwrap();
+        let m = decode(b"Core.Ping {}", false).unwrap();
         assert_eq!(m.payload, v_map(&[]));
-        let m = decode(b"Core.Ping   ", &codec, false).unwrap();
+        let m = decode(b"Core.Ping   ", false).unwrap();
         assert_eq!(m.payload, v_map(&[]));
         // Invalid JSON is the raw text.
-        let m = decode(b"Comm.Say hello there", &codec, false).unwrap();
+        let m = decode(b"Comm.Say hello there", false).unwrap();
         assert_eq!(m.payload, v_str("hello there"));
         assert!(m.payload.as_string() == Some("hello there"));
         // Invalid names are dropped.
-        assert!(decode(b"", &codec, false).is_none());
-        assert!(decode(b"bad/name 1", &codec, false).is_none());
+        assert!(decode(b"", false).is_none());
+        assert!(decode(b"bad/name 1", false).is_none());
         // Floats and arrays.
-        let m = decode(b"X.Y [1, 2.5, \"s\"]", &codec, false).unwrap();
+        let m = decode(b"X.Y [1, 2.5, \"s\"]", false).unwrap();
         assert_eq!(m.payload, v_list(&[v_int(1), v_float(2.5), v_str("s")]));
     }
 
