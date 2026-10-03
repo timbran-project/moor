@@ -48,9 +48,11 @@ clap_derive.workspace = true
 
 # Serialization & Data Formats
 serde.workspace = true
+serde_json.workspace = true
 
 # Networking & Communication
 bytes.workspace = true
+flate2.workspace = true
 hickory-resolver.workspace = true
 r0z-async.workspace = true
 socket2.workspace = true
