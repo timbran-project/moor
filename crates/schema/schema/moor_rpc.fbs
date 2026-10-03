@@ -711,7 +711,8 @@ union HostClientToDaemonMessageUnion {
     BatchWorldState,
     ReplayClientEvents,
     VerifiedOAuthLogin,
-    EventStreamRequest
+    EventStreamRequest,
+    ClientData
 }
 
 table ConnectionEstablish {
@@ -845,6 +846,16 @@ table OutOfBand {
     argstr: MoorVar.Var (required);
 }
 
+// Structured inbound out-of-band data, delivered to handler_object:do_client_data.
+table ClientData {
+    client_token: ClientToken (required);
+    auth_token: AuthToken;  // Absent before login
+    handler_object: MoorCommon.Obj (required);
+    data_namespace: MoorCommon.Symbol (required);  // `namespace` is reserved in the IDL
+    kind: MoorCommon.Symbol (required);
+    payload: MoorVar.Var (required);
+}
+
 table Eval {
     auth_token: AuthToken (required);
     expression: string (required);
@@ -886,7 +897,7 @@ table DismissPresentation {
 
 table SetClientAttribute {
     client_token: ClientToken (required);
-    auth_token: AuthToken (required);
+    auth_token: AuthToken;  // Absent before login
     key: MoorCommon.Symbol (required);
     value: MoorVar.Var;  // Optional, null means remove
 }

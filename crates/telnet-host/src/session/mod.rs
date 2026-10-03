@@ -749,7 +749,7 @@ impl TelnetConnection {
                     self.client_id,
                     ClientRequest::SetClientAttribute {
                         client_token: self.client_token.clone(),
-                        auth_token: auth_token.clone(),
+                        auth_token: Some(auth_token.clone()),
                         key,
                         value,
                     },
@@ -1362,7 +1362,7 @@ impl TelnetConnection {
                             self.client_id,
                             ClientRequest::SetClientAttribute {
                                 client_token: self.client_token.clone(),
-                                auth_token: auth_token.clone(),
+                                auth_token: Some(auth_token.clone()),
                                 key,
                                 value: prefix_value,
                             },
@@ -1396,7 +1396,7 @@ impl TelnetConnection {
                             self.client_id,
                             ClientRequest::SetClientAttribute {
                                 client_token: self.client_token.clone(),
-                                auth_token: auth_token.clone(),
+                                auth_token: Some(auth_token.clone()),
                                 key,
                                 value: suffix_value,
                             },

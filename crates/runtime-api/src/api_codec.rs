@@ -924,6 +924,29 @@ pub fn decode_client_request(
                 argstr,
             })
         }
+        U::ClientData(data) => {
+            let client_token = data
+                .client_token()
+                .rpc_err()
+                .and_then(|r| client_token_from_ref(r).rpc_err())?;
+            let auth_token = data
+                .auth_token()
+                .rpc_err()?
+                .map(|r| auth_token_from_ref(r).rpc_err())
+                .transpose()?;
+            let handler_object = extract_obj_rpc(&data, "handler_object", |d| d.handler_object())?;
+            let namespace = extract_symbol_rpc(&data, "data_namespace", |d| d.data_namespace())?;
+            let kind = extract_symbol_rpc(&data, "kind", |d| d.kind())?;
+            let payload = extract_var_rpc(&data, "payload", |d| d.payload())?;
+            Ok(ClientRequest::ClientData {
+                client_token,
+                auth_token,
+                handler_object,
+                namespace,
+                kind,
+                payload,
+            })
+        }
         U::Eval(eval) => {
             let auth_token = eval
                 .auth_token()
@@ -1038,8 +1061,9 @@ pub fn decode_client_request(
                 .and_then(|r| client_token_from_ref(r).rpc_err())?;
             let auth_token = set_attr
                 .auth_token()
-                .rpc_err()
-                .and_then(|r| auth_token_from_ref(r).rpc_err())?;
+                .rpc_err()?
+                .map(|r| auth_token_from_ref(r).rpc_err())
+                .transpose()?;
             let key = extract_symbol_rpc(&set_attr, "key", |s| s.key())?;
             let value = set_attr
                 .value()
@@ -2066,15 +2090,15 @@ mod tests {
 
     use moor_common::{config::MAX_CAPTURE_DEADLINE, model::ObjectRef};
     use moor_schema::rpc;
-    use moor_var::{Obj, Symbol, v_int};
+    use moor_var::{Obj, Symbol, v_int, v_map, v_str};
     use planus::ReadAsRoot;
 
     use crate::{
         AuthToken, ClientToken,
         api::{BatchAction, ClientEvent, ClientEventMessage, ClientRequest, InvocationMode},
         client_messages::{
-            mk_command_capture_msg, mk_command_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
-            mk_invoke_welcome_message_msg,
+            mk_client_data_msg, mk_command_capture_msg, mk_command_msg, mk_invoke_verb_capture_msg,
+            mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_set_client_attribute_msg,
         },
     };
 
@@ -2124,6 +2148,65 @@ mod tests {
                 client_token: ClientToken("client".to_string())
             }
         );
+    }
+
+    #[test]
+    fn client_data_round_trip() {
+        let payload = v_map(&[(v_str("hp"), v_int(12))]);
+        for auth in [None, Some(AuthToken("auth".to_string()))] {
+            let message = mk_client_data_msg(
+                &ClientToken("client".to_string()),
+                auth.as_ref(),
+                &Obj::mk_id(0),
+                &Symbol::mk("gmcp"),
+                &Symbol::mk("Char.Vitals"),
+                &payload,
+            )
+            .unwrap();
+            let ClientRequest::ClientData {
+                client_token,
+                auth_token,
+                handler_object,
+                namespace,
+                kind,
+                payload: decoded_payload,
+            } = round_trip(message)
+            else {
+                panic!("expected ClientData");
+            };
+            assert_eq!(client_token, ClientToken("client".to_string()));
+            assert_eq!(auth_token, auth);
+            assert_eq!(handler_object, Obj::mk_id(0));
+            assert_eq!(namespace, Symbol::mk("gmcp"));
+            assert_eq!(kind, Symbol::mk("Char.Vitals"));
+            assert_eq!(decoded_payload, payload);
+        }
+    }
+
+    #[test]
+    fn set_client_attribute_optional_auth_round_trip() {
+        for auth in [None, Some(AuthToken("auth".to_string()))] {
+            let message = mk_set_client_attribute_msg(
+                &ClientToken("client".to_string()),
+                auth.as_ref(),
+                &Symbol::mk("term-width"),
+                Some(&v_int(80)),
+            )
+            .unwrap();
+            let ClientRequest::SetClientAttribute {
+                client_token,
+                auth_token,
+                key,
+                value,
+            } = round_trip(message)
+            else {
+                panic!("expected SetClientAttribute");
+            };
+            assert_eq!(client_token, ClientToken("client".to_string()));
+            assert_eq!(auth_token, auth);
+            assert_eq!(key, Symbol::mk("term-width"));
+            assert_eq!(value, Some(v_int(80)));
+        }
     }
 
     #[test]
