@@ -63,7 +63,9 @@ rest:
 - No body. A payload equal to the empty map `[]` is sent as `IAC SB 201 <kind> IAC SE`, with no
   space and no body (`Core.Ping`). Inbound, a message with no body is delivered with payload `[]`.
   An explicit `{}` body is also delivered as `[]`; GMCP clients treat the two the same.
-- 0xFF bytes in the encoded message are escaped as `IAC IAC`.
+- 0xFF bytes in the encoded message are escaped as `IAC IAC`. GMCP is UTF-8 and UTF-8 never
+  contains 0xFF, so this escaping cannot be reached from MOO; the codec unit test
+  `subneg_frame_escapes_ff` covers it rather than the socket tests.
 
 ### Value conversion (`moor_var::json`)
 
@@ -331,4 +333,6 @@ The existing tests stay green with the defaults. New tests:
   daemon and telnet host with protocols enabled: negotiation at connect, NAWS and TTYPE becoming
   attributes before and after login, UTF-8 negotiation and Latin-1 transcoding, option toggling
   from MOO with no loops, GMCP both ways including before login, the unknown-option fallback,
-  prompt marks and their ordering with GMCP, MSSP, MCCP2, and the subneg cap.
+  prompt marks and their ordering with GMCP, MSSP, MCCP2, MSDP, the subneg cap, binary output,
+  and passive mode. One daemon and four hosts (passive, offers at connect, most protocols, a
+  64 byte subneg cap) serve the whole file.
