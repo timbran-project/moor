@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+`db`:
+
+- Support PostgreSQL 16 with thread-safe libpq 16 or newer, alongside PostgreSQL 17 and 18.
+  PostgreSQL builds retain compatible installed client libraries.
+
 `moor-emh`:
 
 - Add an `export DIRECTORY` command that writes a complete database snapshot as objdef files and
