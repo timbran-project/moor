@@ -25,13 +25,13 @@ mod tests {
     use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
     use moor_runtime_api::{
-        AuthToken, ClientToken, RpcMessageError, api::ClientEvent, mk_client_pong_msg,
-        mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg, mk_detach_host_msg,
-        mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
+        AuthToken, ClientToken, RpcMessageError, api::ClientEvent, mk_client_data_msg,
+        mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
+        mk_detach_host_msg, mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
         mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
         mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg, mk_properties_msg,
         mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
-        mk_requested_input_msg, mk_verbs_msg, obj_fb,
+        mk_requested_input_msg, mk_set_client_attribute_msg, mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
@@ -2462,5 +2462,295 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    /// Install `#0:do_client_data`, which appends `{player, caller_perms(), args}` to
+    /// `#0.client_data_log`. Returns an eval helper bound to a wizard on its own client.
+    fn install_client_data_recorder(env: &TestEnvironment) -> impl Fn(&str) -> moor_var::Var {
+        let wizard_client = Uuid::new_v4();
+        let (_token, auth_token, wizard) = logged_in_wizard(env, wizard_client);
+        let eval = move |code: &str| {
+            let reply = env
+                .transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    Uuid::new_v4(),
+                    mk_eval_capture_msg(
+                        &auth_token,
+                        code.to_string(),
+                        Some(Duration::from_secs(5)),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+            captured_success(&reply).0
+        };
+        eval(&format!(
+            "add_property(#0, \"client_data_log\", {{}}, {{{wizard}, \"\"}}); \
+             add_verb(#0, {{{wizard}, \"rxd\", \"do_client_data\"}}, {{\"this\", \"none\", \"this\"}});"
+        ));
+        env.scheduler_client
+            .submit_verb_program(
+                &wizard,
+                &wizard,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                Symbol::mk("do_client_data"),
+                vec![
+                    "#0.client_data_log = {@#0.client_data_log, {player, caller_perms(), args}};"
+                        .into(),
+                ],
+            )
+            .unwrap();
+        eval
+    }
+
+    /// Poll `#0.client_data_log` until it holds `count` entries.
+    fn wait_for_client_data_log(
+        eval: &impl Fn(&str) -> moor_var::Var,
+        count: usize,
+    ) -> Vec<moor_var::Var> {
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let log = eval("return #0.client_data_log;");
+            let entries: Vec<_> = log.as_list().expect("log is a list").iter().collect();
+            if entries.len() >= count {
+                return entries;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "do_client_data did not run {count} time(s): {log:?}"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn send_client_data(
+        env: &TestEnvironment,
+        client_id: Uuid,
+        client_token: &ClientToken,
+        auth_token: Option<&AuthToken>,
+        payload: &moor_var::Var,
+    ) -> Result<moor_rpc::DaemonToClientReply, RpcMessageError> {
+        env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            mk_client_data_msg(
+                client_token,
+                auth_token,
+                &SYSTEM_OBJECT,
+                &Symbol::mk("gmcp"),
+                &Symbol::mk("Core.Hello"),
+                payload,
+            )
+            .unwrap(),
+        )
+    }
+
+    fn expected_client_data_args(connection: Obj, payload: &moor_var::Var) -> moor_var::Var {
+        moor_var::v_list(&[
+            moor_var::v_obj(connection),
+            moor_var::v_sym("gmcp"),
+            moor_var::v_sym("Core.Hello"),
+            payload.clone(),
+        ])
+    }
+
+    /// Before login, `do_client_data` runs with the connection object as `player`. The task is
+    /// top-level, so `caller_perms()` is `#-1`, as for `do_login_command`.
+    #[test]
+    fn test_client_data_before_login_runs_as_connection() {
+        let env = setup_test_environment();
+        let eval = install_client_data_recorder(&env);
+        let client_id = Uuid::new_v4();
+        let (client_token, connection) =
+            establish_connection(&env, client_id, "127.0.0.1:8080", 8080);
+        let payload = moor_var::v_map(&[(moor_var::v_str("client"), moor_var::v_str("test"))]);
+
+        let reply = send_client_data(&env, client_id, &client_token, None, &payload)
+            .expect("Pre-login ClientData should be accepted");
+        assert!(matches!(
+            reply.reply,
+            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
+        ));
+
+        let entries = wait_for_client_data_log(&eval, 1);
+        assert!(connection.id().0 < 0, "connection objects are negative");
+        assert_eq!(
+            entries[0],
+            moor_var::v_list(&[
+                moor_var::v_obj(connection),
+                moor_var::v_obj(moor_var::NOTHING),
+                expected_client_data_args(connection, &payload),
+            ])
+        );
+    }
+
+    /// After login, `do_client_data` runs as the logged-in player and still receives the
+    /// connection object as its first argument.
+    #[test]
+    fn test_client_data_after_login_runs_as_player() {
+        let env = setup_test_environment();
+        let eval = install_client_data_recorder(&env);
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, player) = logged_in_wizard(&env, client_id);
+        let connection = env
+            .connections
+            .connection_object_for_client(client_id)
+            .unwrap();
+        let payload = moor_var::v_int(42);
+
+        let reply = send_client_data(&env, client_id, &client_token, Some(&auth_token), &payload)
+            .expect("Authenticated ClientData should be accepted");
+        assert!(matches!(
+            reply.reply,
+            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
+        ));
+
+        let entries = wait_for_client_data_log(&eval, 1);
+        assert_ne!(player, connection);
+        assert_eq!(
+            entries[0],
+            moor_var::v_list(&[
+                moor_var::v_obj(player),
+                moor_var::v_obj(moor_var::NOTHING),
+                expected_client_data_args(connection, &payload),
+            ])
+        );
+    }
+
+    /// A logged-in client must authenticate its ClientData, and a pre-login client cannot borrow
+    /// another session's auth token.
+    #[test]
+    fn test_client_data_auth_refusals() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, auth_token, _player) = logged_in_wizard(&env, client_id);
+        let payload = moor_var::v_int(1);
+
+        let result = send_client_data(&env, client_id, &client_token, None, &payload);
+        assert!(
+            matches!(result, Err(RpcMessageError::PermissionDenied)),
+            "Unauthenticated ClientData from a logged-in client must be refused: {result:?}"
+        );
+
+        let other_id = Uuid::new_v4();
+        let (other_token, _connection) =
+            establish_connection(&env, other_id, "127.0.0.1:8081", 8081);
+        let result = send_client_data(&env, other_id, &other_token, Some(&auth_token), &payload);
+        assert!(
+            matches!(result, Err(RpcMessageError::PermissionDenied)),
+            "ClientData with another client's auth token must be refused: {result:?}"
+        );
+
+        let result = send_client_data(&env, other_id, &client_token, None, &payload);
+        assert!(
+            matches!(result, Err(RpcMessageError::PermissionDenied)),
+            "ClientData with another client's client token must be refused: {result:?}"
+        );
+    }
+
+    /// With no `do_client_data` verb the task ends without publishing anything to the client.
+    #[test]
+    fn test_client_data_missing_verb_is_silent() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, connection) =
+            establish_connection(&env, client_id, "127.0.0.1:8080", 8080);
+        let narrative_before = env.transport.get_narrative_events().len();
+
+        let reply = send_client_data(&env, client_id, &client_token, None, &moor_var::v_int(1))
+            .expect("ClientData should be accepted without a hook verb");
+        assert!(matches!(
+            reply.reply,
+            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
+        ));
+
+        // Use a second ClientData, after installing the hook, as a barrier: once it has run,
+        // the first task has long since ended.
+        let eval = install_client_data_recorder(&env);
+        send_client_data(&env, client_id, &client_token, None, &moor_var::v_int(2))
+            .expect("Second ClientData should be accepted");
+        wait_for_client_data_log(&eval, 1);
+        std::thread::sleep(Duration::from_millis(50));
+
+        let client_events: Vec<_> = env
+            .transport
+            .get_client_events()
+            .into_iter()
+            .filter(|(id, _)| *id == client_id)
+            .collect();
+        assert!(
+            client_events.is_empty(),
+            "No client event should be published: {client_events:?}"
+        );
+        let narrative: Vec<_> = env.transport.get_narrative_events()[narrative_before..]
+            .iter()
+            .filter(|(recipient, _)| *recipient == connection)
+            .cloned()
+            .collect();
+        assert!(
+            narrative.is_empty(),
+            "No narrative should reach the connection: {narrative:?}"
+        );
+    }
+
+    fn set_client_attribute(
+        env: &TestEnvironment,
+        client_id: Uuid,
+        client_token: &ClientToken,
+        auth_token: Option<&AuthToken>,
+        key: &str,
+    ) -> Result<moor_rpc::DaemonToClientReply, RpcMessageError> {
+        env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            client_id,
+            mk_set_client_attribute_msg(
+                client_token,
+                auth_token,
+                &Symbol::mk(key),
+                Some(&moor_var::v_int(80)),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// Attributes may be set without an auth token only until the client logs in.
+    #[test]
+    fn test_set_client_attribute_without_auth() {
+        let env = setup_test_environment();
+        let client_id = Uuid::new_v4();
+        let (client_token, connection) =
+            establish_connection(&env, client_id, "127.0.0.1:8080", 8080);
+
+        set_client_attribute(&env, client_id, &client_token, None, "term-width")
+            .expect("Pre-login SetClientAttribute should be accepted");
+        let attributes = env.connections.get_client_attributes(connection).unwrap();
+        assert_eq!(
+            attributes.get(&Symbol::mk("term-width")),
+            Some(&moor_var::v_int(80))
+        );
+
+        let auth_token = login_wizard(&env, client_id, &client_token);
+        let result = set_client_attribute(&env, client_id, &client_token, None, "term-height");
+        assert!(
+            matches!(result, Err(RpcMessageError::PermissionDenied)),
+            "Unauthenticated SetClientAttribute after login must be refused: {result:?}"
+        );
+        set_client_attribute(
+            &env,
+            client_id,
+            &client_token,
+            Some(&auth_token),
+            "term-height",
+        )
+        .expect("Authenticated SetClientAttribute should be accepted");
+        let attributes = env.connections.get_client_attributes(connection).unwrap();
+        assert_eq!(
+            attributes.get(&Symbol::mk("term-height")),
+            Some(&moor_var::v_int(80))
+        );
     }
 }

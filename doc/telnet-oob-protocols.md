@@ -105,7 +105,7 @@ table ClientData {
   client_token:   ClientToken (required);
   auth_token:     AuthToken;          // absent before login
   handler_object: Obj (required);     // the listener's handler object
-  namespace:      Symbol (required);
+  data_namespace: Symbol (required);  // `namespace` is reserved in the IDL
   kind:           Symbol (required);
   payload:        Var (required);
 }

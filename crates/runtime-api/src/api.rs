@@ -556,6 +556,17 @@ pub enum ClientRequest {
         args: Var,
         argstr: Var,
     },
+    /// Structured out-of-band data from the client, delivered to
+    /// `handler_object:do_client_data(connection, namespace, kind, payload)`.
+    /// `auth_token` is absent before login.
+    ClientData {
+        client_token: ClientToken,
+        auth_token: Option<AuthToken>,
+        handler_object: Obj,
+        namespace: Symbol,
+        kind: Symbol,
+        payload: Var,
+    },
     Eval {
         auth_token: AuthToken,
         expression: String,
@@ -595,9 +606,10 @@ pub enum ClientRequest {
         auth_token: AuthToken,
         presentation_id: String,
     },
+    /// `auth_token` is absent before login.
     SetClientAttribute {
         client_token: ClientToken,
-        auth_token: AuthToken,
+        auth_token: Option<AuthToken>,
         key: Symbol,
         value: Option<Var>,
     },

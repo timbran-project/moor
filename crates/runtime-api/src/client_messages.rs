@@ -138,6 +138,28 @@ pub fn mk_out_of_band_msg(
     })
 }
 
+/// Build a ClientData message. `auth_token` is absent before login.
+#[inline]
+pub fn mk_client_data_msg(
+    client_token: &ClientToken,
+    auth_token: Option<&AuthToken>,
+    handler_object: &Obj,
+    namespace: &Symbol,
+    kind: &Symbol,
+    payload: &Var,
+) -> Option<rpc::HostClientToDaemonMessage> {
+    Some(rpc::HostClientToDaemonMessage {
+        message: rpc::HostClientToDaemonMessageUnion::ClientData(Box::new(rpc::ClientData {
+            client_token: client_token_fb(client_token),
+            auth_token: auth_token.map(auth_token_fb),
+            handler_object: obj_fb(handler_object),
+            data_namespace: symbol_fb(namespace),
+            kind: symbol_fb(kind),
+            payload: var_fb(payload)?,
+        })),
+    })
+}
+
 /// Build a ClientPong message
 #[inline]
 pub fn mk_client_pong_msg(
@@ -210,11 +232,11 @@ pub fn mk_program_msg(
     }
 }
 
-/// Build a SetClientAttribute message
+/// Build a SetClientAttribute message. `auth_token` is absent before login.
 #[inline]
 pub fn mk_set_client_attribute_msg(
     client_token: &ClientToken,
-    auth_token: &AuthToken,
+    auth_token: Option<&AuthToken>,
     key: &Symbol,
     value: Option<&Var>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
@@ -224,7 +246,7 @@ pub fn mk_set_client_attribute_msg(
         message: rpc::HostClientToDaemonMessageUnion::SetClientAttribute(Box::new(
             rpc::SetClientAttribute {
                 client_token: client_token_fb(client_token),
-                auth_token: auth_token_fb(auth_token),
+                auth_token: auth_token.map(auth_token_fb),
                 key: symbol_fb(key),
                 value: value_fb,
             },
