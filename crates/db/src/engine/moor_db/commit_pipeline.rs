@@ -212,7 +212,7 @@ impl MoorDB {
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
 
-        let admission = self
+        let mut admission = self
             .coordinator
             .admit(tx_timestamp)
             .map_err(|error| match error {
@@ -223,6 +223,10 @@ impl MoorDB {
                     "Database commit queue admission is unavailable".to_string(),
                 ),
             })?;
+
+        self.coordinator
+            .prepare(&relation_ws, tx_timestamp, &mut admission)
+            .map_err(WorldStateError::DatabaseError)?;
 
         // Phase 2: Try to publish
         let publication_version = next_root.version;
