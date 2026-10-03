@@ -34,8 +34,6 @@ pub use cbor::{CborVarError, decode_var_cbor, encode_var_cbor};
 pub use diff::{ValueDiffOptions, value_diff, value_diff3};
 pub use error::{Error, ErrorCode, ErrorCode::*};
 pub use flyweight::Flyweight;
-#[cfg(feature = "json")]
-pub use json::{JsonConversionError, json_to_var, var_to_json};
 pub use lambda::Lambda;
 pub use list::{List, ListAppendError};
 pub use map::Map;
