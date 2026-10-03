@@ -13,9 +13,10 @@
 
 //! Per-client telnet session state machine, daemon RPC flow, and terminal output.
 
-pub(crate) mod codec;
+pub mod codec;
 mod djot_formatter;
 mod moo_highlighter;
+pub mod telnet;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -965,7 +966,7 @@ impl TelnetConnection {
                     };
                     let line = match item {
                         ConnectionItem::Line(line) => line,
-                        ConnectionItem::Bytes(_) | ConnectionItem::TelnetCommand(_) => continue,
+                        ConnectionItem::Bytes(_) | ConnectionItem::Telnet(_) => continue,
                     };
                     let words = parse_into_words(&line);
                     let reply = self.daemon_client.client_call(
@@ -1045,10 +1046,10 @@ impl TelnetConnection {
                             ReadEvent::PendingEvent
                         }
                     }
-                    ConnectionItem::TelnetCommand(cmd) => {
-                        // Telnet protocol commands (NOP, WILL/WONT/DO/DONT, etc.)
-                        // are emitted as binary OOB data for the server to handle.
-                        ReadEvent::TelnetCommand(Var::mk_binary(cmd.to_vec()))
+                    ConnectionItem::Telnet(event) => {
+                        // Telnet protocol events (NOP, WILL/WONT/DO/DONT, etc.)
+                        // are forwarded in wire form as binary OOB data for the server to handle.
+                        ReadEvent::TelnetCommand(Var::mk_binary(event.to_raw().to_vec()))
                     }
                 }
             };
