@@ -1,8 +1,8 @@
 # Telnet out-of-band protocols: design contract
 
-Status: being implemented on branch `feat/telnet-oob-protocols`. This document is the contract
-that the implementation and its tests follow. Where the code and this document disagree, fix one
-of them in the same change.
+Status: being implemented on branch `feat/telnet-oob-protocols`. This document is the contract that
+the implementation and its tests follow. Where the code and this document disagree, fix one of them
+in the same change.
 
 ## Goals
 
@@ -17,20 +17,20 @@ of them in the same change.
 ## Non-goals
 
 - The protocol choice is visible to application code. A namespace named `gmcp` shares transport
-  plumbing with other hosts. It does not make MOO code protocol-independent. Package names and
-  value shapes are a contract between the world and its clients.
+  plumbing with other hosts. It does not make MOO code protocol-independent. Package names and value
+  shapes are a contract between the world and its clients.
 - The host does not decode the semantics of an option that it does not implement.
 
 ## Layers
 
-| Layer | Owns |
-|---|---|
+| Layer                                    | Owns                                                                                                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `telnet-host::session::telnet` (sans-IO) | Option state (RFC 1143 Q method), negotiation policy, protocol encode/decode (GMCP, MSDP, MSSP, NAWS, TTYPE/MTTS, CHARSET, EOR), producing `Action`s |
-| `telnet-host::session::codec` | Byte framing: IAC parse into `TelnetEvent`, IAC escaping on output, subnegotiation size cap, prompt marks, MCCP2 compression switch |
-| `telnet-host::session` | Applies `Action`s: writes frames, records attributes, sends `ClientData` to the daemon |
-| `moor_var::json` | The single MOO value <-> JSON mapping used by the kernel builtins and by hosts |
-| `runtime-api` / `schema` | `ClientData` request, `SetClientAttribute` with optional auth |
-| `daemon` | Delivers `ClientData` to `do_client_data`; stores attributes |
+| `telnet-host::session::codec`            | Byte framing: IAC parse into `TelnetEvent`, IAC escaping on output, subnegotiation size cap, prompt marks, MCCP2 compression switch                  |
+| `telnet-host::session`                   | Applies `Action`s: writes frames, records attributes, sends `ClientData` to the daemon                                                               |
+| `moor_var::json`                         | The single MOO value <-> JSON mapping used by the kernel builtins and by hosts                                                                       |
+| `runtime-api` / `schema`                 | `ClientData` request, `SetClientAttribute` with optional auth                                                                                        |
+| `daemon`                                 | Delivers `ClientData` to `do_client_data`; stores attributes                                                                                         |
 
 ## Outbound: `emit_data` is the envelope, the adapter is the contract
 
@@ -47,9 +47,8 @@ rest:
 
 - Target. A negative connection object reaches that connection only. A player object reaches each
   connection of the player. Each telnet connection applies the rules below independently.
-- Negotiation gate. A `gmcp` event is written only if GMCP is enabled on that connection
-  (`him`/`us` state Yes). Otherwise it is dropped and counted at `trace` level. The same rule
-  applies to `msdp`.
+- Negotiation gate. A `gmcp` event is written only if GMCP is enabled on that connection (`him`/`us`
+  state Yes). Otherwise it is dropped and counted at `trace` level. The same rule applies to `msdp`.
 - Package gate. If the client sent `Core.Supports.Set`/`Add`, a `gmcp` event is written only when
   the package or one of its parents (`Char` for `Char.Vitals`) is in the supported set. If the
   client never sent `Core.Supports`, every package is written.
@@ -63,29 +62,29 @@ rest:
 - No body. A payload equal to the empty map `[]` is sent as `IAC SB 201 <kind> IAC SE`, with no
   space and no body (`Core.Ping`). Inbound, a message with no body is delivered with payload `[]`.
   An explicit `{}` body is also delivered as `[]`; GMCP clients treat the two the same.
-- 0xFF bytes in the encoded message are escaped as `IAC IAC`. GMCP is UTF-8 and UTF-8 never
-  contains 0xFF, so this escaping cannot be reached from MOO; the codec unit test
-  `subneg_frame_escapes_ff` covers it rather than the socket tests.
+- 0xFF bytes in the encoded message are escaped as `IAC IAC`. GMCP is UTF-8 and UTF-8 never contains
+  0xFF, so this escaping cannot be reached from MOO; the codec unit test `subneg_frame_escapes_ff`
+  covers it rather than the socket tests.
 
 ### Value conversion (`moor_var::json`)
 
-| MOO | JSON |
-|---|---|
-| INT | number |
-| FLOAT (finite) | number |
-| STR | string |
-| SYM | string |
-| BOOL | true/false |
-| OBJ `#-1` | null |
-| OBJ other | string `"#N"` (UUID objects in their literal form) |
-| LIST | array |
-| MAP (keys STR, SYM, INT, FLOAT, OBJ) | object (keys rendered as strings) |
+| MOO                                                                   | JSON                                                                        |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| INT                                                                   | number                                                                      |
+| FLOAT (finite)                                                        | number                                                                      |
+| STR                                                                   | string                                                                      |
+| SYM                                                                   | string                                                                      |
+| BOOL                                                                  | true/false                                                                  |
+| OBJ `#-1`                                                             | null                                                                        |
+| OBJ other                                                             | string `"#N"` (UUID objects in their literal form)                          |
+| LIST                                                                  | array                                                                       |
+| MAP (keys STR, SYM, INT, FLOAT, OBJ)                                  | object (keys rendered as strings)                                           |
 | ERR, BINARY, FLYWEIGHT, LAMBDA, non-finite FLOAT, other map key types | not convertible: the event is dropped with a `warn`; it does not disconnect |
 
 Inbound JSON maps back as in `parse_json`: `null` -> `#-1`, objects -> maps with string keys,
-booleans by the daemon's `use_boolean_returns` (the host gets it from `GetServerFeatures` once,
-at startup, when GMCP is configured; a later change to the daemon's setting needs a host restart). A body
-that is not valid JSON is delivered as a STR holding the raw body text.
+booleans by the daemon's `use_boolean_returns` (the host gets it from `GetServerFeatures` once, at
+startup, when GMCP is configured; a later change to the daemon's setting needs a host restart). A
+body that is not valid JSON is delivered as a STR holding the raw body text.
 
 `generate_json`/`parse_json` keep their current behaviour except that SYM now converts to a string
 instead of raising `E_TYPE`.
@@ -115,8 +114,8 @@ table ClientData {
 ```
 
 The daemon replies `ClientReply::TaskSubmitted { task_id }` or an error. Hosts do not wait for the
-task result and do not register it with the task monitor, so task completion and task errors are
-not published to the client for this task.
+task result and do not register it with the task monitor, so task completion and task errors are not
+published to the client for this task.
 
 ### The hook
 
@@ -124,14 +123,14 @@ not published to the client for this task.
 handler_object:do_client_data(obj connection, sym namespace, sym kind, any payload)
 ```
 
-| Question | Before login | After login |
-|---|---|---|
-| Which object | the listener's `handler_object` (`#0` for the default listener) | same |
-| `connection` arg | the connection object (negative) | the connection object (negative) |
-| `player` | the connection object | the logged-in player |
-| Task permissions / authority | `#0`, as for `do_login_command` | the logged-in player, as for `do_out_of_band_command` |
-| Where `notify`/`emit_data` to `player` go | that connection | each connection of the player; use `connection` to target this one |
-| Auth | client token only | client token and auth token, checked as `verify_tokens` |
+| Question                                  | Before login                                                    | After login                                                        |
+| ----------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Which object                              | the listener's `handler_object` (`#0` for the default listener) | same                                                               |
+| `connection` arg                          | the connection object (negative)                                | the connection object (negative)                                   |
+| `player`                                  | the connection object                                           | the logged-in player                                               |
+| Task permissions / authority              | `#0`, as for `do_login_command`                                 | the logged-in player, as for `do_out_of_band_command`              |
+| Where `notify`/`emit_data` to `player` go | that connection                                                 | each connection of the player; use `connection` to target this one |
+| Auth                                      | client token only                                               | client token and auth token, checked as `verify_tokens`            |
 
 If the hook verb does not exist, the task ends with no output to the client.
 
@@ -139,20 +138,20 @@ If the hook verb does not exist, the task ends with no output to the client.
 
 ### Unknown options
 
-The host forwards every subnegotiation or negotiation for an option it does not implement, when
-OOB is not disabled, as:
+The host forwards every subnegotiation or negotiation for an option it does not implement, when OOB
+is not disabled, as:
 
 ```
 ClientData('telnet, 'subneg, ["option" -> <int>, "data" -> <binary>])        // IAC SB opt ... IAC SE, data unescaped
 ClientData('telnet, 'negotiate, ["option" -> <int>, "verb" -> 'will|'wont|'do|'dont])
 ```
 
-The host refuses the option (`DONT`/`WONT`) per RFC 1143 unless policy says otherwise. The world
-can reply with `notify(conn, <binary>)` for an option the host does not implement.
+The host refuses the option (`DONT`/`WONT`) per RFC 1143 unless policy says otherwise. The world can
+reply with `notify(conn, <binary>)` for an option the host does not implement.
 
 Passive mode. When every protocol in the configuration is off, the host behaves as before this
-change: it does not refuse anything on the wire, marks no prompts, and forwards each received
-telnet sequence as raw bytes to `do_out_of_band_command` (after login only, as today). It sends no
+change: it does not refuse anything on the wire, marks no prompts, and forwards each received telnet
+sequence as raw bytes to `do_out_of_band_command` (after login only, as today). It sends no
 `ClientData('telnet, ...)`. Once any protocol is on, unknown options go only to `ClientData`.
 
 ### Capability changes
@@ -177,33 +176,32 @@ there are no deployments to migrate). The daemon:
 
 ## Attributes owned by the telnet host
 
-| Key | Type | Source |
-|---|---|---|
-| `host_type` | STR | fixed `"telnet"` |
-| `tls` | BOOL | listener; sent in `ConnectionEstablish` |
-| `columns`, `rows` | INT | NAWS |
-| `terminal_type` | STR | TTYPE first reply |
-| `client_name` | STR | TTYPE first reply, or GMCP `Core.Hello.client` |
-| `client_version` | STR | GMCP `Core.Hello.version` |
-| `mtts` | INT | TTYPE `MTTS n` |
-| `utf8` | BOOL | MTTS bit 4, or CHARSET `UTF-8` accepted, or `set_connection_option(conn, 'utf8, 1)` |
-| `charset` | STR | CHARSET result (`"UTF-8"`, `"ISO-8859-1"`, ...) |
-| `screen-reader` | BOOL | MTTS bit 64, `.SCREENREADER`, or option |
-| `gmcp`, `msdp`, `mxp`, `eor`, `mccp2` | BOOL | option state |
-| `gmcp_supports` | MAP STR -> INT | `Core.Supports.*` |
+| Key                                   | Type           | Source                                                                              |
+| ------------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
+| `host_type`                           | STR            | fixed `"telnet"`                                                                    |
+| `tls`                                 | BOOL           | listener; sent in `ConnectionEstablish`                                             |
+| `columns`, `rows`                     | INT            | NAWS                                                                                |
+| `terminal_type`                       | STR            | TTYPE first reply                                                                   |
+| `client_name`                         | STR            | TTYPE first reply, or GMCP `Core.Hello.client`                                      |
+| `client_version`                      | STR            | GMCP `Core.Hello.version`                                                           |
+| `mtts`                                | INT            | TTYPE `MTTS n`                                                                      |
+| `utf8`                                | BOOL           | MTTS bit 4, or CHARSET `UTF-8` accepted, or `set_connection_option(conn, 'utf8, 1)` |
+| `charset`                             | STR            | CHARSET result (`"UTF-8"`, `"ISO-8859-1"`, ...)                                     |
+| `screen-reader`                       | BOOL           | MTTS bit 64, `.SCREENREADER`, or option                                             |
+| `gmcp`, `msdp`, `mxp`, `eor`, `mccp2` | BOOL           | option state                                                                        |
+| `gmcp_supports`                       | MAP STR -> INT | `Core.Supports.*`                                                                   |
 
 ## Option toggling from MOO
 
 `set_connection_option(conn, <name>, <value>)` for `gmcp`, `msdp`, `mxp`, `eor`, `mccp2`, `naws`,
-`ttype`, `charset`, `echo` asks the negotiator to enable or disable the option. The negotiator
-sends `WILL`/`WONT`/`DO`/`DONT` only if the state requires it, so repeated calls do not cause loops.
+`ttype`, `charset`, `echo` asks the negotiator to enable or disable the option. The negotiator sends
+`WILL`/`WONT`/`DO`/`DONT` only if the state requires it, so repeated calls do not cause loops.
 `client-echo` is routed through the negotiator. Disabling an option clears its attribute.
 
-The daemon records the value MOO passed under the option's name before the host sees the
-request. After asking the negotiator, the host sends `SetClientAttribute` with the negotiated
-value (or none, while the request is pending or refused), so `connection_options` reports the
-option's state as a BOOL and not the argument (`{'gmcp, 0}`, or `{'eor, 1}` after the client
-refused).
+The daemon records the value MOO passed under the option's name before the host sees the request.
+After asking the negotiator, the host sends `SetClientAttribute` with the negotiated value (or none,
+while the request is pending or refused), so `connection_options` reports the option's state as a
+BOOL and not the argument (`{'gmcp, 0}`, or `{'eor, 1}` after the client refused).
 
 `echo` is server echo, the inverse of `client-echo`: `echo` true is `client-echo` false.
 
@@ -214,9 +212,9 @@ On a passive connection (no protocol configured) `client-echo` writes `IAC WONT 
 
 - Default: input is decoded as UTF-8 with replacement (as today). Output is UTF-8.
 - If the host offers CHARSET (RFC 2066) and the client accepts `UTF-8`, `utf8` becomes true.
-- If the client selects `ISO-8859-1` (or another 8-bit charset supported by the codec), input
-  bytes are transcoded to UTF-8, and output is transcoded to that charset. Characters that do not
-  exist in the charset become `?`.
+- If the client selects `ISO-8859-1` (or another 8-bit charset supported by the codec), input bytes
+  are transcoded to UTF-8, and output is transcoded to that charset. Characters that do not exist in
+  the charset become `?`.
 - In text, `IAC IAC` is a literal 0xFF byte and goes through charset decoding. On output, a 0xFF
   byte produced by charset encoding is written as `IAC IAC`.
 - The MTTS UTF-8 bit sets `utf8` but does not change the codec charset; a client that reports it
@@ -243,25 +241,25 @@ Ordering: the mark goes immediately after the prompt text and before any later f
 subnegotiation, from the same or a later event. A GMCP subnegotiation emitted by the same task
 before the prompt Notify is written before the prompt text.
 
-`no_newline` is honoured after login as it is before login. A prompt Notify is written as given:
-the host does not drop or add a newline because of the mark, so a prompt normally uses
-`no_newline`. The host's own prompts (`RequestInput`, `.program`, re-prompts) are full lines,
-followed by the mark. `no_flush` has no effect: every frame is flushed when written.
+`no_newline` is honoured after login as it is before login. A prompt Notify is written as given: the
+host does not drop or add a newline because of the mark, so a prompt normally uses `no_newline`. The
+host's own prompts (`RequestInput`, `.program`, re-prompts) are full lines, followed by the mark.
+`no_flush` has no effect: every frame is flushed when written.
 
 On a passive connection the prompt mark is nothing, so output is byte-for-byte as before.
 
 ## MXP
 
-- MXP is offered only when configured. When it is enabled, the host sends `ESC [7z` (locked mode
-  as the default) so that `<` in user text is never parsed.
+- MXP is offered only when configured. When it is enabled, the host sends `ESC [7z` (locked mode as
+  the default) so that `<` in user text is never parsed.
 - `text_djot` / `text_markdown` output is rendered with an MXP target: links become `<SEND>` or
   `<A>`, `& < >` are escaped, and each line is opened in secure mode (`ESC [1z`).
 - Plain text is never in secure mode.
 
 ## MSSP
 
-If MSSP is enabled, the host answers `DO MSSP` from the configured static values, plus `PLAYERS`
-and `UPTIME` that the host computes. The world is not called. Plain-text `MSSP-REQUEST` is not
+If MSSP is enabled, the host answers `DO MSSP` from the configured static values, plus `PLAYERS` and
+`UPTIME` that the host computes. The world is not called. Plain-text `MSSP-REQUEST` is not
 implemented.
 
 `UPTIME` is the host's start time in Unix seconds. `PLAYERS` is 0: the host has no request for the
@@ -304,16 +302,16 @@ protocols:
   mssp_values: { NAME: "...", CODEBASE: "mooR" }
 ```
 
-The standalone telnet host also takes each scalar as a flag, `--telnet-protocols-<key>` with `-`
-for `_` (for example `--telnet-protocols-gmcp`, `--telnet-protocols-max-subneg 32768`).
-`mssp_values` is set only in the config file. Unknown keys are rejected.
+The standalone telnet host also takes each scalar as a flag, `--telnet-protocols-<key>` with `-` for
+`_` (for example `--telnet-protocols-gmcp`, `--telnet-protocols-max-subneg 32768`). `mssp_values` is
+set only in the config file. Unknown keys are rejected.
 
 ## Out of scope for this change
 
-- Event routing for players with several connections. `set_connection_option()` already requires
-  a connection object, and `client_ids_for()` resolves a connection record before player-wide
-  records, so `client_ids.first()` in `publish_narrative_events` is that connection's client. No
-  routing change without a reproducer.
+- Event routing for players with several connections. `set_connection_option()` already requires a
+  connection object, and `client_ids_for()` resolves a connection record before player-wide records,
+  so `client_ids.first()` in `publish_narrative_events` is that connection's client. No routing
+  change without a reproducer.
 - Event-log policy for `Event::Data`. Data events stay logged as today.
 - Browser-side GMCP input (a web-host `ClientData` path).
 - Plain-text `MSSP-REQUEST`.
@@ -322,17 +320,16 @@ for `_` (for example `--telnet-protocols-gmcp`, `--telnet-protocols-max-subneg 3
 
 The existing tests stay green with the defaults. New tests:
 
-- codec unit tests: every TelnetEvent form, split buffers, IAC IAC in text and subneg, the
-  subneg cap and resync, escaping, PromptEnd, compression (inflate and compare), charset round
-  trips;
+- codec unit tests: every TelnetEvent form, split buffers, IAC IAC in text and subneg, the subneg
+  cap and resync, escaping, PromptEnd, compression (inflate and compare), charset round trips;
 - negotiator unit tests: the RFC 1143 state table (including loop prevention and the opposite
   queue), each option's subnegotiation, TTYPE cycling and MTTS bits, CHARSET accept and reject,
   `Core.Supports` handling, package gating;
 - `moor_var::json` unit tests for every row of the conversion table;
 - a raw-socket integration test suite (`crates/telnet-host/tests/telnet_protocols.rs`) against a
   daemon and telnet host with protocols enabled: negotiation at connect, NAWS and TTYPE becoming
-  attributes before and after login, UTF-8 negotiation and Latin-1 transcoding, option toggling
-  from MOO with no loops, GMCP both ways including before login, the unknown-option fallback,
-  prompt marks and their ordering with GMCP, MSSP, MCCP2, MSDP, the subneg cap, binary output,
-  and passive mode. One daemon and four hosts (passive, offers at connect, most protocols, a
-  64 byte subneg cap) serve the whole file.
+  attributes before and after login, UTF-8 negotiation and Latin-1 transcoding, option toggling from
+  MOO with no loops, GMCP both ways including before login, the unknown-option fallback, prompt
+  marks and their ordering with GMCP, MSSP, MCCP2, MSDP, the subneg cap, binary output, and passive
+  mode. One daemon and four hosts (passive, offers at connect, most protocols, a 64 byte subneg cap)
+  serve the whole file.
