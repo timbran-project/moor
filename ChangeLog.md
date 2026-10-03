@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `db`:
 
+- Support consistent PostgreSQL snapshots for objdef export. Exports preserve sparse inherited
+  properties and can finish after writer shutdown. Reader capacity is configurable.
+
 - Expose persistence health, progress, retained payload sizes, and PostgreSQL stage timings through
   `db_counters()`. Phased benchmarks also report group boundaries and recovery measurements.
 
@@ -210,6 +213,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   parameter. An absent value or zero uses the daemon maximum. Invalid deadlines return HTTP 400.
 
 ### Fixed
+
+`db`:
+
+- Snapshot point reads derive missing local property permissions from the definer, including chown
+  behavior. Invalid ancestry cycles return an error.
 
 `kernel`:
 
