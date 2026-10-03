@@ -4,9 +4,8 @@
   <img src="padishah.png" alt="I need... more cowbell" width="400">
 </p>
 
-> [!IMPORTANT]
-> Cowbell currently requires mooR `main`. It uses post-1.0 runtime/compiler features and will not
-> build or run correctly against the stable 1.0 release branch.
+> [!IMPORTANT] Cowbell currently requires mooR `main`. It uses post-1.0 runtime/compiler features
+> and will not build or run correctly against the stable 1.0 release branch.
 
 [mooR](https://timbran.org/moor.html) is a from-scratch rewrite of the LambdaMOO server in Rust,
 designed for building persistent, programmable social environments. It's a multi-user virtual
@@ -17,15 +16,15 @@ foundation for building social spaces. It's designed specifically for use with m
 [web client](https://github.com/timbran-project/moor/tree/main/clients/meadow), a rich web
 application that connects to mooR server.
 
-While taking inspiration from classic MOOs and TinyMU* systems, cowbell is built to
-leverage the capabilities of contemporary web browsers or mobile devices rather than line-based `telnet`
-like old-school MUDs.
+While taking inspiration from classic MOOs and TinyMU* systems, cowbell is built to leverage the
+capabilities of contemporary web browsers or mobile devices rather than line-based `telnet` like
+old-school MUDs.
 
 ### Vision
 
-With the ongoing crisis and "enshittification" of commercial social media, we think people
-crave alternatives - platforms that prioritize community, creativity, and user ownership over
-engagement metrics and ad revenue.
+With the ongoing crisis and "enshittification" of commercial social media, we think people crave
+alternatives - platforms that prioritize community, creativity, and user ownership over engagement
+metrics and ad revenue.
 
 Cowbell aims to be a toolkit for building rich, social experiences that can compete with commercial
 messaging platforms (Discord, Slack, Instagram, Facebook Messenger) while preserving MOO's creative,
@@ -33,9 +32,9 @@ text-first culture. The goal: interaction quality matching contemporary messagin
 MOO's whimsical, creative spirit and user empowerment. Colourful, dynamic interfaces that still
 fundamentally centre text, story, and social connection.
 
-While the initial focus is on social interaction, the architecture is designed to support MUD/game/RPG
-mechanics as well - combat systems, quests, skill checks, inventory management. These can be built on
-top of the event and behaviour systems without requiring framework changes.
+While the initial focus is on social interaction, the architecture is designed to support
+MUD/game/RPG mechanics as well - combat systems, quests, skill checks, inventory management. These
+can be built on top of the event and behaviour systems without requiring framework changes.
 
 **Core principles:**
 
@@ -71,7 +70,8 @@ top of the event and behaviour systems without requiring framework changes.
 - `$room` with event broadcasting, enterfunc/exitfunc (`room.moo`)
 - `$thing` basic object prototype (`thing.moo`)
 - `$actor` base for animated entities/NPCs (`actor.moo`)
-- `$area` and `$passage` for spatial organization / exits, with route finding (`area.moo`, `passage.moo`)
+- `$area` and `$passage` for spatial organization / exits, with route finding (`area.moo`,
+  `passage.moo`)
 - Prototype objects for primitives: `$str_proto`, `$list_proto`, `$int_proto`
 - Type introspection: `$verb`, `$property`
 
@@ -88,9 +88,10 @@ top of the event and behaviour systems without requiring framework changes.
 inspector is a read-only request. Choosing an action submits its command through the player's
 existing connection, with the same parser, permissions, messages, and input history as typing it.
 
-The response has `title`, `description`, `state` (a list of short labels), and `actions`. Each action
-has a stable `id`, a display `label`, and a single-line `command`. An optional `input` supplies a
-`label` and `placeholder`; Meadow substitutes the entered text for `{input}` in the command:
+The response has `title`, `description`, `state` (a list of short labels), and `actions`. Each
+action has a stable `id`, a display `label`, and a single-line `command`. An optional `input`
+supplies a `label` and `placeholder`; Meadow substitutes the entered text for `{input}` in the
+command:
 
 ```moo
 ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + tostr(this),
@@ -125,11 +126,12 @@ argument signatures before offering a choice. Selection fills an input without e
 - Native scheduled tasks for deferred and periodic execution
 - Help system with topic-based documentation (`help.moo`, `help_topics.moo`)
 
-Cowbell uses the runtime [native scheduled-task builtins](../../book/src/the-system/scheduled-tasks.md)
-directly. Housekeeping starts and stops one recurring sweep through wizard-only methods. Henri uses
-adaptive recurring schedules that choose a fresh random delay after each firing. Native cadence uses
-scheduled deadlines. Callback faults retry at the base interval, with retirement after 50 consecutive
-faults by default.
+Cowbell uses the runtime
+[native scheduled-task builtins](../../book/src/the-system/scheduled-tasks.md) directly.
+Housekeeping starts and stops one recurring sweep through wizard-only methods. Henri uses adaptive
+recurring schedules that choose a fresh random delay after each firing. Native cadence uses
+scheduled deadlines. Callback faults retry at the base interval, with retirement after 50
+consecutive faults by default.
 
 Schedules persist in the runtime task database, separately from objdef exports. An objdef export can
 contain stored IDs but does not contain the schedule store. Fresh imports replace invalid IDs when
@@ -143,8 +145,8 @@ housekeeping or Henri starts.
 - Rules: `@rules`, `@set-rule`, `@show-rule`, `@clear-rule`
 - Reactions: `@reactions`, `@add-reaction`, `@enable-reaction`, `@disable-reaction`
 - Introspection: `@parent`, `@parents`, `@children`, `@audit`
-- Programming: `eval`, `@list`, `@edit`, `@browse`, `@verb`, `@rmverb`, `@verbs`, `@property`, `@rmproperty`,
-  `@properties`, `@args`, `@show`, `@chmod`, `@grep`, `@codepaste`, `@doc`
+- Programming: `eval`, `@list`, `@edit`, `@browse`, `@verb`, `@rmverb`, `@verbs`, `@property`,
+  `@rmproperty`, `@properties`, `@args`, `@show`, `@chmod`, `@grep`, `@codepaste`, `@doc`
 - Wizard: `@announce`, `@programmer`, `@builder`
 
 **LLM Integration:**
@@ -153,7 +155,8 @@ housekeeping or Henri starts.
 - `$llm_agent` - Agent framework with tool support
 - `$llm_room_observer` - NPCs that observe and respond to room events
 - `$llm_wearable` - Wearable items with LLM capabilities
-- Example agents: `Mr. Welcome` (concierge), `Data Visor` (code explorer), `Architect's Compass` (building assistant)
+- Example agents: `Mr. Welcome` (concierge), `Data Visor` (code explorer), `Architect's Compass`
+  (building assistant)
 
 **World Content:**
 
@@ -173,13 +176,12 @@ features.)
 
 ### A Rich-Event-Driven Story for the user
 
-LambdaCore and friends use `:tell("Ryan nods.")` or `notify(player, "Bob says, \"Hello\"")` - dumb string dumping with
-no
-context about what's happening. The client can't make smart rendering decisions. The objects in the environment can't
-do anything with that.
+LambdaCore and friends use `:tell("Ryan nods.")` or `notify(player, "Bob says, \"Hello\"")` - dumb
+string dumping with no context about what's happening. The client can't make smart rendering
+decisions. The objects in the environment can't do anything with that.
 
-Cowbell is designed to work with mooR's web client, which can understand and render structured events.
-Instead of plain strings, the core sends **structured narrative events with metadata:**
+Cowbell is designed to work with mooR's web client, which can understand and render structured
+events. Instead of plain strings, the core sends **structured narrative events with metadata:**
 
 ```moo
 // Create event with semantic information
@@ -202,24 +204,25 @@ endfor
 // - 'emote events → italicized styling
 // - 'whisper events → private styling
 // - 'room_action events → ambient styling
-// - Screenreaders or other accessibility tools provide better output or context 
+// - Screenreaders or other accessibility tools provide better output or context
 ```
 
 The web client uses this to provide:
 
-- **Rich rendering**: Speech bubbles for dialogue, emphasis for emotes, colour coding, images, avatars
+- **Rich rendering**: Speech bubbles for dialogue, emphasis for emotes, colour coding, images,
+  avatars
 - **Perspective rendering**: Same event shows different text to different viewers
-- **Accessibility**: Screen readers get semantic context (this is speech, this is an action, this is a system message),
-  not just raw text. Structured events provide navigation landmarks and allow users to filter by event type. Content
-  type negotiation means users can request plain text, semantic HTML with ARIA labels, or other formats that work best
-  for their assistive technology.
+- **Accessibility**: Screen readers get semantic context (this is speech, this is an action, this is
+  a system message), not just raw text. Structured events provide navigation landmarks and allow
+  users to filter by event type. Content type negotiation means users can request plain text,
+  semantic HTML with ARIA labels, or other formats that work best for their assistive technology.
 - **Extensibility**: New event types work without client changes (graceful degradation)
 - **Rich content**: Events can carry HTML, Djot (like markdown), structured data
 
 ### Capability-Based Security
 
-MOO's permission model relies on flag checking and ownership. Cowbell adds **capability
-passing** for fine-grained, delegatable permissions:
+MOO's permission model relies on flag checking and ownership. Cowbell adds **capability passing**
+for fine-grained, delegatable permissions:
 
 ```moo
 // Issue a capability that grants specific operations
@@ -236,16 +239,16 @@ setup_cap:set_password("secret");  // Works
 setup_cap:chparent(other_obj);     // Fails - not in capability list
 ```
 
-This allows passing limited authority to code without transferring full ownership. Capabilities can be
-revoked without changing object ownership, making it possible to grant temporary or conditional access.
-You can audit which code has which capabilities, and follow the principle of least privilege by granting
-only the specific operations needed rather than broad permissions.
+This allows passing limited authority to code without transferring full ownership. Capabilities can
+be revoked without changing object ownership, making it possible to grant temporary or conditional
+access. You can audit which code has which capabilities, and follow the principle of least privilege
+by granting only the specific operations needed rather than broad permissions.
 
 ### The Substitution System
 
-The substitution system (`$sub`, `$sub_utils`) provides template-based text that automatically adapts
-based on perspective (first-person vs third-person) and grammatical context. This is how events render
-differently for different viewers.
+The substitution system (`$sub`, `$sub_utils`) provides template-based text that automatically
+adapts based on perspective (first-person vs third-person) and grammatical context. This is how
+events render differently for different viewers.
 
 **Basic concept:**
 
@@ -261,7 +264,7 @@ room:announce(event);
 **Name substitutions:**
 
 | Token          | Description     | Actor sees      | Others see   |
-|----------------|-----------------|-----------------|--------------|
+| -------------- | --------------- | --------------- | ------------ |
 | `{n}` / `{nc}` | Actor name      | "you" / "You"   | "Alice"      |
 | `{d}` / `{dc}` | Direct object   | "you" (if self) | "the sword"  |
 | `{i}` / `{ic}` | Indirect object | "you" (if self) | "the chest"  |
@@ -270,7 +273,7 @@ room:announce(event);
 **Pronoun substitutions:**
 
 | Token | Type            | Example (he/him)       | Example (they/them)       |
-|-------|-----------------|------------------------|---------------------------|
+| ----- | --------------- | ---------------------- | ------------------------- |
 | `{s}` | Subject         | "he" / "you"           | "they" / "you"            |
 | `{o}` | Object          | "him" / "you"          | "them" / "you"            |
 | `{p}` | Possessive adj  | "his" / "your"         | "their" / "your"          |
@@ -282,7 +285,7 @@ Add `_dobj` or `_iobj` suffix for object pronouns: `{s_dobj}`, `{p_iobj}`, etc.
 **Verb conjugation:**
 
 | Token    | 2nd person | 3rd person |
-|----------|------------|------------|
+| -------- | ---------- | ---------- |
 | `{be}`   | "are"      | "is"       |
 | `{have}` | "have"     | "has"      |
 | `{look}` | "look"     | "looks"    |
@@ -423,7 +426,7 @@ Comparison operators: `'eq`, `'ne`, `'gt`, `'lt`, `'ge`, `'le`
 **Effect types:**
 
 | Effect       | Syntax                          | Description                    |
-|--------------|---------------------------------|--------------------------------|
+| ------------ | ------------------------------- | ------------------------------ |
 | `'set`       | `{'set, 'prop, value}`          | Set property to value          |
 | `'increment` | `{'increment, 'prop, ?amount}`  | Add to numeric property        |
 | `'decrement` | `{'decrement, 'prop, ?amount}`  | Subtract from property         |
@@ -474,8 +477,8 @@ Comparison operators: `'eq`, `'ne`, `'gt`, `'lt`, `'ge`, `'le`
 @add-reaction henri.sit_reaction 'on_cupboard_open 0 {{'action, 'sit, couch}}
 ```
 
-This calls `couch:action_sit(henri, context)`. Objects define their own action handlers
-(e.g., `$sittable` defines `action_sit` and `action_stand`).
+This calls `couch:action_sit(henri, context)`. Objects define their own action handlers (e.g.,
+`$sittable` defines `action_sit` and `action_stand`).
 
 **Programmatic creation** - for more complex cases:
 
@@ -505,10 +508,10 @@ make -C cores/cowbell check
 ```
 
 The check includes style, methods, headless scenarios, sessions, export stability, and real
-connection/restart checks. See [runtime testing](RUNTIME_TESTING.md) for focused commands and fixture
-contracts. [The style guide](STYLE_GUIDE.md) describes declarations, authority, and transaction
-boundaries. [Capabilities](CAPABILITIES.md) explains explicit delegation and tool actor permissions.
-[The audit matrix](AUDIT.md) records the reviewed scope and remaining debt.
+connection/restart checks. See [runtime testing](RUNTIME_TESTING.md) for focused commands and
+fixture contracts. [The style guide](STYLE_GUIDE.md) describes declarations, authority, and
+transaction boundaries. [Capabilities](CAPABILITIES.md) explains explicit delegation and tool actor
+permissions. [The audit matrix](AUDIT.md) records the reviewed scope and remaining debt.
 
 `make -C cores/cowbell` builds the shipped objdef export. `make rebuild` replaces source with an
 export after roundtrip checks. Export removes comments, so use this target only for an intended
@@ -519,7 +522,8 @@ contains the matching core sources.
 
 ### Running with mooR
 
-The easiest way to start mooR with the Cowbell core is using the provided quick-start script in the mooR repository root:
+The easiest way to start mooR with the Cowbell core is using the provided quick-start script in the
+mooR repository root:
 
 ```bash
 # From the mooR repository root
@@ -527,6 +531,7 @@ The easiest way to start mooR with the Cowbell core is using the provided quick-
 ```
 
 This script handles:
+
 - Environment isolation (using its own `run-cowbell/` directory)
 - Enabling modern mooR features required by Cowbell (Booleans, Custom Errors, UUIDs, etc.)
 - User permissions and Docker setup
@@ -554,19 +559,19 @@ The goal is to build a toolkit that enables:
    writing code
 3. **Rich Authoring Tools**: Both traditional MOO commands and web-based editors
 4. **Mobile-Friendly**: Touch interactions, gesture-based navigation, responsive layouts
-5. **Accessible by Default**: Screen reader support, keyboard navigation, semantic HTML, customizable
-   presentation
+5. **Accessible by Default**: Screen reader support, keyboard navigation, semantic HTML,
+   customizable presentation
 
 **Key planned features:**
 
 - **Rich event vocabulary**: Social events (say, emote, whisper, hug, wave), environmental events
   (arrive, depart, look), system events (inventory, who, errors), and game events (combat, quests)
-- **Multi-connection support**: Multiple simultaneous connections per player (phone + laptop, different
-  views/layouts per connection)
+- **Multi-connection support**: Multiple simultaneous connections per player (phone + laptop,
+  different views/layouts per connection)
 - **Composable behaviours**: Mix-and-match traits (lockable, openable, container, wearable, etc.) to
   build objects without code
-- **Web UI patterns**: Speech bubbles for dialogue, verb palettes for actions, rich room/object cards,
-  mobile-friendly touch interactions
+- **Web UI patterns**: Speech bubbles for dialogue, verb palettes for actions, rich room/object
+  cards, mobile-friendly touch interactions
 - **Presentation system**: Server-triggered UI panels (object browser, verb editor, property editor,
   room builder)
 - **Template library**: Pre-configured objects (doors, containers, furniture) for rapid building
@@ -583,20 +588,20 @@ The goal is to build a toolkit that enables:
 
 Room descriptions, ambient passage text, `exits`, and room snapshots use
 `moo://exit/<source-curie>/<destination-curie>/<passage-id>` links. Meadow invokes
-`source:follow_exit(destination, passage_id)` as the authenticated player. The result is a map
-with `"moved"` and `"message"` keys. Successful movement refreshes the narrative through the
-current connection's `look` command.
+`source:follow_exit(destination, passage_id)` as the authenticated player. The result is a map with
+`"moved"` and `"message"` keys. Successful movement refreshes the narrative through the current
+connection's `look` command.
 
 An exit link refers to a registered passage, so repeated looks do not expire it. It can be used
 again after returning to the source room. Traversal checks the player's location, the passage's
-registration, and its current door/access state. A second click cannot reinterpret the direction
-in the destination room. The client keeps the action pending until the invocation completes.
+registration, and its current door/access state. A second click cannot reinterpret the direction in
+the destination room. The client keeps the action pending until the invocation completes.
 
 Areas assign a new identity when `create_passage` or `set_passage` registers a passage.
 `update_passage` preserves that identity for edits such as opening, closing, or locking a door.
 Removing a passage discards its identity; recreating the same room pair does not revive old links.
 The registration and relevant access state are checked again after pre-exit callbacks.
 
-Structured room snapshots include `exit_links`, a list of maps with `"label"` and `"url"` keys, alongside
-`exits` and `ambient_passages`. Clients should use the supplied URLs rather than manufacture
-unqualified direction commands from the labels.
+Structured room snapshots include `exit_links`, a list of maps with `"label"` and `"url"` keys,
+alongside `exits` and `ambient_passages`. Clients should use the supplied URLs rather than
+manufacture unqualified direction commands from the labels.

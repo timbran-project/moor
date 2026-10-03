@@ -358,14 +358,17 @@ impl RuntimeArgs {
 #[allow(dead_code)]
 #[derive(Parser, Debug, Serialize, Deserialize)]
 pub struct DatabaseArgs {
+    #[command(flatten)]
+    #[serde(default)]
+    pub storage_args: moor_db::StorageArgs,
+
     #[arg(
         long,
         value_name = "db",
         help = "Main database filename (relative to data-dir if not absolute)",
-        value_hint = ValueHint::FilePath,
-        default_value = "world.db"
+        value_hint = ValueHint::FilePath
     )]
-    pub db: PathBuf,
+    pub db: Option<PathBuf>,
 }
 
 impl DatabaseArgs {
@@ -378,6 +381,7 @@ impl DatabaseArgs {
 impl Args {
     #[allow(dead_code)]
     fn merge_config(&self, mut config: Config) -> Result<Config, eyre::Report> {
+        config.storage = self.db_args.storage_args.merge(&config.storage);
         if let Some(args) = self.import_export_args.as_ref() {
             args.merge_config(&mut config.import_export)?;
         }
@@ -470,10 +474,15 @@ impl Args {
 
     /// Resolve the main database path relative to resolved data dir
     pub(crate) fn resolved_db_path(&self) -> PathBuf {
-        if self.db_args.db.is_absolute() {
-            self.db_args.db.clone()
+        let path = self
+            .db_args
+            .db
+            .as_deref()
+            .unwrap_or_else(|| std::path::Path::new("world.db"));
+        if path.is_absolute() {
+            path.to_path_buf()
         } else {
-            self.resolved_data_dir().join(&self.db_args.db)
+            self.resolved_data_dir().join(path)
         }
     }
 

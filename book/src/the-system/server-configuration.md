@@ -26,6 +26,80 @@ The same configuration file and most command-line options described in this page
 combined `moor` binary. The transport endpoint and enrollment options (described below) are not
 needed in single-process mode — they only apply when running components as separate processes.
 
+## PostgreSQL requirements
+
+The optional `postgres` Cargo feature requires a thread-safe libpq 16 or newer. Supported servers
+are PostgreSQL 16, 17, and 18. The client and server major versions can differ. Default builds use
+Fjall and do not require libpq.
+
+On Debian or Ubuntu, install the build dependency with:
+
+```bash
+sudo bash scripts/install-libpq.sh build
+```
+
+The installer retains compatible installed libraries. If development headers are absent, it uses
+compatible distribution packages. It adds the PostgreSQL package repository only when necessary. For
+runtime images, use `runtime` instead of `build`. PostgreSQL package variants depend on
+`libpq5 (>= 16)`.
+
+Exact client versions are for compatibility tests. For example, this command can downgrade an
+existing client installation:
+
+```bash
+sudo bash scripts/install-libpq.sh build "$(dpkg --print-architecture)" 16
+```
+
+The adapter checks `PQisthreadsafe()` before connection setup. Each connection belongs to one worker
+thread. The connection options include `require_auth`, which requires libpq 16. The adapter uses
+nonblocking connections, parameterized queries, and single-row results. It does not require the
+cancellation or chunk APIs added in later versions. See the PostgreSQL documentation for
+[thread safety](https://www.postgresql.org/docs/16/libpq-threading.html) and
+[connection options](https://www.postgresql.org/docs/16/libpq-connect.html).
+
+The schema uses domains, JSONB, advisory locks, and conflict handling supported by PostgreSQL 16.
+The compatibility suite exercises schema creation, startup, prepared writes, recovery, and both SQL
+commit policies.
+
+For a disposable local fixture with TLS and SCRAM authentication, run:
+
+```bash
+scripts/test-postgres-adapter.sh 16 native
+```
+
+Set `PG_BIN` if the server tools are outside `/usr/lib/postgresql/16/bin`. The fixture creates a
+private temporary cluster and removes it after the tests. It also tests server crashes. It does not
+use the Cowbell cluster. Use `17` or `18` to test those server versions. Omit `native` for Docker.
+Set `MOOR_PG_TEST_CLI=1` to include builds and configuration checks for all four storage-aware
+tools. Set `LD_LIBRARY_PATH` to test a separately installed libpq runtime.
+
+### PostgreSQL write limits
+
+Before publication, an encoder worker renders and validates each PostgreSQL write. A rejected write
+leaves the published world unchanged. Accepted writes retain their encoded rows for asynchronous SQL
+application. A successful transaction acknowledgment still does not establish durability.
+
+The `--pg-max-row-bytes` option limits the complete returned JSON row, including column names,
+whitespace, literal escaping, and JSON escaping. Its default is 16 MiB. An 8 MiB string of
+backslashes exceeds this default after escaping. The limit also applies to verb source, definitions,
+names, and metadata. Values and programs must pass the versioned persistence codecs. The literal
+codec permits at most 64 nesting levels, including nested container values and captured lambda
+values.
+
+Every property append must fit as both a suffix row and a complete replacement. This check permits
+later rollups under the same configuration. Property checks reserve 19 decimal digits for the future
+record sequence. Changing the row limit to a smaller value can prevent an existing world from
+opening.
+
+Each logical commit has a 256 MiB encoded payload budget. The budget includes possible complete
+property rollups, 128 bytes per mutation for keys and framing, and 1024 bytes for sequence updates.
+The writer can exceed its normal group budget for one indivisible commit, but this commit limit
+still applies. These limits do not establish a process memory ceiling: runtime values, compilation,
+transaction snapshots, and pending commits also consume memory.
+
+The PostgreSQL query timeout also bounds the wait for preparation before publication. Preparation
+errors and timeouts return a transaction error. They do not publish changes or disable the writer.
+
 ## Daemon, Hosts, Workers, and RPC (Advanced)
 
 For split-process or clustered deployment, the server is broken into separate binaries:
