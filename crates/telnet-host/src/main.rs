@@ -15,7 +15,7 @@ use clap::Parser;
 use clap_derive::Parser;
 use colored::control;
 use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
-use moor_telnet_host::{HostRuntime, TelnetHostConfig, ZmqTelnetHostConfig};
+use moor_telnet_host::{HostRuntime, TelnetHostConfig, TelnetProtocolConfig, ZmqTelnetHostConfig};
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
@@ -92,6 +92,10 @@ struct Args {
         help = "Path to TLS private key file (PEM format)"
     )]
     tls_key: Option<PathBuf>,
+
+    #[command(flatten)]
+    #[serde(default)]
+    protocols: TelnetProtocolConfig,
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -136,6 +140,7 @@ async fn main() -> Result<(), eyre::Error> {
             tls_port: args.tls_port,
             tls_cert: args.tls_cert,
             tls_key: args.tls_key,
+            protocols: args.protocols,
         },
     };
     let runtime = HostRuntime {

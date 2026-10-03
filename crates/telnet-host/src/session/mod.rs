@@ -16,6 +16,7 @@
 pub mod codec;
 mod djot_formatter;
 mod moo_highlighter;
+mod protocol;
 pub mod telnet;
 
 use std::{
@@ -26,7 +27,11 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use self::codec::{ConnectionCodec, ConnectionFrame, ConnectionItem};
+use self::{
+    codec::{ConnectionCodec, ConnectionFrame, ConnectionItem},
+    protocol::{PlanContext, data_frame, plan_actions},
+    telnet::{Action, Side, TelnetEvent, TelnetNegotiator, consts::*},
+};
 use eyre::{Context, bail};
 use futures_util::{
     SinkExt, StreamExt,
@@ -45,6 +50,7 @@ use moor_runtime_api::{
     },
 };
 use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
+pub(crate) use protocol::ClientDataLimiter;
 use socket2::{SockRef, TcpKeepalive};
 use std::pin::Pin;
 use tokio::{
@@ -62,7 +68,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> AsyncStream for T {}
 /// Type alias for a boxed async stream that can be either TcpStream or TlsStream.
 pub(crate) type BoxedAsyncIo = Pin<Box<dyn AsyncStream>>;
 
-use self::djot_formatter::{RenderOptions, djot_to_terminal_with_options};
+use self::djot_formatter::{Markup, RenderOptions, djot_to_terminal_with_options};
 
 /// Out of band messages are prefixed with this string, e.g. for MCP clients.
 const OUT_OF_BAND_PREFIX: &str = "#$#";
@@ -149,6 +155,12 @@ pub(crate) struct TelnetConnection {
     pub(crate) supports_utf8: bool,
     /// Whether output should avoid decorative formatting for screen readers / TTS.
     pub(crate) screen_reader_mode: bool,
+    /// Telnet option state and protocol handlers.
+    pub(crate) negotiator: TelnetNegotiator,
+    /// Rate limit on inbound `ClientData`.
+    pub(crate) client_data_limiter: ClientDataLimiter,
+    /// When the host started, Unix seconds (MSSP `UPTIME`).
+    pub(crate) host_started_at: u64,
 }
 
 /// The input modes the telnet session can be in.
@@ -306,7 +318,7 @@ pub struct PendingTask {
 pub enum ReadEvent {
     Command(String),
     InputReply(Var),
-    TelnetCommand(Var),
+    Telnet(TelnetEvent),
     ConnectionClose,
     PendingEvent,
 }
@@ -318,20 +330,7 @@ impl InputMetadata {
     async fn display_prompt(&self, conn: &mut TelnetConnection) -> Result<(), eyre::Error> {
         // Render the prompt using markdown if present
         if let Some(prompt) = &self.prompt {
-            // Try to get terminal width from connection attributes
-            let _width = conn
-                .connection_attributes
-                .get(&Symbol::mk("columns"))
-                .and_then(|v| v.as_integer())
-                .and_then(|w| if w > 0 { Some(w as usize) } else { None });
-
-            let formatted = djot_to_terminal_with_options(
-                prompt,
-                RenderOptions {
-                    utf8: conn.supports_utf8,
-                    screen_reader_mode: conn.screen_reader_mode,
-                },
-            );
+            let formatted = djot_to_terminal_with_options(prompt, conn.render_options());
             conn.send_line(&formatted).await?;
         }
 
@@ -388,7 +387,7 @@ impl InputMetadata {
             }
         }
 
-        conn.flush().await?;
+        conn.prompt_end().await?;
         Ok(())
     }
 
@@ -505,28 +504,114 @@ impl TelnetConnection {
             .with_context(|| "Unable to send line to client")
     }
 
-    /// Send raw text without newline (for no_newline attribute)
-    pub async fn send_raw_text(&mut self, text: &str) -> Result<(), eyre::Error> {
-        self.write
-            .send(ConnectionFrame::RawText(text.to_string()))
-            .await
-            .with_context(|| "Unable to send raw text to client")
-    }
-
-    /// Send raw bytes without modification (like LambdaMOO's network_send_bytes)
-    pub async fn send_bytes(&mut self, bytes: &[u8]) -> Result<(), eyre::Error> {
-        self.write
-            .send(ConnectionFrame::Bytes(bytes::Bytes::copy_from_slice(bytes)))
-            .await
-            .with_context(|| "Unable to send bytes to client")
-    }
-
     /// Explicitly flush the output (like LambdaMOO's flush control)
     pub async fn flush(&mut self) -> Result<(), eyre::Error> {
         self.write
             .send(ConnectionFrame::Flush)
             .await
             .with_context(|| "Unable to flush output to client")
+    }
+
+    /// Write one frame. Every write goes through here or the helpers above, on the one sink, so
+    /// frames reach the wire in the order they are written.
+    async fn send_frame(&mut self, frame: ConnectionFrame) -> Result<(), eyre::Error> {
+        self.write
+            .send(frame)
+            .await
+            .with_context(|| "Unable to write to client")
+    }
+
+    /// Mark the end of a prompt (`IAC EOR`, `IAC GA`, or nothing) and flush.
+    pub async fn prompt_end(&mut self) -> Result<(), eyre::Error> {
+        self.send_frame(ConnectionFrame::PromptEnd).await
+    }
+
+    fn render_options(&self) -> RenderOptions {
+        RenderOptions {
+            utf8: self.supports_utf8,
+            screen_reader_mode: self.screen_reader_mode,
+            markup: self.markup(),
+        }
+    }
+
+    fn markup(&self) -> Markup {
+        if self.negotiator.is_enabled(OPT_MXP) {
+            Markup::Mxp
+        } else {
+            Markup::Ansi
+        }
+    }
+
+    fn terminal_width(&self) -> Option<usize> {
+        self.connection_attributes
+            .get(&Symbol::mk("columns"))
+            .and_then(|v| v.as_integer())
+            .and_then(|w| if w > 0 { Some(w as usize) } else { None })
+    }
+
+    /// Apply negotiator actions: write frames, record attributes, and send requests.
+    async fn apply_actions(&mut self, actions: Vec<Action>) -> Result<(), eyre::Error> {
+        if actions.is_empty() {
+            return Ok(());
+        }
+        let ctx = PlanContext {
+            client_token: &self.client_token,
+            auth_token: self.auth_token.as_ref(),
+            handler_object: self.handler_object,
+            passive: self.negotiator.is_passive(),
+            disable_oob: self.disable_oob,
+            // The host has no request for the connected player count.
+            players: 0,
+            uptime: self.host_started_at,
+            now: Instant::now(),
+        };
+        let plan = plan_actions(
+            actions,
+            &self.negotiator,
+            &ctx,
+            &mut self.connection_attributes,
+            &mut self.client_data_limiter,
+        );
+        for (key, value) in &plan.changed {
+            let on = value.as_ref().is_some_and(|v| v.is_true());
+            match key.as_arc_str().as_str() {
+                "utf8" => self.supports_utf8 = on,
+                "screen-reader" => self.screen_reader_mode = on,
+                _ => {}
+            }
+        }
+        for frame in plan.frames {
+            self.send_frame(frame).await?;
+        }
+        for request in plan.requests {
+            // Fire and forget: attribute updates and ClientData tasks report nothing back.
+            if let Err(e) = self
+                .daemon_client
+                .client_call(self.client_id, request)
+                .await
+            {
+                warn!("telnet protocol request to daemon failed: {e}");
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle one telnet protocol element from the client, before or after login.
+    async fn handle_telnet_event(&mut self, event: TelnetEvent) -> Result<(), eyre::Error> {
+        if self.negotiator.is_passive() {
+            // As before the protocol layer: raw bytes to `do_out_of_band_command`, after login.
+            let raw = Var::mk_binary(event.to_raw().to_vec());
+            return self.process_telnet_command(raw).await;
+        }
+        let actions = self.negotiator.on_event(event);
+        self.apply_actions(actions).await
+    }
+
+    /// Ask the negotiator to enable or disable a telnet option from `set_connection_option`.
+    async fn request_option(&mut self, option: u8, enable: bool) -> Result<(), eyre::Error> {
+        let side = TelnetNegotiator::primary_side(option);
+        let actions = self.negotiator.request(option, side, enable);
+        self.apply_actions(actions).await
     }
 
     /// Handle connection option changes
@@ -571,6 +656,26 @@ impl TelnetConnection {
                 debug!("Setting client-echo to {}", echo_on);
                 self.send_telnet_echo_command(echo_on).await?;
             }
+            "echo" => {
+                // Server echo: the inverse of `client-echo`.
+                let server_echo = value.as_ref().is_some_and(|v| v.is_true());
+                self.send_telnet_echo_command(!server_echo).await?;
+            }
+            "gmcp" | "msdp" | "mxp" | "eor" | "mccp2" | "naws" | "ttype" | "charset" => {
+                let enable = value.as_ref().is_some_and(|v| v.is_true());
+                let option = match option_str.as_str() {
+                    "gmcp" => OPT_GMCP,
+                    "msdp" => OPT_MSDP,
+                    "mxp" => OPT_MXP,
+                    "eor" => OPT_EOR,
+                    "mccp2" => OPT_MCCP2,
+                    "naws" => OPT_NAWS,
+                    "ttype" => OPT_TTYPE,
+                    _ => OPT_CHARSET,
+                };
+                debug!("Requesting telnet option {option_str} {enable}");
+                self.request_option(option, enable).await?;
+            }
             "flush-command" => {
                 let flush_cmd = value
                     .as_ref()
@@ -600,21 +705,20 @@ impl TelnetConnection {
         Ok(())
     }
 
-    /// Send telnet WILL/WONT ECHO command
-    async fn send_telnet_echo_command(&mut self, echo_on: bool) -> Result<(), eyre::Error> {
-        // These values taken from RFC 854 and RFC 857
-        const TN_IAC: u8 = 255; // Interpret As Command
-        const TN_WILL: u8 = 251;
-        const TN_WONT: u8 = 252;
-        const TN_ECHO: u8 = 1;
-
-        let telnet_cmd = if echo_on {
-            [TN_IAC, TN_WONT, TN_ECHO] // Client should echo
-        } else {
-            [TN_IAC, TN_WILL, TN_ECHO] // Server will echo (client should not)
-        };
-
-        self.send_bytes(&telnet_cmd).await
+    /// Ask the client to echo (`WONT ECHO`) or not (`WILL ECHO`, the server echoes).
+    ///
+    /// With protocols configured the negotiator tracks ECHO and sends a verb only when the
+    /// state needs one. Passive connections write the verb on every call, as they always have.
+    async fn send_telnet_echo_command(&mut self, client_echo: bool) -> Result<(), eyre::Error> {
+        if !self.negotiator.is_passive() {
+            let actions = self.negotiator.request(OPT_ECHO, Side::Us, !client_echo);
+            return self.apply_actions(actions).await;
+        }
+        let verb = if client_echo { WONT } else { WILL };
+        self.send_frame(ConnectionFrame::Telnet(bytes::Bytes::copy_from_slice(&[
+            IAC, verb, OPT_ECHO,
+        ])))
+        .await
     }
 
     /// Set TCP keepalive options on the socket.
@@ -743,66 +847,25 @@ impl TelnetConnection {
     }
 
     async fn update_connection_attribute(&mut self, key: Symbol, value: Option<Var>) {
-        if let Some(auth_token) = &self.auth_token {
-            let _ = self
-                .daemon_client
-                .client_call(
-                    self.client_id,
-                    ClientRequest::SetClientAttribute {
-                        client_token: self.client_token.clone(),
-                        auth_token: Some(auth_token.clone()),
-                        key,
-                        value,
-                    },
-                )
-                .await;
-        }
-    }
-    pub(crate) async fn run(&mut self) -> Result<(), eyre::Error> {
-        // Provoke welcome message, which is a login command with no arguments, and we
-        // don't care about the reply at this point.
         let _ = self
             .daemon_client
             .client_call(
                 self.client_id,
-                ClientRequest::LoginCommand {
+                ClientRequest::SetClientAttribute {
                     client_token: self.client_token.clone(),
-                    handler_object: self.handler_object,
-                    connect_args: vec![],
-                    do_attach: false,
-                    registration_data: None,
+                    auth_token: self.auth_token.clone(),
+                    key,
+                    value,
                 },
             )
-            .await
-            .expect("Unable to send login request to RPC server");
-
-        let (auth_token, player, connect_type) = match self.authorization_phase().await {
-            Ok(result) => result,
-            Err(e) => bail!("Unable to authorize connection: {}", e),
-        };
-        debug!("Authorized player: {:?}", player);
-
-        self.auth_token = Some(auth_token);
-
-        let connect_message = match connect_type {
-            ApiConnectType::Connected => "*** Connected ***",
-            ApiConnectType::Reconnected => "*** Reconnected ***",
-            ApiConnectType::Created => "*** Created ***",
-            ApiConnectType::NoConnect => {
-                unreachable!("NoConnect should not reach telnet connection handler")
-            }
-        };
-        self.send_line(connect_message).await?;
-        self.flush().await?;
-
-        // Now that we're authenticated, send all current connection attributes to daemon
-        for (key, value) in self.connection_attributes.clone() {
-            self.update_connection_attribute(key, Some(value)).await;
+            .await;
+    }
+    /// Run the connection to its end, then detach it from the daemon.
+    pub(crate) async fn run(&mut self) -> Result<(), eyre::Error> {
+        let result = self.run_session().await;
+        if let Err(e) = &result {
+            info!("Connection closed: {e}");
         }
-
-        if self.command_loop().await.is_err() {
-            info!("Connection closed");
-        };
 
         // Let the server know this client is gone.
         let _ = self
@@ -819,68 +882,64 @@ impl TelnetConnection {
         Ok(())
     }
 
-    async fn output(&mut self, event: Event) -> Result<(), eyre::Error> {
-        match event {
-            Event::Notify {
-                value,
-                content_type,
-                no_newline,
-                ..
-            } => {
-                if let Variant::Binary(b) = value.variant() {
-                    self.send_bytes(b.as_bytes()).await?;
-                    return Ok(());
-                }
-                // Get terminal width from connection attributes if available
-                let width = self
-                    .connection_attributes
-                    .get(&Symbol::mk("columns"))
-                    .and_then(|v| v.as_integer())
-                    .and_then(|w| if w > 0 { Some(w as usize) } else { None });
-
-                let Ok(formatted) = output_format(
-                    &value,
-                    content_type,
-                    width,
-                    self.supports_utf8,
-                    self.screen_reader_mode,
-                ) else {
-                    warn!("Failed to format message: {:?}", value);
-                    return Ok(());
-                };
-                match formatted {
-                    FormattedOutput::Plain(text) => {
-                        if no_newline || self.is_binary_mode {
-                            self.send_raw_text(&text).await
-                        } else {
-                            self.send_line(&text).await
-                        }
-                    }
-                    FormattedOutput::Rich(text) => {
-                        self.send_raw_text(&normalize_telnet_line_endings(&text))
-                            .await
-                    }
-                }
-                .with_context(|| "Unable to send message to client")?;
-            }
-
-            Event::Traceback(e) => {
-                for frame in e.backtrace {
-                    let Some(s) = frame.as_string() else {
-                        continue;
-                    };
-                    self.send_line(s)
-                        .await
-                        .with_context(|| "Unable to send message to client")?;
-                }
-            }
-            _ => {
-                self.send_line(&format!("Unsupported event for telnet: {event:?}"))
-                    .await
-                    .with_context(|| "Unable to send message to client")?;
-            }
+    async fn run_session(&mut self) -> Result<(), eyre::Error> {
+        if !self.negotiator.is_passive() {
+            let offers = self.negotiator.initial_offers();
+            self.apply_actions(offers).await?;
         }
 
+        // Provoke welcome message, which is a login command with no arguments, and we
+        // don't care about the reply at this point.
+        self.daemon_client
+            .client_call(
+                self.client_id,
+                ClientRequest::LoginCommand {
+                    client_token: self.client_token.clone(),
+                    handler_object: self.handler_object,
+                    connect_args: vec![],
+                    do_attach: false,
+                    registration_data: None,
+                },
+            )
+            .await
+            .with_context(|| "Unable to send login request to RPC server")?;
+
+        let (auth_token, player, connect_type) = self
+            .authorization_phase()
+            .await
+            .with_context(|| "Unable to authorize connection")?;
+        debug!("Authorized player: {:?}", player);
+
+        self.auth_token = Some(auth_token);
+
+        let connect_message = match connect_type {
+            ApiConnectType::Connected => "*** Connected ***",
+            ApiConnectType::Reconnected => "*** Reconnected ***",
+            ApiConnectType::Created => "*** Created ***",
+            ApiConnectType::NoConnect => bail!("Login returned NoConnect"),
+        };
+        self.send_line(connect_message).await?;
+        self.flush().await?;
+
+        // Now that we're authenticated, send all current connection attributes to daemon
+        for (key, value) in self.connection_attributes.clone() {
+            self.update_connection_attribute(key, Some(value)).await;
+        }
+
+        self.command_loop().await
+    }
+
+    /// Write one narrative event, before or after login.
+    async fn output(&mut self, event: Event) -> Result<(), eyre::Error> {
+        let view = OutputView {
+            negotiator: &self.negotiator,
+            width: self.terminal_width(),
+            options: self.render_options(),
+            binary_mode: self.is_binary_mode,
+        };
+        for frame in event_frames(&view, event) {
+            self.send_frame(frame).await?;
+        }
         Ok(())
     }
 
@@ -896,8 +955,8 @@ impl TelnetConnection {
                         BroadcastEvent::PingPong => {
                             let timestamp = SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_nanos() as u64;
+                                .map(|d| d.as_nanos() as u64)
+                                .unwrap_or_default();
                             let _ = self.daemon_client.client_call(
                                 self.client_id,
                                 ClientRequest::ClientPong {
@@ -966,7 +1025,11 @@ impl TelnetConnection {
                     };
                     let line = match item {
                         ConnectionItem::Line(line) => line,
-                        ConnectionItem::Bytes(_) | ConnectionItem::Telnet(_) => continue,
+                        ConnectionItem::Telnet(event) => {
+                            self.handle_telnet_event(event).await?;
+                            continue;
+                        }
+                        ConnectionItem::Bytes(_) => continue,
                     };
                     let words = parse_into_words(&line);
                     let reply = self.daemon_client.client_call(
@@ -1046,11 +1109,7 @@ impl TelnetConnection {
                             ReadEvent::PendingEvent
                         }
                     }
-                    ConnectionItem::Telnet(event) => {
-                        // Telnet protocol events (NOP, WILL/WONT/DO/DONT, etc.)
-                        // are forwarded in wire form as binary OOB data for the server to handle.
-                        ReadEvent::TelnetCommand(Var::mk_binary(event.to_raw().to_vec()))
-                    }
+                    ConnectionItem::Telnet(event) => ReadEvent::Telnet(event),
                 }
             };
 
@@ -1063,18 +1122,18 @@ impl TelnetConnection {
                                 debug!("Holding input due to hold-input option: {}", line);
                                 buffer.push(line);
                             } else {
-                                line_mode = self.handle_command(&mut program_input, &mut textarea_input, &mut expecting_input, line_mode, line).await.expect("Unable to process command");
+                                line_mode = self.handle_command(&mut program_input, &mut textarea_input, &mut expecting_input, line_mode, line).await?;
                                 // Update collecting_input flag after command processing
                                 self.collecting_input = !expecting_input.is_empty() || matches!(line_mode, LineMode::CollectingTextArea(_));
                             }
                         }
                         ReadEvent::InputReply(input_data) =>{
-                            self.process_requested_input_line(input_data, &mut expecting_input).await.expect("Unable to process input reply");
+                            self.process_requested_input_line(input_data, &mut expecting_input).await?;
                             // Update collecting_input flag after processing input
                             self.collecting_input = !expecting_input.is_empty() || matches!(line_mode, LineMode::CollectingTextArea(_));
                         }
-                        ReadEvent::TelnetCommand(cmd) => {
-                            self.process_telnet_command(cmd).await.expect("Unable to process telnet command");
+                        ReadEvent::Telnet(event) => {
+                            self.handle_telnet_event(event).await?;
                         }
                         ReadEvent::ConnectionClose => {
                             info!("Connection closed");
@@ -1090,8 +1149,8 @@ impl TelnetConnection {
                         BroadcastEvent::PingPong => {
                             let timestamp = SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_nanos() as u64;
+                                .map(|d| d.as_nanos() as u64)
+                                .unwrap_or_default();
                             let _ = self.daemon_client.client_call(
                                 self.client_id,
                                 ClientRequest::ClientPong {
@@ -1101,7 +1160,7 @@ impl TelnetConnection {
                                     host_type: moor_runtime_api::HostType::TCP,
                                     socket_addr: self.peer_addr.to_string(),
                                 },
-                            ).await.expect("Unable to send pong to RPC server");
+                            ).await.with_context(|| "Unable to send pong to RPC server")?;
 
                         }
                     }
@@ -1317,14 +1376,12 @@ impl TelnetConnection {
 
             self.send_line(&format!("Now programming {}. Use \".\" to end.", words[1]))
                 .await?;
-            self.flush().await?;
+            self.prompt_end().await?;
 
             return Ok(LineMode::SpoolingProgram(target, verb));
         }
 
-        self.process_command_line(line)
-            .await
-            .expect("Unable to process command line");
+        self.process_command_line(line).await?;
         Ok(line_mode)
     }
 
@@ -1437,69 +1494,14 @@ impl TelnetConnection {
         match event {
             ClientEvent::EventsAvailable => bail!("Connection delivery ownership changed"),
             ClientEvent::SystemMessage { message, .. } => {
-                self.send_line(&message)
-                    .await
-                    .expect("Unable to send message to client");
+                self.send_line(&message).await?;
                 Ok(None)
             }
             ClientEvent::Narrative {
                 event: narrative_event,
                 ..
             } => {
-                let msg = narrative_event.event;
-                match &msg {
-                    Event::Notify {
-                        value: msg,
-                        content_type,
-                        ..
-                    } => {
-                        // Get terminal width from connection attributes if available
-                        let width = self
-                            .connection_attributes
-                            .get(&Symbol::mk("columns"))
-                            .and_then(|v| v.as_integer())
-                            .and_then(|w| if w > 0 { Some(w as usize) } else { None });
-
-                        let formatted = output_format(
-                            msg,
-                            *content_type,
-                            width,
-                            self.supports_utf8,
-                            self.screen_reader_mode,
-                        )?;
-                        match formatted {
-                            FormattedOutput::Plain(text) => self.send_line(&text).await,
-                            FormattedOutput::Rich(text) => {
-                                self.send_raw_text(&normalize_telnet_line_endings(&text))
-                                    .await
-                            }
-                        }
-                        .expect("Unable to send message to client");
-                    }
-                    Event::Traceback(exception) => {
-                        for frame in &exception.backtrace {
-                            let Some(s) = frame.as_string() else {
-                                continue;
-                            };
-                            self.send_line(s)
-                                .await
-                                .with_context(|| "Unable to send message to client")?;
-                        }
-                    }
-                    Event::Present(_) => {
-                        // Present events are for web UI elements (editors, etc.)
-                        // Telnet clients don't support these, so just ignore
-                        trace!("Ignoring Present event in telnet client");
-                    }
-                    Event::Data { .. } => {
-                        // Data events are non-visual client state channels.
-                        trace!("Ignoring Data event in telnet client");
-                    }
-                    _ => {
-                        // We don't handle these events in the telnet client.
-                        warn!("Unhandled event in telnet client: {:?}", msg);
-                    }
-                }
+                self.output(narrative_event.event).await?;
                 Ok(None)
             }
             ClientEvent::RequestInput {
@@ -1547,16 +1549,12 @@ impl TelnetConnection {
             }
             ClientEvent::Disconnect => {
                 self.pending_task = None;
-                self.send_line("** Disconnected **")
-                    .await
-                    .expect("Unable to send disconnect message to client");
-                self.flush()
-                    .await
-                    .expect("Unable to flush disconnect message");
+                self.send_line("** Disconnected **").await?;
+                self.flush().await?;
                 self.write
                     .close()
                     .await
-                    .expect("Unable to close connection");
+                    .with_context(|| "Unable to close connection")?;
                 Ok(None)
             }
             ClientEvent::TaskError { task_id, error } => {
@@ -1568,13 +1566,9 @@ impl TelnetConnection {
                         "Inbound task response {ti} does not belong to the event we submitted and are expecting {pending_event:?}"
                     );
                 }
-                self.handle_task_error(error)
-                    .await
-                    .expect("Unable to handle task error");
+                self.handle_task_error(error).await?;
                 // Send suffix after task error
-                self.send_output_suffix()
-                    .await
-                    .expect("Unable to send output suffix");
+                self.send_output_suffix().await?;
                 Ok(None)
             }
             ClientEvent::TaskSuccess { task_id, .. } => {
@@ -1587,9 +1581,7 @@ impl TelnetConnection {
                     );
                 }
                 // Send suffix after task success
-                self.send_output_suffix()
-                    .await
-                    .expect("Unable to send output suffix");
+                self.send_output_suffix().await?;
                 Ok(None)
             }
             ClientEvent::TaskSuspended { task_id } => {
@@ -1639,7 +1631,8 @@ impl TelnetConnection {
         }
     }
 
-    /// Send a telnet protocol command (IAC sequence) to the server as binary OOB data.
+    /// Send a raw telnet sequence to `do_out_of_band_command` as binary, after login only
+    /// (passive mode).
     async fn process_telnet_command(&mut self, cmd: Var) -> Result<(), eyre::Error> {
         let Some(auth_token) = self.auth_token.clone() else {
             // No auth yet — silently ignore telnet commands during login
@@ -1771,7 +1764,7 @@ impl TelnetConnection {
                 // Validation failed, show error and keep the request in queue
                 self.send_line(&err_msg).await?;
                 self.send_line("Please try again:").await?;
-                self.flush().await?;
+                self.prompt_end().await?;
                 Ok(())
             }
         }
@@ -1904,25 +1897,107 @@ impl TelnetConnection {
     }
 }
 
+/// The connection state that output rendering depends on.
+struct OutputView<'a> {
+    negotiator: &'a TelnetNegotiator,
+    width: Option<usize>,
+    options: RenderOptions,
+    binary_mode: bool,
+}
+
+/// The frames for one narrative event, in write order.
+///
+/// A Notify with `["prompt" -> true]` metadata is followed by [`ConnectionFrame::PromptEnd`].
+/// `no_newline` is honoured; `no_flush` has no effect, since frames are flushed as written.
+fn event_frames(view: &OutputView<'_>, event: Event) -> Vec<ConnectionFrame> {
+    match event {
+        Event::Notify {
+            value,
+            content_type,
+            no_newline,
+            metadata,
+            ..
+        } => {
+            let mut frames = Vec::with_capacity(2);
+            if let Some(frame) = notify_frame(view, &value, content_type, no_newline) {
+                frames.push(frame);
+            }
+            if is_prompt(metadata.as_deref()) {
+                frames.push(ConnectionFrame::PromptEnd);
+            }
+            frames
+        }
+        Event::Traceback(e) => e
+            .backtrace
+            .iter()
+            .filter_map(|frame| frame.as_string())
+            .map(|s| ConnectionFrame::Line(s.to_string()))
+            .collect(),
+        Event::Data {
+            namespace,
+            kind,
+            payload,
+        } => data_frame(
+            view.negotiator,
+            &namespace.as_arc_str(),
+            &kind.as_arc_str(),
+            &payload,
+        )
+        .into_iter()
+        .collect(),
+        Event::Present(_) | Event::Unpresent(_) | Event::SetConnectionOption { .. } => {
+            // Web UI elements, and options delivered as ClientEvent::SetConnectionOption.
+            trace!("Ignoring event in telnet client");
+            vec![]
+        }
+    }
+}
+
+/// The frame for a Notify value. Binary values are written as raw bytes.
+fn notify_frame(
+    view: &OutputView<'_>,
+    value: &Var,
+    content_type: Option<Symbol>,
+    no_newline: bool,
+) -> Option<ConnectionFrame> {
+    if let Variant::Binary(b) = value.variant() {
+        return Some(ConnectionFrame::Bytes(bytes::Bytes::copy_from_slice(
+            b.as_bytes(),
+        )));
+    }
+    let Ok(formatted) = output_format(value, content_type, view.width, view.options) else {
+        warn!("Failed to format message: {:?}", value);
+        return None;
+    };
+    Some(match formatted {
+        FormattedOutput::Plain(text) if no_newline || view.binary_mode => {
+            ConnectionFrame::RawText(text)
+        }
+        FormattedOutput::Plain(text) => ConnectionFrame::Line(text),
+        FormattedOutput::Rich(text) => {
+            ConnectionFrame::RawText(normalize_telnet_line_endings(&text))
+        }
+    })
+}
+
+/// True when Notify metadata marks the output as a prompt (`["prompt" -> true]`).
+fn is_prompt(metadata: Option<&[(Symbol, Var)]>) -> bool {
+    metadata
+        .into_iter()
+        .flatten()
+        .any(|(key, value)| key.as_arc_str().as_str() == "prompt" && value.is_true())
+}
+
 /// Produce the right kind of "telnet" compatible output for the given content.
 fn output_format(
     content: &Var,
     content_type: Option<Symbol>,
     width: Option<usize>,
-    utf8: bool,
-    screen_reader_mode: bool,
+    options: RenderOptions,
 ) -> Result<FormattedOutput, eyre::Error> {
     match content.variant() {
-        Variant::Str(s) => {
-            output_str_format(s.as_str(), content_type, width, utf8, screen_reader_mode)
-        }
-        Variant::Sym(s) => output_str_format(
-            &s.as_arc_str(),
-            content_type,
-            width,
-            utf8,
-            screen_reader_mode,
-        ),
+        Variant::Str(s) => output_str_format(s.as_str(), content_type, width, options),
+        Variant::Sym(s) => output_str_format(&s.as_arc_str(), content_type, width, options),
         Variant::List(l) => {
             // If the content is a list, it must be a list of strings.
             let mut output = String::new();
@@ -1935,7 +2010,7 @@ fn output_format(
                 }
                 output.push_str(item_str);
             }
-            output_str_format(&output, content_type, width, utf8, screen_reader_mode)
+            output_str_format(&output, content_type, width, options)
         }
         _ => bail!("Unsupported content type: {:?}", content.variant()),
     }
@@ -1945,8 +2020,7 @@ fn output_str_format(
     content: &str,
     content_type: Option<Symbol>,
     _width: Option<usize>,
-    utf8: bool,
-    screen_reader_mode: bool,
+    options: RenderOptions,
 ) -> Result<FormattedOutput, eyre::Error> {
     let Some(content_type) = content_type else {
         debug!("output_str_format: no content_type, using plain");
@@ -1955,24 +2029,12 @@ fn output_str_format(
     let content_type_str = content_type.as_arc_str();
     debug!("output_str_format: content_type={}", content_type_str);
     Ok(match content_type_str.as_str() {
-        CONTENT_TYPE_MARKDOWN | CONTENT_TYPE_MARKDOWN_SLASH => {
-            // Use djot formatter for markdown too - djot handles most markdown syntax
-            FormattedOutput::Rich(djot_to_terminal_with_options(
-                content,
-                RenderOptions {
-                    utf8,
-                    screen_reader_mode,
-                },
-            ))
-        }
-        CONTENT_TYPE_DJOT | CONTENT_TYPE_DJOT_SLASH => {
-            FormattedOutput::Rich(djot_to_terminal_with_options(
-                content,
-                RenderOptions {
-                    utf8,
-                    screen_reader_mode,
-                },
-            ))
+        // The djot renderer handles most markdown syntax too.
+        CONTENT_TYPE_MARKDOWN
+        | CONTENT_TYPE_MARKDOWN_SLASH
+        | CONTENT_TYPE_DJOT
+        | CONTENT_TYPE_DJOT_SLASH => {
+            FormattedOutput::Rich(djot_to_terminal_with_options(content, options))
         }
         // text/plain, None, or unknown
         _ => FormattedOutput::Plain(content.to_string()),
@@ -1981,12 +2043,165 @@ fn output_str_format(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_telnet_line_endings;
+    use super::*;
+    use crate::session::telnet::{ProtocolPolicy, Verb};
+    use bytes::BytesMut;
+    use moor_var::{v_int, v_map};
+    use tokio_util::codec::Encoder;
+
+    fn notify(text: &str, no_newline: bool, metadata: Option<Vec<(Symbol, Var)>>) -> Event {
+        Event::Notify {
+            value: v_str(text),
+            content_type: None,
+            no_flush: true,
+            no_newline,
+            metadata,
+        }
+    }
+
+    fn prompt_meta() -> Option<Vec<(Symbol, Var)>> {
+        Some(vec![(Symbol::mk("prompt"), v_int(1))])
+    }
+
+    fn gmcp_on(mark: bool) -> TelnetNegotiator {
+        let mut n = TelnetNegotiator::new(ProtocolPolicy {
+            gmcp: true,
+            eor: mark,
+            ..ProtocolPolicy::default()
+        });
+        n.on_event(TelnetEvent::Negotiate {
+            verb: Verb::Do,
+            option: OPT_GMCP,
+        });
+        if mark {
+            n.on_event(TelnetEvent::Negotiate {
+                verb: Verb::Do,
+                option: OPT_EOR,
+            });
+        }
+        n
+    }
+
+    /// Encode the frames of each event in order, as the session's single writer does.
+    fn wire(n: &TelnetNegotiator, events: Vec<Event>) -> Vec<u8> {
+        let view = OutputView {
+            negotiator: n,
+            width: None,
+            options: RenderOptions::default(),
+            binary_mode: false,
+        };
+        let mut codec = ConnectionCodec::new();
+        codec.set_prompt_mark(n.prompt_mark());
+        let mut buf = BytesMut::new();
+        for event in events {
+            for frame in event_frames(&view, event) {
+                codec.encode(frame, &mut buf).unwrap();
+            }
+        }
+        buf.to_vec()
+    }
+
+    fn data(kind: &str) -> Event {
+        Event::Data {
+            namespace: Symbol::mk("gmcp"),
+            kind: Symbol::mk(kind),
+            payload: v_map(&[]),
+        }
+    }
 
     #[test]
     fn normalize_telnet_line_endings_coalesces_mixed_newlines() {
         let input = "alpha\nbeta\r\ngamma\rdelta";
         let expected = "alpha\r\nbeta\r\ngamma\r\ndelta";
         assert_eq!(normalize_telnet_line_endings(input), expected);
+    }
+
+    #[test]
+    fn prompt_notify_is_text_then_prompt_end() {
+        let n = gmcp_on(true);
+        let view = OutputView {
+            negotiator: &n,
+            width: None,
+            options: RenderOptions::default(),
+            binary_mode: false,
+        };
+        let frames = event_frames(&view, notify("HP:20> ", true, prompt_meta()));
+        assert!(
+            matches!(&frames[..], [ConnectionFrame::RawText(t), ConnectionFrame::PromptEnd] if t == "HP:20> ")
+        );
+        // Without the metadata there is no mark; a false value is not a prompt.
+        let frames = event_frames(&view, notify("x", true, None));
+        assert!(matches!(&frames[..], [ConnectionFrame::RawText(_)]));
+        let frames = event_frames(
+            &view,
+            notify("x", false, Some(vec![(Symbol::mk("prompt"), v_int(0))])),
+        );
+        assert!(matches!(&frames[..], [ConnectionFrame::Line(_)]));
+    }
+
+    #[test]
+    fn prompt_mark_ordering_with_gmcp() {
+        let n = gmcp_on(true);
+        let bytes = wire(
+            &n,
+            vec![
+                data("Char.Vitals"),
+                notify("> ", true, prompt_meta()),
+                data("Core.Ping"),
+            ],
+        );
+        let mut expected = Vec::new();
+        expected.extend_from_slice(&[IAC, SB, OPT_GMCP]);
+        expected.extend_from_slice(b"Char.Vitals");
+        expected.extend_from_slice(&[IAC, SE]);
+        expected.extend_from_slice(b"> ");
+        expected.extend_from_slice(&[IAC, EOR]);
+        expected.extend_from_slice(&[IAC, SB, OPT_GMCP]);
+        expected.extend_from_slice(b"Core.Ping");
+        expected.extend_from_slice(&[IAC, SE]);
+        assert_eq!(bytes, expected);
+    }
+
+    #[test]
+    fn prompt_mark_is_ga_without_eor() {
+        let n = gmcp_on(false);
+        assert_eq!(
+            wire(&n, vec![notify("> ", true, prompt_meta())]),
+            [b"> ".as_slice(), &[IAC, GA]].concat()
+        );
+    }
+
+    #[test]
+    fn passive_prompt_writes_no_mark() {
+        let n = TelnetNegotiator::new(ProtocolPolicy::default());
+        assert_eq!(
+            wire(
+                &n,
+                vec![notify("> ", true, prompt_meta()), data("Core.Ping")]
+            ),
+            b"> ".to_vec()
+        );
+    }
+
+    #[test]
+    fn binary_notify_is_raw_bytes() {
+        let n = TelnetNegotiator::new(ProtocolPolicy::default());
+        let event = Event::Notify {
+            value: Var::mk_binary(vec![IAC, WILL, 77]),
+            content_type: None,
+            no_flush: false,
+            no_newline: false,
+            metadata: None,
+        };
+        assert_eq!(wire(&n, vec![event]), vec![IAC, WILL, 77]);
+    }
+
+    #[test]
+    fn no_newline_is_honoured() {
+        let n = TelnetNegotiator::new(ProtocolPolicy::default());
+        assert_eq!(
+            wire(&n, vec![notify("a", true, None), notify("b", false, None)]),
+            b"ab\r\n".to_vec()
+        );
     }
 }

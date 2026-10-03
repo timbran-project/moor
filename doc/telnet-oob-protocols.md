@@ -81,7 +81,8 @@ rest:
 | ERR, BINARY, FLYWEIGHT, LAMBDA, non-finite FLOAT, other map key types | not convertible: the event is dropped with a `warn`; it does not disconnect |
 
 Inbound JSON maps back as in `parse_json`: `null` -> `#-1`, objects -> maps with string keys,
-booleans by the daemon's `use_boolean_returns` (the host gets it from `GetServerFeatures`). A body
+booleans by the daemon's `use_boolean_returns` (the host gets it from `GetServerFeatures` once,
+at startup, when GMCP is configured; a later change to the daemon's setting needs a host restart). A body
 that is not valid JSON is delivered as a STR holding the raw body text.
 
 `generate_json`/`parse_json` keep their current behaviour except that SYM now converts to a string
@@ -196,6 +197,11 @@ there are no deployments to migrate). The daemon:
 sends `WILL`/`WONT`/`DO`/`DONT` only if the state requires it, so repeated calls do not cause loops.
 `client-echo` is routed through the negotiator. Disabling an option clears its attribute.
 
+`echo` is server echo, the inverse of `client-echo`: `echo` true is `client-echo` false.
+
+On a passive connection (no protocol configured) `client-echo` writes `IAC WONT ECHO` (true) or
+`IAC WILL ECHO` (false) on every call, as before this change: cores rely on resending it.
+
 ## UTF-8 and charsets
 
 - Default: input is decoded as UTF-8 with replacement (as today). Output is UTF-8.
@@ -229,7 +235,12 @@ Ordering: the mark goes immediately after the prompt text and before any later f
 subnegotiation, from the same or a later event. A GMCP subnegotiation emitted by the same task
 before the prompt Notify is written before the prompt text.
 
-`no_newline` is honoured after login as it is before login.
+`no_newline` is honoured after login as it is before login. A prompt Notify is written as given:
+the host does not drop or add a newline because of the mark, so a prompt normally uses
+`no_newline`. The host's own prompts (`RequestInput`, `.program`, re-prompts) are full lines,
+followed by the mark. `no_flush` has no effect: every frame is flushed when written.
+
+On a passive connection the prompt mark is nothing, so output is byte-for-byte as before.
 
 ## MXP
 
@@ -245,6 +256,9 @@ If MSSP is enabled, the host answers `DO MSSP` from the configured static values
 and `UPTIME` that the host computes. The world is not called. Plain-text `MSSP-REQUEST` is not
 implemented.
 
+`UPTIME` is the host's start time in Unix seconds. `PLAYERS` is 0: the host has no request for the
+daemon's connected player count, and adding one is outside this change.
+
 ## MCCP2
 
 If configured and the client sends `DO MCCP2`, the host writes `IAC SB 86 IAC SE` uncompressed. It
@@ -255,8 +269,9 @@ compression fails, the host closes the connection.
 
 - A subnegotiation over `max_subneg` bytes (default 65536) is discarded. The decoder resynchronises
   at the next `IAC SE`, and the stream is not closed.
-- Inbound `ClientData` per connection is rate limited (default 50 per second, burst 100). Excess
-  messages are dropped with a `warn`.
+- Inbound `ClientData` per connection is rate limited (default 50 per second, burst twice the rate;
+  0 disables the limit). Excess messages are dropped with a `warn`. The limit counts every
+  `ClientData` the host sends, including `('client, 'attributes)`.
 - Telnet protocol code must not panic. Errors are logged, and the connection either continues or
   closes cleanly, sending `Detach`.
 
@@ -280,6 +295,10 @@ protocols:
   client_data_rate: 50
   mssp_values: { NAME: "...", CODEBASE: "mooR" }
 ```
+
+The standalone telnet host also takes each scalar as a flag, `--telnet-protocols-<key>` with `-`
+for `_` (for example `--telnet-protocols-gmcp`, `--telnet-protocols-max-subneg 32768`).
+`mssp_values` is set only in the config file. Unknown keys are rejected.
 
 ## Out of scope for this change
 

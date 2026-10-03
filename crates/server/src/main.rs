@@ -37,7 +37,7 @@ use moor_kernel::config::{
     Config, FeaturesConfig, ImportExportConfig, ImportFormat, RuntimeConfig,
 };
 use moor_runtime_api::{api::HostServices, load_keypair};
-use moor_telnet_host::{HostRuntime as TelnetHostRuntime, TelnetHostConfig};
+use moor_telnet_host::{HostRuntime as TelnetHostRuntime, TelnetHostConfig, TelnetProtocolConfig};
 use moor_web_host::{
     WebHostConfig,
     host::{OAuth2Config, WebRtcConfig},
@@ -276,6 +276,7 @@ struct TelnetServiceConfig {
     tls_port: Option<u16>,
     tls_cert: Option<PathBuf>,
     tls_key: Option<PathBuf>,
+    protocols: TelnetProtocolConfig,
 }
 
 impl Default for TelnetServiceConfig {
@@ -288,6 +289,7 @@ impl Default for TelnetServiceConfig {
             tls_port: None,
             tls_cert: None,
             tls_key: None,
+            protocols: TelnetProtocolConfig::default(),
         }
     }
 }
@@ -453,6 +455,7 @@ async fn main() -> Result<(), Report> {
             tls_port: services_config.telnet.tls_port,
             tls_cert: services_config.telnet.tls_cert,
             tls_key: services_config.telnet.tls_key,
+            protocols: services_config.telnet.protocols,
         };
         let telnet_runtime = TelnetHostRuntime {
             kill_switch: kill_switch.clone(),
@@ -713,4 +716,44 @@ fn prepare_config_dir() -> Result<(), Report> {
         std::fs::set_permissions(&config_dir, perms)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CombinedConfig;
+    use std::io::Write;
+
+    fn load(yaml: &str) -> Result<CombinedConfig, eyre::Report> {
+        let mut file = tempfile::NamedTempFile::new()?;
+        file.write_all(yaml.as_bytes())?;
+        moor_common::config::apply_yaml_config_file(CombinedConfig::default(), Some(file.path()))
+    }
+
+    #[test]
+    fn telnet_protocols_default_off() {
+        let config = CombinedConfig::default();
+        let protocols = &config.services.telnet.protocols;
+        assert!(!protocols.gmcp && !protocols.mccp2 && !protocols.offer_on_connect);
+        assert_eq!(protocols.max_subneg, 65536);
+    }
+
+    #[test]
+    fn telnet_protocols_from_yaml() {
+        let config = load(
+            "services:\n  telnet:\n    protocols:\n      gmcp: true\n      naws: true\n      mssp_values:\n        NAME: Test\n",
+        )
+        .unwrap();
+        let protocols = &config.services.telnet.protocols;
+        assert!(protocols.gmcp && protocols.naws && !protocols.msdp);
+        assert_eq!(
+            protocols.mssp_values.get("NAME").map(String::as_str),
+            Some("Test")
+        );
+    }
+
+    #[test]
+    fn telnet_protocols_unknown_field_rejected() {
+        assert!(load("services:\n  telnet:\n    protocols:\n      gmpc: true\n").is_err());
+        assert!(load("services:\n  telnet:\n    protcols: {}\n").is_err());
+    }
 }
