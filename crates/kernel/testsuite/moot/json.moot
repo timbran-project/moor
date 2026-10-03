@@ -1,0 +1,41 @@
+// generate_json / parse_json value mapping.
+
+// Scalars
+; return generate_json(1);
+"1"
+; return generate_json(1.5);
+"1.5"
+; return generate_json("hi");
+"\"hi\""
+; return generate_json('hi);
+"\"hi\""
+; return generate_json(true);
+"true"
+; return generate_json(#-1);
+"null"
+; return generate_json(#42);
+"\"#42\""
+
+// Containers, with SYM keys and values
+; return generate_json({1, "two", 'three, #-1});
+"[1,\"two\",\"three\",null]"
+; return generate_json(['a -> 'b, "s" -> 1, 2 -> {}, #3 -> []]);
+"{\"#3\":{},\"2\":[],\"a\":\"b\",\"s\":1}"
+
+// Not convertible
+; return generate_json(E_PERM);
+E_TYPE
+; return generate_json([{1} -> 1]);
+E_TYPE
+
+// Inbound
+; return parse_json("[1, 1.5, \"#42\", null, true, false]");
+{1, 1.5, "#42", #-1, 1, 0}
+; return parse_json("{\"a\": {\"b\": [1]}}");
+["a" -> ["b" -> {1}]]
+; return parse_json("{");
+E_INVARG
+
+// #-1 round trip
+; return parse_json(generate_json({#-1, "#-1"}));
+{#-1, "#-1"}

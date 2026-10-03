@@ -76,7 +76,7 @@ moor-moot = { path = "../testing/moot", features = ["colors"] }
 moor-objdef = { path = "../objdef" }
 moor-schema = { path = "../schema" }
 moor-textdump = { path = "../textdump" }
-moor-var = { path = "../var" }
+moor-var = { path = "../var", features = ["json"] }
 moor-vm = { path = "../vm" }
 
 # Telemetry

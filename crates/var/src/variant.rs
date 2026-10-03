@@ -287,6 +287,13 @@ impl Var {
         Self::from_header_and_data(Self::header(TAG_FLOAT), f.to_bits())
     }
 
+    /// Build a float without the finiteness check, so tests can exercise the handling of
+    /// non-finite floats that release builds do not reject at construction.
+    #[cfg(all(test, feature = "json"))]
+    pub(crate) fn mk_float_unchecked(f: f64) -> Self {
+        Self::from_header_and_data(Self::header(TAG_FLOAT), f.to_bits())
+    }
+
     #[inline(always)]
     pub fn mk_object(o: Obj) -> Self {
         Self::from_header_and_data(Self::header(TAG_OBJ), o.as_u64())
