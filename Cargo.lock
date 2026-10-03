@@ -3745,6 +3745,7 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "jotdown",
+ "libc",
  "moor-common",
  "moor-moot",
  "moor-runtime-api",

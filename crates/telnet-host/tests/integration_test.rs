@@ -14,105 +14,33 @@
 #![cfg(target_os = "linux")]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #[cfg_attr(coverage_nightly, coverage(off))]
-use moor_moot::{MootOptions, telnet::ManagedChild, test_db_path};
+mod common;
+
+use moor_moot::{MootOptions, telnet::ManagedChild};
 use serial_test::serial;
 use std::{
-    net::TcpListener,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex},
 };
 use uuid::Uuid;
-
-static DAEMON_HOST_BIN: OnceLock<PathBuf> = OnceLock::new();
-fn daemon_host_bin() -> &'static PathBuf {
-    DAEMON_HOST_BIN.get_or_init(|| {
-        // Build once per test process so daemon changes are included in wire tests.
-        escargot::CargoBuild::new()
-            .bin("moor-daemon")
-            .manifest_path("../daemon/Cargo.toml")
-            .current_release()
-            .run()
-            .expect("Failed to build moor-daemon")
-            .path()
-            .to_owned()
-    })
-}
-
-/// Base path for the PUB/SUB IPC sockets used by the daemon, a unique UUID is appended to this.
-const NARRATIVE_PATH_ROOT: &str = "ipc:///tmp/narrative-moor-moot-daemon-";
-/// Base path for the RPC IPC sockets used by the daemon, a unique UUID is appended to this.
-const RPC_PATH_ROOT: &str = "ipc:///tmp/rpc-moor-moot-daemon.sock-";
 
 fn start_daemon(workdir: &Path, uuid: Uuid) -> ManagedChild {
     ManagedChild::new(
         "daemon",
-        Command::new(daemon_host_bin())
-            .arg("--import")
-            .arg(test_db_path())
-            .args(["--import-format", "textdump"])
-            .env("XDG_CONFIG_HOME", workdir.join("config"))
-            .arg("--private-key")
-            .arg(workdir.join("moor-signing-key.pem"))
-            .arg("--public-key")
-            .arg(workdir.join("moor-verifying-key.pem"))
-            .arg("--enrollment-listen")
-            .arg(format!("ipc://{}/enrollment.sock", workdir.display()))
-            .arg("--workers-request-listen")
-            .arg(format!("ipc://{}/workers-request.sock", workdir.display()))
-            .arg("--workers-response-listen")
-            .arg(format!("ipc://{}/workers-response.sock", workdir.display()))
-            .arg("--events-listen")
-            .arg(format!("{NARRATIVE_PATH_ROOT}{uuid}"))
-            .arg("--rpc-listen")
-            .arg(format!("{RPC_PATH_ROOT}{uuid}"))
-            .arg("test.db")
-            .current_dir(workdir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        common::daemon_command(workdir, uuid)
             .spawn()
             .expect("Failed to start daemon"),
     )
 }
 
-fn telnet_host_bin() -> &'static str {
-    env!("CARGO_BIN_EXE_moor-telnet-host")
-}
-
 fn start_telnet_host(workdir: &Path, uuid: Uuid, port: u16) -> ManagedChild {
     ManagedChild::new(
         "telnet-host",
-        Command::new(telnet_host_bin())
-            .arg("--events-address")
-            .arg(format!("{NARRATIVE_PATH_ROOT}{uuid}"))
-            .arg("--rpc-address")
-            .arg(format!("{RPC_PATH_ROOT}{uuid}"))
-            .arg("--telnet-address")
-            .arg("127.0.0.1")
-            .arg("--telnet-port")
-            .arg(format!("{port}"))
-            .args(["--health-check-port", "0"])
-            .env("XDG_CONFIG_HOME", workdir.join("config"))
-            .arg("--debug")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(workdir)
+        common::telnet_host_command(workdir, uuid, port)
             .spawn()
             .expect("Failed to start telnet host"),
     )
 }
-
-// Just a keypair generated with openssl to satisfy the daemon for running unit tests...
-
-const SIGNING_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEILrkKmddHFUDZqRCnbQsPoW/Wsp0fLqhnv5KNYbcQXtk
------END PRIVATE KEY-----
-"#;
-
-const VERIFYING_KEY: &str = r#"-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAZQUxGvw8u9CcUHUGLttWFZJaoroXAmQgUGINgbBlVYw=
------END PUBLIC KEY-----
-"#;
 
 // These tests all listen on the same port, so we need to make sure
 // only one runs at a time.
@@ -126,19 +54,13 @@ fn test_moot_with_telnet_host<P: AsRef<Path>>(moot_file: P) {
     let test_workdir = tempfile::TempDir::new().expect("Failed to create temporary directory");
 
     // Write the private and public key files in the test workdir
-    let signing_key_file = test_workdir.path().join("moor-signing-key.pem");
-    std::fs::write(&signing_key_file, SIGNING_KEY).expect("Failed to write signing key file");
-    let verifying_key_file = test_workdir.path().join("moor-verifying-key.pem");
-    std::fs::write(&verifying_key_file, VERIFYING_KEY).expect("Failed to write verifying key file");
+    common::write_keys(test_workdir.path());
 
     let daemon = Arc::new(Mutex::new(start_daemon(test_workdir.path(), uuid)));
     daemon.lock().unwrap().assert_running().unwrap();
 
-    // Ask the OS for a random unused port. Then immediately drop the listener and use the port
-    // for the telnet host.
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    drop(listener);
+    // Ask the OS for a random unused port for the telnet host.
+    let port = common::free_port();
     let telnet_host = Arc::new(Mutex::new(start_telnet_host(
         test_workdir.path(),
         uuid,
