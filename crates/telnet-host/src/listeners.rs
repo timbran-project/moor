@@ -13,7 +13,14 @@
 
 //! Dynamic telnet/TLS listener lifecycle and accepted-connection bootstrap.
 
-use crate::session::{BoxedAsyncIo, TelnetConnection, codec::ConnectionCodec};
+use crate::{
+    config::TelnetProtocolConfig,
+    session::{
+        BoxedAsyncIo, ClientDataLimiter, TelnetConnection,
+        codec::ConnectionCodec,
+        telnet::{ProtocolPolicy, TelnetNegotiator},
+    },
+};
 use eyre::bail;
 use futures_util::StreamExt;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
@@ -33,6 +40,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    time::Instant,
 };
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -99,11 +107,23 @@ async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
     }
 }
 
+/// Per-host settings every accepted connection starts from.
+#[derive(Clone, Debug)]
+pub struct SessionSettings {
+    /// Which telnet protocols connections implement.
+    pub protocols: Arc<TelnetProtocolConfig>,
+    /// The daemon's `use_boolean_returns`, fetched once the host is registered.
+    pub boolean_returns: Arc<AtomicBool>,
+    /// When the host started, in Unix seconds (MSSP `UPTIME`).
+    pub started_at: u64,
+}
+
 pub struct Listeners {
     listeners: HashMap<SocketAddr, Listener>,
     kill_switch: Arc<AtomicBool>,
     host_services: Arc<dyn HostServices>,
     tls_config: Option<Arc<ServerConfig>>,
+    settings: SessionSettings,
 }
 
 struct AcceptedConnection {
@@ -119,6 +139,7 @@ struct AcceptedConnection {
 struct ConnectionBootstrap {
     kill_switch: Arc<AtomicBool>,
     host_services: Arc<dyn HostServices>,
+    settings: SessionSettings,
 }
 
 impl Listeners {
@@ -126,6 +147,7 @@ impl Listeners {
         kill_switch: Arc<AtomicBool>,
         host_services: Arc<dyn HostServices>,
         tls_config: Option<Arc<ServerConfig>>,
+        settings: SessionSettings,
     ) -> (
         Self,
         tokio::sync::mpsc::Receiver<ListenersMessage>,
@@ -137,6 +159,7 @@ impl Listeners {
             kill_switch,
             host_services,
             tls_config,
+            settings,
         };
         let listeners_client = ListenersClient::new(tx);
         (listeners, rx, listeners_client)
@@ -185,6 +208,7 @@ impl Listeners {
         let bootstrap = ConnectionBootstrap {
             kill_switch,
             host_services: self.host_services.clone(),
+            settings: self.settings.clone(),
         };
         tokio::spawn(run_listener_accept_loop(
             listener,
@@ -316,7 +340,9 @@ impl Listener {
 
             let daemon_client = bootstrap.host_services.runtime_client();
 
+            let is_tls = accepted.tls_acceptor.is_some();
             let mut connection_attributes = initial_connection_attributes();
+            connection_attributes.insert(Symbol::mk("tls"), moor_var::Var::mk_bool(is_tls));
 
             let hostname = resolve_hostname(accepted.peer_addr.ip())
                 .await
@@ -338,19 +364,42 @@ impl Listener {
                 .client_subscriptions(client_id, client_token.clone())
                 .map_err(|e| eyre::eyre!("Unable to subscribe for client events: {}", e))?;
 
-            let is_tls = accepted.tls_acceptor.is_some();
-            let boxed_stream = boxed_stream_from_accepted(
+            let boxed_stream = match boxed_stream_from_accepted(
                 accepted.stream,
                 accepted.peer_addr,
                 accepted.tls_acceptor,
             )
-            .await?;
+            .await
+            {
+                Ok(stream) => stream,
+                Err(e) => {
+                    let _ = daemon_client
+                        .client_call(
+                            client_id,
+                            ClientRequest::Detach {
+                                client_token,
+                                disconnected: true,
+                            },
+                        )
+                        .await;
+                    return Err(e);
+                }
+            };
 
-            // Add TLS status to connection attributes
-            connection_attributes.insert(Symbol::mk("tls"), moor_var::Var::mk_bool(is_tls));
+            let settings = &bootstrap.settings;
+            let mut negotiator =
+                TelnetNegotiator::new(ProtocolPolicy::from(settings.protocols.as_ref()));
+            negotiator.set_boolean_returns(settings.boolean_returns.load(Ordering::Relaxed));
+            let mut codec = ConnectionCodec::new();
+            codec.set_max_subneg(negotiator.max_subneg());
+            // Later changes arrive as Action::SetPromptMark; this is the starting mark.
+            codec.set_prompt_mark(negotiator.prompt_mark());
+            let client_data_limiter =
+                ClientDataLimiter::new(settings.protocols.client_data_rate, Instant::now());
+            let host_started_at = settings.started_at;
 
             // Re-ify the connection.
-            let framed_stream = Framed::new(boxed_stream, ConnectionCodec::new());
+            let framed_stream = Framed::new(boxed_stream, codec);
             let (write, read) = framed_stream.split();
             let mut tcp_connection = TelnetConnection {
                 handler_object: accepted.handler_object,
@@ -379,6 +428,9 @@ impl Listener {
                 socket_fd: accepted.socket_fd,
                 supports_utf8: false,
                 screen_reader_mode: false,
+                negotiator,
+                client_data_limiter,
+                host_started_at,
             };
 
             tcp_connection.run().await?;

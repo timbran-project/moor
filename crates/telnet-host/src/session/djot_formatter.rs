@@ -12,6 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Djot to ANSI terminal formatter using jotdown parser, colored output, and tabled.
+//!
+//! With [`Markup::Mxp`] the output is also MXP: `& < >` become entities, links become
+//! `<SEND>` (commands) or `<A>` (http/https), and every line starts in secure mode
+//! (`ESC [1z`). Escaping happens after layout, so table widths stay those of the visible text.
 
 use super::moo_highlighter::highlight_moo;
 use colored::{Color, ColoredString, Colorize};
@@ -32,9 +36,19 @@ pub fn djot_to_terminal(input: &str, utf8: bool) -> String {
         input,
         RenderOptions {
             utf8,
-            screen_reader_mode: false,
+            ..RenderOptions::default()
         },
     )
+}
+
+/// The markup language of rendered output, besides ANSI styling.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Markup {
+    /// ANSI styling only.
+    #[default]
+    Ansi,
+    /// ANSI styling inside MXP secure lines, with MXP links.
+    Mxp,
 }
 
 /// Output options for telnet Djot rendering.
@@ -42,14 +56,108 @@ pub fn djot_to_terminal(input: &str, utf8: bool) -> String {
 pub(crate) struct RenderOptions {
     pub(crate) utf8: bool,
     pub(crate) screen_reader_mode: bool,
+    pub(crate) markup: Markup,
 }
 
 /// Render djot markup to terminal output using explicit render options.
 pub(crate) fn djot_to_terminal_with_options(input: &str, options: RenderOptions) -> String {
-    let parser = Parser::new(input);
+    if options.markup == Markup::Ansi {
+        let mut renderer = TerminalRenderer::new(options);
+        renderer.render(Parser::new(input));
+        return renderer.output;
+    }
+    // Markers in the input would be read as links; drop them.
+    let input: String = input.chars().filter(|c| !is_link_marker(*c)).collect();
     let mut renderer = TerminalRenderer::new(options);
-    renderer.render(parser);
-    renderer.output
+    renderer.render(Parser::new(&input));
+    finish_mxp(&renderer.output)
+}
+
+/// MXP secure line mode: tags in the rest of the line are parsed.
+const MXP_SECURE_LINE: &str = "\x1b[1z";
+
+// Private-use markers the renderer leaves in its output around links; `finish_mxp` turns them
+// into tags after layout. `<open> href <HREF_END> text <close>`.
+const SEND_OPEN: char = '\u{E000}';
+const A_OPEN: char = '\u{E001}';
+const HREF_END: char = '\u{E002}';
+const SEND_CLOSE: char = '\u{E003}';
+const A_CLOSE: char = '\u{E004}';
+
+fn is_link_marker(c: char) -> bool {
+    ('\u{E000}'..='\u{E004}').contains(&c)
+}
+
+/// The MXP element for a link destination, and the `href` to give it.
+fn mxp_link(dest: &str) -> Option<(char, char, String)> {
+    if let Some(command) = dest.strip_prefix("moo://cmd/") {
+        let command = urlencoding::decode(command).ok()?.into_owned();
+        return Some((SEND_OPEN, SEND_CLOSE, command));
+    }
+    let lower = dest.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        return Some((A_OPEN, A_CLOSE, dest.to_string()));
+    }
+    None
+}
+
+fn push_escaped(out: &mut String, c: char) {
+    match c {
+        '&' => out.push_str("&amp;"),
+        '<' => out.push_str("&lt;"),
+        '>' => out.push_str("&gt;"),
+        '"' => out.push_str("&quot;"),
+        _ => out.push(c),
+    }
+}
+
+/// Escape rendered text for MXP, turn link markers into tags, and open each line in secure mode.
+fn finish_mxp(rendered: &str) -> String {
+    let mut out = String::with_capacity(rendered.len() + rendered.len() / 8);
+    for (i, line) in rendered.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        if line.is_empty() {
+            continue;
+        }
+        out.push_str(MXP_SECURE_LINE);
+        let mut chars = line.chars();
+        while let Some(c) = chars.next() {
+            let tag = match c {
+                SEND_OPEN => "SEND",
+                A_OPEN => "A",
+                SEND_CLOSE => {
+                    out.push_str("</SEND>");
+                    continue;
+                }
+                A_CLOSE => {
+                    out.push_str("</A>");
+                    continue;
+                }
+                HREF_END => continue,
+                c if c != '"' => {
+                    push_escaped(&mut out, c);
+                    continue;
+                }
+                c => {
+                    out.push(c);
+                    continue;
+                }
+            };
+            out.push('<');
+            out.push_str(tag);
+            out.push_str(" href=\"");
+            for h in chars.by_ref() {
+                if h == HREF_END {
+                    break;
+                }
+                push_escaped(&mut out, h);
+            }
+            out.push_str("\">");
+        }
+    }
+    out
 }
 
 /// Tracks list nesting for proper bullet/number rendering
@@ -110,6 +218,9 @@ struct TerminalRenderer {
     table_state: Option<TableState>,
     /// Definition list state for collecting deflist data
     deflist_state: Option<DefListState>,
+    markup: Markup,
+    /// For each open link, the marker that closes it, if it was written as an MXP element.
+    link_stack: Vec<Option<char>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -138,6 +249,8 @@ impl TerminalRenderer {
             pending_newlines: 0,
             table_state: None,
             deflist_state: None,
+            markup: options.markup,
+            link_stack: Vec::new(),
         }
     }
 
@@ -354,7 +467,9 @@ impl TerminalRenderer {
                 self.indent_level += 1;
             }
             Container::Section { .. } | Container::Div { .. } => {}
-            Container::Link(_dest, _) => {
+            Container::Link(dest, _) => {
+                let close = self.open_mxp_link(&dest);
+                self.link_stack.push(close);
                 self.style_stack.push(StyleModifier::Underline);
                 self.style_stack.push(StyleModifier::FgColor(Color::Cyan));
             }
@@ -498,6 +613,9 @@ impl TerminalRenderer {
             Container::Link(_, _) => {
                 self.style_stack.pop(); // FgColor
                 self.style_stack.pop(); // Underline
+                if let Some(close) = self.link_stack.pop().flatten() {
+                    self.output.push(close);
+                }
             }
             Container::Image(_, _) => {
                 self.emit_text("]");
@@ -536,6 +654,25 @@ impl TerminalRenderer {
             }
             Container::Document | Container::Span | Container::LinkDefinition { .. } => {}
         }
+    }
+
+    /// Write the opening marker of an MXP link and return its closing marker. Links in tables
+    /// and definition lists stay plain, since markers there would be laid out as text.
+    fn open_mxp_link(&mut self, dest: &str) -> Option<char> {
+        if self.markup != Markup::Mxp || self.table_state.is_some() || self.deflist_state.is_some()
+        {
+            return None;
+        }
+        let (open, close, href) = mxp_link(dest)?;
+        self.flush_pending_newlines();
+        if self.at_line_start {
+            self.emit_indent();
+            self.at_line_start = false;
+        }
+        self.output.push(open);
+        self.output.push_str(&href);
+        self.output.push(HREF_END);
+        Some(close)
     }
 
     fn render_table(&mut self, state: TableState) {
@@ -1119,6 +1256,7 @@ return $look:mk(this, @this.contents);
             RenderOptions {
                 utf8: true,
                 screen_reader_mode: true,
+                ..RenderOptions::default()
             },
         );
         assert!(output.contains("Row 1: Name: Alice; Age: 30"));
@@ -1136,9 +1274,63 @@ return $look:mk(this, @this.contents);
             RenderOptions {
                 utf8: true,
                 screen_reader_mode: true,
+                ..RenderOptions::default()
             },
         );
         assert!(!output.contains("\x1b["));
         assert!(output.contains("Heading"));
+    }
+
+    fn mxp(input: &str) -> String {
+        djot_to_terminal_with_options(
+            input,
+            RenderOptions {
+                utf8: true,
+                screen_reader_mode: true,
+                markup: Markup::Mxp,
+            },
+        )
+    }
+
+    #[test]
+    fn mxp_escapes_and_opens_secure_lines() {
+        assert_eq!(
+            mxp("a < b & c > d\n\nnext"),
+            "\x1b[1za &lt; b &amp; c &gt; d\n\n\x1b[1znext\n"
+        );
+    }
+
+    #[test]
+    fn mxp_command_link_is_send() {
+        assert_eq!(
+            mxp("[examine sword](moo://cmd/examine%20sword) now"),
+            "\x1b[1z<SEND href=\"examine sword\">examine sword</SEND> now\n"
+        );
+    }
+
+    #[test]
+    fn mxp_http_link_is_anchor_with_escaped_href() {
+        assert_eq!(
+            mxp("see [docs](https://example.com/?a=1&b=\"2\")"),
+            "\x1b[1zsee <A href=\"https://example.com/?a=1&amp;b=&quot;2&quot;\">docs</A>\n"
+        );
+    }
+
+    #[test]
+    fn mxp_other_links_are_text() {
+        assert_eq!(mxp("[thing](moo://inspect/#1)"), "\x1b[1zthing\n");
+    }
+
+    #[test]
+    fn mxp_markers_in_input_are_dropped() {
+        assert_eq!(mxp("x\u{E000}y\u{E002}z"), "\x1b[1zxyz\n");
+    }
+
+    #[test]
+    fn ansi_markup_has_no_mxp() {
+        let output = djot_to_terminal("[look](moo://cmd/look) <b>", true);
+        assert!(!output.contains("SEND"));
+        assert!(!output.contains("\x1b[1z"));
+        assert!(output.contains("<b>"));
     }
 }
