@@ -485,14 +485,7 @@ impl WorldStateTransaction {
             WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
         })?;
 
-        let propdefs = self.get_properties(obj)?;
-        for p in propdefs.iter() {
-            self.object_propvalues
-                .delete(&ObjAndUUIDHolder::new(obj, p.uuid()))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
-                })?;
-        }
+        self.delete_recycled_payloads(&HashSet::from([*obj]))?;
 
         // We may or may not have propdefs yet...
         self.object_propdefs.delete(obj).ok();
@@ -516,7 +509,6 @@ impl WorldStateTransaction {
         // Pre-collect all relationship data to minimize individual queries
         let mut contents_to_move = Vec::new();
         let mut children_to_reparent = Vec::new();
-        let mut properties_to_delete = Vec::new();
 
         for obj in objects {
             // Get both contents and children BEFORE making any modifications to avoid
@@ -524,7 +516,6 @@ impl WorldStateTransaction {
             let contents = self.get_object_contents(obj)?;
             let parent = self.get_object_parent(obj)?;
             let children = self.get_object_children(obj)?;
-            let propdefs = self.get_properties(obj)?;
 
             // Collect contents that need to be moved to NOTHING
             contents_to_move.extend(contents.iter());
@@ -532,11 +523,6 @@ impl WorldStateTransaction {
             // Collect children that need to be reparented to this object's parent
             for c in children.iter() {
                 children_to_reparent.push((c, parent));
-            }
-
-            // Collect property UUIDs for deletion
-            for p in propdefs.iter() {
-                properties_to_delete.push((*obj, p.uuid()));
             }
         }
 
@@ -589,14 +575,7 @@ impl WorldStateTransaction {
             self.invalidate_cached_prop_perms_for_obj(obj);
         }
 
-        // Batch delete property values
-        for (obj, prop_uuid) in properties_to_delete {
-            self.object_propvalues
-                .delete(&ObjAndUUIDHolder::new(&obj, prop_uuid))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
-                })?;
-        }
+        self.delete_recycled_payloads(objects)?;
 
         self.has_mutations = true;
 
@@ -616,6 +595,44 @@ impl WorldStateTransaction {
         self.invalidate_prop_cache_for_objects(&removed);
         self.invalidate_ancestry_cache_for_objects(&removed);
 
+        Ok(())
+    }
+
+    /// Remove payloads by their holder, including inactive and inherited local overrides.
+    /// Scan each relation once for a batch; definitions do not enumerate all stored overrides.
+    fn delete_recycled_payloads(&mut self, objects: &HashSet<Obj>) -> Result<(), WorldStateError> {
+        macro_rules! delete_held {
+            ($relation:ident) => {
+                let rows = self
+                    .$relation
+                    .scan(&|key, _| objects.contains(&key.obj()))
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error scanning {}: {e:?}",
+                            stringify!($relation)
+                        ))
+                    })?;
+                for (key, _) in rows {
+                    self.$relation.delete(&key).map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error deleting {}: {e:?}",
+                            stringify!($relation)
+                        ))
+                    })?;
+                }
+            };
+        }
+        delete_held!(object_propvalues);
+        delete_held!(object_propflags);
+        delete_held!(object_verbs);
+        for object in objects {
+            self.object_last_move.delete(object).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting last move: {e:?}"))
+            })?;
+            self.anonymous_object_metadata.delete(object).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting anonymous metadata: {e:?}"))
+            })?;
+        }
         Ok(())
     }
 
