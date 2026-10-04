@@ -29,7 +29,8 @@ use crate::engine::property_definitions::{
     PropertyDefinitionChange, collect_property_definition_changes,
 };
 use crate::engine::relation_defs::RebaseCheck;
-use crate::provider::batch_writer::{CommitAdmission, CommitAdmissionError};
+use crate::provider::coordinator::{CommitAdmission, CommitAdmissionError};
+use crate::provider::logical::{LogicalCommit, PublicationId, SequenceUpdate};
 use moor_common::model::{
     CommitResult, ConflictInfo, ConflictTarget, WorldStateError, WorldStateTimerOp,
 };
@@ -59,47 +60,46 @@ impl MoorDB {
             .publish_read_only_cache(snapshot_version, combined_caches);
     }
 
-    /// Persist a successfully published snapshot to the durable store.
+    /// Persist a successfully published snapshot to the storage backend.
     fn persist_commit(
         &self,
-        working_sets: super::RelationWorkingSets,
+        changes: super::RelationWorkingSets,
         publication_version: u64,
         tx_timestamp: crate::tx::Timestamp,
         property_definition_changes: Vec<PropertyDefinitionChange>,
         admission: CommitAdmission,
     ) {
-        let mut batch = match self.relations.working_sets_to_batch(
-            working_sets,
-            publication_version,
-            tx_timestamp,
-        ) {
-            Ok(batch) => batch,
-            Err(error) => {
-                Self::report_persistence_failure(&format!(
-                    "failed to encode transaction {publication_version}: {error}"
-                ));
-                return;
-            }
+        let commit = LogicalCommit {
+            publication: PublicationId::new(self.coordinator.epoch(), publication_version),
+            timestamp: tx_timestamp,
+            changes: changes.into_changes(),
+            sequences: self.capture_dirty_sequences(),
+            property_definition_changes,
         };
-        batch.set_property_definition_changes(property_definition_changes);
-
-        let dirty_sequences = self.sequences.claim_dirty();
-        for i in 0_usize..super::SEQUENCE_COUNT {
-            if dirty_sequences & (1_u16 << i) == 0 {
-                continue;
-            }
-            batch.insert_encoded(
-                self.sequences_partition.clone(),
-                i.to_le_bytes(),
-                self.sequences.load(i).to_le_bytes(),
-            );
-        }
-
-        if let Err(error) = self.batch_writer.write(batch, admission) {
+        if let Err(error) = self.coordinator.submit(commit, admission) {
             Self::report_persistence_failure(&format!(
-                "failed to enqueue transaction {publication_version}: {error}"
+                "failed to submit transaction {publication_version}: {error}"
             ));
         }
+    }
+
+    /// Capture the dirty sequence-slot high-water values after publication.
+    ///
+    /// These are allocation observations, not transaction-local writes: concurrent submitters may
+    /// capture them out of publication order, and the writer applies them monotonically.
+    fn capture_dirty_sequences(&self) -> Vec<SequenceUpdate> {
+        let dirty_sequences = self.sequences.claim_dirty();
+        let mut updates = Vec::new();
+        for slot in 0_usize..super::SEQUENCE_COUNT {
+            if dirty_sequences & (1_u16 << slot) == 0 {
+                continue;
+            }
+            updates.push(SequenceUpdate {
+                slot,
+                value: self.sequences.load(slot),
+            });
+        }
+        updates
     }
 
     fn report_persistence_failure(detail: &str) {
@@ -176,7 +176,10 @@ impl MoorDB {
             let _t = counters
                 .timers_hot
                 .start(WorldStateTimerOp::CommitCheckPhase);
-            if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
+            if let Err(error) = checkers.check_all(&mut relation_ws) {
+                let crate::tx::Error::Conflict(conflict_info) = error else {
+                    return Err(WorldStateError::DatabaseError(error.to_string()));
+                };
                 let conflict_info = enrich_conflict_info(&current_root, conflict_info);
                 trace!("Transaction conflict during commit: {conflict_info}");
                 return Ok(CommitResult::ConflictRetry {
@@ -209,17 +212,20 @@ impl MoorDB {
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
 
-        let admission =
-            self.batch_writer
-                .admit_commit(tx_timestamp)
-                .map_err(|error| match error {
-                    CommitAdmissionError::Timeout { waited } => {
-                        WorldStateError::DatabaseOverloaded(waited)
-                    }
-                    CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
-                        "Database commit queue admission is unavailable".to_string(),
-                    ),
-                })?;
+        let mut admission = self
+            .coordinator
+            .admit(tx_timestamp)
+            .map_err(|error| match error {
+                CommitAdmissionError::Timeout { waited } => {
+                    WorldStateError::DatabaseOverloaded(waited)
+                }
+                CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
+                    "Database commit queue admission is unavailable".to_string(),
+                ),
+            })?;
+
+        self.coordinator
+            .prepare(&relation_ws, tx_timestamp, &mut admission)?;
 
         // Phase 2: Try to publish
         let publication_version = next_root.version;

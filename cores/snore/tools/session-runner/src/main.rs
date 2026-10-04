@@ -624,7 +624,7 @@ fn run_scenario(args: &Args, path: &Path) -> Result<()> {
         ..Default::default()
     });
 
-    let (database, _) = TxDB::try_open(None, DatabaseConfig::default())
+    let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default())
         .map_err(|err| eyre!("unable to open temporary database: {err}"))?;
     let mut loader = database
         .loader_client()

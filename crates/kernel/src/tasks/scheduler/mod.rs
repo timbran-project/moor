@@ -975,7 +975,7 @@ mod tests {
     }
 
     fn scheduler_with_system_control(system_control: Arc<dyn SystemControl>) -> Scheduler {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),
@@ -993,7 +993,7 @@ mod tests {
 
     #[test]
     fn commit_queue_policy_loads_from_server_options() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let mut tx = database.new_world_state().unwrap();
         let system = tx
             .create_object(
@@ -1172,7 +1172,7 @@ mod tests {
 
     #[test]
     fn restored_task_ids_advance_allocator() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let tasks = vec![suspended_task(4), suspended_task(81)];
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
@@ -1236,7 +1236,7 @@ mod tests {
 
     #[test]
     fn restored_schedule_id_mark_advances_allocator() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),
@@ -1361,7 +1361,7 @@ mod tests {
             },
             Arc::new(TaskControl::new()),
         );
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         Scheduler::new(
             semver::Version::new(0, 0, 0),
             Box::new(database),
@@ -1781,7 +1781,7 @@ mod tests {
 
     #[test]
     fn shutdown_joins_worker_response_thread_with_live_sender() {
-        let (database, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let (database, _) = TxDB::try_open_temporary(DatabaseConfig::default()).unwrap();
         let (_worker_send, worker_recv) = flume::unbounded();
         let scheduler = Scheduler::new(
             semver::Version::new(0, 0, 0),
