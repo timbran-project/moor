@@ -464,8 +464,8 @@ pub struct ScheduleQ {
     /// older generation are ignored.
     generations: HashMap<ScheduleId, u64>,
     next_generation: u64,
-    /// Schedules whose deadline was already past when armed: fire on the
-    /// next `expired()` without going through the wheel.
+    /// Schedules due in less than one wheel tick, including past deadlines:
+    /// fire on the next `expired()` without going through the wheel.
     immediate: Vec<ScheduleExpiry>,
     next_id: ScheduleId,
     by_owner: HashMap<Obj, HashSet<ScheduleId>>,
@@ -1309,15 +1309,17 @@ impl ScheduleQ {
     }
 
     /// Arm `id` for `deadline`: bump generation, insert into the wheel (or
-    /// the immediate list if the deadline has passed).
+    /// the immediate list if less than one millisecond remains).
     fn arm(&mut self, id: ScheduleId, deadline: SystemTime, now: SystemTime) {
         self.next_generation += 1;
         let generation = self.next_generation;
         self.generations.insert(id, generation);
-        if deadline <= now {
+        let delay = deadline.duration_since(now).unwrap_or(Duration::ZERO);
+        // The wheel truncates delays to whole milliseconds and rejects zero
+        // as expired. Treat sub-millisecond delays as immediately due.
+        if delay < Duration::from_millis(1) {
             self.immediate.push(ScheduleExpiry { id, generation });
         } else {
-            let delay = deadline.duration_since(now).unwrap_or(Duration::ZERO);
             let timer_entry = ScheduleTimerEntry {
                 id,
                 delay,
@@ -1901,6 +1903,46 @@ mod tests {
     }
 
     // ---- 5: stale generation --------------------------------------------
+
+    #[test]
+    fn timer_resolution_boundary() {
+        for nanos in [0, 1, 999_999, 1_000_000] {
+            let mut q = ScheduleQ::new(Duration::from_millis(10));
+            let t0 = t0();
+            let i0 = Instant::now();
+            q.expired(i0, t0);
+            let deadline = t0 + Duration::from_nanos(nanos);
+            let id = q
+                .add_at(
+                    deadline,
+                    target(),
+                    verb(),
+                    args(),
+                    owner(),
+                    owner(),
+                    at_opts(),
+                    t0,
+                )
+                .unwrap();
+
+            assert_eq!(q.info(id).unwrap().next_run, Some(deadline));
+            assert_eq!(q.info(id).unwrap().scheduled_deadline, Some(deadline));
+            if nanos < 1_000_000 {
+                assert_eq!(q.expired(i0, t0), vec![id]);
+            } else {
+                assert!(q.expired(i0, t0).is_empty());
+                assert_eq!(
+                    q.expired(i0 + Duration::from_millis(1), t0 + Duration::from_millis(1),),
+                    vec![id]
+                );
+            }
+            // Collection consumes the arm, even without marking it fired.
+            assert!(
+                q.expired(i0 + Duration::from_millis(2), t0 + Duration::from_millis(2),)
+                    .is_empty()
+            );
+        }
+    }
 
     #[test]
     fn stale_generation_dropped() {
