@@ -49,14 +49,6 @@ pub struct TtypeReply {
 }
 
 impl TtypeCycle {
-    pub fn is_done(&self) -> bool {
-        self.done
-    }
-
-    pub fn replies(&self) -> &[String] {
-        &self.replies
-    }
-
     /// Restart, e.g. after the peer re-enables TTYPE.
     pub fn reset(&mut self) {
         *self = Self::default();
@@ -113,7 +105,7 @@ mod tests {
         let r = c.on_subneg(b"\x00MTTS 2349");
         assert_eq!(r.mtts, Some(2349));
         assert!(!r.send_again);
-        assert!(c.is_done());
+        assert!(c.done);
         assert_eq!(c.on_subneg(b"\x00MORE"), TtypeReply::default());
     }
 
@@ -123,8 +115,8 @@ mod tests {
         assert!(c.on_subneg(b"\x00xterm").send_again);
         let r = c.on_subneg(b"\x00xterm");
         assert_eq!(r, TtypeReply::default());
-        assert!(c.is_done());
-        assert_eq!(c.replies(), ["xterm".to_string()]);
+        assert!(c.done);
+        assert_eq!(c.replies, ["xterm".to_string()]);
     }
 
     #[test]
@@ -132,7 +124,7 @@ mod tests {
         let mut c = TtypeCycle::default();
         assert_eq!(c.on_subneg(b"\x01"), TtypeReply::default());
         assert_eq!(c.on_subneg(b""), TtypeReply::default());
-        assert!(!c.is_done());
+        assert!(!c.done);
     }
 
     #[test]

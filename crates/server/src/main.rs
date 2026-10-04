@@ -730,14 +730,6 @@ mod tests {
     }
 
     #[test]
-    fn telnet_protocols_default_off() {
-        let config = CombinedConfig::default();
-        let protocols = &config.services.telnet.protocols;
-        assert!(!protocols.gmcp && !protocols.mccp2 && !protocols.offer_on_connect);
-        assert_eq!(protocols.max_subneg, 65536);
-    }
-
-    #[test]
     fn telnet_protocols_from_yaml() {
         let config = load(
             "services:\n  telnet:\n    protocols:\n      gmcp: true\n      naws: true\n      mssp_values:\n        NAME: Test\n",

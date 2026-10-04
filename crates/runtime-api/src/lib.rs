@@ -81,8 +81,8 @@ pub use client_messages::{
     mk_update_property_msg, mk_verbs_msg, mk_verified_oauth_login_msg,
 };
 pub use host_messages::{
-    mk_detach_host_msg, mk_get_server_features_msg, mk_host_pong_msg, mk_register_host_msg,
-    mk_request_performance_counters_msg,
+    mk_detach_host_msg, mk_get_server_features_msg, mk_get_server_status_msg, mk_host_pong_msg,
+    mk_register_host_msg, mk_request_performance_counters_msg,
 };
 
 // Re-export worker message builders

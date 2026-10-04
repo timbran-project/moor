@@ -72,8 +72,8 @@ pub(crate) struct PlanContext<'a> {
     pub(crate) passive: bool,
     /// `disable-oob` is set: `ClientData('telnet, ...)` is not sent.
     pub(crate) disable_oob: bool,
-    /// MSSP `PLAYERS`.
-    pub(crate) players: u64,
+    /// MSSP `PLAYERS`; absent when the status request failed or was not needed.
+    pub(crate) players: Option<u64>,
     /// MSSP `UPTIME`: host start time, Unix seconds.
     pub(crate) uptime: u64,
     pub(crate) now: Instant,
@@ -92,7 +92,7 @@ pub(crate) struct Plan {
 
 /// Apply one step's actions: record attributes in `attributes`, and produce the frames and
 /// requests. Attribute changes become one `SetClientAttribute` each, then a single
-/// `ClientData('client, 'attributes, [key -> value])`; a removed key maps to `#-1`.
+/// `ClientData('client, "attributes", [key -> value])`; a removed key maps to `#-1`.
 pub(crate) fn plan_actions(
     actions: Vec<Action>,
     negotiator: &TelnetNegotiator,
@@ -108,9 +108,12 @@ pub(crate) fn plan_actions(
             Action::StopCompress => plan.frames.push(ConnectionFrame::StopCompress),
             Action::SetCharset(cs) => plan.frames.push(ConnectionFrame::SetCharset(cs)),
             Action::SetPromptMark(mark) => plan.frames.push(ConnectionFrame::SetPromptMark(mark)),
-            Action::MsspRequest => plan
-                .frames
-                .push(out_frame(negotiator.mssp_response(ctx.players, ctx.uptime))),
+            Action::MsspRequest => {
+                if let Some(players) = ctx.players {
+                    plan.frames
+                        .push(out_frame(negotiator.mssp_response(players, ctx.uptime)));
+                }
+            }
             Action::SetAttribute { key, value } => {
                 match &value {
                     Some(v) => attributes.insert(key, v.clone()),
@@ -149,7 +152,7 @@ pub(crate) fn plan_actions(
         ctx,
         limiter,
         Symbol::mk("client"),
-        Symbol::mk("attributes"),
+        "attributes".to_string(),
         v_map(&pairs),
     );
     plan
@@ -160,11 +163,11 @@ fn push_client_data(
     ctx: &PlanContext<'_>,
     limiter: &mut ClientDataLimiter,
     namespace: Symbol,
-    kind: Symbol,
+    kind: String,
     payload: Var,
 ) {
     if !limiter.allow(ctx.now) {
-        warn!(%namespace, %kind, "inbound client data over the rate limit; dropped");
+        trace!(%namespace, "inbound client data over the rate limit; dropped");
         return;
     }
     plan.requests.push(ClientRequest::ClientData {
@@ -218,10 +221,10 @@ mod tests {
     use super::*;
     use crate::session::telnet::{
         ProtocolPolicy, TelnetEvent, Verb,
-        consts::{OPT_ECHO, OPT_GMCP, OPT_NAWS},
+        consts::{OPT_ECHO, OPT_GMCP, OPT_MSDP, OPT_NAWS},
     };
     use bytes::Bytes;
-    use moor_var::{v_bool, v_int, v_str};
+    use moor_var::{v_int, v_str};
     use std::time::Duration;
 
     fn token() -> ClientToken {
@@ -243,7 +246,7 @@ mod tests {
             handler_object: Obj::mk_id(7),
             passive,
             disable_oob: false,
-            players: 3,
+            players: Some(3),
             uptime: 1_700_000_000,
             now: Instant::now(),
         }
@@ -277,7 +280,7 @@ mod tests {
             auth_token,
             *handler_object,
             namespace.as_arc_str().to_string(),
-            kind.as_arc_str().to_string(),
+            kind.clone(),
             payload,
         ))
     }
@@ -489,29 +492,47 @@ mod tests {
 
     #[test]
     fn rate_limit_applies_to_deliveries() {
-        let mut n = TelnetNegotiator::new(policy());
-        let ct = token();
-        let c = ctx(&ct, None, false);
-        let mut attrs = HashMap::new();
-        let mut limiter = ClientDataLimiter::new(1, c.now);
-        let enable = n.on_event(TelnetEvent::Negotiate {
-            verb: Verb::Do,
-            option: OPT_GMCP,
-        });
-        // Enabling GMCP sets `gmcp`: one ClientData('client, 'attributes) takes a token.
-        let plan = plan_actions(enable, &n, &c, &mut attrs, &mut limiter);
-        assert_eq!(plan.requests.len(), 2);
-        assert_eq!(attrs.get(&Symbol::mk("gmcp")), Some(&v_bool(true)));
-        let mut delivered = 0;
-        for _ in 0..5 {
-            let actions = n.on_event(TelnetEvent::Subneg {
-                option: OPT_GMCP,
-                data: Bytes::from_static(b"Char.Login {\"name\":\"x\"}"),
+        for option in [OPT_GMCP, OPT_MSDP] {
+            let mut n = TelnetNegotiator::new(ProtocolPolicy {
+                msdp: true,
+                ..policy()
             });
-            let plan = plan_actions(actions, &n, &c, &mut attrs, &mut limiter);
-            delivered += plan.requests.len();
+            let ct = token();
+            let c = ctx(&ct, None, false);
+            let mut attrs = HashMap::new();
+            let mut limiter = ClientDataLimiter::new(1, c.now);
+            let enable = n.on_event(TelnetEvent::Negotiate {
+                verb: Verb::Do,
+                option,
+            });
+            // The attribute notification takes one of the two initial tokens.
+            let plan = plan_actions(enable, &n, &c, &mut attrs, &mut limiter);
+            assert_eq!(plan.requests.len(), 2);
+            for i in 0..5 {
+                let (name, data) = if option == OPT_GMCP {
+                    let name = format!("Char.Login{i}");
+                    let data = format!("{name} {{\"name\":\"x\"}}");
+                    (name, data)
+                } else {
+                    let name = format!("VAR{i}{}", "X".repeat(16 * 1024));
+                    let data = format!("\x01{name}\x02x");
+                    (name, data)
+                };
+                let actions = n.on_event(TelnetEvent::Subneg {
+                    option,
+                    data: Bytes::from(data),
+                });
+                let plan = plan_actions(actions, &n, &c, &mut attrs, &mut limiter);
+                if i == 0 {
+                    let [ClientRequest::ClientData { kind, .. }] = plan.requests.as_slice() else {
+                        panic!("first message should be delivered");
+                    };
+                    assert_eq!(kind, &name);
+                } else {
+                    assert!(plan.requests.is_empty());
+                }
+            }
         }
-        assert_eq!(delivered, 1);
     }
 
     #[test]

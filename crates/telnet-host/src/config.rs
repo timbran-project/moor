@@ -14,8 +14,7 @@
 //! Telnet protocol configuration: which out-of-band protocols the host implements.
 //!
 //! Every protocol is off by default; with the defaults the host is passive and the bytes on the
-//! wire are what they were before the protocol layer existed. See
-//! `doc/telnet-oob-protocols.md`, section "Configuration".
+//! wire are what they were before the protocol layer existed.
 
 use std::collections::BTreeMap;
 
@@ -167,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn yaml_round_trip() {
+    fn yaml_configures_protocols_and_mssp_values() {
         let w = load(
             "protocols:\n  gmcp: true\n  mssp: true\n  max_subneg: 4096\n  mssp_values:\n    NAME: Test\n    CODEBASE: mooR\n",
         )
@@ -184,9 +183,6 @@ mod tests {
                 ("NAME".to_string(), "Test".to_string()),
             ]
         );
-        let json = serde_json::to_string(c).unwrap();
-        let back: TelnetProtocolConfig = serde_json::from_str(&json).unwrap();
-        assert_eq!(&back, c);
     }
 
     #[test]

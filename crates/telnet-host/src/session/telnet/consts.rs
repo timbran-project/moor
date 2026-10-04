@@ -25,6 +25,7 @@ pub const SB: u8 = 250;
 pub const GA: u8 = 249;
 /// Subnegotiation end.
 pub const SE: u8 = 240;
+#[cfg(test)]
 pub const NOP: u8 = 241;
 /// End of record (RFC 885), used as a prompt mark.
 pub const EOR: u8 = 239;

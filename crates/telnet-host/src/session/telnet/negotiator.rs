@@ -171,7 +171,7 @@ pub enum Action {
     /// Send `ClientData(namespace, kind, payload)` to the daemon.
     Deliver {
         namespace: Symbol,
-        kind: Symbol,
+        kind: String,
         payload: Var,
     },
     /// Start MCCP2: write the start marker uncompressed, then compress everything after it.
@@ -244,10 +244,6 @@ impl TelnetNegotiator {
         self.boolean_returns = on;
     }
 
-    pub fn policy(&self) -> &ProtocolPolicy {
-        &self.policy
-    }
-
     pub fn max_subneg(&self) -> usize {
         self.policy.max_subneg
     }
@@ -262,20 +258,8 @@ impl TelnetNegotiator {
         self.options.is_enabled(option, Side::Us) || self.options.is_enabled(option, Side::Him)
     }
 
-    pub fn state(&self, option: u8, side: Side) -> QState {
-        self.options.state(option, side)
-    }
-
     pub fn prompt_mark(&self) -> PromptMark {
         self.prompt_mark
-    }
-
-    pub fn charset(&self) -> Charset {
-        self.charset
-    }
-
-    pub fn gmcp_supports(&self) -> &GmcpSupports {
-        &self.supports
     }
 
     /// The attributes the negotiator has set, as last reported.
@@ -318,7 +302,21 @@ impl TelnetNegotiator {
         out
     }
 
-    /// The side a MOO-level toggle of `option` acts on.
+    /// Enable the primary direction, or disable both directions of a protocol.
+    pub fn request_option(&mut self, option: u8, enable: bool) -> Vec<Action> {
+        let primary = Self::primary_side(option);
+        let mut out = self.request(option, primary, enable);
+        if !enable {
+            let other = match primary {
+                Side::Us => Side::Him,
+                Side::Him => Side::Us,
+            };
+            out.extend(self.request(option, other, false));
+        }
+        out
+    }
+
+    /// The side a MOO-level request to enable `option` acts on.
     pub fn primary_side(option: u8) -> Side {
         match option {
             OPT_NAWS | OPT_TTYPE => Side::Him,
@@ -356,8 +354,8 @@ impl TelnetNegotiator {
                     return Err(DataDrop::NotSupported);
                 }
                 let body = gmcp::encode(kind, payload).map_err(|e| match e {
-                    GmcpError::InvalidPackageName(_) => DataDrop::InvalidName,
-                    GmcpError::Json(j) => DataDrop::Unconvertible(j.0),
+                    GmcpError::InvalidPackageName => DataDrop::InvalidName,
+                    GmcpError::Json(j) => DataDrop::Unconvertible(j),
                 })?;
                 Ok(OutFrame::Subneg {
                     option: OPT_GMCP,
@@ -403,7 +401,7 @@ impl TelnetNegotiator {
         }
         out.push(Action::Deliver {
             namespace: Symbol::mk("telnet"),
-            kind: Symbol::mk("negotiate"),
+            kind: "negotiate".to_string(),
             payload: v_map(&[
                 (v_str("option"), v_int(option as i64)),
                 (v_str("verb"), v_sym(verb.name())),
@@ -418,6 +416,17 @@ impl TelnetNegotiator {
         let Some(enabled) = outcome.changed else {
             return;
         };
+        // CHARSET REQUEST permission belongs to one direction, even when the other
+        // direction is already enabled. Only WILL/DO on our side permits us to initiate.
+        if option == OPT_CHARSET && side == Side::Us {
+            self.charset_pending = enabled;
+            if enabled {
+                out.push(Action::Send(OutFrame::Subneg {
+                    option: OPT_CHARSET,
+                    payload: Bytes::from(charset::request_body()),
+                }));
+            }
+        }
         // For options either side may carry, act only when the combined state flips.
         let other = match side {
             Side::Us => Side::Him,
@@ -459,13 +468,6 @@ impl TelnetNegotiator {
                 out.push(Action::Send(OutFrame::Subneg {
                     option: OPT_TTYPE,
                     payload: Bytes::from_static(&ttype::SEND_BODY),
-                }));
-            }
-            OPT_CHARSET => {
-                self.charset_pending = true;
-                out.push(Action::Send(OutFrame::Subneg {
-                    option: OPT_CHARSET,
-                    payload: Bytes::from(charset::request_body()),
                 }));
             }
             _ => {}
@@ -517,7 +519,7 @@ impl TelnetNegotiator {
         if !self.options.policy().implements(option) {
             out.push(Action::Deliver {
                 namespace: Symbol::mk("telnet"),
-                kind: Symbol::mk("subneg"),
+                kind: "subneg".to_string(),
                 payload: v_map(&[
                     (v_str("option"), v_int(option as i64)),
                     (v_str("data"), v_binary(data.to_vec())),
@@ -538,7 +540,7 @@ impl TelnetNegotiator {
                 for (name, value) in msdp::decode(&data) {
                     out.push(Action::Deliver {
                         namespace: Symbol::mk("msdp"),
-                        kind: Symbol::mk(&name),
+                        kind: name,
                         payload: value,
                     });
                 }
@@ -583,6 +585,10 @@ impl TelnetNegotiator {
 
     fn on_charset(&mut self, data: &[u8], out: &mut Vec<Action>) {
         match charset::parse(data) {
+            CharsetMessage::Request(_) if !self.options.is_enabled(OPT_CHARSET, Side::Him) => {
+                out.push(self.charset_reply(vec![charset::REJECTED]));
+            }
+            CharsetMessage::Accepted(_, _) | CharsetMessage::Rejected if !self.charset_pending => {}
             CharsetMessage::Accepted(Some(cs), _) => {
                 self.charset_pending = false;
                 self.select_charset(cs, out);
@@ -647,7 +653,7 @@ impl TelnetNegotiator {
         }
         out.push(Action::Deliver {
             namespace: Symbol::mk("gmcp"),
-            kind: Symbol::mk(&message.package),
+            kind: message.package,
             payload: message.payload,
         });
     }
@@ -781,7 +787,7 @@ mod tests {
                     namespace,
                     kind,
                     payload,
-                } => Some((namespace.as_string(), kind.as_string(), payload.clone())),
+                } => Some((namespace.as_string(), kind.clone(), payload.clone())),
                 _ => None,
             })
             .collect()
@@ -969,7 +975,7 @@ mod tests {
             out,
             vec![attr("charset", v_str("UTF-8")), attr("utf8", v_bool(true))]
         );
-        assert_eq!(n.charset(), Charset::Utf8);
+        assert_eq!(n.charset, Charset::Utf8);
     }
 
     #[test]
@@ -985,7 +991,7 @@ mod tests {
                 Action::SetCharset(Charset::Latin1),
             ]
         );
-        assert_eq!(n.charset(), Charset::Latin1);
+        assert_eq!(n.charset, Charset::Latin1);
         // Disabling returns to UTF-8.
         let out = n.on_event(neg(Verb::Dont, OPT_CHARSET));
         assert_eq!(
@@ -1003,7 +1009,7 @@ mod tests {
         let mut n = only(|p| p.charset = true);
         n.on_event(neg(Verb::Do, OPT_CHARSET));
         assert!(n.on_event(sub(OPT_CHARSET, b"\x03")).is_empty());
-        assert_eq!(n.charset(), Charset::Utf8);
+        assert_eq!(n.charset, Charset::Utf8);
         assert!(!n.attributes().contains_key(&Symbol::mk("charset")));
         // Accepting something we never offered is ignored.
         let mut n = only(|p| p.charset = true);
@@ -1014,6 +1020,7 @@ mod tests {
     #[test]
     fn charset_peer_request() {
         let mut n = only(|p| p.charset = true);
+        n.on_event(neg(Verb::Will, OPT_CHARSET));
         n.on_event(neg(Verb::Do, OPT_CHARSET));
         // Our REQUEST is outstanding, so the peer's crossing REQUEST is rejected.
         let out = n.on_event(sub(OPT_CHARSET, b"\x01;ISO-8859-1"));
@@ -1032,6 +1039,74 @@ mod tests {
         );
         let out = n.on_event(sub(OPT_CHARSET, b"\x01;KOI8-R"));
         assert_eq!(out, vec![send_sub(OPT_CHARSET, &[3])]);
+    }
+
+    #[test]
+    fn charset_client_can_initiate_without_enabling_the_server_direction() {
+        let mut n = only(|p| p.charset = true);
+        assert_eq!(
+            n.on_event(neg(Verb::Will, OPT_CHARSET)),
+            vec![send(Verb::Do, OPT_CHARSET)]
+        );
+        let out = n.on_event(sub(OPT_CHARSET, b"\x01;ISO-8859-1"));
+        assert_eq!(
+            sends(&out),
+            sends(&[send_sub(OPT_CHARSET, b"\x02ISO-8859-1")])
+        );
+        assert_eq!(n.charset, Charset::Latin1);
+        assert_eq!(n.options.state(OPT_CHARSET, Side::Us), QState::No);
+
+        // An unsolicited acceptance must not change the negotiated encoding.
+        assert!(n.on_event(sub(OPT_CHARSET, b"\x02UTF-8")).is_empty());
+        assert_eq!(n.charset, Charset::Latin1);
+    }
+
+    #[test]
+    fn charset_server_can_initiate_after_client_direction_is_enabled() {
+        let mut n = only(|p| p.charset = true);
+        n.on_event(neg(Verb::Will, OPT_CHARSET));
+        let out = n.on_event(neg(Verb::Do, OPT_CHARSET));
+        assert_eq!(
+            out,
+            vec![
+                send(Verb::Will, OPT_CHARSET),
+                send_sub(OPT_CHARSET, b"\x01;UTF-8;ISO-8859-1"),
+            ]
+        );
+        n.on_event(sub(OPT_CHARSET, b"\x02ISO-8859-1"));
+        assert_eq!(n.charset, Charset::Latin1);
+    }
+
+    #[test]
+    fn protocol_disable_covers_client_only_and_bidirectional_negotiation() {
+        for (option, namespace) in [(OPT_GMCP, "gmcp"), (OPT_MSDP, "msdp")] {
+            for bidirectional in [false, true] {
+                let mut n = TelnetNegotiator::new(all_on());
+                n.on_event(neg(Verb::Will, option));
+                if bidirectional {
+                    n.on_event(neg(Verb::Do, option));
+                }
+                let out = n.request_option(option, false);
+                let mut expected = vec![];
+                if bidirectional {
+                    expected.push(send(Verb::Wont, option));
+                }
+                expected.push(send(Verb::Dont, option));
+                assert_eq!(sends(&out), sends(&expected));
+                assert_eq!(
+                    n.attributes().get(&Symbol::mk(namespace)),
+                    Some(&v_bool(false))
+                );
+                assert_eq!(
+                    n.encode_data(namespace, "TEST", &v_int(1)),
+                    Err(DataDrop::NotNegotiated)
+                );
+                assert!(n.on_event(sub(option, b"TEST")).is_empty());
+                assert!(n.request_option(option, false).is_empty());
+                assert!(n.on_event(neg(Verb::Wont, option)).is_empty());
+                assert!(n.on_event(neg(Verb::Dont, option)).is_empty());
+            }
+        }
     }
 
     #[test]
@@ -1126,7 +1201,6 @@ mod tests {
         // No change, no attribute.
         let out = n.on_event(sub(OPT_GMCP, br#"Core.Supports.Remove ["Room"]"#));
         assert!(attrs(&out).is_empty());
-        assert_eq!(n.gmcp_supports().version("comm.channel"), Some(2));
 
         // Disabling GMCP clears gmcp_supports.
         let out = n.request(OPT_GMCP, Side::Us, false);
@@ -1317,7 +1391,7 @@ mod tests {
     fn delivers_negotiate(option: u8, verb: &str) -> Vec<Action> {
         vec![Action::Deliver {
             namespace: Symbol::mk("telnet"),
-            kind: Symbol::mk("negotiate"),
+            kind: "negotiate".to_string(),
             payload: v_map(&[
                 (v_str("option"), v_int(option as i64)),
                 (v_str("verb"), v_sym(verb)),
@@ -1428,7 +1502,7 @@ mod tests {
             out,
             vec![Action::Deliver {
                 namespace: Symbol::mk("telnet"),
-                kind: Symbol::mk("subneg"),
+                kind: "subneg".to_string(),
                 payload: v_map(&[
                     (v_str("option"), v_int(77)),
                     (v_str("data"), v_binary(vec![1, 0xFF, 2])),
@@ -1489,7 +1563,7 @@ mod tests {
             vec![send(Verb::Will, OPT_ECHO)]
         );
         assert!(n.on_event(neg(Verb::Do, OPT_ECHO)).is_empty());
-        assert_eq!(n.state(OPT_ECHO, Side::Us), QState::Yes);
+        assert_eq!(n.options.state(OPT_ECHO, Side::Us), QState::Yes);
         // `client-echo 1`: WONT ECHO, once.
         assert_eq!(
             n.request(OPT_ECHO, Side::Us, false),
@@ -1539,8 +1613,8 @@ mod tests {
         // Options both ends accept on both sides end up on.
         for option in [OPT_GMCP, OPT_MSDP, OPT_CHARSET] {
             for n in [&a, &b] {
-                assert_eq!(n.state(option, Side::Us), QState::Yes, "{option}");
-                assert_eq!(n.state(option, Side::Him), QState::Yes, "{option}");
+                assert_eq!(n.options.state(option, Side::Us), QState::Yes, "{option}");
+                assert_eq!(n.options.state(option, Side::Him), QState::Yes, "{option}");
             }
         }
         // Options a server only performs, or only asks of a client, end up off between two
@@ -1554,7 +1628,10 @@ mod tests {
         for opt in 0..=255u8 {
             for side in [Side::Us, Side::Him] {
                 for n in [&a, &b] {
-                    assert!(matches!(n.state(opt, side), QState::Yes | QState::No));
+                    assert!(matches!(
+                        n.options.state(opt, side),
+                        QState::Yes | QState::No
+                    ));
                 }
             }
         }

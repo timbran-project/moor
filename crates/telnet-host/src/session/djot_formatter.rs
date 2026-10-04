@@ -90,15 +90,24 @@ fn is_link_marker(c: char) -> bool {
 
 /// The MXP element for a link destination, and the `href` to give it.
 fn mxp_link(dest: &str) -> Option<(char, char, String)> {
-    if let Some(command) = dest.strip_prefix("moo://cmd/") {
-        let command = urlencoding::decode(command).ok()?.into_owned();
-        return Some((SEND_OPEN, SEND_CLOSE, command));
+    let (scheme, target) = dest.split_once("://")?;
+    let (open, close, href) = if scheme == "moo" {
+        let command = target.strip_prefix("cmd/")?;
+        (
+            SEND_OPEN,
+            SEND_CLOSE,
+            urlencoding::decode(command).ok()?.into_owned(),
+        )
+    } else if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
+        (A_OPEN, A_CLOSE, dest.to_string())
+    } else {
+        return None;
+    };
+    // Decoding can introduce line breaks, terminal controls, or our private delimiters.
+    if href.chars().any(|c| c.is_control() || is_link_marker(c)) {
+        return None;
     }
-    let lower = dest.to_ascii_lowercase();
-    if lower.starts_with("http://") || lower.starts_with("https://") {
-        return Some((A_OPEN, A_CLOSE, dest.to_string()));
-    }
-    None
+    Some((open, close, href))
 }
 
 fn push_escaped(out: &mut String, c: char) {
@@ -1319,6 +1328,14 @@ return $look:mk(this, @this.contents);
     #[test]
     fn mxp_other_links_are_text() {
         assert_eq!(mxp("[thing](moo://inspect/#1)"), "\x1b[1zthing\n");
+    }
+
+    #[test]
+    fn mxp_command_links_reject_decoded_controls_and_markers() {
+        for suffix in ["%0Alook", "%1B%5B1z", "%EE%80%82", "%EE%80%80"] {
+            let input = format!("[label](moo://cmd/look{suffix})");
+            assert_eq!(mxp(&input), "\x1b[1zlabel\n");
+        }
     }
 
     #[test]

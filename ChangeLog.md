@@ -200,6 +200,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+`telnet-host`:
+
+- Deliver inbound client-data message names as strings to prevent client-supplied GMCP and MSDP
+  names from accumulating permanently in the symbol table.
+- Honor client-initiated CHARSET requests and disable both negotiated directions when a connection
+  option is turned off.
+- Limit retained GMCP support declarations to 1,024 packages per connection and reject MXP command
+  links containing decoded control characters or renderer delimiters.
+- Use the daemon's JSON boolean mode from the first GMCP message, including connections accepted
+  during host startup. MSSP now reports the actual connected-player count.
+
 `kernel`:
 
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when

@@ -110,10 +110,11 @@ async fn resolve_hostname(ip: IpAddr) -> Result<String, eyre::Error> {
 /// Per-host settings every accepted connection starts from.
 #[derive(Clone, Debug)]
 pub struct SessionSettings {
+    pub host_id: Uuid,
     /// Which telnet protocols connections implement.
     pub protocols: Arc<TelnetProtocolConfig>,
     /// The daemon's `use_boolean_returns`, fetched once the host is registered.
-    pub boolean_returns: Arc<AtomicBool>,
+    pub boolean_returns: tokio::sync::watch::Receiver<Option<bool>>,
     /// When the host started, in Unix seconds (MSSP `UPTIME`).
     pub started_at: u64,
 }
@@ -338,6 +339,12 @@ impl Listener {
                 "Accepted connection for listener"
             );
 
+            // GMCP must use the daemon's boolean mode from the first message onward.
+            let mut features = bootstrap.settings.boolean_returns.clone();
+            let boolean_returns = features
+                .wait_for(Option::is_some)
+                .await?
+                .expect("wait_for requires the feature value to be present");
             let daemon_client = bootstrap.host_services.runtime_client();
 
             let is_tls = accepted.tls_acceptor.is_some();
@@ -389,7 +396,7 @@ impl Listener {
             let settings = &bootstrap.settings;
             let mut negotiator =
                 TelnetNegotiator::new(ProtocolPolicy::from(settings.protocols.as_ref()));
-            negotiator.set_boolean_returns(settings.boolean_returns.load(Ordering::Relaxed));
+            negotiator.set_boolean_returns(boolean_returns);
             let mut codec = ConnectionCodec::new();
             codec.set_max_subneg(negotiator.max_subneg());
             // Later changes arrive as Action::SetPromptMark; this is the starting mark.
@@ -431,6 +438,7 @@ impl Listener {
                 negotiator,
                 client_data_limiter,
                 host_started_at,
+                host_id: settings.host_id,
             };
 
             tcp_connection.run().await?;

@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Socket-level tests of the telnet protocol layer (`doc/telnet-oob-protocols.md`).
+//! Socket-level tests of the telnet protocol layer.
 //!
 //! One daemon runs `Test.db` for the whole file, with four telnet hosts in front of it: passive
 //! (defaults), offers (offer on connect), full (most protocols, from a config file), and capped
@@ -818,6 +818,44 @@ fn toggling_gmcp_sends_one_verb_per_state_change() {
 
 #[test]
 #[serial(telnet_protocols)]
+fn disabling_gmcp_shuts_down_the_client_direction() {
+    let f = fixture();
+    for bidirectional in [false, true] {
+        let mut c = Client::connect(f.full);
+        c.login();
+        c.will(OPT_GMCP);
+        assert_eq!(
+            c.expect_negotiation(DO, OPT_GMCP),
+            vec![Ev::Negotiate(DO, OPT_GMCP)]
+        );
+        if bidirectional {
+            c.do_(OPT_GMCP);
+            assert_eq!(
+                c.expect_negotiation(WILL, OPT_GMCP),
+                vec![Ev::Negotiate(WILL, OPT_GMCP)]
+            );
+        }
+        wait_options(&mut c, &["{'gmcp, true}"]);
+        let mut expected = vec![];
+        if bidirectional {
+            expected.push(Ev::Negotiate(WONT, OPT_GMCP));
+        }
+        expected.push(Ev::Negotiate(DONT, OPT_GMCP));
+        assert_eq!(c.run(&set_option("gmcp", 0)), expected);
+        c.wont(OPT_GMCP);
+        c.dont(OPT_GMCP);
+        c.assert_no_bytes_for(QUIET);
+        wait_options(&mut c, &["{'gmcp, false}"]);
+        assert_eq!(
+            c.run(r#"emit_data(connection(), "gmcp", "Char.Vitals", 1);"#),
+            vec![]
+        );
+        assert_eq!(c.run(&set_option("gmcp", 0)), vec![]);
+    }
+}
+
+#[test]
+#[serial(telnet_protocols)]
 fn client_refusal_of_an_offer_does_not_loop() {
     let f = fixture();
     let mut c = Client::connect(f.full);
@@ -921,6 +959,28 @@ fn charset_offered_at_connect_sends_request_on_agreement() {
 
 #[test]
 #[serial(telnet_protocols)]
+fn client_initiated_charset_latin1_transcodes_before_login() {
+    let f = fixture();
+    let mut c = Client::connect(f.full);
+    c.will(OPT_CHARSET);
+    assert_eq!(
+        c.expect_negotiation(DO, OPT_CHARSET),
+        vec![Ev::Negotiate(DO, OPT_CHARSET)]
+    );
+    c.assert_no_bytes_for(QUIET);
+    c.subneg(OPT_CHARSET, b"\x01;ISO-8859-1");
+    assert_eq!(c.expect_subneg(OPT_CHARSET), b"\x02ISO-8859-1");
+    c.login();
+    wait_options(&mut c, &["{'charset, \"ISO-8859-1\"}"]);
+    assert_eq!(c.value_bytes(b"\"\xe9\" == \"\\u00E9\""), "1");
+    assert_eq!(
+        c.run(r#"notify(connection(), "\u00E9");"#),
+        vec![Ev::Text(b"\xe9\r\n".to_vec())]
+    );
+}
+
+#[test]
+#[serial(telnet_protocols)]
 fn charset_utf8_accepted_round_trips_non_ascii() {
     let f = fixture();
     let mut c = Client::connect(f.full);
@@ -997,7 +1057,7 @@ fn naws_sets_columns_and_rows_before_and_after_login() {
     wait_client_data(
         &mut c,
         &[&format!(
-            "{{{conn}, {{{conn}, 'client, 'attributes, ['columns -> 255, 'rows -> 48]}}}}"
+            "{{{conn}, {{{conn}, 'client, \"attributes\", ['columns -> 255, 'rows -> 48]}}}}"
         )],
     );
 
@@ -1006,7 +1066,7 @@ fn naws_sets_columns_and_rows_before_and_after_login() {
     wait_client_data(
         &mut c,
         &[&format!(
-            "{{#3, {{{conn}, 'client, 'attributes, ['columns -> 132, 'rows -> 42]}}}}"
+            "{{#3, {{{conn}, 'client, \"attributes\", ['columns -> 132, 'rows -> 42]}}}}"
         )],
     );
 }
@@ -1098,27 +1158,27 @@ fn gmcp_in_reaches_do_client_data_before_and_after_login() {
         &mut c,
         &[
             &format!(
-                "{{{conn}, {{{conn}, 'gmcp, 'Core.Hello, [\"client\" -> \"Mudlet\", \"version\" -> \"4.17\"]}}}}"
+                "{{{conn}, {{{conn}, 'gmcp, \"Core.Hello\", [\"client\" -> \"Mudlet\", \"version\" -> \"4.17\"]}}}}"
             ),
             &format!(
-                "{{{conn}, {{{conn}, 'client, 'attributes, ['client_name -> \"Mudlet\", 'client_version -> \"4.17\"]}}}}"
+                "{{{conn}, {{{conn}, 'client, \"attributes\", ['client_name -> \"Mudlet\", 'client_version -> \"4.17\"]}}}}"
             ),
             // Before login `player` is the connection; JSON true is 1 without boolean returns.
             &format!(
-                "{{{conn}, {{{conn}, 'gmcp, 'Char.Pre, [\"a\" -> {{1, 1, #-1}}, \"s\" -> \"x\"]}}}}"
+                "{{{conn}, {{{conn}, 'gmcp, \"Char.Pre\", [\"a\" -> {{1, 1, #-1}}, \"s\" -> \"x\"]}}}}"
             ),
             // After login `player` is the logged-in player.
-            &format!("{{#3, {{{conn}, 'gmcp, 'Char.Post, 7}}}}"),
+            &format!("{{#3, {{{conn}, 'gmcp, \"Char.Post\", 7}}}}"),
             // No body is delivered as the empty map.
-            &format!("{{#3, {{{conn}, 'gmcp, 'Core.Ping, []}}}}"),
+            &format!("{{#3, {{{conn}, 'gmcp, \"Core.Ping\", []}}}}"),
         ],
     );
     assert!(
-        !log.contains(&format!("{{#3, {{{conn}, 'gmcp, 'Char.Pre")),
+        !log.contains(&format!("{{#3, {{{conn}, 'gmcp, \"Char.Pre\"")),
         "pre-login message delivered as the player: {log}"
     );
     assert!(
-        !log.contains(&format!("{{{conn}, {{{conn}, 'gmcp, 'Char.Post")),
+        !log.contains(&format!("{{{conn}, {{{conn}, 'gmcp, \"Char.Post\"")),
         "post-login message delivered as the connection: {log}"
     );
     wait_options(
@@ -1227,14 +1287,14 @@ fn unknown_option_is_refused_and_forwarded_to_client_data() {
         &mut c,
         &[
             &format!(
-                "{{{conn}, {{{conn}, 'telnet, 'negotiate, [\"option\" -> 102, \"verb\" -> 'will]}}}}"
+                "{{{conn}, {{{conn}, 'telnet, \"negotiate\", [\"option\" -> 102, \"verb\" -> 'will]}}}}"
             ),
             // b"Af8C" is base64url of 01 FF 02.
             &format!(
-                "{{{conn}, {{{conn}, 'telnet, 'subneg, [\"data\" -> b\"Af8C\", \"option\" -> 102]}}}}"
+                "{{{conn}, {{{conn}, 'telnet, \"subneg\", [\"data\" -> b\"Af8C\", \"option\" -> 102]}}}}"
             ),
             &format!(
-                "{{#3, {{{conn}, 'telnet, 'negotiate, [\"option\" -> 102, \"verb\" -> 'do]}}}}"
+                "{{#3, {{{conn}, 'telnet, \"negotiate\", [\"option\" -> 102, \"verb\" -> 'do]}}}}"
             ),
         ],
     );
@@ -1311,6 +1371,10 @@ fn passive_prompt_has_no_mark() {
 #[serial(telnet_protocols)]
 fn mssp_answers_do_with_configured_and_computed_values() {
     let f = fixture();
+    let mut player = Client::connect(f.passive);
+    player.login();
+    let expected_players = player.value("length(connected_players())");
+    assert_ne!(expected_players, "0");
     let mut c = Client::connect(f.full);
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1330,7 +1394,7 @@ fn mssp_answers_do_with_configured_and_computed_values() {
     let keys: Vec<&str> = vars.iter().map(|(k, _)| k.as_str()).collect();
     assert_eq!(keys, ["NAME", "PLAYERS", "UPTIME"]);
     assert_eq!(vars[0].1, "TestMOO");
-    assert_eq!(vars[1].1, "0");
+    assert_eq!(vars[1].1, expected_players);
     let uptime: u64 = vars[2].1.parse().unwrap();
     assert!(
         uptime <= now && uptime + 600 > now,
@@ -1390,7 +1454,7 @@ fn oversized_subnegotiation_is_discarded_and_the_stream_resyncs() {
     c.gmcp("Char.Small 1");
     wait_client_data(
         &mut c,
-        &[&format!("{{#3, {{{conn}, 'gmcp, 'Char.Small, 1}}}}")],
+        &[&format!("{{#3, {{{conn}, 'gmcp, \"Char.Small\", 1}}}}")],
     );
     let log = c.value(&format!("#0:client_data_for({conn})"));
     assert!(!log.contains("Char.Big"), "{log}");
@@ -1431,7 +1495,9 @@ fn msdp_round_trip() {
     c.subneg(OPT_MSDP, b"\x01LIST\x02COMMANDS");
     wait_client_data(
         &mut c,
-        &[&format!("{{#3, {{{conn}, 'msdp, 'LIST, \"COMMANDS\"}}}}")],
+        &[&format!(
+            "{{#3, {{{conn}, 'msdp, \"LIST\", \"COMMANDS\"}}}}"
+        )],
     );
     let got = c.run(r#"emit_data(connection(), 'msdp, 'HEALTH, ["cur" -> 5, "l" -> {1, "a"}]);"#);
     assert_eq!(

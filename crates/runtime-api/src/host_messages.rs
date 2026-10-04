@@ -82,3 +82,10 @@ pub fn mk_host_pong_msg(
         })),
     }
 }
+
+/// Build a request for the current connected-player count.
+pub fn mk_get_server_status_msg() -> rpc::HostToDaemonMessage {
+    rpc::HostToDaemonMessage {
+        message: rpc::HostToDaemonMessageUnion::GetServerStatus(Box::new(rpc::GetServerStatus {})),
+    }
+}

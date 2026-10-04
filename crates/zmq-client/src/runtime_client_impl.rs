@@ -30,8 +30,8 @@ use moor_runtime_api::{
     mk_batch_world_state_msg, mk_client_data_msg, mk_client_pong_msg, mk_command_capture_msg,
     mk_command_msg, mk_connection_establish_msg, mk_delete_event_log_history_msg,
     mk_detach_host_msg, mk_detach_msg, mk_dismiss_presentation_msg, mk_eval_capture_msg,
-    mk_eval_msg, mk_get_event_log_pubkey_msg, mk_get_server_features_msg, mk_host_pong_msg,
-    mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+    mk_eval_msg, mk_get_event_log_pubkey_msg, mk_get_server_features_msg, mk_get_server_status_msg,
+    mk_host_pong_msg, mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
     mk_invoke_welcome_message_msg, mk_list_objects_msg, mk_login_command_msg, mk_out_of_band_msg,
     mk_program_msg, mk_properties_msg, mk_reattach_msg, mk_register_host_msg,
     mk_request_current_presentations_msg, mk_request_history_msg,
@@ -493,6 +493,7 @@ fn encode_host_request(host_id: Uuid, request: HostRequest) -> moor_rpc::HostToD
         HostRequest::DetachHost => mk_detach_host_msg(host_id),
         HostRequest::RequestPerformanceCounters => mk_request_performance_counters_msg(),
         HostRequest::GetServerFeatures => mk_get_server_features_msg(),
+        HostRequest::GetServerStatus => mk_get_server_status_msg(),
     }
 }
 
@@ -1429,6 +1430,11 @@ fn decode_host_reply_ref(reply: moor_rpc::DaemonToHostReplyRef<'_>) -> Result<Ho
                 counters,
             }
         }
+        U::ServerStatus(status) => HostReply::ServerStatus {
+            connected_players: status.connected_players().map_err(|e| {
+                RpcError::CouldNotDecode(format!("Invalid connected-player count: {e}"))
+            })?,
+        },
         U::ServerFeatures(sf) => {
             let features = api::ServerFeatures {
                 persistent_tasks: sf.persistent_tasks().unwrap_or(false),
