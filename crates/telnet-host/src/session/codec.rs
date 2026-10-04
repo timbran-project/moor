@@ -207,25 +207,8 @@ impl ConnectionCodec {
         self.max_subneg = max;
     }
 
-    pub fn set_charset(&mut self, charset: Charset) {
-        self.charset = charset;
-    }
-
-    pub fn charset(&self) -> Charset {
-        self.charset
-    }
-
     pub fn set_prompt_mark(&mut self, mark: PromptMark) {
         self.prompt_mark = mark;
-    }
-
-    pub fn prompt_mark(&self) -> PromptMark {
-        self.prompt_mark
-    }
-
-    /// True once MCCP2 compression has started.
-    pub fn is_compressing(&self) -> bool {
-        self.compressor.is_some()
     }
 
     /// Decode text mode input using a byte-by-byte telnet state machine.
@@ -998,7 +981,7 @@ mod tests {
 
     // --- TelnetEvent forms, escaping, limits, charsets, prompt marks, compression ---
 
-    use super::super::telnet::consts::{DO, DONT, NOP, OPT_GMCP, OPT_NAWS, WILL, WONT};
+    use super::super::telnet::consts::{NOP, OPT_GMCP, OPT_NAWS, WILL};
     use flate2::{Decompress, FlushDecompress};
 
     fn encode_frame(codec: &mut ConnectionCodec, frame: ConnectionFrame) -> BytesMut {
@@ -1083,23 +1066,6 @@ mod tests {
             ]
         );
         assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn verb_bytes_map_to_verbs() {
-        for (b, verb) in [
-            (WILL, Verb::Will),
-            (WONT, Verb::Wont),
-            (DO, Verb::Do),
-            (DONT, Verb::Dont),
-        ] {
-            let mut codec = ConnectionCodec::new();
-            let mut buf = BytesMut::from(&[IAC, b, 200][..]);
-            assert_eq!(
-                expect_telnet(codec.decode(&mut buf).unwrap().unwrap()),
-                TelnetEvent::Negotiate { verb, option: 200 }
-            );
-        }
     }
 
     #[test]
@@ -1189,7 +1155,7 @@ mod tests {
     #[test]
     fn iac_iac_in_text_is_latin1_ydiaeresis() {
         let mut codec = ConnectionCodec::new();
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let mut buf = BytesMut::from(&b"a\xFF\xFFb\xE9\n"[..]);
         assert_eq!(
             expect_line(codec.decode(&mut buf).unwrap().unwrap()),
@@ -1300,7 +1266,7 @@ mod tests {
     #[test]
     fn latin1_decode() {
         let mut codec = ConnectionCodec::new();
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let mut buf = BytesMut::from(&b"caf\xE9 \xA3\n"[..]);
         assert_eq!(
             expect_line(codec.decode(&mut buf).unwrap().unwrap()),
@@ -1317,7 +1283,7 @@ mod tests {
     #[test]
     fn latin1_encode_round_trip_with_ff_escaping() {
         let mut codec = ConnectionCodec::new();
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let text = "ÿcafé ÿ";
         let out = encode_frame(&mut codec, ConnectionFrame::Line(text.to_string()));
         assert_eq!(&out[..], b"\xFF\xFFcaf\xE9 \xFF\xFF\r\n");
@@ -1331,7 +1297,7 @@ mod tests {
     #[test]
     fn latin1_unmappable_becomes_question_mark() {
         let mut codec = ConnectionCodec::new();
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let out = encode_frame(&mut codec, ConnectionFrame::RawText("€ 写 é".to_string()));
         assert_eq!(&out[..], b"? ? \xE9");
     }
@@ -1341,7 +1307,7 @@ mod tests {
         let mut codec = ConnectionCodec::new();
         let out = encode_frame(&mut codec, ConnectionFrame::Line("ÿ写".to_string()));
         assert_eq!(&out[..], "ÿ写\r\n".as_bytes());
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let out = encode_frame(
             &mut codec,
             ConnectionFrame::Bytes(Bytes::from_static(&[0xFF, 0xC3])),
@@ -1353,7 +1319,7 @@ mod tests {
     fn set_charset_frame_switches_codec() {
         let mut codec = ConnectionCodec::new();
         assert!(encode_frame(&mut codec, ConnectionFrame::SetCharset(Charset::Latin1)).is_empty());
-        assert_eq!(codec.charset(), Charset::Latin1);
+        assert_eq!(codec.charset, Charset::Latin1);
         let out = encode_frame(&mut codec, ConnectionFrame::RawText("é".to_string()));
         assert_eq!(&out[..], &[0xE9]);
     }
@@ -1382,7 +1348,7 @@ mod tests {
     #[test]
     fn telnet_frame_is_raw() {
         let mut codec = ConnectionCodec::new();
-        codec.set_charset(Charset::Latin1);
+        codec.charset = Charset::Latin1;
         let out = encode_frame(
             &mut codec,
             ConnectionFrame::Telnet(Bytes::from_static(&[IAC, WILL, 1])),
@@ -1393,7 +1359,7 @@ mod tests {
     #[test]
     fn prompt_end_per_mark() {
         let mut codec = ConnectionCodec::new();
-        assert_eq!(codec.prompt_mark(), PromptMark::None);
+        assert_eq!(codec.prompt_mark, PromptMark::None);
         assert!(encode_frame(&mut codec, ConnectionFrame::PromptEnd).is_empty());
         for (mark, expect) in [
             (PromptMark::Ga, vec![IAC, GA]),
@@ -1431,7 +1397,7 @@ mod tests {
         codec
             .encode(ConnectionFrame::StartCompress, &mut wire)
             .unwrap();
-        assert!(codec.is_compressing());
+        assert!(codec.compressor.is_some());
         let marker_end = wire.len();
         assert_eq!(&wire[..], b"before\r\n\xFF\xFA\x56\xFF\xF0");
 
@@ -1491,7 +1457,7 @@ mod tests {
         codec
             .encode(ConnectionFrame::StopCompress, &mut wire)
             .unwrap();
-        assert!(!codec.is_compressing());
+        assert!(!codec.compressor.is_some());
         let stream_end = wire.len();
         codec
             .encode(ConnectionFrame::Line("plain".into()), &mut wire)

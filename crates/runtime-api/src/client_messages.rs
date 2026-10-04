@@ -145,7 +145,7 @@ pub fn mk_client_data_msg(
     auth_token: Option<&AuthToken>,
     handler_object: &Obj,
     namespace: &Symbol,
-    kind: &Symbol,
+    kind: &str,
     payload: &Var,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     Some(rpc::HostClientToDaemonMessage {
@@ -154,7 +154,7 @@ pub fn mk_client_data_msg(
             auth_token: auth_token.map(auth_token_fb),
             handler_object: obj_fb(handler_object),
             data_namespace: symbol_fb(namespace),
-            kind: symbol_fb(kind),
+            kind: kind.to_string(),
             payload: var_fb(payload)?,
         })),
     })

@@ -22,7 +22,7 @@ use std::{
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{SchedulerError, SchedulerError::CompilationError, Session};
 use moor_compiler::compile;
-use moor_var::{List, Obj, Symbol, Var, v_empty_str, v_obj, v_sym};
+use moor_var::{List, Obj, Symbol, Var, v_empty_str, v_obj, v_str, v_sym};
 
 use crate::tasks::scheduler::{Scheduler, SchedulerState};
 use crate::tasks::world_state_action::{
@@ -375,11 +375,11 @@ impl SchedulerClient {
         player: &Obj,
         authority_principal: &Obj,
         namespace: Symbol,
-        kind: Symbol,
+        kind: String,
         payload: Var,
         session: Arc<dyn Session>,
     ) -> Result<TaskHandle, SchedulerError> {
-        let args = List::from_iter([v_obj(*connection), v_sym(namespace), v_sym(kind), payload]);
+        let args = List::from_iter([v_obj(*connection), v_sym(namespace), v_str(&kind), payload]);
         self.submit_handler_task(
             *handler_object,
             *DO_CLIENT_DATA,

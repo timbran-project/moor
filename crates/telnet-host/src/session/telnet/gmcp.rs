@@ -14,10 +14,9 @@
 //! GMCP (Generic MUD Communication Protocol, option 201) message encoding and decoding,
 //! `Core.Hello` and `Core.Supports.*` handling, and package gating.
 //!
-//! A message is `<Package.Name>[ <json>]`. The JSON mapping follows the contract table in
-//! `doc/telnet-oob-protocols.md`.
+//! A message is `<Package.Name>[ <json>]`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use moor_var::{
     Map, Var, Variant,
@@ -26,15 +25,11 @@ use moor_var::{
 };
 use serde_json::Value as JsonValue;
 
-/// Why a value could not be turned into JSON.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct JsonError(pub String);
-
 /// Why an outbound message was not built.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GmcpError {
-    InvalidPackageName(String),
-    Json(JsonError),
+    InvalidPackageName,
+    Json(String),
 }
 
 /// True when `name` matches `[A-Za-z0-9_.-]{1,128}`.
@@ -49,16 +44,15 @@ pub fn valid_package_name(name: &str) -> bool {
 /// map is sent as the bare package name.
 pub fn encode(kind: &str, payload: &Var) -> Result<Vec<u8>, GmcpError> {
     if !valid_package_name(kind) {
-        return Err(GmcpError::InvalidPackageName(kind.to_string()));
+        return Err(GmcpError::InvalidPackageName);
     }
     let mut body = kind.as_bytes().to_vec();
     if is_empty_map(payload) {
         return Ok(body);
     }
-    let value = var_to_json(payload).map_err(|e| GmcpError::Json(JsonError(e.to_string())))?;
+    let value = var_to_json(payload).map_err(|e| GmcpError::Json(e.to_string()))?;
     body.push(b' ');
-    serde_json::to_writer(&mut body, &value)
-        .map_err(|e| GmcpError::Json(JsonError(e.to_string())))?;
+    serde_json::to_writer(&mut body, &value).map_err(|e| GmcpError::Json(e.to_string()))?;
     Ok(body)
 }
 
@@ -98,6 +92,9 @@ pub fn decode(data: &[u8], boolean_returns: bool) -> Option<Message> {
     })
 }
 
+/// Bound retained client input across repeated `Core.Supports.Add` messages.
+const MAX_SUPPORTED_PACKAGES: usize = 1024;
+
 /// The packages a client declared with `Core.Supports.*`. Names compare case-insensitively.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GmcpSupports {
@@ -108,16 +105,6 @@ pub struct GmcpSupports {
 }
 
 impl GmcpSupports {
-    pub fn is_declared(&self) -> bool {
-        self.declared
-    }
-
-    pub fn version(&self, package: &str) -> Option<i64> {
-        self.packages
-            .get(&package.to_ascii_lowercase())
-            .map(|(_, v)| *v)
-    }
-
     /// Whether a message for `package` may be sent: always before any declaration; afterwards
     /// when the package or one of its parents is declared. `Core` is always allowed.
     pub fn wants(&self, package: &str) -> bool {
@@ -142,33 +129,54 @@ impl GmcpSupports {
 
     /// Apply a `Core.Supports.Set|Add|Remove` message. Returns true when the set changed.
     pub fn apply(&mut self, message: &str, payload: &Var) -> bool {
-        let entries = supports_entries(payload);
-        let before = self.clone();
         match message.to_ascii_lowercase().as_str() {
             "core.supports.set" => {
-                self.declared = true;
-                self.packages.clear();
-                self.insert_all(entries);
+                let mut replacement = Self {
+                    declared: true,
+                    ..Self::default()
+                };
+                replacement.insert_all(payload);
+                if *self == replacement {
+                    return false;
+                }
+                *self = replacement;
+                true
             }
             "core.supports.add" => {
+                let changed = self.insert_all(payload) || !self.declared;
                 self.declared = true;
-                self.insert_all(entries);
+                changed
             }
             "core.supports.remove" => {
-                for (name, _) in entries {
-                    self.packages.remove(&name.to_ascii_lowercase());
+                let mut changed = false;
+                for (name, _) in supports_entries(payload) {
+                    changed |= self.packages.remove(&name.to_ascii_lowercase()).is_some();
                 }
+                changed
             }
-            _ => return false,
+            _ => false,
         }
-        *self != before
     }
 
-    fn insert_all(&mut self, entries: Vec<(String, i64)>) {
-        for (name, version) in entries {
-            self.packages
-                .insert(name.to_ascii_lowercase(), (name, version));
+    fn insert_all(&mut self, payload: &Var) -> bool {
+        let mut changed = false;
+        for (name, version) in supports_entries(payload) {
+            let has_capacity = self.packages.len() < MAX_SUPPORTED_PACKAGES;
+            match self.packages.entry(name.to_ascii_lowercase()) {
+                Entry::Occupied(mut entry) => {
+                    if entry.get().0 != name || entry.get().1 != version {
+                        entry.insert((name, version));
+                        changed = true;
+                    }
+                }
+                Entry::Vacant(entry) if has_capacity => {
+                    entry.insert((name, version));
+                    changed = true;
+                }
+                Entry::Vacant(_) => {}
+            }
         }
+        changed
     }
 
     /// The `gmcp_supports` attribute: MAP STR -> INT.
@@ -183,14 +191,13 @@ impl GmcpSupports {
 }
 
 /// `["Char 1", "Room 1"]` -> `[("Char", 1), ("Room", 1)]`. A missing or bad version is 1.
-fn supports_entries(payload: &Var) -> Vec<(String, i64)> {
-    let Some(list) = payload.as_list() else {
-        return Vec::new();
-    };
-    list.iter()
+fn supports_entries(payload: &Var) -> impl Iterator<Item = (String, i64)> + '_ {
+    payload
+        .as_list()
+        .into_iter()
+        .flat_map(|list| list.iter())
         .filter_map(|item| {
-            let s = item.as_string()?.trim().to_string();
-            let mut parts = s.split_ascii_whitespace();
+            let mut parts = item.as_string()?.split_ascii_whitespace();
             let name = parts.next()?;
             if !valid_package_name(name) {
                 return None;
@@ -198,7 +205,6 @@ fn supports_entries(payload: &Var) -> Vec<(String, i64)> {
             let version = parts.next().and_then(|v| v.parse().ok()).unwrap_or(1);
             Some((name.to_string(), version))
         })
-        .collect()
 }
 
 /// `Core.Hello {"client": ..., "version": ...}` -> (client, version).
@@ -220,7 +226,6 @@ fn map_string(map: &Map, key: &str) -> Option<String> {
         })
 }
 
-/// Minimal MOO <-> JSON conversion following the contract table.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,7 +267,7 @@ mod tests {
     fn encode_rejects_bad_name_and_unconvertible() {
         assert!(matches!(
             encode("bad name", &v_int(1)),
-            Err(GmcpError::InvalidPackageName(_))
+            Err(GmcpError::InvalidPackageName)
         ));
         // MOO values cannot hold non-finite floats, so that row is not reachable here.
         for v in [v_err(E_PERM), v_binary(vec![1])] {
@@ -295,7 +300,6 @@ mod tests {
         // Invalid JSON is the raw text.
         let m = decode(b"Comm.Say hello there", false).unwrap();
         assert_eq!(m.payload, v_str("hello there"));
-        assert!(m.payload.as_string() == Some("hello there"));
         // Invalid names are dropped.
         assert!(decode(b"", false).is_none());
         assert!(decode(b"bad/name 1", false).is_none());
@@ -307,7 +311,7 @@ mod tests {
     #[test]
     fn supports_set_add_remove() {
         let mut s = GmcpSupports::default();
-        assert!(!s.is_declared());
+        assert!(!s.declared);
         assert!(s.wants("Anything.At.All"));
 
         let set = v_list(&[
@@ -317,24 +321,44 @@ mod tests {
             v_int(5),
         ]);
         assert!(s.apply("Core.Supports.Set", &set));
-        assert!(s.is_declared());
-        assert_eq!(s.version("char"), Some(1));
-        assert_eq!(s.version("Room"), Some(2));
-        assert_eq!(s.version("Bogus/1"), None);
+        assert!(s.declared);
+        assert_eq!(s.packages.get("char").map(|(_, version)| *version), Some(1));
+        assert_eq!(s.packages.get("room").map(|(_, version)| *version), Some(2));
+        assert_eq!(s.packages.get("bogus/1").map(|(_, version)| *version), None);
         // Applying the same set again is not a change.
         assert!(!s.apply("Core.Supports.Set", &set));
 
         assert!(s.apply("Core.Supports.Add", &v_list(&[v_str("Comm.Channel")])));
-        assert_eq!(s.version("Comm.Channel"), Some(1));
+        assert_eq!(
+            s.packages.get("comm.channel").map(|(_, version)| *version),
+            Some(1)
+        );
 
         assert!(s.apply("Core.Supports.Remove", &v_list(&[v_str("Room")])));
-        assert_eq!(s.version("Room"), None);
+        assert_eq!(s.packages.get("room").map(|(_, version)| *version), None);
 
         // Set replaces.
         assert!(s.apply("Core.Supports.Set", &v_list(&[v_str("IRE.Rift 1")])));
-        assert_eq!(s.version("Char"), None);
+        assert_eq!(s.packages.get("char").map(|(_, version)| *version), None);
         assert_eq!(s.to_var(), v_map(&[(v_str("IRE.Rift"), v_int(1))]));
         assert!(!s.apply("Core.Hello", &v_list(&[])));
+    }
+
+    #[test]
+    fn supports_limit_allows_updates_and_reclaims_removed_entries() {
+        let mut supports = GmcpSupports::default();
+        let entries: Vec<_> = (0..MAX_SUPPORTED_PACKAGES)
+            .map(|i| v_str(&format!("Package{i} 1")))
+            .collect();
+        assert!(supports.apply("Core.Supports.Set", &v_list(&entries)));
+        assert!(!supports.apply("Core.Supports.Add", &v_list(&[v_str("Overflow 1")])));
+        assert!(!supports.wants("Overflow"));
+        assert!(supports.apply("Core.Supports.Add", &v_list(&[v_str("Package0 2")])));
+        assert_eq!(supports.packages.get("package0").unwrap().1, 2);
+        assert!(supports.apply("Core.Supports.Remove", &v_list(&[v_str("Package0")])));
+        assert!(supports.apply("Core.Supports.Add", &v_list(&[v_str("Overflow 1")])));
+        assert!(supports.wants("Overflow"));
+        assert_eq!(supports.packages.len(), MAX_SUPPORTED_PACKAGES);
     }
 
     #[test]
@@ -358,7 +382,7 @@ mod tests {
             "Core.Supports.Remove",
             &v_list(&[v_str("Char"), v_str("Room.Info")]),
         );
-        assert!(s.is_declared());
+        assert!(s.declared);
         assert!(!s.wants("Char.Vitals"));
         assert!(s.wants("Core.Goodbye"));
     }

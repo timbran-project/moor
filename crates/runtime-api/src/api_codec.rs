@@ -75,6 +75,9 @@ pub fn decode_host_request(
         moor_rpc::HostToDaemonMessageUnionRef::GetServerFeatures(_) => {
             Ok(HostRequest::GetServerFeatures)
         }
+        moor_rpc::HostToDaemonMessageUnionRef::GetServerStatus(_) => {
+            Ok(HostRequest::GetServerStatus)
+        }
     }
 }
 
@@ -146,6 +149,11 @@ pub fn encode_host_reply(reply: HostReply) -> moor_rpc::DaemonToHostReply {
                 )),
             }
         }
+        HostReply::ServerStatus { connected_players } => moor_rpc::DaemonToHostReply {
+            reply: moor_rpc::DaemonToHostReplyUnion::ServerStatus(Box::new(
+                moor_rpc::ServerStatus { connected_players },
+            )),
+        },
         HostReply::ServerFeatures(features) => moor_rpc::DaemonToHostReply {
             reply: moor_rpc::DaemonToHostReplyUnion::ServerFeatures(Box::new(
                 moor_rpc::ServerFeatures {
@@ -936,7 +944,7 @@ pub fn decode_client_request(
                 .transpose()?;
             let handler_object = extract_obj_rpc(&data, "handler_object", |d| d.handler_object())?;
             let namespace = extract_symbol_rpc(&data, "data_namespace", |d| d.data_namespace())?;
-            let kind = extract_symbol_rpc(&data, "kind", |d| d.kind())?;
+            let kind = data.kind().rpc_err()?.to_string();
             let payload = extract_var_rpc(&data, "payload", |d| d.payload())?;
             Ok(ClientRequest::ClientData {
                 client_token,
@@ -2159,7 +2167,7 @@ mod tests {
                 auth.as_ref(),
                 &Obj::mk_id(0),
                 &Symbol::mk("gmcp"),
-                &Symbol::mk("Char.Vitals"),
+                "Char.Vitals",
                 &payload,
             )
             .unwrap();
@@ -2178,7 +2186,7 @@ mod tests {
             assert_eq!(auth_token, auth);
             assert_eq!(handler_object, Obj::mk_id(0));
             assert_eq!(namespace, Symbol::mk("gmcp"));
-            assert_eq!(kind, Symbol::mk("Char.Vitals"));
+            assert_eq!(kind, "Char.Vitals");
             assert_eq!(decoded_payload, payload);
         }
     }

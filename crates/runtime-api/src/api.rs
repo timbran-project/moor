@@ -438,6 +438,7 @@ pub enum HostRequest {
     DetachHost,
     RequestPerformanceCounters,
     GetServerFeatures,
+    GetServerStatus,
 }
 
 /// Replies the daemon returns to a host.
@@ -452,6 +453,9 @@ pub enum HostReply {
         counters: Vec<CounterCategory>,
     },
     ServerFeatures(ServerFeatures),
+    ServerStatus {
+        connected_players: u64,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -564,7 +568,8 @@ pub enum ClientRequest {
         auth_token: Option<AuthToken>,
         handler_object: Obj,
         namespace: Symbol,
-        kind: Symbol,
+        /// Client-supplied message name; never interned as a symbol.
+        kind: String,
         payload: Var,
     },
     Eval {

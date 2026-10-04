@@ -140,6 +140,9 @@ impl RuntimeApi for RpcMessageHandler {
                     counters,
                 })
             }
+            HostRequest::GetServerStatus => Ok(HostReply::ServerStatus {
+                connected_players: self.connections.connected_players(false).len() as u64,
+            }),
             HostRequest::GetServerFeatures => {
                 let features = self.config.features.as_ref();
                 Ok(HostReply::ServerFeatures(ServerFeatures {

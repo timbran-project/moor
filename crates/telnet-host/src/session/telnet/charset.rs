@@ -79,8 +79,6 @@ impl Charset {
 pub const REQUEST: u8 = 1;
 pub const ACCEPTED: u8 = 2;
 pub const REJECTED: u8 = 3;
-pub const TTABLE_IS: u8 = 4;
-pub const TTABLE_REJECTED: u8 = 5;
 
 /// The charsets we ask for, in order of preference.
 pub const OFFERED: [Charset; 2] = [Charset::Utf8, Charset::Latin1];

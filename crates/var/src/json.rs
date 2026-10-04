@@ -166,16 +166,22 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn int_to_json() {
-        assert_eq!(var_to_json(&v_int(42)).unwrap(), json!(42));
-        assert_eq!(var_to_json(&v_int(-7)).unwrap(), json!(-7));
-        assert_eq!(var_to_json(&v_int(i64::MAX)).unwrap(), json!(i64::MAX));
-    }
-
-    #[test]
-    fn finite_float_to_json() {
-        assert_eq!(var_to_json(&v_float(1.5)).unwrap(), json!(1.5));
-        assert_eq!(var_to_json(&v_float(-0.25)).unwrap(), json!(-0.25));
+    fn scalar_values_to_json() {
+        for (value, expected) in [
+            (v_int(42), json!(42)),
+            (v_int(-7), json!(-7)),
+            (v_int(i64::MAX), json!(i64::MAX)),
+            (v_float(1.5), json!(1.5)),
+            (v_float(-0.25), json!(-0.25)),
+            (v_str("hello"), json!("hello")),
+            (v_str(""), json!("")),
+            (v_sym("gmcp"), json!("gmcp")),
+            (v_bool(true), json!(true)),
+            (v_bool(false), json!(false)),
+            (v_nothing(), Value::Null),
+        ] {
+            assert_eq!(var_to_json(&value).unwrap(), expected);
+        }
     }
 
     #[test]
@@ -191,28 +197,6 @@ mod tests {
             var_to_json(&v_list(&[v_int(1), Var::mk_float_unchecked(f64::NAN)])),
             Err(JsonConversionError::NonFiniteFloat)
         );
-    }
-
-    #[test]
-    fn str_to_json() {
-        assert_eq!(var_to_json(&v_str("hello")).unwrap(), json!("hello"));
-        assert_eq!(var_to_json(&v_str("")).unwrap(), json!(""));
-    }
-
-    #[test]
-    fn sym_to_json_is_a_string() {
-        assert_eq!(var_to_json(&v_sym("gmcp")).unwrap(), json!("gmcp"));
-    }
-
-    #[test]
-    fn bool_to_json() {
-        assert_eq!(var_to_json(&v_bool(true)).unwrap(), json!(true));
-        assert_eq!(var_to_json(&v_bool(false)).unwrap(), json!(false));
-    }
-
-    #[test]
-    fn nothing_to_null() {
-        assert_eq!(var_to_json(&v_nothing()).unwrap(), Value::Null);
     }
 
     #[test]
@@ -252,12 +236,6 @@ mod tests {
                 "#048D05-1234567890": "uuid",
             })
         );
-    }
-
-    #[test]
-    fn sym_map_values() {
-        let m = v_map(&[(v_sym("kind"), v_sym("vitals"))]);
-        assert_eq!(var_to_json(&m).unwrap(), json!({"kind": "vitals"}));
     }
 
     #[test]

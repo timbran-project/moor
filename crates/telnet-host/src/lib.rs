@@ -25,7 +25,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64},
     },
     time::SystemTime,
 };
@@ -42,8 +42,8 @@ use moor_var::SYSTEM_OBJECT;
 use moor_zmq_client::{
     ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
 };
-use tokio::select;
-use tracing::{info, warn};
+use tokio::{select, sync::watch};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::health::spawn_health_check;
@@ -125,12 +125,14 @@ async fn run_with_host_services(
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or_default();
+    let (feature_sender, boolean_returns) =
+        watch::channel((!config.protocols.gmcp).then_some(false));
     let settings = SessionSettings {
+        host_id,
         protocols: Arc::new(config.protocols.clone()),
-        boolean_returns: Arc::new(AtomicBool::new(false)),
+        boolean_returns,
         started_at,
     };
-    let boolean_returns = settings.boolean_returns.clone();
 
     let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
         runtime.kill_switch.clone(),
@@ -177,7 +179,8 @@ async fn run_with_host_services(
 
     // Inbound GMCP JSON booleans follow the daemon's `use_boolean_returns`.
     if config.protocols.gmcp {
-        fetch_boolean_returns(host_id, host_services.as_ref(), &boolean_returns).await;
+        let boolean_returns = fetch_boolean_returns(host_id, host_services.as_ref()).await?;
+        feature_sender.send_replace(Some(boolean_returns));
     }
 
     let host_listen_loop = process_hosts_events_with_services(
@@ -203,21 +206,14 @@ async fn run_with_host_services(
     Ok(())
 }
 
-async fn fetch_boolean_returns(
-    host_id: Uuid,
-    host_services: &dyn HostServices,
-    boolean_returns: &AtomicBool,
-) {
+async fn fetch_boolean_returns(host_id: Uuid, host_services: &dyn HostServices) -> Result<bool> {
     match host_services
         .runtime_client()
         .host_call(host_id, HostRequest::GetServerFeatures)
-        .await
+        .await?
     {
-        Ok(HostReply::ServerFeatures(features)) => {
-            boolean_returns.store(features.use_boolean_returns, Ordering::Relaxed);
-        }
-        Ok(other) => warn!(?other, "unexpected reply to GetServerFeatures"),
-        Err(e) => warn!("unable to fetch server features: {e}"),
+        HostReply::ServerFeatures(features) => Ok(features.use_boolean_returns),
+        other => bail!("Unexpected reply to GetServerFeatures: {other:?}"),
     }
 }
 

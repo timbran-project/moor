@@ -358,6 +358,45 @@ mod tests {
     }
 
     #[test]
+    fn server_status_counts_unique_logged_in_players() {
+        let env = setup_test_environment();
+        let host_id = Uuid::new_v4();
+        let count = || {
+            let reply = env
+                .transport
+                .process_host_message(
+                    env.message_handler.as_ref(),
+                    host_id,
+                    moor_runtime_api::mk_get_server_status_msg(),
+                )
+                .unwrap();
+            let moor_rpc::DaemonToHostReplyUnion::ServerStatus(status) = reply.reply else {
+                panic!("expected server status");
+            };
+            status.connected_players
+        };
+        let first = Uuid::new_v4();
+        let (first_token, _) = establish_connection(&env, first, "127.0.0.1:8080", 8080);
+        assert_eq!(count(), 0);
+        login_wizard(&env, first, &first_token);
+        assert_eq!(count(), 1);
+        let second = Uuid::new_v4();
+        let (second_token, _, _) = logged_in_wizard(&env, second);
+        assert_eq!(count(), 1);
+        for (id, token, expected) in [(first, first_token, 1), (second, second_token, 0)] {
+            env.transport
+                .process_client_message(
+                    env.message_handler.as_ref(),
+                    env.scheduler_client.clone(),
+                    id,
+                    mk_detach_msg(&token, true),
+                )
+                .unwrap();
+            assert_eq!(count(), expected);
+        }
+    }
+
+    #[test]
     fn test_host_attach_detach_lifecycle() {
         let env = setup_test_environment();
 
@@ -2464,9 +2503,7 @@ mod tests {
         }
     }
 
-    /// Install `#0:do_client_data`, which appends `{player, caller_perms(), args}` to
-    /// `#0.client_data_log`. Returns an eval helper bound to a wizard on its own client.
-    fn install_client_data_recorder(env: &TestEnvironment) -> impl Fn(&str) -> moor_var::Var {
+    fn wizard_eval(env: &TestEnvironment) -> (Obj, impl Fn(&str) -> moor_var::Var) {
         let wizard_client = Uuid::new_v4();
         let (_token, auth_token, wizard) = logged_in_wizard(env, wizard_client);
         let eval = move |code: &str| {
@@ -2486,6 +2523,12 @@ mod tests {
                 .unwrap();
             captured_success(&reply).0
         };
+        (wizard, eval)
+    }
+
+    /// Install a recorder for the hook arguments and execution identity.
+    fn install_client_data_recorder(env: &TestEnvironment) -> impl Fn(&str) -> moor_var::Var {
+        let (wizard, eval) = wizard_eval(env);
         eval(&format!(
             "add_property(#0, \"client_data_log\", {{}}, {{{wizard}, \"\"}}); \
              add_verb(#0, {{{wizard}, \"rxd\", \"do_client_data\"}}, {{\"this\", \"none\", \"this\"}});"
@@ -2541,7 +2584,7 @@ mod tests {
                 auth_token,
                 &SYSTEM_OBJECT,
                 &Symbol::mk("gmcp"),
-                &Symbol::mk("Core.Hello"),
+                "Core.Hello",
                 payload,
             )
             .unwrap(),
@@ -2552,7 +2595,7 @@ mod tests {
         moor_var::v_list(&[
             moor_var::v_obj(connection),
             moor_var::v_sym("gmcp"),
-            moor_var::v_sym("Core.Hello"),
+            moor_var::v_str("Core.Hello"),
             payload.clone(),
         ])
     }
@@ -2662,18 +2705,18 @@ mod tests {
 
         let reply = send_client_data(&env, client_id, &client_token, None, &moor_var::v_int(1))
             .expect("ClientData should be accepted without a hook verb");
-        assert!(matches!(
-            reply.reply,
-            moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(_)
-        ));
-
-        // Use a second ClientData, after installing the hook, as a barrier: once it has run,
-        // the first task has long since ended.
-        let eval = install_client_data_recorder(&env);
-        send_client_data(&env, client_id, &client_token, None, &moor_var::v_int(2))
-            .expect("Second ClientData should be accepted");
-        wait_for_client_data_log(&eval, 1);
-        std::thread::sleep(Duration::from_millis(50));
+        let moor_rpc::DaemonToClientReplyUnion::TaskSubmitted(task) = reply.reply else {
+            panic!("expected TaskSubmitted");
+        };
+        let (_, eval) = wizard_eval(&env);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while eval(&format!("return valid_task({});", task.task_id)).is_true() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "client-data task did not finish"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
 
         let client_events: Vec<_> = env
             .transport

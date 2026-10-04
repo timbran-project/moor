@@ -13,11 +13,11 @@
 
 //! Per-client telnet session state machine, daemon RPC flow, and terminal output.
 
-pub mod codec;
+pub(crate) mod codec;
 mod djot_formatter;
 mod moo_highlighter;
 mod protocol;
-pub mod telnet;
+pub(crate) mod telnet;
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -46,7 +46,8 @@ use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
         BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
-        ClientReply, ClientRequest, ConnectType as ApiConnectType, InvocationMode,
+        ClientReply, ClientRequest, ConnectType as ApiConnectType, HostReply, HostRequest,
+        InvocationMode,
     },
 };
 use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
@@ -161,6 +162,7 @@ pub(crate) struct TelnetConnection {
     pub(crate) client_data_limiter: ClientDataLimiter,
     /// When the host started, Unix seconds (MSSP `UPTIME`).
     pub(crate) host_started_at: u64,
+    pub(crate) host_id: Uuid,
 }
 
 /// The input modes the telnet session can be in.
@@ -554,14 +556,28 @@ impl TelnetConnection {
         if actions.is_empty() {
             return Ok(());
         }
+        let players = if actions.iter().any(|a| matches!(a, Action::MsspRequest)) {
+            match self
+                .daemon_client
+                .host_call(self.host_id, HostRequest::GetServerStatus)
+                .await
+            {
+                Ok(HostReply::ServerStatus { connected_players }) => Some(connected_players),
+                result => {
+                    warn!(?result, "Unable to get server status for MSSP");
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let ctx = PlanContext {
             client_token: &self.client_token,
             auth_token: self.auth_token.as_ref(),
             handler_object: self.handler_object,
             passive: self.negotiator.is_passive(),
             disable_oob: self.disable_oob,
-            // The host has no request for the connected player count.
-            players: 0,
+            players,
             uptime: self.host_started_at,
             now: Instant::now(),
         };
@@ -609,8 +625,7 @@ impl TelnetConnection {
 
     /// Ask the negotiator to enable or disable a telnet option from `set_connection_option`.
     async fn request_option(&mut self, option: u8, enable: bool) -> Result<(), eyre::Error> {
-        let side = TelnetNegotiator::primary_side(option);
-        let actions = self.negotiator.request(option, side, enable);
+        let actions = self.negotiator.request_option(option, enable);
         self.apply_actions(actions).await
     }
 

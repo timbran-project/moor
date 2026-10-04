@@ -17,7 +17,7 @@
 //!
 //! Nothing here performs I/O. The codec turns bytes into [`TelnetEvent`]s; the
 //! [`TelnetNegotiator`] turns events and local requests into [`Action`]s, which the session
-//! applies. See `doc/telnet-oob-protocols.md` for the contract.
+//! applies.
 
 pub mod charset;
 pub mod consts;
