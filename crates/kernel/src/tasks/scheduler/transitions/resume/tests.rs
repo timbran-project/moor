@@ -112,6 +112,7 @@ fn check_failed_wakeup(failure: Failure) {
         None,
     );
     let mut lc = scheduler.lifecycle.lock();
+    lc.state = crate::tasks::scheduler::lifecycle::SchedulerState::Running;
     let now = SystemTime::now();
     let interval = Duration::from_secs(60);
     let schedule_id = lc
@@ -399,4 +400,377 @@ fn expired_retry_uses_retry_session_preparation() {
         Ok((71, Err(SchedulerError::CouldNotStartTask)))
     ));
     assert!(!scheduler.handle_task_exists(71));
+}
+
+#[derive(Clone, Copy, Debug)]
+enum WakeSource {
+    Input,
+    WorkerValue,
+    WorkerError,
+    Explicit,
+    Checkpoint,
+    Compaction,
+}
+
+impl WakeSource {
+    fn condition(self, request: Uuid) -> WakeCondition {
+        match self {
+            Self::Input => WakeCondition::Input(request),
+            Self::WorkerValue | Self::WorkerError => WakeCondition::Worker(request),
+            Self::Explicit => WakeCondition::Never,
+            Self::Checkpoint => WakeCondition::Checkpoint(9),
+            Self::Compaction => WakeCondition::StorageCompaction(9),
+        }
+    }
+
+    fn deliver(self, scheduler: &Scheduler, request: Uuid) {
+        use crate::tasks::workers::WorkerResponse;
+        use moor_common::{
+            model::{ObjFlag, TaskPermissions},
+            tasks::WorkerError,
+        };
+        use moor_var::v_bool_int;
+        match self {
+            Self::Input => {
+                scheduler
+                    .submit_task_input_inner(SYSTEM_OBJECT, SYSTEM_OBJECT, request, v_int(42))
+                    .unwrap();
+            }
+            Self::WorkerValue => scheduler.handle_worker_response(WorkerResponse::Response {
+                request_id: request,
+                response: v_int(42),
+            }),
+            Self::WorkerError => scheduler.handle_worker_response(WorkerResponse::Error {
+                request_id: request,
+                error: WorkerError::PermissionDenied("test denied".into()),
+            }),
+            Self::Explicit => assert_eq!(
+                scheduler.handle_resume_task(
+                    70,
+                    71,
+                    TaskPermissions::new(SYSTEM_OBJECT, ObjFlag::all_flags()),
+                    v_int(42)
+                ),
+                v_bool_int(false),
+            ),
+            Self::Checkpoint => scheduler.handle_checkpoint_task_completion(71, 9, Ok(())),
+            Self::Compaction => {
+                scheduler.handle_storage_compaction_task_completion(71, 9, &[], Ok(vec![]))
+            }
+        }
+    }
+}
+
+struct BlockedWake {
+    scheduler: Scheduler,
+    database: Arc<FailingDatabase>,
+    request: Uuid,
+    results: flume::Receiver<(
+        usize,
+        Result<crate::tasks::TaskNotification, SchedulerError>,
+    )>,
+}
+
+impl BlockedWake {
+    fn new(source: WakeSource) -> Self {
+        use crate::tasks::scheduler::{gc::GcPhase, lifecycle::SchedulerState};
+        let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+        let database = Arc::new(FailingDatabase {
+            calls: AtomicUsize::new(0),
+        });
+        scheduler.database = database.clone();
+        let request = Uuid::new_v4();
+        let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+        let (sender, results) = flume::unbounded();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.state = SchedulerState::Running;
+            lc.gc_phase = GcPhase::Sweeping(1);
+            let registration = lc.task_q.register_task(71);
+            lc.task_q.suspended.add_task(
+                source.condition(request),
+                task,
+                Arc::new(NoopClientSession::new()),
+                Some(sender),
+                registration,
+            );
+        }
+        Self {
+            scheduler,
+            database,
+            request,
+            results,
+        }
+    }
+
+    fn open_admission(&self) {
+        self.scheduler.lifecycle.lock().gc_phase = crate::tasks::scheduler::gc::GcPhase::Idle;
+        self.scheduler.drain_immediate_wakes();
+    }
+}
+
+fn check_direct_wake_admission(source: WakeSource) {
+    let test = BlockedWake::new(source);
+    source.deliver(&test.scheduler, test.request);
+    assert_eq!(
+        test.database.calls.load(Ordering::Relaxed),
+        0,
+        "{source:?} dispatched during sweep"
+    );
+    assert!(test.scheduler.handle_task_exists(71));
+    assert!(test.results.try_recv().is_err());
+    {
+        let lc = test.scheduler.lifecycle.lock();
+        assert!(lc.task_q.suspended.get(71).is_some());
+        assert!(lc.task_q.active.is_empty());
+    }
+    test.open_admission();
+    assert_eq!(test.database.calls.load(Ordering::Relaxed), 1);
+    assert!(matches!(
+        test.results.try_recv(),
+        Ok((71, Err(SchedulerError::CouldNotStartTask)))
+    ));
+    assert!(!test.scheduler.handle_task_exists(71));
+}
+
+#[test]
+fn input_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::Input);
+}
+#[test]
+fn worker_value_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::WorkerValue);
+}
+#[test]
+fn worker_error_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::WorkerError);
+}
+#[test]
+fn explicit_resume_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::Explicit);
+}
+#[test]
+fn checkpoint_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::Checkpoint);
+}
+#[test]
+fn compaction_waits_for_sweep_admission() {
+    check_direct_wake_admission(WakeSource::Compaction);
+}
+
+#[test]
+fn duplicate_responses_cannot_replace_a_deferred_resume() {
+    use moor_common::model::{ObjFlag, TaskPermissions};
+    use moor_var::{E_INVARG, v_err};
+    for source in [
+        WakeSource::Input,
+        WakeSource::WorkerValue,
+        WakeSource::WorkerError,
+        WakeSource::Explicit,
+        WakeSource::Checkpoint,
+        WakeSource::Compaction,
+    ] {
+        let test = BlockedWake::new(source);
+        source.deliver(&test.scheduler, test.request);
+        // The request index is consumed even though the task has not run yet.
+        if matches!(source, WakeSource::Input) {
+            assert!(matches!(
+                test.scheduler.submit_task_input_inner(
+                    SYSTEM_OBJECT,
+                    SYSTEM_OBJECT,
+                    test.request,
+                    v_int(99)
+                ),
+                Err(SchedulerError::InputRequestNotFound(_))
+            ));
+        } else if !matches!(source, WakeSource::Explicit) {
+            source.deliver(&test.scheduler, test.request);
+        }
+        assert_eq!(
+            test.scheduler.handle_resume_task(
+                70,
+                71,
+                TaskPermissions::new(SYSTEM_OBJECT, ObjFlag::all_flags()),
+                v_int(99)
+            ),
+            v_err(E_INVARG)
+        );
+        assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
+        test.open_admission();
+        assert_eq!(test.database.calls.load(Ordering::Relaxed), 1);
+        assert!(matches!(
+            test.results.try_recv(),
+            Ok((71, Err(SchedulerError::CouldNotStartTask)))
+        ));
+        assert!(test.results.try_recv().is_err());
+    }
+}
+
+#[test]
+fn shutdown_settles_deferred_responses_without_dispatch() {
+    for source in [
+        WakeSource::Input,
+        WakeSource::WorkerValue,
+        WakeSource::WorkerError,
+        WakeSource::Explicit,
+        WakeSource::Checkpoint,
+        WakeSource::Compaction,
+    ] {
+        let test = BlockedWake::new(source);
+        source.deliver(&test.scheduler, test.request);
+        test.scheduler
+            .lifecycle
+            .lock()
+            .task_q
+            .deliver_message(71, v_int(7));
+        test.scheduler.stop(None).unwrap();
+        assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
+        assert!(matches!(
+            test.results.try_recv(),
+            Ok((71, Err(SchedulerError::TaskAbortedCancelled)))
+        ));
+        assert!(!test.scheduler.handle_task_exists(71));
+        let mut lc = test.scheduler.lifecycle.lock();
+        assert!(lc.task_q.suspended.get(71).is_none());
+        assert!(lc.task_q.drain_messages(71).is_empty());
+        assert_eq!(lc.task_q.settled_results.len(), 1);
+    }
+}
+
+#[test]
+fn cancelling_a_deferred_response_prevents_later_dispatch() {
+    let test = BlockedWake::new(WakeSource::WorkerError);
+    WakeSource::WorkerError.deliver(&test.scheduler, test.request);
+    assert!(matches!(
+        test.scheduler.lifecycle.lock().task_q.abort_task(71),
+        crate::tasks::AbortTaskOutcome::Cancelled
+    ));
+    test.open_admission();
+    assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
+    assert!(!test.scheduler.handle_task_exists(71));
+    assert!(matches!(
+        test.results.try_recv(),
+        Err(flume::TryRecvError::Disconnected)
+    ));
+}
+
+#[test]
+fn direct_wakes_cannot_dispatch_after_shutdown() {
+    use crate::tasks::scheduler::lifecycle::SchedulerState;
+    use moor_common::model::{ObjFlag, TaskPermissions};
+    use moor_var::{E_INVARG, v_err};
+    for source in [
+        WakeSource::Input,
+        WakeSource::WorkerValue,
+        WakeSource::WorkerError,
+        WakeSource::Explicit,
+        WakeSource::Checkpoint,
+        WakeSource::Compaction,
+    ] {
+        for state in [
+            SchedulerState::Created,
+            SchedulerState::Stopping,
+            SchedulerState::Stopped,
+        ] {
+            let test = BlockedWake::new(source);
+            test.scheduler.lifecycle.lock().state = state;
+            match source {
+                WakeSource::Input => assert!(matches!(
+                    test.scheduler.submit_task_input_inner(
+                        SYSTEM_OBJECT,
+                        SYSTEM_OBJECT,
+                        test.request,
+                        v_int(42)
+                    ),
+                    Err(SchedulerError::SchedulerNotResponding)
+                )),
+                WakeSource::Explicit => assert_eq!(
+                    test.scheduler.handle_resume_task(
+                        70,
+                        71,
+                        TaskPermissions::new(SYSTEM_OBJECT, ObjFlag::all_flags()),
+                        v_int(42)
+                    ),
+                    v_err(E_INVARG)
+                ),
+                _ => source.deliver(&test.scheduler, test.request),
+            }
+            assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
+            assert!(matches!(
+                test.results.try_recv(),
+                Ok((71, Err(SchedulerError::TaskAbortedCancelled)))
+            ));
+            assert!(!test.scheduler.handle_task_exists(71));
+        }
+    }
+}
+
+#[test]
+fn deferred_returns_and_errors_reach_the_vm() {
+    use crate::tasks::{TaskNotification, scheduler::gc::GcPhase};
+    use moor_common::model::{ObjFlag, ObjectKind, TaskPermissions};
+    use moor_var::{E_PERM, NOTHING, v_err};
+    for (action, expected) in [
+        (ResumeAction::Return(v_int(42)), v_int(42)),
+        (
+            ResumeAction::Raise(E_PERM.msg("deferred worker error")),
+            v_err(E_PERM),
+        ),
+    ] {
+        let scheduler = crate::tasks::scheduler::tests::scheduler();
+        let mut world = scheduler.database.new_world_state().unwrap();
+        world
+            .create_object(
+                &TaskPermissions::new(SYSTEM_OBJECT, ObjFlag::all_flags()),
+                &NOTHING,
+                &SYSTEM_OBJECT,
+                ObjFlag::all_flags(),
+                ObjectKind::NextObjid,
+            )
+            .unwrap();
+        world.commit().unwrap();
+        scheduler.lifecycle.lock().state =
+            crate::tasks::scheduler::lifecycle::SchedulerState::Running;
+        let program = moor_compiler::compile(
+            "try return suspend(600); except e (ANY) return e[1]; endtry",
+            Default::default(),
+        )
+        .unwrap();
+        let handle = scheduler
+            .submit_eval_task_inner(
+                SYSTEM_OBJECT,
+                SYSTEM_OBJECT,
+                program,
+                None,
+                Arc::new(NoopClientSession::new()),
+            )
+            .unwrap();
+        assert!(matches!(
+            handle.1.recv_timeout(Duration::from_secs(5)).unwrap().1,
+            Ok(TaskNotification::Suspended)
+        ));
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.gc_phase = GcPhase::Sweeping(1);
+            let task = lc.task_q.suspended.remove_task(handle.0).unwrap();
+            lc.wake_suspended_task(
+                task,
+                action,
+                &scheduler,
+                scheduler.database.as_ref(),
+                scheduler.builtin_registry.clone(),
+                scheduler.config.clone(),
+            )
+            .unwrap();
+            assert!(lc.task_q.active.is_empty());
+        }
+        assert!(handle.1.try_recv().is_err());
+        scheduler.lifecycle.lock().gc_phase = GcPhase::Idle;
+        scheduler.drain_immediate_wakes();
+        match handle.1.recv_timeout(Duration::from_secs(5)).unwrap().1 {
+            Ok(TaskNotification::Result(value)) => assert_eq!(value, expected),
+            other => panic!("unexpected result: {other:?}"),
+        }
+        scheduler.stop(None).unwrap();
+    }
 }

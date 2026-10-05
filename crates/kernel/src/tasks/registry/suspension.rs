@@ -16,6 +16,7 @@
 use super::active::{LiveTaskRegistration, LiveTaskRegistry};
 use crate::tasks::{
     TaskDescription, TaskNotification, TaskStart, TasksDb,
+    scheduler::ResumeAction,
     task::{Task, TaskState},
 };
 use ahash::AHasher;
@@ -73,6 +74,8 @@ pub struct SuspendedTask {
 pub(crate) struct RegisteredSuspendedTask {
     pub(crate) record: SuspendedTask,
     pub(crate) registration: LiveTaskRegistration,
+    /// An accepted response waiting for dispatch admission. Runtime-only: shutdown cancels it.
+    pub(crate) pending_resume: Option<ResumeAction>,
 }
 
 impl std::ops::Deref for RegisteredSuspendedTask {
@@ -228,6 +231,62 @@ impl SuspensionQ {
 
     pub(crate) fn records(&self) -> impl Iterator<Item = &SuspendedTask> {
         self.tasks.values().map(|task| &task.record)
+    }
+
+    /// Accepted responses have left their persisted wait. Never save an incomplete payload.
+    pub(super) fn persistable_records(&self) -> impl Iterator<Item = &SuspendedTask> {
+        self.tasks
+            .values()
+            .filter(|task| task.pending_resume.is_none())
+            .map(|task| &task.record)
+    }
+
+    pub(crate) fn has_pending_resume(&self, task_id: TaskId) -> bool {
+        self.tasks
+            .get(&task_id)
+            .is_some_and(|task| task.pending_resume.is_some())
+    }
+
+    pub(crate) fn pending_resume_ids(&self) -> Vec<TaskId> {
+        self.tasks
+            .iter()
+            .filter_map(|(&id, task)| task.pending_resume.as_ref().map(|_| id))
+            .collect()
+    }
+
+    /// Re-register an accepted response while retaining its task, membership, and resume action.
+    /// The caller removed the old wait under the same lifecycle lock. A fresh wake generation
+    /// rejects obsolete timer signals. The common wake queue will recheck admission.
+    pub(crate) fn defer_resume(&mut self, mut task: RegisteredSuspendedTask, action: ResumeAction) {
+        let id = task.task.task_id;
+        assert!(
+            !self.tasks.contains_key(&id),
+            "continuation still registered"
+        );
+        assert!(task.pending_resume.is_none(), "response already accepted");
+        task.record.wake_condition = WakeCondition::Immediate(None);
+        let player = task.task.player();
+        self.register_wake(&mut task.record, player);
+        task.pending_resume = Some(action);
+        self.tasks.insert(id, task);
+    }
+
+    pub(crate) fn collect_resume_references(&self, refs: &mut std::collections::HashSet<Obj>) {
+        use crate::vm::extract_anonymous_refs_from_var;
+        for task in self.tasks.values() {
+            if let WakeCondition::Immediate(Some(value)) = &task.wake_condition {
+                extract_anonymous_refs_from_var(value, refs);
+            }
+            match &task.pending_resume {
+                Some(ResumeAction::Return(value)) => extract_anonymous_refs_from_var(value, refs),
+                Some(ResumeAction::Raise(error)) => {
+                    if let Some(value) = error.value() {
+                        extract_anonymous_refs_from_var(value, refs);
+                    }
+                }
+                None => {}
+            }
+        }
     }
 
     /// Check if a suspended task exists and return its controlling principal.
@@ -397,6 +456,7 @@ impl SuspensionQ {
             RegisteredSuspendedTask {
                 record: task,
                 registration,
+                pending_resume: None,
             },
         );
     }
@@ -417,6 +477,7 @@ impl SuspensionQ {
             RegisteredSuspendedTask {
                 record: task,
                 registration,
+                pending_resume: None,
             },
         );
     }
@@ -536,6 +597,7 @@ impl SuspensionQ {
         let RegisteredSuspendedTask {
             record,
             registration,
+            pending_resume: _,
         } = self.remove_task(task_id)?;
         drop(registration);
         self.enqueue_dependents_for(task_id);
@@ -1140,5 +1202,58 @@ mod tests {
         );
         assert!(queue.get(71).is_some());
         assert!(queue.live_tasks.contains(71));
+    }
+
+    #[test]
+    fn deferred_resume_retains_vm_and_payload_roots() {
+        use moor_var::{E_PERM, Error, v_obj};
+        let payload = Obj::mk_anonymous(moor_var::AnonymousObjid::new(0x1234, 0x16, 0x9876543210));
+        for action in [
+            ResumeAction::Return(v_obj(payload)),
+            ResumeAction::Raise(Error::new(E_PERM, None, Some(v_obj(payload)))),
+        ] {
+            let (mut queue, vm_root, _) = expired_task_queue();
+            let task = queue.suspended.remove_task(71).unwrap();
+            queue.suspended.defer_resume(task, action);
+            let roots = queue.collect_anonymous_object_references();
+            assert!(roots.contains(&vm_root));
+            assert!(roots.contains(&payload));
+            assert!(queue.live_tasks.contains(71));
+        }
+    }
+
+    #[test]
+    fn deferred_resume_is_not_saved_as_an_incomplete_continuation() {
+        let (mut queue, _, events) = expired_task_queue();
+        let task = queue.suspended.remove_task(71).unwrap();
+        queue
+            .suspended
+            .defer_resume(task, ResumeAction::Return(moor_var::v_int(42)));
+        queue.suspended.save_tasks();
+        let events = events.lock();
+        assert_eq!(events.deleted, vec![71]);
+        assert!(events.saved.is_empty());
+        assert!(queue.suspended.get(71).is_some());
+    }
+
+    #[test]
+    fn deferred_resume_invalidates_the_previous_wake_generation() {
+        let (mut queue, _, _) = expired_task_queue();
+        queue.suspended.enqueue_immediate_wake(71);
+        let generation = queue.suspended.get(71).unwrap().timer_generation;
+        let task = queue.suspended.remove_task(71).unwrap();
+        queue
+            .suspended
+            .defer_resume(task, ResumeAction::Return(moor_var::v_int(42)));
+        assert_ne!(
+            queue.suspended.get(71).unwrap().timer_generation,
+            generation
+        );
+        assert_eq!(
+            queue.suspended.pop_immediate_wake().map(|(id, _)| id),
+            Some(71)
+        );
+        assert!(queue.suspended.pop_immediate_wake().is_none());
+        assert!(queue.suspended.get(71).is_some());
     }
 }

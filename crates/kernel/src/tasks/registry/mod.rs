@@ -145,6 +145,7 @@ impl TaskQ {
             extract_anonymous_refs_from_vm_exec_state(&suspended_task.task.retry_state, &mut refs);
         }
 
+        self.suspended.collect_resume_references(&mut refs);
         refs
     }
 

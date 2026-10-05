@@ -15,6 +15,8 @@
 //!
 //! Registration stays in `suspension`: loading creates sessions, then installs each record through
 //! its registration operation. Shutdown saves registered records without changing their membership.
+//! Accepted responses awaiting dispatch are runtime work. Shutdown cancels them, and save excludes
+//! them because the persisted record does not contain their pending return value or raised error.
 //!
 //! This module preserves the existing error policy. Load and session-construction errors panic
 //! during startup. Save and bulk-deletion errors are logged and do not reverse in-memory changes.
@@ -60,7 +62,7 @@ impl SuspensionQ {
 
     /// Synchronize the suspended tasks with the tasks database. Called on shutdown.
     pub(crate) fn save_tasks(&self) {
-        for st in self.records() {
+        for st in self.persistable_records() {
             // Skip retry tasks - they're transient and their transaction context
             // would be invalid after restart anyway
             if matches!(

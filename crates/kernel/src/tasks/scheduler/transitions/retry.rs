@@ -164,6 +164,7 @@ impl TaskLifecycle {
         let RegisteredSuspendedTask {
             record,
             registration,
+            pending_resume: _,
         } = suspended_task;
         let SuspendedTask {
             task,

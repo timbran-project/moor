@@ -17,7 +17,9 @@
 //! Timer selection queues generation-tagged signals while continuations remain registered.
 //! Each signal is consumed under a fresh lifecycle lock after shutdown and GC admission checks.
 //! `TaskLifecycle::wake_suspended_task` borrows the locked state and calls shared dispatch
-//! preparation. Failed dispatch resolves terminal bookkeeping in the registry.
+//! preparation. It retains direct responses in suspension while sweep blocks admission. The
+//! registered continuation owns the return value or error until dispatch or explicit cancellation.
+//! Failed dispatch resolves terminal bookkeeping in the registry.
 
 #[cfg(feature = "trace_events")]
 use crate::trace_task_resume;
@@ -107,7 +109,7 @@ impl Scheduler {
             let Some((task_id, signaled_at)) = lc.task_q.suspended.pop_immediate_wake() else {
                 return;
             };
-            let sr =
+            let mut sr =
                 lc.task_q.suspended.remove_task(task_id).expect(
                     "wake selection retained the current suspension under the lifecycle lock",
                 );
@@ -118,14 +120,16 @@ impl Scheduler {
                 signaled_at.instant(),
             );
 
-            let return_value = match &sr.wake_condition {
-                WakeCondition::Immediate(value) => value.clone().unwrap_or_else(|| v_int(0)),
-                WakeCondition::TaskMessage(_) => {
-                    List::from_iter(lc.task_q.drain_messages(task_id)).into()
-                }
-                WakeCondition::Checkpoint(_) => v_bool_int(true),
-                _ => v_int(0),
-            };
+            let resume_action = sr.pending_resume.take().unwrap_or_else(|| {
+                ResumeAction::Return(match &sr.wake_condition {
+                    WakeCondition::Immediate(value) => value.clone().unwrap_or_else(|| v_int(0)),
+                    WakeCondition::TaskMessage(_) => {
+                        List::from_iter(lc.task_q.drain_messages(task_id)).into()
+                    }
+                    WakeCondition::Checkpoint(_) => v_bool_int(true),
+                    _ => v_int(0),
+                })
+            });
 
             #[cfg(feature = "trace_events")]
             {
@@ -148,7 +152,10 @@ impl Scheduler {
                     task_id,
                     wake_condition,
                     wake_reason,
-                    to_literal(&return_value),
+                    match &resume_action {
+                        ResumeAction::Return(value) => to_literal(value),
+                        ResumeAction::Raise(error) => error.to_string(),
+                    },
                     sr.task.vm_host.max_ticks,
                     sr.task.vm_host.tick_count()
                 );
@@ -166,7 +173,7 @@ impl Scheduler {
             }
             if let Err(error) = lc.wake_suspended_task(
                 sr,
-                ResumeAction::Return(return_value),
+                resume_action,
                 self,
                 self.database.as_ref(),
                 self.builtin_registry.clone(),
@@ -356,6 +363,39 @@ impl Scheduler {
 }
 
 impl TaskLifecycle {
+    /// Settle a continuation that was accepted for dispatch but cannot start during shutdown.
+    pub(in crate::tasks::scheduler) fn cancel_undispatched_task(
+        &mut self,
+        task: RegisteredSuspendedTask,
+    ) {
+        let task_id = task.task.task_id;
+        task.task.control.request_cancel();
+        self.task_q.remove_message_queue(task_id);
+        self.task_q.suspended.enqueue_dependents_for(task_id);
+        self.task_q.send_task_result_direct(
+            task.registration,
+            task.record.result_sender,
+            Err(SchedulerError::TaskAbortedCancelled),
+        );
+    }
+
+    pub(in crate::tasks::scheduler) fn cancel_pending_resumes(
+        &mut self,
+        shutdown_message: &Option<String>,
+    ) {
+        for id in self.task_q.suspended.pending_resume_ids() {
+            let task = self
+                .task_q
+                .suspended
+                .remove_task(id)
+                .expect("pending resume is registered");
+            let _ = task.session.notify_shutdown(shutdown_message.clone());
+            self.cancel_undispatched_task(task);
+        }
+    }
+
+    /// Accept a response under the lifecycle lock. During sweep, retain it without starting a
+    /// transaction or waiting on GC. Shutdown settles it; open admission dispatches immediately.
     #[inline]
     pub(crate) fn wake_suspended_task(
         &mut self,
@@ -366,9 +406,20 @@ impl TaskLifecycle {
         builtin_registry: BuiltinRegistry,
         config: Arc<Config>,
     ) -> Result<(), SchedulerError> {
+        if self.state != SchedulerState::Running {
+            self.cancel_undispatched_task(suspended_task);
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+        if self.gc_phase.blocks_admission() {
+            self.task_q
+                .suspended
+                .defer_resume(suspended_task, resume_action);
+            return Ok(());
+        }
         let RegisteredSuspendedTask {
             record,
             registration,
+            pending_resume: _,
         } = suspended_task;
         let SuspendedTask {
             task,
@@ -416,6 +467,10 @@ impl TaskLifecycle {
             return v_err(error);
         }
 
+        // A response already accepted during sweep cannot be replaced by another resume call.
+        if self.task_q.suspended.has_pending_resume(queued_task_id) {
+            return v_err(E_INVARG);
+        }
         let sr = self.task_q.suspended.remove_task(queued_task_id).unwrap();
 
         if self

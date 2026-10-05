@@ -404,6 +404,8 @@ impl Scheduler {
             }
             lc.state = SchedulerState::Stopping;
             _completion = ShutdownCompletion(self);
+            // Accepted responses are runnable work, not durable waits. Settle them before save.
+            lc.cancel_pending_resumes(&msg);
 
             // Notify all live tasks of shutdown.
             for task in lc.task_q.active.values() {

@@ -216,6 +216,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Defer input, worker responses, explicit task resumes, and maintenance wakeups during GC sweep.
+  Resumed tasks keep their return values or errors. Shutdown cancels these accepted responses
+  instead of starting more execution or saving incomplete continuations.
+
 - Keep expired task continuations visible to garbage collection and shutdown until dispatch. Timer
   and immediate wakeups now wait during GC sweep and stop dispatching during shutdown.
 - Ignore queued wake signals from an earlier suspension of the same task. These signals could
