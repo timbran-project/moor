@@ -18,6 +18,10 @@
 //! out-of-order transactions and commits each contiguous transaction to Fjall
 //! immediately as its own cross-keyspace write batch.
 
+mod persistence;
+
+use persistence::PreparedPersistence;
+
 use std::{
     collections::BTreeMap,
     sync::{
@@ -920,16 +924,13 @@ impl BatchWriter {
                     return Err(error);
                 }
             };
-            let version = batch.version;
-            if let Err(error) = Self::commit_batch(db, batch, state, rollup_encoder) {
+            let result = PreparedPersistence::prepare(db, batch, state, rollup_encoder)
+                .and_then(PreparedPersistence::commit)
+                .map(|persisted| persisted.complete(completed_version));
+            if let Err(error) = result {
                 Self::fail_waiters(state, &error);
                 return Err(error);
             }
-
-            completed_version.store(version, Ordering::Release);
-            state.next_version += 1;
-            Self::reply_ready_barriers(state, version);
-            Self::reply_ready_snapshots(db, state, version);
         }
         Ok(())
     }
@@ -1070,232 +1071,6 @@ impl BatchWriter {
         })();
 
         EncodedBatchResult { version, result }
-    }
-
-    fn commit_batch(
-        db: &fjall::Database,
-        batch: EncodedCommitBatch,
-        state: &mut WriterState,
-        rollup_encoder: &RollupEncoder,
-    ) -> Result<(), String> {
-        let EncodedCommitBatch {
-            version,
-            timestamp,
-            operations,
-            property_definition_changes,
-            mut encoding,
-        } = batch;
-        let transaction = timestamp.0;
-        let mut write_batch = db.batch();
-        let mut property_value_changes = Vec::new();
-        let property_value_record_version = state.next_property_value_record_version;
-
-        for op in operations {
-            let EncodedBatchOp { partition, op_type } = op;
-            match op_type {
-                EncodedBatchOpType::Insert { key, value } => {
-                    write_batch.insert(&partition, key, value);
-                }
-                EncodedBatchOpType::Delete { key } => {
-                    write_batch.remove(&partition, key);
-                }
-                EncodedBatchOpType::PropertyValue(op) => {
-                    let EncodedPropertyValueOp { property, mutation } = op;
-                    let previous_chain = state.property_value_chains.get(&property);
-                    match mutation {
-                        EncodedPropertyValueMutation::Replace { record } => {
-                            let key = encode_property_value_record_key(
-                                &property,
-                                property_value_record_version,
-                            );
-                            write_batch.insert(&partition, key, record);
-                            if let Some(chain) = previous_chain {
-                                for old_version in chain.record_versions() {
-                                    let key =
-                                        encode_property_value_record_key(&property, old_version);
-                                    write_batch.remove(&partition, key);
-                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
-                                }
-                            }
-                            property_value_changes.push(PropertyValueChainChange::Reset {
-                                property,
-                                full_version: property_value_record_version,
-                            });
-                        }
-                        EncodedPropertyValueMutation::AppendList {
-                            record,
-                            payload_bytes,
-                            final_value,
-                        } => {
-                            let Some(chain) = previous_chain else {
-                                return Err(format!(
-                                    "property-value append for {property} has no complete record"
-                                ));
-                            };
-                            if chain.reaches_limit(payload_bytes, state.property_value_limits) {
-                                let rollup = rollup_encoder.encode(final_value, timestamp)?;
-                                db_counters().timers_rare.record_elapsed(
-                                    WorldStateTimerOp::PropertyValueRollupEncode,
-                                    rollup.elapsed,
-                                );
-                                db_counters()
-                                    .counters
-                                    .inc(WorldStateCountOp::PropertyValueForegroundRollup);
-                                db_counters().counters.add(
-                                    WorldStateCountOp::PropertyValueFullEncodedBytes,
-                                    isize::try_from(rollup.record.len()).unwrap_or(isize::MAX),
-                                );
-                                encoding.elapsed += rollup.elapsed;
-                                encoding.encoded_bytes +=
-                                    PROPERTY_RECORD_KEY_BYTES + rollup.record.len();
-                                let source = BatchOpSource::Property {
-                                    relation: "object_propvalues",
-                                    object: property.obj(),
-                                    uuid: property.uuid(),
-                                };
-                                if encoding.slowest.as_ref().is_none_or(
-                                    |(_, slowest_elapsed, _)| rollup.elapsed > *slowest_elapsed,
-                                ) {
-                                    encoding.slowest = Some((
-                                        source,
-                                        rollup.elapsed,
-                                        PROPERTY_RECORD_KEY_BYTES + rollup.record.len(),
-                                    ));
-                                }
-
-                                let key = encode_property_value_record_key(
-                                    &property,
-                                    property_value_record_version,
-                                );
-                                write_batch.insert(&partition, key, rollup.record);
-                                for old_version in chain.record_versions() {
-                                    let key =
-                                        encode_property_value_record_key(&property, old_version);
-                                    write_batch.remove(&partition, key);
-                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
-                                }
-                                property_value_changes.push(PropertyValueChainChange::Reset {
-                                    property,
-                                    full_version: property_value_record_version,
-                                });
-                            } else {
-                                let key = encode_property_value_record_key(
-                                    &property,
-                                    property_value_record_version,
-                                );
-                                write_batch.insert(&partition, key, record);
-                                property_value_changes.push(PropertyValueChainChange::Append {
-                                    property,
-                                    record_version: property_value_record_version,
-                                    payload_bytes,
-                                });
-                            }
-                        }
-                        EncodedPropertyValueMutation::Delete => {
-                            if let Some(chain) = previous_chain {
-                                for old_version in chain.record_versions() {
-                                    let key =
-                                        encode_property_value_record_key(&property, old_version);
-                                    write_batch.remove(&partition, key);
-                                    encoding.encoded_bytes += PROPERTY_RECORD_KEY_BYTES;
-                                }
-                            }
-                            property_value_changes.push(PropertyValueChainChange::Delete(property));
-                        }
-                    }
-                }
-            }
-        }
-
-        let op_count = write_batch.len();
-        let next_property_value_record_version = if property_value_changes.is_empty() {
-            None
-        } else {
-            Some(
-                property_value_record_version
-                    .checked_add(1)
-                    .ok_or_else(|| "property-value record version exhausted".to_string())?,
-            )
-        };
-
-        let outstanding_flushes_before = db.outstanding_flushes();
-        let active_compactions_before = db.active_compactions();
-        let commit_start = Instant::now();
-        write_batch
-            .commit()
-            .map_err(|error| format!("failed to commit Fjall write batch: {error}"))?;
-        let commit_elapsed = commit_start.elapsed();
-        db_counters()
-            .timers_rare
-            .record_elapsed(WorldStateTimerOp::BatchWriterCommit, commit_elapsed);
-        state.property_names.apply(property_definition_changes);
-        for change in property_value_changes {
-            match change {
-                PropertyValueChainChange::Reset {
-                    property,
-                    full_version,
-                } => {
-                    state
-                        .property_value_chains
-                        .insert(property, PropertyValueChain::full(full_version));
-                }
-                PropertyValueChainChange::Append {
-                    property,
-                    record_version,
-                    payload_bytes,
-                } => {
-                    state
-                        .property_value_chains
-                        .get_mut(&property)
-                        .expect("validated property-value append chain")
-                        .push_append(record_version, payload_bytes);
-                }
-                PropertyValueChainChange::Delete(property) => {
-                    state.property_value_chains.remove(&property);
-                }
-            }
-        }
-        if let Some(next_property_value_record_version) = next_property_value_record_version {
-            state.next_property_value_record_version = next_property_value_record_version;
-        }
-
-        if encoding.elapsed > ENCODE_WARNING_DURATION
-            && let Some((slowest_target, slowest_encode_elapsed, slowest_encoded_bytes)) =
-                encoding.slowest
-        {
-            let slowest_target = state.property_names.display(&slowest_target);
-            warn!(
-                op_count,
-                encoded_bytes = encoding.encoded_bytes,
-                version,
-                transaction,
-                encode_elapsed = ?encoding.elapsed,
-                ?commit_elapsed,
-                slowest_target = %slowest_target,
-                ?slowest_encode_elapsed,
-                slowest_encoded_bytes,
-                outstanding_flushes_before,
-                outstanding_flushes_after = db.outstanding_flushes(),
-                active_compactions_before,
-                active_compactions_after = db.active_compactions(),
-                "Slow batch encoding. This value used the most encoding time. Split large property values across properties."
-            );
-        } else if commit_elapsed > WRITE_WARNING_DURATION {
-            warn!(
-                op_count,
-                encoded_bytes = encoding.encoded_bytes,
-                version,
-                transaction,
-                encode_elapsed = ?encoding.elapsed,
-                ?commit_elapsed,
-                outstanding_flushes_before,
-                outstanding_flushes_after = db.outstanding_flushes(),
-                active_compactions_before,
-                active_compactions_after = db.active_compactions(),
-                "Slow Fjall batch commit"
-            );
-        }
-        Ok(())
     }
 
     fn reply_ready_barriers(state: &mut WriterState, completed_version: u64) {
@@ -1634,6 +1409,79 @@ mod tests {
             snapshot.get(&partition, b"key").unwrap().as_deref(),
             Some(&b"newer"[..])
         );
+    }
+
+    #[test]
+    fn missing_version_fails_shutdown_without_completing_waiters() {
+        let (_tempdir, database) = test_database();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let writer = BatchWriter::new(database);
+        write(&writer, encoded_batch(2, &partition, b"key", b"later")).unwrap();
+        let (reply, receiver) = oneshot::channel();
+        writer
+            .sender
+            .send(WriterMsg::Barrier {
+                through_version: 2,
+                reply,
+            })
+            .unwrap();
+        assert!(writer.stop().unwrap_err().contains("gap before version 1"));
+        assert!(
+            receiver
+                .recv()
+                .unwrap()
+                .unwrap_err()
+                .contains("gap before version 1")
+        );
+        assert_eq!(writer.completed_version(), 0);
+        assert!(partition.get(b"key").unwrap().is_none());
+    }
+
+    #[test]
+    fn duplicate_batches_are_rejected_before_and_after_persistence() {
+        let (_tempdir, database) = test_database();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        let mut state = WriterState::new(
+            AHashMap::new(),
+            AHashMap::new(),
+            PROPERTY_VALUE_CHAIN_LIMITS,
+        );
+        let mut encoder = BatchEncoder::new();
+        let batch = || encoded_batch(2, &partition, b"key", b"value");
+        state
+            .add_batch(BatchWriter::encode_batch(batch(), &mut encoder))
+            .unwrap();
+        assert!(
+            state
+                .add_batch(BatchWriter::encode_batch(batch(), &mut encoder))
+                .unwrap_err()
+                .contains("duplicate persistence batch")
+        );
+        assert_eq!(state.next_version, 1);
+        let (sender, _receiver) = flume::bounded(1);
+        let completed = AtomicU64::new(0);
+        state
+            .add_batch(BatchWriter::encode_batch(
+                encoded_batch(1, &partition, b"key", b"first"),
+                &mut encoder,
+            ))
+            .unwrap();
+        BatchWriter::persist_ready(&database, &mut state, &completed, &RollupEncoder { sender })
+            .unwrap();
+        let duplicate =
+            BatchWriter::encode_batch(encoded_batch(1, &partition, b"key", b"wrong"), &mut encoder);
+        assert!(
+            state
+                .add_batch(duplicate)
+                .unwrap_err()
+                .contains("duplicate persistence batch")
+        );
+        assert_eq!(completed.load(Ordering::Acquire), 2);
+        assert_eq!(partition.get(b"key").unwrap().unwrap().as_ref(), b"value");
     }
 
     #[test]
