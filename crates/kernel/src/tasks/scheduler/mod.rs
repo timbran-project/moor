@@ -1701,11 +1701,11 @@ mod tests {
             fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
-        assert!(task.control.begin_boundary_commit());
+        let boundary = task.control.claim_boundary().unwrap().committed();
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
         });
 
         commit_entered.wait();
@@ -1768,7 +1768,7 @@ mod tests {
         });
         let task = insert_active_task(&scheduler, task_id, session);
         let control = task.control.clone();
-        assert!(control.begin_boundary_commit());
+        let boundary = control.claim_boundary().unwrap().committed();
         let (send, recv) = flume::unbounded();
         {
             let mut lc = scheduler.lifecycle.lock();
@@ -1782,6 +1782,7 @@ mod tests {
                 task_id,
                 TaskSuspend::Timed(Duration::from_secs(60)),
                 task,
+                boundary,
             );
         });
         commit_entered.wait();
@@ -1821,6 +1822,42 @@ mod tests {
     }
 
     #[test]
+    fn stale_suspension_completion_leaves_replacement_attempt_active() {
+        let scheduler = scheduler();
+        scheduler.lifecycle.lock().state = SchedulerState::Running;
+        let task_id = 244;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let task = insert_active_task(
+            &scheduler,
+            task_id,
+            Arc::new(BlockingCommitSession {
+                commit_entered: commit_entered.clone(),
+                release_commit: release_commit.clone(),
+                connection_obj: None,
+                source_connections: None,
+                fail_commit: false,
+            }),
+        );
+        let boundary = task.control.claim_boundary().unwrap().committed();
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+        });
+        commit_entered.wait();
+        let replacement =
+            insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+        release_commit.wait();
+        callback.join().unwrap();
+        let lc = scheduler.lifecycle.lock();
+        let active = lc.task_q.active.get(&task_id).unwrap();
+        assert!(Arc::ptr_eq(&active.control, &replacement.control));
+        assert_eq!(active.phase, RunningTaskPhase::Running);
+        assert!(!replacement.control.is_cancelled());
+        assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+    }
+
+    #[test]
     fn input_task_remains_visible_until_atomic_queue_move() {
         let scheduler = scheduler();
         let timer = scheduler
@@ -1837,11 +1874,17 @@ mod tests {
             fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
-        assert!(task.control.begin_boundary_commit());
+        let boundary = task.control.claim_boundary().unwrap().committed();
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_request_input(task_id, task, SYSTEM_OBJECT, None);
+            callback_scheduler.handle_task_request_input(
+                task_id,
+                task,
+                SYSTEM_OBJECT,
+                None,
+                boundary,
+            );
         });
 
         commit_entered.wait();
@@ -1914,10 +1957,11 @@ mod tests {
             fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
+        let boundary = task.control.claim_boundary().unwrap().committed();
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
         });
 
         commit_entered.wait();
@@ -1978,10 +2022,11 @@ mod tests {
             fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
+        let boundary = task.control.claim_boundary().unwrap().committed();
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
         });
         commit_entered.wait();
 
@@ -2038,10 +2083,11 @@ mod tests {
             fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
+        let boundary = task.control.claim_boundary().unwrap().committed();
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task);
+            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
         });
         commit_entered.wait();
 

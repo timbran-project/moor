@@ -29,7 +29,7 @@ use moor_common::{
 };
 use moor_var::{Error, List, Obj, Symbol, Var};
 
-use crate::tasks::scheduler::Scheduler;
+use crate::tasks::{scheduler::Scheduler, task_control::CommittedBoundary};
 
 pub use moor_common::tasks::WorkerInfo;
 
@@ -126,19 +126,30 @@ impl TaskSchedulerClient {
         self.scheduler.rollback_on_task_limit()
     }
 
-    pub fn suspend(&self, resume_condition: TaskSuspend, task: Box<Task>) {
+    pub(crate) fn suspend(
+        &self,
+        resume_condition: TaskSuspend,
+        task: Box<Task>,
+        boundary: CommittedBoundary,
+    ) {
         self.scheduler
-            .handle_task_suspend(self.task_id, resume_condition, task);
+            .handle_task_suspend(self.task_id, resume_condition, task, boundary);
     }
 
-    pub fn request_input(
+    pub(crate) fn request_input(
         &self,
         task: Box<Task>,
         input_player: Obj,
         metadata: Option<Vec<(Symbol, Var)>>,
+        boundary: CommittedBoundary,
     ) {
-        self.scheduler
-            .handle_task_request_input(self.task_id, task, input_player, metadata);
+        self.scheduler.handle_task_request_input(
+            self.task_id,
+            task,
+            input_player,
+            metadata,
+            boundary,
+        );
     }
 
     pub fn task_list(&self) -> Vec<TaskDescription> {

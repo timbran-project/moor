@@ -14,7 +14,7 @@
 //! VM suspension outcomes and immediate transaction renewal.
 //! Task workers own execution here and transfer suspended tasks to the scheduler.
 
-use super::Task;
+use super::{Task, transaction::YieldCommit};
 use crate::{
     task_context::TransactionRenewalError,
     tasks::{SchedulerOp, sched_counters, task_scheduler_client::TaskSchedulerClient},
@@ -125,12 +125,15 @@ impl Task {
         // VMHost is now suspended for execution, and we'll be waiting for a Resume
         let commit_result = self.commit_yield_transaction(task_scheduler_client, session)?;
 
-        if let CommitResult::ConflictRetry { conflict_info } = commit_result {
-            self.log_conflict_retry("suspend", conflict_info.as_ref());
-            session.rollback().unwrap();
-            task_scheduler_client.conflict_retry(self, "suspend", conflict_info);
-            return None;
-        }
+        let boundary = match commit_result {
+            YieldCommit::Committed(boundary) => boundary,
+            YieldCommit::Conflict(conflict_info) => {
+                self.log_conflict_retry("suspend", conflict_info.as_ref());
+                session.rollback().unwrap();
+                task_scheduler_client.conflict_retry(self, "suspend", conflict_info);
+                return None;
+            }
+        };
 
         self.refresh_retry_state();
         self.vm_host.stop();
@@ -143,7 +146,7 @@ impl Task {
         // In both cases we'll rely on the scheduler to wake us up in its processing loop
         // rather than sleep here, which would make this thread unresponsive to other
         // messages.
-        task_scheduler_client.suspend(delay.clone(), self);
+        task_scheduler_client.suspend(delay.clone(), self, boundary);
         None
     }
 }

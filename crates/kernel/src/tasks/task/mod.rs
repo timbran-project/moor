@@ -23,13 +23,15 @@
 //! they can also be 'forked' from other tasks.
 //!
 mod dispatch;
+mod transaction;
+
+use transaction::YieldCommit;
 
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use crate::task_context::{
-    TransactionRenewalError, commit_current_transaction, current_session, has_active_task,
-    rollback_current_transaction, with_current_transaction, with_current_transaction_mut,
-    with_new_transaction,
+    TransactionRenewalError, current_session, has_active_task, rollback_current_transaction,
+    with_current_transaction, with_current_transaction_mut,
 };
 use ahash::AHasher;
 
@@ -345,116 +347,6 @@ impl Task {
         }));
     }
 
-    /// Commit before handing task ownership to a scheduler callback.
-    ///
-    /// The callback releases the boundary claim after it commits the session. Until then,
-    /// cancellation leaves the active-task record in place for deterministic cleanup.
-    fn commit_yield_transaction(
-        &self,
-        task_scheduler_client: &TaskSchedulerClient,
-        session: &dyn Session,
-    ) -> Option<CommitResult> {
-        if !self.control.begin_boundary_commit() {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
-        }
-
-        let result = commit_current_transaction();
-        if matches!(&result, Ok(CommitResult::Success { .. })) {
-            return result.ok();
-        }
-
-        if self.control.finish_boundary_commit() {
-            return match result {
-                Ok(result) => Some(result),
-                Err(error) => {
-                    self.reject_commit(task_scheduler_client, error);
-                    None
-                }
-            };
-        }
-
-        if let Err(error) = session.rollback() {
-            warn!(
-                ?error,
-                "Could not roll back session after cancelled yield commit"
-            );
-        }
-        self.cancel_before_commit(task_scheduler_client);
-        None
-    }
-
-    fn commit_terminal_transaction(
-        &self,
-        task_scheduler_client: &TaskSchedulerClient,
-        session: &dyn Session,
-    ) -> Option<CommitResult> {
-        if !self.control.begin_terminal_commit() {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
-        }
-
-        let result = commit_current_transaction();
-        let committed = matches!(result, Ok(CommitResult::Success { .. }));
-        if self.control.finish_terminal_commit(committed) {
-            return match result {
-                Ok(result) => Some(result),
-                Err(error) => {
-                    self.reject_commit(task_scheduler_client, error);
-                    None
-                }
-            };
-        }
-
-        if let Err(error) = session.rollback() {
-            warn!(
-                ?error,
-                "Could not roll back session after cancelled terminal commit"
-            );
-        }
-        self.cancel_before_commit(task_scheduler_client);
-        None
-    }
-
-    fn rollback_terminal_transaction(&self, task_scheduler_client: &TaskSchedulerClient) -> bool {
-        if !self.control.begin_terminal_commit() {
-            self.cancel_before_commit(task_scheduler_client);
-            return false;
-        }
-        rollback_current_transaction().expect("Could not rollback terminal task transaction");
-        self.control.finish_terminal_commit(true)
-    }
-
-    fn renew_transaction<R>(
-        &self,
-        task_scheduler_client: &TaskSchedulerClient,
-        session: &dyn Session,
-        create_transaction: impl FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
-    ) -> Option<Result<(CommitResult, Option<R>), TransactionRenewalError>> {
-        if !self.control.begin_boundary_commit() {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
-        }
-
-        let result = with_new_transaction(create_transaction);
-        let committed = matches!(
-            result,
-            Ok((CommitResult::Success { .. }, _)) | Err(TransactionRenewalError::Begin(_))
-        );
-        if self.control.finish_boundary_commit() {
-            return Some(result);
-        }
-
-        if !committed && let Err(error) = session.rollback() {
-            warn!(
-                ?error,
-                "Could not roll back session after cancelled transaction renewal"
-            );
-        }
-        self.cancel_before_commit(task_scheduler_client);
-        None
-    }
-
     #[inline]
     fn refresh_retry_state(&mut self) {
         let snapshot = self.vm_host.snapshot_state();
@@ -730,12 +622,15 @@ impl Task {
                 let commit_result =
                     self.commit_yield_transaction(task_scheduler_client, session)?;
 
-                if let CommitResult::ConflictRetry { conflict_info } = commit_result {
-                    self.log_conflict_retry("input suspend", conflict_info.as_ref());
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
-                    return None;
-                }
+                let boundary = match commit_result {
+                    YieldCommit::Committed(boundary) => boundary,
+                    YieldCommit::Conflict(conflict_info) => {
+                        self.log_conflict_retry("input suspend", conflict_info.as_ref());
+                        session.rollback().unwrap();
+                        task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
+                        return None;
+                    }
+                };
 
                 self.refresh_retry_state();
                 self.vm_host.stop();
@@ -747,6 +642,7 @@ impl Task {
                     self,
                     input_request.player,
                     input_request.metadata,
+                    boundary,
                 );
                 None
             }
@@ -1254,12 +1150,12 @@ impl Task {
                 match batch_result {
                     Ok(_) => {
                         if rollback {
-                            if !self.control.begin_terminal_commit() {
+                            let Some(claim) = self.control.claim_terminal() else {
                                 self.cancel_before_commit(tsc);
                                 return false;
-                            }
+                            };
                             let _ = rollback_current_transaction();
-                            self.control.finish_terminal_commit(true);
+                            claim.rolled_back();
                         } else {
                             let session = current_session();
                             let Some(commit_result) =

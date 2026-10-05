@@ -14,6 +14,7 @@
 //! Suspension and input transitions retain active membership during session I/O.
 //! The lifecycle mutex protects the final move into suspended storage.
 
+use crate::tasks::task_control::CommittedBoundary;
 use crate::{
     tasks::{
         TaskNotification,
@@ -39,23 +40,35 @@ use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 impl Scheduler {
-    pub fn handle_task_suspend(
+    pub(crate) fn handle_task_suspend(
         &self,
         task_id: TaskId,
         wake_condition: TaskSuspend,
         task: Box<Task>,
+        boundary: CommittedBoundary,
     ) {
         // Keep the task visible while committing the session. The final move from
         // active to suspended is performed under one lifecycle lock acquisition.
         let session = {
             let mut lc = self.lifecycle.lock();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
+            }
             if lc.state != SchedulerState::Running {
                 debug!(task_id, "Discarding suspension request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 if let Some(task) = lc.task_q.active.get(&task_id) {
                     task.control.request_cancel();
-                    task.control.finish_boundary_commit();
                 }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
@@ -67,6 +80,10 @@ impl Scheduler {
                 warn!(task_id, "Task not found for suspend request");
                 return;
             };
+            if !boundary.belongs_to(&tc.control) {
+                warn!(task_id, "Ignoring a boundary from a replaced task attempt");
+                return;
+            }
             if tc.phase != RunningTaskPhase::Running {
                 warn!(task_id, phase = ?tc.phase, "Task already transitioning");
                 return;
@@ -84,21 +101,41 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
-            if let Some(task) = lc.task_q.active.get(&task_id) {
-                task.control.finish_boundary_commit();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
             }
+            lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
         let mut lc = self.lifecycle.lock();
+        if !lc
+            .task_q
+            .active
+            .get(&task_id)
+            .is_some_and(|active| boundary.belongs_to(&active.control))
+        {
+            debug!(
+                task_id,
+                "Ignoring a boundary from a missing or replaced task attempt"
+            );
+            return;
+        }
         if lc.state != SchedulerState::Running {
             debug!(task_id, "Cancelling suspension completed during shutdown");
             lc.discard_pending_sends(task_id);
             lc.task_q.remove_message_queue(task_id);
             if let Some(task) = lc.task_q.active.get(&task_id) {
                 task.control.request_cancel();
-                task.control.finish_boundary_commit();
             }
             if lc.task_q.active.contains_key(&task_id) {
                 lc.task_q
@@ -114,7 +151,7 @@ impl Scheduler {
             warn!(task_id, phase = ?tc.phase, "Task suspension phase changed unexpectedly");
             return;
         }
-        if !tc.control.finish_boundary_commit() {
+        if !boundary.finish() {
             lc.task_q.remove_message_queue(task_id);
             return lc
                 .task_q
@@ -251,12 +288,13 @@ impl Scheduler {
         }
     }
 
-    pub fn handle_task_request_input(
+    pub(crate) fn handle_task_request_input(
         &self,
         task_id: TaskId,
         task: Box<Task>,
         input_player: Obj,
         metadata: Option<Vec<(Symbol, Var)>>,
+        boundary: CommittedBoundary,
     ) {
         let input_request_id = Uuid::new_v4();
 
@@ -264,13 +302,24 @@ impl Scheduler {
         // request. The active-to-suspended move remains atomic under the lock.
         let session = {
             let mut lc = self.lifecycle.lock();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
+            }
             if lc.state != SchedulerState::Running {
                 debug!(task_id, "Discarding input request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 if let Some(task) = lc.task_q.active.get(&task_id) {
                     task.control.request_cancel();
-                    task.control.finish_boundary_commit();
                 }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
@@ -282,6 +331,10 @@ impl Scheduler {
                 warn!(task_id, "Task not found for input request");
                 return;
             };
+            if !boundary.belongs_to(&tc.control) {
+                warn!(task_id, "Ignoring a boundary from a replaced task attempt");
+                return;
+            }
             if tc.phase != RunningTaskPhase::Running {
                 warn!(task_id, phase = ?tc.phase, "Task already transitioning");
                 return;
@@ -300,22 +353,42 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
-            if let Some(task) = lc.task_q.active.get(&task_id) {
-                task.control.finish_boundary_commit();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
             }
+            lc.discard_pending_sends(task_id);
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
         {
             let mut lc = self.lifecycle.lock();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
+            }
             if lc.state != SchedulerState::Running {
                 debug!(task_id, "Cancelling input request during shutdown");
                 lc.discard_pending_sends(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 if let Some(task) = lc.task_q.active.get(&task_id) {
                     task.control.request_cancel();
-                    task.control.finish_boundary_commit();
                 }
                 if lc.task_q.active.contains_key(&task_id) {
                     lc.task_q
@@ -331,13 +404,34 @@ impl Scheduler {
         {
             warn!("Could not request input from session; aborting task");
             let mut lc = self.lifecycle.lock();
-            if let Some(task) = lc.task_q.active.get(&task_id) {
-                task.control.finish_boundary_commit();
+            if !lc
+                .task_q
+                .active
+                .get(&task_id)
+                .is_some_and(|active| boundary.belongs_to(&active.control))
+            {
+                debug!(
+                    task_id,
+                    "Ignoring a boundary from a missing or replaced task attempt"
+                );
+                return;
             }
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
         let mut lc = self.lifecycle.lock();
+        if !lc
+            .task_q
+            .active
+            .get(&task_id)
+            .is_some_and(|active| boundary.belongs_to(&active.control))
+        {
+            debug!(
+                task_id,
+                "Ignoring a boundary from a missing or replaced task attempt"
+            );
+            return;
+        }
         if lc.state != SchedulerState::Running {
             debug!(
                 task_id,
@@ -347,7 +441,6 @@ impl Scheduler {
             lc.task_q.remove_message_queue(task_id);
             if let Some(task) = lc.task_q.active.get(&task_id) {
                 task.control.request_cancel();
-                task.control.finish_boundary_commit();
             }
             if lc.task_q.active.contains_key(&task_id) {
                 lc.task_q
@@ -363,7 +456,7 @@ impl Scheduler {
             warn!(task_id, phase = ?tc.phase, "Task input phase changed unexpectedly");
             return;
         }
-        if !tc.control.finish_boundary_commit() {
+        if !boundary.finish() {
             lc.task_q.remove_message_queue(task_id);
             return lc
                 .task_q

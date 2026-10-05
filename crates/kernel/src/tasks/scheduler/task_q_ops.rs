@@ -885,8 +885,7 @@ mod tests {
         let task = task_q.active.get_mut(&10).unwrap();
         task.phase = RunningTaskPhase::Completing;
         task.terminal_result = Some(Ok(TaskNotification::Result(v_int(42))));
-        assert!(task.control.begin_terminal_commit());
-        assert!(task.control.finish_terminal_commit(true));
+        assert!(task.control.claim_terminal().unwrap().committed());
 
         assert!(matches!(
             task_q.abort_task(10),
@@ -901,11 +900,11 @@ mod tests {
         let mut task_q = task_q();
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
         let control = task_q.active[&10].control.clone();
-        assert!(control.begin_boundary_commit());
+        let claim = control.claim_boundary().unwrap();
 
         assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
         assert!(task_q.active.contains_key(&10));
-        assert!(!control.finish_boundary_commit());
+        assert!(!claim.committed().finish());
     }
 
     #[test]
@@ -913,14 +912,14 @@ mod tests {
         let mut task_q = task_q();
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
         let control = task_q.active[&10].control.clone();
-        assert!(control.begin_terminal_commit());
+        let claim = control.claim_terminal().unwrap();
 
         assert!(matches!(
             task_q.abort_task(10),
             AbortTaskOutcome::Completing
         ));
         assert!(task_q.active.contains_key(&10));
-        assert!(control.finish_terminal_commit(true));
+        assert!(claim.committed());
     }
 
     #[test]

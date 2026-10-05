@@ -13,7 +13,10 @@
 
 //! Lock-free arbitration between task cancellation and transaction commit.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU8, Ordering},
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
@@ -112,11 +115,18 @@ impl TaskControl {
         }
     }
 
-    pub(crate) fn begin_boundary_commit(&self) -> bool {
+    pub(crate) fn claim_boundary(self: &Arc<Self>) -> Option<BoundaryCommitClaim> {
         self.begin_commit(TaskState::BoundaryCommit)
+            .then(|| BoundaryCommitClaim {
+                claim: CommitClaim {
+                    control: self.clone(),
+                    terminal: false,
+                    resolved: false,
+                },
+            })
     }
 
-    pub(crate) fn finish_boundary_commit(&self) -> bool {
+    fn finish_boundary_commit(&self) -> bool {
         loop {
             let state = self.load();
             let next = match state {
@@ -130,8 +140,15 @@ impl TaskControl {
         }
     }
 
-    pub(crate) fn begin_terminal_commit(&self) -> bool {
+    pub(crate) fn claim_terminal(self: &Arc<Self>) -> Option<TerminalCommitClaim> {
         self.begin_commit(TaskState::TerminalCommit)
+            .then(|| TerminalCommitClaim {
+                claim: CommitClaim {
+                    control: self.clone(),
+                    terminal: true,
+                    resolved: false,
+                },
+            })
     }
 
     /// Finish a terminal commit attempt.
@@ -139,7 +156,7 @@ impl TaskControl {
     /// A successful database commit always wins. A conflict or commit failure releases the claim;
     /// a cancellation which arrived during that failed attempt then wins instead of allowing a
     /// retry.
-    pub(crate) fn finish_terminal_commit(&self, committed: bool) -> bool {
+    fn finish_terminal_commit(&self, committed: bool) -> bool {
         loop {
             let state = self.load();
             let next = match (state, committed) {
@@ -179,42 +196,165 @@ impl TaskControl {
     }
 }
 
+/// An unresolved claim fails closed on abandonment. This only resolves arbitration:
+/// the worker or scheduler still owns transaction and registry cleanup.
+#[derive(Debug)]
+struct CommitClaim {
+    control: Arc<TaskControl>,
+    terminal: bool,
+    resolved: bool,
+}
+
+impl CommitClaim {
+    fn finish(mut self, completed: bool) -> bool {
+        self.resolved = true;
+        if self.terminal {
+            self.control.finish_terminal_commit(completed)
+        } else {
+            self.control.finish_boundary_commit()
+        }
+    }
+}
+
+impl Drop for CommitClaim {
+    fn drop(&mut self) {
+        if !self.resolved {
+            self.control.request_cancel();
+            if self.terminal {
+                self.control.finish_terminal_commit(false);
+            } else {
+                self.control.finish_boundary_commit();
+            }
+        }
+    }
+}
+
+/// Owns arbitration while a non-terminal transaction attempts to commit.
+#[must_use]
+#[derive(Debug)]
+pub(crate) struct BoundaryCommitClaim {
+    claim: CommitClaim,
+}
+
+impl BoundaryCommitClaim {
+    pub(crate) fn committed(self) -> CommittedBoundary {
+        CommittedBoundary { claim: self.claim }
+    }
+
+    /// Release a failed attempt, allowing pending cancellation to win.
+    pub(crate) fn failed(self) -> bool {
+        self.claim.finish(false)
+    }
+}
+
+/// A committed database boundary still awaiting session and scheduler completion.
+/// Dropping it stops continuation, but never rolls back the committed database.
+#[must_use]
+#[derive(Debug)]
+pub(crate) struct CommittedBoundary {
+    claim: CommitClaim,
+}
+
+impl CommittedBoundary {
+    pub(crate) fn belongs_to(&self, control: &Arc<TaskControl>) -> bool {
+        Arc::ptr_eq(&self.claim.control, control)
+    }
+
+    pub(crate) fn finish(self) -> bool {
+        self.claim.finish(true)
+    }
+}
+
+/// Owns arbitration until a terminal transaction outcome is known.
+#[must_use]
+#[derive(Debug)]
+pub(crate) struct TerminalCommitClaim {
+    claim: CommitClaim,
+}
+
+impl TerminalCommitClaim {
+    pub(crate) fn committed(self) -> bool {
+        self.claim.finish(true)
+    }
+
+    pub(crate) fn rolled_back(self) -> bool {
+        self.claim.finish(true)
+    }
+
+    pub(crate) fn failed(self) -> bool {
+        self.claim.finish(false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn cancellation_wins_before_commit() {
-        let control = TaskControl::new();
+        let control = Arc::new(TaskControl::new());
         assert_eq!(control.request_cancel(), CancelResult::Cancelled);
-        assert!(!control.begin_boundary_commit());
-        assert!(!control.begin_terminal_commit());
+        assert!(control.claim_boundary().is_none());
+        assert!(control.claim_terminal().is_none());
     }
 
     #[test]
     fn cancellation_stops_after_boundary_commit() {
-        let control = TaskControl::new();
-        assert!(control.begin_boundary_commit());
+        let control = Arc::new(TaskControl::new());
+        let claim = control.claim_boundary().unwrap();
         assert_eq!(control.request_cancel(), CancelResult::AfterBoundary);
-        assert!(!control.finish_boundary_commit());
+        assert!(!claim.committed().finish());
         assert!(control.is_cancelled());
     }
 
     #[test]
     fn successful_terminal_commit_wins_cancellation_race() {
-        let control = TaskControl::new();
-        assert!(control.begin_terminal_commit());
+        let control = Arc::new(TaskControl::new());
+        let claim = control.claim_terminal().unwrap();
         assert_eq!(control.request_cancel(), CancelResult::Completing);
-        assert!(control.finish_terminal_commit(true));
+        assert!(claim.committed());
         assert_eq!(control.request_cancel(), CancelResult::Completing);
     }
 
     #[test]
     fn cancellation_wins_when_terminal_commit_conflicts() {
-        let control = TaskControl::new();
-        assert!(control.begin_terminal_commit());
+        let control = Arc::new(TaskControl::new());
+        let claim = control.claim_terminal().unwrap();
         assert_eq!(control.request_cancel(), CancelResult::Completing);
-        assert!(!control.finish_terminal_commit(false));
+        assert!(!claim.failed());
         assert!(control.is_cancelled());
+    }
+    #[test]
+    fn abandoned_claim_cancels_continuation() {
+        let control = Arc::new(TaskControl::new());
+        drop(control.claim_boundary().unwrap());
+        assert!(control.is_cancelled());
+        assert!(control.claim_boundary().is_none());
+    }
+
+    #[test]
+    fn abandoned_committed_boundary_cancels_continuation() {
+        let control = Arc::new(TaskControl::new());
+        drop(control.claim_boundary().unwrap().committed());
+        assert!(control.is_cancelled());
+    }
+
+    #[test]
+    fn unwinding_terminal_claim_cancels_continuation() {
+        let control = Arc::new(TaskControl::new());
+        let _ = std::panic::catch_unwind(|| {
+            let _claim = control.claim_terminal().unwrap();
+            panic!("interrupted commit");
+        });
+        assert!(control.is_cancelled());
+        assert!(control.claim_terminal().is_none());
+    }
+
+    #[test]
+    fn failed_claim_allows_a_new_attempt() {
+        let control = Arc::new(TaskControl::new());
+        assert!(control.claim_boundary().unwrap().failed());
+        assert!(control.claim_terminal().unwrap().failed());
+        assert!(control.claim_boundary().is_some());
     }
 }
