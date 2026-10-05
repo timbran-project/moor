@@ -426,6 +426,56 @@ struct CommitAdmissionGate {
     episode: Mutex<BackpressureEpisode>,
 }
 
+/// An unfinished wait is abandoned, not counted as a timeout rejection.
+/// Only admission and timeout contribute to the existing block-time counter.
+struct AdmissionWait<'a> {
+    gate: &'a CommitAdmissionGate,
+    started_at: Instant,
+    outcome: AdmissionWaitOutcome,
+}
+
+enum AdmissionWaitOutcome {
+    Abandoned,
+    Admitted(Duration),
+    TimedOut(Duration),
+    Disconnected,
+}
+
+impl AdmissionWait<'_> {
+    fn elapsed(&self) -> Duration {
+        self.started_at.elapsed()
+    }
+
+    fn admitted(mut self) -> CommitAdmission {
+        self.outcome = AdmissionWaitOutcome::Admitted(self.elapsed());
+        self.gate.permit()
+    }
+
+    fn timed_out(mut self, waited: Duration) -> CommitAdmissionError {
+        self.outcome = AdmissionWaitOutcome::TimedOut(waited);
+        CommitAdmissionError::Timeout { waited }
+    }
+
+    fn disconnected(mut self) -> CommitAdmissionError {
+        self.outcome = AdmissionWaitOutcome::Disconnected;
+        CommitAdmissionError::Unavailable
+    }
+}
+
+impl Drop for AdmissionWait<'_> {
+    fn drop(&mut self) {
+        self.gate
+            .finish_wait(matches!(self.outcome, AdmissionWaitOutcome::TimedOut(_)));
+        if let AdmissionWaitOutcome::Admitted(waited) | AdmissionWaitOutcome::TimedOut(waited) =
+            self.outcome
+        {
+            db_counters()
+                .timers_rare
+                .record_elapsed(WorldStateTimerOp::BatchWriterBackpressureBlock, waited);
+        }
+    }
+}
+
 impl CommitAdmissionGate {
     fn new(capacity: usize, policy: CommitAdmissionPolicy) -> Self {
         let (return_to, available) = flume::bounded(capacity);
@@ -472,10 +522,16 @@ impl CommitAdmissionGate {
         }
     }
 
-    fn begin_wait(&self) {
+    fn begin_wait(&self) -> AdmissionWait<'_> {
+        let started_at = Instant::now();
         let mut episode = self.episode.lock();
         episode.waiters += 1;
         episode.started_at.get_or_insert_with(Instant::now);
+        AdmissionWait {
+            gate: self,
+            started_at,
+            outcome: AdmissionWaitOutcome::Abandoned,
+        }
     }
 
     fn warn_if_needed(&self, transaction: Timestamp, waited: Duration) {
@@ -533,19 +589,14 @@ impl CommitAdmissionGate {
         db_counters()
             .counters
             .inc(WorldStateCountOp::BatchWriterBackpressure);
-        let started_at = Instant::now();
-        self.begin_wait();
+        let wait = self.begin_wait();
 
         loop {
             let policy = self.policy();
-            let waited = started_at.elapsed();
+            let waited = wait.elapsed();
             if waited >= policy.timeout {
                 self.warn_if_needed(transaction, waited);
-                self.finish_wait(true);
-                db_counters()
-                    .timers_rare
-                    .record_elapsed(WorldStateTimerOp::BatchWriterBackpressureBlock, waited);
-                return Err(CommitAdmissionError::Timeout { waited });
+                return Err(wait.timed_out(waited));
             }
 
             let until_warning = policy.warn_after.saturating_sub(waited);
@@ -559,22 +610,16 @@ impl CommitAdmissionGate {
 
             match self.available.recv_timeout(wait_for) {
                 Ok(()) => {
-                    let waited = started_at.elapsed();
-                    self.finish_wait(false);
-                    db_counters()
-                        .timers_rare
-                        .record_elapsed(WorldStateTimerOp::BatchWriterBackpressureBlock, waited);
-                    return Ok(self.permit());
+                    return Ok(wait.admitted());
                 }
                 Err(flume::RecvTimeoutError::Timeout) => {
-                    let waited = started_at.elapsed();
+                    let waited = wait.elapsed();
                     if waited >= policy.warn_after {
                         self.warn_if_needed(transaction, waited);
                     }
                 }
                 Err(flume::RecvTimeoutError::Disconnected) => {
-                    self.finish_wait(false);
-                    return Err(CommitAdmissionError::Unavailable);
+                    return Err(wait.disconnected());
                 }
             }
         }
@@ -1280,6 +1325,77 @@ mod tests {
     }
 
     #[test]
+    fn admission_wait_guards_close_overlapping_and_abandoned_episodes() {
+        let gate = CommitAdmissionGate::new(
+            1,
+            CommitAdmissionPolicy {
+                warn_after: Duration::from_secs(1),
+                timeout: Duration::from_secs(2),
+            },
+        );
+        let last = gate.begin_wait();
+        let timed_out = gate.begin_wait();
+        let disconnected = gate.begin_wait();
+        gate.warn_if_needed(Timestamp(1), Duration::from_secs(1));
+        assert!(matches!(
+            timed_out.timed_out(Duration::from_secs(2)),
+            CommitAdmissionError::Timeout { .. }
+        ));
+        assert!(matches!(
+            disconnected.disconnected(),
+            CommitAdmissionError::Unavailable
+        ));
+        {
+            let episode = gate.episode.lock();
+            assert_eq!(episode.waiters, 1);
+            assert_eq!(episode.rejected, 1);
+            assert!(episode.warned);
+        }
+        // Unwinding also drops a registered wait, without adding a rejection.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _wait = gate.begin_wait();
+            panic!("abandon admission");
+        }));
+        assert!(result.is_err());
+        assert_eq!(gate.episode.lock().waiters, 1);
+        assert_eq!(gate.episode.lock().rejected, 1);
+        drop(last);
+        let episode = gate.episode.lock();
+        assert_eq!(episode.waiters, 0);
+        assert_eq!(episode.rejected, 0);
+        assert!(!episode.warned);
+        assert!(episode.started_at.is_none());
+    }
+
+    #[test]
+    fn successful_slow_admission_closes_its_episode_and_returns_permit() {
+        let gate = Arc::new(CommitAdmissionGate::new(
+            1,
+            CommitAdmissionPolicy {
+                warn_after: Duration::from_secs(1),
+                timeout: Duration::from_secs(5),
+            },
+        ));
+        let held = gate.acquire(Timestamp(1)).unwrap();
+        let waiter = {
+            let gate = gate.clone();
+            std::thread::spawn(move || gate.acquire(Timestamp(2)).unwrap())
+        };
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while gate.episode.lock().waiters == 0 {
+            assert!(Instant::now() < deadline, "waiter did not enter admission");
+            std::thread::yield_now();
+        }
+        drop(held);
+        let admitted = waiter.join().unwrap();
+        assert_eq!(gate.episode.lock().waiters, 0);
+        assert!(gate.episode.lock().started_at.is_none());
+        assert!(gate.available.is_empty());
+        drop(admitted);
+        assert_eq!(gate.available.len(), 1);
+    }
+
+    #[test]
     fn admission_times_out_and_recovers_without_waiting_forever() {
         let gate = CommitAdmissionGate::new(
             1,
@@ -1295,6 +1411,8 @@ mod tests {
             Err(error) => error,
         };
         assert!(matches!(error, CommitAdmissionError::Timeout { .. }));
+        assert_eq!(gate.episode.lock().waiters, 0);
+        assert!(gate.episode.lock().started_at.is_none());
 
         drop(held);
         assert!(gate.acquire(Timestamp(3)).is_ok());
