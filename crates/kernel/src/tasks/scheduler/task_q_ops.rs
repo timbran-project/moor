@@ -266,7 +266,6 @@ impl TaskQ {
             dispatched_at: Instant::now(),
             run_baseline: run_baseline.clone(),
             abort_error: None,
-            terminal_result: None,
         };
 
         self.insert_active(task_id, task_control);
@@ -397,19 +396,16 @@ impl TaskQ {
             );
             return;
         };
-        let Some(result) = task.terminal_result.take() else {
+        if !matches!(task.phase, RunningTaskPhase::Completing(_)) {
             warn!(task_id, "Task has no reserved terminal result, ignoring");
             return;
+        }
+        let task = self.active.remove(&task_id).expect("checked active entry");
+        let RunningTaskPhase::Completing(result) = task.phase else {
+            unreachable!("checked completion phase under exclusive access");
         };
-        let result = match result {
-            Ok(TaskNotification::Result(value)) => Ok(value),
-            Ok(TaskNotification::Suspended) => {
-                warn!(task_id, "Suspension cannot be a terminal task result");
-                return;
-            }
-            Err(error) => Err(error),
-        };
-        self.send_task_result(task_id, result);
+        self.suspended.enqueue_dependents_for(task_id);
+        self.send_task_result_direct(task_id, task.result_sender, result);
     }
 
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
@@ -474,7 +470,6 @@ impl TaskQ {
             dispatched_at: Instant::now(),
             run_baseline: run_baseline.clone(),
             abort_error: None,
-            terminal_result: None,
         };
 
         self.insert_active(task_id, task_control);
@@ -805,7 +800,6 @@ mod tests {
                 dispatched_at: Instant::now(),
                 run_baseline: Arc::new(OnceLock::new()),
                 abort_error: None,
-                terminal_result: None,
             },
         );
     }
@@ -886,8 +880,7 @@ mod tests {
         let mut task_q = task_q();
         add_active_task(&mut task_q, 10, Obj::mk_id(2));
         let task = task_q.active.get_mut(&10).unwrap();
-        task.phase = RunningTaskPhase::Completing;
-        task.terminal_result = Some(Ok(TaskNotification::Result(v_int(42))));
+        task.phase = RunningTaskPhase::Completing(Ok(v_int(42)));
         assert!(task.control.claim_terminal().unwrap().committed());
 
         assert!(matches!(

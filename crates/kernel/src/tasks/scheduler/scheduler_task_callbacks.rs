@@ -23,6 +23,7 @@ use crate::tasks::{
     task_scheduler_client::{ActiveTaskDescriptions, TaskLimitDisposition, TaskLimitInfo},
 };
 
+use super::transitions::complete::TaskCompletion;
 use super::*;
 
 static HANDLE_TASK_TIMEOUT_SYM: LazyLock<Symbol> =
@@ -37,7 +38,7 @@ impl Scheduler {
         timestamp: u64,
     ) {
         // Extract session under lock, then commit outside.
-        let session = {
+        let completion = {
             let mut lc = self.lifecycle.lock();
 
             if mutations_made {
@@ -48,13 +49,11 @@ impl Scheduler {
                 warn!(task_id, "Task not found for success");
                 return;
             };
-            task.terminal_result = Some(Ok(TaskNotification::Result(value)));
-            task.phase = RunningTaskPhase::Completing;
-            task.session.clone()
+            TaskCompletion::reserve(task_id, task, Ok(value))
         };
 
         // Session commit (potential I/O) outside the lock.
-        if let Err(error) = session.commit() {
+        if let Err(error) = completion.session.commit() {
             error!(
                 task_id,
                 boundary = "task completion",
@@ -62,18 +61,24 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
+            if !completion.is_current(&lc) {
+                return;
+            }
             lc.discard_task_effects(task_id);
             if let Some(task) = lc.task_q.active.get_mut(&task_id) {
-                task.terminal_result = Some(Err(TaskAbortedError));
+                task.phase = RunningTaskPhase::Completing(Err(TaskAbortedError));
             }
-            lc.task_q.send_reserved_task_result(task_id);
+            completion.finish(&mut lc);
             return lc.settle_schedule_firings();
         }
 
         let mut lc = self.lifecycle.lock();
+        if !completion.is_current(&lc) {
+            return;
+        }
         lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
-        lc.task_q.send_reserved_task_result(task_id);
+        completion.finish(&mut lc);
         lc.settle_schedule_firings();
     }
 
@@ -323,7 +328,7 @@ impl Scheduler {
 
         // Reserve the terminal result before finalizing the session. A deadline which arrives
         // during finalization must wait for this result instead of observing a missing task.
-        let (session, player) = {
+        let (completion, player) = {
             let mut lc = self.lifecycle.lock();
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 lc.discard_task_effects(task_id);
@@ -331,9 +336,8 @@ impl Scheduler {
                 warn!(task_id, "Task not found for abort");
                 return;
             };
-            task.terminal_result = Some(Err(TaskAbortedLimit(limit_reason)));
-            task.phase = RunningTaskPhase::Completing;
-            let session = task.session.clone();
+            let completion =
+                TaskCompletion::reserve(task_id, task, Err(TaskAbortedLimit(limit_reason)));
             let player = task.player;
 
             match disposition {
@@ -349,8 +353,10 @@ impl Scheduler {
                 TaskLimitDisposition::Rollback => lc.discard_task_effects(task_id),
             }
             lc.task_q.remove_message_queue(task_id);
-            (session, player)
+            (completion, player)
         };
+
+        let session = completion.session.clone();
 
         // Send the abort notification and finalize the session outside the lock.
         let abort_reason_text = match limit_reason {
@@ -403,6 +409,10 @@ impl Scheduler {
 
         // Re-acquire lock for handler task submission.
         let mut lc = self.lifecycle.lock();
+
+        if !completion.is_current(&lc) {
+            return;
+        }
 
         // Attempt to invoke the handler verb as a separate task.
         let resource_str = match limit_reason {
@@ -462,7 +472,7 @@ impl Scheduler {
         }
 
         // Report the original task as aborted (handler outcome doesn't affect this).
-        lc.task_q.send_reserved_task_result(task_id);
+        completion.finish(&mut lc);
     }
 
     pub fn handle_task_exception(&self, task_id: TaskId, exception: Box<Exception>) {
@@ -505,21 +515,23 @@ impl Scheduler {
     }
 
     pub fn handle_task_commit_rejected(&self, task_id: TaskId, exception: Box<Exception>) {
-        let session = {
+        let completion = {
             let mut lc = self.lifecycle.lock();
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found after database commit rejection");
                 return;
             };
-            task.terminal_result = Some(Err(TaskAbortedException(exception.as_ref().clone())));
-            task.phase = RunningTaskPhase::Completing;
-            let session = task.session.clone();
+            let completion = TaskCompletion::reserve(
+                task_id,
+                task,
+                Err(TaskAbortedException(exception.as_ref().clone())),
+            );
             lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
-            session
+            completion
         };
 
-        if let Err(error) = session.rollback() {
+        if let Err(error) = completion.session.rollback() {
             warn!(
                 task_id,
                 ?error,
@@ -528,7 +540,7 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
-        lc.task_q.send_reserved_task_result(task_id);
+        completion.finish(&mut lc);
     }
 
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {

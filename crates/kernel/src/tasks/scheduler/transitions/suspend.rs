@@ -69,7 +69,7 @@ impl SuspensionTransition {
             warn!(task_id, phase = ?active.phase, "Task already transitioning");
             return None;
         }
-        active.phase = phase;
+        active.phase = phase.clone();
         let transition = Self {
             task,
             session: active.session.clone(),

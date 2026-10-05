@@ -14,4 +14,5 @@
 //! Task transitions coordinate registry changes under the lifecycle lock.
 //! Session I/O runs outside that lock while active metadata remains visible.
 
+pub(super) mod complete;
 mod suspend;

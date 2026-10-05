@@ -1451,7 +1451,6 @@ mod tests {
                 dispatched_at: Instant::now(),
                 run_baseline: Arc::new(OnceLock::new()),
                 abort_error: None,
-                terminal_result: None,
                 control,
                 session,
                 result_sender: None,
@@ -1720,7 +1719,7 @@ mod tests {
                 .task_q
                 .active
                 .get(&task_id)
-                .map(|task| task.phase),
+                .map(|task| task.phase.clone()),
             Some(RunningTaskPhase::Suspending)
         );
 
@@ -1905,6 +1904,50 @@ mod tests {
     }
 
     #[test]
+    fn stale_terminal_completion_preserves_replacement_result_and_effects() {
+        let scheduler = scheduler();
+        let task_id = 247;
+        let target_id = 248;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let task = insert_active_task(
+            &scheduler,
+            task_id,
+            Arc::new(BlockingCommitSession {
+                commit_entered: commit_entered.clone(),
+                release_commit: release_commit.clone(),
+                connection_obj: None,
+                source_connections: None,
+                fail_commit: false,
+            }),
+        );
+        assert!(task.control.claim_terminal().unwrap().committed());
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_success(task_id, v_int(1), false, 0);
+        });
+        commit_entered.wait();
+        let replacement =
+            insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+        let (send, recv) = flume::unbounded();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            let active = lc.task_q.active.get_mut(&task_id).unwrap();
+            active.result_sender = Some(send);
+            active.effects.send(target_id, v_int(17));
+        }
+        release_commit.wait();
+        callback.join().unwrap();
+        let mut lc = scheduler.lifecycle.lock();
+        let active = lc.task_q.active.get(&task_id).unwrap();
+        assert!(Arc::ptr_eq(&active.control, &replacement.control));
+        assert_eq!(active.phase, RunningTaskPhase::Running);
+        assert_eq!(active.effects.messages_for(target_id), 1);
+        assert!(lc.task_q.drain_messages(target_id).is_empty());
+        assert!(recv.try_recv().is_err());
+    }
+
+    #[test]
     fn input_task_remains_visible_until_atomic_queue_move() {
         let scheduler = scheduler();
         let timer = scheduler
@@ -1946,7 +1989,7 @@ mod tests {
                 .task_q
                 .active
                 .get(&task_id)
-                .map(|task| task.phase),
+                .map(|task| task.phase.clone()),
             Some(RunningTaskPhase::RequestingInput)
         );
 
