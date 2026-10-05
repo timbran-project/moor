@@ -18,6 +18,7 @@ mod scheduler_gc;
 mod scheduler_ops;
 mod scheduler_submit;
 mod schedules;
+mod services;
 mod task_requests;
 mod transitions;
 
@@ -31,11 +32,10 @@ use crate::trace_task_resume;
 use crate::{
     config::Config,
     tasks::{
-        DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS,
-        DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS,
-        DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
-        DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
-        TaskStart,
+        DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
+        DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS,
+        DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX,
+        DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle, TaskStart,
         checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
         gc_thread::spawn_gc_mark_phase,
         maintenance::MaintenanceCoordinator,
@@ -54,18 +54,15 @@ use crate::{
     vm::builtins::BuiltinRegistry,
 };
 use arc_swap::ArcSwap;
-use flume::{Receiver, RecvTimeoutError, Sender};
+use flume::{Receiver, Sender};
 use moor_common::{
     model::{CommitResult, TaskPermissions, WorldState},
     tasks::{
         CommandError, SchedulerError,
         SchedulerError::{CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled},
-        Session, SessionFactory, SystemControl, TaskId, WorkerError,
+        Session, SystemControl, TaskId, WorkerError,
     },
-    threading::{
-        TaskPoolAffinityConfig, set_current_thread_background_priority,
-        set_task_pool_affinity_config, spawn_perf,
-    },
+    threading::{TaskPoolAffinityConfig, set_task_pool_affinity_config, spawn_perf},
 };
 #[cfg(feature = "trace_events")]
 use moor_compiler::to_literal;
@@ -76,6 +73,7 @@ use moor_var::{
     Var, v_bool_int, v_empty_str, v_float, v_int, v_obj, v_str,
 };
 use parking_lot::{Condvar, Mutex};
+pub use services::SchedulerThreads;
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -85,39 +83,6 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 pub(crate) type SchedulerClientRequest = Box<dyn FnOnce(&Scheduler) + Send + 'static>;
-
-/// Threads owned by a running scheduler.
-#[must_use = "scheduler service threads must be joined during shutdown"]
-pub struct SchedulerThreads {
-    timer: std::thread::JoinHandle<()>,
-    worker_response: Option<std::thread::JoinHandle<()>>,
-    client_requests: std::thread::JoinHandle<()>,
-}
-
-impl SchedulerThreads {
-    /// Join all scheduler service threads, returning the first panic after every
-    /// handle has been collected.
-    pub fn join(self) -> std::thread::Result<()> {
-        let mut handles = vec![self.timer, self.client_requests];
-        if let Some(worker_response) = self.worker_response {
-            handles.push(worker_response);
-        }
-
-        let mut first_panic = None;
-        for handle in handles {
-            if let Err(panic) = handle.join()
-                && first_panic.is_none()
-            {
-                first_panic = Some(panic);
-            }
-        }
-
-        match first_panic {
-            Some(panic) => Err(panic),
-            None => Ok(()),
-        }
-    }
-}
 
 /// Action to take when resuming a suspended task
 #[derive(Debug, Clone)]
@@ -266,189 +231,6 @@ impl Scheduler {
 
         s.reload_server_options();
         s
-    }
-
-    /// Start the scheduler and return ownership of all scheduler service threads.
-    pub fn start(
-        &self,
-        bg_session_factory: Arc<dyn SessionFactory>,
-    ) -> Result<SchedulerThreads, SchedulerError> {
-        // Rehydrate suspended tasks.
-        {
-            let mut lc = self.lifecycle.lock();
-            if lc.state != SchedulerState::Created {
-                return Err(SchedulerError::SchedulerNotResponding);
-            }
-            if let Some(max_restored_task_id) =
-                lc.task_q.suspended.load_tasks(bg_session_factory.clone())
-            {
-                let next_restored_task_id = max_restored_task_id
-                    .checked_add(1)
-                    .expect("Restored task ID exhausted the task ID space");
-                lc.next_task_id = lc.next_task_id.max(next_restored_task_id);
-            }
-            lc.load_schedules();
-            lc.bg_session_factory = Some(bg_session_factory);
-            lc.state = SchedulerState::Running;
-        }
-
-        // Start worker response thread if we have a worker receiver.
-        let worker_response = if let Some(recv) = self.worker_response_recv.lock().take() {
-            let scheduler = self.clone();
-            Some(
-                spawn_perf("moor-worker-recv", move || {
-                    scheduler.worker_response_loop(recv);
-                })
-                .expect("Could not spawn worker response thread"),
-            )
-        } else {
-            None
-        };
-
-        let client_request_recv = self
-            .client_request_recv
-            .lock()
-            .take()
-            .ok_or(SchedulerError::CouldNotStartTask)?;
-        let scheduler = self.clone();
-        let client_requests = spawn_perf("moor-scheduler-requests", move || {
-            scheduler.client_request_loop(client_request_recv);
-        })
-        .expect("Could not spawn scheduler client request thread");
-
-        // Start timer thread.
-        let scheduler = self.clone();
-        let timer = spawn_perf("moor-timer", move || {
-            set_current_thread_background_priority().ok();
-            scheduler.timer_loop();
-        })
-        .expect("Could not spawn timer thread");
-
-        info!("Scheduler started");
-        Ok(SchedulerThreads {
-            timer,
-            worker_response,
-            client_requests,
-        })
-    }
-
-    fn client_request_loop(&self, recv: Receiver<SchedulerClientRequest>) {
-        loop {
-            match recv.recv_timeout(Duration::from_millis(50)) {
-                Ok(request) => request(self),
-                Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => break,
-            }
-
-            if self.state() == SchedulerState::Stopped {
-                break;
-            }
-        }
-        debug!("Scheduler client request loop exited");
-    }
-
-    pub(crate) fn enqueue_client_request(
-        &self,
-        request: SchedulerClientRequest,
-    ) -> Result<(), SchedulerError> {
-        let lc = self.lifecycle.lock();
-        if lc.state != SchedulerState::Running {
-            return Err(SchedulerError::SchedulerNotResponding);
-        }
-        self.client_request_send
-            .send(request)
-            .map_err(|_| SchedulerError::SchedulerNotResponding)
-    }
-
-    /// The timer loop replaces the old run() main loop.
-    /// Handles: timer expirations, GC checks, compaction, immediate wakes.
-    fn timer_loop(&self) {
-        loop {
-            {
-                let lc = self.lifecycle.lock();
-                if lc.state == SchedulerState::Stopped {
-                    break;
-                }
-            }
-
-            // Check GC conditions
-            {
-                let mut lc = self.lifecycle.lock();
-                if lc.state == SchedulerState::Running
-                    && self.config.features.anonymous_objects
-                    && !lc.gc_collection_in_progress
-                    && !lc.gc_mark_in_progress
-                    && self.should_run_gc(&lc)
-                {
-                    self.run_gc_cycle(&mut lc);
-                }
-
-                // Periodic tasks DB compaction
-                if lc.last_compact_time.elapsed()
-                    >= Duration::from_secs(DEFAULT_COMPACT_INTERVAL_SECONDS)
-                {
-                    debug!("Triggering periodic tasks database compaction");
-                    lc.task_q.compact();
-                    lc.last_compact_time = std::time::Instant::now();
-                }
-            }
-
-            // Drain immediate wakes
-            self.drain_immediate_wakes();
-
-            // Collect timer-based wakes
-            self.collect_and_wake_expired_tasks();
-
-            // Settle finished firings and fire due native schedules
-            {
-                let mut lc = self.lifecycle.lock();
-                lc.settle_schedule_firings();
-            }
-            self.collect_and_fire_schedules();
-
-            // Sleep until next timer expiry or notification
-            let tick_duration = self
-                .config
-                .runtime
-                .scheduler_tick_duration
-                .unwrap_or(Duration::from_millis(10));
-
-            let (lock, cvar) = &*self.timer_notify;
-            let mut notified = lock.lock();
-            *notified = false;
-            cvar.wait_for(&mut notified, tick_duration);
-        }
-
-        // Write out all the suspended tasks to the database.
-        info!("Timer loop done; saving suspended tasks");
-        let lc = self.lifecycle.lock();
-        lc.task_q.suspended.save_tasks();
-        lc.save_schedules();
-        info!("Saved.");
-    }
-
-    /// Wake the timer thread to recompute its sleep duration.
-    pub(crate) fn wake_timer_thread(&self) {
-        let (lock, cvar) = &*self.timer_notify;
-        let mut notified = lock.lock();
-        *notified = true;
-        cvar.notify_one();
-    }
-
-    /// Dedicated thread for receiving worker responses.
-    fn worker_response_loop(&self, recv: Receiver<WorkerResponse>) {
-        loop {
-            match recv.recv_timeout(Duration::from_millis(50)) {
-                Ok(response) => self.handle_worker_response(response),
-                Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => break,
-            }
-
-            if self.state() == SchedulerState::Stopped {
-                break;
-            }
-        }
-        debug!("Worker response loop exited");
     }
 
     /// Collect expired timer tasks and wake them.
