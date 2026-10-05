@@ -1,0 +1,38 @@
+// Copyright (C) 2026 The mooR Authors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+@wizard
+; #90100.authoring_features = $prog_features; #90101.authoring_features = $prog_features; return true;
+true
+@programmer
+% @schedules
+~~Schedules
+=
+~~(none)
+~~0 scheduled
+~~Use @schedule
+% @schedule
+~~Usage: @schedule
+% @schedule 0
+~~Usage: @schedule
+% @schedule 1.5
+~~Usage: @schedule
+% @schedule 99999999
+~~No such schedule: 99999999
+% @stop-schedule
+~~Usage: @stop-schedule
+% @stop-schedule -1
+~~Usage: @stop-schedule
+% @kill-schedule 99999999
+~~No live schedule: 99999999
+% help @stop-schedule
+=@ps
+@wizard
+% @schedules
+~~Schedules
+=
+~~(none)
+~~0 scheduled
+~~Use @schedule
+% @ps
+~~Active Tasks

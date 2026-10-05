@@ -220,3 +220,12 @@ format/format_paragraph.moo:inline
 help/help_utils.moo:command_usage
 
 types/str_proto.moo:parse_verbref
+
+features/prog_features.moo:@ps
+features/prog_features.moo:_schedule_rows
+features/prog_features.moo:_schedule_table
+features/prog_features.moo:_schedule_next
+features/prog_features.moo:_schedule_id
+features/prog_features.moo:@schedules
+features/prog_features.moo:@schedule
+features/prog_features.moo:@stop-schedule

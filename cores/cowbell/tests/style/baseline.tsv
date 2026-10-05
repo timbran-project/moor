@@ -1399,29 +1399,6 @@ count	file	verb	kind	detail
 1	features/prog_features.moo	"@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	listing_event
 1	features/prog_features.moo	"@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	prop_list
 1	features/prog_features.moo	"@properties @props" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	target_obj
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	active
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	active_rows
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	active_table
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	blocks
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	delta
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	line_num
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	now
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	output
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	programmer
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	queued
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	queued_rows
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	queued_table
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	resume_time
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	start_info
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	summary
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	task_detail
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	task_id
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	task_player
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	task_type
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	time_str
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	verb_loc
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	verb_name
-1	features/prog_features.moo	"@ps @tasks" (none none none) owner: ARCH_WIZARD flags: "rd"	implicit-local	verb_str
 1	features/prog_features.moo	"@rename" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	alias_str
 1	features/prog_features.moo	"@rename" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	info
 1	features/prog_features.moo	"@rename" (any any any) owner: ARCH_WIZARD flags: "rd"	implicit-local	message

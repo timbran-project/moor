@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+`Cowbell`:
+
+- Show native schedules in `@ps`. Add `@schedules` for listing, `@schedule ID` for diagnostics, and
+  `@stop-schedule ID` (`@kill-schedule`) for stopping future firings. Programmers manage their own
+  schedules; wizards can manage all owners. Running firings remain separate tasks controlled by
+  `@kill`.
+
 `moor-emh`:
 
 - Add an `export DIRECTORY` command that writes a complete database snapshot as objdef files and

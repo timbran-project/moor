@@ -35,10 +35,18 @@ object PROG_HELP_TOPICS [
   property topic_programming_overview (owner: ARCH_WIZARD, flags: "rc") = {
     "programming",
     "Programmer commands",
-    "You need the programmer bit to use these commands. If you don't have one, ask a wizard to grant you the programmer bit.\n\nCommands for examining and modifying code:\n\n`@list`, `@program`, `@verb`, `@rmverb`, `@cpverb`, `@mvverb`, `@which`, `@where-defined`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@clear-property`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nUse `help <command>` for details on each command.",
+    "You need the programmer bit to use these commands. If you don't have one, ask a wizard to grant you the programmer bit.\n\nCommands for examining and modifying code:\n\n`@list`, `@program`, `@verb`, `@rmverb`, `@cpverb`, `@mvverb`, `@which`, `@where-defined`, `@verbs`, `@properties`, `@property`, `@rmproperty`, `@clear-property`, `@args`, `@show`, `@chmod`, `@grep`, `@doc`, `@edit`, `@browse`, `@codepaste`, `eval`\n\nTasks and schedules: `@ps`, `@schedules`, `@schedule`, `@stop-schedule`, `@kill`.\n\nUse `help <command>` for details on each command.",
     {"prog", "code", "verbs"},
     "programming",
     {"building"}
+  };
+  property topic_programming_tasks (owner: ARCH_WIZARD, flags: "rc") = {
+    "@ps",
+    "@ps - Tasks and schedules",
+    "`@ps` (alias `@tasks`) lists active tasks, queued tasks, and live schedules.\n`@schedules` lists schedules only. Programmers see their own schedules; wizards see all owners.\n\n`@schedule ID` shows callback arguments, timing, running task, and fault diagnostics.\n`@stop-schedule ID` (alias `@kill-schedule`) stops future firings. It does not kill a firing already running. Use `@kill TASK-ID` for that task. Schedule IDs and task IDs are separate.\n\nOnly a schedule's owner or a wizard may inspect or stop it. A stopped or expired ID is harmless to stop again.",
+    {"@tasks", "@schedules", "@schedule", "@stop-schedule", "@kill-schedule", "@kill", "@kill-task", "tasks", "schedules"},
+    "programming",
+    {}
   };
   property topic_programming_program (owner: ARCH_WIZARD, flags: "rc") = {
     "@program",
@@ -72,6 +80,7 @@ object PROG_HELP_TOPICS [
     'topic_programming_grep,
     'topic_programming_chmod,
     'topic_programming_move,
-    'topic_programming_which
+    'topic_programming_which,
+    'topic_programming_tasks
   };
 endobject

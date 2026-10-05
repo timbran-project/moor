@@ -131,6 +131,12 @@ adaptive recurring schedules that choose a fresh random delay after each firing.
 scheduled deadlines. Callback faults retry at the base interval, with retirement after 50 consecutive
 faults by default.
 
+Programmers can use `@ps` to see tasks and live schedules, or `@schedules` to list schedules alone.
+Use `@schedule ID` for details and `@stop-schedule ID` (alias `@kill-schedule`) to stop future firings.
+These commands use schedule ownership; wizards can inspect and stop any owner's schedules.
+Stopping a schedule leaves its current firing running. Use `@kill TASK-ID` to stop that task.
+Schedule IDs and task IDs are separate.
+
 Schedules persist in the runtime task database, separately from objdef exports. An objdef export can
 contain stored IDs but does not contain the schedule store. Fresh imports replace invalid IDs when
 housekeeping or Henri starts.
