@@ -33,7 +33,6 @@ mod suspension;
 pub(crate) use active::{
     LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskAttempt,
 };
-pub(crate) use operations::TaskSubmission;
 pub(crate) use suspension::RegisteredSuspendedTask;
 pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition};
 

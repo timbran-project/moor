@@ -20,18 +20,40 @@
 use super::{ResumeAction, Scheduler, SchedulerState, lifecycle::TaskLifecycle};
 use crate::{
     tasks::{
-        TaskHandle, TaskStart, world_state_action::WorldStateAction,
+        SchedulerOp, ServerOptions, TaskHandle, TaskNotification, TaskStart,
+        registry::{LiveTaskRegistration, WakeCondition},
+        sched_counters,
+        task::Task,
+        task_control::TaskControl,
+        world_state_action::WorldStateAction,
         world_state_executor::match_object_ref,
     },
     trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
 };
+use flume::Sender;
 use moor_common::{
     model::ObjectRef,
     tasks::{CommandError, SchedulerError, SchedulerError::CommandExecutionError, Session, TaskId},
+    util::Deadline,
 };
 use moor_var::{List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str, v_int, v_obj};
 use std::{sync::Arc, time::Duration};
 use tracing::{debug, warn};
+
+/// Result of submitting a new task - either already suspended (delayed/GC-blocked)
+/// or needs immediate wake by the caller.
+enum TaskSubmission {
+    /// Task is suspended with a delay or waiting for GC - no further action needed
+    Suspended(TaskHandle),
+    /// Task should start immediately - caller must wake it
+    NeedsWake {
+        registration: LiveTaskRegistration,
+        handle: TaskHandle,
+        task: Box<Task>,
+        session: Arc<dyn Session>,
+        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    },
+}
 
 impl Scheduler {
     /// Submit a new task and wake it immediately if needed.
@@ -54,7 +76,7 @@ impl Scheduler {
             && (lc.gc_phase.blocks_admission() || lc.gc_force_collect);
 
         let so = self.server_options.load();
-        match lc.task_q.submit_new_task(
+        match lc.submit_new_task(
             task_id,
             player,
             authority_principal,
@@ -64,15 +86,15 @@ impl Scheduler {
             &so,
             gc_in_progress,
         ) {
-            crate::tasks::registry::TaskSubmission::Suspended(handle) => Ok(handle),
-            crate::tasks::registry::TaskSubmission::NeedsWake {
+            TaskSubmission::Suspended(handle) => Ok(handle),
+            TaskSubmission::NeedsWake {
                 registration,
                 handle,
                 task,
                 session,
                 result_sender,
             } => {
-                lc.task_q.wake_task_thread(
+                lc.dispatch_task(
                     task,
                     ResumeAction::Return(v_int(0)),
                     session,
@@ -320,5 +342,70 @@ impl Scheduler {
             None,
             session,
         )
+    }
+}
+
+impl TaskLifecycle {
+    #[allow(clippy::too_many_arguments)]
+    fn submit_new_task(
+        &mut self,
+        task_id: TaskId,
+        player: &Obj,
+        authority_principal: &Obj,
+        task_start: TaskStart,
+        delay_start: Option<Duration>,
+        session: Arc<dyn Session>,
+        server_options: &ServerOptions,
+        gc_in_progress: bool,
+    ) -> TaskSubmission {
+        let perfc = sched_counters();
+        let _t = perfc.timers.start(SchedulerOp::StartTask);
+        let (sender, receiver) = flume::unbounded();
+
+        let control = Arc::new(TaskControl::new());
+        let task = Task::new(
+            task_id,
+            *player,
+            *authority_principal,
+            task_start.clone(),
+            server_options,
+            control.clone(),
+        );
+        let registration = self.task_q.register_task(task_id);
+
+        let handle = TaskHandle(task_id, receiver);
+
+        // Delayed tasks go into suspension
+        if let Some(delay) = delay_start {
+            self.task_q.suspended.add_task(
+                WakeCondition::Time(Deadline::from_now(delay).instant()),
+                task,
+                session,
+                Some(sender),
+                registration,
+            );
+            return TaskSubmission::Suspended(handle);
+        }
+
+        // GC-blocked tasks go into suspension
+        if gc_in_progress {
+            self.task_q.suspended.add_task(
+                WakeCondition::GCComplete,
+                task,
+                session,
+                Some(sender),
+                registration,
+            );
+            return TaskSubmission::Suspended(handle);
+        }
+
+        // Immediate start - return task directly, skip suspension queue entirely
+        TaskSubmission::NeedsWake {
+            registration,
+            handle,
+            task,
+            session,
+            result_sender: Some(sender),
+        }
     }
 }

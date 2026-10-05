@@ -65,7 +65,7 @@ impl Scheduler {
         if let Err(error) = outcome {
             error!(?error, task_id, generation, "Blocking checkpoint failed");
         }
-        if let Err(error) = lc.task_q.wake_suspended_task(
+        if let Err(error) = lc.wake_suspended_task(
             suspended,
             ResumeAction::Return(v_bool_int(succeeded)),
             self,
@@ -119,7 +119,7 @@ impl Scheduler {
                 compaction_failure_to_var(relations, &error)
             }
         };
-        if let Err(error) = lc.task_q.wake_suspended_task(
+        if let Err(error) = lc.wake_suspended_task(
             suspended,
             ResumeAction::Return(return_value),
             self,

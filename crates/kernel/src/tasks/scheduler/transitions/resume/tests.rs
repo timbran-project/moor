@@ -169,7 +169,7 @@ fn check_failed_wakeup(failure: Failure) {
     };
     match failure {
         Failure::WakeTransaction => {
-            let result = lc.task_q.wake_suspended_task(
+            let result = lc.wake_suspended_task(
                 suspended,
                 ResumeAction::Return(v_int(0)),
                 &scheduler,
@@ -180,7 +180,7 @@ fn check_failed_wakeup(failure: Failure) {
             assert!(matches!(result, Err(SchedulerError::CouldNotStartTask)));
         }
         Failure::RetryTransaction | Failure::RetrySession => {
-            lc.task_q.wake_retry_suspended_task(
+            lc.wake_retry_suspended_task(
                 suspended,
                 &scheduler,
                 &dispatch_database,

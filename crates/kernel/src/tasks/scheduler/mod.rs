@@ -20,6 +20,7 @@
 
 mod admission;
 mod config;
+mod dispatch;
 pub(crate) mod effects;
 pub(crate) mod gc;
 pub(crate) mod lifecycle;

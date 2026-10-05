@@ -16,16 +16,25 @@
 //! These methods acquire the lifecycle lock and transfer registered continuations into dispatch.
 //! Timer selection queues generation-tagged signals while continuations remain registered.
 //! Each signal is consumed under a fresh lifecycle lock after shutdown and GC admission checks.
-//! Failed dispatch resolves terminal bookkeeping in the registry.
+//! `TaskLifecycle::wake_suspended_task` borrows the locked state and calls shared dispatch
+//! preparation. Failed dispatch resolves terminal bookkeeping in the registry.
 
-use crate::tasks::{
-    SchedulerOp, TaskStart, sched_counters,
-    scheduler::{ResumeAction, Scheduler, lifecycle::SchedulerState},
-    task_q::{TaskAttempt, TaskQ, WakeCondition},
-    workers::WorkerResponse,
-};
 #[cfg(feature = "trace_events")]
 use crate::trace_task_resume;
+use crate::{
+    config::Config,
+    tasks::{
+        SchedulerOp, TaskStart,
+        registry::{RegisteredSuspendedTask, SuspendedTask, TaskAttempt, TaskQ, WakeCondition},
+        sched_counters,
+        scheduler::{
+            ResumeAction, Scheduler,
+            lifecycle::{SchedulerState, TaskLifecycle},
+        },
+        workers::WorkerResponse,
+    },
+    vm::builtins::BuiltinRegistry,
+};
 use moor_common::{
     model::TaskPermissions,
     tasks::{SchedulerError, SchedulerError::InputRequestNotFound, TaskId, WorkerError},
@@ -33,10 +42,12 @@ use moor_common::{
 };
 #[cfg(feature = "trace_events")]
 use moor_compiler::to_literal;
+use moor_db::Database;
 use moor_var::{
     E_EXEC, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, List, Obj, SYSTEM_OBJECT, Var,
     v_bool_int, v_err, v_int,
 };
+use std::sync::Arc;
 use tracing::{error, warn};
 use uuid::Uuid;
 
@@ -64,7 +75,7 @@ impl Scheduler {
         };
 
         // Wake and bake.
-        lc.task_q.wake_suspended_task(
+        lc.wake_suspended_task(
             sr,
             ResumeAction::Return(input),
             self,
@@ -144,7 +155,7 @@ impl Scheduler {
             }
 
             if matches!(sr.wake_condition, WakeCondition::Retry(_)) {
-                lc.task_q.wake_retry_suspended_task(
+                lc.wake_retry_suspended_task(
                     sr,
                     self,
                     self.database.as_ref(),
@@ -153,7 +164,7 @@ impl Scheduler {
                 );
                 continue;
             }
-            if let Err(error) = lc.task_q.wake_suspended_task(
+            if let Err(error) = lc.wake_suspended_task(
                 sr,
                 ResumeAction::Return(return_value),
                 self,
@@ -233,7 +244,7 @@ impl Scheduler {
             );
         }
 
-        if let Err(e) = lc.task_q.wake_suspended_task(
+        if let Err(e) = lc.wake_suspended_task(
             sr,
             resume_action,
             self,
@@ -253,7 +264,7 @@ impl Scheduler {
         return_value: Var,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
-        lc.task_q.resume_task(
+        lc.resume_task(
             task_id,
             queued_task_id,
             sender_authority,
@@ -277,7 +288,7 @@ impl Scheduler {
             return v_err(E_INVARG);
         }
         let task_id = attempt.task_id();
-        lc.task_q.resume_task(
+        lc.resume_task(
             task_id,
             queued_task_id,
             sender_authority,
@@ -341,6 +352,87 @@ impl Scheduler {
             }
             Ok(th) => Ok(th.0),
         }
+    }
+}
+
+impl TaskLifecycle {
+    #[inline]
+    pub(crate) fn wake_suspended_task(
+        &mut self,
+        suspended_task: RegisteredSuspendedTask,
+        resume_action: ResumeAction,
+        scheduler: &Scheduler,
+        database: &dyn Database,
+        builtin_registry: BuiltinRegistry,
+        config: Arc<Config>,
+    ) -> Result<(), SchedulerError> {
+        let RegisteredSuspendedTask {
+            record,
+            registration,
+        } = suspended_task;
+        let SuspendedTask {
+            task,
+            session,
+            result_sender,
+            ..
+        } = record;
+        self.dispatch_task(
+            task,
+            resume_action,
+            session,
+            result_sender,
+            scheduler,
+            database,
+            builtin_registry,
+            config,
+            registration,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn resume_task(
+        &mut self,
+        requesting_task_id: TaskId,
+        queued_task_id: TaskId,
+        sender_authority: TaskPermissions,
+        return_value: Var,
+        scheduler: &Scheduler,
+        database: &dyn Database,
+        builtin_registry: BuiltinRegistry,
+        config: Arc<Config>,
+    ) -> Var {
+        if requesting_task_id == queued_task_id {
+            error!(
+                task = requesting_task_id,
+                "Task requested to resume itself. Ignoring"
+            );
+            return v_err(E_INVARG);
+        }
+
+        if let Err(error) = self
+            .task_q
+            .require_resume_authority(queued_task_id, sender_authority)
+        {
+            return v_err(error);
+        }
+
+        let sr = self.task_q.suspended.remove_task(queued_task_id).unwrap();
+
+        if self
+            .wake_suspended_task(
+                sr,
+                ResumeAction::Return(return_value),
+                scheduler,
+                database,
+                builtin_registry,
+                config,
+            )
+            .is_err()
+        {
+            error!(task = queued_task_id, "Could not resume task");
+            return v_err(E_INVARG);
+        }
+        v_bool_int(false)
     }
 }
 
