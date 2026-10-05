@@ -269,7 +269,7 @@ impl Scheduler {
             return;
         }
         // Task is asking to boot a player.
-        lc.task_q.disconnect_task(task_id, &player);
+        lc.disconnect_task(task_id, &player);
     }
 
     pub fn handle_notify_error(&self, task_id: TaskId, error: SessionError) {

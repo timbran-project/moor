@@ -15,6 +15,7 @@
 //! The callback registers backoff. `TaskLifecycle::wake_retry_suspended_task` consumes that
 //! continuation, restores its snapshot, and prepares the retry session before worker dispatch.
 
+use crate::tasks::task_telemetry::record_latency;
 use crate::{
     config::Config,
     task_context::TaskGuard,
@@ -22,7 +23,7 @@ use crate::{
         SchedulerOp, TaskNotification,
         registry::{
             LiveTaskRegistration, RegisteredSuspendedTask, RunningTask, RunningTaskPhase,
-            SuspendedTask, TaskDispatch, TaskQ, WakeCondition,
+            SuspendedTask, TaskDispatch, WakeCondition,
         },
         sched_counters,
         scheduler::{
@@ -265,12 +266,12 @@ impl TaskLifecycle {
             run_baseline.set(TaskRunBaseline::capture()).ok();
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
-                TaskQ::record_latency(
+                record_latency(
                     &perfc.timers,
                     SchedulerOp::TaskWakeToDispatchLatency,
                     wake_to_dispatch_started_at,
                 );
-                TaskQ::record_latency(
+                record_latency(
                     &perfc.timers,
                     SchedulerOp::TaskThreadHandoffLatency,
                     dispatch_started_at,

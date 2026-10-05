@@ -11,22 +11,31 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Task membership and mailbox storage. Registry methods borrow state and never acquire the lifecycle mutex.
+//! Task membership, permission queries, and mailbox storage under the lifecycle lock.
+//!
+//! `register_task` owns live membership; `insert_active` installs worker metadata. `dispatch` and
+//! `running_dispatch` borrow the current worker identity. Suspension records and wake indexes live
+//! in `suspension`. `completion` delivers results and releases membership; `cancellation` applies
+//! cancellation arbitration. These methods borrow state and never acquire the lifecycle mutex.
+//! Scheduler modules own transaction, session, admission, and dispatch policy.
 
 use crate::{tasks::task_pool::TaskThreadPool, vm::extract_anonymous_refs_from_vm_exec_state};
 use ahash::AHasher;
 use moor_common::{
+    model::TaskPermissions,
     tasks::{SchedulerError, TaskId},
     util::Timestamp,
 };
-use moor_var::{Obj, Var};
+use moor_var::{E_INVARG, E_PERM, ErrorCode, Obj, Var};
 use std::{
     collections::{HashMap, VecDeque},
     hash::BuildHasherDefault,
 };
+use tracing::error;
 
 mod active;
-mod operations;
+mod cancellation;
+mod completion;
 mod persistence;
 mod suspension;
 
@@ -84,6 +93,79 @@ impl TaskQ {
     #[inline]
     pub(crate) fn register_task(&self, task_id: TaskId) -> LiveTaskRegistration {
         self.live_tasks.register(task_id)
+    }
+
+    #[inline]
+    fn authority_may_kill_task(
+        &self,
+        task_id: TaskId,
+        sender_authority: TaskPermissions,
+    ) -> Result<bool, ErrorCode> {
+        if self.suspended.get(task_id).is_some() {
+            if sender_authority.is_wizard()
+                || self.suspended.authority_principal_controls_task(
+                    task_id,
+                    sender_authority.principal(),
+                    true,
+                )
+            {
+                return Ok(true);
+            }
+            return Err(E_PERM);
+        }
+
+        let Some(tc) = self.active.get(&task_id) else {
+            return Err(E_INVARG);
+        };
+
+        if sender_authority.controls(&tc.player) {
+            return Ok(false);
+        }
+
+        Err(E_PERM)
+    }
+
+    #[inline]
+    pub(in crate::tasks) fn require_resume_authority(
+        &self,
+        task_id: TaskId,
+        sender_authority: TaskPermissions,
+    ) -> Result<(), ErrorCode> {
+        if self.suspended.authority_principal_controls_task(
+            task_id,
+            sender_authority.principal(),
+            false,
+        ) {
+            return Ok(());
+        }
+
+        if !sender_authority.is_wizard() {
+            return Err(E_PERM);
+        }
+
+        if self.suspended.get(task_id).is_none() {
+            error!(task = task_id, "Task not found for resume request");
+            return Err(E_INVARG);
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn require_task_send_authority(
+        &self,
+        target_task_id: TaskId,
+        sender_authority: TaskPermissions,
+    ) -> Result<(), ErrorCode> {
+        let Some(owner) = self.task_owner(target_task_id) else {
+            return Err(E_INVARG);
+        };
+
+        if sender_authority.controls(&owner) {
+            return Ok(());
+        }
+
+        Err(E_PERM)
     }
 
     pub(crate) fn dispatch(&self, task_id: TaskId) -> Option<TaskDispatch> {
@@ -212,3 +294,6 @@ impl TaskQ {
         self.suspended.compact();
     }
 }
+
+#[cfg(test)]
+mod tests;

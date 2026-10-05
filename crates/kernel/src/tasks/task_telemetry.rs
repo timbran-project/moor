@@ -16,6 +16,18 @@ use std::time::Duration;
 use moor_common::{tasks::TaskId, threading::current_task_worker_index, util::Instant};
 use moor_var::Obj;
 
+use crate::tasks::SchedulerOp;
+use fast_telemetry::LabeledSampledTimer;
+
+#[inline]
+pub(crate) fn record_latency(
+    timers: &LabeledSampledTimer<SchedulerOp>,
+    op: SchedulerOp,
+    started_at: Instant,
+) {
+    timers.record_elapsed(op, started_at.elapsed());
+}
+
 /// Scheduler-visible execution state of an active task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveTaskPhase {

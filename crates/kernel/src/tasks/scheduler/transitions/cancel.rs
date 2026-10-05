@@ -14,19 +14,23 @@
 //! Cancellation and abort policy for active and suspended tasks.
 
 use super::complete::TaskCompletion;
-use crate::tasks::registry::{RunningTaskPhase, TaskDispatch};
+use crate::tasks::registry::{RegisteredSuspendedTask, RunningTaskPhase, TaskDispatch};
 use crate::tasks::{
     AbortTaskOutcome, SchedulerOp, sched_counters,
-    scheduler::{Scheduler, lifecycle::SchedulerState},
+    scheduler::{
+        Scheduler,
+        lifecycle::{SchedulerState, TaskLifecycle},
+    },
 };
 use moor_common::{
     model::TaskPermissions,
     tasks::{
+        SchedulerError,
         SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
         TaskId,
     },
 };
-use moor_var::{E_INVARG, Var, v_err};
+use moor_var::{E_INVARG, Obj, Var, v_err};
 use std::backtrace::Backtrace;
 use tracing::{debug, warn};
 
@@ -167,5 +171,65 @@ impl Scheduler {
     pub fn handle_abort_task(&self, victim_task_id: TaskId) -> AbortTaskOutcome {
         let mut lc = self.lifecycle.lock();
         lc.task_q.abort_task(victim_task_id)
+    }
+}
+
+impl TaskLifecycle {
+    pub(crate) fn disconnect_task(&mut self, disconnect_task_id: TaskId, player: &Obj) {
+        let Some(task) = self.task_q.active.get_mut(&disconnect_task_id) else {
+            warn!(task = disconnect_task_id, "Disconnecting task not found");
+            return;
+        };
+        warn!(?player, ?disconnect_task_id, "Disconnecting player");
+        if let Err(e) = task.session.disconnect(*player) {
+            warn!(?player, ?disconnect_task_id, error = ?e, "Could not disconnect player's session");
+            return;
+        }
+
+        for (task_id, tc) in self.task_q.active.iter() {
+            if *task_id == disconnect_task_id {
+                continue;
+            }
+            if tc.player.eq(player) {
+                continue;
+            }
+            warn!(
+                ?player,
+                task_id, "Aborting task from disconnected player..."
+            );
+            tc.control.request_cancel();
+        }
+        self.task_q.suspended.prune_foreground_tasks(player);
+    }
+
+    /// Settle a continuation that was accepted for dispatch but cannot start during shutdown.
+    pub(in crate::tasks::scheduler) fn cancel_undispatched_task(
+        &mut self,
+        task: RegisteredSuspendedTask,
+    ) {
+        let task_id = task.task.task_id;
+        task.task.control.request_cancel();
+        self.task_q.remove_message_queue(task_id);
+        self.task_q.suspended.enqueue_dependents_for(task_id);
+        self.task_q.send_task_result_direct(
+            task.registration,
+            task.record.result_sender,
+            Err(SchedulerError::TaskAbortedCancelled),
+        );
+    }
+
+    pub(in crate::tasks::scheduler) fn cancel_pending_resumes(
+        &mut self,
+        shutdown_message: &Option<String>,
+    ) {
+        for id in self.task_q.suspended.pending_resume_ids() {
+            let task = self
+                .task_q
+                .suspended
+                .remove_task(id)
+                .expect("pending resume is registered");
+            let _ = task.session.notify_shutdown(shutdown_message.clone());
+            self.cancel_undispatched_task(task);
+        }
     }
 }

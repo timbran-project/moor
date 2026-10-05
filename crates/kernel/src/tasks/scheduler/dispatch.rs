@@ -18,12 +18,13 @@
 //! context and execution; its dispatch-bound client settles either completion or panic.
 
 use super::{ResumeAction, Scheduler, lifecycle::TaskLifecycle};
+use crate::tasks::task_telemetry::record_latency;
 use crate::{
     config::Config,
     task_context::TaskGuard,
     tasks::{
         SchedulerOp, TaskNotification,
-        registry::{LiveTaskRegistration, RunningTask, RunningTaskPhase, TaskQ},
+        registry::{LiveTaskRegistration, RunningTask, RunningTaskPhase},
         sched_counters,
         task::Task,
         task_control::TaskControl,
@@ -103,19 +104,19 @@ impl TaskLifecycle {
             run_baseline.set(TaskRunBaseline::capture()).ok();
             let panic_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let perfc = sched_counters();
-                TaskQ::record_latency(
+                record_latency(
                     &perfc.timers,
                     SchedulerOp::TaskWakeToDispatchLatency,
                     wake_to_dispatch_started_at,
                 );
-                TaskQ::record_latency(
+                record_latency(
                     &perfc.timers,
                     SchedulerOp::TaskThreadHandoffLatency,
                     dispatch_started_at,
                 );
 
                 if is_created {
-                    TaskQ::record_latency(
+                    record_latency(
                         &perfc.timers,
                         SchedulerOp::TaskSubmitToFirstRunLatency,
                         task.creation_time,

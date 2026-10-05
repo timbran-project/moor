@@ -21,13 +21,14 @@
 //! registered continuation owns the return value or error until dispatch or explicit cancellation.
 //! Failed dispatch resolves terminal bookkeeping in the registry.
 
+use crate::tasks::task_telemetry::record_latency;
 #[cfg(feature = "trace_events")]
 use crate::trace_task_resume;
 use crate::{
     config::Config,
     tasks::{
         SchedulerOp, TaskStart,
-        registry::{RegisteredSuspendedTask, SuspendedTask, TaskDispatch, TaskQ, WakeCondition},
+        registry::{RegisteredSuspendedTask, SuspendedTask, TaskDispatch, WakeCondition},
         sched_counters,
         scheduler::{
             ResumeAction, Scheduler,
@@ -114,7 +115,7 @@ impl Scheduler {
                     "wake selection retained the current suspension under the lifecycle lock",
                 );
             let perfc = sched_counters();
-            TaskQ::record_latency(
+            record_latency(
                 &perfc.timers,
                 SchedulerOp::TaskWakeSignalToDispatchStartLatency,
                 signaled_at.instant(),
@@ -363,37 +364,6 @@ impl Scheduler {
 }
 
 impl TaskLifecycle {
-    /// Settle a continuation that was accepted for dispatch but cannot start during shutdown.
-    pub(in crate::tasks::scheduler) fn cancel_undispatched_task(
-        &mut self,
-        task: RegisteredSuspendedTask,
-    ) {
-        let task_id = task.task.task_id;
-        task.task.control.request_cancel();
-        self.task_q.remove_message_queue(task_id);
-        self.task_q.suspended.enqueue_dependents_for(task_id);
-        self.task_q.send_task_result_direct(
-            task.registration,
-            task.record.result_sender,
-            Err(SchedulerError::TaskAbortedCancelled),
-        );
-    }
-
-    pub(in crate::tasks::scheduler) fn cancel_pending_resumes(
-        &mut self,
-        shutdown_message: &Option<String>,
-    ) {
-        for id in self.task_q.suspended.pending_resume_ids() {
-            let task = self
-                .task_q
-                .suspended
-                .remove_task(id)
-                .expect("pending resume is registered");
-            let _ = task.session.notify_shutdown(shutdown_message.clone());
-            self.cancel_undispatched_task(task);
-        }
-    }
-
     /// Accept a response under the lifecycle lock. During sweep, retain it without starting a
     /// transaction or waiting on GC. Shutdown settles it; open admission dispatches immediately.
     #[inline]
