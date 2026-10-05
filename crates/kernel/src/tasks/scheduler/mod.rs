@@ -903,7 +903,7 @@ mod tests {
             .expect("all scheduler-owned threads should stop");
     }
 
-    fn insert_active_task(
+    pub(super) fn insert_active_task(
         scheduler: &Scheduler,
         task_id: TaskId,
         session: Arc<dyn Session>,

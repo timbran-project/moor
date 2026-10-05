@@ -27,7 +27,7 @@ use moor_common::{
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
-use moor_var::{Error, List, Obj, Symbol, Var};
+use moor_var::{E_INVARG, Error, List, Obj, Symbol, Var, v_err};
 
 use crate::tasks::{
     scheduler::Scheduler,
@@ -356,7 +356,8 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskBeginTransactionLatency);
-        self.scheduler.handle_request_new_transaction(self.task_id)
+        self.scheduler
+            .handle_request_new_transaction_for_attempt(self.attempt.as_ref())
     }
 
     pub fn task_send(
@@ -365,8 +366,15 @@ impl TaskSchedulerClient {
         value: Var,
         sender_authority: TaskPermissions,
     ) -> Var {
-        self.scheduler
-            .handle_task_send(self.task_id, target_task_id, value, sender_authority)
+        let Some(attempt) = &self.attempt else {
+            return v_err(E_INVARG);
+        };
+        self.scheduler.handle_task_send_for_attempt(
+            attempt,
+            target_task_id,
+            value,
+            sender_authority,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -423,7 +431,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn task_recv(&self) -> Vec<Var> {
-        self.scheduler.handle_task_recv(self.task_id)
+        self.attempt.as_ref().map_or_else(Vec::new, |attempt| {
+            self.scheduler.handle_task_recv_for_attempt(attempt)
+        })
     }
 
     pub fn force_gc(&self) {

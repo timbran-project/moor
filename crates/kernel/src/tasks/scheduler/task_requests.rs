@@ -15,11 +15,15 @@
 //!
 //! Task queries acquire the lifecycle lock to inspect active metadata. Object operations use
 //! database interfaces directly; each retains its existing transaction and permission policy.
+//! Worker message and renewal requests carry dispatch identity into the locked operation. Public
+//! task-ID entry points retain their current-registration behavior for external callers.
 
 use crate::{
     tasks::{
-        SchedulerOp, TaskDescription, TaskStart, sched_counters,
-        scheduler::Scheduler,
+        SchedulerOp, TaskDescription, TaskStart,
+        registry::TaskAttempt,
+        sched_counters,
+        scheduler::{Scheduler, lifecycle::TaskLifecycle},
         task_scheduler_client::ActiveTaskDescriptions,
         task_telemetry::{TaskTelemetry, TaskTelemetrySource},
     },
@@ -394,7 +398,38 @@ impl Scheduler {
         sender_authority: TaskPermissions,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
+        self.buffer_task_message(&mut lc, task_id, target_task_id, value, sender_authority)
+    }
 
+    pub(crate) fn handle_task_send_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        target_task_id: TaskId,
+        value: Var,
+        sender_authority: TaskPermissions,
+    ) -> Var {
+        let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_running_attempt(attempt) {
+            return v_err(E_INVARG);
+        }
+        self.buffer_task_message(
+            &mut lc,
+            attempt.task_id(),
+            target_task_id,
+            value,
+            sender_authority,
+        )
+    }
+
+    // The caller holds the lifecycle lock through identity validation and buffer mutation.
+    fn buffer_task_message(
+        &self,
+        lc: &mut TaskLifecycle,
+        task_id: TaskId,
+        target_task_id: TaskId,
+        value: Var,
+        sender_authority: TaskPermissions,
+    ) -> Var {
         if let Err(error) = lc
             .task_q
             .require_task_send_authority(target_task_id, sender_authority)
@@ -437,7 +472,18 @@ impl Scheduler {
     }
 
     pub fn handle_task_recv(&self, task_id: TaskId) -> Vec<Var> {
+        Self::drain_task_messages(&mut self.lifecycle.lock(), task_id)
+    }
+
+    pub(crate) fn handle_task_recv_for_attempt(&self, attempt: &TaskAttempt) -> Vec<Var> {
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_running_attempt(attempt) {
+            return vec![];
+        }
+        Self::drain_task_messages(&mut lc, attempt.task_id())
+    }
+
+    fn drain_task_messages(lc: &mut TaskLifecycle, task_id: TaskId) -> Vec<Var> {
         // Drain all messages from the calling task's queue
         let (messages, total_wait_nanos, message_count) =
             lc.task_q.drain_messages_with_wait_nanos(task_id);
@@ -492,13 +538,42 @@ impl Scheduler {
         &self,
         task_id: TaskId,
     ) -> Result<Box<dyn WorldState>, SchedulerError> {
-        let mut lc = self.lifecycle.lock();
-        lc.publish_task_effects(task_id);
-        drop(lc);
+        let attempt = self.capture_task_attempt(task_id);
+        self.handle_request_new_transaction_for_attempt(attempt.as_ref())
+    }
 
-        self.database
+    /// Publish one dispatch's effects and open its next transaction.
+    /// Unregistered VM clients can open world state, but have no effects to publish.
+    pub(crate) fn handle_request_new_transaction_for_attempt(
+        &self,
+        attempt: Option<&TaskAttempt>,
+    ) -> Result<Box<dyn WorldState>, SchedulerError> {
+        if let Some(attempt) = attempt {
+            let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_running_attempt(attempt) {
+                return Err(SchedulerError::CouldNotStartTask);
+            }
+            lc.publish_task_effects(attempt.task_id());
+        }
+
+        let transaction = self
+            .database
             .new_world_state()
-            .map_err(|_| SchedulerError::CouldNotStartTask)
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        // Opening world state runs without the lifecycle lock. Revalidate before returning it.
+        let stale = attempt
+            .is_some_and(|attempt| !self.lifecycle.lock().task_q.is_running_attempt(attempt));
+        if stale {
+            if let Err(error) = transaction.rollback() {
+                warn!(
+                    ?error,
+                    "Could not roll back transaction opened for a replaced task"
+                );
+            }
+            return Err(SchedulerError::CouldNotStartTask);
+        }
+        Ok(transaction)
     }
 
     pub fn handle_dump_object_from_task(
@@ -580,3 +655,6 @@ impl Scheduler {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

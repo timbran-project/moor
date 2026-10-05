@@ -111,6 +111,14 @@ impl TaskQ {
         self.suspended.task_owner(task_id)
     }
 
+    /// Worker requests can change only their own dispatch while it is still executing.
+    /// Callers retain the lifecycle lock from this check through the corresponding mutation.
+    pub(crate) fn is_running_attempt(&self, attempt: &TaskAttempt) -> bool {
+        self.active
+            .get(&attempt.task_id())
+            .is_some_and(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
+    }
+
     /// Collect tasks that need to be woken up by timer, pull them from our suspended list, and
     /// return them. Other wake paths are event-driven through the immediate wake queue.
     pub(crate) fn collect_wake_tasks(&mut self) -> Option<Vec<RegisteredSuspendedTask>> {
