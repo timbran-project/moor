@@ -13,6 +13,13 @@
 
 //! Task transitions coordinate registry changes under the lifecycle lock.
 //! Session I/O runs outside that lock while active metadata remains visible.
+//!
+//! `suspend` owns `handle_task_suspend` and `handle_task_request_input`. A `SuspensionTransition`
+//! rechecks dispatch identity, phase, scheduler state, and the committed boundary before transfer.
+//! `complete` owns terminal policy through `TaskCompletion`; `cancel` reuses that reservation for
+//! session finalization. Every unlocked completion rechecks its owner before publication or removal.
+//! `retry` replaces the dispatch after backoff; `resume` admits all wake sources.
+//! `compat` preserves public callbacks that select the current dispatch from a task ID at entry.
 
 mod cancel;
 mod compat;

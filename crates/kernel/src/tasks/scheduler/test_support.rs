@@ -11,6 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Shared scheduler builders and a session with explicit commit barriers.
+//! Domain tests control the barriers and perform their own transitions and assertions.
+
 use crate::tasks::scheduler::*;
 use crate::tasks::{
     TaskStart,

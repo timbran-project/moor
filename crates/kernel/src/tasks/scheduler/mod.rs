@@ -17,6 +17,12 @@
 //! through `TaskSchedulerClient`. Both reach the same lifecycle state and transition methods.
 //! New tasks enter through `admission`, while wakeups enter through `transitions::resume`.
 //! `services` owns threads and shutdown. Domain modules own GC, schedules, and maintenance.
+//!
+//! Start at `Scheduler::new` for construction or `Scheduler::start` for service startup.
+//! `submit_task` checks admission and calls `TaskLifecycle::dispatch_task`. Returning workers
+//! enter `handle_task_suspend`, `handle_task_conflict_retry`, or a terminal transition in
+//! `transitions::complete`. These operations show session and registry changes in execution order.
+//! `TaskLifecycle` stores the state shared by these modules; it does not own a separate lock.
 
 mod admission;
 mod config;
