@@ -17,8 +17,9 @@ mod scheduler_config;
 mod scheduler_gc;
 mod scheduler_ops;
 mod scheduler_submit;
-mod scheduler_task_callbacks;
+mod schedules;
 mod task_q_ops;
+mod task_requests;
 mod transitions;
 
 use arc_swap::ArcSwap;
@@ -38,7 +39,8 @@ use std::{
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-use moor_common::model::{CommitResult, ConflictInfo, TaskPermissions, WorldState};
+use moor_common::model::{CommitResult, TaskPermissions, WorldState};
+#[cfg(feature = "trace_events")]
 use moor_compiler::to_literal;
 use moor_db::{Database, DatabaseRelation};
 
@@ -65,14 +67,14 @@ use crate::{
             WakeCondition,
         },
         task_scheduler_client::TaskSchedulerClient,
-        task_telemetry::{TaskRunBaseline, TaskTelemetry, TaskTelemetrySource},
+        task_telemetry::TaskRunBaseline,
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
         world_state_action::{WorldStateAction, WorldStateResponse},
         world_state_executor::{WorldStateActionExecutor, match_object_ref},
     },
     trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
-    vm::{Fork, builtins::BuiltinRegistry},
+    vm::builtins::BuiltinRegistry,
 };
 
 #[cfg(feature = "trace_events")]
@@ -80,11 +82,8 @@ use crate::trace_task_resume;
 
 use moor_common::{
     tasks::{
-        AbortLimitReason, CommandError, Event, NarrativeEvent, SchedulerError,
-        SchedulerError::{
-            CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled, TaskAbortedError,
-            TaskAbortedException, TaskAbortedLimit,
-        },
+        CommandError, SchedulerError,
+        SchedulerError::{CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled},
         Session, SessionFactory, SystemControl, TaskId, WorkerError,
     },
     threading::{
@@ -94,9 +93,8 @@ use moor_common::{
 };
 use moor_objdef::{collect_index_names, collect_object, dump_object};
 use moor_var::{
-    E_EXEC, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, ErrorCode, List, NOTHING, Obj,
-    SYSTEM_OBJECT, Symbol, Var, v_bool_int, v_empty_str, v_err, v_error, v_float, v_int, v_obj,
-    v_str,
+    E_EXEC, E_INVARG, E_PERM, E_QUOTA, E_TYPE, Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT,
+    Symbol, Var, v_bool_int, v_empty_str, v_err, v_float, v_int, v_obj, v_str,
 };
 use std::collections::HashMap;
 
@@ -762,6 +760,7 @@ mod tests {
     use moor_common::tasks::{
         ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
     };
+    use moor_common::tasks::{NarrativeEvent, SchedulerError::TaskAbortedError};
     use moor_common::{
         model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
         util::{BitEnum, Timestamp},
