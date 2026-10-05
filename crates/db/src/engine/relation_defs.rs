@@ -228,199 +228,206 @@ macro_rules! define_relations {
                 fn usage_bytes(&self) -> usize;
             }
 
-            impl RelationCheckers {
-                /// Check all relations for conflicts with the given working sets.
-                ///
-                /// Returns `Ok(())` if all relations pass conflict checking,
-                /// `Err(ConflictInfo)` if any relation has a conflict.
-                fn check_all(&mut self, ws: &mut RelationWorkingSets) -> Result<(), moor_common::model::ConflictInfo> {
-                    $(
-                        if !ws.$field.is_empty() {
-                            let checker = self.$field.as_mut().expect("nonempty working set must have a checker");
-                            if let Err(e) = define_relations!(@check_relation $field, checker, ws) {
-                                if let crate::tx::Error::Conflict(info) = e {
-                                    return Err(info);
+            // Instantiate these private methods inside the commit state module.
+            // The outer pipeline cannot check and build snapshots independently.
+            macro_rules! define_relation_commit_methods {
+                () => {
+                    impl RelationCheckers {
+                        /// Check all relations for conflicts with the given working sets.
+                        ///
+                        /// Returns `Ok(())` if all relations pass conflict checking,
+                        /// `Err(ConflictInfo)` if any relation has a conflict.
+                        fn check_all(&mut self, ws: &mut RelationWorkingSets) -> Result<(), moor_common::model::ConflictInfo> {
+                            $(
+                                if !ws.$field.is_empty() {
+                                    let checker = self.$field.as_mut().expect("nonempty working set must have a checker");
+                                    if let Err(e) = define_relations!(@check_relation $field, checker, ws) {
+                                        if let crate::tx::Error::Conflict(info) = e {
+                                            return Err(info);
+                                        }
+                                        // For other errors, create a generic conflict info
+                                        return Err($crate::tx::make_conflict_info(
+                                            checker.relation_name(),
+                                            &format!("<unknown>"),
+                                            moor_common::model::ConflictType::ConcurrentWrite,
+                                        ));
+                                    }
                                 }
-                                // For other errors, create a generic conflict info
-                                return Err($crate::tx::make_conflict_info(
-                                    checker.relation_name(),
-                                    &format!("<unknown>"),
-                                    moor_common::model::ConflictType::ConcurrentWrite,
-                                ));
-                            }
+                            )*
+                            Ok(())
                         }
-                    )*
-                    Ok(())
-                }
 
-                /// Update imbl indexes from working sets without touching providers.
-                /// Returns a bloom filter of modified keys for fast rebase conflict detection.
-                fn prepare_apply_all(
-                    &mut self,
-                    ws: &RelationWorkingSets,
-                ) -> crate::tx::CommitBloom {
-                    let mut bloom = crate::tx::CommitBloom::new();
-                    $(
-                        if !ws.$field.is_empty() {
-                            // Insert all keys from this relation into the bloom filter
-                            for key in ws.$field.tuples_ref().keys() {
-                                bloom.insert(key);
-                            }
-                            self.$field
-                                .as_mut()
-                                .expect("nonempty working set must have a checker")
-                                .prepare_indexes(&ws.$field);
+                        /// Update imbl indexes from working sets without touching providers.
+                        /// Returns a bloom filter of modified keys for fast rebase conflict detection.
+                        fn prepare_apply_all(
+                            &mut self,
+                            ws: &RelationWorkingSets,
+                        ) -> crate::tx::CommitBloom {
+                            let mut bloom = crate::tx::CommitBloom::new();
+                            $(
+                                if !ws.$field.is_empty() {
+                                    // Insert all keys from this relation into the bloom filter
+                                    for key in ws.$field.tuples_ref().keys() {
+                                        bloom.insert(key);
+                                    }
+                                    self.$field
+                                        .as_mut()
+                                        .expect("nonempty working set must have a checker")
+                                        .prepare_indexes(&ws.$field);
+                                }
+                            )*
+                            bloom
                         }
-                    )*
-                    bloom
-                }
 
-                /// Build a candidate snapshot from the updated indexes without consuming self.
-                /// The bloom filter is cumulative: this commit's keys OR'd with the
-                /// previous snapshot's bloom, covering all commits since `bloom_since_version`.
-                /// Resets when the bloom has accumulated too many versions (saturation guard).
-                fn build_snapshot(
-                    &self,
-                    current_root: &std::sync::Arc<WorldStateSnapshot>,
-                    committed_ts: crate::tx::Timestamp,
-                    combined_caches: crate::engine::moor_db::Caches,
-                    mut bloom: crate::tx::CommitBloom,
-                ) -> std::sync::Arc<WorldStateSnapshot> {
-                    // Decide whether to accumulate or reset the bloom.
-                    // Reset if the previous bloom covers more than 32 versions —
-                    // beyond that, most bits are set and the filter is useless.
-                    // After reset, bloom_since_version advances to current_root.version,
-                    // meaning only transactions newer than that can use the bloom skip.
-                    const MAX_BLOOM_SPAN: u64 = 32;
-                    let bloom_since_version = if let Some(ref prev_bloom) = current_root.commit_bloom {
-                        let span = current_root.version.saturating_sub(current_root.bloom_since_version);
-                        if span < MAX_BLOOM_SPAN {
-                            bloom.merge(prev_bloom);
-                            current_root.bloom_since_version
-                        } else {
-                            // Reset: bloom covers only this commit
-                            current_root.version
+                        /// Build a candidate snapshot from the updated indexes without consuming self.
+                        /// The bloom filter is cumulative: this commit's keys OR'd with the
+                        /// previous snapshot's bloom, covering all commits since `bloom_since_version`.
+                        /// Resets when the bloom has accumulated too many versions (saturation guard).
+                        fn build_snapshot(
+                            &self,
+                            current_root: &std::sync::Arc<WorldStateSnapshot>,
+                            committed_ts: crate::tx::Timestamp,
+                            combined_caches: crate::engine::moor_db::Caches,
+                            mut bloom: crate::tx::CommitBloom,
+                        ) -> std::sync::Arc<WorldStateSnapshot> {
+                            // Decide whether to accumulate or reset the bloom.
+                            // Reset if the previous bloom covers more than 32 versions —
+                            // beyond that, most bits are set and the filter is useless.
+                            // After reset, bloom_since_version advances to current_root.version,
+                            // meaning only transactions newer than that can use the bloom skip.
+                            const MAX_BLOOM_SPAN: u64 = 32;
+                            let bloom_since_version = if let Some(ref prev_bloom) = current_root.commit_bloom {
+                                let span = current_root.version.saturating_sub(current_root.bloom_since_version);
+                                if span < MAX_BLOOM_SPAN {
+                                    bloom.merge(prev_bloom);
+                                    current_root.bloom_since_version
+                                } else {
+                                    // Reset: bloom covers only this commit
+                                    current_root.version
+                                }
+                            } else {
+                                // No previous bloom (initial snapshot). Start fresh.
+                                current_root.version
+                            };
+
+                            let caches = if combined_caches.has_changed() {
+                                std::sync::Arc::new(combined_caches)
+                            } else {
+                                current_root.caches.clone()
+                            };
+
+                            std::sync::Arc::new(WorldStateSnapshot {
+                                version: current_root.version + 1,
+                                committed_ts: current_root.committed_ts.max(committed_ts),
+                                caches,
+                                $( $field: self.$field.as_ref().map_or_else(
+                                    || current_root.$field.clone(),
+                                    |checker| checker.snapshot_index_or(&current_root.$field),
+                                ), )*
+                                commit_bloom: Some(bloom),
+                                bloom_since_version,
+                            })
                         }
-                    } else {
-                        // No previous bloom (initial snapshot). Start fresh.
-                        current_root.version
-                    };
 
-                    let caches = if combined_caches.has_changed() {
-                        std::sync::Arc::new(combined_caches)
-                    } else {
-                        current_root.caches.clone()
-                    };
-
-                    std::sync::Arc::new(WorldStateSnapshot {
-                        version: current_root.version + 1,
-                        committed_ts: current_root.committed_ts.max(committed_ts),
-                        caches,
-                        $( $field: self.$field.as_ref().map_or_else(
-                            || current_root.$field.clone(),
-                            |checker| checker.snapshot_index_or(&current_root.$field),
-                        ), )*
-                        commit_bloom: Some(bloom),
-                        bloom_since_version,
-                    })
-                }
-
-                /// Determine whether prepared operations can be rebased after a CAS loss.
-                ///
-                /// A bloom miss proves disjointness without index lookups. On a bloom hit
-                /// or unavailable coverage, compare the written keys in the snapshot that
-                /// was checked with the CAS winner. This exact fallback is read-only and
-                /// does not clone or rewrite the working set.
-                fn rebase_check(
-                    &self,
-                    ws: &RelationWorkingSets,
-                    checked: &std::sync::Arc<WorldStateSnapshot>,
-                    winner: &std::sync::Arc<WorldStateSnapshot>,
-                ) -> $crate::engine::relation_defs::RebaseCheck {
-                    if let Err(info) = ws.check_property_policies(winner) {
-                        return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(info);
-                    }
-                    let bloom_proves_disjoint = checked.version >= winner.bloom_since_version
-                        && winner.commit_bloom.as_ref().is_some_and(|winner_bloom| {
-                            true $(&& ws.$field.tuples_ref().keys().all(|key| {
-                                !winner_bloom.might_contain(key)
-                            }))*
-                        });
-
-                    if bloom_proves_disjoint {
-                        return $crate::engine::relation_defs::RebaseCheck::BloomDisjoint;
-                    }
-
-                    $(
-                        for key in ws.$field.tuples_ref().keys() {
-                            if define_relations!(@can_clobber $field, ws, key) {
-                                continue;
+                        /// Determine whether prepared operations can be rebased after a CAS loss.
+                        ///
+                        /// A bloom miss proves disjointness without index lookups. On a bloom hit
+                        /// or unavailable coverage, compare the written keys in the snapshot that
+                        /// was checked with the CAS winner. This exact fallback is read-only and
+                        /// does not clone or rewrite the working set.
+                        fn rebase_check(
+                            &self,
+                            ws: &RelationWorkingSets,
+                            checked: &std::sync::Arc<WorldStateSnapshot>,
+                            winner: &std::sync::Arc<WorldStateSnapshot>,
+                        ) -> $crate::engine::relation_defs::RebaseCheck {
+                            if let Err(info) = ws.check_property_policies(winner) {
+                                return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(info);
                             }
-                            if !$crate::engine::relation_defs::relation_key_unchanged(
-                                &*checked.$field,
-                                &*winner.$field,
-                                key,
-                            ) {
-                                return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(
-                                    $crate::tx::make_conflict_info(
-                                        self.$field
-                                            .as_ref()
-                                            .expect("nonempty working set must have a checker")
-                                            .relation_name(),
+                            let bloom_proves_disjoint = checked.version >= winner.bloom_since_version
+                                && winner.commit_bloom.as_ref().is_some_and(|winner_bloom| {
+                                    true $(&& ws.$field.tuples_ref().keys().all(|key| {
+                                        !winner_bloom.might_contain(key)
+                                    }))*
+                                });
+
+                            if bloom_proves_disjoint {
+                                return $crate::engine::relation_defs::RebaseCheck::BloomDisjoint;
+                            }
+
+                            $(
+                                for key in ws.$field.tuples_ref().keys() {
+                                    if define_relations!(@can_clobber $field, ws, key) {
+                                        continue;
+                                    }
+                                    if !$crate::engine::relation_defs::relation_key_unchanged(
+                                        &*checked.$field,
+                                        &*winner.$field,
                                         key,
-                                        moor_common::model::ConflictType::ConcurrentWrite,
-                                    ),
-                                );
-                            }
+                                    ) {
+                                        return $crate::engine::relation_defs::RebaseCheck::ActualOverlap(
+                                            $crate::tx::make_conflict_info(
+                                                self.$field
+                                                    .as_ref()
+                                                    .expect("nonempty working set must have a checker")
+                                                    .relation_name(),
+                                                key,
+                                                moor_common::model::ConflictType::ConcurrentWrite,
+                                            ),
+                                        );
+                                    }
+                                }
+                            )*
+
+                            $crate::engine::relation_defs::RebaseCheck::ExactlyDisjoint
                         }
-                    )*
 
-                    $crate::engine::relation_defs::RebaseCheck::ExactlyDisjoint
-                }
+                        /// Rebuild prepared indexes on top of a winner proven disjoint from the
+                        /// transaction's working set.
+                        fn build_rebased_snapshot(
+                            &self,
+                            ws: &RelationWorkingSets,
+                            winner: &std::sync::Arc<WorldStateSnapshot>,
+                            committed_ts: crate::tx::Timestamp,
+                            combined_caches: crate::engine::moor_db::Caches,
+                            our_bloom: &crate::tx::CommitBloom,
+                        ) -> std::sync::Arc<WorldStateSnapshot> {
+                            // Apply the same span guard as build_snapshot: if the winner's
+                            // bloom has accumulated too many versions, reset instead of merging.
+                            const MAX_BLOOM_SPAN: u64 = 32;
+                            let span = winner.version.saturating_sub(winner.bloom_since_version);
+                            let (merged_bloom, bloom_since_version) = if span < MAX_BLOOM_SPAN {
+                                let mut merged = our_bloom.clone();
+                                if let Some(ref winner_bloom) = winner.commit_bloom {
+                                    merged.merge(winner_bloom);
+                                }
+                                (merged, winner.bloom_since_version)
+                            } else {
+                                // Reset: bloom covers only our commit
+                                (our_bloom.clone(), winner.version)
+                            };
 
-                /// Rebuild prepared indexes on top of a winner proven disjoint from the
-                /// transaction's working set.
-                fn build_rebased_snapshot(
-                    &self,
-                    ws: &RelationWorkingSets,
-                    winner: &std::sync::Arc<WorldStateSnapshot>,
-                    committed_ts: crate::tx::Timestamp,
-                    combined_caches: crate::engine::moor_db::Caches,
-                    our_bloom: &crate::tx::CommitBloom,
-                ) -> std::sync::Arc<WorldStateSnapshot> {
-                    // Apply the same span guard as build_snapshot: if the winner's
-                    // bloom has accumulated too many versions, reset instead of merging.
-                    const MAX_BLOOM_SPAN: u64 = 32;
-                    let span = winner.version.saturating_sub(winner.bloom_since_version);
-                    let (merged_bloom, bloom_since_version) = if span < MAX_BLOOM_SPAN {
-                        let mut merged = our_bloom.clone();
-                        if let Some(ref winner_bloom) = winner.commit_bloom {
-                            merged.merge(winner_bloom);
+                            let caches = if combined_caches.has_changed() {
+                                std::sync::Arc::new(combined_caches)
+                            } else {
+                                winner.caches.clone()
+                            };
+
+                            std::sync::Arc::new(WorldStateSnapshot {
+                                version: winner.version + 1,
+                                committed_ts: winner.committed_ts.max(committed_ts),
+                                caches,
+                                $( $field: self.$field.as_ref().map_or_else(
+                                    || winner.$field.clone(),
+                                    |checker| checker.rebased_snapshot_index(&winner.$field, &ws.$field),
+                                ), )*
+                                commit_bloom: Some(merged_bloom),
+                                bloom_since_version,
+                            })
                         }
-                        (merged, winner.bloom_since_version)
-                    } else {
-                        // Reset: bloom covers only our commit
-                        (our_bloom.clone(), winner.version)
-                    };
+                    }
 
-                    let caches = if combined_caches.has_changed() {
-                        std::sync::Arc::new(combined_caches)
-                    } else {
-                        winner.caches.clone()
-                    };
-
-                    std::sync::Arc::new(WorldStateSnapshot {
-                        version: winner.version + 1,
-                        committed_ts: winner.committed_ts.max(committed_ts),
-                        caches,
-                        $( $field: self.$field.as_ref().map_or_else(
-                            || winner.$field.clone(),
-                            |checker| checker.rebased_snapshot_index(&winner.$field, &ws.$field),
-                        ), )*
-                        commit_bloom: Some(merged_bloom),
-                        bloom_since_version,
-                    })
-                }
+                };
             }
 
             impl Relations {

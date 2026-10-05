@@ -57,10 +57,8 @@ use tempfile::TempDir;
 use tracing::{error, info};
 use uuid::Uuid;
 
-mod commit_pipeline;
 mod property_policy;
 mod snapshot_planes;
-use property_policy::property_can_clobber;
 
 use snapshot_planes::SnapshotPlanes;
 pub(crate) use snapshot_planes::TxSeed;
@@ -80,6 +78,9 @@ define_relations! {
     object_last_move => Obj, Var,
     anonymous_object_metadata => Obj, AnonymousObjectMetadata,
 }
+
+// The relation macro defines the private commit-method macro used by this module.
+mod commit_pipeline;
 
 impl WorldStateSnapshot {
     /// Resolve a property name from the immutable indexes already owned by this snapshot.
@@ -441,9 +442,7 @@ impl MoorDB {
     /// Mark all relations as fully loaded from their backing providers.
     /// Call this after bulk import operations to enable optimized reads.
     pub fn mark_all_fully_loaded(&self) {
-        let relations = &self.relations;
-        self.snapshot_planes
-            .update_root(|current_root| relations.snapshot_with_all_fully_loaded(current_root));
+        self.snapshot_planes.mark_all_fully_loaded(&self.relations);
     }
 }
 
@@ -480,7 +479,6 @@ impl Drop for MoorDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::relation_defs::RebaseCheck;
     use crate::provider::property_value_store::{
         PropertyValueRecordKind, decode_property_value_record, decode_property_value_record_key,
     };
@@ -852,58 +850,5 @@ mod tests {
             db.start_transaction().get_object_name(&object).unwrap(),
             "accepted"
         );
-    }
-
-    #[test]
-    fn rebase_check_resolves_bloom_hits_against_snapshot_keys() {
-        let db = MoorDB::try_open(None, DatabaseConfig::default()).unwrap().0;
-        let obj = Obj::mk_id(1);
-
-        let checked = db.snapshot_planes.load_root();
-        let mut ours = db.start_transaction();
-        ours.set_object_name(&obj, "ours".to_string()).unwrap();
-
-        // The same Obj key in another relation guarantees a bloom hit, but it
-        // does not overlap the object_name write.
-        let mut unrelated = db.start_transaction();
-        unrelated.set_object_flags(&obj, BitEnum::new()).unwrap();
-        assert!(matches!(
-            unrelated.commit().unwrap(),
-            CommitResult::Success { .. }
-        ));
-        let winner = db.snapshot_planes.load_root();
-
-        let ws = ours.into_working_sets().unwrap();
-        let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
-        let checkers = db.relations.begin_check_all(&checked, &relation_ws);
-        assert!(checkers.object_name.is_some());
-        assert!(checkers.object_flags.is_none());
-        assert!(checkers.object_propvalues.is_none());
-        assert_eq!(
-            checkers.rebase_check(&relation_ws, &checked, &winner),
-            RebaseCheck::ExactlyDisjoint
-        );
-
-        let checked = winner;
-        let mut ours = db.start_transaction();
-        ours.set_object_name(&obj, "ours".to_string()).unwrap();
-
-        let mut overlapping = db.start_transaction();
-        overlapping
-            .set_object_name(&obj, "theirs".to_string())
-            .unwrap();
-        assert!(matches!(
-            overlapping.commit().unwrap(),
-            CommitResult::Success { .. }
-        ));
-        let winner = db.snapshot_planes.load_root();
-
-        let ws = ours.into_working_sets().unwrap();
-        let (relation_ws, _, _, _) = (*ws).extract_relation_working_sets();
-        let checkers = db.relations.begin_check_all(&checked, &relation_ws);
-        assert!(matches!(
-            checkers.rebase_check(&relation_ws, &checked, &winner),
-            RebaseCheck::ActualOverlap(_)
-        ));
     }
 }

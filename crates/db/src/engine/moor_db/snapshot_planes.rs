@@ -11,7 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{Caches, WorldStateSnapshot};
+use super::commit_pipeline::RootPublication;
+use super::{Caches, Relations, WorldStateSnapshot};
 use crate::tx::Tx;
 use arc_swap::ArcSwap;
 use std::sync::Arc;
@@ -85,20 +86,17 @@ impl SnapshotPlanes {
     /// Attempt to publish a new root snapshot via CAS. Succeeds only if the
     /// current root version matches `expected_version` (no concurrent commit).
     /// Returns `true` on success, `false` if another writer published first.
-    pub(super) fn try_publish_write_root(
-        &self,
-        expected_version: u64,
-        next_root: Arc<WorldStateSnapshot>,
-    ) -> bool {
+    pub(super) fn try_publish_write_root(publication: RootPublication<'_>) -> bool {
+        let (planes, expected_version, next_root) = publication.into_parts();
         let mut success = false;
         let next_cache = Arc::new(CachePublication {
             version: next_root.version,
             caches: next_root.caches.clone(),
         });
-        self.root_state.rcu(|current| {
+        planes.root_state.rcu(|current| {
             if current.version == expected_version {
                 success = true;
-                self.cache_publication.store(next_cache.clone());
+                planes.cache_publication.store(next_cache.clone());
                 next_root.clone()
             } else {
                 success = false;
@@ -112,11 +110,10 @@ impl SnapshotPlanes {
         self.root_state.load_full()
     }
 
-    pub(super) fn update_root<F>(&self, f: F)
-    where
-        F: FnMut(&Arc<WorldStateSnapshot>) -> Arc<WorldStateSnapshot>,
-    {
-        self.root_state.rcu(f);
+    /// Update only provider-loading metadata, preserving the published world state.
+    pub(super) fn mark_all_fully_loaded(&self, relations: &Relations) {
+        self.root_state
+            .rcu(|root| relations.snapshot_with_all_fully_loaded(root));
     }
 }
 

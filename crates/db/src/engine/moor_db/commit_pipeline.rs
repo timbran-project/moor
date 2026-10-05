@@ -13,44 +13,21 @@
 
 //! Write and read-only commit execution pipeline for `MoorDB`.
 //!
-//! Uses a lock-free CAS loop for write commits: multiple workers can check
-//! conflicts and build candidate snapshots in parallel. Only the final atomic
-//! publish (via `ArcSwap::rcu`) serializes.
-//!
-//! On CAS failure, we first attempt a cheap rebase: if the winner only modified
-//! different relations than us, we can re-slot our prepared indexes onto the
-//! winner's snapshot and CAS again without re-checking or re-preparing. Only if
-//! both we and the winner touched the same relation do we fall back to a full
-//! re-check cycle.
+//! Owned commit states bind validation, candidate construction, and publication.
+//! A failed publication must pass rebase validation before it can be retried.
 
-use super::{Caches, MoorDB, WorkingSets, WorldStateSnapshot};
+use super::{Caches, MoorDB, WorkingSets};
 use crate::api::world_state::db_counters;
-use crate::engine::property_definitions::{
-    PropertyDefinitionChange, collect_property_definition_changes,
-};
-use crate::engine::relation_defs::RebaseCheck;
-use crate::provider::batch_writer::{CommitAdmission, CommitAdmissionError};
-use moor_common::model::{
-    CommitResult, ConflictInfo, ConflictTarget, WorldStateError, WorldStateTimerOp,
-};
+use moor_common::model::{CommitResult, WorldStateError, WorldStateTimerOp};
 use moor_common::util::Instant;
-use std::time::Duration;
-use tracing::{error, trace, warn};
+use tracing::warn;
+
+mod state;
+pub(super) use state::RootPublication;
+use state::{PrepareError, PreparedCommit};
 
 /// Maximum number of rebase attempts after the initial CAS before giving up.
 const MAX_REBASE_ATTEMPTS: u32 = 16;
-
-fn enrich_conflict_info(
-    root: &WorldStateSnapshot,
-    mut conflict_info: ConflictInfo,
-) -> ConflictInfo {
-    if let Some(ConflictTarget::Property { object, uuid, name }) = &mut conflict_info.target
-        && name.is_none()
-    {
-        *name = root.property_name(*object, *uuid);
-    }
-    conflict_info
-}
 
 impl MoorDB {
     /// Publish read-only cache updates for the transaction snapshot version.
@@ -59,249 +36,63 @@ impl MoorDB {
             .publish_read_only_cache(snapshot_version, combined_caches);
     }
 
-    /// Persist a successfully published snapshot to the durable store.
-    fn persist_commit(
-        &self,
-        working_sets: super::RelationWorkingSets,
-        publication_version: u64,
-        tx_timestamp: crate::tx::Timestamp,
-        property_definition_changes: Vec<PropertyDefinitionChange>,
-        admission: CommitAdmission,
-    ) {
-        let mut batch = match self.relations.working_sets_to_batch(
-            working_sets,
-            publication_version,
-            tx_timestamp,
-        ) {
-            Ok(batch) => batch,
-            Err(error) => {
-                Self::report_persistence_failure(&format!(
-                    "failed to encode transaction {publication_version}: {error}"
-                ));
-                return;
-            }
-        };
-        batch.set_property_definition_changes(property_definition_changes);
-
-        let dirty_sequences = self.sequences.claim_dirty();
-        for i in 0_usize..super::SEQUENCE_COUNT {
-            if dirty_sequences & (1_u16 << i) == 0 {
-                continue;
-            }
-            batch.insert_encoded(
-                self.sequences_partition.clone(),
-                i.to_le_bytes(),
-                self.sequences.load(i).to_le_bytes(),
-            );
-        }
-
-        if let Err(error) = self.batch_writer.write(batch, admission) {
-            Self::report_persistence_failure(&format!(
-                "failed to enqueue transaction {publication_version}: {error}"
-            ));
-        }
-    }
-
-    fn report_persistence_failure(detail: &str) {
-        error!("FATAL: {detail}");
-        #[cfg(not(test))]
-        moor_common::util::signal_fatal_db_error("transaction persistence", detail);
-    }
-
-    /// Execute the write-commit path for a transaction via CAS loop.
     pub(crate) fn commit_writes(
         &self,
         ws: Box<WorkingSets>,
         _enqueued_at: Instant,
     ) -> Result<CommitResult, WorldStateError> {
-        let counters = db_counters();
-        let _process_timer = counters
+        let _process_timer = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::CommitProcessPhase);
-
         let num_tuples = ws.total_tuples();
         if num_tuples > 10_000 {
             warn!("Potential large batch @ commit... {num_tuples} total tuples in working set");
         }
 
-        let tx_timestamp = ws.tx.ts;
-        let snapshot_version = ws.tx.snapshot_version;
-        let has_mutations = ws.has_mutations;
-        let tx_bloom = ws.tx_bloom.clone();
-        let (mut relation_ws, verb_cache, prop_cache, ancestry_cache) =
-            ws.extract_relation_working_sets();
-
-        // Read-only fast path
-        if !has_mutations {
+        if !ws.has_mutations {
+            let tx = ws.tx;
+            let (_, verb_resolution_cache, prop_resolution_cache, ancestry_cache) =
+                ws.extract_relation_working_sets();
             self.commit_read_only(
-                snapshot_version,
+                tx.snapshot_version,
                 Caches {
-                    verb_resolution_cache: verb_cache,
-                    prop_resolution_cache: prop_cache,
+                    verb_resolution_cache,
+                    prop_resolution_cache,
                     ancestry_cache,
                 },
             );
             return Ok(CommitResult::Success {
                 mutations_made: false,
-                timestamp: tx_timestamp.0,
+                timestamp: tx.ts.0,
             });
         }
 
-        let start_time = Instant::now();
-
-        // Phase 1: Check conflicts and prepare indexes against current snapshot
-        let current_root = self.snapshot_planes.load_root();
-        if snapshot_version != current_root.version
-            && let Err(info) = relation_ws.check_property_policies(&current_root)
-        {
-            return Ok(CommitResult::ConflictRetry {
-                conflict_info: Some(enrich_conflict_info(&current_root, info)),
-            });
-        }
-        relation_ws.clear_clobber_hints();
-        let mut checkers = self.relations.begin_check_all(&current_root, &relation_ws);
-
-        // Skip conflict check if:
-        // - No commits since our snapshot (existing fast path), OR
-        // - The snapshot's cumulative bloom filter covers all commits since
-        //   our snapshot, and our keys don't intersect it
-        let skip_conflict_check = snapshot_version == current_root.version
-            || (snapshot_version >= current_root.bloom_since_version
-                && current_root
-                    .commit_bloom
-                    .as_ref()
-                    .is_some_and(|snap_bloom| !tx_bloom.might_intersect(snap_bloom)));
-
-        if !skip_conflict_check {
-            let _t = counters
-                .timers_hot
-                .start(WorldStateTimerOp::CommitCheckPhase);
-            if let Err(conflict_info) = checkers.check_all(&mut relation_ws) {
-                let conflict_info = enrich_conflict_info(&current_root, conflict_info);
-                trace!("Transaction conflict during commit: {conflict_info}");
+        let mut prepared = match PreparedCommit::prepare(self, ws) {
+            Ok(prepared) => prepared,
+            Err(PrepareError::Conflict(info)) => {
                 return Ok(CommitResult::ConflictRetry {
-                    conflict_info: Some(conflict_info),
+                    conflict_info: Some(info),
                 });
             }
-        }
-
-        if start_time.elapsed() > Duration::from_secs(5) {
-            warn!(
-                "Long running commit; check phase took {}s for {num_tuples} tuples",
-                start_time.elapsed().as_secs_f32()
-            );
-        }
-
-        let _t = counters
-            .timers_hot
-            .start(WorldStateTimerOp::CommitApplyPhase);
-        let bloom = checkers.prepare_apply_all(&relation_ws);
-        let combined_caches = Caches {
-            verb_resolution_cache: verb_cache.fork(),
-            prop_resolution_cache: prop_cache.fork(),
-            ancestry_cache: ancestry_cache.fork(),
+            Err(PrepareError::Database(error)) => return Err(error),
         };
-        let property_definition_changes = collect_property_definition_changes(
-            &*current_root.object_propdefs,
-            &relation_ws.object_propdefs,
-        );
-        let next_root =
-            checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
-        drop(_t);
-
-        let admission =
-            self.batch_writer
-                .admit_commit(tx_timestamp)
-                .map_err(|error| match error {
-                    CommitAdmissionError::Timeout { waited } => {
-                        WorldStateError::DatabaseOverloaded(waited)
-                    }
-                    CommitAdmissionError::Unavailable => WorldStateError::DatabaseError(
-                        "Database commit queue admission is unavailable".to_string(),
-                    ),
-                })?;
-
-        // Phase 2: Try to publish
-        let publication_version = next_root.version;
-        if self
-            .snapshot_planes
-            .try_publish_write_root(current_root.version, next_root)
-        {
-            self.persist_commit(
-                relation_ws,
-                publication_version,
-                tx_timestamp,
-                property_definition_changes,
-                admission,
-            );
-            return Ok(CommitResult::Success {
-                mutations_made: true,
-                timestamp: tx_timestamp.0,
-            });
-        }
-
-        // Phase 3: CAS failed — try to rebase onto the winner's snapshot.
-        // Bloom misses prove disjointness cheaply. Bloom hits are checked
-        // exactly against the snapshot for which our operations were prepared.
-        let mut checked_root = current_root;
-        for _rebase in 0..MAX_REBASE_ATTEMPTS {
-            let winner = self.snapshot_planes.load_root();
-
-            let rebase_check = checkers.rebase_check(&relation_ws, &checked_root, &winner);
-            if let RebaseCheck::ActualOverlap(conflict_info) = rebase_check {
-                let conflict_info = enrich_conflict_info(&winner, conflict_info);
-                trace!(
-                    checked_version = checked_root.version,
-                    winner_version = winner.version,
-                    %conflict_info,
-                    "Transaction found an exact key overlap after CAS loss"
-                );
-                return Ok(CommitResult::ConflictRetry {
-                    conflict_info: Some(conflict_info),
-                });
-            }
-
-            let combined_caches = Caches {
-                verb_resolution_cache: verb_cache.fork(),
-                prop_resolution_cache: prop_cache.fork(),
-                ancestry_cache: ancestry_cache.fork(),
+        for attempt in 0..=MAX_REBASE_ATTEMPTS {
+            let retry = match prepared.try_publish() {
+                Ok(published) => return Ok(published.enqueue_persistence()),
+                Err(retry) => retry,
             };
-            let property_definition_changes = collect_property_definition_changes(
-                &*winner.object_propdefs,
-                &relation_ws.object_propdefs,
-            );
-            let rebased = checkers.build_rebased_snapshot(
-                &relation_ws,
-                &winner,
-                tx_timestamp,
-                combined_caches,
-                &bloom,
-            );
-
-            // All overlaps satisfy the property policies. Try CAS again.
-            let publication_version = rebased.version;
-            if self
-                .snapshot_planes
-                .try_publish_write_root(winner.version, rebased)
-            {
-                self.persist_commit(
-                    relation_ws,
-                    publication_version,
-                    tx_timestamp,
-                    property_definition_changes,
-                    admission,
-                );
-                return Ok(CommitResult::Success {
-                    mutations_made: true,
-                    timestamp: tx_timestamp.0,
-                });
+            if attempt == MAX_REBASE_ATTEMPTS {
+                break;
             }
-
-            // Another writer won. The prepared operations have now been proven
-            // safe through this winner, so compare only the next interval.
-            checked_root = winner;
+            prepared = match retry.rebase() {
+                Ok(prepared) => prepared,
+                Err(info) => {
+                    return Ok(CommitResult::ConflictRetry {
+                        conflict_info: Some(info),
+                    });
+                }
+            };
         }
-
         Ok(CommitResult::ConflictRetry {
             conflict_info: None,
         })
