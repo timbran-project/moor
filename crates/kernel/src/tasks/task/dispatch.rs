@@ -14,17 +14,16 @@
 //! VM suspension outcomes and immediate transaction renewal.
 //! Task workers own execution here and transfer suspended tasks to the scheduler.
 
-use super::{Task, transaction::YieldCommit};
+use super::{
+    Task,
+    transaction::{Renewal, YieldCommit},
+};
 use crate::{
-    task_context::TransactionRenewalError,
     tasks::{SchedulerOp, sched_counters, task_scheduler_client::TaskSchedulerClient},
     trace_task_suspend_with_delay,
     vm::TaskSuspend,
 };
-use moor_common::{
-    model::{CommitResult, WorldStateError},
-    tasks::Session,
-};
+use moor_common::{model::WorldStateError, tasks::Session};
 use moor_var::{List, v_int};
 use tracing::error;
 
@@ -47,16 +46,17 @@ impl Task {
                         WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
                     })?;
                 Ok((new_world_state, ()))
-            })?;
+            });
             match renewal {
-                Ok((CommitResult::Success { .. }, _)) => {
+                Renewal::Cancelled => return None,
+                Renewal::Continued(()) => {
                     let messages = task_scheduler_client.task_recv();
                     let resume_value = List::from_iter(messages).into();
                     self.vm_host.resume_execution(resume_value);
                     self.refresh_retry_state();
                     return Some(self);
                 }
-                Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                Renewal::Conflict(conflict_info) => {
                     self.log_conflict_retry("task_recv immediate resume", conflict_info.as_ref());
                     session.rollback().unwrap();
                     task_scheduler_client.conflict_retry(
@@ -66,12 +66,12 @@ impl Task {
                     );
                     return None;
                 }
-                Err(TransactionRenewalError::Commit(e)) => {
+                Renewal::CommitFailed(e) => {
                     error!("Failed to commit before task_recv: {e:?}");
                     self.reject_commit(task_scheduler_client, e);
                     return None;
                 }
-                Err(TransactionRenewalError::Begin(e)) => {
+                Renewal::BeginFailed(e) => {
                     error!("Failed to begin new transaction for task_recv: {e:?}");
                     task_scheduler_client.abort_transaction_renewal_failed();
                     return None;
@@ -94,27 +94,28 @@ impl Task {
                         WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
                     })?;
                 Ok((new_world_state, ()))
-            })?;
+            });
             match renewal {
-                Ok((CommitResult::Success { .. }, _)) => {
+                Renewal::Cancelled => return None,
+                Renewal::Continued(()) => {
                     // Resume first (which resets start_time), then snapshot
                     // so retry_state has fresh timing if we need to restore
                     self.vm_host.resume_execution(resume_value);
                     self.refresh_retry_state();
                     return Some(self);
                 }
-                Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                Renewal::Conflict(conflict_info) => {
                     self.log_conflict_retry("immediate resume", conflict_info.as_ref());
                     session.rollback().unwrap();
                     task_scheduler_client.conflict_retry(self, "immediate resume", conflict_info);
                     return None;
                 }
-                Err(TransactionRenewalError::Commit(e)) => {
+                Renewal::CommitFailed(e) => {
                     error!("Failed to commit before immediate resume: {e:?}");
                     self.reject_commit(task_scheduler_client, e);
                     return None;
                 }
-                Err(TransactionRenewalError::Begin(e)) => {
+                Renewal::BeginFailed(e) => {
                     error!("Failed to begin new transaction for immediate resume: {e:?}");
                     task_scheduler_client.abort_transaction_renewal_failed();
                     return None;

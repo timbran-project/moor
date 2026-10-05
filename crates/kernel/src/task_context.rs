@@ -24,7 +24,8 @@ use std::hash::{Hash, Hasher};
 
 use moor_common::{
     model::{
-        BuiltinProxyCacheBits, CommitResult, WorldState, WorldStateError, loader::LoaderInterface,
+        BuiltinProxyCacheBits, CommitResult, ConflictInfo, WorldState, WorldStateError,
+        loader::LoaderInterface,
     },
     tasks::{Session, TaskId},
 };
@@ -413,11 +414,45 @@ pub enum TransactionRenewalError {
     Begin(WorldStateError),
 }
 
-/// Execute a closure that creates a new transaction while preserving the current task context.
-/// This atomically commits the current transaction and starts a new one with preserved context.
+/// A successful renewal always carries the value produced with the new transaction.
+pub(crate) enum RenewedTransaction<R> {
+    Continued {
+        mutations_made: bool,
+        timestamp: u64,
+        value: R,
+    },
+    Conflict(Option<ConflictInfo>),
+}
+
+/// Commit the current transaction, then open its replacement with preserved context.
+/// A failure to open the replacement does not undo the previous commit.
 pub fn with_new_transaction<F, R>(
     create_transaction: F,
 ) -> Result<(CommitResult, Option<R>), TransactionRenewalError>
+where
+    F: FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
+{
+    renew_current_transaction(create_transaction).map(|renewed| match renewed {
+        RenewedTransaction::Continued {
+            mutations_made,
+            timestamp,
+            value,
+        } => (
+            CommitResult::Success {
+                mutations_made,
+                timestamp,
+            },
+            Some(value),
+        ),
+        RenewedTransaction::Conflict(conflict_info) => {
+            (CommitResult::ConflictRetry { conflict_info }, None)
+        }
+    })
+}
+
+pub(crate) fn renew_current_transaction<F, R>(
+    create_transaction: F,
+) -> Result<RenewedTransaction<R>, TransactionRenewalError>
 where
     F: FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
 {
@@ -437,7 +472,10 @@ where
     let commit_result = commit_current_transaction().map_err(TransactionRenewalError::Commit)?;
 
     match commit_result {
-        CommitResult::Success { .. } => {
+        CommitResult::Success {
+            mutations_made,
+            timestamp,
+        } => {
             // Create the new transaction
             let (new_world_state, result) =
                 create_transaction().map_err(TransactionRenewalError::Begin)?;
@@ -461,11 +499,15 @@ where
                 });
             });
 
-            Ok((commit_result, Some(result)))
+            Ok(RenewedTransaction::Continued {
+                mutations_made,
+                timestamp,
+                value: result,
+            })
         }
         CommitResult::ConflictRetry { conflict_info } => {
             // On conflict, we don't create a new transaction
-            Ok((CommitResult::ConflictRetry { conflict_info }, None))
+            Ok(RenewedTransaction::Conflict(conflict_info))
         }
     }
 }

@@ -25,13 +25,13 @@
 mod dispatch;
 mod transaction;
 
-use transaction::YieldCommit;
+use transaction::{Renewal, YieldCommit};
 
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use crate::task_context::{
-    TransactionRenewalError, current_session, has_active_task, rollback_current_transaction,
-    with_current_transaction, with_current_transaction_mut,
+    current_session, has_active_task, rollback_current_transaction, with_current_transaction,
+    with_current_transaction_mut,
 };
 use ahash::AHasher;
 
@@ -573,9 +573,10 @@ impl Task {
                         })?;
                     let task_id = task_scheduler_client.request_fork(fork_request);
                     Ok((new_world_state, task_id))
-                })?;
+                });
                 match renewal {
-                    Ok((CommitResult::Success { .. }, Some(task_id))) => {
+                    Renewal::Cancelled => None,
+                    Renewal::Continued(task_id) => {
                         if let Some(task_id_var) = task_id_var {
                             self.vm_host
                                 .set_variable(&task_id_var, v_int(task_id as i64));
@@ -588,24 +589,18 @@ impl Task {
                         self.refresh_retry_state();
                         Some(self)
                     }
-                    Ok((CommitResult::ConflictRetry { conflict_info }, _)) => {
+                    Renewal::Conflict(conflict_info) => {
                         self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
                         session.rollback().unwrap();
                         task_scheduler_client.conflict_retry(self, "fork dispatch", conflict_info);
                         None
                     }
-                    Ok((CommitResult::Success { .. }, None)) => {
-                        error!("Fork dispatch did not return a new task id");
-                        session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self, "fork dispatch", None);
-                        None
-                    }
-                    Err(TransactionRenewalError::Commit(e)) => {
+                    Renewal::CommitFailed(e) => {
                         error!("Failed to commit before fork dispatch: {e:?}");
                         self.reject_commit(task_scheduler_client, e);
                         None
                     }
-                    Err(TransactionRenewalError::Begin(e)) => {
+                    Renewal::BeginFailed(e) => {
                         error!("Failed to begin transaction after fork commit: {e:?}");
                         task_scheduler_client.abort_transaction_renewal_failed();
                         None

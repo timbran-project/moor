@@ -17,8 +17,8 @@
 use super::Task;
 use crate::{
     task_context::{
-        TransactionRenewalError, commit_current_transaction, rollback_current_transaction,
-        with_new_transaction,
+        RenewedTransaction, TransactionRenewalError, commit_current_transaction,
+        renew_current_transaction, rollback_current_transaction,
     },
     tasks::{task_control::CommittedBoundary, task_scheduler_client::TaskSchedulerClient},
 };
@@ -31,6 +31,14 @@ use tracing::warn;
 pub(super) enum YieldCommit {
     Committed(CommittedBoundary),
     Conflict(Option<ConflictInfo>),
+}
+
+pub(super) enum Renewal<R> {
+    Continued(R),
+    Conflict(Option<ConflictInfo>),
+    CommitFailed(WorldStateError),
+    BeginFailed(WorldStateError),
+    Cancelled,
 }
 
 impl Task {
@@ -130,16 +138,16 @@ impl Task {
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
         create_transaction: impl FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
-    ) -> Option<Result<(CommitResult, Option<R>), TransactionRenewalError>> {
+    ) -> Renewal<R> {
         let Some(claim) = self.control.claim_boundary() else {
             self.cancel_before_commit(task_scheduler_client);
-            return None;
+            return Renewal::Cancelled;
         };
 
-        let result = with_new_transaction(create_transaction);
+        let result = renew_current_transaction(create_transaction);
         let committed = matches!(
             result,
-            Ok((CommitResult::Success { .. }, _)) | Err(TransactionRenewalError::Begin(_))
+            Ok(RenewedTransaction::Continued { .. }) | Err(TransactionRenewalError::Begin(_))
         );
         let proceed = if committed {
             claim.committed().finish()
@@ -147,7 +155,12 @@ impl Task {
             claim.failed()
         };
         if proceed {
-            return Some(result);
+            return match result {
+                Ok(RenewedTransaction::Continued { value, .. }) => Renewal::Continued(value),
+                Ok(RenewedTransaction::Conflict(info)) => Renewal::Conflict(info),
+                Err(TransactionRenewalError::Commit(error)) => Renewal::CommitFailed(error),
+                Err(TransactionRenewalError::Begin(error)) => Renewal::BeginFailed(error),
+            };
         }
 
         if !committed && let Err(error) = session.rollback() {
@@ -157,6 +170,6 @@ impl Task {
             );
         }
         self.cancel_before_commit(task_scheduler_client);
-        None
+        Renewal::Cancelled
     }
 }
