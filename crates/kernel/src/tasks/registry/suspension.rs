@@ -13,7 +13,7 @@
 
 //! Suspended tasks and wake indexes, mutated under the scheduler lifecycle lock.
 
-use super::active::LiveTaskRegistry;
+use super::active::{LiveTaskRegistration, LiveTaskRegistry};
 use crate::tasks::{
     TaskDescription, TaskNotification, TaskStart, TasksDb,
     task::{Task, TaskState},
@@ -66,6 +66,20 @@ pub struct SuspendedTask {
     /// Generation stamp matching the `TimerEntry` that belongs to this suspension.
     /// Stale timer entries from prior suspensions will carry a different value.
     pub timer_generation: u64,
+}
+
+/// A persisted continuation paired with its runtime membership owner.
+/// The record format stays independent of registration lifetime.
+pub(crate) struct RegisteredSuspendedTask {
+    pub(crate) record: SuspendedTask,
+    pub(crate) registration: LiveTaskRegistration,
+}
+
+impl std::ops::Deref for RegisteredSuspendedTask {
+    type Target = SuspendedTask;
+    fn deref(&self) -> &Self::Target {
+        &self.record
+    }
 }
 
 impl SuspendedTask {
@@ -151,7 +165,7 @@ impl WakeCondition {
 /// keeping them in sync.
 pub struct SuspensionQ {
     /// All suspended tasks - the master storage
-    pub(crate) tasks: HashMap<TaskId, SuspendedTask, BuildHasherDefault<AHasher>>,
+    tasks: HashMap<TaskId, RegisteredSuspendedTask, BuildHasherDefault<AHasher>>,
 
     /// Time-based tasks use a hash wheel timer (O(1) amortized)
     timer_wheel: QuadWheelWithOverflow<TimerEntry>,
@@ -205,6 +219,19 @@ impl SuspensionQ {
             tasks_database,
             live_tasks: LiveTaskRegistry::new(),
         }
+    }
+
+    /// Borrow the persisted record without exposing registration or index mutation.
+    pub(crate) fn get(&self, task_id: TaskId) -> Option<&SuspendedTask> {
+        self.tasks.get(&task_id).map(|task| &task.record)
+    }
+
+    pub(crate) fn records(&self) -> impl Iterator<Item = &SuspendedTask> {
+        self.tasks.values().map(|task| &task.record)
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.tasks.is_empty()
     }
 
     /// Check if a suspended task exists and return its controlling principal.
@@ -310,8 +337,14 @@ impl SuspensionQ {
             let input_player = task.task.player();
             self.register_wake(&mut task, input_player);
 
-            self.tasks.insert(task_id, task);
-            self.live_tasks.insert(task_id);
+            let registration = self.live_tasks.register(task_id);
+            self.tasks.insert(
+                task_id,
+                RegisteredSuspendedTask {
+                    record: task,
+                    registration,
+                },
+            );
         }
         // Now delete them from the database.
         if let Err(e) = self.tasks_database.delete_all_tasks() {
@@ -328,11 +361,13 @@ impl SuspensionQ {
         task: Box<Task>,
         session: Arc<dyn Session>,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        registration: LiveTaskRegistration,
     ) {
         let input_player = task.player();
         self.insert_task(
             SuspendedTask::new(wake_condition, task, session, result_sender),
             input_player,
+            registration,
         );
     }
 
@@ -344,6 +379,7 @@ impl SuspensionQ {
         task: Box<Task>,
         session: Arc<dyn Session>,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        registration: LiveTaskRegistration,
     ) {
         self.insert_task(
             SuspendedTask::new(
@@ -353,15 +389,28 @@ impl SuspensionQ {
                 result_sender,
             ),
             input_player,
+            registration,
         );
     }
 
-    fn insert_task(&mut self, mut task: SuspendedTask, input_player: Obj) {
+    fn insert_task(
+        &mut self,
+        mut task: SuspendedTask,
+        input_player: Obj,
+        registration: LiveTaskRegistration,
+    ) {
+        assert_eq!(task.task.task_id, registration.task_id());
         let should_persist = self.register_wake(&mut task, input_player);
         if should_persist && let Err(error) = self.tasks_database.save_task(&task) {
             error!(?error, "Could not save suspended task");
         }
-        self.tasks.insert(task.task.task_id, task);
+        self.tasks.insert(
+            task.task.task_id,
+            RegisteredSuspendedTask {
+                record: task,
+                registration,
+            },
+        );
     }
 
     /// Register exactly the indexes implied by the wake condition. Returns persistence policy
@@ -467,7 +516,7 @@ impl SuspensionQ {
     }
 
     /// Remove a task from suspension, retaining live membership for a wakeup transfer.
-    pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<SuspendedTask> {
+    pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<RegisteredSuspendedTask> {
         let task = self.tasks.remove(&task_id)?;
         self.unregister_wake(task_id, &task.wake_condition);
         // Deletion remains explicit and is a no-op for a record that was never persisted.
@@ -477,12 +526,13 @@ impl SuspensionQ {
 
     /// Remove a task permanently from suspension and wake tasks depending on it.
     pub(crate) fn remove_task_terminal(&mut self, task_id: TaskId) -> Option<SuspendedTask> {
-        let task = self.remove_task(task_id);
-        if task.is_some() {
-            self.live_tasks.remove(task_id);
-            self.enqueue_dependents_for(task_id);
-        }
-        task
+        let RegisteredSuspendedTask {
+            record,
+            registration,
+        } = self.remove_task(task_id)?;
+        drop(registration);
+        self.enqueue_dependents_for(task_id);
+        Some(record)
     }
 
     /// The backing store, shared with the native schedule queue.
@@ -516,7 +566,7 @@ impl SuspensionQ {
         input_request_id: Uuid,
         connection: &Obj,
         player: &Obj,
-    ) -> Option<SuspendedTask> {
+    ) -> Option<RegisteredSuspendedTask> {
         // O(1) lookup by input request ID
         let &(task_id, input_player) = self.input_requests.get(&input_request_id)?;
 
@@ -542,7 +592,7 @@ impl SuspensionQ {
     pub(crate) fn pull_task_for_worker(
         &mut self,
         worker_request_id: Uuid,
-    ) -> Option<SuspendedTask> {
+    ) -> Option<RegisteredSuspendedTask> {
         // O(1) lookup by worker request ID
         let &task_id = self.worker_requests.get(&worker_request_id)?;
 
@@ -833,6 +883,7 @@ mod tests {
                 mock_task(id),
                 mock_session(),
                 None,
+                queue.live_tasks.register(id),
             );
         }
         queue.remove_task_terminal(2).unwrap();
@@ -846,7 +897,7 @@ mod tests {
     #[test]
     fn live_task_registry_supports_concurrent_reads() {
         let registry = LiveTaskRegistry::new();
-        registry.insert(42);
+        let registration = registry.register(42);
 
         std::thread::scope(|scope| {
             for _ in 0..8 {
@@ -859,7 +910,7 @@ mod tests {
             }
         });
 
-        registry.remove(42);
+        drop(registration);
         assert!(!registry.contains(42));
     }
 
@@ -879,6 +930,7 @@ mod tests {
             mock_task_with_identity(task_id, task_player, authority_principal),
             mock_session(),
             None,
+            sq.live_tasks.register(task_id),
         );
 
         assert!(
@@ -912,6 +964,7 @@ mod tests {
             mock_task(task_id),
             mock_session(),
             None,
+            sq.live_tasks.register(task_id),
         );
         let gen1 = sq.tasks.get(&task_id).unwrap().timer_generation;
 
@@ -928,6 +981,7 @@ mod tests {
             mock_task(task_id),
             mock_session(),
             None,
+            sq.live_tasks.register(task_id),
         );
         let gen2 = sq.tasks.get(&task_id).unwrap().timer_generation;
         assert_ne!(

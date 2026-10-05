@@ -162,9 +162,12 @@ impl TaskLifecycle {
     /// Restored suspended tasks that are schedule firings, by schedule id.
     fn restored_schedule_firings(&self) -> HashMap<ScheduleId, Vec<TaskId>> {
         let mut firings: HashMap<ScheduleId, Vec<TaskId>> = HashMap::new();
-        for (task_id, st) in &self.task_q.suspended.tasks {
+        for st in self.task_q.suspended.records() {
             if let TaskStart::StartScheduled { schedule_id, .. } = st.task.state.task_start() {
-                firings.entry(*schedule_id).or_default().push(*task_id);
+                firings
+                    .entry(*schedule_id)
+                    .or_default()
+                    .push(st.task.task_id);
             }
         }
         firings

@@ -446,11 +446,13 @@ mod tests {
         {
             let mut lc = scheduler.lifecycle.lock();
             lc.state = SchedulerState::Running;
+            let registration = lc.task_q.register_task(waiting.task.task_id);
             lc.task_q.suspended.add_task(
                 WakeCondition::GCComplete,
                 waiting.task,
                 waiting.session,
                 None,
+                registration,
             );
         }
         scheduler

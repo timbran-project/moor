@@ -436,7 +436,7 @@ impl Scheduler {
                     };
                     lc.task_q.suspended.enqueue_dependents_for(task_id);
                     lc.task_q.send_task_result_direct(
-                        task_id,
+                        task.registration,
                         task.result_sender.take(),
                         Err(TaskAbortedCancelled),
                     );

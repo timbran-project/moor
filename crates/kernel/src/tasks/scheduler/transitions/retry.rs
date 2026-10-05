@@ -85,8 +85,11 @@ impl Scheduler {
                 %conflict,
                 "Task retry limit exhausted; aborting task"
             );
-            lc.task_q
-                .send_task_result_direct(task_id, old_tc.result_sender, Err(TaskAbortedError));
+            lc.task_q.send_task_result_direct(
+                old_tc.registration,
+                old_tc.result_sender,
+                Err(TaskAbortedError),
+            );
             return;
         }
         task.retries += 1;
@@ -113,6 +116,7 @@ impl Scheduler {
             task,
             old_tc.session,
             old_tc.result_sender,
+            old_tc.registration,
         );
     }
 }

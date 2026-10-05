@@ -474,12 +474,13 @@ impl Scheduler {
         ) {
             crate::tasks::registry::TaskSubmission::Suspended(handle) => Ok(handle),
             crate::tasks::registry::TaskSubmission::NeedsWake {
+                registration,
                 handle,
                 task,
                 session,
                 result_sender,
             } => {
-                if let Err(error) = lc.task_q.wake_task_thread(
+                lc.task_q.wake_task_thread(
                     task,
                     ResumeAction::Return(v_int(0)),
                     session,
@@ -488,10 +489,8 @@ impl Scheduler {
                     self.database.as_ref(),
                     self.builtin_registry.clone(),
                     self.config.clone(),
-                ) {
-                    lc.task_q.live_tasks.remove(task_id);
-                    return Err(error);
-                }
+                    registration,
+                )?;
                 Ok(handle)
             }
         }
@@ -964,8 +963,8 @@ mod tests {
         {
             let lifecycle = scheduler.lifecycle.lock();
             assert_eq!(lifecycle.next_task_id, 82);
-            assert!(lifecycle.task_q.suspended.tasks.contains_key(&4));
-            assert!(lifecycle.task_q.suspended.tasks.contains_key(&81));
+            assert!(lifecycle.task_q.suspended.get(4).is_some());
+            assert!(lifecycle.task_q.suspended.get(81).is_some());
         }
         assert!(scheduler.handle_task_exists(4));
         assert!(scheduler.handle_task_exists(81));
@@ -1209,10 +1208,11 @@ mod tests {
         );
 
         let mut lifecycle = scheduler.lifecycle.lock();
-        lifecycle.task_q.register_task(task_id);
+        let registration = lifecycle.task_q.register_task(task_id);
         lifecycle.task_q.insert_active(
             task_id,
             RunningTask {
+                registration,
                 effects: Default::default(),
                 phase: RunningTaskPhase::Running,
                 player: SYSTEM_OBJECT,
@@ -1497,7 +1497,7 @@ mod tests {
 
         let lc = scheduler.lifecycle.lock();
         assert!(!lc.task_q.active.contains_key(&task_id));
-        assert!(lc.task_q.suspended.tasks.contains_key(&task_id));
+        assert!(lc.task_q.suspended.get(task_id).is_some());
         drop(lc);
 
         scheduler.stop(None).expect("scheduler should stop");
@@ -1578,7 +1578,7 @@ mod tests {
         let (_, result) = recv.recv().unwrap();
         if fail_commit || cancel {
             assert!(lc.task_q.drain_messages(target_id).is_empty());
-            assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+            assert!(lc.task_q.suspended.get(task_id).is_none());
             assert!(!scheduler.handle_task_exists(task_id));
             assert!(
                 matches!(result, Err(TaskAbortedError)) && fail_commit
@@ -1587,7 +1587,7 @@ mod tests {
         } else {
             assert_eq!(lc.task_q.drain_messages(target_id), vec![v_int(17)]);
             assert!(matches!(result, Ok(TaskNotification::Suspended)));
-            let suspended = lc.task_q.suspended.tasks.get(&task_id).unwrap();
+            let suspended = lc.task_q.suspended.get(task_id).unwrap();
             assert!(matches!(suspended.wake_condition, WakeCondition::Time(_)));
             assert!(scheduler.handle_task_exists(task_id));
         }
@@ -1626,7 +1626,7 @@ mod tests {
         assert!(Arc::ptr_eq(&active.control, &replacement.control));
         assert_eq!(active.phase, RunningTaskPhase::Running);
         assert!(!replacement.control.is_cancelled());
-        assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+        assert!(lc.task_q.suspended.get(task_id).is_none());
     }
 
     #[test]
@@ -1769,7 +1769,7 @@ mod tests {
 
         let lc = scheduler.lifecycle.lock();
         assert!(!lc.task_q.active.contains_key(&task_id));
-        assert!(lc.task_q.suspended.tasks.contains_key(&task_id));
+        assert!(lc.task_q.suspended.get(task_id).is_some());
         drop(lc);
 
         scheduler.stop(None).expect("scheduler should stop");
@@ -1856,7 +1856,7 @@ mod tests {
 
         let lc = scheduler.lifecycle.lock();
         assert!(!lc.task_q.active.contains_key(&task_id));
-        assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+        assert!(lc.task_q.suspended.get(task_id).is_none());
         drop(lc);
 
         threads

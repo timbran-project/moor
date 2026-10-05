@@ -26,10 +26,16 @@ use moor_var::{Obj, Var};
 use papaya::HashMap as PapayaHashMap;
 use std::{
     hash::BuildHasherDefault,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
-type LiveTasks = PapayaHashMap<TaskId, (), BuildHasherDefault<AHasher>>;
+struct LiveTasks {
+    entries: PapayaHashMap<TaskId, u64, BuildHasherDefault<AHasher>>,
+    next_generation: AtomicU64,
+}
 
 /// Lock-free membership index for tasks accepted by the scheduler.
 #[derive(Clone)]
@@ -37,26 +43,60 @@ pub(crate) struct LiveTaskRegistry {
     tasks: Arc<LiveTasks>,
 }
 
+/// Exclusive ownership of a logical task's membership across attempts and wakeups.
+/// Dropping an older registration cannot remove a replacement with the same task ID.
+#[must_use]
+pub(crate) struct LiveTaskRegistration {
+    tasks: Arc<LiveTasks>,
+    task_id: TaskId,
+    generation: u64,
+}
+
+impl LiveTaskRegistration {
+    pub(crate) fn task_id(&self) -> TaskId {
+        self.task_id
+    }
+}
+
+impl Drop for LiveTaskRegistration {
+    fn drop(&mut self) {
+        let _ = self
+            .tasks
+            .entries
+            .pin()
+            .remove_if(&self.task_id, |_, generation| {
+                *generation == self.generation
+            });
+    }
+}
+
 impl LiveTaskRegistry {
     pub(super) fn new() -> Self {
         Self {
-            tasks: Arc::new(PapayaHashMap::with_hasher(BuildHasherDefault::default())),
+            tasks: Arc::new(LiveTasks {
+                entries: PapayaHashMap::with_hasher(BuildHasherDefault::default()),
+                next_generation: AtomicU64::new(0),
+            }),
         }
     }
 
     #[inline]
     pub(crate) fn contains(&self, task_id: TaskId) -> bool {
-        self.tasks.pin().contains_key(&task_id)
+        self.tasks.entries.pin().contains_key(&task_id)
     }
 
-    #[inline]
-    pub(crate) fn insert(&self, task_id: TaskId) {
-        self.tasks.pin().insert(task_id, ());
-    }
-
-    #[inline]
-    pub(crate) fn remove(&self, task_id: TaskId) {
-        self.tasks.pin().remove(&task_id);
+    pub(crate) fn register(&self, task_id: TaskId) -> LiveTaskRegistration {
+        let generation = self
+            .tasks
+            .next_generation
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+            .expect("Live task registration generation exhausted");
+        self.tasks.entries.pin().insert(task_id, generation);
+        LiveTaskRegistration {
+            tasks: self.tasks.clone(),
+            task_id,
+            generation,
+        }
     }
 }
 
@@ -77,6 +117,7 @@ pub(crate) enum RunningTaskPhase {
 /// The actual `Task` is owned by the task thread until it is suspended or completed.
 /// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
 pub(crate) struct RunningTask {
+    pub(crate) registration: LiveTaskRegistration,
     /// Unpublished messages and schedule operations owned by this active attempt.
     pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
     /// Current phase of the active-to-suspended transition.

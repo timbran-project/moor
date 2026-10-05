@@ -22,7 +22,10 @@ use crate::{
         scheduler::{ResumeAction, Scheduler},
         task::Task,
         task_control::{CancelResult, TaskControl},
-        task_q::{RunningTask, RunningTaskPhase, SuspendedTask, TaskQ, WakeCondition},
+        task_q::{
+            LiveTaskRegistration, RegisteredSuspendedTask, RunningTask, RunningTaskPhase,
+            SuspendedTask, TaskQ, WakeCondition,
+        },
         task_scheduler_client::TaskSchedulerClient,
         task_telemetry::TaskRunBaseline,
     },
@@ -50,6 +53,7 @@ pub(crate) enum TaskSubmission {
     Suspended(TaskHandle),
     /// Task should start immediately - caller must wake it
     NeedsWake {
+        registration: LiveTaskRegistration,
         handle: TaskHandle,
         task: Box<Task>,
         session: Arc<dyn Session>,
@@ -64,7 +68,7 @@ impl TaskQ {
         task_id: TaskId,
         sender_authority: TaskPermissions,
     ) -> Result<bool, ErrorCode> {
-        if self.suspended.tasks.contains_key(&task_id) {
+        if self.suspended.get(task_id).is_some() {
             if sender_authority.is_wizard()
                 || self.suspended.authority_principal_controls_task(
                     task_id,
@@ -106,7 +110,7 @@ impl TaskQ {
             return Err(E_PERM);
         }
 
-        if !self.suspended.tasks.contains_key(&task_id) {
+        if self.suspended.get(task_id).is_none() {
             error!(task = task_id, "Task not found for resume request");
             return Err(E_INVARG);
         }
@@ -143,21 +147,24 @@ impl TaskQ {
     #[inline]
     pub(crate) fn wake_suspended_task(
         &mut self,
-        suspended_task: SuspendedTask,
+        suspended_task: RegisteredSuspendedTask,
         resume_action: ResumeAction,
         scheduler: &Scheduler,
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,
         config: Arc<Config>,
     ) -> Result<(), SchedulerError> {
+        let RegisteredSuspendedTask {
+            record,
+            registration,
+        } = suspended_task;
         let SuspendedTask {
             task,
             session,
             result_sender,
             ..
-        } = suspended_task;
-        let task_id = task.task_id;
-        let result = self.wake_task_thread(
+        } = record;
+        self.wake_task_thread(
             task,
             resume_action,
             session,
@@ -166,28 +173,29 @@ impl TaskQ {
             database,
             builtin_registry,
             config,
-        );
-        if result.is_err() {
-            self.live_tasks.remove(task_id);
-        }
-        result
+            registration,
+        )
     }
 
     #[inline]
     pub(crate) fn wake_retry_suspended_task(
         &mut self,
-        suspended_task: SuspendedTask,
+        suspended_task: RegisteredSuspendedTask,
         scheduler: &Scheduler,
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,
         config: Arc<Config>,
     ) {
+        let RegisteredSuspendedTask {
+            record,
+            registration,
+        } = suspended_task;
         let SuspendedTask {
             task,
             session,
             result_sender,
             ..
-        } = suspended_task;
+        } = record;
         self.wake_retry_task(
             task,
             session,
@@ -196,6 +204,7 @@ impl TaskQ {
             database,
             builtin_registry,
             config,
+            registration,
         );
     }
 
@@ -224,7 +233,7 @@ impl TaskQ {
             server_options,
             control.clone(),
         );
-        self.register_task(task_id);
+        let registration = self.register_task(task_id);
 
         let handle = TaskHandle(task_id, receiver);
 
@@ -235,19 +244,26 @@ impl TaskQ {
                 task,
                 session,
                 Some(sender),
+                registration,
             );
             return TaskSubmission::Suspended(handle);
         }
 
         // GC-blocked tasks go into suspension
         if gc_in_progress {
-            self.suspended
-                .add_task(WakeCondition::GCComplete, task, session, Some(sender));
+            self.suspended.add_task(
+                WakeCondition::GCComplete,
+                task,
+                session,
+                Some(sender),
+                registration,
+            );
             return TaskSubmission::Suspended(handle);
         }
 
         // Immediate start - return task directly, skip suspension queue entirely
         TaskSubmission::NeedsWake {
+            registration,
             handle,
             task,
             session,
@@ -266,6 +282,7 @@ impl TaskQ {
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,
         config: Arc<Config>,
+        registration: LiveTaskRegistration,
     ) -> Result<(), SchedulerError> {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::ResumeTask);
@@ -286,6 +303,7 @@ impl TaskQ {
         task.control = control.clone();
         let run_baseline = Arc::new(OnceLock::new());
         let task_control = RunningTask {
+            registration,
             effects: Default::default(),
             phase: RunningTaskPhase::Running,
             player,
@@ -409,13 +427,12 @@ impl TaskQ {
         result: Result<Var, SchedulerError>,
     ) {
         let Some(mut task_control) = self.active.remove(&task_id) else {
-            self.live_tasks.remove(task_id);
             warn!(task_id, "Task not found for notification, ignoring");
             return;
         };
         self.suspended.enqueue_dependents_for(task_id);
         let result_sender = task_control.result_sender.take();
-        self.send_task_result_direct(task_id, result_sender, result);
+        self.send_task_result_direct(task_control.registration, result_sender, result);
     }
 
     pub(crate) fn send_reserved_task_result(&mut self, task_id: TaskId) {
@@ -435,17 +452,18 @@ impl TaskQ {
             unreachable!("checked completion phase under exclusive access");
         };
         self.suspended.enqueue_dependents_for(task_id);
-        self.send_task_result_direct(task_id, task.result_sender, result);
+        self.send_task_result_direct(task.registration, task.result_sender, result);
     }
 
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
     pub(crate) fn send_task_result_direct(
         &mut self,
-        task_id: TaskId,
+        registration: LiveTaskRegistration,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
         result: Result<Var, SchedulerError>,
     ) {
-        self.live_tasks.remove(task_id);
+        let task_id = registration.task_id();
+        drop(registration);
         self.settled_results.push((task_id, result.clone()));
         let Some(result_sender) = result_sender else {
             warn!(
@@ -469,6 +487,7 @@ impl TaskQ {
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,
         config: Arc<Config>,
+        registration: LiveTaskRegistration,
     ) {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::RetryTask);
@@ -490,6 +509,7 @@ impl TaskQ {
         let run_baseline = Arc::new(OnceLock::new());
 
         let task_control = RunningTask {
+            registration,
             effects: Default::default(),
             phase: RunningTaskPhase::Running,
             player: task.player(),
@@ -595,7 +615,6 @@ impl TaskQ {
         }
 
         self.active.remove(&victim_task_id);
-        self.live_tasks.remove(victim_task_id);
         self.suspended.enqueue_dependents_for(victim_task_id);
         true
     }
@@ -631,7 +650,7 @@ impl TaskQ {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
-        let is_suspended = self.suspended.tasks.contains_key(&victim_task_id);
+        let is_suspended = self.suspended.get(victim_task_id).is_some();
         if is_suspended {
             return if self.cancel_task(victim_task_id, true) {
                 AbortTaskOutcome::Cancelled
@@ -649,7 +668,6 @@ impl TaskQ {
             CancelResult::AfterBoundary => AbortTaskOutcome::Cancelled,
             CancelResult::Cancelled => {
                 self.active.remove(&victim_task_id);
-                self.live_tasks.remove(victim_task_id);
                 self.suspended.enqueue_dependents_for(victim_task_id);
                 AbortTaskOutcome::Cancelled
             }
@@ -788,12 +806,13 @@ mod tests {
         player: Obj,
         authority_principal: Obj,
     ) {
-        task_q.register_task(task_id);
+        let registration = task_q.register_task(task_id);
         task_q.suspended.add_task(
             WakeCondition::Never,
             task(task_id, player, authority_principal),
             session(),
             None,
+            registration,
         );
     }
 
@@ -803,20 +822,22 @@ mod tests {
         player: Obj,
         authority_principal: Obj,
     ) {
-        task_q.register_task(task_id);
+        let registration = task_q.register_task(task_id);
         task_q.suspended.add_task(
             WakeCondition::Input(Uuid::new_v4()),
             task(task_id, player, authority_principal),
             session(),
             None,
+            registration,
         );
     }
 
     fn add_active_task(task_q: &mut TaskQ, task_id: TaskId, player: Obj) {
-        task_q.register_task(task_id);
+        let registration = task_q.register_task(task_id);
         task_q.insert_active(
             task_id,
             RunningTask {
+                registration,
                 effects: Default::default(),
                 phase: RunningTaskPhase::Running,
                 player,
@@ -896,7 +917,7 @@ mod tests {
         assert!(matches!(task_q.abort_task(10), AbortTaskOutcome::Cancelled));
 
         assert!(!task_q.live_tasks.contains(10));
-        assert!(!task_q.suspended.tasks.contains_key(&10));
+        assert!(task_q.suspended.get(10).is_none());
     }
 
     #[test]
@@ -974,12 +995,49 @@ mod tests {
 
         task_q.suspended.add_task(
             WakeCondition::Never,
-            suspended.task,
-            suspended.session,
-            suspended.result_sender,
+            suspended.record.task,
+            suspended.record.session,
+            suspended.record.result_sender,
+            suspended.registration,
         );
         task_q.suspended.remove_task_terminal(10);
         assert!(!task_q.live_tasks.contains(10));
+    }
+
+    #[test]
+    fn abandoned_wakeup_releases_live_membership() {
+        let mut task_q = task_q();
+        add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _wakeup = task_q.suspended.remove_task(10).unwrap();
+            assert!(task_q.live_tasks.contains(10));
+            panic!("injected failure during wakeup transfer");
+        }));
+        assert!(result.is_err());
+        assert!(!task_q.live_tasks.contains(10));
+    }
+
+    #[test]
+    fn abandoned_old_wakeup_preserves_replacement_membership() {
+        let mut task_q = task_q();
+        add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
+        let old_wakeup = task_q.suspended.remove_task(10).unwrap();
+        add_active_task(&mut task_q, 10, Obj::mk_id(4));
+        drop(old_wakeup);
+        assert!(task_q.live_tasks.contains(10));
+        task_q.send_task_result(10, Ok(v_int(0)));
+        assert!(!task_q.live_tasks.contains(10));
+    }
+
+    #[test]
+    fn dropping_registry_releases_active_and_suspended_membership() {
+        let mut task_q = task_q();
+        add_suspended_task(&mut task_q, 10, Obj::mk_id(2), Obj::mk_id(3));
+        add_active_task(&mut task_q, 11, Obj::mk_id(4));
+        let live_tasks = task_q.live_tasks.clone();
+        drop(task_q);
+        assert!(!live_tasks.contains(10));
+        assert!(!live_tasks.contains(11));
     }
 
     #[test]

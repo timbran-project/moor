@@ -308,7 +308,7 @@ impl Scheduler {
         outcome: Result<(), SchedulerError>,
     ) {
         let mut lc = self.lifecycle.lock();
-        let waiting_for_generation = lc.task_q.suspended.tasks.get(&task_id).is_some_and(
+        let waiting_for_generation = lc.task_q.suspended.get(task_id).is_some_and(
             |task| matches!(task.wake_condition, WakeCondition::Checkpoint(g) if g == generation),
         );
         if !waiting_for_generation {
@@ -316,14 +316,14 @@ impl Scheduler {
             return;
         }
 
-        let Some(mut suspended) = lc.task_q.suspended.remove_task(task_id) else {
+        let Some(suspended) = lc.task_q.suspended.remove_task(task_id) else {
             return;
         };
         if lc.state != SchedulerState::Running {
             lc.task_q.suspended.enqueue_dependents_for(task_id);
             lc.task_q.send_task_result_direct(
-                task_id,
-                suspended.result_sender.take(),
+                suspended.registration,
+                suspended.record.result_sender,
                 Err(TaskAbortedCancelled),
             );
             return;
@@ -356,7 +356,7 @@ impl Scheduler {
         outcome: Result<Vec<moor_db::RelationCompactionResult>, SchedulerError>,
     ) {
         let mut lc = self.lifecycle.lock();
-        let waiting_for_generation = lc.task_q.suspended.tasks.get(&task_id).is_some_and(|task| {
+        let waiting_for_generation = lc.task_q.suspended.get(task_id).is_some_and(|task| {
             matches!(task.wake_condition, WakeCondition::StorageCompaction(g) if g == generation)
         });
         if !waiting_for_generation {
@@ -367,14 +367,14 @@ impl Scheduler {
             return;
         }
 
-        let Some(mut suspended) = lc.task_q.suspended.remove_task(task_id) else {
+        let Some(suspended) = lc.task_q.suspended.remove_task(task_id) else {
             return;
         };
         if lc.state != SchedulerState::Running {
             lc.task_q.suspended.enqueue_dependents_for(task_id);
             lc.task_q.send_task_result_direct(
-                task_id,
-                suspended.result_sender.take(),
+                suspended.registration,
+                suspended.record.result_sender,
                 Err(TaskAbortedCancelled),
             );
             return;

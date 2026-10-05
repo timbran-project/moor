@@ -283,9 +283,13 @@ impl Scheduler {
             .active
             .remove(&task_id)
             .expect("transitioning task disappeared while lifecycle lock was held");
-        lc.task_q
-            .suspended
-            .add_task(wake_condition, task, tc.session, tc.result_sender);
+        lc.task_q.suspended.add_task(
+            wake_condition,
+            task,
+            tc.session,
+            tc.result_sender,
+            tc.registration,
+        );
 
         drop(lc);
         if let Some(job) = checkpoint_job {
@@ -356,6 +360,7 @@ impl Scheduler {
             task,
             active.session,
             active.result_sender,
+            active.registration,
         );
     }
 }

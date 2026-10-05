@@ -29,8 +29,9 @@ mod active;
 mod operations;
 mod suspension;
 
-pub(crate) use active::{LiveTaskRegistry, RunningTask, RunningTaskPhase};
+pub(crate) use active::{LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase};
 pub(crate) use operations::TaskSubmission;
+pub(crate) use suspension::RegisteredSuspendedTask;
 pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition};
 
 /// Task membership and shared mailboxes under the lifecycle mutex.
@@ -74,12 +75,13 @@ impl TaskQ {
 
     #[inline]
     pub(crate) fn insert_active(&mut self, task_id: TaskId, task: RunningTask) {
+        assert_eq!(task_id, task.registration.task_id());
         self.active.insert(task_id, task);
     }
 
     #[inline]
-    pub(crate) fn register_task(&self, task_id: TaskId) {
-        self.live_tasks.insert(task_id);
+    pub(crate) fn register_task(&self, task_id: TaskId) -> LiveTaskRegistration {
+        self.live_tasks.register(task_id)
     }
 
     /// Check if a task exists and return its controlling principal.
@@ -96,7 +98,7 @@ impl TaskQ {
 
     /// Collect tasks that need to be woken up by timer, pull them from our suspended list, and
     /// return them. Other wake paths are event-driven through the immediate wake queue.
-    pub(crate) fn collect_wake_tasks(&mut self) -> Option<Vec<SuspendedTask>> {
+    pub(crate) fn collect_wake_tasks(&mut self) -> Option<Vec<RegisteredSuspendedTask>> {
         let mut to_wake: Option<Vec<TaskId>> = None;
 
         // 1. Advance timer wheel based on elapsed time and collect expired timers
@@ -108,15 +110,14 @@ impl TaskQ {
                     .filter(|e| {
                         // Ignore stale timer entries from prior suspensions of the same task.
                         self.suspended
-                            .tasks
-                            .get(&e.task_id)
+                            .get(e.task_id)
                             .is_some_and(|st| st.timer_generation == e.generation)
                     })
                     .map(|e| e.task_id),
             );
         }
 
-        if self.suspended.tasks.is_empty() {
+        if self.suspended.is_empty() {
             return None;
         }
         let to_wake = to_wake?;
@@ -133,7 +134,7 @@ impl TaskQ {
         let mut refs = std::collections::HashSet::new();
 
         // Scan all suspended tasks
-        for suspended_task in self.suspended.tasks.values() {
+        for suspended_task in self.suspended.records() {
             // Scan the current VM state
             let current_vm_state = suspended_task.task.vm_host.vm_exec_state();
             extract_anonymous_refs_from_vm_exec_state(current_vm_state, &mut refs);
