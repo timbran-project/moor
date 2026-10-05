@@ -543,7 +543,7 @@ mod tests {
         sync::{Barrier, OnceLock},
     };
 
-    struct NoopSessionFactory;
+    pub(super) struct NoopSessionFactory;
 
     impl SessionFactory for NoopSessionFactory {
         fn mk_background_session(
@@ -764,7 +764,7 @@ mod tests {
         )
     }
 
-    fn scheduler() -> Scheduler {
+    pub(super) fn scheduler() -> Scheduler {
         scheduler_with_system_control(Arc::new(NoopSystemControl::default()))
     }
 
@@ -893,7 +893,7 @@ mod tests {
         }
     }
 
-    fn suspended_task(task_id: TaskId) -> SuspendedTask {
+    pub(super) fn suspended_task(task_id: TaskId) -> SuspendedTask {
         let server_options = ServerOptions {
             bg_seconds: 0.0,
             bg_ticks: 0,
