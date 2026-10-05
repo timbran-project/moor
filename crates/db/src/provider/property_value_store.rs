@@ -532,13 +532,30 @@ impl PropertyValueReconstructor {
     }
 }
 
+struct ActiveProperty {
+    property: ObjAndUUIDHolder,
+    reconstructor: PropertyValueReconstructor,
+}
+
+impl ActiveProperty {
+    fn finish(
+        self,
+    ) -> Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError> {
+        Ok((self.property, self.reconstructor.finish()?))
+    }
+}
+
+enum PropertyScanState {
+    Idle,
+    Active(ActiveProperty),
+    Terminal,
+}
+
 pub(crate) struct PropertyValueScan {
     records: fjall::Iter,
     limits: PropertyValueChainLimits,
-    current_property: Option<ObjAndUUIDHolder>,
-    reconstructor: Option<PropertyValueReconstructor>,
+    state: PropertyScanState,
     pending: Option<(fjall::Slice, fjall::Slice)>,
-    failed: bool,
 }
 
 impl PropertyValueScan {
@@ -546,26 +563,9 @@ impl PropertyValueScan {
         Self {
             records,
             limits,
-            current_property: None,
-            reconstructor: None,
+            state: PropertyScanState::Idle,
             pending: None,
-            failed: false,
         }
-    }
-
-    fn finish_current(
-        &mut self,
-    ) -> Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError> {
-        let property = self
-            .current_property
-            .take()
-            .ok_or(PropertyValueRecordError::EmptyChain)?;
-        let value = self
-            .reconstructor
-            .take()
-            .ok_or(PropertyValueRecordError::EmptyChain)?
-            .finish()?;
-        Ok((property, value))
     }
 
     fn fail(
@@ -573,7 +573,8 @@ impl PropertyValueScan {
         error: PropertyValueRecordError,
     ) -> Option<Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>>
     {
-        self.failed = true;
+        self.state = PropertyScanState::Terminal;
+        self.pending = None;
         Some(Err(error))
     }
 }
@@ -582,7 +583,7 @@ impl Iterator for PropertyValueScan {
     type Item = Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.failed {
+        if matches!(self.state, PropertyScanState::Terminal) {
             return None;
         }
 
@@ -591,7 +592,10 @@ impl Iterator for PropertyValueScan {
                 record
             } else {
                 let Some(record) = self.records.next() else {
-                    return self.reconstructor.is_some().then(|| self.finish_current());
+                    return match std::mem::replace(&mut self.state, PropertyScanState::Terminal) {
+                        PropertyScanState::Active(active) => Some(active.finish()),
+                        PropertyScanState::Idle | PropertyScanState::Terminal => None,
+                    };
                 };
                 match record.into_inner() {
                     Ok(record) => record,
@@ -606,30 +610,35 @@ impl Iterator for PropertyValueScan {
                 Err(error) => return self.fail(error),
             };
 
-            if self
-                .current_property
-                .as_ref()
-                .is_some_and(|property| *property != decoded_key.property)
-            {
-                self.pending = Some((key, value));
-                return Some(self.finish_current());
-            }
-
-            if self.current_property.is_none() {
-                self.current_property = Some(decoded_key.property);
-                self.reconstructor = Some(PropertyValueReconstructor::new(self.limits));
-            }
-            if let Err(error) = self
+            let mut active = match std::mem::replace(&mut self.state, PropertyScanState::Terminal) {
+                PropertyScanState::Idle => ActiveProperty {
+                    property: decoded_key.property,
+                    reconstructor: PropertyValueReconstructor::new(self.limits),
+                },
+                PropertyScanState::Active(active) if active.property != decoded_key.property => {
+                    let finished = match active.finish() {
+                        Ok(finished) => finished,
+                        Err(error) => return self.fail(error),
+                    };
+                    self.pending = Some((key, value));
+                    self.state = PropertyScanState::Idle;
+                    return Some(Ok(finished));
+                }
+                PropertyScanState::Active(active) => active,
+                PropertyScanState::Terminal => return None,
+            };
+            if let Err(error) = active
                 .reconstructor
-                .as_mut()
-                .expect("property-value reconstructor")
                 .push(decoded_key.record_version, &value)
             {
                 return self.fail(error);
             }
+            self.state = PropertyScanState::Active(active);
         }
     }
 }
+
+impl std::iter::FusedIterator for PropertyValueScan {}
 
 pub(crate) fn reconstruct_property_value(
     records: fjall::Iter,
@@ -659,6 +668,99 @@ mod tests {
 
     fn holder() -> ObjAndUUIDHolder {
         ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1234))
+    }
+
+    fn scan_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
+        let directory = tempfile::tempdir().unwrap();
+        let db = fjall::Database::builder(directory.path()).open().unwrap();
+        let partition = db
+            .keyspace("values", fjall::KeyspaceCreateOptions::default)
+            .unwrap();
+        (directory, db, partition)
+    }
+
+    #[test]
+    fn scan_finishes_empty_single_and_multiple_properties_once() {
+        let (_directory, _db, partition) = scan_partition();
+        let mut empty = PropertyValueScan::new(partition.iter(), LIMITS);
+        assert!(empty.next().is_none());
+        assert!(empty.next().is_none());
+
+        let first = holder();
+        let second = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
+        let mut builder = planus::Builder::new();
+        let full = encode_full_record(&mut builder, &v_list(&[v_int(1)]), Timestamp(1)).unwrap();
+        partition
+            .insert(encode_property_value_record_key(&first, 1), full)
+            .unwrap();
+        let append =
+            encode_list_append_record(&mut builder, &List::mk_list(&[v_int(2)]), Timestamp(2))
+                .unwrap();
+        partition
+            .insert(encode_property_value_record_key(&first, 2), append)
+            .unwrap();
+        let mut single = PropertyValueScan::new(partition.iter(), LIMITS);
+        let (property, value) = single.next().unwrap().unwrap();
+        assert_eq!(property, first);
+        assert_eq!(value.value, v_list(&[v_int(1), v_int(2)]));
+        assert_eq!(value.logical_timestamp, Timestamp(2));
+        assert_eq!(
+            value.chain.record_versions().collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert!(single.next().is_none());
+        assert!(single.next().is_none());
+
+        let full = encode_full_record(&mut builder, &v_int(3), Timestamp(3)).unwrap();
+        partition
+            .insert(encode_property_value_record_key(&second, 3), full)
+            .unwrap();
+        let mut scan = PropertyValueScan::new(partition.iter(), LIMITS);
+        assert_eq!(scan.next().unwrap().unwrap().0, first);
+        let (property, value) = scan.next().unwrap().unwrap();
+        assert_eq!(property, second);
+        assert_eq!(value.value, v_int(3));
+        assert_eq!(value.chain, PropertyValueChain::full(3));
+        assert!(scan.next().is_none());
+        assert!(scan.next().is_none());
+    }
+
+    #[test]
+    fn scan_terminates_after_key_or_pending_record_decode_error() {
+        let (_directory, _db, partition) = scan_partition();
+        partition.insert(b"bad", b"record").unwrap();
+        let mut scan = PropertyValueScan::new(partition.iter(), LIMITS);
+        assert_eq!(
+            scan.next(),
+            Some(Err(PropertyValueRecordError::InvalidKeyLength))
+        );
+        assert!(scan.next().is_none());
+        assert!(scan.next().is_none());
+        partition.remove(b"bad").unwrap();
+
+        let first = holder();
+        let second = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
+        let third = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1236));
+        let full =
+            encode_full_record(&mut planus::Builder::new(), &v_int(1), Timestamp(1)).unwrap();
+        partition
+            .insert(encode_property_value_record_key(&first, 1), full.clone())
+            .unwrap();
+        partition
+            .insert(encode_property_value_record_key(&second, 2), b"bad")
+            .unwrap();
+        partition
+            .insert(encode_property_value_record_key(&third, 3), full)
+            .unwrap();
+        let mut scan = PropertyValueScan::new(partition.iter(), LIMITS);
+        assert_eq!(scan.next().unwrap().unwrap().0, first);
+        assert_eq!(
+            scan.next(),
+            Some(Err(PropertyValueRecordError::TruncatedHeader))
+        );
+        // A later valid property must not revive a failed scan.
+        assert!(scan.next().is_none());
+        assert!(scan.next().is_none());
     }
 
     #[test]
