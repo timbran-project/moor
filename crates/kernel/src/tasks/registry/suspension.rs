@@ -457,7 +457,10 @@ impl SuspensionQ {
                 true
             }
             WakeCondition::Never => true,
-            WakeCondition::GCComplete => true,
+            WakeCondition::GCComplete => {
+                self.gc_waiting_tasks.push(task_id);
+                true
+            }
             WakeCondition::Retry(wake_time) => {
                 self.retry_tasks.push(task_id);
                 let inserted = Deadline::at(*wake_time)
@@ -870,6 +873,25 @@ mod tests {
 
     fn mock_session() -> Arc<dyn Session> {
         Arc::new(NoopClientSession::new())
+    }
+
+    #[test]
+    fn gc_completion_wakes_registered_waiters_only_once() {
+        let mut queue = SuspensionQ::new(Box::new(NoopTasksDb {}));
+        for id in [1, 2] {
+            queue.add_task(
+                WakeCondition::GCComplete,
+                mock_task(id),
+                mock_session(),
+                None,
+            );
+        }
+        queue.remove_task_terminal(2).unwrap();
+        queue.enqueue_gc_waiting_tasks();
+        assert_eq!(queue.pop_immediate_wake().unwrap().0, 1);
+        assert!(queue.pop_immediate_wake().is_none());
+        queue.enqueue_gc_waiting_tasks();
+        assert!(queue.pop_immediate_wake().is_none());
     }
 
     #[test]
