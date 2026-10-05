@@ -388,8 +388,8 @@ impl TaskSchedulerClient {
         owner: Obj,
         options: crate::tasks::schedule_q::ScheduleOptions,
     ) -> Result<crate::tasks::schedule_q::ScheduleId, crate::tasks::schedule_q::ScheduleError> {
-        self.scheduler.handle_schedule_create(
-            self.task_id,
+        self.scheduler.handle_schedule_create_for_attempt(
+            self.attempt.as_ref(),
             kind,
             target,
             verb,
@@ -405,13 +405,15 @@ impl TaskSchedulerClient {
         schedule_id: crate::tasks::schedule_q::ScheduleId,
         authority: &TaskPermissions,
     ) -> Result<bool, moor_var::Error> {
-        self.scheduler
-            .handle_schedule_stop(self.task_id, schedule_id, authority)
+        self.attempt.as_ref().map_or(Ok(false), |attempt| {
+            self.scheduler
+                .handle_schedule_stop_for_attempt(attempt, schedule_id, authority)
+        })
     }
 
     pub fn schedule_valid(&self, schedule_id: crate::tasks::schedule_q::ScheduleId) -> bool {
         self.scheduler
-            .handle_schedule_valid(self.task_id, schedule_id)
+            .handle_schedule_valid_for_attempt(self.attempt.as_ref(), schedule_id)
     }
 
     pub fn schedule_info(

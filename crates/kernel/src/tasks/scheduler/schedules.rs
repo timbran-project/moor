@@ -20,7 +20,11 @@
 
 use crate::tasks::{
     TaskStart,
-    schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleExpiry, ScheduleId},
+    registry::TaskAttempt,
+    schedule_q::{
+        Outcome, PendingCreate, PendingKind, RetireReason, ScheduleEntry, ScheduleError,
+        ScheduleExpiry, ScheduleId, ScheduleOptions,
+    },
     scheduler::{Scheduler, SchedulerState, lifecycle::TaskLifecycle},
 };
 use moor_common::{model::TaskPermissions, tasks::TaskId};
@@ -157,96 +161,117 @@ impl Scheduler {
         found
     }
 
-    /// Buffer a schedule creation for `task_id`; applied when it commits.
-    /// Returns the eagerly allocated schedule id.
+    /// Buffer a schedule creation for the current registration; applied when it commits.
+    /// Returns the eagerly allocated schedule id even if the task no longer exists.
     #[allow(clippy::too_many_arguments)]
     pub fn handle_schedule_create(
         &self,
         task_id: TaskId,
-        kind: crate::tasks::schedule_q::PendingKind,
+        kind: PendingKind,
         target: Obj,
         verb: Symbol,
         args: List,
         authority_principal: Obj,
         owner: Obj,
-        options: crate::tasks::schedule_q::ScheduleOptions,
-    ) -> Result<crate::tasks::schedule_q::ScheduleId, crate::tasks::schedule_q::ScheduleError> {
-        use crate::tasks::schedule_q::{PendingCreate, PendingKind};
+        options: ScheduleOptions,
+    ) -> Result<ScheduleId, ScheduleError> {
         let mut lc = self.lifecycle.lock();
-        match kind {
-            PendingKind::At(when) => lc.schedule_q.validate_at(when, &options)?,
-            PendingKind::Every(interval) => {
-                lc.schedule_q
-                    .validate_every(interval, &options, SystemTime::now())?
-            }
-        }
-        let id = lc.reserve_schedule_id();
+        let create = lc.reserve_schedule_create(
+            kind,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+        )?;
+        let id = create.id;
         if let Some(task) = lc.task_q.active.get_mut(&task_id) {
-            task.effects.create_schedule(PendingCreate {
-                id,
-                kind,
-                target,
-                verb,
-                args,
-                authority_principal,
-                owner,
-                options,
-            });
+            task.effects.create_schedule(create);
         }
         Ok(id)
     }
 
-    /// Buffer a schedule stop for `task_id`; applied when it commits. Returns
-    /// whether the id currently refers to a live schedule (or one this task
-    /// created and has not yet committed). Never raises: a stale id is an
-    /// ordinary race, not an error.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn handle_schedule_create_for_attempt(
+        &self,
+        attempt: Option<&TaskAttempt>,
+        kind: PendingKind,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: ScheduleOptions,
+    ) -> Result<ScheduleId, ScheduleError> {
+        let mut lc = self.lifecycle.lock();
+        // Preserve validation and eager ID reservation for an absent caller. Dropping the
+        // unpublished request cannot attach it to a replacement under the same task ID.
+        let create = lc.reserve_schedule_create(
+            kind,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+        )?;
+        let id = create.id;
+        if let Some(attempt) = attempt
+            && lc.task_q.is_running_attempt(attempt)
+        {
+            lc.task_q
+                .active
+                .get_mut(&attempt.task_id())
+                .unwrap()
+                .effects
+                .create_schedule(create);
+        }
+        Ok(id)
+    }
+
+    /// Buffer a schedule stop for the current registration; applied when it commits.
+    /// A stale schedule ID returns false. Stopping another owner's live schedule returns E_PERM.
     pub fn handle_schedule_stop(
         &self,
         task_id: TaskId,
-        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        schedule_id: ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<bool, moor_var::Error> {
+        self.lifecycle
+            .lock()
+            .buffer_schedule_stop(task_id, schedule_id, authority)
+    }
+
+    pub(crate) fn handle_schedule_stop_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        schedule_id: ScheduleId,
         authority: &TaskPermissions,
     ) -> Result<bool, moor_var::Error> {
         let mut lc = self.lifecycle.lock();
-        if lc
-            .task_q
-            .active
-            .get_mut(&task_id)
-            .is_some_and(|task| task.effects.cancel_created_schedule(schedule_id))
-        {
-            return Ok(true);
-        }
-        let Some(entry) = lc.schedule_q.info(schedule_id) else {
-            return Ok(false);
-        };
-        let authorized = authority.is_wizard() || authority.principal() == entry.owner;
-        // A retired id is stale: `false`, never an error. Its owner (or a
-        // wizard) stopping it releases the retained diagnostics on commit.
-        let live = entry.is_live();
-        if !live && !authorized {
+        if !lc.task_q.is_running_attempt(attempt) {
             return Ok(false);
         }
-        if !authorized {
-            return Err(E_PERM.msg("schedule_stop: not the owner of this schedule"));
-        }
-        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
-            task.effects.stop_schedule(schedule_id);
-        }
-        Ok(live)
+        lc.buffer_schedule_stop(attempt.task_id(), schedule_id, authority)
     }
 
-    pub fn handle_schedule_valid(
+    pub fn handle_schedule_valid(&self, task_id: TaskId, schedule_id: ScheduleId) -> bool {
+        self.lifecycle
+            .lock()
+            .schedule_visible_to(Some(task_id), schedule_id)
+    }
+
+    pub(crate) fn handle_schedule_valid_for_attempt(
         &self,
-        task_id: TaskId,
-        schedule_id: crate::tasks::schedule_q::ScheduleId,
+        attempt: Option<&TaskAttempt>,
+        schedule_id: ScheduleId,
     ) -> bool {
         let lc = self.lifecycle.lock();
-        if lc.schedule_q.is_valid(schedule_id) {
-            return true;
-        }
-        lc.task_q
-            .active
-            .get(&task_id)
-            .is_some_and(|task| task.effects.contains_schedule(schedule_id))
+        let task_id = attempt
+            .filter(|attempt| lc.task_q.is_running_attempt(attempt))
+            .map(TaskAttempt::task_id);
+        lc.schedule_visible_to(task_id, schedule_id)
     }
 
     pub fn handle_schedule_info(
@@ -297,6 +322,77 @@ impl Scheduler {
 }
 
 impl TaskLifecycle {
+    /// Validate a creation and reserve its durable ID before buffering it in a task attempt.
+    #[allow(clippy::too_many_arguments)]
+    fn reserve_schedule_create(
+        &mut self,
+        kind: PendingKind,
+        target: Obj,
+        verb: Symbol,
+        args: List,
+        authority_principal: Obj,
+        owner: Obj,
+        options: ScheduleOptions,
+    ) -> Result<PendingCreate, ScheduleError> {
+        match kind {
+            PendingKind::At(when) => self.schedule_q.validate_at(when, &options)?,
+            PendingKind::Every(interval) => {
+                self.schedule_q
+                    .validate_every(interval, &options, SystemTime::now())?
+            }
+        }
+        Ok(PendingCreate {
+            id: self.reserve_schedule_id(),
+            kind,
+            target,
+            verb,
+            args,
+            authority_principal,
+            owner,
+            options,
+        })
+    }
+
+    fn buffer_schedule_stop(
+        &mut self,
+        task_id: TaskId,
+        schedule_id: ScheduleId,
+        authority: &TaskPermissions,
+    ) -> Result<bool, moor_var::Error> {
+        if self
+            .task_q
+            .active
+            .get_mut(&task_id)
+            .is_some_and(|task| task.effects.cancel_created_schedule(schedule_id))
+        {
+            return Ok(true);
+        }
+        let Some(entry) = self.schedule_q.info(schedule_id) else {
+            return Ok(false);
+        };
+        let authorized = authority.is_wizard() || authority.principal() == entry.owner;
+        // A retired id is stale: false, never an error. An authorized caller can still
+        // release its retained diagnostics at commit.
+        let live = entry.is_live();
+        if !live && !authorized {
+            return Ok(false);
+        }
+        if !authorized {
+            return Err(E_PERM.msg("schedule_stop: not the owner of this schedule"));
+        }
+        if let Some(task) = self.task_q.active.get_mut(&task_id) {
+            task.effects.stop_schedule(schedule_id);
+        }
+        Ok(live)
+    }
+
+    fn schedule_visible_to(&self, task_id: Option<TaskId>, schedule_id: ScheduleId) -> bool {
+        self.schedule_q.is_valid(schedule_id)
+            || task_id
+                .and_then(|task_id| self.task_q.active.get(&task_id))
+                .is_some_and(|task| task.effects.contains_schedule(schedule_id))
+    }
+
     /// Write a live persistent schedule, or delete a stopped, retired, or non-persistent entry.
     /// Storage errors are logged and do not reverse the in-memory schedule change.
     pub(crate) fn persist_schedule(&mut self, id: ScheduleId) {
@@ -437,3 +533,6 @@ impl TaskLifecycle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

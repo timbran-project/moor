@@ -223,6 +223,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   longer remove a replacement task or publish its pending effects.
 - Reject message and transaction-renewal requests from replaced task dispatches. Late requests no
   longer drain the replacement's mailbox or change its pending effects.
+- Keep pending schedule changes with their originating task dispatch. Late create, stop, and query
+  requests no longer change or expose a replacement task's unpublished schedules.
 - Retain terminal task results during session finalization, including cancellation and transaction
   renewal failure. Concurrent abort requests wait for the reserved result.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
