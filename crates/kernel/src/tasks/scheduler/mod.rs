@@ -871,12 +871,16 @@ mod tests {
         release_commit: Arc<Barrier>,
         connection_obj: Option<Obj>,
         source_connections: Option<Vec<Obj>>,
+        fail_commit: bool,
     }
 
     impl Session for BlockingCommitSession {
         fn commit(&self) -> Result<(), SessionError> {
             self.commit_entered.wait();
             self.release_commit.wait();
+            if self.fail_commit {
+                return Err(SessionError::CommitError("test session failure".into()));
+            }
             Ok(())
         }
 
@@ -1538,6 +1542,7 @@ mod tests {
             release_commit: Arc::new(Barrier::new(1)),
             connection_obj: Some(Obj::mk_id(-1)),
             source_connections: None,
+            fail_commit: false,
         });
         let _task = insert_active_task(&scheduler, task_id, session);
 
@@ -1562,6 +1567,7 @@ mod tests {
             release_commit: Arc::new(Barrier::new(1)),
             connection_obj: Some(current_connection),
             source_connections: Some(vec![Obj::mk_id(-2), current_connection]),
+            fail_commit: false,
         });
         let _task = insert_active_task(&scheduler, task_id, session);
         let new_player = Obj::mk_id(100);
@@ -1585,6 +1591,7 @@ mod tests {
             release_commit: Arc::new(Barrier::new(1)),
             connection_obj: Some(Obj::mk_id(-1)),
             source_connections: Some(vec![Obj::mk_id(-2), Obj::mk_id(-3)]),
+            fail_commit: false,
         });
         let _task = insert_active_task(&scheduler, task_id, session);
 
@@ -1689,6 +1696,7 @@ mod tests {
             release_commit: release_commit.clone(),
             connection_obj: None,
             source_connections: None,
+            fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
         assert!(task.control.begin_boundary_commit());
@@ -1727,6 +1735,90 @@ mod tests {
     }
 
     #[test]
+    fn timed_suspension_publishes_effects_after_session_commit() {
+        check_timed_suspension_effects(false, false);
+    }
+
+    #[test]
+    fn timed_suspension_session_failure_does_not_publish_effects() {
+        check_timed_suspension_effects(true, false);
+    }
+
+    #[test]
+    fn timed_suspension_cancellation_does_not_publish_effects() {
+        check_timed_suspension_effects(false, true);
+    }
+
+    fn check_timed_suspension_effects(fail_commit: bool, cancel: bool) {
+        let scheduler = scheduler();
+        // No service loops: the test controls every transition and deadline.
+        scheduler.lifecycle.lock().state = SchedulerState::Running;
+        let task_id = 242;
+        let target_id = 243;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        let session = Arc::new(BlockingCommitSession {
+            commit_entered: commit_entered.clone(),
+            release_commit: release_commit.clone(),
+            connection_obj: None,
+            source_connections: None,
+            fail_commit,
+        });
+        let task = insert_active_task(&scheduler, task_id, session);
+        let control = task.control.clone();
+        assert!(control.begin_boundary_commit());
+        let (send, recv) = flume::unbounded();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.task_q.active.get_mut(&task_id).unwrap().result_sender = Some(send);
+            lc.pending_task_sends
+                .insert(task_id, vec![(target_id, v_int(17))]);
+        }
+        let callback_scheduler = scheduler.clone();
+        let callback = std::thread::spawn(move || {
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Timed(Duration::from_secs(60)),
+                task,
+            );
+        });
+        commit_entered.wait();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            assert!(lc.task_q.drain_messages(target_id).is_empty());
+            assert!(lc.task_q.active.contains_key(&task_id));
+            assert!(recv.try_recv().is_err());
+            if cancel {
+                assert!(matches!(
+                    lc.task_q.abort_task(task_id),
+                    AbortTaskOutcome::Cancelled
+                ));
+                assert!(lc.task_q.active.contains_key(&task_id));
+            }
+        }
+        release_commit.wait();
+        callback.join().unwrap();
+        let mut lc = scheduler.lifecycle.lock();
+        assert!(!lc.task_q.active.contains_key(&task_id));
+        let (_, result) = recv.recv().unwrap();
+        if fail_commit || cancel {
+            assert!(lc.task_q.drain_messages(target_id).is_empty());
+            assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+            assert!(!scheduler.handle_task_exists(task_id));
+            assert!(
+                matches!(result, Err(TaskAbortedError)) && fail_commit
+                    || matches!(result, Err(TaskAbortedCancelled)) && cancel
+            );
+        } else {
+            assert_eq!(lc.task_q.drain_messages(target_id), vec![v_int(17)]);
+            assert!(matches!(result, Ok(TaskNotification::Suspended)));
+            let suspended = lc.task_q.suspended.tasks.get(&task_id).unwrap();
+            assert!(matches!(suspended.wake_condition, WakeCondition::Time(_)));
+            assert!(scheduler.handle_task_exists(task_id));
+        }
+    }
+
+    #[test]
     fn input_task_remains_visible_until_atomic_queue_move() {
         let scheduler = scheduler();
         let timer = scheduler
@@ -1740,6 +1832,7 @@ mod tests {
             release_commit: release_commit.clone(),
             connection_obj: None,
             source_connections: None,
+            fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
         assert!(task.control.begin_boundary_commit());
@@ -1816,6 +1909,7 @@ mod tests {
             release_commit: release_commit.clone(),
             connection_obj: None,
             source_connections: None,
+            fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1879,6 +1973,7 @@ mod tests {
             release_commit: release_commit.clone(),
             connection_obj: None,
             source_connections: None,
+            fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
@@ -1938,6 +2033,7 @@ mod tests {
             release_commit: release_commit.clone(),
             connection_obj: None,
             source_connections: None,
+            fail_commit: false,
         });
         let task = insert_active_task(&scheduler, task_id, session);
 
