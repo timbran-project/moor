@@ -216,6 +216,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Keep expired task continuations visible to garbage collection and shutdown until dispatch. Timer
+  and immediate wakeups now wait during GC sweep and stop dispatching during shutdown.
+- Ignore queued wake signals from an earlier suspension of the same task. These signals could
+  otherwise resume a task before its current wake condition was satisfied.
+
 - Resume tasks queued during garbage collection when the collection finishes. Previously, new GC
   waiters could remain suspended until a server restart.
 - Release GC admission and waiting tasks after a GC worker panic, so later collection cycles can

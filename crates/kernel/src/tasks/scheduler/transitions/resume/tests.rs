@@ -312,3 +312,91 @@ impl Session for FailingRetrySession {
         Ok(())
     }
 }
+
+#[test]
+fn immediate_wakes_wait_for_admission() {
+    use crate::tasks::scheduler::{gc::GcPhase, lifecycle::SchedulerState};
+    for (state, phase) in [
+        (SchedulerState::Created, GcPhase::Idle),
+        (SchedulerState::Stopping, GcPhase::Idle),
+        (SchedulerState::Stopped, GcPhase::Idle),
+        (SchedulerState::Running, GcPhase::Sweeping(1)),
+    ] {
+        let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+        let database = Arc::new(FailingDatabase {
+            calls: AtomicUsize::new(0),
+        });
+        scheduler.database = database.clone();
+        let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+        let (sender, results) = flume::unbounded();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.state = state;
+            lc.gc_phase = phase;
+            let registration = lc.task_q.register_task(71);
+            lc.task_q.suspended.add_task(
+                WakeCondition::Immediate(Some(v_int(42))),
+                task,
+                Arc::new(NoopClientSession::new()),
+                Some(sender),
+                registration,
+            );
+        }
+        scheduler.drain_immediate_wakes();
+        assert_eq!(
+            database.calls.load(Ordering::Relaxed),
+            0,
+            "dispatch bypassed {state:?}/{phase:?}"
+        );
+        assert!(results.try_recv().is_err());
+        assert!(scheduler.handle_task_exists(71));
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            assert!(lc.task_q.suspended.get(71).is_some());
+            lc.state = SchedulerState::Running;
+            lc.gc_phase = GcPhase::Idle;
+        }
+        scheduler.drain_immediate_wakes();
+        assert_eq!(database.calls.load(Ordering::Relaxed), 1);
+        assert!(matches!(
+            results.try_recv(),
+            Ok((71, Err(SchedulerError::CouldNotStartTask)))
+        ));
+        assert!(!scheduler.handle_task_exists(71));
+    }
+}
+
+#[test]
+fn expired_retry_uses_retry_session_preparation() {
+    use crate::tasks::scheduler::lifecycle::SchedulerState;
+    let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+    let database = Arc::new(FailingDatabase {
+        calls: AtomicUsize::new(0),
+    });
+    scheduler.database = database.clone();
+    let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+    let (sender, results) = flume::unbounded();
+    {
+        let mut lc = scheduler.lifecycle.lock();
+        lc.state = SchedulerState::Running;
+        let registration = lc.task_q.register_task(71);
+        lc.task_q.suspended.add_task(
+            WakeCondition::Retry(moor_common::util::Instant::ZERO),
+            task,
+            Arc::new(FailingRetrySession),
+            Some(sender),
+            registration,
+        );
+    }
+    scheduler.drain_immediate_wakes();
+    assert_eq!(
+        database.calls.load(Ordering::Relaxed),
+        0,
+        "retry session fails before transaction creation"
+    );
+    assert!(matches!(
+        results.try_recv(),
+        Ok((71, Err(SchedulerError::CouldNotStartTask)))
+    ));
+    assert!(!scheduler.handle_task_exists(71));
+}

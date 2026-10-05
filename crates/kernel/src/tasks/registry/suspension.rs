@@ -174,7 +174,7 @@ pub struct SuspensionQ {
     last_timer_advance: Option<Instant>,
 
     /// Queue for tasks that should wake immediately (O(1) push/pop)
-    immediate_wake_queue: VecDeque<(TaskId, Timestamp)>,
+    immediate_wake_queue: VecDeque<(TaskId, u64, Timestamp)>,
 
     /// Tasks waiting for other tasks to complete (O(1) lookup by dependency)
     task_dependencies: HashMap<TaskId, Vec<TaskId>, BuildHasherDefault<AHasher>>,
@@ -230,10 +230,6 @@ impl SuspensionQ {
         self.tasks.values().map(|task| &task.record)
     }
 
-    pub(super) fn is_empty(&self) -> bool {
-        self.tasks.is_empty()
-    }
-
     /// Check if a suspended task exists and return its controlling principal.
     pub(crate) fn task_owner(&self, task_id: TaskId) -> Option<Obj> {
         self.tasks
@@ -244,14 +240,51 @@ impl SuspensionQ {
     /// Queue a task for immediate wake.
     #[inline]
     pub(crate) fn enqueue_immediate_wake(&mut self, task_id: TaskId) {
-        self.immediate_wake_queue
-            .push_back((task_id, Timestamp::now()));
+        if let Some(task) = self.tasks.get(&task_id) {
+            self.enqueue_wake(task_id, task.timer_generation);
+        }
     }
 
     /// Pop the next task queued for immediate wake.
     #[inline]
     pub(crate) fn pop_immediate_wake(&mut self) -> Option<(TaskId, Timestamp)> {
-        self.immediate_wake_queue.pop_front()
+        while let Some((task_id, generation, signaled_at)) = self.immediate_wake_queue.pop_front() {
+            if self
+                .tasks
+                .get(&task_id)
+                .is_some_and(|task| task.timer_generation == generation)
+            {
+                return Some((task_id, signaled_at));
+            }
+        }
+        None
+    }
+
+    /// Queue an index entry while the corresponding record is being installed.
+    /// Dispatch checks this generation again before it removes the record.
+    fn enqueue_wake(&mut self, task_id: TaskId, generation: u64) {
+        self.immediate_wake_queue
+            .push_back((task_id, generation, Timestamp::now()));
+    }
+
+    /// Select expired timers without removing their continuations or persisted records.
+    /// The caller supplies the clock reading so selection and dispatch have separate boundaries.
+    pub(crate) fn enqueue_expired_wakes(&mut self, now: Instant) -> usize {
+        let Some(expired) = self.advance_timer_wheel(now) else {
+            return 0;
+        };
+        let mut count = 0;
+        for entry in expired {
+            if self
+                .tasks
+                .get(&entry.task_id)
+                .is_some_and(|task| task.timer_generation == entry.generation)
+            {
+                self.enqueue_wake(entry.task_id, entry.generation);
+                count += 1;
+            }
+        }
+        count
     }
 
     /// Queue all tasks waiting on `dependency_task_id` for immediate wake.
@@ -273,8 +306,7 @@ impl SuspensionQ {
     }
 
     /// Advance the timer wheel based on elapsed time and return expired entries.
-    pub(super) fn advance_timer_wheel(&mut self) -> Option<Vec<TimerEntry>> {
-        let now = Instant::now();
+    pub(super) fn advance_timer_wheel(&mut self, now: Instant) -> Option<Vec<TimerEntry>> {
         let last_advance = self.last_timer_advance.unwrap_or(now);
 
         if now <= last_advance {
@@ -399,7 +431,7 @@ impl SuspensionQ {
         match &task.wake_condition {
             WakeCondition::Time(deadline) => self.register_timer(task_id, generation, *deadline),
             WakeCondition::Immediate(_) => {
-                self.enqueue_immediate_wake(task_id);
+                self.enqueue_wake(task_id, generation);
                 false
             }
             WakeCondition::Task(dependency) => {
@@ -451,7 +483,7 @@ impl SuspensionQ {
                 self.timer_wheel.insert_with_delay(entry, delay).is_ok()
             });
         if !inserted {
-            self.enqueue_immediate_wake(task_id);
+            self.enqueue_wake(task_id, generation);
         }
         inserted
     }
@@ -713,7 +745,7 @@ mod tests {
         DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_MAX_TASK_MAILBOX,
         DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart, task_control::TaskControl,
     };
-    use moor_common::tasks::NoopClientSession;
+    use moor_common::{tasks::NoopClientSession, util::BitEnum};
     use moor_var::SYSTEM_OBJECT;
 
     fn test_server_options() -> ServerOptions {
@@ -949,7 +981,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(60));
 
         // Advance the timer wheel — the stale 50ms entry should fire.
-        let expired = sq.advance_timer_wheel();
+        let expired = sq.advance_timer_wheel(Instant::now());
         // There may be expired entries, but after filtering by generation,
         // none should match the current task.
         if let Some(entries) = &expired {
@@ -971,7 +1003,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(50));
 
         // Advance again — the valid 100ms entry should fire.
-        let expired2 = sq.advance_timer_wheel();
+        let expired2 = sq.advance_timer_wheel(Instant::now());
         assert!(expired2.is_some(), "second timer entry should have expired");
         let entries2 = expired2.unwrap();
         let matching2: Vec<_> = entries2
@@ -989,5 +1021,124 @@ mod tests {
         );
         assert_eq!(matching2[0].task_id, task_id);
         assert_eq!(matching2[0].generation, gen2);
+    }
+
+    #[derive(Default)]
+    struct PersistenceEvents {
+        saved: Vec<TaskId>,
+        deleted: Vec<TaskId>,
+    }
+
+    struct RecordingTasksDb(Arc<parking_lot::Mutex<PersistenceEvents>>);
+
+    impl TasksDb for RecordingTasksDb {
+        fn load_tasks(&self) -> Result<Vec<SuspendedTask>, crate::tasks::TasksDbError> {
+            Ok(vec![])
+        }
+        fn save_task(&self, task: &SuspendedTask) -> Result<(), crate::tasks::TasksDbError> {
+            self.0.lock().saved.push(task.task.task_id);
+            Ok(())
+        }
+        fn delete_task(&self, task_id: TaskId) -> Result<(), crate::tasks::TasksDbError> {
+            self.0.lock().deleted.push(task_id);
+            Ok(())
+        }
+        fn delete_all_tasks(&self) -> Result<(), crate::tasks::TasksDbError> {
+            Ok(())
+        }
+        fn compact(&self) {}
+    }
+
+    fn expired_task_queue() -> (
+        crate::tasks::registry::TaskQ,
+        Obj,
+        Arc<parking_lot::Mutex<PersistenceEvents>>,
+    ) {
+        let events = Arc::new(parking_lot::Mutex::new(PersistenceEvents::default()));
+        let mut suspended = SuspensionQ::new(Box::new(RecordingTasksDb(events.clone())));
+        let anon = Obj::mk_anonymous(moor_var::AnonymousObjid::new(0x1234, 0x15, 0x9876543210));
+        let mut task = mock_task(71);
+        task.retry_state.stack.push(moor_vm::Activation::for_eval(
+            SYSTEM_OBJECT,
+            BitEnum::new(),
+            &anon,
+            moor_compiler::compile("return 0;", Default::default()).unwrap(),
+            None,
+        ));
+        suspended.add_task(
+            WakeCondition::Time(Deadline::from_now(Duration::from_secs(1)).instant()),
+            task,
+            mock_session(),
+            None,
+            suspended.live_tasks.register(71),
+        );
+        *events.lock() = PersistenceEvents::default();
+        (crate::tasks::registry::TaskQ::new(suspended), anon, events)
+    }
+
+    #[test]
+    fn collected_timer_remains_a_gc_root() {
+        let (mut queue, anon, _) = expired_task_queue();
+        assert!(queue.collect_anonymous_object_references().contains(&anon));
+        assert_eq!(
+            queue
+                .suspended
+                .enqueue_expired_wakes(Instant::now() + Duration::from_secs(2)),
+            1
+        );
+        assert!(
+            queue.collect_anonymous_object_references().contains(&anon),
+            "collection must retain the continuation in the registry"
+        );
+        assert!(queue.suspended.get(71).is_some());
+    }
+
+    #[test]
+    fn collected_timer_remains_available_for_shutdown_save() {
+        let (mut queue, _, events) = expired_task_queue();
+        assert_eq!(
+            queue
+                .suspended
+                .enqueue_expired_wakes(Instant::now() + Duration::from_secs(2)),
+            1
+        );
+        queue.suspended.save_tasks();
+        let events = events.lock();
+        assert_eq!(
+            events.saved,
+            vec![71],
+            "shutdown must save a selected continuation"
+        );
+        assert!(
+            events.deleted.is_empty(),
+            "collection must not delete persistence"
+        );
+    }
+
+    #[test]
+    fn stale_immediate_signal_cannot_wake_a_replacement_suspension() {
+        let mut queue = SuspensionQ::new(Box::new(NoopTasksDb {}));
+        queue.add_task(
+            WakeCondition::Immediate(None),
+            mock_task(71),
+            mock_session(),
+            None,
+            queue.live_tasks.register(71),
+        );
+        let original = queue.remove_task(71).unwrap();
+        queue.add_task(
+            WakeCondition::Never,
+            mock_task(71),
+            mock_session(),
+            None,
+            queue.live_tasks.register(71),
+        );
+        drop(original);
+        assert!(
+            queue.pop_immediate_wake().is_none(),
+            "old wake signal must not select the replacement"
+        );
+        assert!(queue.get(71).is_some());
+        assert!(queue.live_tasks.contains(71));
     }
 }

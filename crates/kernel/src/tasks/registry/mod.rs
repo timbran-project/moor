@@ -132,39 +132,6 @@ impl TaskQ {
             .filter(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
     }
 
-    /// Collect tasks that need to be woken up by timer, pull them from our suspended list, and
-    /// return them. Other wake paths are event-driven through the immediate wake queue.
-    pub(crate) fn collect_wake_tasks(&mut self) -> Option<Vec<RegisteredSuspendedTask>> {
-        let mut to_wake: Option<Vec<TaskId>> = None;
-
-        // 1. Advance timer wheel based on elapsed time and collect expired timers
-        // (Always advance the timer wheel to maintain accurate timing, even when no tasks are suspended)
-        if let Some(expired_timers) = self.suspended.advance_timer_wheel() {
-            to_wake.get_or_insert_with(Vec::new).extend(
-                expired_timers
-                    .into_iter()
-                    .filter(|e| {
-                        // Ignore stale timer entries from prior suspensions of the same task.
-                        self.suspended
-                            .get(e.task_id)
-                            .is_some_and(|st| st.timer_generation == e.generation)
-                    })
-                    .map(|e| e.task_id),
-            );
-        }
-
-        if self.suspended.is_empty() {
-            return None;
-        }
-        let to_wake = to_wake?;
-        let tasks: Vec<_> = to_wake
-            .into_iter()
-            .filter_map(|task_id| self.suspended.remove_task(task_id))
-            .collect();
-
-        if tasks.is_empty() { None } else { Some(tasks) }
-    }
-
     /// Collect anonymous object references from all suspended tasks
     pub(crate) fn collect_anonymous_object_references(&self) -> std::collections::HashSet<Obj> {
         let mut refs = std::collections::HashSet::new();
