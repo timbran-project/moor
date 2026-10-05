@@ -128,22 +128,41 @@ impl TaskThreadPool {
     }
 
     pub(crate) fn new(num_threads: usize, pinned_core_ids: Option<Vec<usize>>) -> io::Result<Self> {
+        Self::with_spawner(num_threads, pinned_core_ids, |builder, run| {
+            builder.spawn(run)
+        })
+    }
+
+    fn with_spawner(
+        num_threads: usize,
+        pinned_core_ids: Option<Vec<usize>>,
+        mut spawn: impl FnMut(
+            std::thread::Builder,
+            Box<dyn FnOnce() + Send>,
+        ) -> io::Result<JoinHandle<()>>,
+    ) -> io::Result<Self> {
         let (sender, receiver) = flume::unbounded::<WorkerMsg>();
         let pinned_core_ids = pinned_core_ids.map(std::sync::Arc::new);
         set_task_worker_count(num_threads);
 
-        let mut threads = Vec::with_capacity(num_threads);
+        // Own each handle as soon as it starts. A later spawn failure drops the pool,
+        // which signals and joins every worker that already exists.
+        let mut pool = Self {
+            sender,
+            threads: Vec::with_capacity(num_threads),
+        };
         for index in 0..num_threads {
             let receiver = receiver.clone();
             let pinned_core_ids = pinned_core_ids.clone();
 
-            let thread = std::thread::Builder::new()
-                .name(format!("moor-task-pool-{index}"))
-                .spawn(move || worker_loop(index, receiver, pinned_core_ids))?;
-            threads.push(thread);
+            let thread = spawn(
+                std::thread::Builder::new().name(format!("moor-task-pool-{index}")),
+                Box::new(move || worker_loop(index, receiver, pinned_core_ids)),
+            )?;
+            pool.threads.push(thread);
         }
 
-        Ok(Self { sender, threads })
+        Ok(pool)
     }
 
     pub(crate) fn spawn<F>(&self, task: F)
@@ -164,6 +183,11 @@ impl Drop for TaskThreadPool {
         }
 
         while let Some(thread) = self.threads.pop() {
+            // The final scheduler reference can be released by a task worker. Its
+            // own handle must detach; the queued Stop ends that worker after return.
+            if thread.thread().id() == std::thread::current().id() {
+                continue;
+            }
             if let Err(e) = thread.join() {
                 error!(error = ?e, "Task worker thread panicked during join");
             }
@@ -219,5 +243,54 @@ fn worker_loop(
             }
             WorkerMsg::Stop => return,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
+
+    #[test]
+    fn partial_startup_joins_started_workers() {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let observed_stop = stopped.clone();
+        let mut spawned = 0;
+        let result = TaskThreadPool::with_spawner(2, None, move |builder, run| {
+            spawned += 1;
+            if spawned == 2 {
+                return Err(io::Error::other("injected spawn failure"));
+            }
+            let stopped = stopped.clone();
+            builder.spawn(move || {
+                run();
+                stopped.store(true, Ordering::Release);
+            })
+        });
+
+        assert!(result.is_err());
+        // This must already be true on return: dropping raw handles would detach.
+        assert!(observed_stop.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn pool_can_be_released_by_its_own_worker() {
+        let pool = TaskThreadPool::new(2, None).unwrap();
+        let (send_pool, receive_pool) = flume::bounded::<TaskThreadPool>(1);
+        let (finished, completion) = flume::bounded(1);
+        pool.spawn(move || {
+            drop(receive_pool.recv().unwrap());
+            finished.send(()).unwrap();
+        });
+        send_pool.send(pool).unwrap();
+
+        // A self-join panic is caught by the worker and drops the completion sender.
+        completion.recv_timeout(Duration::from_secs(5)).unwrap();
     }
 }
