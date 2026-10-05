@@ -11,10 +11,83 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
-use moor_common::model::ObjectRef;
+//! New-task construction, scheduler admission, and initial dispatch.
+//!
+//! Submission entry points allocate IDs under the lifecycle lock. `submit_task` receives that
+//! borrowed state, checks scheduler and GC admission, and registers or dispatches the task.
+//! Input delivery resumes an existing task in `transitions::resume` instead.
+
+use super::{ResumeAction, Scheduler, SchedulerState, lifecycle::TaskLifecycle};
+use crate::{
+    tasks::{
+        TaskHandle, TaskStart, world_state_action::WorldStateAction,
+        world_state_executor::match_object_ref,
+    },
+    trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
+};
+use moor_common::{
+    model::ObjectRef,
+    tasks::{CommandError, SchedulerError, SchedulerError::CommandExecutionError, Session, TaskId},
+};
+use moor_var::{List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str, v_int, v_obj};
+use std::{sync::Arc, time::Duration};
+use tracing::{debug, warn};
 
 impl Scheduler {
+    /// Submit a new task and wake it immediately if needed.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_task(
+        &self,
+        lc: &mut TaskLifecycle,
+        task_id: TaskId,
+        player: &Obj,
+        authority_principal: &Obj,
+        task_start: TaskStart,
+        delay_start: Option<Duration>,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        if lc.state != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+
+        let gc_in_progress = self.config.features.anonymous_objects
+            && (lc.gc_phase.blocks_admission() || lc.gc_force_collect);
+
+        let so = self.server_options.load();
+        match lc.task_q.submit_new_task(
+            task_id,
+            player,
+            authority_principal,
+            task_start,
+            delay_start,
+            session,
+            &so,
+            gc_in_progress,
+        ) {
+            crate::tasks::registry::TaskSubmission::Suspended(handle) => Ok(handle),
+            crate::tasks::registry::TaskSubmission::NeedsWake {
+                registration,
+                handle,
+                task,
+                session,
+                result_sender,
+            } => {
+                lc.task_q.wake_task_thread(
+                    task,
+                    ResumeAction::Return(v_int(0)),
+                    session,
+                    result_sender,
+                    self,
+                    self.database.as_ref(),
+                    self.builtin_registry.clone(),
+                    self.config.clone(),
+                    registration,
+                )?;
+                Ok(handle)
+            }
+        }
+    }
+
     pub(crate) fn submit_command_task_inner(
         &self,
         handler_object: Obj,
@@ -101,39 +174,6 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn submit_task_input_inner(
-        &self,
-        connection: Obj,
-        player: Obj,
-        input_request_id: Uuid,
-        input: Var,
-    ) -> Result<(), SchedulerError> {
-        let mut lc = self.lifecycle.lock();
-
-        // Validate that the given input request is valid, and if so, resume the task, sending it
-        // the given input, clearing the input request out.
-
-        // Find the task that requested this input, if any
-        let Some(sr) =
-            lc.task_q
-                .suspended
-                .pull_task_for_input(input_request_id, &connection, &player)
-        else {
-            warn!(?input_request_id, "Input request not found");
-            return Err(InputRequestNotFound(input_request_id.as_u128()));
-        };
-
-        // Wake and bake.
-        lc.task_q.wake_suspended_task(
-            sr,
-            ResumeAction::Return(input),
-            self,
-            self.database.as_ref(),
-            self.builtin_registry.clone(),
-            self.config.clone(),
-        )
-    }
-
     /// Start `handler_object:verb` for a connection-level hook (`do_out_of_band_command`,
     /// `do_client_data`). The handler is a plain object id, so no transaction is needed to
     /// resolve it.
@@ -202,35 +242,6 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn handle_shutdown_request(&self, msg: String) -> Result<(), SchedulerError> {
-        self.stop(Some(msg))
-    }
-
-    pub(crate) fn handle_check_status(&self) -> Result<(), SchedulerError> {
-        if self.lifecycle.lock().state != SchedulerState::Running {
-            return Err(SchedulerError::SchedulerNotResponding);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn handle_load_object_request(
-        &self,
-        object_definition: String,
-        options: moor_objdef::ObjDefLoaderOptions,
-        return_conflicts: bool,
-    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        self.handle_load_object(object_definition, options, return_conflicts)
-    }
-
-    pub(crate) fn handle_reload_object_request(
-        &self,
-        object_definition: String,
-        constants: Option<moor_objdef::Constants>,
-        target_obj: Option<Obj>,
-    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        self.handle_reload_object(object_definition, constants, target_obj)
-    }
-
     pub(crate) fn submit_system_handler_task_inner(
         &self,
         player: Obj,
@@ -277,55 +288,6 @@ impl Scheduler {
         );
         debug!("System handler task submission result: {:?}", result);
         result
-    }
-
-    pub(crate) fn execute_world_state_actions_inner(
-        &self,
-        actions: Vec<crate::tasks::world_state_action::WorldStateRequest>,
-        rollback: bool,
-    ) -> Result<Vec<WorldStateResponse>, SchedulerError> {
-        // Create transaction in caller's context
-        let tx = self
-            .database
-            .new_world_state()
-            .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
-
-        // Extract just the actions from the requests
-        let action_vec: Vec<WorldStateAction> =
-            actions.iter().map(|req| req.action.clone()).collect();
-        let config = self.config.clone();
-
-        // Use a channel to get the result back from the spawned thread
-        let (tx_send, rx_recv) = std::sync::mpsc::channel();
-
-        // Spawn thread to execute actions, moving transaction into the thread
-        spawn_perf("ws-actions", move || {
-            let executor = WorldStateActionExecutor::new(tx, config);
-
-            match executor.execute_batch(action_vec, rollback) {
-                Ok(results) => {
-                    // Build responses with the original request IDs
-                    let responses: Vec<WorldStateResponse> = actions
-                        .into_iter()
-                        .zip(results)
-                        .map(|(request, result)| WorldStateResponse::Success {
-                            id: request.id,
-                            result,
-                        })
-                        .collect();
-
-                    let _ = tx_send.send(Ok(responses));
-                }
-                Err(error) => {
-                    let _ = tx_send.send(Err(error));
-                }
-            }
-        })
-        .expect("Could not spawn WorldStateAction execution thread");
-
-        rx_recv
-            .recv()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?
     }
 
     pub(crate) fn submit_batch_world_state_task_inner(

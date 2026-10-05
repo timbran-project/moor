@@ -11,12 +11,20 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Scheduler handle and shared lifecycle state.
+//!
+//! External clients enqueue requests through `SchedulerClient`; task workers call directly
+//! through `TaskSchedulerClient`. Both reach the same lifecycle state and transition methods.
+//! New tasks enter through `admission`, while wakeups enter through `transitions::resume`.
+//! `services` owns threads and shutdown. Domain modules own GC, schedules, and maintenance.
+
+mod admission;
+mod config;
 pub(crate) mod effects;
 pub(crate) mod gc;
 pub(crate) mod lifecycle;
 mod maintenance;
-mod scheduler_config;
-mod scheduler_submit;
+mod requests;
 mod schedules;
 mod services;
 mod task_requests;
@@ -24,47 +32,31 @@ mod transitions;
 
 pub use self::lifecycle::SchedulerState;
 use self::lifecycle::TaskLifecycle;
-use crate::trace_task_create_command;
-use crate::trace_task_create_eval;
-use crate::trace_task_create_verb;
 use crate::{
     config::Config,
     tasks::{
         DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
         DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS,
-        DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX,
-        DEFAULT_MAX_TASK_RETRIES, ServerOptions, TaskHandle, TaskStart,
+        DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, ServerOptions,
         maintenance::MaintenanceCoordinator,
         schedule_q::ScheduleQ,
         task_q::{LiveTaskRegistry, SuspensionQ, TaskQ},
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
-        world_state_action::{WorldStateAction, WorldStateResponse},
-        world_state_executor::{WorldStateActionExecutor, match_object_ref},
     },
     vm::builtins::BuiltinRegistry,
 };
 use arc_swap::ArcSwap;
 use flume::{Receiver, Sender};
 use moor_common::{
-    model::{TaskPermissions, WorldState},
-    tasks::{
-        CommandError, SchedulerError,
-        SchedulerError::{CommandExecutionError, InputRequestNotFound},
-        Session, SystemControl, TaskId,
-    },
-    threading::{TaskPoolAffinityConfig, set_task_pool_affinity_config, spawn_perf},
+    tasks::{SchedulerError, SystemControl},
+    threading::{TaskPoolAffinityConfig, set_task_pool_affinity_config},
 };
 use moor_db::Database;
-use moor_var::{Error, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str, v_int, v_obj};
+use moor_var::{Error, Var};
 use parking_lot::{Condvar, Mutex};
 pub use services::SchedulerThreads;
-use std::{
-    sync::{Arc, LazyLock},
-    time::Duration,
-};
-use tracing::{debug, info, warn};
-use uuid::Uuid;
+use std::{sync::Arc, time::Duration};
 
 pub(crate) type SchedulerClientRequest = Box<dyn FnOnce(&Scheduler) + Send + 'static>;
 
@@ -78,7 +70,7 @@ pub enum ResumeAction {
 }
 
 /// Responsible for the dispatching, control, and accounting of tasks in the system.
-/// Cheaply cloneable handle — replaces both SchedulerClient and TaskSchedulerClient.
+/// Shared handle used by external request clients and direct task-worker callbacks.
 #[derive(Clone)]
 pub struct Scheduler {
     /// All mutable lifecycle state, protected by a single Mutex.
@@ -215,60 +207,6 @@ impl Scheduler {
         s
     }
 
-    /// Submit a new task and wake it immediately if needed.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn submit_task(
-        &self,
-        lc: &mut TaskLifecycle,
-        task_id: TaskId,
-        player: &Obj,
-        authority_principal: &Obj,
-        task_start: TaskStart,
-        delay_start: Option<Duration>,
-        session: Arc<dyn Session>,
-    ) -> Result<TaskHandle, SchedulerError> {
-        if lc.state != SchedulerState::Running {
-            return Err(SchedulerError::SchedulerNotResponding);
-        }
-
-        let gc_in_progress = self.config.features.anonymous_objects
-            && (lc.gc_phase.blocks_admission() || lc.gc_force_collect);
-
-        let so = self.server_options.load();
-        match lc.task_q.submit_new_task(
-            task_id,
-            player,
-            authority_principal,
-            task_start,
-            delay_start,
-            session,
-            &so,
-            gc_in_progress,
-        ) {
-            crate::tasks::registry::TaskSubmission::Suspended(handle) => Ok(handle),
-            crate::tasks::registry::TaskSubmission::NeedsWake {
-                registration,
-                handle,
-                task,
-                session,
-                result_sender,
-            } => {
-                lc.task_q.wake_task_thread(
-                    task,
-                    ResumeAction::Return(v_int(0)),
-                    session,
-                    result_sender,
-                    self,
-                    self.database.as_ref(),
-                    self.builtin_registry.clone(),
-                    self.config.clone(),
-                    registration,
-                )?;
-                Ok(handle)
-            }
-        }
-    }
-
     /// Legacy compatibility: returns a SchedulerClient wrapping this Scheduler.
     pub fn client(
         &self,
@@ -289,7 +227,7 @@ mod tests {
     use super::*;
     use crate::{
         tasks::{
-            AbortTaskOutcome, TaskNotification, TasksDbError,
+            AbortTaskOutcome, TaskNotification, TaskStart, TasksDbError,
             schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId},
             task::Task,
             task_control::TaskControl,
@@ -298,21 +236,24 @@ mod tests {
         vm::TaskSuspend,
     };
     use moor_common::{
-        model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
+        model::{ObjFlag, ObjectKind, PropFlag, TaskPermissions, WorldStateSource},
         tasks::{
-            ConnectionDetails, NarrativeEvent, NoopClientSession, NoopSystemControl,
+            CommandError, ConnectionDetails, NarrativeEvent, NoopClientSession, NoopSystemControl,
             SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-            SessionError, SessionFactory,
+            Session, SessionError, SessionFactory, TaskId,
         },
         util::{BitEnum, Instant, Timestamp},
     };
     use moor_db::{DatabaseConfig, TxDB};
-    use moor_var::{E_INVARG, E_QUOTA, v_float, v_str};
+    use moor_var::{
+        E_INVARG, E_QUOTA, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, v_float, v_int, v_obj, v_str,
+    };
     use std::time::SystemTime;
     use std::{
         collections::HashSet,
         sync::{Barrier, OnceLock},
     };
+    use uuid::Uuid;
 
     pub(super) struct NoopSessionFactory;
 

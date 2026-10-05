@@ -27,7 +27,7 @@ use crate::tasks::{
 use crate::trace_task_resume;
 use moor_common::{
     model::TaskPermissions,
-    tasks::{TaskId, WorkerError},
+    tasks::{SchedulerError, SchedulerError::InputRequestNotFound, TaskId, WorkerError},
 };
 #[cfg(feature = "trace_events")]
 use moor_compiler::to_literal;
@@ -36,8 +36,42 @@ use moor_var::{
     v_bool_int, v_int,
 };
 use tracing::{error, warn};
+use uuid::Uuid;
 
 impl Scheduler {
+    pub(crate) fn submit_task_input_inner(
+        &self,
+        connection: Obj,
+        player: Obj,
+        input_request_id: Uuid,
+        input: Var,
+    ) -> Result<(), SchedulerError> {
+        let mut lc = self.lifecycle.lock();
+
+        // Validate that the given input request is valid, and if so, resume the task, sending it
+        // the given input, clearing the input request out.
+
+        // Find the task that requested this input, if any
+        let Some(sr) =
+            lc.task_q
+                .suspended
+                .pull_task_for_input(input_request_id, &connection, &player)
+        else {
+            warn!(?input_request_id, "Input request not found");
+            return Err(InputRequestNotFound(input_request_id.as_u128()));
+        };
+
+        // Wake and bake.
+        lc.task_q.wake_suspended_task(
+            sr,
+            ResumeAction::Return(input),
+            self,
+            self.database.as_ref(),
+            self.builtin_registry.clone(),
+            self.config.clone(),
+        )
+    }
+
     /// Collect expired timer tasks and wake them.
     /// Collection happens under one lock acquisition; each wake re-acquires
     /// briefly so other operations aren't blocked for the entire batch.

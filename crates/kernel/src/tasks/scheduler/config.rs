@@ -11,8 +11,23 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
-use moor_common::util::BitEnum;
+//! Server-option loading and effective maintenance intervals.
+//!
+//! Refresh reads world state without the lifecycle lock, then publishes one options snapshot.
+//! Admission and service loops read that snapshot through the scheduler handle.
+
+use super::Scheduler;
+use crate::tasks::DEFAULT_GC_INTERVAL_SECONDS;
+use moor_common::{
+    model::{TaskPermissions, WorldState},
+    util::BitEnum,
+};
+use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
+use std::{
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
+use tracing::{info, warn};
 
 static SERVER_OPTIONS: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("server_options"));
 static BG_SECONDS: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bg_seconds"));
