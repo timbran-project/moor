@@ -19,8 +19,10 @@
 //! immediately as its own cross-keyspace write batch.
 
 mod persistence;
+mod workers;
 
 use persistence::PreparedPersistence;
+use workers::{WorkerGroup, Workers};
 
 use std::{
     collections::BTreeMap,
@@ -28,7 +30,6 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    thread::JoinHandle,
     time::{Duration, Instant},
 };
 
@@ -682,13 +683,9 @@ impl WriterState {
 pub struct BatchWriter {
     sender: Sender<WriterMsg>,
     encoder_sender: Sender<EncoderMsg>,
-    kill_switch: Arc<AtomicBool>,
     completed_version: Arc<AtomicU64>,
-    join_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
-    encoder_handles: Mutex<Vec<JoinHandle<Result<(), String>>>>,
     admission: Arc<CommitAdmissionGate>,
-    rollup_sender: Sender<RollupMsg>,
-    rollup_handle: Mutex<Option<JoinHandle<Result<(), String>>>>,
+    workers: Workers,
 }
 
 // If batch writes take longer than this, give a friendly warning to alert the user that something
@@ -734,10 +731,17 @@ impl BatchWriter {
             },
         ));
         let (rollup_sender, rollup_receiver) = flume::bounded::<RollupMsg>(1);
+        let mut workers = WorkerGroup::new(
+            sender.clone(),
+            encoder_sender.clone(),
+            kill_switch.clone(),
+            rollup_sender.clone(),
+        );
         let rollup_handle = moor_common::threading::spawn_perf("moor-db-rollup-enc", move || {
             Self::rollup_encoder_loop(rollup_receiver)
         })
         .expect("failed to spawn property-value rollup encoder thread");
+        workers.set_rollup(rollup_handle);
         let rollup_encoder = RollupEncoder {
             sender: rollup_sender.clone(),
         };
@@ -760,9 +764,9 @@ impl BatchWriter {
             )
         })
         .expect("failed to spawn batch writer thread");
+        workers.set_writer(join_handle);
 
         let encoder_count = Self::encoder_thread_count();
-        let mut encoder_handles = Vec::with_capacity(encoder_count);
         for index in 0..encoder_count {
             let receiver = encoder_receiver.clone();
             let sender = sender.clone();
@@ -771,19 +775,15 @@ impl BatchWriter {
                     Self::encoder_loop(receiver, sender)
                 })
                 .expect("failed to spawn batch encoder thread");
-            encoder_handles.push(handle);
+            workers.add_encoder(handle);
         }
 
         Self {
             sender,
             encoder_sender,
-            kill_switch,
             completed_version,
-            join_handle: Mutex::new(Some(join_handle)),
-            encoder_handles: Mutex::new(encoder_handles),
             admission,
-            rollup_sender,
-            rollup_handle: Mutex::new(Some(rollup_handle)),
+            workers: Workers::new(workers),
         }
     }
 
@@ -1230,63 +1230,7 @@ impl BatchWriter {
     }
 
     pub fn stop(&self) -> Result<(), String> {
-        let mut shutdown_error = None;
-        let mut encoder_handles = self.encoder_handles.lock();
-        for _ in 0..encoder_handles.len() {
-            self.encoder_sender.send(EncoderMsg::Stop).ok();
-        }
-        for handle in encoder_handles.drain(..) {
-            match handle.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(error)) => {
-                    shutdown_error.get_or_insert(error);
-                }
-                Err(_) => {
-                    shutdown_error.get_or_insert("batch encoder thread panicked".to_string());
-                }
-            };
-        }
-        drop(encoder_handles);
-
-        self.kill_switch.store(true, Ordering::SeqCst);
-        let mut jh = self.join_handle.lock();
-        if let Some(handle) = jh.take() {
-            match handle.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(error)) => {
-                    shutdown_error.get_or_insert(error);
-                }
-                Err(_) => {
-                    shutdown_error.get_or_insert("batch writer thread panicked".to_string());
-                }
-            }
-        }
-        drop(jh);
-
-        let mut rollup_handle = self.rollup_handle.lock();
-        if let Some(handle) = rollup_handle.take() {
-            self.rollup_sender.send(RollupMsg::Stop).ok();
-            match handle.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(error)) => {
-                    shutdown_error.get_or_insert(error);
-                }
-                Err(_) => {
-                    shutdown_error
-                        .get_or_insert("property-value rollup encoder thread panicked".to_string());
-                }
-            }
-        }
-
-        shutdown_error.map_or(Ok(()), Err)
-    }
-}
-
-impl Drop for BatchWriter {
-    fn drop(&mut self) {
-        if let Err(error) = self.stop() {
-            error!("Failed to stop batch writer: {error}");
-        }
+        self.workers.stop()
     }
 }
 
@@ -1600,6 +1544,34 @@ mod tests {
         );
         assert_eq!(completed.load(Ordering::Acquire), 2);
         assert_eq!(partition.get(b"key").unwrap().unwrap().as_ref(), b"value");
+    }
+
+    #[test]
+    fn drop_drains_pending_writes_and_stop_is_repeatable() {
+        let (_tempdir, database) = test_database();
+        let partition = database
+            .keyspace("values", KeyspaceCreateOptions::default)
+            .unwrap();
+        {
+            let writer = BatchWriter::new(database.clone());
+            for version in (1..=32).rev() {
+                write(
+                    &writer,
+                    encoded_batch(version, &partition, b"key", &version.to_be_bytes()),
+                )
+                .unwrap();
+            }
+        }
+        assert_eq!(
+            partition.get(b"key").unwrap().unwrap().as_ref(),
+            &32_u64.to_be_bytes()
+        );
+        let writer = Arc::new(BatchWriter::new(database));
+        let other = writer.clone();
+        let stop = std::thread::spawn(move || other.stop());
+        writer.stop().unwrap();
+        stop.join().unwrap().unwrap();
+        writer.stop().unwrap();
     }
 
     #[test]
