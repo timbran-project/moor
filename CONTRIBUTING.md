@@ -519,12 +519,34 @@ events asynchronously to avoid impacting runtime performance.
 
 1. **Create a branch** with descriptive name
 2. **Make focused changes** - one unit of work per PR (single feature or bug fix)
-3. **Write clean commits** following standard git conventions:
-   - Short, imperative subject line (e.g., "Fix command FIFO blocking on suspended tasks")
-   - Optional details in body for cross-cutting changes
+3. **Write Conventional Commits**:
+   - Use `type(scope): description`, with an optional scope and `!` for breaking changes.
+   - Limit the complete subject to 50 characters. Use an imperative description without final
+     punctuation.
+   - Separate the subject and body with a blank line. Every commit requires a body.
+   - Explain the problem, the change, and the validation. Wrap body and footer lines at 70
+     characters.
+   - Use `!` or a `BREAKING CHANGE:` footer to mark breaking changes.
    - Squash incidental formatting changes into main commit
 4. **Submit your PR**: Push your branch to your fork on Codeberg and create a pull request from
    there to the main repository
+
+### Commit Message Hook
+
+Install [gitlint](https://jorisroovers.com/gitlint/) and the local commit-message hook:
+
+```bash
+uv tool install gitlint-core==0.19.1
+./scripts/install-commit-hook.sh
+```
+
+The hook rejects messages that violate `scripts/gitlint.cfg`. It checks Conventional Commit types,
+the 50/70 character limits, the required body, blank-line separation, tabs, and trailing whitespace.
+The body must contain at least 20 characters. Merge, revert, fixup, and squash messages receive the
+same checks. The hook does not assess the meaning of the message.
+
+The installer preserves existing hooks and refuses to change a custom `core.hooksPath` directory.
+Run the installer once for each clone. Git does not copy local hooks when you clone a repository.
 
 ### PR Description Guidelines
 
