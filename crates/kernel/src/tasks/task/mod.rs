@@ -17,17 +17,20 @@
 //! transaction and session through task context. The scheduler retains active metadata separately.
 //!
 //! Startup resolves commands and verbs in `start`. The loop calls `Task::vm_dispatch` in `dispatch`
-//! for each VM response. `transaction` owns commit arbitration and retry snapshots. Scheduler
-//! callbacks transfer execution to suspended storage or finalize it. Cache lifetime remains tied
-//! to this executable task and its retry snapshot.
+//! for each VM response. `transaction` owns commit arbitration and retry snapshots. The loop
+//! consumes decisions from `outcome` to transfer execution or finalize it through the scheduler.
+//! Cache lifetime remains tied to this executable task and its retry snapshot.
 
 mod dispatch;
+mod outcome;
 mod start;
 mod transaction;
 
+use outcome::ExecutionOutcome;
+
 use crate::{
     config::Config,
-    task_context::{has_active_task, rollback_current_transaction, with_current_transaction},
+    task_context::with_current_transaction,
     tasks::{
         ServerOptions, TaskStart, task_control::TaskControl, task_program_cache::TaskProgramCache,
         task_scheduler_client::TaskSchedulerClient,
@@ -257,25 +260,30 @@ impl Task {
         trace_task_start!(task.task_id);
 
         while task.vm_host.is_running() {
-            // Check kill switch.
-            if task.control.is_cancelled() {
-                if has_active_task() {
-                    rollback_current_transaction()
-                        .expect("Could not rollback cancelled task transaction");
-                }
-                task_scheduler_client.abort_cancelled();
-                break;
-            }
-
-            if let Some(continuation_task) = task.vm_dispatch(
-                task_scheduler_client,
-                session.as_ref(),
-                &builtin_registry,
-                config.features.as_ref(),
-            ) {
-                task = continuation_task;
+            let outcome = if task.control.is_cancelled() {
+                task.cancelled_outcome()
             } else {
-                break;
+                task.vm_dispatch(
+                    task_scheduler_client,
+                    session.as_ref(),
+                    &builtin_registry,
+                    config.features.as_ref(),
+                )
+            };
+            match outcome {
+                ExecutionOutcome::Continue(continuation) => task = continuation,
+                ExecutionOutcome::Retry(request) => {
+                    request.handoff(task_scheduler_client);
+                    break;
+                }
+                ExecutionOutcome::Suspend(request) => {
+                    request.handoff(task_scheduler_client);
+                    break;
+                }
+                ExecutionOutcome::Finish(request) => {
+                    request.finish(task_scheduler_client);
+                    break;
+                }
             }
         }
 

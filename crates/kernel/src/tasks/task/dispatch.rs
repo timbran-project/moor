@@ -19,8 +19,9 @@
 
 use super::{
     Task, TaskState,
+    outcome::{ExecutionOutcome, SuspensionKind, TerminalCompletion},
     start::HANDLE_UNCAUGHT_ERROR_SYM,
-    transaction::{Renewal, YieldCommit},
+    transaction::{CommitFailure, Renewal, TerminalRollback, YieldCommit},
 };
 #[cfg(feature = "trace_events")]
 use crate::trace_abort_limit_reached;
@@ -44,21 +45,15 @@ use moor_var::{List, SYSTEM_OBJECT, Var, v_empty_str, v_err, v_int, v_obj, v_str
 use tracing::{error, warn};
 
 impl Task {
-    /// Call out to the vm_host and ask it to execute the next instructions, and it will return
-    /// back telling us next steps.
-    /// Results of VM execution are looked at, and if they involve a scheduler action, we will
-    /// send a message back to the scheduler to handle it.
-    /// If the scheduler action is some kind of suspension, we move ourselves into the message
-    /// itself.
-    /// If we are to be consumed (because ownership transferred back to the scheduler), we will
-    /// return None, otherwise we will return ourselves.
+    /// Execute the VM, refresh its authority and telemetry, then select the operation policy.
+    /// The worker loop consumes the returned decision and owns every scheduler handoff.
     pub(super) fn vm_dispatch(
         mut self: Box<Self>,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
         builtin_registry: &BuiltinRegistry,
         config: &FeaturesConfig,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // Call the VM using transaction context
         let vm_exec_result = self.vm_host.exec_interpreter(
             self.task_id,
@@ -75,8 +70,7 @@ impl Task {
         );
 
         if self.control.is_cancelled() {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
+            return self.cancelled_outcome();
         }
 
         // Having done that, what should we now do?
@@ -88,25 +82,23 @@ impl Task {
                 self.dispatch_suspend(*delay, task_scheduler_client, session)
             }
             VMHostResponse::SuspendNeedInput(input_request) => {
-                self.dispatch_input(*input_request, task_scheduler_client, session)
+                self.dispatch_input(*input_request, session)
             }
-            VMHostResponse::ContinueOk => Some(self),
+            VMHostResponse::ContinueOk => ExecutionOutcome::Continue(self),
 
-            VMHostResponse::CompleteSuccess(result) => {
-                self.dispatch_success(result, task_scheduler_client, session)
-            }
-            VMHostResponse::CompleteAbort => self.dispatch_abort(task_scheduler_client),
+            VMHostResponse::CompleteSuccess(result) => self.dispatch_success(result, session),
+            VMHostResponse::CompleteAbort => self.dispatch_abort(),
             VMHostResponse::CompleteException(exception) => {
-                self.dispatch_exception(exception, task_scheduler_client, session)
+                self.dispatch_exception(exception, session)
             }
             VMHostResponse::CompleteRollback(commit_session) => {
-                self.dispatch_rollback(commit_session, task_scheduler_client, session)
+                self.dispatch_rollback(commit_session, session)
             }
 
             VMHostResponse::AbortLimit(reason) => {
                 self.dispatch_limit(reason, task_scheduler_client, session)
             }
-            VMHostResponse::RollbackRetry => self.dispatch_retry(task_scheduler_client, session),
+            VMHostResponse::RollbackRetry => self.dispatch_retry(session),
         }
     }
 
@@ -115,12 +107,12 @@ impl Task {
         fork_request: Box<Fork>,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // Commit current transaction, dispatch fork, then resume in a new transaction.
         let task_id_var = fork_request.task_id;
         let fork_request = fork_request;
 
-        let renewal = self.renew_transaction(task_scheduler_client, session, || {
+        let renewal = self.renew_transaction(session, || {
             let new_world_state = task_scheduler_client
                 .begin_new_transaction()
                 .map_err(|e| WorldStateError::DatabaseError(format!("Scheduler error: {e:?}")))?;
@@ -128,7 +120,7 @@ impl Task {
             Ok((new_world_state, task_id))
         });
         match renewal {
-            Renewal::Cancelled => None,
+            Renewal::Cancelled => self.terminal_outcome(TerminalCompletion::Cancelled),
             Renewal::Continued(task_id) => {
                 if let Some(task_id_var) = task_id_var {
                     self.vm_host
@@ -140,23 +132,18 @@ impl Task {
                 // and reset `retries` since a fork dispatch that commits is a
                 // successful transaction boundary like any other.
                 self.refresh_retry_state();
-                Some(self)
+                ExecutionOutcome::Continue(self)
             }
             Renewal::Conflict(conflict_info) => {
-                self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
-                session.rollback().unwrap();
-                task_scheduler_client.conflict_retry(self, "fork dispatch", conflict_info);
-                None
+                self.conflict_outcome(session, "fork dispatch", conflict_info)
             }
             Renewal::CommitFailed(e) => {
                 error!("Failed to commit before fork dispatch: {e:?}");
-                self.reject_commit(task_scheduler_client, e);
-                None
+                self.commit_failure_outcome(CommitFailure::Rejected(e))
             }
             Renewal::BeginFailed(e) => {
                 error!("Failed to begin transaction after fork commit: {e:?}");
-                task_scheduler_client.abort_transaction_renewal_failed();
-                None
+                self.terminal_outcome(TerminalCompletion::RenewalFailed)
             }
         }
     }
@@ -164,21 +151,20 @@ impl Task {
     fn dispatch_input(
         mut self: Box<Self>,
         input_request: TaskInputRequest,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
 
         // Attempt commit... See comments/notes on Suspend above.
-        let commit_result = self.commit_yield_transaction(task_scheduler_client, session)?;
+        let commit_result = match self.commit_yield_transaction(session) {
+            Ok(result) => result,
+            Err(failure) => return self.commit_failure_outcome(failure),
+        };
 
         let boundary = match commit_result {
             YieldCommit::Committed(boundary) => boundary,
             YieldCommit::Conflict(conflict_info) => {
-                self.log_conflict_retry("input suspend", conflict_info.as_ref());
-                session.rollback().unwrap();
-                task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
-                return None;
+                return self.conflict_outcome(session, "input suspend", conflict_info);
             }
         };
 
@@ -187,22 +173,15 @@ impl Task {
 
         trace_task_suspend!(self.task_id, "Waiting for input");
 
-        // Consume us, passing back to the scheduler that we're waiting for input.
-        task_scheduler_client.request_input(
-            self,
-            input_request.player,
-            input_request.metadata,
-            boundary,
-        );
-        None
+        // Transfer the committed boundary with the task when the loop consumes this request.
+        self.suspension_outcome(SuspensionKind::Input(input_request), boundary)
     }
 
     fn dispatch_success(
         mut self: Box<Self>,
         result: Var,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // Special case: in case of return from $do_command @ top-level, we need to look at the results:
         //      non-true value? => parse_command and restart (in same transaction)
         //      true value? => commit and return success.
@@ -224,10 +203,9 @@ impl Task {
                 if let Err(e) = with_current_transaction_mut(|world_state| {
                     self.setup_start_parse_command(&player, &command, world_state)
                 }) {
-                    task_scheduler_client.command_error(e);
-                    return None;
+                    return self.terminal_outcome(TerminalCompletion::CommandError(e));
                 }
-                return Some(self);
+                return ExecutionOutcome::Continue(self);
             }
         }
 
@@ -242,23 +220,21 @@ impl Task {
                         task_id = self.task_id,
                         "handle_uncaught_error returned false, but original exception lost"
                     );
-                    self.cancel_before_commit(task_scheduler_client);
-                    return None;
+                    return self.cancelled_outcome();
                 };
 
                 // Restore the original exception and handle it normally
-                let commit_result =
-                    self.commit_terminal_transaction(task_scheduler_client, session)?;
+                let commit_result = match self.commit_terminal_transaction(session) {
+                    Ok(result) => result,
+                    Err(failure) => return self.commit_failure_outcome(failure),
+                };
 
                 let CommitResult::Success { .. } = commit_result else {
                     let conflict_info = match commit_result {
                         CommitResult::ConflictRetry { conflict_info } => conflict_info,
                         CommitResult::Success { .. } => unreachable!(),
                     };
-                    self.log_conflict_retry("exception handling", conflict_info.as_ref());
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self, "exception handling", conflict_info);
-                    return None;
+                    return self.conflict_outcome(session, "exception handling", conflict_info);
                 };
 
                 // Debug level - this is normal when handle_uncaught_error doesn't exist or returns false
@@ -275,15 +251,18 @@ impl Task {
                     &format!("Exception: {}", original_exception.error.err_type())
                 );
 
-                task_scheduler_client.exception(Box::new(original_exception));
-                return None;
+                return self
+                    .terminal_outcome(TerminalCompletion::Exception(Box::new(original_exception)));
             }
 
             // Handler returned true, clear pending exception and continue with success
             self.pending_exception = None;
         }
 
-        let commit_result = self.commit_terminal_transaction(task_scheduler_client, session)?;
+        let commit_result = match self.commit_terminal_transaction(session) {
+            Ok(result) => result,
+            Err(failure) => return self.commit_failure_outcome(failure),
+        };
 
         let (mutations_made, timestamp) = match commit_result {
             CommitResult::Success {
@@ -291,12 +270,7 @@ impl Task {
                 timestamp,
             } => (mutations_made, timestamp),
             CommitResult::ConflictRetry { conflict_info } => {
-                self.log_conflict_retry("task completion", conflict_info.as_ref());
-                session.rollback().unwrap();
-
-                // Backoff is handled by the scheduler via suspension-based retry
-                task_scheduler_client.conflict_retry(self, "task completion", conflict_info);
-                return None;
+                return self.conflict_outcome(session, "task completion", conflict_info);
             }
         };
 
@@ -304,34 +278,35 @@ impl Task {
 
         trace_task_complete!(self.task_id, &format!("{result:?}"));
 
-        task_scheduler_client.success(result, mutations_made, timestamp);
-        None
+        self.terminal_outcome(TerminalCompletion::Success {
+            value: result,
+            mutations_made,
+            timestamp,
+        })
     }
 
-    fn dispatch_abort(
-        mut self: Box<Self>,
-        task_scheduler_client: &TaskSchedulerClient,
-    ) -> Option<Box<Self>> {
+    fn dispatch_abort(mut self: Box<Self>) -> ExecutionOutcome {
         error!(task_id = self.task_id, "Task aborted");
 
-        if !self.rollback_terminal_transaction(task_scheduler_client) {
-            return None;
+        if matches!(
+            self.rollback_terminal_transaction(),
+            TerminalRollback::Cancelled
+        ) {
+            return self.terminal_outcome(TerminalCompletion::Cancelled);
         }
 
         self.vm_host.stop();
 
         trace_task_abort!(self.task_id, "Task aborted");
 
-        task_scheduler_client.abort_cancelled();
-        None
+        self.terminal_outcome(TerminalCompletion::Cancelled)
     }
 
     fn dispatch_exception(
         mut self: Box<Self>,
         exception: Box<Exception>,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // Check if we're already handling an uncaught error (prevent infinite recursion)
         if self.handling_uncaught_error {
             // We're in the handler and it threw an exception.
@@ -395,14 +370,15 @@ impl Task {
                                 task_id = ?self.task_id,
                                 "Error resolving handler program: {e:?}"
                             );
-                            task_scheduler_client.command_error(CommandError::DatabaseError(e));
-                            return None;
+                            return self.terminal_outcome(TerminalCompletion::CommandError(
+                                CommandError::DatabaseError(e),
+                            ));
                         }
                     },
                 );
 
                 // Continue execution - the handler will now run
-                return Some(self);
+                return ExecutionOutcome::Continue(self);
             }
 
             // No handler exists or error looking it up
@@ -415,13 +391,13 @@ impl Task {
         // Normal exception reporting (either no handler found, or handler itself threw)
         // Commands that end in exceptions are still expected to be committed, to
         // conform with MOO's expectations.
-        let commit_result = self.commit_terminal_transaction(task_scheduler_client, session)?;
+        let commit_result = match self.commit_terminal_transaction(session) {
+            Ok(result) => result,
+            Err(failure) => return self.commit_failure_outcome(failure),
+        };
 
         if let CommitResult::ConflictRetry { conflict_info } = commit_result {
-            self.log_conflict_retry("exception reporting", conflict_info.as_ref());
-            session.rollback().unwrap();
-            task_scheduler_client.conflict_retry(self, "exception reporting", conflict_info);
-            return None;
+            return self.conflict_outcome(session, "exception reporting", conflict_info);
         }
 
         // Format the backtrace for logging
@@ -448,29 +424,29 @@ impl Task {
             &format!("Exception: {}", exception.error.err_type())
         );
 
-        task_scheduler_client.exception(exception);
-        None
+        self.terminal_outcome(TerminalCompletion::Exception(exception))
     }
 
     fn dispatch_rollback(
         mut self: Box<Self>,
         commit_session: bool,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
-        if !self.rollback_terminal_transaction(task_scheduler_client) {
-            return None;
+    ) -> ExecutionOutcome {
+        if matches!(
+            self.rollback_terminal_transaction(),
+            TerminalRollback::Cancelled
+        ) {
+            return self.terminal_outcome(TerminalCompletion::Cancelled);
         }
 
-        // And then decide if we are going to rollback th session as well.
+        // Preserve the requested session disposition after world-state rollback.
         if !commit_session {
             session.rollback().expect("Could not rollback session");
         } else {
             session.commit().expect("Could not commit session");
         }
         self.vm_host.stop();
-        task_scheduler_client.abort_cancelled();
-        None
+        self.terminal_outcome(TerminalCompletion::Cancelled)
     }
 
     fn dispatch_limit(
@@ -478,7 +454,7 @@ impl Task {
         reason: AbortLimitReason,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         warn!(task_id = self.task_id, "Task abort limit reached");
 
         // Inside a running task, stack should never be empty - if it is, that's a critical bug
@@ -527,31 +503,32 @@ impl Task {
         // Collect traceback information for the handler
         let (stack_list, backtrace_list) = self.vm_host.get_traceback();
         let disposition = if task_scheduler_client.rollback_on_task_limit() {
-            if !self.rollback_terminal_transaction(task_scheduler_client) {
-                return None;
+            if matches!(
+                self.rollback_terminal_transaction(),
+                TerminalRollback::Cancelled
+            ) {
+                return self.terminal_outcome(TerminalCompletion::Cancelled);
             }
             TaskLimitDisposition::Rollback
         } else {
-            match self.commit_terminal_transaction(task_scheduler_client, session)? {
-                CommitResult::Success {
+            match self.commit_terminal_transaction(session) {
+                Ok(CommitResult::Success {
                     mutations_made,
                     timestamp,
-                } => TaskLimitDisposition::Commit {
+                }) => TaskLimitDisposition::Commit {
                     mutations_made,
                     timestamp,
                 },
-                CommitResult::ConflictRetry { conflict_info } => {
-                    self.log_conflict_retry("task limit", conflict_info.as_ref());
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self, "task limit", conflict_info);
-                    return None;
+                Ok(CommitResult::ConflictRetry { conflict_info }) => {
+                    return self.conflict_outcome(session, "task limit", conflict_info);
                 }
+                Err(failure) => return self.commit_failure_outcome(failure),
             }
         };
 
         // The scheduler finalizes task effects and invokes $handle_task_timeout separately.
         self.vm_host.stop();
-        task_scheduler_client.abort_limits_reached(TaskLimitInfo {
+        self.terminal_outcome(TerminalCompletion::Limit(TaskLimitInfo {
             reason,
             disposition,
             this,
@@ -559,23 +536,17 @@ impl Task {
             line_number,
             stack: stack_list,
             backtrace: backtrace_list,
-        });
-        None
+        }))
     }
 
-    fn dispatch_retry(
-        mut self: Box<Self>,
-        task_scheduler_client: &TaskSchedulerClient,
-        session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    fn dispatch_retry(mut self: Box<Self>, session: &dyn Session) -> ExecutionOutcome {
         warn!(task_id = self.task_id, "Task rollback requested, retrying");
 
         self.vm_host.stop();
         rollback_current_transaction().expect("Could not rollback world state");
 
         session.rollback().unwrap();
-        task_scheduler_client.conflict_retry(self, "explicit rollback", None);
-        None
+        self.retry_outcome("explicit rollback", None)
     }
 
     pub(super) fn dispatch_suspend(
@@ -583,14 +554,14 @@ impl Task {
         delay: TaskSuspend,
         task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<Box<Self>> {
+    ) -> ExecutionOutcome {
         // Fast path for RecvMessages(None): commit, drain messages, resume immediately
         if matches!(&delay, TaskSuspend::RecvMessages(None)) {
             let perfc = sched_counters();
             let _t = perfc
                 .timers
                 .start(SchedulerOp::TaskRecvImmediateResumeLatency);
-            let renewal = self.renew_transaction(task_scheduler_client, session, || {
+            let renewal = self.renew_transaction(session, || {
                 let new_world_state =
                     task_scheduler_client.begin_new_transaction().map_err(|e| {
                         WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
@@ -598,33 +569,28 @@ impl Task {
                 Ok((new_world_state, ()))
             });
             match renewal {
-                Renewal::Cancelled => return None,
+                Renewal::Cancelled => return self.terminal_outcome(TerminalCompletion::Cancelled),
                 Renewal::Continued(()) => {
                     let messages = task_scheduler_client.task_recv();
                     let resume_value = List::from_iter(messages).into();
                     self.vm_host.resume_execution(resume_value);
                     self.refresh_retry_state();
-                    return Some(self);
+                    return ExecutionOutcome::Continue(self);
                 }
                 Renewal::Conflict(conflict_info) => {
-                    self.log_conflict_retry("task_recv immediate resume", conflict_info.as_ref());
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(
-                        self,
+                    return self.conflict_outcome(
+                        session,
                         "task_recv immediate resume",
                         conflict_info,
                     );
-                    return None;
                 }
                 Renewal::CommitFailed(e) => {
                     error!("Failed to commit before task_recv: {e:?}");
-                    self.reject_commit(task_scheduler_client, e);
-                    return None;
+                    return self.commit_failure_outcome(CommitFailure::Rejected(e));
                 }
                 Renewal::BeginFailed(e) => {
                     error!("Failed to begin new transaction for task_recv: {e:?}");
-                    task_scheduler_client.abort_transaction_renewal_failed();
-                    return None;
+                    return self.terminal_outcome(TerminalCompletion::RenewalFailed);
                 }
             }
         }
@@ -638,7 +604,7 @@ impl Task {
 
         if is_immediate {
             // Fast path: get new transaction and continue immediately
-            let renewal = self.renew_transaction(task_scheduler_client, session, || {
+            let renewal = self.renew_transaction(session, || {
                 let new_world_state =
                     task_scheduler_client.begin_new_transaction().map_err(|e| {
                         WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
@@ -646,43 +612,38 @@ impl Task {
                 Ok((new_world_state, ()))
             });
             match renewal {
-                Renewal::Cancelled => return None,
+                Renewal::Cancelled => return self.terminal_outcome(TerminalCompletion::Cancelled),
                 Renewal::Continued(()) => {
                     // Resume first (which resets start_time), then snapshot
                     // so retry_state has fresh timing if we need to restore
                     self.vm_host.resume_execution(resume_value);
                     self.refresh_retry_state();
-                    return Some(self);
+                    return ExecutionOutcome::Continue(self);
                 }
                 Renewal::Conflict(conflict_info) => {
-                    self.log_conflict_retry("immediate resume", conflict_info.as_ref());
-                    session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(self, "immediate resume", conflict_info);
-                    return None;
+                    return self.conflict_outcome(session, "immediate resume", conflict_info);
                 }
                 Renewal::CommitFailed(e) => {
                     error!("Failed to commit before immediate resume: {e:?}");
-                    self.reject_commit(task_scheduler_client, e);
-                    return None;
+                    return self.commit_failure_outcome(CommitFailure::Rejected(e));
                 }
                 Renewal::BeginFailed(e) => {
                     error!("Failed to begin new transaction for immediate resume: {e:?}");
-                    task_scheduler_client.abort_transaction_renewal_failed();
-                    return None;
+                    return self.terminal_outcome(TerminalCompletion::RenewalFailed);
                 }
             }
         }
 
         // VMHost is now suspended for execution, and we'll be waiting for a Resume
-        let commit_result = self.commit_yield_transaction(task_scheduler_client, session)?;
+        let commit_result = match self.commit_yield_transaction(session) {
+            Ok(result) => result,
+            Err(failure) => return self.commit_failure_outcome(failure),
+        };
 
         let boundary = match commit_result {
             YieldCommit::Committed(boundary) => boundary,
             YieldCommit::Conflict(conflict_info) => {
-                self.log_conflict_retry("suspend", conflict_info.as_ref());
-                session.rollback().unwrap();
-                task_scheduler_client.conflict_retry(self, "suspend", conflict_info);
-                return None;
+                return self.conflict_outcome(session, "suspend", conflict_info);
             }
         };
 
@@ -697,8 +658,7 @@ impl Task {
         // In both cases we'll rely on the scheduler to wake us up in its processing loop
         // rather than sleep here, which would make this thread unresponsive to other
         // messages.
-        task_scheduler_client.suspend(delay.clone(), self, boundary);
-        None
+        self.suspension_outcome(SuspensionKind::Wait(delay), boundary)
     }
 }
 

@@ -22,23 +22,34 @@ use crate::{
         RenewedTransaction, TransactionRenewalError, commit_current_transaction, has_active_task,
         renew_current_transaction, rollback_current_transaction,
     },
-    tasks::{
-        TaskStart, task_control::CommittedBoundary, task_scheduler_client::TaskSchedulerClient,
-    },
+    tasks::{TaskStart, task_control::CommittedBoundary},
 };
 use moor_common::{
     model::{CommitResult, ConflictInfo, ConflictTarget, WorldState, WorldStateError},
-    tasks::{CommandError, Exception, Session},
+    tasks::Session,
 };
 use moor_compiler::to_literal;
-use moor_var::E_EXEC;
 use tracing::warn;
 
+#[derive(Debug)]
+pub(super) enum CommitFailure {
+    Cancelled,
+    Rejected(WorldStateError),
+}
+
+#[must_use]
+pub(super) enum TerminalRollback {
+    RolledBack,
+    Cancelled,
+}
+
+#[must_use]
 pub(super) enum YieldCommit {
     Committed(CommittedBoundary),
     Conflict(Option<ConflictInfo>),
 }
 
+#[must_use]
 pub(super) enum Renewal<R> {
     Continued(R),
     Conflict(Option<ConflictInfo>),
@@ -48,36 +59,11 @@ pub(super) enum Renewal<R> {
 }
 
 impl Task {
-    pub(super) fn cancel_before_commit(&self, task_scheduler_client: &TaskSchedulerClient) {
+    pub(super) fn rollback_cancelled_transaction(&self) {
         if has_active_task() {
             rollback_current_transaction()
                 .expect("Could not rollback transaction after cancellation won");
         }
-        task_scheduler_client.abort_cancelled();
-    }
-
-    pub(super) fn reject_commit(
-        &self,
-        task_scheduler_client: &TaskSchedulerClient,
-        error: WorldStateError,
-    ) {
-        if let TaskStart::StartBatchWorldState { result_sink, .. } = self.state.task_start() {
-            *result_sink.lock().unwrap() = Some(Err(
-                moor_common::tasks::SchedulerError::CommandExecutionError(
-                    CommandError::DatabaseError(error.clone()),
-                ),
-            ));
-        }
-        let error = match error {
-            error @ WorldStateError::DatabaseOverloaded(_) => error.to_error(),
-            error => E_EXEC.with_msg(|| format!("Database commit failed: {error}")),
-        };
-        let (stack, backtrace) = self.vm_host.get_traceback();
-        task_scheduler_client.commit_rejected(Box::new(Exception {
-            error,
-            stack,
-            backtrace,
-        }));
     }
 
     #[inline]
@@ -205,29 +191,25 @@ impl Task {
     /// cancellation leaves the active-task record in place for deterministic cleanup.
     pub(super) fn commit_yield_transaction(
         &self,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<YieldCommit> {
+    ) -> Result<YieldCommit, CommitFailure> {
         let Some(claim) = self.control.claim_boundary() else {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
+            self.rollback_cancelled_transaction();
+            return Err(CommitFailure::Cancelled);
         };
 
         let result = commit_current_transaction();
         if matches!(&result, Ok(CommitResult::Success { .. })) {
-            return Some(YieldCommit::Committed(claim.committed()));
+            return Ok(YieldCommit::Committed(claim.committed()));
         }
 
         if claim.failed() {
             return match result {
                 Ok(CommitResult::ConflictRetry { conflict_info }) => {
-                    Some(YieldCommit::Conflict(conflict_info))
+                    Ok(YieldCommit::Conflict(conflict_info))
                 }
                 Ok(CommitResult::Success { .. }) => unreachable!("success transferred the claim"),
-                Err(error) => {
-                    self.reject_commit(task_scheduler_client, error);
-                    None
-                }
+                Err(error) => Err(CommitFailure::Rejected(error)),
             };
         }
 
@@ -237,18 +219,17 @@ impl Task {
                 "Could not roll back session after cancelled yield commit"
             );
         }
-        self.cancel_before_commit(task_scheduler_client);
-        None
+        self.rollback_cancelled_transaction();
+        Err(CommitFailure::Cancelled)
     }
 
     pub(super) fn commit_terminal_transaction(
         &self,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
-    ) -> Option<CommitResult> {
+    ) -> Result<CommitResult, CommitFailure> {
         let Some(claim) = self.control.claim_terminal() else {
-            self.cancel_before_commit(task_scheduler_client);
-            return None;
+            self.rollback_cancelled_transaction();
+            return Err(CommitFailure::Cancelled);
         };
 
         let result = commit_current_transaction();
@@ -260,11 +241,8 @@ impl Task {
         };
         if proceed {
             return match result {
-                Ok(result) => Some(result),
-                Err(error) => {
-                    self.reject_commit(task_scheduler_client, error);
-                    None
-                }
+                Ok(result) => Ok(result),
+                Err(error) => Err(CommitFailure::Rejected(error)),
             };
         }
 
@@ -274,30 +252,30 @@ impl Task {
                 "Could not roll back session after cancelled terminal commit"
             );
         }
-        self.cancel_before_commit(task_scheduler_client);
-        None
+        self.rollback_cancelled_transaction();
+        Err(CommitFailure::Cancelled)
     }
 
-    pub(super) fn rollback_terminal_transaction(
-        &self,
-        task_scheduler_client: &TaskSchedulerClient,
-    ) -> bool {
+    pub(super) fn rollback_terminal_transaction(&self) -> TerminalRollback {
         let Some(claim) = self.control.claim_terminal() else {
-            self.cancel_before_commit(task_scheduler_client);
-            return false;
+            self.rollback_cancelled_transaction();
+            return TerminalRollback::Cancelled;
         };
         rollback_current_transaction().expect("Could not rollback terminal task transaction");
-        claim.rolled_back()
+        if claim.rolled_back() {
+            TerminalRollback::RolledBack
+        } else {
+            TerminalRollback::Cancelled
+        }
     }
 
     pub(super) fn renew_transaction<R>(
         &self,
-        task_scheduler_client: &TaskSchedulerClient,
         session: &dyn Session,
         create_transaction: impl FnOnce() -> Result<(Box<dyn WorldState>, R), WorldStateError>,
     ) -> Renewal<R> {
         let Some(claim) = self.control.claim_boundary() else {
-            self.cancel_before_commit(task_scheduler_client);
+            self.rollback_cancelled_transaction();
             return Renewal::Cancelled;
         };
 
@@ -326,7 +304,7 @@ impl Task {
                 "Could not roll back session after cancelled transaction renewal"
             );
         }
-        self.cancel_before_commit(task_scheduler_client);
+        self.rollback_cancelled_transaction();
         Renewal::Cancelled
     }
 }

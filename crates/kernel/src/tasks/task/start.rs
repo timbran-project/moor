@@ -17,7 +17,7 @@
 //! try `do_command`; a false result returns here through `setup_start_parse_command` for ordinary
 //! command lookup. `dispatch` owns that return path and subsequent VM responses.
 
-use super::{Task, TaskState};
+use super::{Task, TaskState, transaction::CommitFailure};
 use crate::{
     config::Config,
     task_context::{
@@ -188,18 +188,26 @@ impl Task {
                     Ok(_) => {
                         if rollback {
                             let Some(claim) = self.control.claim_terminal() else {
-                                self.cancel_before_commit(tsc);
+                                self.rollback_cancelled_transaction();
+                                tsc.abort_cancelled();
                                 return false;
                             };
                             let _ = rollback_current_transaction();
                             claim.rolled_back();
                         } else {
                             let session = current_session();
-                            let Some(commit_result) =
-                                self.commit_terminal_transaction(tsc, session.as_ref())
-                            else {
-                                return false;
-                            };
+                            let commit_result =
+                                match self.commit_terminal_transaction(session.as_ref()) {
+                                    Ok(result) => result,
+                                    Err(CommitFailure::Cancelled) => {
+                                        tsc.abort_cancelled();
+                                        return false;
+                                    }
+                                    Err(CommitFailure::Rejected(error)) => {
+                                        tsc.commit_rejected(self.commit_rejection(error));
+                                        return false;
+                                    }
+                                };
                             match commit_result {
                                 CommitResult::Success { .. } => {}
                                 CommitResult::ConflictRetry { conflict_info } => {
