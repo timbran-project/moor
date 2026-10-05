@@ -68,6 +68,24 @@ pub struct SuspendedTask {
     pub timer_generation: u64,
 }
 
+impl SuspendedTask {
+    fn new(
+        wake_condition: WakeCondition,
+        task: Box<Task>,
+        session: Arc<dyn Session>,
+        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    ) -> Self {
+        Self {
+            enqueued_at: Timestamp::now(),
+            wake_condition,
+            task,
+            session,
+            result_sender,
+            timer_generation: 0,
+        }
+    }
+}
+
 /// Possible conditions in which a suspended task can wake from suspension.
 #[derive(Debug)]
 pub enum WakeCondition {
@@ -274,11 +292,8 @@ impl SuspensionQ {
         &mut self,
         bg_session_factory: Arc<dyn SessionFactory>,
     ) -> Option<TaskId> {
-        // LambdaMOO doesn't do anything special to filter out tasks that are too old, or tasks that
-        // are related to disconnected players, or anything like that.
-        // We'll just start them all up and let the scheduler handle them.
-        // This could in theory lead to a sudden glut of starting tasks firing up when the server
-        // restarts, but we'll just have to live with that for now.
+        // Retain every persisted task, including old tasks and disconnected players,
+        // matching LambdaMOO restoration behavior.
         let tasks = self
             .tasks_database
             .load_tasks()
@@ -292,100 +307,8 @@ impl SuspensionQ {
                 .expect("Unable to create new background session for suspended task");
 
             let task_id = task.task.task_id;
-            self.next_generation += 1;
-            let generation = self.next_generation;
-            task.timer_generation = generation;
-            match &task.wake_condition {
-                WakeCondition::Time(wake_time) => {
-                    let now = Instant::now();
-                    let inserted =
-                        Deadline::at(*wake_time)
-                            .remaining_at(now)
-                            .is_some_and(|delay| {
-                                let timer_entry = TimerEntry {
-                                    task_id,
-                                    delay,
-                                    generation,
-                                };
-                                self.timer_wheel
-                                    .insert_with_delay(timer_entry, delay)
-                                    .is_ok()
-                            });
-                    if !inserted {
-                        // Past deadline or timer expired - wake immediately
-                        self.enqueue_immediate_wake(task_id);
-                    }
-                }
-                WakeCondition::Immediate(_) => {
-                    self.enqueue_immediate_wake(task_id);
-                }
-                WakeCondition::Task(dependency_task_id) => {
-                    self.task_dependencies
-                        .entry(*dependency_task_id)
-                        .or_default()
-                        .push(task_id);
-                }
-                WakeCondition::Input(input_request_id) => {
-                    self.input_requests
-                        .insert(*input_request_id, (task_id, task.task.player()));
-                }
-                WakeCondition::Worker(worker_request_id) => {
-                    self.worker_requests.insert(*worker_request_id, task_id);
-                }
-                WakeCondition::Never => {
-                    //
-                }
-                WakeCondition::GCComplete => {
-                    self.gc_waiting_tasks.push(task_id);
-                }
-                WakeCondition::Retry(wake_time) => {
-                    // Retry tasks shouldn't be persisted, but handle gracefully if loaded
-                    self.retry_tasks.push(task_id);
-                    let now = Instant::now();
-                    let inserted =
-                        Deadline::at(*wake_time)
-                            .remaining_at(now)
-                            .is_some_and(|delay| {
-                                let timer_entry = TimerEntry {
-                                    task_id,
-                                    delay,
-                                    generation,
-                                };
-                                self.timer_wheel
-                                    .insert_with_delay(timer_entry, delay)
-                                    .is_ok()
-                            });
-                    if !inserted {
-                        self.enqueue_immediate_wake(task_id);
-                    }
-                }
-                WakeCondition::TaskMessage(wake_time) => {
-                    self.message_waiting_tasks.push(task_id);
-                    let now = Instant::now();
-                    let inserted =
-                        Deadline::at(*wake_time)
-                            .remaining_at(now)
-                            .is_some_and(|delay| {
-                                let timer_entry = TimerEntry {
-                                    task_id,
-                                    delay,
-                                    generation,
-                                };
-                                self.timer_wheel
-                                    .insert_with_delay(timer_entry, delay)
-                                    .is_ok()
-                            });
-                    if !inserted {
-                        self.enqueue_immediate_wake(task_id);
-                    }
-                }
-                WakeCondition::Checkpoint(_) => {
-                    // Checkpoint jobs do not survive process restart.
-                }
-                WakeCondition::StorageCompaction(_) => {
-                    // Storage compaction jobs do not survive process restart.
-                }
-            }
+            let input_player = task.task.player();
+            self.register_wake(&mut task, input_player);
 
             self.tasks.insert(task_id, task);
             self.live_tasks.insert(task_id);
@@ -406,122 +329,14 @@ impl SuspensionQ {
         session: Arc<dyn Session>,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
     ) {
-        let task_id = task.task_id;
-        let now = Instant::now();
-
-        // Assign a generation stamp for timer-based wake conditions.
-        self.next_generation += 1;
-        let generation = self.next_generation;
-
-        // Add to appropriate storage based on wake condition
-        let should_persist = match &wake_condition {
-            WakeCondition::Time(wake_time) => {
-                let inserted = Deadline::at(*wake_time)
-                    .remaining_at(now)
-                    .is_some_and(|delay| {
-                        let timer_entry = TimerEntry {
-                            task_id,
-                            delay,
-                            generation,
-                        };
-                        self.timer_wheel
-                            .insert_with_delay(timer_entry, delay)
-                            .is_ok()
-                    });
-                if !inserted {
-                    // Past deadline or timer expired - wake immediately
-                    self.enqueue_immediate_wake(task_id);
-                }
-                inserted // Persist only if successfully inserted into timer wheel
-            }
-            WakeCondition::Immediate(_) => {
-                self.enqueue_immediate_wake(task_id);
-                false // Skip database persistence for immediate wake
-            }
-            WakeCondition::Task(dependency_task_id) => {
-                self.task_dependencies
-                    .entry(*dependency_task_id)
-                    .or_default()
-                    .push(task_id);
-                true
-            }
-            WakeCondition::Input(input_request_id) => {
-                self.input_requests
-                    .insert(*input_request_id, (task_id, task.player()));
-                // TODO No point in saving, because we'll probably never get the input, I think. But we
-                //  could re-evaluate this
-                false
-            }
-            WakeCondition::Worker(worker_request_id) => {
-                self.worker_requests.insert(*worker_request_id, task_id);
-                true
-            }
-            WakeCondition::Never => true,
-            WakeCondition::GCComplete => {
-                self.gc_waiting_tasks.push(task_id);
-                true
-            }
-            WakeCondition::Retry(wake_time) => {
-                self.retry_tasks.push(task_id);
-                let inserted = Deadline::at(*wake_time)
-                    .remaining_at(now)
-                    .is_some_and(|delay| {
-                        let timer_entry = TimerEntry {
-                            task_id,
-                            delay,
-                            generation,
-                        };
-                        self.timer_wheel
-                            .insert_with_delay(timer_entry, delay)
-                            .is_ok()
-                    });
-                if !inserted {
-                    // Past deadline - wake immediately for retry
-                    self.enqueue_immediate_wake(task_id);
-                }
-                false // Don't persist retry tasks - they're transient
-            }
-            WakeCondition::TaskMessage(wake_time) => {
-                self.message_waiting_tasks.push(task_id);
-                let inserted = Deadline::at(*wake_time)
-                    .remaining_at(now)
-                    .is_some_and(|delay| {
-                        let timer_entry = TimerEntry {
-                            task_id,
-                            delay,
-                            generation,
-                        };
-                        self.timer_wheel
-                            .insert_with_delay(timer_entry, delay)
-                            .is_ok()
-                    });
-                if !inserted {
-                    // Past deadline - wake immediately
-                    self.enqueue_immediate_wake(task_id);
-                }
-                true // Persist - message queue state should survive restarts
-            }
-            WakeCondition::Checkpoint(_) => false,
-            WakeCondition::StorageCompaction(_) => false,
-        };
-
-        let sr = SuspendedTask {
-            enqueued_at: Timestamp::now(),
-            wake_condition,
-            timer_generation: generation,
-            task,
-            session,
-            result_sender,
-        };
-
-        if should_persist && let Err(e) = self.tasks_database.save_task(&sr) {
-            error!(?e, "Could not save suspended task");
-        }
-
-        self.tasks.insert(task_id, sr);
+        let input_player = task.player();
+        self.insert_task(
+            SuspendedTask::new(wake_condition, task, session, result_sender),
+            input_player,
+        );
     }
 
-    /// Add a task waiting for input from a specific player connection.
+    /// Register input against the requested player before exposing the suspended task.
     pub(crate) fn add_input_task(
         &mut self,
         input_request_id: Uuid,
@@ -530,70 +345,134 @@ impl SuspensionQ {
         session: Arc<dyn Session>,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
     ) {
-        let task_id = task.task_id;
-        self.add_task(
-            WakeCondition::Input(input_request_id),
-            task,
-            session,
-            result_sender,
+        self.insert_task(
+            SuspendedTask::new(
+                WakeCondition::Input(input_request_id),
+                task,
+                session,
+                result_sender,
+            ),
+            input_player,
         );
-        self.input_requests
-            .insert(input_request_id, (task_id, input_player));
     }
 
-    /// Remove a task from the set of suspended tasks.
-    pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<SuspendedTask> {
-        let task = self.tasks.remove(&task_id);
-        if let Some(ref suspended_task) = task {
-            // Clean up from all data structures based on wake condition
-            match &suspended_task.wake_condition {
-                WakeCondition::Time(_) => {
-                    // Timer wheel handles removal automatically when tasks expire
-                    // No manual cleanup needed
-                }
-                WakeCondition::Immediate(_) => {
-                    // No cleanup needed for queue - scheduler will ignore stale task ids
-                    // if task is no longer in the suspended tasks map.
-                }
-                WakeCondition::Task(dependency_task_id) => {
-                    // Remove from task dependencies
-                    if let Some(dependents) = self.task_dependencies.get_mut(dependency_task_id) {
-                        dependents.retain(|&id| id != task_id);
-                        if dependents.is_empty() {
-                            self.task_dependencies.remove(dependency_task_id);
-                        }
+    fn insert_task(&mut self, mut task: SuspendedTask, input_player: Obj) {
+        let should_persist = self.register_wake(&mut task, input_player);
+        if should_persist && let Err(error) = self.tasks_database.save_task(&task) {
+            error!(?error, "Could not save suspended task");
+        }
+        self.tasks.insert(task.task.task_id, task);
+    }
+
+    /// Register exactly the indexes implied by the wake condition. Returns persistence policy
+    /// for a new suspension; restoration uses the indexes without rewriting each loaded record.
+    fn register_wake(&mut self, task: &mut SuspendedTask, input_player: Obj) -> bool {
+        let task_id = task.task.task_id;
+        self.next_generation += 1;
+        let generation = self.next_generation;
+        task.timer_generation = generation;
+        match &task.wake_condition {
+            WakeCondition::Time(deadline) => self.register_timer(task_id, generation, *deadline),
+            WakeCondition::Immediate(_) => {
+                self.enqueue_immediate_wake(task_id);
+                false
+            }
+            WakeCondition::Task(dependency) => {
+                self.task_dependencies
+                    .entry(*dependency)
+                    .or_default()
+                    .push(task_id);
+                true
+            }
+            WakeCondition::Input(request) => {
+                self.input_requests
+                    .insert(*request, (task_id, input_player));
+                false
+            }
+            WakeCondition::Worker(request) => {
+                self.worker_requests.insert(*request, task_id);
+                true
+            }
+            WakeCondition::Never => true,
+            WakeCondition::GCComplete => {
+                self.gc_waiting_tasks.push(task_id);
+                true
+            }
+            WakeCondition::Retry(deadline) => {
+                self.retry_tasks.push(task_id);
+                self.register_timer(task_id, generation, *deadline);
+                false
+            }
+            WakeCondition::TaskMessage(deadline) => {
+                self.message_waiting_tasks.push(task_id);
+                self.register_timer(task_id, generation, *deadline);
+                true
+            }
+            WakeCondition::Checkpoint(_) | WakeCondition::StorageCompaction(_) => false,
+        }
+    }
+
+    /// Expired or unrepresentable deadlines use the immediate queue. Only successfully
+    /// armed ordinary timers are persisted when first suspended.
+    fn register_timer(&mut self, task_id: TaskId, generation: u64, deadline: Instant) -> bool {
+        let inserted = Deadline::at(deadline)
+            .remaining_at(Instant::now())
+            .is_some_and(|delay| {
+                let entry = TimerEntry {
+                    task_id,
+                    generation,
+                    delay,
+                };
+                self.timer_wheel.insert_with_delay(entry, delay).is_ok()
+            });
+        if !inserted {
+            self.enqueue_immediate_wake(task_id);
+        }
+        inserted
+    }
+
+    /// Remove one registration. Timer and immediate entries can remain stale until dispatch.
+    fn unregister_wake(&mut self, task_id: TaskId, wake_condition: &WakeCondition) {
+        match wake_condition {
+            WakeCondition::Time(_)
+            | WakeCondition::Immediate(_)
+            | WakeCondition::Never
+            | WakeCondition::Checkpoint(_)
+            | WakeCondition::StorageCompaction(_) => {}
+            WakeCondition::Task(dependency_task_id) => {
+                // Remove from task dependencies
+                if let Some(dependents) = self.task_dependencies.get_mut(dependency_task_id) {
+                    dependents.retain(|&id| id != task_id);
+                    if dependents.is_empty() {
+                        self.task_dependencies.remove(dependency_task_id);
                     }
                 }
-                WakeCondition::Input(input_request_id) => {
-                    self.input_requests.remove(input_request_id);
-                }
-                WakeCondition::Worker(worker_request_id) => {
-                    self.worker_requests.remove(worker_request_id);
-                }
-                WakeCondition::Never => {
-                    //
-                }
-                WakeCondition::GCComplete => {
-                    self.gc_waiting_tasks.retain(|&id| id != task_id);
-                }
-                WakeCondition::Retry(_) => {
-                    self.retry_tasks.retain(|&id| id != task_id);
-                }
-                WakeCondition::TaskMessage(_) => {
-                    self.message_waiting_tasks.retain(|&id| id != task_id);
-                }
-                WakeCondition::Checkpoint(_) => {
-                    // No auxiliary queue entry to remove.
-                }
-                WakeCondition::StorageCompaction(_) => {
-                    // No auxiliary queue entry to remove.
-                }
             }
-
-            // Try to delete from database - will be a no-op for tasks that were never persisted
-            let _ = self.tasks_database.delete_task(task_id);
+            WakeCondition::Input(input_request_id) => {
+                self.input_requests.remove(input_request_id);
+            }
+            WakeCondition::Worker(worker_request_id) => {
+                self.worker_requests.remove(worker_request_id);
+            }
+            WakeCondition::GCComplete => {
+                self.gc_waiting_tasks.retain(|&id| id != task_id);
+            }
+            WakeCondition::Retry(_) => {
+                self.retry_tasks.retain(|&id| id != task_id);
+            }
+            WakeCondition::TaskMessage(_) => {
+                self.message_waiting_tasks.retain(|&id| id != task_id);
+            }
         }
-        task
+    }
+
+    /// Remove a task from suspension, retaining live membership for a wakeup transfer.
+    pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<SuspendedTask> {
+        let task = self.tasks.remove(&task_id)?;
+        self.unregister_wake(task_id, &task.wake_condition);
+        // Deletion remains explicit and is a no-op for a record that was never persisted.
+        let _ = self.tasks_database.delete_task(task_id);
+        Some(task)
     }
 
     /// Remove a task permanently from suspension and wake tasks depending on it.
@@ -873,6 +752,76 @@ mod tests {
 
     fn mock_session() -> Arc<dyn Session> {
         Arc::new(NoopClientSession::new())
+    }
+
+    #[test]
+    fn restored_waiters_respond_to_completion_events() {
+        use crate::tasks::TasksDbError;
+        use moor_common::tasks::SessionError;
+        use parking_lot::Mutex;
+
+        struct RestoreDb(Mutex<Vec<SuspendedTask>>);
+        impl TasksDb for RestoreDb {
+            fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
+                Ok(std::mem::take(&mut *self.0.lock()))
+            }
+            fn save_task(&self, _: &SuspendedTask) -> Result<(), TasksDbError> {
+                panic!("restoration must not rewrite each loaded task")
+            }
+            fn delete_task(&self, _: TaskId) -> Result<(), TasksDbError> {
+                Ok(())
+            }
+            fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
+                Ok(())
+            }
+            fn compact(&self) {}
+        }
+        struct Factory;
+        impl SessionFactory for Factory {
+            fn mk_background_session(
+                self: Arc<Self>,
+                _: &Obj,
+            ) -> Result<Arc<dyn Session>, SessionError> {
+                Ok(mock_session())
+            }
+        }
+        let worker = Uuid::new_v4();
+        let input = Uuid::new_v4();
+        let tasks = [
+            WakeCondition::GCComplete,
+            WakeCondition::Task(99),
+            WakeCondition::Worker(worker),
+            WakeCondition::Input(input),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(id, condition)| {
+            SuspendedTask::new(condition, mock_task(id + 1), mock_session(), None)
+        })
+        .collect();
+        let mut queue = SuspensionQ::new(Box::new(RestoreDb(Mutex::new(tasks))));
+        assert_eq!(queue.load_tasks(Arc::new(Factory)), Some(4));
+
+        queue.enqueue_gc_waiting_tasks();
+        queue.enqueue_dependents_for(99);
+        assert_eq!(queue.pop_immediate_wake().unwrap().0, 1);
+        assert_eq!(queue.pop_immediate_wake().unwrap().0, 2);
+        assert!(queue.pop_immediate_wake().is_none());
+        assert_eq!(queue.pull_task_for_worker(worker).unwrap().task.task_id, 3);
+        assert!(queue.pull_task_for_worker(worker).is_none());
+        assert_eq!(
+            queue
+                .pull_task_for_input(input, &SYSTEM_OBJECT, &SYSTEM_OBJECT)
+                .unwrap()
+                .task
+                .task_id,
+            4
+        );
+        assert!(
+            queue
+                .pull_task_for_input(input, &SYSTEM_OBJECT, &SYSTEM_OBJECT)
+                .is_none()
+        );
     }
 
     #[test]
