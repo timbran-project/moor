@@ -31,7 +31,7 @@ mod persistence;
 mod suspension;
 
 pub(crate) use active::{
-    LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskAttempt,
+    LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskDispatch,
 };
 pub(crate) use suspension::RegisteredSuspendedTask;
 pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition};
@@ -86,16 +86,16 @@ impl TaskQ {
         self.live_tasks.register(task_id)
     }
 
-    pub(crate) fn attempt(&self, task_id: TaskId) -> Option<TaskAttempt> {
+    pub(crate) fn dispatch(&self, task_id: TaskId) -> Option<TaskDispatch> {
         self.active
             .get(&task_id)
-            .map(|task| TaskAttempt::new(task_id, task.control.clone()))
+            .map(|task| TaskDispatch::new(task_id, task.control.clone()))
     }
 
-    pub(crate) fn is_current_attempt(&self, attempt: &TaskAttempt) -> bool {
+    pub(crate) fn is_current_dispatch(&self, dispatch: &TaskDispatch) -> bool {
         self.active
-            .get(&attempt.task_id())
-            .is_some_and(|task| attempt.matches(task))
+            .get(&dispatch.task_id())
+            .is_some_and(|task| dispatch.matches(task))
     }
 
     /// Check if a task exists and return its controlling principal.
@@ -112,23 +112,23 @@ impl TaskQ {
 
     /// Worker requests can change only their own dispatch while it is still executing.
     /// Callers retain the lifecycle lock from this check through the corresponding mutation.
-    pub(crate) fn is_running_attempt(&self, attempt: &TaskAttempt) -> bool {
-        self.running_attempt(attempt).is_some()
+    pub(crate) fn is_running_dispatch(&self, dispatch: &TaskDispatch) -> bool {
+        self.running_dispatch(dispatch).is_some()
     }
 
-    pub(crate) fn running_attempt(&self, attempt: &TaskAttempt) -> Option<&RunningTask> {
+    pub(crate) fn running_dispatch(&self, dispatch: &TaskDispatch) -> Option<&RunningTask> {
         self.active
-            .get(&attempt.task_id())
-            .filter(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
+            .get(&dispatch.task_id())
+            .filter(|task| dispatch.matches(task) && task.phase == RunningTaskPhase::Running)
     }
 
-    pub(crate) fn running_attempt_mut(
+    pub(crate) fn running_dispatch_mut(
         &mut self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
     ) -> Option<&mut RunningTask> {
         self.active
-            .get_mut(&attempt.task_id())
-            .filter(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
+            .get_mut(&dispatch.task_id())
+            .filter(|task| dispatch.matches(task) && task.phase == RunningTaskPhase::Running)
     }
 
     /// Collect anonymous object references from all suspended tasks

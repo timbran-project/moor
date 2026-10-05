@@ -21,13 +21,13 @@ mod resume;
 mod retry;
 mod suspend;
 
-use crate::tasks::{scheduler::Scheduler, task_q::TaskAttempt};
+use crate::tasks::{registry::TaskDispatch, scheduler::Scheduler};
 use moor_common::tasks::TaskId;
 
 impl Scheduler {
-    /// Compatibility entry points address the active attempt at call time. Worker clients retain
+    /// Compatibility entry points address the active dispatch at call time. Worker clients retain
     /// the identity captured during dispatch and pass it directly to the transition instead.
-    pub(crate) fn capture_task_attempt(&self, task_id: TaskId) -> Option<TaskAttempt> {
-        self.lifecycle.lock().task_q.attempt(task_id)
+    pub(crate) fn capture_task_dispatch(&self, task_id: TaskId) -> Option<TaskDispatch> {
+        self.lifecycle.lock().task_q.dispatch(task_id)
     }
 }

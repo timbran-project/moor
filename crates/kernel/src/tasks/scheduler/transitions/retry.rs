@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Conflict retry replaces an attempt under the lifecycle lock.
+//! Conflict retry replaces a dispatch under the lifecycle lock.
 //! The callback registers backoff. `TaskLifecycle::wake_retry_suspended_task` consumes that
 //! continuation, restores its snapshot, and prepares the retry session before worker dispatch.
 
@@ -22,7 +22,7 @@ use crate::{
         SchedulerOp, TaskNotification,
         registry::{
             LiveTaskRegistration, RegisteredSuspendedTask, RunningTask, RunningTaskPhase,
-            SuspendedTask, TaskAttempt, TaskQ, WakeCondition,
+            SuspendedTask, TaskDispatch, TaskQ, WakeCondition,
         },
         sched_counters,
         scheduler::{
@@ -66,9 +66,9 @@ impl Scheduler {
         let _t = perfc.timers.start(SchedulerOp::TaskConflictRetry);
 
         assert_eq!(task_id, task.task_id);
-        let attempt = TaskAttempt::new(task_id, task.control.clone());
+        let dispatch = TaskDispatch::new(task_id, task.control.clone());
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(&attempt)
+        if !lc.task_q.is_current_dispatch(&dispatch)
             || lc.task_q.active[&task_id].phase != RunningTaskPhase::Running
         {
             return;
@@ -220,7 +220,7 @@ impl TaskLifecycle {
             }
         };
 
-        // Complete fallible preparation before installing an active attempt. No worker exists
+        // Complete fallible preparation before installing an active dispatch. No worker exists
         // yet to report these errors or remove a partially constructed active record.
         let world_state = match database.new_world_state() {
             Ok(ws) => ws,
@@ -257,7 +257,7 @@ impl TaskLifecycle {
         self.task_q.insert_active(task_id, task_control);
 
         let task_scheduler_client =
-            TaskSchedulerClient::for_attempt(task_id, scheduler.clone(), task.control.clone());
+            TaskSchedulerClient::for_dispatch(task_id, scheduler.clone(), task.control.clone());
         let player = task.player();
         let wake_to_dispatch_started_at = Instant::now();
         let dispatch_started_at = Instant::now();

@@ -392,7 +392,7 @@ impl Scheduler {
 mod tests {
     use super::super::tests::{scheduler, suspended_task};
     use super::*;
-    use crate::tasks::task_q::WakeCondition;
+    use crate::tasks::registry::WakeCondition;
     use moor_common::model::{ObjAttrs, ObjFlag, ObjectKind, WorldStateError};
     use moor_db::GCError;
     use moor_var::NOTHING;

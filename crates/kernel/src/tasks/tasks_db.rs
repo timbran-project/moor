@@ -11,8 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tasks::registry::SuspendedTask;
 use crate::tasks::schedule_q::{ScheduleEntry, ScheduleId};
-use crate::tasks::task_q::SuspendedTask;
 use moor_common::tasks::TaskId;
 
 #[derive(Debug, thiserror::Error)]

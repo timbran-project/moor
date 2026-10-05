@@ -20,12 +20,12 @@
 
 use crate::tasks::{
     checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
+    registry::WakeCondition,
     scheduler::{ResumeAction, Scheduler, SchedulerState},
     storage_compaction::{
         StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
         prepare_storage_compaction,
     },
-    task_q::WakeCondition,
 };
 use moor_common::tasks::{SchedulerError, SchedulerError::TaskAbortedCancelled, TaskId};
 use moor_db::DatabaseRelation;

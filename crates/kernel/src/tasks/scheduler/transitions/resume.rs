@@ -27,7 +27,7 @@ use crate::{
     config::Config,
     tasks::{
         SchedulerOp, TaskStart,
-        registry::{RegisteredSuspendedTask, SuspendedTask, TaskAttempt, TaskQ, WakeCondition},
+        registry::{RegisteredSuspendedTask, SuspendedTask, TaskDispatch, TaskQ, WakeCondition},
         sched_counters,
         scheduler::{
             ResumeAction, Scheduler,
@@ -283,18 +283,18 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn handle_resume_task_for_attempt(
+    pub(crate) fn handle_resume_task_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         queued_task_id: TaskId,
         sender_authority: TaskPermissions,
         return_value: Var,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_running_attempt(attempt) {
+        if !lc.task_q.is_running_dispatch(dispatch) {
             return v_err(E_INVARG);
         }
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         lc.resume_task(
             task_id,
             queued_task_id,
@@ -313,23 +313,23 @@ impl Scheduler {
         who: Obj,
         line: String,
     ) -> Result<TaskId, Error> {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return Err(E_INVIND.msg("Task not found"));
         };
-        self.handle_force_input_for_attempt(&attempt, who, line)
+        self.handle_force_input_for_dispatch(&dispatch, who, line)
     }
 
-    pub(crate) fn handle_force_input_for_attempt(
+    pub(crate) fn handle_force_input_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         who: Obj,
         line: String,
     ) -> Result<TaskId, Error> {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let mut lc = self.lifecycle.lock();
 
         let new_session = {
-            let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
+            let Some(task) = lc.task_q.running_dispatch_mut(dispatch) else {
                 warn!(task_id, "Task not found for force input request");
                 return Err(E_INVIND.msg("Task not found"));
             };

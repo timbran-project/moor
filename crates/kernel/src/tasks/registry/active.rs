@@ -101,14 +101,14 @@ impl LiveTaskRegistry {
 }
 
 /// Identity of one worker dispatch. Wakeup and conflict retry create a new control object.
-/// Clones identify the same attempt; they do not own its completion or live registration.
+/// Clones identify the same dispatch; they do not own its completion or live registration.
 #[derive(Clone)]
-pub(crate) struct TaskAttempt {
+pub(crate) struct TaskDispatch {
     task_id: TaskId,
     control: Arc<TaskControl>,
 }
 
-impl TaskAttempt {
+impl TaskDispatch {
     pub(crate) fn new(task_id: TaskId, control: Arc<TaskControl>) -> Self {
         Self { task_id, control }
     }
@@ -140,7 +140,7 @@ pub(crate) enum RunningTaskPhase {
 /// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
 pub(crate) struct RunningTask {
     pub(crate) registration: LiveTaskRegistration,
-    /// Unpublished messages and schedule operations owned by this active attempt.
+    /// Unpublished messages and schedule operations owned by this active dispatch.
     pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
     /// Current lifecycle phase while the task occupies the active slot.
     pub(crate) phase: RunningTaskPhase,

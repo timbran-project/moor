@@ -12,11 +12,11 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Terminal completion retains its result in active metadata during session I/O.
-//! Only one completion owner can reserve a running attempt. The worker panic handler performs
+//! Only one completion owner can reserve a running dispatch. The worker panic handler performs
 //! registry cleanup if session finalization unwinds; this owner never locks or publishes in Drop.
 
 use super::super::lifecycle::TaskLifecycle;
-use crate::tasks::task_q::{RunningTask, RunningTaskPhase, TaskAttempt};
+use crate::tasks::registry::{RunningTask, RunningTaskPhase, TaskDispatch};
 use moor_common::tasks::{SchedulerError, Session, TaskId};
 use moor_var::Var;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ use uuid::Uuid;
 
 #[must_use]
 pub(in crate::tasks::scheduler) struct TaskCompletion {
-    attempt: TaskAttempt,
+    dispatch: TaskDispatch,
     pub(in crate::tasks::scheduler) session: Arc<dyn Session>,
 }
 
@@ -55,17 +55,17 @@ impl TaskCompletion {
         }
         task.phase = RunningTaskPhase::Completing(result);
         Some(Self {
-            attempt: TaskAttempt::new(task_id, task.control.clone()),
+            dispatch: TaskDispatch::new(task_id, task.control.clone()),
             session: task.session.clone(),
         })
     }
 
     pub(in crate::tasks::scheduler) fn is_current(&self, lc: &TaskLifecycle) -> bool {
-        lc.task_q.is_current_attempt(&self.attempt)
+        lc.task_q.is_current_dispatch(&self.dispatch)
             && lc
                 .task_q
                 .active
-                .get(&self.attempt.task_id())
+                .get(&self.dispatch.task_id())
                 .is_some_and(|task| matches!(task.phase, RunningTaskPhase::Completing(_)))
     }
 
@@ -78,7 +78,7 @@ impl TaskCompletion {
         if self.is_current(lc) {
             lc.task_q
                 .active
-                .get_mut(&self.attempt.task_id())
+                .get_mut(&self.dispatch.task_id())
                 .expect("checked current completion")
                 .phase = RunningTaskPhase::Completing(result);
             self.finish(lc);
@@ -87,7 +87,7 @@ impl TaskCompletion {
 
     pub(in crate::tasks::scheduler) fn finish(self, lc: &mut TaskLifecycle) {
         if self.is_current(lc) {
-            lc.task_q.send_reserved_task_result(self.attempt.task_id());
+            lc.task_q.send_reserved_task_result(self.dispatch.task_id());
         }
     }
 }
@@ -96,18 +96,18 @@ static HANDLE_TASK_TIMEOUT_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("handle_task_timeout"));
 
 impl Scheduler {
-    pub(crate) fn handle_task_success_for_attempt(
+    pub(crate) fn handle_task_success_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         value: Var,
         mutations_made: bool,
         timestamp: u64,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         // Extract session under lock, then commit outside.
         let completion = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
 
@@ -151,15 +151,15 @@ impl Scheduler {
         lc.settle_schedule_firings();
     }
 
-    pub(crate) fn handle_task_verb_not_found_for_attempt(
+    pub(crate) fn handle_task_verb_not_found_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         who: Var,
         what: Symbol,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !lc.task_q.is_current_dispatch(dispatch) {
             return;
         }
         let task = lc
@@ -176,14 +176,14 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn handle_task_command_error_for_attempt(
+    pub(crate) fn handle_task_command_error_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         error: CommandError,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !lc.task_q.is_current_dispatch(dispatch) {
             return;
         }
         // This is a common occurrence, so we don't want to log it at warn level.
@@ -199,11 +199,14 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn handle_task_transaction_renewal_failed_for_attempt(&self, attempt: &TaskAttempt) {
-        let task_id = attempt.task_id();
+    pub(crate) fn handle_task_transaction_renewal_failed_for_dispatch(
+        &self,
+        dispatch: &TaskDispatch,
+    ) {
+        let task_id = dispatch.task_id();
         let completion = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let task = lc
@@ -241,12 +244,12 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn handle_task_abort_limits_reached_for_attempt(
+    pub(crate) fn handle_task_abort_limits_reached_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         limit_info: TaskLimitInfo,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortLimits);
         let TaskLimitInfo {
@@ -263,7 +266,7 @@ impl Scheduler {
         // during finalization must wait for this result instead of observing a missing task.
         let (completion, player) = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
@@ -413,17 +416,17 @@ impl Scheduler {
         completion.finish(&mut lc);
     }
 
-    pub(crate) fn handle_task_exception_for_attempt(
+    pub(crate) fn handle_task_exception_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         exception: Box<Exception>,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskException);
         let completion = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let task = lc
@@ -464,15 +467,15 @@ impl Scheduler {
         lc.settle_schedule_firings();
     }
 
-    pub(crate) fn handle_task_commit_rejected_for_attempt(
+    pub(crate) fn handle_task_commit_rejected_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         exception: Box<Exception>,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         let completion = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
@@ -500,7 +503,7 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !lc.task_q.is_current_dispatch(dispatch) {
             return;
         }
         completion.finish(&mut lc);

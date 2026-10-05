@@ -18,8 +18,8 @@ use std::sync::Arc;
 
 use moor_common::tasks::SessionFactory;
 
+use crate::tasks::registry::TaskQ;
 use crate::tasks::schedule_q::ScheduleQ;
-use crate::tasks::task_q::TaskQ;
 
 /// Lifecycle state for the scheduler and its service threads.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

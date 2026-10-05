@@ -13,8 +13,8 @@
 
 //! Compatibility entry points for callers that address a task by ID.
 //!
-//! These calls select the active attempt at entry, then use the same guarded transitions as
-//! workers. TaskSchedulerClient retains its dispatch identity instead of selecting a new attempt
+//! These calls select the active dispatch at entry, then use the same guarded transitions as
+//! workers. TaskSchedulerClient retains its dispatch identity instead of selecting a new dispatch
 //! on each callback. Handoffs carrying a Task or CommittedBoundary already carry their identity.
 
 use crate::tasks::scheduler::Scheduler;
@@ -24,10 +24,10 @@ use std::backtrace::Backtrace;
 
 impl Scheduler {
     pub fn handle_task_abort_cancelled(&self, task_id: TaskId) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_abort_cancelled_for_attempt(&attempt);
+        self.handle_task_abort_cancelled_for_dispatch(&dispatch);
     }
 
     pub fn handle_task_abort_panicked(
@@ -36,10 +36,10 @@ impl Scheduler {
         panic_msg: String,
         _backtrace: Backtrace,
     ) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_abort_panicked_for_attempt(&attempt, panic_msg, _backtrace);
+        self.handle_task_abort_panicked_for_dispatch(&dispatch, panic_msg, _backtrace);
     }
 
     pub fn handle_task_success(
@@ -49,44 +49,44 @@ impl Scheduler {
         mutations_made: bool,
         timestamp: u64,
     ) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_success_for_attempt(&attempt, value, mutations_made, timestamp);
+        self.handle_task_success_for_dispatch(&dispatch, value, mutations_made, timestamp);
     }
 
     pub fn handle_task_verb_not_found(&self, task_id: TaskId, who: Var, what: Symbol) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_verb_not_found_for_attempt(&attempt, who, what);
+        self.handle_task_verb_not_found_for_dispatch(&dispatch, who, what);
     }
 
     pub fn handle_task_command_error(&self, task_id: TaskId, error: CommandError) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_command_error_for_attempt(&attempt, error);
+        self.handle_task_command_error_for_dispatch(&dispatch, error);
     }
 
     pub fn handle_task_transaction_renewal_failed(&self, task_id: TaskId) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_transaction_renewal_failed_for_attempt(&attempt);
+        self.handle_task_transaction_renewal_failed_for_dispatch(&dispatch);
     }
 
     pub fn handle_task_exception(&self, task_id: TaskId, exception: Box<Exception>) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_exception_for_attempt(&attempt, exception);
+        self.handle_task_exception_for_dispatch(&dispatch, exception);
     }
 
     pub fn handle_task_commit_rejected(&self, task_id: TaskId, exception: Box<Exception>) {
-        let Some(attempt) = self.capture_task_attempt(task_id) else {
+        let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_commit_rejected_for_attempt(&attempt, exception);
+        self.handle_task_commit_rejected_for_dispatch(&dispatch, exception);
     }
 }

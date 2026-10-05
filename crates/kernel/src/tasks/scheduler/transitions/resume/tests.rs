@@ -15,11 +15,11 @@ use crate::{
     config::Config,
     tasks::{
         NoopTasksDb, TaskStart,
+        registry::WakeCondition,
         schedule_q::{ScheduleKind, ScheduleOptions},
         scheduler::{ResumeAction, Scheduler},
         task::Task,
         task_control::TaskControl,
-        task_q::WakeCondition,
     },
 };
 use moor_common::{

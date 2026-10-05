@@ -16,6 +16,7 @@
 use crate::{
     tasks::{
         TaskStart as KernelTaskStart,
+        registry::{SuspendedTask as KernelSuspendedTask, WakeCondition as KernelWakeCondition},
         schedule_q::{
             CatchupPolicy, OverlapPolicy, RunningFiring, ScheduleEntry, ScheduleKind,
             ScheduleOptions,
@@ -23,7 +24,6 @@ use crate::{
         task::Task as KernelTask,
         task::TaskState as KernelTaskState,
         task_program_cache::TaskProgramCache,
-        task_q::{SuspendedTask as KernelSuspendedTask, WakeCondition as KernelWakeCondition},
     },
     vm::{Fork, vm_host::VmHost as KernelVmHost},
 };

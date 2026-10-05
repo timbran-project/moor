@@ -92,7 +92,7 @@ impl TaskLifecycle {
         self.task_q.insert_active(task_id, task_control);
 
         let task_scheduler_client =
-            TaskSchedulerClient::for_attempt(task_id, scheduler.clone(), task.control.clone());
+            TaskSchedulerClient::for_dispatch(task_id, scheduler.clone(), task.control.clone());
 
         // Check if this is a brand new task or a resuming task
         let is_created = matches!(task.state, crate::tasks::task::TaskState::Pending(_));

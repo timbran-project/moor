@@ -40,8 +40,8 @@ use crate::{
         DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS,
         DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, ServerOptions,
         maintenance::MaintenanceCoordinator,
+        registry::{LiveTaskRegistry, SuspensionQ, TaskQ},
         schedule_q::ScheduleQ,
-        task_q::{LiveTaskRegistry, SuspensionQ, TaskQ},
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
     },
@@ -229,10 +229,10 @@ mod tests {
     use crate::{
         tasks::{
             AbortTaskOutcome, TaskNotification, TaskStart, TasksDbError,
+            registry::{RunningTask, RunningTaskPhase, SuspendedTask, WakeCondition},
             schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId},
             task::Task,
             task_control::TaskControl,
-            task_q::{RunningTask, RunningTaskPhase, SuspendedTask, WakeCondition},
         },
         vm::TaskSuspend,
     };

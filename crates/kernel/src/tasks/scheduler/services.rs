@@ -479,7 +479,7 @@ mod tests {
     use super::*;
     use crate::{
         config::Config,
-        tasks::{TasksDb, TasksDbError, task_q::SuspendedTask},
+        tasks::{TasksDb, TasksDbError, registry::SuspendedTask},
     };
     use moor_common::tasks::{NoopSystemControl, TaskId};
     use moor_db::{DatabaseConfig, TxDB};

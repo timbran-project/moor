@@ -14,7 +14,7 @@
 //! Cancellation and abort policy for active and suspended tasks.
 
 use super::complete::TaskCompletion;
-use crate::tasks::task_q::{RunningTaskPhase, TaskAttempt};
+use crate::tasks::registry::{RunningTaskPhase, TaskDispatch};
 use crate::tasks::{
     AbortTaskOutcome, SchedulerOp, sched_counters,
     scheduler::{Scheduler, lifecycle::SchedulerState},
@@ -31,11 +31,11 @@ use std::backtrace::Backtrace;
 use tracing::{debug, warn};
 
 impl Scheduler {
-    pub(crate) fn handle_task_abort_cancelled_for_attempt(&self, attempt: &TaskAttempt) {
-        let task_id = attempt.task_id();
+    pub(crate) fn handle_task_abort_cancelled_for_dispatch(&self, dispatch: &TaskDispatch) {
+        let task_id = dispatch.task_id();
         let requested_abort = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let task = lc
@@ -71,7 +71,7 @@ impl Scheduler {
         let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
         let (completion, shutting_down) = {
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !lc.task_q.is_current_dispatch(dispatch) {
                 return;
             }
             let shutting_down = lc.state != SchedulerState::Running;
@@ -118,17 +118,17 @@ impl Scheduler {
         completion.finish(&mut self.lifecycle.lock());
     }
 
-    pub(crate) fn handle_task_abort_panicked_for_attempt(
+    pub(crate) fn handle_task_abort_panicked_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         panic_msg: String,
         _backtrace: Backtrace,
     ) {
-        let task_id = attempt.task_id();
+        let task_id = dispatch.task_id();
         warn!(?task_id, ?panic_msg, "Task thread panicked");
 
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !lc.task_q.is_current_dispatch(dispatch) {
             return;
         }
 
@@ -149,14 +149,14 @@ impl Scheduler {
         lc.task_q.kill_task(victim_task_id, sender_authority)
     }
 
-    pub(crate) fn handle_kill_task_for_attempt(
+    pub(crate) fn handle_kill_task_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         victim_task_id: TaskId,
         sender_authority: TaskPermissions,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_running_attempt(attempt) {
+        if !lc.task_q.is_running_dispatch(dispatch) {
             return v_err(E_INVARG);
         }
         lc.task_q.kill_task(victim_task_id, sender_authority)

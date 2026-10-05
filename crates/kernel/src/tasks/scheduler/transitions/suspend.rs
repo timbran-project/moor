@@ -18,10 +18,10 @@ use crate::tasks::{scheduler::lifecycle::TaskLifecycle, task_control::CommittedB
 use crate::{
     tasks::{
         TaskNotification,
+        registry::{RunningTaskPhase, WakeCondition},
         scheduler::{Scheduler, SchedulerState},
         storage_compaction::compaction_failure_to_var,
         task::Task,
-        task_q::{RunningTaskPhase, WakeCondition},
         workers::WorkerRequest,
     },
     vm::TaskSuspend,

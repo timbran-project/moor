@@ -29,7 +29,7 @@ use moor_common::{
 };
 use moor_var::{E_INVARG, E_INVIND, Error, List, Obj, Symbol, Var, v_err};
 
-use crate::tasks::{scheduler::Scheduler, task_control::TaskControl, task_q::TaskAttempt};
+use crate::tasks::{registry::TaskDispatch, scheduler::Scheduler, task_control::TaskControl};
 
 pub use moor_common::tasks::WorkerInfo;
 
@@ -58,39 +58,39 @@ pub(crate) struct TaskLimitInfo {
 #[derive(Clone)]
 pub struct TaskSchedulerClient {
     task_id: TaskId,
-    attempt: Option<TaskAttempt>,
+    dispatch: Option<TaskDispatch>,
     scheduler: Scheduler,
 }
 
 impl TaskSchedulerClient {
-    /// Bind callbacks to the active attempt at construction. A client without an active attempt
+    /// Bind callbacks to the active dispatch at construction. A client without an active dispatch
     /// can still make independent queries, but cannot complete a task registered later.
     pub fn new(task_id: TaskId, scheduler: Scheduler) -> Self {
-        let attempt = scheduler.capture_task_attempt(task_id);
+        let dispatch = scheduler.capture_task_dispatch(task_id);
         Self {
             task_id,
-            attempt,
+            dispatch,
             scheduler,
         }
     }
 
     /// Dispatch already holds the lifecycle lock; use the worker's control without another lock.
-    pub(crate) fn for_attempt(
+    pub(crate) fn for_dispatch(
         task_id: TaskId,
         scheduler: Scheduler,
         control: Arc<TaskControl>,
     ) -> Self {
         Self {
             task_id,
-            attempt: Some(TaskAttempt::new(task_id, control)),
+            dispatch: Some(TaskDispatch::new(task_id, control)),
             scheduler,
         }
     }
 
     pub fn success(&self, var: Var, mutations: bool, timestamp: u64) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_success_for_attempt(attempt, var, mutations, timestamp);
+                .handle_task_success_for_dispatch(dispatch, var, mutations, timestamp);
         }
     }
 
@@ -105,30 +105,30 @@ impl TaskSchedulerClient {
     }
 
     pub fn command_error(&self, error: CommandError) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_command_error_for_attempt(attempt, error);
+                .handle_task_command_error_for_dispatch(dispatch, error);
         }
     }
 
     pub fn verb_not_found(&self, what: Var, verb: Symbol) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_verb_not_found_for_attempt(attempt, what, verb);
+                .handle_task_verb_not_found_for_dispatch(dispatch, what, verb);
         }
     }
 
     pub fn exception(&self, exception: Box<Exception>) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_exception_for_attempt(attempt, exception);
+                .handle_task_exception_for_dispatch(dispatch, exception);
         }
     }
 
     pub fn commit_rejected(&self, exception: Box<Exception>) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_commit_rejected_for_attempt(attempt, exception);
+                .handle_task_commit_rejected_for_dispatch(dispatch, exception);
         }
     }
 
@@ -136,37 +136,37 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskRequestForkLatency);
-        self.attempt.as_ref().map_or(0, |attempt| {
+        self.dispatch.as_ref().map_or(0, |dispatch| {
             self.scheduler
-                .handle_task_request_fork_for_attempt(attempt, fork)
+                .handle_task_request_fork_for_dispatch(dispatch, fork)
         })
     }
 
     pub fn abort_cancelled(&self) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_abort_cancelled_for_attempt(attempt);
+                .handle_task_abort_cancelled_for_dispatch(dispatch);
         }
     }
 
     pub fn abort_transaction_renewal_failed(&self) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_transaction_renewal_failed_for_attempt(attempt);
+                .handle_task_transaction_renewal_failed_for_dispatch(dispatch);
         }
     }
 
     pub(crate) fn abort_limits_reached(&self, limit_info: TaskLimitInfo) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_abort_limits_reached_for_attempt(attempt, limit_info);
+                .handle_task_abort_limits_reached_for_dispatch(dispatch, limit_info);
         }
     }
 
     pub(crate) fn abort_panicked(&self, message: String, backtrace: std::backtrace::Backtrace) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_abort_panicked_for_attempt(attempt, message, backtrace);
+                .handle_task_abort_panicked_for_dispatch(dispatch, message, backtrace);
         }
     }
 
@@ -204,11 +204,11 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskKillTaskLatency);
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return v_err(E_INVARG);
         };
         self.scheduler
-            .handle_kill_task_for_attempt(attempt, victim_task_id, sender_authority)
+            .handle_kill_task_for_dispatch(dispatch, victim_task_id, sender_authority)
     }
 
     pub fn resume_task(
@@ -220,11 +220,11 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskResumeTaskLatency);
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return v_err(E_INVARG);
         };
-        self.scheduler.handle_resume_task_for_attempt(
-            attempt,
+        self.scheduler.handle_resume_task_for_dispatch(
+            dispatch,
             queued_task_id,
             sender_authority,
             return_value,
@@ -232,9 +232,9 @@ impl TaskSchedulerClient {
     }
 
     pub fn boot_player(&self, player: Obj) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_boot_player_for_attempt(attempt, player);
+                .handle_boot_player_for_dispatch(dispatch, player);
         }
     }
 
@@ -248,17 +248,17 @@ impl TaskSchedulerClient {
     pub fn notify(&self, player: Obj, event: Box<NarrativeEvent>) {
         let result = with_current_session(|session| session.send_event(player, event));
         if let Err(error) = result
-            && let Some(attempt) = &self.attempt
+            && let Some(dispatch) = &self.dispatch
         {
             self.scheduler
-                .handle_notify_error_for_attempt(attempt, error);
+                .handle_notify_error_for_dispatch(dispatch, error);
         }
     }
 
     pub fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) {
-        if let Some(attempt) = &self.attempt {
+        if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_log_event_for_attempt(attempt, player, event);
+                .handle_log_event_for_dispatch(dispatch, player, event);
         }
     }
 
@@ -269,11 +269,16 @@ impl TaskSchedulerClient {
         port: u16,
         options: Vec<(Symbol, Var)>,
     ) -> Option<Error> {
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return Some(E_INVARG.msg("Task not found"));
         };
-        self.scheduler
-            .handle_listen_for_attempt(attempt, handler_object, host_type, port, options)
+        self.scheduler.handle_listen_for_dispatch(
+            dispatch,
+            handler_object,
+            host_type,
+            port,
+            options,
+        )
     }
 
     pub fn listeners(&self) -> Vec<ListenerInfo> {
@@ -281,11 +286,11 @@ impl TaskSchedulerClient {
     }
 
     pub fn unlisten(&self, host_type: String, port: u16) -> Option<Error> {
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return Some(E_INVARG.msg("Task not found"));
         };
         self.scheduler
-            .handle_unlisten_for_attempt(attempt, host_type, port)
+            .handle_unlisten_for_dispatch(dispatch, host_type, port)
     }
 
     pub fn refresh_server_options(&self) {
@@ -321,11 +326,11 @@ impl TaskSchedulerClient {
     }
 
     pub fn force_input(&self, who: Obj, line: String) -> Result<TaskId, Error> {
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return Err(E_INVIND.msg("Task not found"));
         };
         self.scheduler
-            .handle_force_input_for_attempt(attempt, who, line)
+            .handle_force_input_for_dispatch(dispatch, who, line)
     }
 
     pub fn active_tasks(&self) -> Result<ActiveTaskDescriptions, Error> {
@@ -346,11 +351,11 @@ impl TaskSchedulerClient {
         silent: bool,
         preserve_history: bool,
     ) -> Result<(), Error> {
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return Err(E_INVARG.msg("Task not found for switch_player"));
         };
-        self.scheduler.handle_switch_player_for_attempt(
-            attempt,
+        self.scheduler.handle_switch_player_for_dispatch(
+            dispatch,
             source,
             new_player,
             silent,
@@ -375,7 +380,7 @@ impl TaskSchedulerClient {
             .timers
             .start(SchedulerOp::TaskBeginTransactionLatency);
         self.scheduler
-            .handle_request_new_transaction_for_attempt(self.attempt.as_ref())
+            .handle_request_new_transaction_for_dispatch(self.dispatch.as_ref())
     }
 
     pub fn task_send(
@@ -384,11 +389,11 @@ impl TaskSchedulerClient {
         value: Var,
         sender_authority: TaskPermissions,
     ) -> Var {
-        let Some(attempt) = &self.attempt else {
+        let Some(dispatch) = &self.dispatch else {
             return v_err(E_INVARG);
         };
-        self.scheduler.handle_task_send_for_attempt(
-            attempt,
+        self.scheduler.handle_task_send_for_dispatch(
+            dispatch,
             target_task_id,
             value,
             sender_authority,
@@ -406,8 +411,8 @@ impl TaskSchedulerClient {
         owner: Obj,
         options: crate::tasks::schedule_q::ScheduleOptions,
     ) -> Result<crate::tasks::schedule_q::ScheduleId, crate::tasks::schedule_q::ScheduleError> {
-        self.scheduler.handle_schedule_create_for_attempt(
-            self.attempt.as_ref(),
+        self.scheduler.handle_schedule_create_for_dispatch(
+            self.dispatch.as_ref(),
             kind,
             target,
             verb,
@@ -423,15 +428,15 @@ impl TaskSchedulerClient {
         schedule_id: crate::tasks::schedule_q::ScheduleId,
         authority: &TaskPermissions,
     ) -> Result<bool, moor_var::Error> {
-        self.attempt.as_ref().map_or(Ok(false), |attempt| {
+        self.dispatch.as_ref().map_or(Ok(false), |dispatch| {
             self.scheduler
-                .handle_schedule_stop_for_attempt(attempt, schedule_id, authority)
+                .handle_schedule_stop_for_dispatch(dispatch, schedule_id, authority)
         })
     }
 
     pub fn schedule_valid(&self, schedule_id: crate::tasks::schedule_q::ScheduleId) -> bool {
         self.scheduler
-            .handle_schedule_valid_for_attempt(self.attempt.as_ref(), schedule_id)
+            .handle_schedule_valid_for_dispatch(self.dispatch.as_ref(), schedule_id)
     }
 
     pub fn schedule_info(
@@ -451,8 +456,8 @@ impl TaskSchedulerClient {
     }
 
     pub fn task_recv(&self) -> Vec<Var> {
-        self.attempt.as_ref().map_or_else(Vec::new, |attempt| {
-            self.scheduler.handle_task_recv_for_attempt(attempt)
+        self.dispatch.as_ref().map_or_else(Vec::new, |dispatch| {
+            self.scheduler.handle_task_recv_for_dispatch(dispatch)
         })
     }
 

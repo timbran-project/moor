@@ -20,7 +20,7 @@
 
 use crate::tasks::{
     TaskStart,
-    registry::TaskAttempt,
+    registry::TaskDispatch,
     schedule_q::{
         Outcome, PendingCreate, PendingKind, RetireReason, ScheduleEntry, ScheduleError,
         ScheduleExpiry, ScheduleId, ScheduleOptions,
@@ -193,9 +193,9 @@ impl Scheduler {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn handle_schedule_create_for_attempt(
+    pub(crate) fn handle_schedule_create_for_dispatch(
         &self,
-        attempt: Option<&TaskAttempt>,
+        dispatch: Option<&TaskDispatch>,
         kind: PendingKind,
         target: Obj,
         verb: Symbol,
@@ -217,8 +217,8 @@ impl Scheduler {
             options,
         )?;
         let id = create.id;
-        if let Some(attempt) = attempt
-            && let Some(task) = lc.task_q.running_attempt_mut(attempt)
+        if let Some(dispatch) = dispatch
+            && let Some(task) = lc.task_q.running_dispatch_mut(dispatch)
         {
             task.effects.create_schedule(create);
         }
@@ -238,17 +238,17 @@ impl Scheduler {
             .buffer_schedule_stop(task_id, schedule_id, authority)
     }
 
-    pub(crate) fn handle_schedule_stop_for_attempt(
+    pub(crate) fn handle_schedule_stop_for_dispatch(
         &self,
-        attempt: &TaskAttempt,
+        dispatch: &TaskDispatch,
         schedule_id: ScheduleId,
         authority: &TaskPermissions,
     ) -> Result<bool, moor_var::Error> {
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_running_attempt(attempt) {
+        if !lc.task_q.is_running_dispatch(dispatch) {
             return Ok(false);
         }
-        lc.buffer_schedule_stop(attempt.task_id(), schedule_id, authority)
+        lc.buffer_schedule_stop(dispatch.task_id(), schedule_id, authority)
     }
 
     pub fn handle_schedule_valid(&self, task_id: TaskId, schedule_id: ScheduleId) -> bool {
@@ -257,15 +257,15 @@ impl Scheduler {
             .schedule_visible_to(Some(task_id), schedule_id)
     }
 
-    pub(crate) fn handle_schedule_valid_for_attempt(
+    pub(crate) fn handle_schedule_valid_for_dispatch(
         &self,
-        attempt: Option<&TaskAttempt>,
+        dispatch: Option<&TaskDispatch>,
         schedule_id: ScheduleId,
     ) -> bool {
         let lc = self.lifecycle.lock();
-        let task_id = attempt
-            .filter(|attempt| lc.task_q.is_running_attempt(attempt))
-            .map(TaskAttempt::task_id);
+        let task_id = dispatch
+            .filter(|dispatch| lc.task_q.is_running_dispatch(dispatch))
+            .map(TaskDispatch::task_id);
         lc.schedule_visible_to(task_id, schedule_id)
     }
 
