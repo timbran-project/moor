@@ -17,10 +17,14 @@
 //! by `WorldStateTransaction`, backed by relation transactions and resolution
 //! caches.
 
+pub(crate) mod edit;
+
+use edit::EditScope;
+
 use crate::{
     EntityMetadataKey, Error, ObjAndUUIDHolder, StringHolder,
     api::world_state::db_counters,
-    engine::moor_db::{Caches, SEQUENCE_MAX_OBJECT, WorldStateTransaction},
+    engine::moor_db::{Caches, SEQUENCE_MAX_OBJECT, WorldStateEdit, WorldStateTransaction},
     provider::fjall_provider::{EncodeFjallValue, FjallCodec, FjallProvider},
     tx::{EncodeFor, RelationTransaction},
 };
@@ -140,33 +144,6 @@ where
 }
 
 impl WorldStateTransaction {
-    #[inline]
-    fn invalidate_known_propflags_for_obj(&mut self, obj: &Obj) {
-        self.prop_perm_memo.invalidate_known_for_obj(obj);
-    }
-
-    #[inline]
-    fn invalidate_known_propflags_for_holder(&mut self, obj: &Obj, uuid: Uuid) {
-        self.prop_perm_memo
-            .invalidate_known_for_holder(&ObjAndUUIDHolder::new(obj, uuid));
-    }
-
-    #[inline]
-    fn invalidate_cached_prop_perms_for_obj(&mut self, obj: &Obj) {
-        self.prop_perm_memo.invalidate_cached_for_obj(obj);
-    }
-
-    #[inline]
-    fn invalidate_cached_prop_perms_for_holder(&mut self, obj: &Obj, uuid: Uuid) {
-        self.prop_perm_memo
-            .invalidate_cached_for_holder(&ObjAndUUIDHolder::new(obj, uuid));
-    }
-
-    #[inline]
-    fn clear_cached_prop_perms(&mut self) {
-        self.prop_perm_memo.clear_cached();
-    }
-
     pub fn object_valid(&self, obj: &Obj) -> Result<bool, WorldStateError> {
         match self.object_flags.has_domain(obj) {
             Ok(is_valid) => Ok(is_valid),
@@ -307,24 +284,21 @@ impl WorldStateTransaction {
     }
 
     pub fn set_object_owner(&mut self, obj: &Obj, owner: &Obj) -> Result<(), WorldStateError> {
-        let mut changed = false;
-        self.object_owner
-            .upsert_with(*obj, |current| match current {
-                Some(existing) if existing == owner => None,
-                _ => {
-                    changed = true;
-                    Some(*owner)
-                }
-            })
+        if self
+            .object_owner
+            .get(obj)
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error setting object owner: {e:?}"))
-            })?;
-        if !changed {
+            })?
+            .as_ref()
+            == Some(owner)
+        {
             return Ok(());
         }
-        // Chown property semantics depend on object owner.
-        self.invalidate_cached_prop_perms_for_obj(obj);
-        self.has_mutations = true;
+        let edit = self.edit(EditScope::Owner(*obj));
+        upsert(edit.object_owner, *obj, *owner).map_err(|e| {
+            WorldStateError::DatabaseError(format!("Error setting object owner: {e:?}"))
+        })?;
         Ok(())
     }
 
@@ -333,22 +307,14 @@ impl WorldStateTransaction {
         obj: &Obj,
         flags: BitEnum<ObjFlag>,
     ) -> Result<(), WorldStateError> {
-        let mut changed = false;
         self.object_flags
             .upsert_with(*obj, |current| match current {
                 Some(existing) if *existing == flags => None,
-                _ => {
-                    changed = true;
-                    Some(flags)
-                }
+                _ => Some(flags),
             })
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error setting object flags: {e:?}"))
             })?;
-        if !changed {
-            return Ok(());
-        }
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -363,22 +329,14 @@ impl WorldStateTransaction {
     }
 
     pub fn set_object_name(&mut self, obj: &Obj, name: String) -> Result<(), WorldStateError> {
-        let mut changed = false;
         self.object_name
             .upsert_with(*obj, |current| match current {
                 Some(existing) if existing.0 == name => None,
-                _ => {
-                    changed = true;
-                    Some(StringHolder(name))
-                }
+                _ => Some(StringHolder(name)),
             })
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error setting object name: {e:?}"))
             })?;
-        if !changed {
-            return Ok(());
-        }
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -407,8 +365,6 @@ impl WorldStateTransaction {
         let owner = attrs.owner().unwrap_or(id);
         insert_guaranteed_unique(&mut self.object_owner, id, owner)
             .expect("Unable to insert initial owner");
-
-        self.has_mutations = true;
 
         // Set initial name
         let name = attrs.name().unwrap_or_default();
@@ -453,49 +409,52 @@ impl WorldStateTransaction {
         for c in contents.iter() {
             self.set_object_location(&c, &NOTHING)?;
         }
-        self.has_mutations = true;
 
         // Reparent all children to our parent
         for c in children.iter() {
             self.set_object_parent(&c, &parent)?;
         }
 
+        let propdefs = self.get_properties(obj)?;
+        let mut edit = self.edit(EditScope::Remove {
+            objects: vec![*obj],
+            removed: vec![*obj],
+        });
         // Remove parent relationship (children list is automatically updated via secondary index)
-        self.object_parent.delete(obj).map_err(|e| {
+        edit.object_parent.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error removing parent relationship: {e:?}"))
         })?;
 
         // Remove location relationship (contents list is automatically updated via secondary index)
-        self.object_location.delete(obj).map_err(|e| {
+        edit.object_location.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error removing location relationship: {e:?}"))
         })?;
 
         // Now we can remove this object from all relevant relations
         // First the simple ones which are keyed on the object id.
-        self.object_flags.delete(obj).map_err(|e| {
+        edit.object_flags.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object flags: {e:?}"))
         })?;
-        self.object_name.delete(obj).map_err(|e| {
+        edit.object_name.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object name: {e:?}"))
         })?;
         // object_children is now derived from object_parent secondary index, no need to delete
-        self.object_owner.delete(obj).map_err(|e| {
+        edit.object_owner.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object owner: {e:?}"))
         })?;
-        self.object_parent.delete(obj).map_err(|e| {
+        edit.object_parent.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object parent: {e:?}"))
         })?;
-        self.object_location.delete(obj).map_err(|e| {
+        edit.object_location.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object location: {e:?}"))
         })?;
-        self.delete_metadata_for_obj(obj)?;
-        self.object_verbdefs.delete(obj).map_err(|e| {
+        edit.delete_metadata_for_obj(obj)?;
+        edit.object_verbdefs.delete(obj).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
         })?;
 
-        let propdefs = self.get_properties(obj)?;
         for p in propdefs.iter() {
-            self.object_propvalues
+            edit.object_propvalues
                 .delete(&ObjAndUUIDHolder::new(obj, p.uuid()))
                 .map_err(|e| {
                     WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
@@ -503,13 +462,7 @@ impl WorldStateTransaction {
         }
 
         // We may or may not have propdefs yet...
-        self.object_propdefs.delete(obj).ok();
-        self.invalidate_known_propflags_for_obj(obj);
-        self.invalidate_cached_prop_perms_for_obj(obj);
-
-        self.invalidate_verb_cache_for_objects(&[*obj]);
-        self.invalidate_prop_cache_for_objects(&[*obj]);
-        self.invalidate_ancestry_cache_for_objects(&[*obj]);
+        edit.object_propdefs.delete(obj).ok();
 
         Ok(())
     }
@@ -548,16 +501,27 @@ impl WorldStateTransaction {
             }
         }
 
+        let removed: Vec<Obj> = objects.iter().copied().collect();
+        let mut affected = removed.clone();
+        for (child, _) in &children_to_reparent {
+            affected.extend(self.branch_objects(child)?);
+        }
+        affected.sort_unstable();
+        affected.dedup();
+        let mut edit = self.edit(EditScope::Remove {
+            objects: affected,
+            removed,
+        });
         // Bulk update location relationships directly on the relation
         for content in contents_to_move {
-            upsert(&mut self.object_location, content, NOTHING).map_err(|e| {
+            upsert(edit.object_location, content, NOTHING).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error updating object location: {e:?}"))
             })?;
         }
 
         // Bulk update parent relationships directly on the relation
         for (child, new_parent) in &children_to_reparent {
-            upsert(&mut self.object_parent, *child, *new_parent).map_err(|e| {
+            upsert(edit.object_parent, *child, *new_parent).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error updating object parent: {e:?}"))
             })?;
         }
@@ -565,64 +529,44 @@ impl WorldStateTransaction {
         // Batch delete all core object data
         for obj in objects {
             // Remove parent relationship (children list is automatically updated via secondary index)
-            self.object_parent.delete(obj).map_err(|e| {
+            edit.object_parent.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error removing parent relationship: {e:?}"))
             })?;
 
             // Remove location relationship (contents list is automatically updated via secondary index)
-            self.object_location.delete(obj).map_err(|e| {
+            edit.object_location.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!(
                     "Error removing location relationship: {e:?}"
                 ))
             })?;
 
             // Delete core object attributes
-            self.object_flags.delete(obj).map_err(|e| {
+            edit.object_flags.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object flags: {e:?}"))
             })?;
-            self.object_name.delete(obj).map_err(|e| {
+            edit.object_name.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object name: {e:?}"))
             })?;
-            self.object_owner.delete(obj).map_err(|e| {
+            edit.object_owner.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object owner: {e:?}"))
             })?;
-            self.delete_metadata_for_obj(obj)?;
-            self.object_verbdefs.delete(obj).map_err(|e| {
+            edit.delete_metadata_for_obj(obj)?;
+            edit.object_verbdefs.delete(obj).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
             })?;
 
             // We may or may not have propdefs yet...
-            self.object_propdefs.delete(obj).ok();
-            self.invalidate_known_propflags_for_obj(obj);
-            self.invalidate_cached_prop_perms_for_obj(obj);
+            edit.object_propdefs.delete(obj).ok();
         }
 
         // Batch delete property values
         for (obj, prop_uuid) in properties_to_delete {
-            self.object_propvalues
+            edit.object_propvalues
                 .delete(&ObjAndUUIDHolder::new(&obj, prop_uuid))
                 .map_err(|e| {
                     WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
                 })?;
         }
-
-        self.has_mutations = true;
-
-        // Update caches for reparented children and removed objects
-        {
-            let reparented_children: HashSet<Obj> = children_to_reparent
-                .iter()
-                .map(|(child, _)| *child)
-                .collect();
-            for child in reparented_children {
-                self.invalidate_all_caches_for_branch(&child)?;
-            }
-        }
-
-        let removed: Vec<Obj> = objects.iter().copied().collect();
-        self.invalidate_verb_cache_for_objects(&removed);
-        self.invalidate_prop_cache_for_objects(&removed);
-        self.invalidate_ancestry_cache_for_objects(&removed);
 
         Ok(())
     }
@@ -635,28 +579,22 @@ impl WorldStateTransaction {
     }
 
     pub fn set_object_parent(&mut self, o: &Obj, new_parent: &Obj) -> Result<(), WorldStateError> {
-        // Single-pass update: avoid separate read + write when parent is unchanged.
-        let mut changed = false;
-        self.object_parent
-            .upsert_with(*o, |current| match current {
-                Some(parent) if parent.eq(new_parent) => None,
-                _ => {
-                    changed = true;
-                    Some(*new_parent)
-                }
-            })
+        if self
+            .object_parent
+            .get(o)
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Unable to update parent relation: {e:?}"))
-            })?;
-
-        if !changed {
+            })?
+            .as_ref()
+            == Some(new_parent)
+        {
             return Ok(());
         }
-
-        // Update the parent relationship and invalidate caches for the affected subtree.
-        // Property and verb resolution will rebuild lazily against the new ancestry.
-        self.has_mutations = true;
-        self.invalidate_all_caches_for_branch(o)?;
+        let objects = self.branch_objects(o)?;
+        let edit = self.edit(EditScope::Hierarchy(objects));
+        upsert(edit.object_parent, *o, *new_parent).map_err(|e| {
+            WorldStateError::DatabaseError(format!("Unable to update parent relation: {e:?}"))
+        })?;
         Ok(())
     }
 
@@ -664,16 +602,15 @@ impl WorldStateTransaction {
     /// Skips the no-op check since we know this is a new object.
     /// Uses guaranteed unique insertion for anonymous objects.
     fn set_initial_object_parent(&mut self, o: &Obj, parent: &Obj) -> Result<(), WorldStateError> {
-        self.has_mutations = true;
-
+        let edit = self.edit(EditScope::Hierarchy(vec![*o]));
         // Use optimized insertion for anonymous and UUID objects, regular insert for new traditional objects
         if o.is_anonymous() || o.is_uuobjid() {
-            insert_guaranteed_unique(&mut self.object_parent, *o, *parent)
+            insert_guaranteed_unique(edit.object_parent, *o, *parent)
                 .expect("Unable to set parent");
         } else {
             // For new traditional objects, we can use regular insert since we know the ID doesn't exist
             // in our transaction, but we can't guarantee no conflict with another transaction.
-            self.object_parent
+            edit.object_parent
                 .insert(*o, *parent)
                 .expect("Unable to set parent");
         }
@@ -881,7 +818,6 @@ impl WorldStateTransaction {
         upsert(&mut self.object_location, *what, *new_location).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error setting object location: {e:?}"))
         })?;
-        self.has_mutations = true;
 
         // Now need to update contents in both.
         // Contents lists are automatically updated via object_location secondary index
@@ -902,7 +838,6 @@ impl WorldStateTransaction {
         upsert(&mut self.object_location, *what, *new_location).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error setting initial object location: {e:?}"))
         })?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1209,8 +1144,10 @@ impl WorldStateTransaction {
         uuid: Uuid,
         verb_attrs: VerbAttrs,
     ) -> Result<(), WorldStateError> {
+        let objects = self.branch_objects(obj)?;
+        let edit = self.edit(EditScope::Verbs(objects));
         let mut found = true;
-        let updated = self
+        let updated = edit
             .object_verbdefs
             .update_with(obj, |verbdefs| {
                 verbdefs.with_updated(uuid, |ov| {
@@ -1242,19 +1179,12 @@ impl WorldStateTransaction {
         if !found {
             return Err(WorldStateError::VerbNotFound(*obj, format!("{uuid}")));
         }
-        self.has_mutations = true;
 
         if let Some(program) = verb_attrs.program {
-            upsert(
-                &mut self.object_verbs,
-                ObjAndUUIDHolder::new(obj, uuid),
-                program,
-            )
-            .map_err(|e| {
+            upsert(edit.object_verbs, ObjAndUUIDHolder::new(obj, uuid), program).map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error setting verb binary: {e:?}"))
             })?;
         }
-        self.invalidate_verb_cache_for_branch(obj)?;
         Ok(())
     }
 
@@ -1274,19 +1204,16 @@ impl WorldStateTransaction {
         let verbdef = VerbDef::new(uuid, *oid, *owner, names, flags, args);
 
         let verbdefs = verbdefs.with_added(verbdef);
-        upsert(&mut self.object_verbdefs, *oid, verbdefs).map_err(|e| {
+        let objects = self.branch_objects(oid)?;
+        let edit = self.edit(EditScope::Verbs(objects));
+        upsert(edit.object_verbdefs, *oid, verbdefs).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error setting verb definition: {e:?}"))
         })?;
-        self.has_mutations = true;
 
-        upsert(
-            &mut self.object_verbs,
-            ObjAndUUIDHolder::new(oid, uuid),
-            program,
-        )
-        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting verb binary: {e:?}")))?;
+        upsert(edit.object_verbs, ObjAndUUIDHolder::new(oid, uuid), program).map_err(|e| {
+            WorldStateError::DatabaseError(format!("Error setting verb binary: {e:?}"))
+        })?;
 
-        self.invalidate_verb_cache_for_branch(oid)?;
         Ok(())
     }
 
@@ -1295,18 +1222,18 @@ impl WorldStateTransaction {
         let verbdefs = verbdefs
             .with_removed(uuid)
             .ok_or_else(|| WorldStateError::VerbNotFound(*location, format!("{uuid}")))?;
-        upsert(&mut self.object_verbdefs, *location, verbdefs).map_err(|e| {
+        let objects = self.branch_objects(location)?;
+        let mut edit = self.edit(EditScope::Verbs(objects));
+        upsert(edit.object_verbdefs, *location, verbdefs).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error setting verb definition: {e:?}"))
         })?;
-        self.has_mutations = true;
 
-        self.object_verbs
+        edit.object_verbs
             .delete(&ObjAndUUIDHolder::new(location, uuid))
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error deleting verb binary: {e:?}"))
             })?;
-        self.delete_verb_metadata_for_holder(location, uuid)?;
-        self.invalidate_verb_cache_for_branch(location)?;
+        edit.delete_verb_metadata_for_holder(location, uuid)?;
         Ok(())
     }
 
@@ -1358,7 +1285,6 @@ impl WorldStateTransaction {
             value,
         )
         .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1368,7 +1294,6 @@ impl WorldStateTransaction {
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
             })?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1404,7 +1329,6 @@ impl WorldStateTransaction {
             value,
         )
         .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1419,7 +1343,6 @@ impl WorldStateTransaction {
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
             })?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1455,7 +1378,6 @@ impl WorldStateTransaction {
             value,
         )
         .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1470,63 +1392,6 @@ impl WorldStateTransaction {
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
             })?;
-        self.has_mutations = true;
-        Ok(())
-    }
-
-    fn delete_metadata_for_obj(&mut self, obj: &Obj) -> Result<(), WorldStateError> {
-        let keys = self
-            .entity_metadata
-            .scan(&|metadata_key, _| metadata_key.references_obj(*obj))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
-            .into_iter()
-            .map(|(metadata_key, _)| metadata_key)
-            .collect::<Vec<_>>();
-        for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
-        }
-        Ok(())
-    }
-
-    fn delete_property_metadata_for_holder(
-        &mut self,
-        holder: &Obj,
-        uuid: Uuid,
-    ) -> Result<(), WorldStateError> {
-        let keys = self
-            .entity_metadata
-            .scan(&|metadata_key, _| metadata_key.is_property_key_for(*holder, uuid))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
-            .into_iter()
-            .map(|(metadata_key, _)| metadata_key)
-            .collect::<Vec<_>>();
-        for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
-        }
-        Ok(())
-    }
-
-    fn delete_verb_metadata_for_holder(
-        &mut self,
-        holder: &Obj,
-        uuid: Uuid,
-    ) -> Result<(), WorldStateError> {
-        let keys = self
-            .entity_metadata
-            .scan(&|metadata_key, _| metadata_key.is_verb_key_for(*holder, uuid))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
-            .into_iter()
-            .map(|(metadata_key, _)| metadata_key)
-            .collect::<Vec<_>>();
-        for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
-        }
         Ok(())
     }
 
@@ -1573,19 +1438,14 @@ impl WorldStateTransaction {
                 // No local propflags entry - create one based on inherited permissions
                 let inherited_perms = self.retrieve_property_permissions(obj, uuid)?;
                 self.record_inherited_policy_dependency(obj, uuid)?;
-                upsert(&mut self.object_propflags, holder.clone(), inherited_perms).map_err(
-                    |e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting property flags: {e:?}"
-                        ))
-                    },
-                )?;
+                let edit = self.edit(EditScope::Permissions(holder.clone()));
+                upsert(edit.object_propflags, holder.clone(), inherited_perms).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error setting property flags: {e:?}"))
+                })?;
             }
             self.prop_perm_memo.mark_known_propflags(holder);
-            self.invalidate_cached_prop_perms_for_holder(obj, uuid);
         }
 
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -1636,30 +1496,34 @@ impl WorldStateTransaction {
         let u = Uuid::new_v4();
 
         let prop = PropDef::new(u, *definer, *location, name);
-        upsert(&mut self.object_propdefs, *location, props.with_added(prop)).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting property definition: {e:?}"))
-        })?;
-        self.has_mutations = true;
+        {
+            let mut objects: Vec<Obj> = descendants.iter().collect();
+            objects.push(*location);
+            let edit = self.edit(EditScope::Properties {
+                objects,
+                removed: None,
+            });
+            upsert(edit.object_propdefs, *location, props.with_added(prop)).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error setting property definition: {e:?}"))
+            })?;
 
-        // Always create propflags entry for the defining location (canonical permissions)
-        upsert(
-            &mut self.object_propflags,
-            ObjAndUUIDHolder::new(location, u),
-            PropPerms::new(*owner, perms),
-        )
-        .map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting property owner: {e:?}"))
-        })?;
+            // Always create propflags entry for the defining location (canonical permissions)
+            upsert(
+                edit.object_propflags,
+                ObjAndUUIDHolder::new(location, u),
+                PropPerms::new(*owner, perms),
+            )
+            .map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error setting property owner: {e:?}"))
+            })?;
+        }
         self.prop_perm_memo
             .mark_known_propflags(ObjAndUUIDHolder::new(location, u));
-        self.invalidate_cached_prop_perms_for_holder(location, u);
 
         // If we have an initial value, set it, but just on ourselves. Descendants start out clear.
         if let Some(value) = value {
             self.set_property(location, u, value)?;
         }
-
-        self.invalidate_prop_cache_for_branch(location)?;
 
         Ok(u)
     }
@@ -1676,10 +1540,15 @@ impl WorldStateTransaction {
             return Ok(());
         }
 
+        let objects = self.branch_objects(obj)?;
         // We only need to update the propdef if there's a new name.
         if let Some(new_name) = new_name {
+            let edit = self.edit(EditScope::Properties {
+                objects: objects.clone(),
+                removed: None,
+            });
             let mut prop_found = true;
-            let updated = self
+            let updated = edit
                 .object_propdefs
                 .update_with(obj, |props| {
                     props.with_updated(uuid, |p| {
@@ -1701,7 +1570,6 @@ impl WorldStateTransaction {
                 return Err(WorldStateError::PropertyNotFound(*obj, format!("{uuid}")));
             }
         }
-        self.has_mutations = true;
 
         // If flags or perms updated, do that.
         if new_flags.is_some() || new_owner.is_some() {
@@ -1716,32 +1584,35 @@ impl WorldStateTransaction {
                 perms = perms.with_owner(new_owner);
             }
 
-            upsert(
-                &mut self.object_propflags,
-                ObjAndUUIDHolder::new(obj, uuid),
-                perms,
-            )
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error updating property: {e:?}"))
-            })?;
+            {
+                let edit = self.edit(EditScope::Properties {
+                    objects,
+                    removed: None,
+                });
+                upsert(
+                    edit.object_propflags,
+                    ObjAndUUIDHolder::new(obj, uuid),
+                    perms,
+                )
+                .map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error updating property: {e:?}"))
+                })?;
+            }
             self.prop_perm_memo
                 .mark_known_propflags(ObjAndUUIDHolder::new(obj, uuid));
-            self.invalidate_cached_prop_perms_for_holder(obj, uuid);
         }
 
-        self.invalidate_prop_cache_for_branch(obj)?;
         Ok(())
     }
 
     pub fn clear_property(&mut self, obj: &Obj, uuid: Uuid) -> Result<(), WorldStateError> {
+        let edit = self.edit(EditScope::PropertyValue(*obj));
         // remove property value
-        self.object_propvalues
+        edit.object_propvalues
             .delete(&ObjAndUUIDHolder::new(obj, uuid))
             .map_err(|e| {
                 WorldStateError::DatabaseError(format!("Error clearing property value: {e:?}"))
             })?;
-        self.has_mutations = true;
-        self.invalidate_prop_cache_for_objects(&[*obj]);
         Ok(())
     }
 
@@ -1749,19 +1620,18 @@ impl WorldStateTransaction {
         // delete propdef from self and all descendants
         let descendants = self.descendants(obj, false)?;
         let locations = ObjSet::from_items(&[*obj]).with_concatenated(descendants);
+        let mut edit = self.edit(EditScope::Properties {
+            objects: locations.iter().collect(),
+            removed: Some(uuid),
+        });
         for location in locations.iter() {
-            self.object_propdefs
+            edit.object_propdefs
                 .update_with(&location, |props| props.with_removed(uuid))
                 .map_err(|e| {
                     WorldStateError::DatabaseError(format!("Error deleting property: {e:?}"))
                 })?;
-            self.invalidate_known_propflags_for_holder(&location, uuid);
-            self.invalidate_cached_prop_perms_for_holder(&location, uuid);
-            self.delete_property_metadata_for_holder(&location, uuid)?;
+            edit.delete_property_metadata_for_holder(&location, uuid)?;
         }
-        self.clear_cached_prop_perms();
-        self.has_mutations = true;
-        self.invalidate_prop_cache_for_branch(obj)?;
         Ok(())
     }
 
@@ -2076,7 +1946,7 @@ impl WorldStateTransaction {
 
         // Did we have any mutations at all?  If not, just fire and forget the verb cache and
         // return immediate success.
-        if !self.has_mutations {
+        if !self.has_mutations() {
             let caches_changed = self.verb_resolution_cache.borrow().has_changed()
                 || self.prop_resolution_cache.borrow().has_changed();
             if caches_changed {
@@ -2181,7 +2051,6 @@ impl WorldStateTransaction {
         upsert(&mut self.object_last_move, *obj, last_move_map).map_err(|e| {
             WorldStateError::DatabaseError(format!("Error setting last_move: {e:?}"))
         })?;
-        self.has_mutations = true;
         Ok(())
     }
 
@@ -2279,285 +2148,312 @@ impl WorldStateTransaction {
             return Ok(new_obj);
         }
 
-        // All cross-type renumbering combinations are allowed:
-        // numbered→numbered, numbered→uuid, uuid→numbered, uuid→uuid
+        let mut objects = self.branch_objects(old_obj)?;
+        objects.push(new_obj);
+        {
+            let edit = self.edit(EditScope::Renumber {
+                objects,
+                old: *old_obj,
+                new: new_obj,
+            });
+            // All cross-type renumbering combinations are allowed:
+            // numbered→numbered, numbered→uuid, uuid→numbered, uuid→uuid
 
-        // Step 1: Update all relations where old_obj appears as a codomain (target)
+            // Step 1: Update all relations where old_obj appears as a codomain (target)
 
-        // Update parent relationships (children pointing to old_obj as parent)
-        let parent_refs = self
-            .object_parent
-            .scan(&|_domain, codomain| *codomain == *old_obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning parent relations: {e:?}"))
-            })?;
-        for (child, _) in parent_refs {
-            self.object_parent
-                .update_with(&child, |_old_parent| Some(new_obj))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error updating parent relation: {e:?}"))
-                })?;
-        }
-
-        // Update location relationships (contents pointing to old_obj as location)
-        let location_refs = self
-            .object_location
-            .scan(&|_domain, codomain| *codomain == *old_obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning location relations: {e:?}"))
-            })?;
-        for (content, _) in location_refs {
-            self.object_location
-                .update_with(&content, |_old_location| Some(new_obj))
+            // Update parent relationships (children pointing to old_obj as parent)
+            let parent_refs = edit
+                .object_parent
+                .scan(&|_domain, codomain| *codomain == *old_obj)
                 .map_err(|e| {
                     WorldStateError::DatabaseError(format!(
-                        "Error updating location relation: {e:?}"
+                        "Error scanning parent relations: {e:?}"
                     ))
                 })?;
-        }
-
-        // Update ownership relationships (objects owned by old_obj)
-        let owner_refs = self
-            .object_owner
-            .scan(&|_domain, codomain| *codomain == *old_obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning owner relations: {e:?}"))
-            })?;
-        for (owned, _) in owner_refs {
-            self.object_owner
-                .update_with(&owned, |_old_owner| Some(new_obj))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error updating owner relation: {e:?}"))
-                })?;
-        }
-
-        // Step 2: Update relations where old_obj is the domain (source)
-
-        // Update old_obj's parent relationship
-        if let Ok(Some(parent)) = self.object_parent.get(old_obj) {
-            self.object_parent.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object parent: {e:?}"))
-            })?;
-            self.object_parent.upsert(new_obj, parent).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting new object parent: {e:?}"))
-            })?;
-        }
-
-        // Update old_obj's location relationship
-        if let Ok(Some(location)) = self.object_location.get(old_obj) {
-            self.object_location.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object location: {e:?}"))
-            })?;
-            self.object_location
-                .upsert(new_obj, location)
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error setting new object location: {e:?}"
-                    ))
-                })?;
-        }
-
-        // Update old_obj's owner relationship
-        if let Ok(Some(owner)) = self.object_owner.get(old_obj) {
-            self.object_owner.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object owner: {e:?}"))
-            })?;
-            self.object_owner.upsert(new_obj, owner).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting new object owner: {e:?}"))
-            })?;
-        }
-
-        // Step 3: Update other object data relations (flags, name, etc.)
-
-        // Move flags
-        if let Ok(Some(flags)) = self.object_flags.get(old_obj) {
-            self.object_flags.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object flags: {e:?}"))
-            })?;
-            self.object_flags.upsert(new_obj, flags).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting new object flags: {e:?}"))
-            })?;
-        }
-
-        // Move name
-        if let Ok(Some(name)) = self.object_name.get(old_obj) {
-            self.object_name.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object name: {e:?}"))
-            })?;
-            self.object_name.upsert(new_obj, name).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting new object name: {e:?}"))
-            })?;
-        }
-
-        // Move verb definitions
-        if let Ok(Some(verbdefs)) = self.object_verbdefs.get(old_obj) {
-            self.object_verbdefs.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old object verbs: {e:?}"))
-            })?;
-
-            // Create new VerbDefs with updated location for each verb
-            let mut updated_verbs = Vec::new();
-            for verb in verbdefs.iter() {
-                // Create new VerbDef with updated location
-                let updated_verb = VerbDef::new(
-                    verb.uuid(),
-                    new_obj, // Updated location
-                    verb.owner(),
-                    verb.names(),
-                    verb.flags(),
-                    verb.args(),
-                );
-                updated_verbs.push(updated_verb);
-            }
-            let updated_verbdefs = VerbDefs::from_items(&updated_verbs);
-
-            self.object_verbdefs
-                .upsert(new_obj, updated_verbdefs)
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting new object verbs: {e:?}"))
-                })?;
-
-            // Move verb programs for each verb
-            for verb in verbdefs.iter() {
-                let old_holder = ObjAndUUIDHolder::new(old_obj, verb.uuid());
-                let new_holder = ObjAndUUIDHolder::new(&new_obj, verb.uuid());
-
-                // Move verb program if it exists
-                if let Ok(Some(program)) = self.object_verbs.get(&old_holder) {
-                    self.object_verbs.delete(&old_holder).map_err(|e| {
+            for (child, _) in parent_refs {
+                edit.object_parent
+                    .update_with(&child, |_old_parent| Some(new_obj))
+                    .map_err(|e| {
                         WorldStateError::DatabaseError(format!(
-                            "Error deleting old verb program: {e:?}"
+                            "Error updating parent relation: {e:?}"
                         ))
                     })?;
-                    self.object_verbs.upsert(new_holder, program).map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new verb program: {e:?}"
-                        ))
-                    })?;
-                }
             }
-        }
 
-        // Move property definitions
-        if let Ok(Some(propdefs)) = self.object_propdefs.get(old_obj) {
-            self.object_propdefs.delete(old_obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!(
-                    "Error deleting old object properties: {e:?}"
-                ))
-            })?;
-            self.object_propdefs
-                .upsert(new_obj, propdefs.clone())
+            // Update location relationships (contents pointing to old_obj as location)
+            let location_refs = edit
+                .object_location
+                .scan(&|_domain, codomain| *codomain == *old_obj)
                 .map_err(|e| {
                     WorldStateError::DatabaseError(format!(
-                        "Error setting new object properties: {e:?}"
+                        "Error scanning location relations: {e:?}"
+                    ))
+                })?;
+            for (content, _) in location_refs {
+                edit.object_location
+                    .update_with(&content, |_old_location| Some(new_obj))
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error updating location relation: {e:?}"
+                        ))
+                    })?;
+            }
+
+            // Update ownership relationships (objects owned by old_obj)
+            let owner_refs = edit
+                .object_owner
+                .scan(&|_domain, codomain| *codomain == *old_obj)
+                .map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error scanning owner relations: {e:?}"))
+                })?;
+            for (owned, _) in owner_refs {
+                edit.object_owner
+                    .update_with(&owned, |_old_owner| Some(new_obj))
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error updating owner relation: {e:?}"
+                        ))
+                    })?;
+            }
+
+            // Step 2: Update relations where old_obj is the domain (source)
+
+            // Update old_obj's parent relationship
+            if let Ok(Some(parent)) = edit.object_parent.get(old_obj) {
+                edit.object_parent.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old object parent: {e:?}"
+                    ))
+                })?;
+                edit.object_parent.upsert(new_obj, parent).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error setting new object parent: {e:?}"
+                    ))
+                })?;
+            }
+
+            // Update old_obj's location relationship
+            if let Ok(Some(location)) = edit.object_location.get(old_obj) {
+                edit.object_location.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old object location: {e:?}"
+                    ))
+                })?;
+                edit.object_location
+                    .upsert(new_obj, location)
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error setting new object location: {e:?}"
+                        ))
+                    })?;
+            }
+
+            // Update old_obj's owner relationship
+            if let Ok(Some(owner)) = edit.object_owner.get(old_obj) {
+                edit.object_owner.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old object owner: {e:?}"
+                    ))
+                })?;
+                edit.object_owner.upsert(new_obj, owner).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error setting new object owner: {e:?}"))
+                })?;
+            }
+
+            // Step 3: Update other object data relations (flags, name, etc.)
+
+            // Move flags
+            if let Ok(Some(flags)) = edit.object_flags.get(old_obj) {
+                edit.object_flags.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old object flags: {e:?}"
+                    ))
+                })?;
+                edit.object_flags.upsert(new_obj, flags).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error setting new object flags: {e:?}"))
+                })?;
+            }
+
+            // Move name
+            if let Ok(Some(name)) = edit.object_name.get(old_obj) {
+                edit.object_name.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error deleting old object name: {e:?}"))
+                })?;
+                edit.object_name.upsert(new_obj, name).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error setting new object name: {e:?}"))
+                })?;
+            }
+
+            // Move verb definitions
+            if let Ok(Some(verbdefs)) = edit.object_verbdefs.get(old_obj) {
+                edit.object_verbdefs.delete(old_obj).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old object verbs: {e:?}"
                     ))
                 })?;
 
-            // Update all property definitions in the inheritance hierarchy that reference old_obj as definer
-            let all_propdefs = self.object_propdefs.get_all().map_err(|e| {
-                WorldStateError::DatabaseError(format!(
-                    "Error scanning property definitions: {e:?}"
-                ))
-            })?;
-
-            for (obj, props) in all_propdefs {
-                let mut needs_update = false;
-                let mut updated_props = Vec::new();
-
-                for prop in props {
-                    if prop.definer() == *old_obj {
-                        // Create new PropDef with updated definer
-                        let updated_prop =
-                            PropDef::new(prop.uuid(), new_obj, prop.location(), prop.name());
-                        updated_props.push(updated_prop);
-                        needs_update = true;
-                    } else {
-                        updated_props.push(prop);
-                    }
+                // Create new VerbDefs with updated location for each verb
+                let mut updated_verbs = Vec::new();
+                for verb in verbdefs.iter() {
+                    // Create new VerbDef with updated location
+                    let updated_verb = VerbDef::new(
+                        verb.uuid(),
+                        new_obj, // Updated location
+                        verb.owner(),
+                        verb.names(),
+                        verb.flags(),
+                        verb.args(),
+                    );
+                    updated_verbs.push(updated_verb);
                 }
+                let updated_verbdefs = VerbDefs::from_items(&updated_verbs);
 
-                if needs_update {
-                    let updated_defs = PropDefs::from_items(&updated_props);
-                    self.object_propdefs
-                        .upsert(obj, updated_defs)
-                        .map_err(|e| {
+                edit.object_verbdefs
+                    .upsert(new_obj, updated_verbdefs)
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error setting new object verbs: {e:?}"
+                        ))
+                    })?;
+
+                // Move verb programs for each verb
+                for verb in verbdefs.iter() {
+                    let old_holder = ObjAndUUIDHolder::new(old_obj, verb.uuid());
+                    let new_holder = ObjAndUUIDHolder::new(&new_obj, verb.uuid());
+
+                    // Move verb program if it exists
+                    if let Ok(Some(program)) = edit.object_verbs.get(&old_holder) {
+                        edit.object_verbs.delete(&old_holder).map_err(|e| {
                             WorldStateError::DatabaseError(format!(
-                                "Error updating property definer references: {e:?}"
+                                "Error deleting old verb program: {e:?}"
                             ))
                         })?;
+                        edit.object_verbs.upsert(new_holder, program).map_err(|e| {
+                            WorldStateError::DatabaseError(format!(
+                                "Error setting new verb program: {e:?}"
+                            ))
+                        })?;
+                    }
                 }
             }
-        }
 
-        // Move all property values for this object
-        let all_prop_values = self
-            .object_propvalues
-            .scan(&|holder, _value| &holder.obj() == old_obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning property values: {e:?}"))
-            })?;
-
-        for (old_holder, value) in all_prop_values {
-            let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
-            self.object_propvalues.delete(&old_holder).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old property value: {e:?}"))
-            })?;
-            self.object_propvalues
-                .upsert(new_holder, value)
-                .map_err(|e| {
+            // Move property definitions
+            if let Ok(Some(propdefs)) = edit.object_propdefs.get(old_obj) {
+                edit.object_propdefs.delete(old_obj).map_err(|e| {
                     WorldStateError::DatabaseError(format!(
-                        "Error setting new property value: {e:?}"
+                        "Error deleting old object properties: {e:?}"
                     ))
                 })?;
-        }
+                edit.object_propdefs
+                    .upsert(new_obj, propdefs.clone())
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error setting new object properties: {e:?}"
+                        ))
+                    })?;
 
-        // Move all property flags for this object
-        let all_prop_flags = self
-            .object_propflags
-            .scan(&|holder, _flags| &holder.obj() == old_obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning property flags: {e:?}"))
-            })?;
-
-        for (old_holder, flags) in all_prop_flags {
-            let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
-            self.object_propflags.delete(&old_holder).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old property flags: {e:?}"))
-            })?;
-            self.object_propflags
-                .upsert(new_holder.clone(), flags)
-                .map_err(|e| {
+                // Update all property definitions in the inheritance hierarchy that reference old_obj as definer
+                let all_propdefs = edit.object_propdefs.get_all().map_err(|e| {
                     WorldStateError::DatabaseError(format!(
-                        "Error setting new property flags: {e:?}"
+                        "Error scanning property definitions: {e:?}"
                     ))
                 })?;
-            self.prop_perm_memo.invalidate_known_for_holder(&old_holder);
-            self.prop_perm_memo.mark_known_propflags(new_holder);
-            self.prop_perm_memo
-                .invalidate_cached_for_holder(&old_holder);
+
+                for (obj, props) in all_propdefs {
+                    let mut needs_update = false;
+                    let mut updated_props = Vec::new();
+
+                    for prop in props {
+                        if prop.definer() == *old_obj {
+                            // Create new PropDef with updated definer
+                            let updated_prop =
+                                PropDef::new(prop.uuid(), new_obj, prop.location(), prop.name());
+                            updated_props.push(updated_prop);
+                            needs_update = true;
+                        } else {
+                            updated_props.push(prop);
+                        }
+                    }
+
+                    if needs_update {
+                        let updated_defs = PropDefs::from_items(&updated_props);
+                        edit.object_propdefs
+                            .upsert(obj, updated_defs)
+                            .map_err(|e| {
+                                WorldStateError::DatabaseError(format!(
+                                    "Error updating property definer references: {e:?}"
+                                ))
+                            })?;
+                    }
+                }
+            }
+
+            // Move all property values for this object
+            let all_prop_values = edit
+                .object_propvalues
+                .scan(&|holder, _value| &holder.obj() == old_obj)
+                .map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error scanning property values: {e:?}"))
+                })?;
+
+            for (old_holder, value) in all_prop_values {
+                let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
+                edit.object_propvalues.delete(&old_holder).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old property value: {e:?}"
+                    ))
+                })?;
+                edit.object_propvalues
+                    .upsert(new_holder, value)
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error setting new property value: {e:?}"
+                        ))
+                    })?;
+            }
+
+            // Move all property flags for this object
+            let all_prop_flags = edit
+                .object_propflags
+                .scan(&|holder, _flags| &holder.obj() == old_obj)
+                .map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error scanning property flags: {e:?}"))
+                })?;
+
+            for (old_holder, flags) in all_prop_flags {
+                let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
+                edit.object_propflags.delete(&old_holder).map_err(|e| {
+                    WorldStateError::DatabaseError(format!(
+                        "Error deleting old property flags: {e:?}"
+                    ))
+                })?;
+                edit.object_propflags
+                    .upsert(new_holder.clone(), flags)
+                    .map_err(|e| {
+                        WorldStateError::DatabaseError(format!(
+                            "Error setting new property flags: {e:?}"
+                        ))
+                    })?;
+            }
+
+            let metadata_entries = edit
+                .entity_metadata
+                .scan(&|metadata_key, _| metadata_key.references_obj(*old_obj))
+                .map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}"))
+                })?;
+            for (old_key, value) in metadata_entries {
+                let Some(new_key) = old_key.rehome_obj(*old_obj, new_obj) else {
+                    continue;
+                };
+                edit.entity_metadata.delete(&old_key).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error deleting old metadata: {e:?}"))
+                })?;
+                edit.entity_metadata.upsert(new_key, value).map_err(|e| {
+                    WorldStateError::DatabaseError(format!("Error setting new metadata: {e:?}"))
+                })?;
+            }
         }
-        self.clear_cached_prop_perms();
-
-        let metadata_entries = self
-            .entity_metadata
-            .scan(&|metadata_key, _| metadata_key.references_obj(*old_obj))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}"))
-            })?;
-        for (old_key, value) in metadata_entries {
-            let Some(new_key) = old_key.rehome_obj(*old_obj, new_obj) else {
-                continue;
-            };
-            self.entity_metadata.delete(&old_key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting old metadata: {e:?}"))
-            })?;
-            self.entity_metadata.upsert(new_key, value).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting new metadata: {e:?}"))
-            })?;
-        }
-
-        self.has_mutations = true;
-
         // Update max_object if the new object ID is higher
         if !new_obj.is_uuobjid() {
             let current_max = self.get_max_object()?;
@@ -2565,12 +2461,6 @@ impl WorldStateTransaction {
                 self.update_sequence_max(SEQUENCE_MAX_OBJECT, new_obj.id().0 as i64);
             }
         }
-
-        // Ensure caches reflect the new object identifier
-        self.invalidate_verb_cache_for_objects(&[*old_obj]);
-        self.invalidate_prop_cache_for_objects(&[*old_obj]);
-        self.invalidate_ancestry_cache_for_objects(&[*old_obj]);
-        self.invalidate_all_caches_for_branch(&new_obj)?;
 
         Ok(new_obj)
     }
@@ -2714,49 +2604,62 @@ impl WorldStateTransaction {
         let branch = self.descendants(root, true)?;
         Ok(branch.iter().collect())
     }
+}
 
-    fn invalidate_verb_cache_for_objects(&self, objects: &[Obj]) {
-        if objects.is_empty() {
-            return;
+impl WorldStateEdit<'_> {
+    fn delete_metadata_for_obj(&mut self, obj: &Obj) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.references_obj(*obj))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
         }
-        self.verb_resolution_cache
-            .borrow_mut()
-            .invalidate_objects(objects);
-    }
-
-    fn invalidate_prop_cache_for_objects(&self, objects: &[Obj]) {
-        if objects.is_empty() {
-            return;
-        }
-        self.prop_resolution_cache
-            .borrow_mut()
-            .invalidate_objects(objects);
-    }
-
-    fn invalidate_ancestry_cache_for_objects(&self, objects: &[Obj]) {
-        if objects.is_empty() {
-            return;
-        }
-        self.ancestry_cache.borrow_mut().invalidate_objects(objects);
-    }
-
-    fn invalidate_verb_cache_for_branch(&self, root: &Obj) -> Result<(), WorldStateError> {
-        let objects = self.branch_objects(root)?;
-        self.invalidate_verb_cache_for_objects(&objects);
         Ok(())
     }
 
-    fn invalidate_prop_cache_for_branch(&self, root: &Obj) -> Result<(), WorldStateError> {
-        let objects = self.branch_objects(root)?;
-        self.invalidate_prop_cache_for_objects(&objects);
+    fn delete_property_metadata_for_holder(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.is_property_key_for(*holder, uuid))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
+        }
         Ok(())
     }
 
-    fn invalidate_all_caches_for_branch(&self, root: &Obj) -> Result<(), WorldStateError> {
-        let objects = self.branch_objects(root)?;
-        self.invalidate_verb_cache_for_objects(&objects);
-        self.invalidate_prop_cache_for_objects(&objects);
-        self.invalidate_ancestry_cache_for_objects(&objects);
+    fn delete_verb_metadata_for_holder(
+        &mut self,
+        holder: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let keys = self
+            .entity_metadata
+            .scan(&|metadata_key, _| metadata_key.is_verb_key_for(*holder, uuid))
+            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .into_iter()
+            .map(|(metadata_key, _)| metadata_key)
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.entity_metadata.delete(&key).map_err(|e| {
+                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
+            })?;
+        }
         Ok(())
     }
 }

@@ -1120,6 +1120,10 @@ where
         Ok(())
     }
 
+    pub(crate) fn has_mutations(&self) -> bool {
+        !self.index.local_operations.is_empty()
+    }
+
     pub fn working_set(self) -> Result<WorkingSet<Domain, Codomain>, WorldStateError> {
         let Inner {
             local_operations,

@@ -656,7 +656,6 @@ macro_rules! define_relations {
                         ancestry_cache: std::cell::RefCell::new(ancestry_cache),
                         prop_perm_memo: crate::engine::ws_transaction::PropertyPermMemo::new(),
                         inherited_policy_reads: std::collections::HashSet::new(),
-                        has_mutations: false,
                     }
                 }
             }
@@ -739,11 +738,33 @@ macro_rules! define_relations {
                 pub(crate) ancestry_cache: std::cell::RefCell<AncestryCache>,
                 /// Per-transaction memo state for property permission lookups.
                 pub(crate) prop_perm_memo: crate::engine::ws_transaction::PropertyPermMemo,
-                /// Whether this transaction has performed any mutations
-                pub(crate) has_mutations: bool,
+            }
+
+            /// A mutation view cannot perform cached resolution while its caches are borrowed.
+            pub(crate) struct WorldStateEdit<'a> {
+                // Generate the whole relation view, including relations without cached readers.
+                $( #[allow(dead_code)] pub(crate) $field: &'a mut RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>>, )*
+                _invalidation: crate::engine::ws_transaction::edit::EditInvalidation<'a>,
             }
 
             impl WorldStateTransaction {
+                pub(crate) fn has_mutations(&self) -> bool {
+                    false $( || self.$field.has_mutations() )*
+                }
+
+                pub(crate) fn edit(&mut self, scope: crate::engine::ws_transaction::edit::EditScope) -> WorldStateEdit<'_> {
+                    WorldStateEdit {
+                        $( $field: &mut self.$field, )*
+                        _invalidation: crate::engine::ws_transaction::edit::EditInvalidation::new(
+                            scope,
+                            self.verb_resolution_cache.get_mut(),
+                            self.prop_resolution_cache.get_mut(),
+                            self.ancestry_cache.get_mut(),
+                            &mut self.prop_perm_memo,
+                        ),
+                    }
+                }
+
                 /// Extract working sets from all relation transactions.
                 ///
                 /// This method collects the working sets from all relation transactions
@@ -752,6 +773,7 @@ macro_rules! define_relations {
                 /// # Errors
                 /// Returns an error if any relation transaction fails to produce a working set.
                 pub(crate) fn into_working_sets(self) -> Result<Box<WorkingSets>, moor_common::model::WorldStateError> {
+                    let has_mutations = self.has_mutations();
                     $(
                         let $field = self.$field.working_set()?;
                     )*
@@ -771,7 +793,7 @@ macro_rules! define_relations {
                         verb_resolution_cache: self.verb_resolution_cache.into_inner(),
                         prop_resolution_cache: self.prop_resolution_cache.into_inner(),
                         ancestry_cache: self.ancestry_cache.into_inner(),
-                        has_mutations: self.has_mutations,
+                        has_mutations,
                         tx_bloom,
                     });
 
