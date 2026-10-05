@@ -225,6 +225,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   longer drain the replacement's mailbox or change its pending effects.
 - Keep pending schedule changes with their originating task dispatch. Late create, stop, and query
   requests no longer change or expose a replacement task's unpublished schedules.
+- Ignore stale session, fork, and task-control requests from replaced task dispatches. A late
+  notification error or player-switch reply no longer changes the replacement task's identity or
+  cancellation state.
 - Retain terminal task results during session finalization, including cancellation and transaction
   renewal failure. Concurrent abort requests wait for the reserved result.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when

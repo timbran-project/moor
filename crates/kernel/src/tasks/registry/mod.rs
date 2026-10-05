@@ -114,9 +114,22 @@ impl TaskQ {
     /// Worker requests can change only their own dispatch while it is still executing.
     /// Callers retain the lifecycle lock from this check through the corresponding mutation.
     pub(crate) fn is_running_attempt(&self, attempt: &TaskAttempt) -> bool {
+        self.running_attempt(attempt).is_some()
+    }
+
+    pub(crate) fn running_attempt(&self, attempt: &TaskAttempt) -> Option<&RunningTask> {
         self.active
             .get(&attempt.task_id())
-            .is_some_and(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
+            .filter(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
+    }
+
+    pub(crate) fn running_attempt_mut(
+        &mut self,
+        attempt: &TaskAttempt,
+    ) -> Option<&mut RunningTask> {
+        self.active
+            .get_mut(&attempt.task_id())
+            .filter(|task| attempt.matches(task) && task.phase == RunningTaskPhase::Running)
     }
 
     /// Collect tasks that need to be woken up by timer, pull them from our suspended list, and

@@ -27,7 +27,7 @@ use moor_common::{
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
-use moor_var::{E_INVARG, Error, List, Obj, Symbol, Var, v_err};
+use moor_var::{E_INVARG, E_INVIND, Error, List, Obj, Symbol, Var, v_err};
 
 use crate::tasks::{
     scheduler::Scheduler,
@@ -140,7 +140,10 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskRequestForkLatency);
-        self.scheduler.handle_task_request_fork(self.task_id, fork)
+        self.attempt.as_ref().map_or(0, |attempt| {
+            self.scheduler
+                .handle_task_request_fork_for_attempt(attempt, fork)
+        })
     }
 
     pub fn abort_cancelled(&self) {
@@ -214,8 +217,11 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskKillTaskLatency);
+        let Some(attempt) = &self.attempt else {
+            return v_err(E_INVARG);
+        };
         self.scheduler
-            .handle_kill_task(self.task_id, victim_task_id, sender_authority)
+            .handle_kill_task_for_attempt(attempt, victim_task_id, sender_authority)
     }
 
     pub fn resume_task(
@@ -227,8 +233,11 @@ impl TaskSchedulerClient {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::TaskResumeTaskLatency);
-        self.scheduler.handle_resume_task(
-            self.task_id,
+        let Some(attempt) = &self.attempt else {
+            return v_err(E_INVARG);
+        };
+        self.scheduler.handle_resume_task_for_attempt(
+            attempt,
             queued_task_id,
             sender_authority,
             return_value,
@@ -236,7 +245,10 @@ impl TaskSchedulerClient {
     }
 
     pub fn boot_player(&self, player: Obj) {
-        self.scheduler.handle_boot_player(self.task_id, player);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_boot_player_for_attempt(attempt, player);
+        }
     }
 
     pub fn checkpoint(&self) -> Result<(), SchedulerError> {
@@ -248,13 +260,19 @@ impl TaskSchedulerClient {
 
     pub fn notify(&self, player: Obj, event: Box<NarrativeEvent>) {
         let result = with_current_session(|session| session.send_event(player, event));
-        if let Err(error) = result {
-            self.scheduler.handle_notify_error(self.task_id, error);
+        if let Err(error) = result
+            && let Some(attempt) = &self.attempt
+        {
+            self.scheduler
+                .handle_notify_error_for_attempt(attempt, error);
         }
     }
 
     pub fn log_event(&self, player: Obj, event: Box<NarrativeEvent>) {
-        self.scheduler.handle_log_event(self.task_id, player, event);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_log_event_for_attempt(attempt, player, event);
+        }
     }
 
     pub fn listen(
@@ -264,8 +282,11 @@ impl TaskSchedulerClient {
         port: u16,
         options: Vec<(Symbol, Var)>,
     ) -> Option<Error> {
+        let Some(attempt) = &self.attempt else {
+            return Some(E_INVARG.msg("Task not found"));
+        };
         self.scheduler
-            .handle_listen(self.task_id, handler_object, host_type, port, options)
+            .handle_listen_for_attempt(attempt, handler_object, host_type, port, options)
     }
 
     pub fn listeners(&self) -> Vec<ListenerInfo> {
@@ -273,8 +294,11 @@ impl TaskSchedulerClient {
     }
 
     pub fn unlisten(&self, host_type: String, port: u16) -> Option<Error> {
+        let Some(attempt) = &self.attempt else {
+            return Some(E_INVARG.msg("Task not found"));
+        };
         self.scheduler
-            .handle_unlisten(self.task_id, host_type, port)
+            .handle_unlisten_for_attempt(attempt, host_type, port)
     }
 
     pub fn refresh_server_options(&self) {
@@ -310,7 +334,11 @@ impl TaskSchedulerClient {
     }
 
     pub fn force_input(&self, who: Obj, line: String) -> Result<TaskId, Error> {
-        self.scheduler.handle_force_input(self.task_id, who, line)
+        let Some(attempt) = &self.attempt else {
+            return Err(E_INVIND.msg("Task not found"));
+        };
+        self.scheduler
+            .handle_force_input_for_attempt(attempt, who, line)
     }
 
     pub fn active_tasks(&self) -> Result<ActiveTaskDescriptions, Error> {
@@ -331,8 +359,11 @@ impl TaskSchedulerClient {
         silent: bool,
         preserve_history: bool,
     ) -> Result<(), Error> {
-        self.scheduler.handle_switch_player_from_task(
-            self.task_id,
+        let Some(attempt) = &self.attempt else {
+            return Err(E_INVARG.msg("Task not found for switch_player"));
+        };
+        self.scheduler.handle_switch_player_for_attempt(
+            attempt,
             source,
             new_player,
             silent,

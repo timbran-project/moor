@@ -218,14 +218,9 @@ impl Scheduler {
         )?;
         let id = create.id;
         if let Some(attempt) = attempt
-            && lc.task_q.is_running_attempt(attempt)
+            && let Some(task) = lc.task_q.running_attempt_mut(attempt)
         {
-            lc.task_q
-                .active
-                .get_mut(&attempt.task_id())
-                .unwrap()
-                .effects
-                .create_schedule(create);
+            task.effects.create_schedule(create);
         }
         Ok(id)
     }

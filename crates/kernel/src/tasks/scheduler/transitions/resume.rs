@@ -20,7 +20,7 @@
 use crate::tasks::{
     SchedulerOp, TaskStart, sched_counters,
     scheduler::{ResumeAction, Scheduler},
-    task_q::{TaskQ, WakeCondition},
+    task_q::{TaskAttempt, TaskQ, WakeCondition},
     workers::WorkerResponse,
 };
 #[cfg(feature = "trace_events")]
@@ -33,7 +33,7 @@ use moor_common::{
 use moor_compiler::to_literal;
 use moor_var::{
     E_EXEC, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, List, Obj, SYSTEM_OBJECT, Var,
-    v_bool_int, v_int,
+    v_bool_int, v_err, v_int,
 };
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -325,16 +325,53 @@ impl Scheduler {
         )
     }
 
+    pub(crate) fn handle_resume_task_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        queued_task_id: TaskId,
+        sender_authority: TaskPermissions,
+        return_value: Var,
+    ) -> Var {
+        let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_running_attempt(attempt) {
+            return v_err(E_INVARG);
+        }
+        let task_id = attempt.task_id();
+        lc.task_q.resume_task(
+            task_id,
+            queued_task_id,
+            sender_authority,
+            return_value,
+            self,
+            self.database.as_ref(),
+            self.builtin_registry.clone(),
+            self.config.clone(),
+        )
+    }
+
     pub fn handle_force_input(
         &self,
         task_id: TaskId,
         who: Obj,
         line: String,
     ) -> Result<TaskId, Error> {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return Err(E_INVIND.msg("Task not found"));
+        };
+        self.handle_force_input_for_attempt(&attempt, who, line)
+    }
+
+    pub(crate) fn handle_force_input_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        who: Obj,
+        line: String,
+    ) -> Result<TaskId, Error> {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
 
         let new_session = {
-            let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+            let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
                 warn!(task_id, "Task not found for force input request");
                 return Err(E_INVIND.msg("Task not found"));
             };

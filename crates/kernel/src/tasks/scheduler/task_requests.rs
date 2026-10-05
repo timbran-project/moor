@@ -15,8 +15,11 @@
 //!
 //! Task queries acquire the lifecycle lock to inspect active metadata. Object operations use
 //! database interfaces directly; each retains its existing transaction and permission policy.
-//! Worker message and renewal requests carry dispatch identity into the locked operation. Public
-//! task-ID entry points retain their current-registration behavior for external callers.
+//! Worker requests carry dispatch identity into each borrow of active metadata. Public task-ID
+//! entry points select the current registration. Session calls retain their existing lock scopes.
+//! Host listener and player-switch I/O run outside the lock. A successful host action remains
+//! committed if the caller disappears; player-switch completion rechecks its dispatch before it
+//! updates task or session metadata.
 
 use crate::{
     tasks::{
@@ -185,6 +188,18 @@ impl Scheduler {
     }
 
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return 0;
+        };
+        self.handle_task_request_fork_for_attempt(&attempt, fork_request)
+    }
+
+    pub(crate) fn handle_task_request_fork_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        fork_request: Box<Fork>,
+    ) -> TaskId {
+        let task_id = attempt.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::ForkTask);
 
@@ -192,7 +207,7 @@ impl Scheduler {
 
         // Task has requested a fork. Dispatch it and reply with the new task id.
         let new_session = {
-            let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+            let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
                 warn!(task_id, "Task not found for fork request");
                 // Return a sentinel; caller should handle missing task.
                 return 0;
@@ -241,14 +256,37 @@ impl Scheduler {
     }
 
     pub fn handle_boot_player(&self, task_id: TaskId, player: Obj) {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return;
+        };
+        self.handle_boot_player_for_attempt(&attempt, player)
+    }
+
+    pub(crate) fn handle_boot_player_for_attempt(&self, attempt: &TaskAttempt, player: Obj) {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_running_attempt(attempt) {
+            return;
+        }
         // Task is asking to boot a player.
         lc.task_q.disconnect_task(task_id, &player);
     }
 
     pub fn handle_notify_error(&self, task_id: TaskId, error: SessionError) {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return;
+        };
+        self.handle_notify_error_for_attempt(&attempt, error)
+    }
+
+    pub(crate) fn handle_notify_error_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        error: SessionError,
+    ) {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
-        let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+        let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
             debug!(
                 task_id,
                 ?error,
@@ -271,9 +309,22 @@ impl Scheduler {
     }
 
     pub fn handle_log_event(&self, task_id: TaskId, player: Obj, event: Box<NarrativeEvent>) {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return;
+        };
+        self.handle_log_event_for_attempt(&attempt, player, event)
+    }
+
+    pub(crate) fn handle_log_event_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        player: Obj,
+        event: Box<NarrativeEvent>,
+    ) {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
         // Task is asking to log an event without broadcasting.
-        let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+        let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
             warn!(task_id, "Task not found for log_event request");
             return;
         };
@@ -297,8 +348,23 @@ impl Scheduler {
         port: u16,
         options: Vec<(Symbol, Var)>,
     ) -> Option<Error> {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return Some(E_INVARG.msg("Task not found"));
+        };
+        self.handle_listen_for_attempt(&attempt, handler_object, host_type, port, options)
+    }
+
+    pub(crate) fn handle_listen_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        handler_object: Obj,
+        host_type: String,
+        port: u16,
+        options: Vec<(Symbol, Var)>,
+    ) -> Option<Error> {
+        let task_id = attempt.task_id();
         let lc = self.lifecycle.lock();
-        let Some(_task) = lc.task_q.active.get(&task_id) else {
+        let Some(_task) = lc.task_q.running_attempt(attempt) else {
             warn!(task_id, "Task not found for listen request");
             return Some(E_INVARG.msg("Task not found"));
         };
@@ -310,8 +376,21 @@ impl Scheduler {
     }
 
     pub fn handle_unlisten(&self, task_id: TaskId, host_type: String, port: u16) -> Option<Error> {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return Some(E_INVARG.msg("Task not found"));
+        };
+        self.handle_unlisten_for_attempt(&attempt, host_type, port)
+    }
+
+    pub(crate) fn handle_unlisten_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        host_type: String,
+        port: u16,
+    ) -> Option<Error> {
+        let task_id = attempt.task_id();
         let lc = self.lifecycle.lock();
-        let Some(_task) = lc.task_q.active.get(&task_id) else {
+        let Some(_task) = lc.task_q.running_attempt(attempt) else {
             warn!(task_id, "Task not found for unlisten request");
             return Some(E_INVARG.msg("Task not found"));
         };
@@ -592,10 +671,30 @@ impl Scheduler {
         silent: bool,
         preserve_history: bool,
     ) -> Result<(), Error> {
+        let Some(attempt) = self.capture_task_attempt(task_id) else {
+            return Err(E_INVARG.msg("Task not found for switch_player"));
+        };
+        self.handle_switch_player_for_attempt(
+            &attempt,
+            source,
+            new_player,
+            silent,
+            preserve_history,
+        )
+    }
+
+    pub(crate) fn handle_switch_player_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        source: Option<Obj>,
+        new_player: Obj,
+        silent: bool,
+        preserve_history: bool,
+    ) -> Result<(), Error> {
         let mut lc = self.lifecycle.lock();
 
         // Get the current task to access its session
-        let Some(task) = lc.task_q.active.get_mut(&task_id) else {
+        let Some(task) = lc.task_q.running_attempt_mut(attempt) else {
             return Err(E_INVARG.with_msg(|| "Task not found for switch_player".to_string()));
         };
 
@@ -645,7 +744,7 @@ impl Scheduler {
         // succeeds so a rejected switch leaves the running task associated with its old player.
         let mut lc = self.lifecycle.lock();
         if connection_obj == current_connection
-            && let Some(task) = lc.task_q.active.get_mut(&task_id)
+            && let Some(task) = lc.task_q.running_attempt_mut(attempt)
         {
             task.player = new_player;
             task.session
@@ -658,3 +757,6 @@ impl Scheduler {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod session_tests;

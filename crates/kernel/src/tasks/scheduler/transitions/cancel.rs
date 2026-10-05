@@ -26,7 +26,7 @@ use moor_common::{
         TaskId,
     },
 };
-use moor_var::Var;
+use moor_var::{E_INVARG, Var, v_err};
 use std::backtrace::Backtrace;
 use tracing::{debug, warn};
 
@@ -146,6 +146,19 @@ impl Scheduler {
         sender_authority: TaskPermissions,
     ) -> Var {
         let mut lc = self.lifecycle.lock();
+        lc.task_q.kill_task(victim_task_id, sender_authority)
+    }
+
+    pub(crate) fn handle_kill_task_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        victim_task_id: TaskId,
+        sender_authority: TaskPermissions,
+    ) -> Var {
+        let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_running_attempt(attempt) {
+            return v_err(E_INVARG);
+        }
         lc.task_q.kill_task(victim_task_id, sender_authority)
     }
 
