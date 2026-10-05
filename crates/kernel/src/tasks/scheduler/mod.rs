@@ -1581,6 +1581,14 @@ mod tests {
                 let old_client = TaskSchedulerClient::new(task_id, scheduler.clone());
                 let worker = std::thread::spawn(move || callback(&old_client));
                 commit_entered.wait();
+                let reserved = {
+                    let lc = scheduler.lifecycle.lock();
+                    matches!(
+                        lc.task_q.active.get(&task_id).unwrap().phase,
+                        RunningTaskPhase::Completing(_)
+                    )
+                };
+                let abort_outcome = scheduler.handle_abort_task(task_id);
                 let replacement =
                     insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
                 let (send, recv) = flume::unbounded();
@@ -1593,6 +1601,11 @@ mod tests {
                 }
                 release_commit.wait();
                 worker.join().unwrap();
+                assert!(
+                    reserved,
+                    "session finalization must reserve its terminal result"
+                );
+                assert!(matches!(abort_outcome, AbortTaskOutcome::Completing));
                 let mut lc = scheduler.lifecycle.lock();
                 let active = lc
                     .task_q
@@ -1608,6 +1621,129 @@ mod tests {
                 assert!(matches!(recv.try_recv(), Err(flume::TryRecvError::Empty)));
             }
         }
+    }
+
+    #[test]
+    fn finalization_preserves_effect_and_error_policies() {
+        use crate::tasks::task_scheduler_client::TaskSchedulerClient;
+        use moor_common::tasks::SchedulerError::{CouldNotStartTask, TaskAbortedException};
+        for kind in ["exception", "renewal", "cancellation"] {
+            for fail_commit in [false, true] {
+                let scheduler = scheduler();
+                let task_id = 254;
+                let target_id = 255;
+                let commit_entered = Arc::new(Barrier::new(2));
+                let release_commit = Arc::new(Barrier::new(2));
+                insert_active_task(
+                    &scheduler,
+                    task_id,
+                    Arc::new(BlockingCommitSession {
+                        commit_entered: commit_entered.clone(),
+                        release_commit: release_commit.clone(),
+                        connection_obj: None,
+                        source_connections: None,
+                        fail_commit,
+                    }),
+                );
+                let (send, recv) = flume::unbounded();
+                {
+                    let mut lc = scheduler.lifecycle.lock();
+                    lc.state = SchedulerState::Running;
+                    lc.task_q.deliver_message(task_id, v_int(42));
+                    let active = lc.task_q.active.get_mut(&task_id).unwrap();
+                    active.result_sender = Some(send);
+                    active.effects.send(target_id, v_int(17));
+                }
+                let client = TaskSchedulerClient::new(task_id, scheduler.clone());
+                let worker = std::thread::spawn(move || match kind {
+                    "exception" => client.exception(Box::new(moor_common::tasks::Exception {
+                        error: E_QUOTA.msg("failure"),
+                        stack: vec![],
+                        backtrace: vec![],
+                    })),
+                    "renewal" => client.abort_transaction_renewal_failed(),
+                    "cancellation" => client.abort_cancelled(),
+                    _ => unreachable!(),
+                });
+                commit_entered.wait();
+                let unpublished = scheduler.lifecycle.lock().task_q.mailbox_len(target_id) == 0;
+                release_commit.wait();
+                worker.join().unwrap();
+                assert!(unpublished);
+                let mut lc = scheduler.lifecycle.lock();
+                let messages = lc.task_q.drain_messages(target_id);
+                if kind == "cancellation" {
+                    assert!(messages.is_empty());
+                } else {
+                    assert_eq!(messages, vec![v_int(17)]);
+                }
+                assert!(!scheduler.handle_task_exists(task_id));
+                assert_eq!(lc.task_q.mailbox_len(task_id), 0);
+                let (id, result) = recv.try_recv().unwrap();
+                assert_eq!(id, task_id);
+                assert!(matches!(
+                    (kind, fail_commit, result),
+                    ("exception", _, Err(TaskAbortedException(_)))
+                        | ("renewal", false, Err(CouldNotStartTask))
+                        | ("cancellation", false, Err(TaskAbortedCancelled))
+                        | ("renewal" | "cancellation", true, Err(TaskAbortedError))
+                ));
+                assert!(matches!(
+                    recv.try_recv(),
+                    Err(flume::TryRecvError::Disconnected)
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn reserved_completion_rejects_duplicate_callbacks() {
+        use crate::tasks::task_scheduler_client::TaskSchedulerClient;
+        let scheduler = scheduler();
+        let task_id = 256;
+        let commit_entered = Arc::new(Barrier::new(2));
+        let release_commit = Arc::new(Barrier::new(2));
+        insert_active_task(
+            &scheduler,
+            task_id,
+            Arc::new(BlockingCommitSession {
+                commit_entered: commit_entered.clone(),
+                release_commit: release_commit.clone(),
+                connection_obj: None,
+                source_connections: None,
+                fail_commit: false,
+            }),
+        );
+        let (send, recv) = flume::unbounded();
+        scheduler
+            .lifecycle
+            .lock()
+            .task_q
+            .active
+            .get_mut(&task_id)
+            .unwrap()
+            .result_sender = Some(send);
+        let client = TaskSchedulerClient::new(task_id, scheduler.clone());
+        let worker_client = client.clone();
+        let worker = std::thread::spawn(move || worker_client.success(v_int(17), false, 0));
+        commit_entered.wait();
+        client.command_error(CommandError::NoCommandMatch);
+        client.verb_not_found(v_int(0), Symbol::mk("duplicate"));
+        client.success(v_int(99), true, 99);
+        client.abort_cancelled();
+        client.abort_transaction_renewal_failed();
+        let still_pending = matches!(recv.try_recv(), Err(flume::TryRecvError::Empty));
+        release_commit.wait();
+        worker.join().unwrap();
+        assert!(still_pending);
+        assert!(
+            matches!(recv.try_recv(), Ok((256, Ok(TaskNotification::Result(value)))) if value == v_int(17))
+        );
+        assert!(scheduler.lifecycle.lock().last_mutation_timestamp.is_none());
+        assert!(matches!(
+            recv.try_recv(),
+            Err(flume::TryRecvError::Disconnected)
+        ));
     }
 
     #[test]

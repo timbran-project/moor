@@ -221,6 +221,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scheduled firings. Retry setup errors no longer panic in the scheduler service.
 - Ignore completion, retry, and panic callbacks from replaced task attempts. Late callbacks no
   longer remove a replacement task or publish its pending effects.
+- Retain terminal task results during session finalization, including cancellation and transaction
+  renewal failure. Concurrent abort requests wait for the reserved result.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
   their bodies access local bindings ([#554](https://github.com/timbran-project/moor/issues/554)).
   Stored program format 6 retains the entry layout; affected older programs need recompilation.

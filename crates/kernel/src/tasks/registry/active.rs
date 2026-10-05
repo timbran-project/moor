@@ -127,7 +127,7 @@ impl TaskAttempt {
 pub(crate) enum RunningTaskPhase {
     /// The VM may still be executing.
     Running,
-    /// The VM has yielded and its session is committing before completion.
+    /// The VM has yielded and its session is finalizing before terminal result delivery.
     Completing(Result<Var, SchedulerError>),
     /// The VM has yielded and its session is committing before suspension.
     Suspending,
@@ -142,7 +142,7 @@ pub(crate) struct RunningTask {
     pub(crate) registration: LiveTaskRegistration,
     /// Unpublished messages and schedule operations owned by this active attempt.
     pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
-    /// Current phase of the active-to-suspended transition.
+    /// Current lifecycle phase while the task occupies the active slot.
     pub(crate) phase: RunningTaskPhase,
     /// For which player this task is running on behalf of.
     pub(crate) player: Obj,

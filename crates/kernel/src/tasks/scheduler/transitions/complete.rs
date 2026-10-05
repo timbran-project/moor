@@ -12,14 +12,11 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Terminal completion retains its result in active metadata during session I/O.
-//! This owner identifies the attempt that can consume the reserved result.
+//! Only one completion owner can reserve a running attempt. The worker panic handler performs
+//! registry cleanup if session finalization unwinds; this owner never locks or publishes in Drop.
 
 use super::super::lifecycle::TaskLifecycle;
-use crate::tasks::task_q::TaskAttempt;
-use crate::tasks::{
-    task_control::TaskControl,
-    task_q::{RunningTask, RunningTaskPhase},
-};
+use crate::tasks::task_q::{RunningTask, RunningTaskPhase, TaskAttempt};
 use moor_common::tasks::{SchedulerError, Session, TaskId};
 use moor_var::Var;
 use std::sync::Arc;
@@ -43,8 +40,7 @@ use uuid::Uuid;
 
 #[must_use]
 pub(in crate::tasks::scheduler) struct TaskCompletion {
-    task_id: TaskId,
-    control: Arc<TaskControl>,
+    attempt: TaskAttempt,
     pub(in crate::tasks::scheduler) session: Arc<dyn Session>,
 }
 
@@ -53,25 +49,45 @@ impl TaskCompletion {
         task_id: TaskId,
         task: &mut RunningTask,
         result: Result<Var, SchedulerError>,
-    ) -> Self {
-        task.phase = RunningTaskPhase::Completing(result);
-        Self {
-            task_id,
-            control: task.control.clone(),
-            session: task.session.clone(),
+    ) -> Option<Self> {
+        if task.phase != RunningTaskPhase::Running {
+            return None;
         }
+        task.phase = RunningTaskPhase::Completing(result);
+        Some(Self {
+            attempt: TaskAttempt::new(task_id, task.control.clone()),
+            session: task.session.clone(),
+        })
     }
 
     pub(in crate::tasks::scheduler) fn is_current(&self, lc: &TaskLifecycle) -> bool {
-        lc.task_q.active.get(&self.task_id).is_some_and(|task| {
-            Arc::ptr_eq(&task.control, &self.control)
-                && matches!(task.phase, RunningTaskPhase::Completing(_))
-        })
+        lc.task_q.is_current_attempt(&self.attempt)
+            && lc
+                .task_q
+                .active
+                .get(&self.attempt.task_id())
+                .is_some_and(|task| matches!(task.phase, RunningTaskPhase::Completing(_)))
+    }
+
+    /// Session failure can replace the reserved outcome without exposing its storage to callers.
+    pub(in crate::tasks::scheduler) fn finish_with_result(
+        self,
+        lc: &mut TaskLifecycle,
+        result: Result<Var, SchedulerError>,
+    ) {
+        if self.is_current(lc) {
+            lc.task_q
+                .active
+                .get_mut(&self.attempt.task_id())
+                .expect("checked current completion")
+                .phase = RunningTaskPhase::Completing(result);
+            self.finish(lc);
+        }
     }
 
     pub(in crate::tasks::scheduler) fn finish(self, lc: &mut TaskLifecycle) {
         if self.is_current(lc) {
-            lc.task_q.send_reserved_task_result(self.task_id);
+            lc.task_q.send_reserved_task_result(self.attempt.task_id());
         }
     }
 }
@@ -95,15 +111,17 @@ impl Scheduler {
                 return;
             }
 
-            if mutations_made {
-                lc.last_mutation_timestamp = Some(timestamp);
-            }
-
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found for success");
                 return;
             };
-            TaskCompletion::reserve(task_id, task, Ok(value))
+            let Some(completion) = TaskCompletion::reserve(task_id, task, Ok(value)) else {
+                return;
+            };
+            if mutations_made {
+                lc.last_mutation_timestamp = Some(timestamp);
+            }
+            completion
         };
 
         // Session commit (potential I/O) outside the lock.
@@ -115,24 +133,15 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
-                return;
-            }
             if !completion.is_current(&lc) {
                 return;
             }
             lc.discard_task_effects(task_id);
-            if let Some(task) = lc.task_q.active.get_mut(&task_id) {
-                task.phase = RunningTaskPhase::Completing(Err(TaskAbortedError));
-            }
-            completion.finish(&mut lc);
+            completion.finish_with_result(&mut lc, Err(TaskAbortedError));
             return lc.settle_schedule_firings();
         }
 
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
-            return;
-        }
         if !completion.is_current(&lc) {
             return;
         }
@@ -153,10 +162,18 @@ impl Scheduler {
         if !lc.task_q.is_current_attempt(attempt) {
             return;
         }
-        lc.task_q.send_task_result(
+        let task = lc
+            .task_q
+            .active
+            .get_mut(&task_id)
+            .expect("checked current attempt");
+        if let Some(completion) = TaskCompletion::reserve(
             task_id,
+            task,
             Err(SchedulerError::TaskAbortedVerbNotFound(who, what)),
-        );
+        ) {
+            completion.finish(&mut lc);
+        }
     }
 
     pub(crate) fn handle_task_command_error_for_attempt(
@@ -170,35 +187,48 @@ impl Scheduler {
             return;
         }
         // This is a common occurrence, so we don't want to log it at warn level.
-        lc.task_q
-            .send_task_result(task_id, Err(CommandExecutionError(error)));
+        let task = lc
+            .task_q
+            .active
+            .get_mut(&task_id)
+            .expect("checked current attempt");
+        if let Some(completion) =
+            TaskCompletion::reserve(task_id, task, Err(CommandExecutionError(error)))
+        {
+            completion.finish(&mut lc);
+        }
     }
 
     pub(crate) fn handle_task_transaction_renewal_failed_for_attempt(&self, attempt: &TaskAttempt) {
         let task_id = attempt.task_id();
-        let session = {
-            let lc = self.lifecycle.lock();
+        let completion = {
+            let mut lc = self.lifecycle.lock();
             if !lc.task_q.is_current_attempt(attempt) {
                 return;
             }
-            let Some(task) = lc.task_q.active.get(&task_id) else {
-                warn!(task_id, "Task not found after transaction renewal failure");
+            let task = lc
+                .task_q
+                .active
+                .get_mut(&task_id)
+                .expect("checked current attempt");
+            let Some(completion) =
+                TaskCompletion::reserve(task_id, task, Err(SchedulerError::CouldNotStartTask))
+            else {
                 return;
             };
-            task.session.clone()
+            completion
         };
 
-        let session_result = session.commit();
-
+        let session_result = completion.session.commit();
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !completion.is_current(&lc) {
             return;
         }
+        // The database commit already succeeded. Preserve publication even if session commit fails.
         lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
-
-        let result = match session_result {
-            Ok(()) => Err(SchedulerError::CouldNotStartTask),
+        match session_result {
+            Ok(()) => completion.finish(&mut lc),
             Err(error) => {
                 error!(
                     task_id,
@@ -206,10 +236,9 @@ impl Scheduler {
                     ?error,
                     "Session commit failed after world-state commit; output may be lost"
                 );
-                Err(TaskAbortedError)
+                completion.finish_with_result(&mut lc, Err(TaskAbortedError));
             }
-        };
-        lc.task_q.send_task_result(task_id, result);
+        }
     }
 
     pub(crate) fn handle_task_abort_limits_reached_for_attempt(
@@ -243,8 +272,11 @@ impl Scheduler {
                 warn!(task_id, "Task not found for abort");
                 return;
             };
-            let completion =
-                TaskCompletion::reserve(task_id, task, Err(TaskAbortedLimit(limit_reason)));
+            let Some(completion) =
+                TaskCompletion::reserve(task_id, task, Err(TaskAbortedLimit(limit_reason)))
+            else {
+                return;
+            };
             let player = task.player;
 
             match disposition {
@@ -316,10 +348,6 @@ impl Scheduler {
 
         // Re-acquire lock for handler task submission.
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
-            return;
-        }
-
         if !completion.is_current(&lc) {
             return;
         }
@@ -393,19 +421,24 @@ impl Scheduler {
         let task_id = attempt.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskException);
-
-        // Extract session under lock, send traceback event.
-        let session = {
-            let lc = self.lifecycle.lock();
+        let completion = {
+            let mut lc = self.lifecycle.lock();
             if !lc.task_q.is_current_attempt(attempt) {
                 return;
             }
-            let Some(task) = lc.task_q.active.get(&task_id) else {
-                warn!(task_id, "Task not found for abort");
+            let task = lc
+                .task_q
+                .active
+                .get_mut(&task_id)
+                .expect("checked current attempt");
+            let Some(completion) = TaskCompletion::reserve(
+                task_id,
+                task,
+                Err(TaskAbortedException(exception.as_ref().clone())),
+            ) else {
                 return;
             };
-            let session = task.session.clone();
-            if let Err(send_error) = session.send_event(
+            if let Err(send_error) = completion.session.send_event(
                 task.player,
                 Box::new(NarrativeEvent {
                     event_id: Uuid::now_v7(),
@@ -416,22 +449,18 @@ impl Scheduler {
             ) {
                 warn!("Could not send traceback to player: {:?}", send_error);
             }
-            session
+            completion
         };
 
-        // Session commit (potential I/O) outside the lock.
-        let _ = session.commit();
-
+        // Exception policy publishes after the session commit attempt, including session failure.
+        let _ = completion.session.commit();
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
+        if !completion.is_current(&lc) {
             return;
         }
         lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
-        lc.task_q.send_task_result(
-            task_id,
-            Err(TaskAbortedException(exception.as_ref().clone())),
-        );
+        completion.finish(&mut lc);
         lc.settle_schedule_firings();
     }
 
@@ -450,11 +479,13 @@ impl Scheduler {
                 warn!(task_id, "Task not found after database commit rejection");
                 return;
             };
-            let completion = TaskCompletion::reserve(
+            let Some(completion) = TaskCompletion::reserve(
                 task_id,
                 task,
                 Err(TaskAbortedException(exception.as_ref().clone())),
-            );
+            ) else {
+                return;
+            };
             lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             completion

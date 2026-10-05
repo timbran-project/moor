@@ -643,7 +643,9 @@ impl TaskQ {
         let Some(task) = self.active.get(&victim_task_id) else {
             return false;
         };
-        if task.control.request_cancel() != CancelResult::Cancelled {
+        if matches!(task.phase, RunningTaskPhase::Completing(_))
+            || task.control.request_cancel() != CancelResult::Cancelled
+        {
             return true;
         }
 
@@ -696,6 +698,11 @@ impl TaskQ {
             return AbortTaskOutcome::NotFound;
         };
 
+        // A completion owner can be finalizing a cancellation or a failed renewal even when
+        // the atomic control is no longer in a terminal database commit state.
+        if matches!(task.phase, RunningTaskPhase::Completing(_)) {
+            return AbortTaskOutcome::Completing;
+        }
         match task.control.request_cancel() {
             CancelResult::Completing => AbortTaskOutcome::Completing,
             CancelResult::AfterBoundary => AbortTaskOutcome::Cancelled,

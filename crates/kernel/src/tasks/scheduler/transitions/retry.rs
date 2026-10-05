@@ -17,7 +17,7 @@ use crate::tasks::{
     SchedulerOp, sched_counters,
     scheduler::{Scheduler, lifecycle::SchedulerState},
     task::Task,
-    task_q::{TaskAttempt, WakeCondition},
+    task_q::{RunningTaskPhase, TaskAttempt, WakeCondition},
 };
 use moor_common::{
     model::ConflictInfo,
@@ -45,7 +45,9 @@ impl Scheduler {
         assert_eq!(task_id, task.task_id);
         let attempt = TaskAttempt::new(task_id, task.control.clone());
         let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(&attempt) {
+        if !lc.task_q.is_current_attempt(&attempt)
+            || lc.task_q.active[&task_id].phase != RunningTaskPhase::Running
+        {
             return;
         }
 

@@ -13,7 +13,8 @@
 
 //! Cancellation and abort policy for active and suspended tasks.
 
-use crate::tasks::task_q::TaskAttempt;
+use super::complete::TaskCompletion;
+use crate::tasks::task_q::{RunningTaskPhase, TaskAttempt};
 use crate::tasks::{
     AbortTaskOutcome, SchedulerOp, sched_counters,
     scheduler::{Scheduler, lifecycle::SchedulerState},
@@ -37,14 +38,20 @@ impl Scheduler {
             if !lc.task_q.is_current_attempt(attempt) {
                 return;
             }
-            lc.task_q.active.get_mut(&task_id).and_then(|task| {
-                task.abort_error
-                    .take()
-                    .map(|error| (error, task.session.clone()))
-            })
+            let task = lc
+                .task_q
+                .active
+                .get_mut(&task_id)
+                .expect("checked current attempt");
+            if task.phase != RunningTaskPhase::Running {
+                return;
+            }
+            task.abort_error
+                .take()
+                .and_then(|error| TaskCompletion::reserve(task_id, task, Err(error)))
         };
-        if let Some((error, session)) = requested_abort {
-            if let Err(session_error) = session.rollback() {
+        if let Some(completion) = requested_abort {
+            if let Err(session_error) = completion.session.rollback() {
                 warn!(
                     task_id,
                     ?session_error,
@@ -52,81 +59,63 @@ impl Scheduler {
                 );
             }
             let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
+            if !completion.is_current(&lc) {
                 return;
             }
             lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
-            return lc.task_q.send_task_result(task_id, Err(error));
+            return completion.finish(&mut lc);
         }
 
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
-
-        // Extract session and player under lock. Shutdown cancellation does not publish an
-        // "Aborted" message or commit buffered output; the shutdown notice has already been sent.
-        let (session, shutting_down) = {
+        let (completion, shutting_down) = {
             let mut lc = self.lifecycle.lock();
             if !lc.task_q.is_current_attempt(attempt) {
                 return;
             }
-            lc.discard_task_effects(task_id);
-            lc.task_q.remove_message_queue(task_id);
             let shutting_down = lc.state != SchedulerState::Running;
-
-            let Some(task) = lc.task_q.active.get_mut(&task_id) else {
-                if lc.state == SchedulerState::Running {
-                    warn!(task_id, "Task not found for abort");
-                } else {
-                    debug!(task_id, "Cancelled task already detached during shutdown");
-                }
+            let task = lc
+                .task_q
+                .active
+                .get_mut(&task_id)
+                .expect("checked current attempt");
+            let Some(completion) =
+                TaskCompletion::reserve(task_id, task, Err(TaskAbortedCancelled))
+            else {
                 return;
             };
-            let session = task.session.clone();
+            let player = task.player;
+            lc.discard_task_effects(task_id);
+            lc.task_q.remove_message_queue(task_id);
             if shutting_down {
                 debug!(task_id, "Task cancelled during shutdown");
-                (session, true)
             } else {
                 warn!(task_id, "Task cancelled");
-                let player = task.player;
-                if let Err(send_error) = session.send_system_msg(player, "Aborted.") {
+                if let Err(send_error) = completion.session.send_system_msg(player, "Aborted.") {
                     warn!("Could not send abort message to player: {send_error:?}");
                 }
-                (session, false)
             }
+            (completion, shutting_down)
         };
 
+        // Shutdown rolls back buffered output. Ordinary cancellation preserves its commit policy.
         if shutting_down {
-            if let Err(e) = session.rollback() {
-                debug!(task_id, error = ?e, "Could not rollback cancelled session during shutdown");
+            if let Err(error) = completion.session.rollback() {
+                debug!(
+                    task_id,
+                    ?error,
+                    "Could not rollback cancelled session during shutdown"
+                );
             }
-            let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
-                return;
-            }
-            if lc.task_q.active.contains_key(&task_id) {
-                lc.task_q
-                    .send_task_result(task_id, Err(TaskAbortedCancelled));
-            }
-            return;
+            return completion.finish(&mut self.lifecycle.lock());
         }
-
-        // Session commit (potential I/O) outside the lock.
-        if session.commit().is_err() {
+        if completion.session.commit().is_err() {
             warn!("Could not commit aborted session; aborting task");
-            let mut lc = self.lifecycle.lock();
-            if !lc.task_q.is_current_attempt(attempt) {
-                return;
-            }
-            return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+            return completion
+                .finish_with_result(&mut self.lifecycle.lock(), Err(TaskAbortedError));
         }
-
-        let mut lc = self.lifecycle.lock();
-        if !lc.task_q.is_current_attempt(attempt) {
-            return;
-        }
-        lc.task_q
-            .send_task_result(task_id, Err(TaskAbortedCancelled));
+        completion.finish(&mut self.lifecycle.lock());
     }
 
     pub(crate) fn handle_task_abort_panicked_for_attempt(
