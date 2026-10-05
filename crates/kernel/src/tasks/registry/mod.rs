@@ -27,6 +27,7 @@ use std::{
 
 mod active;
 mod operations;
+mod persistence;
 mod suspension;
 
 pub(crate) use active::{LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase};

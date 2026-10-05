@@ -25,7 +25,7 @@ use hierarchical_hash_wheel_timer::wheels::{
     quad_wheel::{PruneDecision, QuadWheelWithOverflow},
 };
 use moor_common::{
-    tasks::{SchedulerError, Session, SessionFactory, TaskId},
+    tasks::{SchedulerError, Session, TaskId},
     util::{Deadline, Instant, Timestamp},
 };
 use moor_var::{Obj, Var};
@@ -35,7 +35,7 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 use uuid::Uuid;
 
 /// Timer entry for the hash wheel timer
@@ -313,47 +313,6 @@ impl SuspensionQ {
         expired_entries
     }
 
-    /// Load all tasks from the tasks database. Called on startup to reconstitute the task list
-    /// from the database.
-    pub(crate) fn load_tasks(
-        &mut self,
-        bg_session_factory: Arc<dyn SessionFactory>,
-    ) -> Option<TaskId> {
-        // Retain every persisted task, including old tasks and disconnected players,
-        // matching LambdaMOO restoration behavior.
-        let tasks = self
-            .tasks_database
-            .load_tasks()
-            .expect("Unable to reconstitute tasks from tasks database");
-        let num_tasks = tasks.len();
-        let max_task_id = tasks.iter().map(|task| task.task.task_id).max();
-        for mut task in tasks {
-            task.session = bg_session_factory
-                .clone()
-                .mk_background_session(&task.task.player())
-                .expect("Unable to create new background session for suspended task");
-
-            let task_id = task.task.task_id;
-            let input_player = task.task.player();
-            self.register_wake(&mut task, input_player);
-
-            let registration = self.live_tasks.register(task_id);
-            self.tasks.insert(
-                task_id,
-                RegisteredSuspendedTask {
-                    record: task,
-                    registration,
-                },
-            );
-        }
-        // Now delete them from the database.
-        if let Err(e) = self.tasks_database.delete_all_tasks() {
-            error!(?e, "Could not delete suspended tasks from tasks database");
-        }
-        info!(?num_tasks, "Loaded suspended tasks from tasks database");
-        max_task_id
-    }
-
     /// Add a task to the set of suspended tasks.
     pub(crate) fn add_task(
         &mut self,
@@ -393,6 +352,23 @@ impl SuspensionQ {
         );
     }
 
+    /// Install a restored continuation without rewriting its persisted record.
+    /// Restore and ordinary suspension share the same wake-index registration.
+    pub(super) fn register_restored_task(&mut self, mut task: SuspendedTask) {
+        let task_id = task.task.task_id;
+        let input_player = task.task.player();
+        self.register_wake(&mut task, input_player);
+
+        let registration = self.live_tasks.register(task_id);
+        self.tasks.insert(
+            task_id,
+            RegisteredSuspendedTask {
+                record: task,
+                registration,
+            },
+        );
+    }
+
     fn insert_task(
         &mut self,
         mut task: SuspendedTask,
@@ -401,8 +377,8 @@ impl SuspensionQ {
     ) {
         assert_eq!(task.task.task_id, registration.task_id());
         let should_persist = self.register_wake(&mut task, input_player);
-        if should_persist && let Err(error) = self.tasks_database.save_task(&task) {
-            error!(?error, "Could not save suspended task");
+        if should_persist {
+            self.persist_task(&task);
         }
         self.tasks.insert(
             task.task.task_id,
@@ -519,8 +495,7 @@ impl SuspensionQ {
     pub(crate) fn remove_task(&mut self, task_id: TaskId) -> Option<RegisteredSuspendedTask> {
         let task = self.tasks.remove(&task_id)?;
         self.unregister_wake(task_id, &task.wake_condition);
-        // Deletion remains explicit and is a no-op for a record that was never persisted.
-        let _ = self.tasks_database.delete_task(task_id);
+        self.delete_persisted_task(task_id);
         Some(task)
     }
 
@@ -538,25 +513,6 @@ impl SuspensionQ {
     /// The backing store, shared with the native schedule queue.
     pub(crate) fn tasks_db(&self) -> &dyn TasksDb {
         self.tasks_database.as_ref()
-    }
-
-    /// Synchronize the suspended tasks with the tasks database. Called on shutdown.
-    pub(crate) fn save_tasks(&self) {
-        for st in self.tasks.values() {
-            // Skip retry tasks - they're transient and their transaction context
-            // would be invalid after restart anyway
-            if matches!(
-                st.wake_condition,
-                WakeCondition::Retry(_)
-                    | WakeCondition::Checkpoint(_)
-                    | WakeCondition::StorageCompaction(_)
-            ) {
-                continue;
-            }
-            if let Err(e) = self.tasks_database.save_task(st) {
-                error!(?e, "Could not save suspended task");
-            }
-        }
     }
 
     /// Pull a task waiting for input from the responding connection or player.
@@ -807,7 +763,7 @@ mod tests {
     #[test]
     fn restored_waiters_respond_to_completion_events() {
         use crate::tasks::TasksDbError;
-        use moor_common::tasks::SessionError;
+        use moor_common::tasks::{SessionError, SessionFactory};
         use parking_lot::Mutex;
 
         struct RestoreDb(Mutex<Vec<SuspendedTask>>);
