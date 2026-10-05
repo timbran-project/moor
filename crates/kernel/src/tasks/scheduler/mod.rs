@@ -1448,6 +1448,169 @@ mod tests {
     }
 
     #[test]
+    fn stale_worker_client_cannot_complete_replacement_attempt() {
+        use crate::tasks::task_scheduler_client::TaskSchedulerClient;
+        use moor_common::tasks::Exception;
+
+        fn exception() -> Box<Exception> {
+            Box::new(Exception {
+                error: E_QUOTA.msg("old attempt"),
+                stack: vec![],
+                backtrace: vec![],
+            })
+        }
+        let callbacks: [fn(&TaskSchedulerClient); 9] = [
+            |client| client.success(v_int(1), true, 99),
+            |client| client.command_error(CommandError::NoCommandMatch),
+            |client| client.verb_not_found(v_int(0), Symbol::mk("old")),
+            |client| client.exception(exception()),
+            |client| client.commit_rejected(exception()),
+            |client| client.abort_transaction_renewal_failed(),
+            |client| client.abort_cancelled(),
+            |client| {
+                client.abort_panicked("old panic".into(), std::backtrace::Backtrace::disabled())
+            },
+            |client| {
+                client.abort_limits_reached(crate::tasks::task_scheduler_client::TaskLimitInfo {
+                    reason: moor_common::tasks::AbortLimitReason::Ticks(1),
+                    disposition:
+                        crate::tasks::task_scheduler_client::TaskLimitDisposition::Commit {
+                            mutations_made: true,
+                            timestamp: 99,
+                        },
+                    this: v_int(0),
+                    verb_name: Symbol::mk("old"),
+                    line_number: 0,
+                    stack: vec![],
+                    backtrace: vec![],
+                })
+            },
+        ];
+        for callback in callbacks {
+            let scheduler = scheduler();
+            let task_id = 249;
+            let target_id = 250;
+            insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+            let old_client = TaskSchedulerClient::new(task_id, scheduler.clone());
+            let replacement =
+                insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+            let (send, recv) = flume::unbounded();
+            {
+                let mut lc = scheduler.lifecycle.lock();
+                lc.state = SchedulerState::Running;
+                lc.task_q.deliver_message(task_id, v_int(42));
+                let active = lc.task_q.active.get_mut(&task_id).unwrap();
+                active.result_sender = Some(send);
+                active.effects.send(target_id, v_int(17));
+                active.abort_error = Some(SchedulerError::CouldNotStartTask);
+            }
+
+            callback(&old_client);
+
+            let mut lc = scheduler.lifecycle.lock();
+            let active = lc
+                .task_q
+                .active
+                .get(&task_id)
+                .expect("replacement must remain active");
+            assert!(Arc::ptr_eq(&active.control, &replacement.control));
+            assert_eq!(active.phase, RunningTaskPhase::Running);
+            assert_eq!(active.effects.messages_for(target_id), 1);
+            assert_eq!(active.abort_error, Some(SchedulerError::CouldNotStartTask));
+            assert_eq!(lc.task_q.mailbox_len(task_id), 1);
+            assert!(lc.task_q.drain_messages(target_id).is_empty());
+            assert!(lc.task_q.settled_results.is_empty());
+            assert!(lc.last_mutation_timestamp.is_none());
+            assert!(matches!(recv.try_recv(), Err(flume::TryRecvError::Empty)));
+        }
+    }
+
+    #[test]
+    fn stale_retry_keeps_replacement_attempt_running() {
+        let scheduler = scheduler();
+        let task_id = 251;
+        let old_task = insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+        let replacement =
+            insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+        scheduler.lifecycle.lock().state = SchedulerState::Running;
+        scheduler.handle_task_conflict_retry(task_id, old_task, "test", None);
+        let lc = scheduler.lifecycle.lock();
+        let active = lc
+            .task_q
+            .active
+            .get(&task_id)
+            .expect("replacement must not enter retry");
+        assert!(Arc::ptr_eq(&active.control, &replacement.control));
+        assert!(!replacement.control.is_cancelled());
+        assert!(lc.task_q.suspended.get(task_id).is_none());
+    }
+
+    #[test]
+    fn session_finalization_cannot_settle_a_replacement_attempt() {
+        use crate::tasks::task_scheduler_client::TaskSchedulerClient;
+        let callbacks: [fn(&TaskSchedulerClient); 3] = [
+            |client| {
+                client.exception(Box::new(moor_common::tasks::Exception {
+                    error: E_QUOTA.msg("old exception"),
+                    stack: vec![],
+                    backtrace: vec![],
+                }))
+            },
+            |client| client.abort_transaction_renewal_failed(),
+            |client| client.abort_cancelled(),
+        ];
+        for callback in callbacks {
+            for fail_commit in [false, true] {
+                let scheduler = scheduler();
+                let task_id = 252;
+                let target_id = 253;
+                let commit_entered = Arc::new(Barrier::new(2));
+                let release_commit = Arc::new(Barrier::new(2));
+                insert_active_task(
+                    &scheduler,
+                    task_id,
+                    Arc::new(BlockingCommitSession {
+                        commit_entered: commit_entered.clone(),
+                        release_commit: release_commit.clone(),
+                        connection_obj: None,
+                        source_connections: None,
+                        fail_commit,
+                    }),
+                );
+                scheduler.lifecycle.lock().state = SchedulerState::Running;
+                let old_client = TaskSchedulerClient::new(task_id, scheduler.clone());
+                let worker = std::thread::spawn(move || callback(&old_client));
+                commit_entered.wait();
+                let replacement =
+                    insert_active_task(&scheduler, task_id, Arc::new(NoopClientSession::new()));
+                let (send, recv) = flume::unbounded();
+                {
+                    let mut lc = scheduler.lifecycle.lock();
+                    lc.task_q.deliver_message(task_id, v_int(42));
+                    let active = lc.task_q.active.get_mut(&task_id).unwrap();
+                    active.result_sender = Some(send);
+                    active.effects.send(target_id, v_int(17));
+                }
+                release_commit.wait();
+                worker.join().unwrap();
+                let mut lc = scheduler.lifecycle.lock();
+                let active = lc
+                    .task_q
+                    .active
+                    .get(&task_id)
+                    .expect("replacement must remain active");
+                assert!(Arc::ptr_eq(&active.control, &replacement.control));
+                assert_eq!(active.phase, RunningTaskPhase::Running);
+                assert_eq!(active.effects.messages_for(target_id), 1);
+                assert_eq!(lc.task_q.mailbox_len(task_id), 1);
+                assert!(lc.task_q.drain_messages(target_id).is_empty());
+                assert!(lc.task_q.settled_results.is_empty());
+                assert!(matches!(recv.try_recv(), Err(flume::TryRecvError::Empty)));
+            }
+        }
+    }
+
+    #[test]
     fn stale_terminal_completion_preserves_replacement_result_and_effects() {
         let scheduler = scheduler();
         let task_id = 247;

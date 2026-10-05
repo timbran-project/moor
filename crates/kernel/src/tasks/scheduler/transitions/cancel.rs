@@ -13,6 +13,7 @@
 
 //! Cancellation and abort policy for active and suspended tasks.
 
+use crate::tasks::task_q::TaskAttempt;
 use crate::tasks::{
     AbortTaskOutcome, SchedulerOp, sched_counters,
     scheduler::{Scheduler, lifecycle::SchedulerState},
@@ -29,9 +30,13 @@ use std::backtrace::Backtrace;
 use tracing::{debug, warn};
 
 impl Scheduler {
-    pub fn handle_task_abort_cancelled(&self, task_id: TaskId) {
+    pub(crate) fn handle_task_abort_cancelled_for_attempt(&self, attempt: &TaskAttempt) {
+        let task_id = attempt.task_id();
         let requested_abort = {
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             lc.task_q.active.get_mut(&task_id).and_then(|task| {
                 task.abort_error
                     .take()
@@ -47,6 +52,9 @@ impl Scheduler {
                 );
             }
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             return lc.task_q.send_task_result(task_id, Err(error));
@@ -59,6 +67,9 @@ impl Scheduler {
         // "Aborted" message or commit buffered output; the shutdown notice has already been sent.
         let (session, shutting_down) = {
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             let shutting_down = lc.state != SchedulerState::Running;
@@ -90,6 +101,9 @@ impl Scheduler {
                 debug!(task_id, error = ?e, "Could not rollback cancelled session during shutdown");
             }
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             if lc.task_q.active.contains_key(&task_id) {
                 lc.task_q
                     .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -101,23 +115,33 @@ impl Scheduler {
         if session.commit().is_err() {
             warn!("Could not commit aborted session; aborting task");
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         lc.task_q
             .send_task_result(task_id, Err(TaskAbortedCancelled));
     }
 
-    pub fn handle_task_abort_panicked(
+    pub(crate) fn handle_task_abort_panicked_for_attempt(
         &self,
-        task_id: TaskId,
+        attempt: &TaskAttempt,
         panic_msg: String,
         _backtrace: Backtrace,
     ) {
+        let task_id = attempt.task_id();
         warn!(?task_id, ?panic_msg, "Task thread panicked");
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
 
         lc.discard_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);

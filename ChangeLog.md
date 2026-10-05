@@ -219,6 +219,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   run.
 - Report task resumption and retry setup failures to callers, release dependent tasks, and settle
   scheduled firings. Retry setup errors no longer panic in the scheduler service.
+- Ignore completion, retry, and panic callbacks from replaced task attempts. Late callbacks no
+  longer remove a replacement task or publish its pending effects.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
   their bodies access local bindings ([#554](https://github.com/timbran-project/moor/issues/554)).
   Stored program format 6 retains the entry layout; affected older programs need recompilation.

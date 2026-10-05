@@ -15,6 +15,7 @@
 //! This owner identifies the attempt that can consume the reserved result.
 
 use super::super::lifecycle::TaskLifecycle;
+use crate::tasks::task_q::TaskAttempt;
 use crate::tasks::{
     task_control::TaskControl,
     task_q::{RunningTask, RunningTaskPhase},
@@ -79,16 +80,20 @@ static HANDLE_TASK_TIMEOUT_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("handle_task_timeout"));
 
 impl Scheduler {
-    pub fn handle_task_success(
+    pub(crate) fn handle_task_success_for_attempt(
         &self,
-        task_id: TaskId,
+        attempt: &TaskAttempt,
         value: Var,
         mutations_made: bool,
         timestamp: u64,
     ) {
+        let task_id = attempt.task_id();
         // Extract session under lock, then commit outside.
         let completion = {
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
 
             if mutations_made {
                 lc.last_mutation_timestamp = Some(timestamp);
@@ -110,6 +115,9 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             if !completion.is_current(&lc) {
                 return;
             }
@@ -122,6 +130,9 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         if !completion.is_current(&lc) {
             return;
         }
@@ -131,24 +142,45 @@ impl Scheduler {
         lc.settle_schedule_firings();
     }
 
-    pub fn handle_task_verb_not_found(&self, task_id: TaskId, who: Var, what: Symbol) {
+    pub(crate) fn handle_task_verb_not_found_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        who: Var,
+        what: Symbol,
+    ) {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         lc.task_q.send_task_result(
             task_id,
             Err(SchedulerError::TaskAbortedVerbNotFound(who, what)),
         );
     }
 
-    pub fn handle_task_command_error(&self, task_id: TaskId, error: CommandError) {
+    pub(crate) fn handle_task_command_error_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        error: CommandError,
+    ) {
+        let task_id = attempt.task_id();
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         // This is a common occurrence, so we don't want to log it at warn level.
         lc.task_q
             .send_task_result(task_id, Err(CommandExecutionError(error)));
     }
 
-    pub fn handle_task_transaction_renewal_failed(&self, task_id: TaskId) {
+    pub(crate) fn handle_task_transaction_renewal_failed_for_attempt(&self, attempt: &TaskAttempt) {
+        let task_id = attempt.task_id();
         let session = {
             let lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             let Some(task) = lc.task_q.active.get(&task_id) else {
                 warn!(task_id, "Task not found after transaction renewal failure");
                 return;
@@ -159,6 +191,9 @@ impl Scheduler {
         let session_result = session.commit();
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
 
@@ -177,11 +212,12 @@ impl Scheduler {
         lc.task_q.send_task_result(task_id, result);
     }
 
-    pub(crate) fn handle_task_abort_limits_reached(
+    pub(crate) fn handle_task_abort_limits_reached_for_attempt(
         &self,
-        task_id: TaskId,
+        attempt: &TaskAttempt,
         limit_info: TaskLimitInfo,
     ) {
+        let task_id = attempt.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskAbortLimits);
         let TaskLimitInfo {
@@ -198,6 +234,9 @@ impl Scheduler {
         // during finalization must wait for this result instead of observing a missing task.
         let (completion, player) = {
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 lc.discard_task_effects(task_id);
                 lc.task_q.remove_message_queue(task_id);
@@ -277,6 +316,9 @@ impl Scheduler {
 
         // Re-acquire lock for handler task submission.
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
 
         if !completion.is_current(&lc) {
             return;
@@ -343,13 +385,21 @@ impl Scheduler {
         completion.finish(&mut lc);
     }
 
-    pub fn handle_task_exception(&self, task_id: TaskId, exception: Box<Exception>) {
+    pub(crate) fn handle_task_exception_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        exception: Box<Exception>,
+    ) {
+        let task_id = attempt.task_id();
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::TaskException);
 
         // Extract session under lock, send traceback event.
         let session = {
             let lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             let Some(task) = lc.task_q.active.get(&task_id) else {
                 warn!(task_id, "Task not found for abort");
                 return;
@@ -373,6 +423,9 @@ impl Scheduler {
         let _ = session.commit();
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
         lc.task_q.send_task_result(
@@ -382,9 +435,17 @@ impl Scheduler {
         lc.settle_schedule_firings();
     }
 
-    pub fn handle_task_commit_rejected(&self, task_id: TaskId, exception: Box<Exception>) {
+    pub(crate) fn handle_task_commit_rejected_for_attempt(
+        &self,
+        attempt: &TaskAttempt,
+        exception: Box<Exception>,
+    ) {
+        let task_id = attempt.task_id();
         let completion = {
             let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_attempt(attempt) {
+                return;
+            }
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
                 warn!(task_id, "Task not found after database commit rejection");
                 return;
@@ -408,6 +469,9 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
+        if !lc.task_q.is_current_attempt(attempt) {
+            return;
+        }
         completion.finish(&mut lc);
     }
 }

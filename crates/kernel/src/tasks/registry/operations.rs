@@ -319,8 +319,8 @@ impl TaskQ {
 
         self.insert_active(task_id, task_control);
 
-        let scheduler_clone = scheduler.clone();
-        let task_scheduler_client = TaskSchedulerClient::new(task_id, scheduler.clone());
+        let task_scheduler_client =
+            TaskSchedulerClient::for_attempt(task_id, scheduler.clone(), task.control.clone());
 
         // Check if this is a brand new task or a resuming task
         let is_created = matches!(task.state, crate::tasks::task::TaskState::Pending(_));
@@ -415,7 +415,7 @@ impl TaskQ {
                 );
 
                 // Send panic abort directly to scheduler
-                scheduler_clone.handle_task_abort_panicked(task_id, panic_msg, backtrace);
+                task_scheduler_client.abort_panicked(panic_msg, backtrace);
             }
         });
 
@@ -547,9 +547,8 @@ impl TaskQ {
 
         self.insert_active(task_id, task_control);
 
-        let scheduler_clone = scheduler.clone();
-
-        let task_scheduler_client = TaskSchedulerClient::new(task_id, scheduler.clone());
+        let task_scheduler_client =
+            TaskSchedulerClient::for_attempt(task_id, scheduler.clone(), task.control.clone());
         let player = task.player();
         let wake_to_dispatch_started_at = Instant::now();
         let dispatch_started_at = Instant::now();
@@ -608,7 +607,7 @@ impl TaskQ {
                     "Retry task thread panicked"
                 );
 
-                scheduler_clone.handle_task_abort_panicked(task_id, panic_msg, backtrace);
+                task_scheduler_client.abort_panicked(panic_msg, backtrace);
             }
         });
     }

@@ -30,7 +30,9 @@ mod operations;
 mod persistence;
 mod suspension;
 
-pub(crate) use active::{LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase};
+pub(crate) use active::{
+    LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskAttempt,
+};
 pub(crate) use operations::TaskSubmission;
 pub(crate) use suspension::RegisteredSuspendedTask;
 pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition};
@@ -83,6 +85,18 @@ impl TaskQ {
     #[inline]
     pub(crate) fn register_task(&self, task_id: TaskId) -> LiveTaskRegistration {
         self.live_tasks.register(task_id)
+    }
+
+    pub(crate) fn attempt(&self, task_id: TaskId) -> Option<TaskAttempt> {
+        self.active
+            .get(&task_id)
+            .map(|task| TaskAttempt::new(task_id, task.control.clone()))
+    }
+
+    pub(crate) fn is_current_attempt(&self, attempt: &TaskAttempt) -> bool {
+        self.active
+            .get(&attempt.task_id())
+            .is_some_and(|task| attempt.matches(task))
     }
 
     /// Check if a task exists and return its controlling principal.

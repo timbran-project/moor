@@ -100,6 +100,28 @@ impl LiveTaskRegistry {
     }
 }
 
+/// Identity of one worker dispatch. Wakeup and conflict retry create a new control object.
+/// Clones identify the same attempt; they do not own its completion or live registration.
+#[derive(Clone)]
+pub(crate) struct TaskAttempt {
+    task_id: TaskId,
+    control: Arc<TaskControl>,
+}
+
+impl TaskAttempt {
+    pub(crate) fn new(task_id: TaskId, control: Arc<TaskControl>) -> Self {
+        Self { task_id, control }
+    }
+
+    pub(crate) fn task_id(&self) -> TaskId {
+        self.task_id
+    }
+
+    pub(super) fn matches(&self, task: &RunningTask) -> bool {
+        Arc::ptr_eq(&self.control, &task.control)
+    }
+}
+
 /// Scheduler-side phase for a task which still occupies the active-task slot.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum RunningTaskPhase {

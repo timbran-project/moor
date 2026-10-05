@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
 use crate::{
     task_context::with_current_session,
@@ -29,7 +29,11 @@ use moor_common::{
 };
 use moor_var::{Error, List, Obj, Symbol, Var};
 
-use crate::tasks::{scheduler::Scheduler, task_control::CommittedBoundary};
+use crate::tasks::{
+    scheduler::Scheduler,
+    task_control::{CommittedBoundary, TaskControl},
+    task_q::TaskAttempt,
+};
 
 pub use moor_common::tasks::WorkerInfo;
 
@@ -54,21 +58,44 @@ pub(crate) struct TaskLimitInfo {
 }
 
 /// A handle for talking to the scheduler from within a task.
-/// Wraps a Scheduler + TaskId; all methods are direct calls.
+/// Direct calls retain the worker dispatch identity across transaction callbacks.
 #[derive(Clone)]
 pub struct TaskSchedulerClient {
     task_id: TaskId,
+    attempt: Option<TaskAttempt>,
     scheduler: Scheduler,
 }
 
 impl TaskSchedulerClient {
+    /// Bind callbacks to the active attempt at construction. A client without an active attempt
+    /// can still make independent queries, but cannot complete a task registered later.
     pub fn new(task_id: TaskId, scheduler: Scheduler) -> Self {
-        Self { task_id, scheduler }
+        let attempt = scheduler.capture_task_attempt(task_id);
+        Self {
+            task_id,
+            attempt,
+            scheduler,
+        }
+    }
+
+    /// Dispatch already holds the lifecycle lock; use the worker's control without another lock.
+    pub(crate) fn for_attempt(
+        task_id: TaskId,
+        scheduler: Scheduler,
+        control: Arc<TaskControl>,
+    ) -> Self {
+        Self {
+            task_id,
+            attempt: Some(TaskAttempt::new(task_id, control)),
+            scheduler,
+        }
     }
 
     pub fn success(&self, var: Var, mutations: bool, timestamp: u64) {
-        self.scheduler
-            .handle_task_success(self.task_id, var, mutations, timestamp);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_success_for_attempt(attempt, var, mutations, timestamp);
+        }
     }
 
     pub fn conflict_retry(
@@ -82,23 +109,31 @@ impl TaskSchedulerClient {
     }
 
     pub fn command_error(&self, error: CommandError) {
-        self.scheduler
-            .handle_task_command_error(self.task_id, error);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_command_error_for_attempt(attempt, error);
+        }
     }
 
     pub fn verb_not_found(&self, what: Var, verb: Symbol) {
-        self.scheduler
-            .handle_task_verb_not_found(self.task_id, what, verb);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_verb_not_found_for_attempt(attempt, what, verb);
+        }
     }
 
     pub fn exception(&self, exception: Box<Exception>) {
-        self.scheduler
-            .handle_task_exception(self.task_id, exception);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_exception_for_attempt(attempt, exception);
+        }
     }
 
     pub fn commit_rejected(&self, exception: Box<Exception>) {
-        self.scheduler
-            .handle_task_commit_rejected(self.task_id, exception);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_commit_rejected_for_attempt(attempt, exception);
+        }
     }
 
     pub fn request_fork(&self, fork: Box<Fork>) -> TaskId {
@@ -109,17 +144,31 @@ impl TaskSchedulerClient {
     }
 
     pub fn abort_cancelled(&self) {
-        self.scheduler.handle_task_abort_cancelled(self.task_id);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_abort_cancelled_for_attempt(attempt);
+        }
     }
 
     pub fn abort_transaction_renewal_failed(&self) {
-        self.scheduler
-            .handle_task_transaction_renewal_failed(self.task_id);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_transaction_renewal_failed_for_attempt(attempt);
+        }
     }
 
     pub(crate) fn abort_limits_reached(&self, limit_info: TaskLimitInfo) {
-        self.scheduler
-            .handle_task_abort_limits_reached(self.task_id, limit_info);
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_abort_limits_reached_for_attempt(attempt, limit_info);
+        }
+    }
+
+    pub(crate) fn abort_panicked(&self, message: String, backtrace: std::backtrace::Backtrace) {
+        if let Some(attempt) = &self.attempt {
+            self.scheduler
+                .handle_task_abort_panicked_for_attempt(attempt, message, backtrace);
+        }
     }
 
     pub(crate) fn rollback_on_task_limit(&self) -> bool {
