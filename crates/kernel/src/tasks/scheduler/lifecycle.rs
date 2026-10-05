@@ -14,13 +14,11 @@
 //! TaskLifecycle: all mutable state that must be consistent during task state transitions.
 //! Protected by a single Mutex in the Scheduler handle.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use moor_common::tasks::{SessionFactory, TaskId};
+use moor_common::tasks::SessionFactory;
 
-use crate::tasks::TaskStart;
-use crate::tasks::schedule_q::{ScheduleId, ScheduleQ};
+use crate::tasks::schedule_q::ScheduleQ;
 use crate::tasks::task_q::TaskQ;
 
 /// Lifecycle state for the scheduler and its service threads.
@@ -68,148 +66,4 @@ pub(crate) struct TaskLifecycle {
 
     /// Factory for the sessions scheduled firings run under; set at `start()`.
     pub(crate) bg_session_factory: Option<Arc<dyn SessionFactory>>,
-}
-
-impl TaskLifecycle {
-    /// Write-through persistence for one schedule: a live, persistent entry
-    /// is saved; anything else (stopped, retired, non-persistent) is deleted.
-    /// Called after every mutation so the store mirrors the queue and a
-    /// restart needs no reconciliation pass.
-    pub(crate) fn persist_schedule(&mut self, id: ScheduleId) {
-        let db = self.task_q.suspended.tasks_db();
-        match self.schedule_q.info(id) {
-            Some(e) if e.is_live() && e.options.persist => {
-                if let Err(err) = db.save_schedule(e) {
-                    tracing::error!(schedule_id = id, ?err, "Could not save schedule");
-                }
-            }
-            _ => {
-                if let Err(err) = db.delete_schedule(id) {
-                    tracing::error!(schedule_id = id, ?err, "Could not delete schedule");
-                }
-            }
-        }
-    }
-
-    /// Allocate a schedule id and persist the new high-water mark before the
-    /// id is returned to MOO code, so no restart can hand it out again.
-    pub(crate) fn reserve_schedule_id(&mut self) -> ScheduleId {
-        let id = self.schedule_q.reserve_id();
-        let next_id = self.schedule_q.next_id();
-        if let Err(err) = self
-            .task_q
-            .suspended
-            .tasks_db()
-            .save_next_schedule_id(next_id)
-        {
-            tracing::error!(next_id, ?err, "Could not save schedule id high-water mark");
-        }
-        id
-    }
-
-    /// Restore persisted schedules at startup. Must run after the suspended
-    /// tasks are restored: a restored `StartScheduled` task is a firing still
-    /// in progress, and is re-linked to its schedule here so that the
-    /// schedule is not fired a second time for the same deadline and the
-    /// task's result settles it. Schedules with no restored firing go through
-    /// their catchup policy inside `ScheduleQ::load`.
-    ///
-    /// A restored firing whose schedule was not restored (stopped, retired,
-    /// or `persist: 0`) runs to completion and its result is ignored, the
-    /// same as a firing whose schedule is stopped while it runs.
-    /// The id counter resumes at the larger of the persisted high-water
-    /// mark and one past the highest surviving id.
-    pub(crate) fn load_schedules(&mut self) {
-        match self.task_q.suspended.tasks_db().load_next_schedule_id() {
-            Ok(Some(next_id)) => self.schedule_q.restore_next_id(next_id),
-            Ok(None) => {}
-            Err(err) => {
-                tracing::error!(?err, "Could not load schedule id high-water mark");
-            }
-        }
-        let entries = match self.task_q.suspended.tasks_db().load_schedules() {
-            Ok(v) => v,
-            Err(err) => {
-                tracing::error!(?err, "Could not load schedules from tasks database");
-                return;
-            }
-        };
-        let mut firings = self.restored_schedule_firings();
-        let now = std::time::SystemTime::now();
-        let count = entries.len();
-        for e in entries {
-            let id = e.id;
-            let tasks = firings.remove(&id).unwrap_or_default();
-            self.schedule_q.load(e, &tasks, now);
-            // Loading can retire an entry whose cadence has run out of range;
-            // drop it from the store so it is not loaded again.
-            if !self.schedule_q.is_valid(id) {
-                self.persist_schedule(id);
-            }
-        }
-        for (schedule_id, tasks) in firings {
-            tracing::info!(
-                schedule_id,
-                ?tasks,
-                "Restored scheduled firing has no schedule; it will run unlinked"
-            );
-        }
-        if count > 0 {
-            tracing::info!(count, "Loaded native schedules from tasks database");
-        }
-    }
-
-    /// Restored suspended tasks that are schedule firings, by schedule id.
-    fn restored_schedule_firings(&self) -> HashMap<ScheduleId, Vec<TaskId>> {
-        let mut firings: HashMap<ScheduleId, Vec<TaskId>> = HashMap::new();
-        for st in self.task_q.suspended.records() {
-            if let TaskStart::StartScheduled { schedule_id, .. } = st.task.state.task_start() {
-                firings
-                    .entry(*schedule_id)
-                    .or_default()
-                    .push(st.task.task_id);
-            }
-        }
-        firings
-    }
-
-    /// Save every live persistent schedule. Called at shutdown as a
-    /// belt-and-braces pass over the write-through store.
-    pub(crate) fn save_schedules(&self) {
-        let db = self.task_q.suspended.tasks_db();
-        for e in self.schedule_q.persistable() {
-            if let Err(err) = db.save_schedule(e) {
-                tracing::error!(schedule_id = e.id, ?err, "Could not save schedule");
-            }
-        }
-    }
-
-    /// Settle native-schedule firings against the terminal results delivered
-    /// since the last call: re-arm or retire each schedule whose task just
-    /// ended. Conflict retries never produce a terminal result, so they never
-    /// reach here (the retry is the same firing). Cheap when nothing is
-    /// scheduled; called from the terminal callbacks and the timer loop.
-    pub(crate) fn settle_schedule_firings(&mut self) {
-        if self.task_q.settled_results.is_empty() {
-            return;
-        }
-        let results = std::mem::take(&mut self.task_q.settled_results);
-        let now = std::time::SystemTime::now();
-        for (task_id, result) in results {
-            let Some(schedule_id) = self.schedule_q.schedule_for_task(task_id) else {
-                continue;
-            };
-            let outcome = match result {
-                Ok(v) => crate::tasks::schedule_q::Outcome::Success(v),
-                Err(moor_common::tasks::SchedulerError::TaskAbortedException(e)) => {
-                    crate::tasks::schedule_q::Outcome::Fault(moor_var::v_error(e.error))
-                }
-                Err(e) => {
-                    crate::tasks::schedule_q::Outcome::Fault(moor_var::v_str(&format!("{e:?}")))
-                }
-            };
-            self.schedule_q.complete(schedule_id, task_id, outcome, now);
-            self.persist_schedule(schedule_id);
-        }
-    }
 }

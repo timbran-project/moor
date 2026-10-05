@@ -39,7 +39,7 @@ use crate::{
         checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
         maintenance::MaintenanceCoordinator,
         sched_counters,
-        schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleExpiry, ScheduleQ},
+        schedule_q::ScheduleQ,
         storage_compaction::{
             StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
             prepare_storage_compaction,
@@ -69,14 +69,14 @@ use moor_db::{Database, DatabaseRelation};
 use moor_objdef::{collect_index_names, collect_object, dump_object};
 use moor_var::{
     E_EXEC, E_INVARG, E_PERM, E_QUOTA, E_TYPE, Error, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol,
-    Var, v_bool_int, v_empty_str, v_float, v_int, v_obj, v_str,
+    Var, v_bool_int, v_empty_str, v_int, v_obj,
 };
 use parking_lot::{Condvar, Mutex};
 pub use services::SchedulerThreads;
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -315,135 +315,6 @@ impl Scheduler {
 
     /// Submit a new task and wake it immediately if needed.
     #[allow(clippy::too_many_arguments)]
-    /// Fire every native schedule whose deadline has passed. Expired entries
-    /// are collected under one lock acquisition; each firing is then
-    /// submitted as an ordinary background task with
-    /// `TaskStart::StartScheduled`, and the schedule is marked running so the
-    /// completion callbacks can find it again.
-    fn collect_and_fire_schedules(&self) {
-        let now_sys = SystemTime::now();
-        let now = std::time::Instant::now();
-        let to_fire: Vec<(ScheduleExpiry, ScheduleEntry)> = {
-            let mut lc = self.lifecycle.lock();
-            if lc.state != SchedulerState::Running {
-                return;
-            }
-            let ids = lc.schedule_q.expired(now, now_sys);
-            ids.into_iter()
-                .filter_map(|id| Some((lc.schedule_q.expiry(id)?, lc.schedule_q.info(id)?.clone())))
-                .collect()
-        };
-        self.fire_collected_schedules(to_fire, now_sys);
-    }
-
-    fn fire_collected_schedules(
-        &self,
-        to_fire: Vec<(ScheduleExpiry, ScheduleEntry)>,
-        now_sys: SystemTime,
-    ) {
-        for (expiry, entry) in to_fire {
-            let mut lc = self.lifecycle.lock();
-            // Completion may have replaced the arm while the lock was released.
-            if !lc.schedule_q.is_current_expiry(expiry) {
-                continue;
-            }
-            let id = expiry.id;
-            let Some(factory) = lc.bg_session_factory.clone() else {
-                warn!(schedule_id = id, "No session factory; cannot fire schedule");
-                continue;
-            };
-            let player = entry.options.player.unwrap_or(entry.target);
-            let session = match factory.mk_background_session(&player) {
-                Ok(s) => s,
-                Err(e) => {
-                    warn!(schedule_id = id, error = ?e, "Could not make session for schedule firing");
-                    continue;
-                }
-            };
-
-            // Revalidate the target and the verb before spending a task on it.
-            // A recycled target or a vanished verb retires the schedule.
-            if !self.schedule_target_is_valid(&entry) {
-                lc.schedule_q
-                    .retire(id, RetireReason::InvalidTarget, now_sys);
-                lc.persist_schedule(id);
-                continue;
-            }
-
-            let mut args: Var = entry.args.clone().into();
-            if let Some(state) = &entry.options.state {
-                args = args.push(state).unwrap_or(args);
-            }
-            let task_id = lc.next_task_id;
-            lc.next_task_id += 1;
-            let elapsed = lc.schedule_q.mark_fired(id, task_id, now_sys);
-            lc.persist_schedule(id);
-            if entry.options.pass_elapsed {
-                let secs = elapsed.map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                args = args.push(&v_float(secs)).unwrap_or(args);
-            }
-            let args = match args.variant() {
-                moor_var::Variant::List(l) => l.clone(),
-                _ => entry.args.clone(),
-            };
-            let task_start = TaskStart::StartScheduled {
-                schedule_id: id,
-                player,
-                vloc: moor_common::model::ObjectRef::Id(entry.target),
-                verb: entry.verb,
-                args,
-            };
-            if let Err(e) = self.submit_task(
-                &mut lc,
-                task_id,
-                &player,
-                &entry.authority_principal,
-                task_start,
-                None,
-                session,
-            ) {
-                warn!(schedule_id = id, error = ?e, "Could not submit schedule firing");
-                lc.schedule_q.complete(
-                    id,
-                    task_id,
-                    Outcome::Fault(v_str(&format!("{e:?}"))),
-                    SystemTime::now(),
-                );
-                lc.persist_schedule(id);
-            }
-        }
-    }
-
-    /// Whether a schedule's target still exists and its verb is still callable by the
-    /// schedule's authority principal, by the same rule a method call uses.
-    fn schedule_target_is_valid(&self, entry: &ScheduleEntry) -> bool {
-        let Ok(tx) = self.database.new_world_state() else {
-            return true; // cannot check; let the firing find out
-        };
-        let valid = tx.valid(&entry.target).unwrap_or(false);
-        if !valid {
-            let _ = tx.rollback();
-            return false;
-        }
-        let perms = moor_common::model::TaskPermissions::new(
-            entry.authority_principal,
-            tx.flags_of(&entry.authority_principal).unwrap_or_default(),
-        );
-        let found = matches!(
-            tx.dispatch_verb(
-                &perms,
-                moor_common::model::VerbDispatch::new(
-                    moor_common::model::VerbLookup::method(&entry.target, entry.verb),
-                    moor_common::model::DispatchFlagsSource::Permissions,
-                ),
-            ),
-            Ok(Some(_))
-        );
-        let _ = tx.rollback();
-        found
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn submit_task(
         &self,
         lc: &mut TaskLifecycle,
@@ -517,7 +388,7 @@ mod tests {
     use crate::{
         tasks::{
             AbortTaskOutcome, TaskNotification, TasksDbError,
-            schedule_q::ScheduleId,
+            schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId},
             task::Task,
             task_control::TaskControl,
             task_q::{RunningTask, RunningTaskPhase, SuspendedTask},
@@ -533,7 +404,8 @@ mod tests {
         util::{BitEnum, Instant, Timestamp},
     };
     use moor_db::{DatabaseConfig, TxDB};
-    use moor_var::v_float;
+    use moor_var::{v_float, v_str};
+    use std::time::SystemTime;
     use std::{
         collections::HashSet,
         sync::{Barrier, OnceLock},
