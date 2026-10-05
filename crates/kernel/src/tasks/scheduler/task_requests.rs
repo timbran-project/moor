@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Task-worker requests for scheduler queries and host operations.
+//! Scheduler queries, host operations, and object import/export requests.
+//!
+//! Task queries acquire the lifecycle lock to inspect active metadata. Object operations use
+//! database interfaces directly; each retains its existing transaction and permission policy.
 
 use crate::{
     tasks::{
@@ -31,11 +34,152 @@ use moor_common::{
         SessionError, TaskId,
     },
 };
+use moor_objdef::{collect_index_names, collect_object, dump_object};
 use moor_var::{E_INVARG, E_PERM, E_QUOTA, Error, Obj, Symbol, Var, v_err, v_error, v_int};
-use std::time::{Duration, SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 use tracing::{debug, error, info, warn};
 
 impl Scheduler {
+    /// Dumps an object's definition to a list of strings for export.
+    ///
+    /// Creates a database snapshot to avoid blocking ongoing operations, collects
+    /// the object definition, and optionally builds index names from import_export_id
+    /// metadata when `use_constants` is true.
+    ///
+    /// # Arguments
+    /// * `obj` - The object to dump
+    /// * `use_constants` - If true, builds index names from all object definitions
+    ///
+    /// # Returns
+    /// A vector of string Vars representing the object's definition, or an error
+    pub(crate) fn handle_dump_object(
+        &self,
+        obj: Obj,
+        use_constants: bool,
+    ) -> Result<Vec<Var>, Error> {
+        // Create a snapshot to avoid blocking ongoing operations
+        let snapshot = self.database.create_snapshot().map_err(|e| {
+            E_INVARG.with_msg(|| format!("Failed to create database snapshot: {e:?}"))
+        })?;
+
+        // Collect the object definition
+        let (_, _, _, object_def) = collect_object(snapshot.as_ref(), &obj)
+            .map_err(|e| E_INVARG.with_msg(|| format!("Failed to collect object {obj}: {e:?}")))?;
+
+        // Build index_names from import_export_id metadata if requested
+        let index_names = if use_constants {
+            collect_index_names(snapshot.as_ref()).map_err(|e| {
+                E_INVARG.with_msg(|| format!("Failed to collect object constants: {e:?}"))
+            })?
+        } else {
+            HashMap::new()
+        };
+
+        let lines = dump_object(&index_names, &object_def)
+            .map_err(|e| E_INVARG.with_msg(|| format!("Failed to dump object {obj}: {e:?}")))?;
+
+        Ok(lines)
+    }
+
+    /// Loads an object definition into the database.
+    ///
+    /// Creates a new world state, initializes an object definition loader,
+    /// and loads a single object from the provided definition string.
+    /// Commits the transaction if the loader result indicates success.
+    ///
+    /// # Arguments
+    /// * `object_definition` - The object definition string to load
+    /// * `options` - Loader options controlling the load behavior
+    /// * `_return_conflicts` - Whether to return conflict information (unused)
+    ///
+    /// # Returns
+    /// The loader results containing loaded object information, or a SchedulerError
+    pub(crate) fn handle_load_object(
+        &self,
+        object_definition: String,
+        options: moor_objdef::ObjDefLoaderOptions,
+        _return_conflicts: bool,
+    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
+        use moor_objdef::ObjectDefinitionLoader;
+
+        // Create a new world state for loading
+        let world_state = self
+            .database
+            .new_world_state()
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        let mut loader = Box::new(world_state)
+            .as_loader_interface()
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        let mut object_loader = ObjectDefinitionLoader::new(loader.as_mut());
+
+        // Load the object with the provided options
+        let compile_options = self.config.features.compile_options();
+
+        let result = object_loader
+            .load_single_object(&object_definition, compile_options, options)
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        // Commit the transaction if the result says we should
+        if result.commit {
+            loader
+                .commit()
+                .map_err(|_| SchedulerError::CouldNotStartTask)?;
+        }
+
+        Ok(result)
+    }
+
+    /// Reloads an object definition, updating an existing object in the database.
+    ///
+    /// Creates a new world state, initializes an object definition loader,
+    /// and reloads a single object from the provided definition string.
+    /// Unlike load, this always commits the transaction (no dry-run mode).
+    ///
+    /// # Arguments
+    /// * `object_definition` - The object definition string to reload
+    /// * `constants` - Optional constants to use during reload
+    /// * `target_obj` - Optional target object to reload into
+    ///
+    /// # Returns
+    /// The loader results containing reloaded object information, or a SchedulerError
+    pub(crate) fn handle_reload_object(
+        &self,
+        object_definition: String,
+        constants: Option<moor_objdef::Constants>,
+        target_obj: Option<Obj>,
+    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
+        use moor_objdef::ObjectDefinitionLoader;
+
+        // Create a new world state for reloading
+        let world_state = self
+            .database
+            .new_world_state()
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        let mut loader = Box::new(world_state)
+            .as_loader_interface()
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        let mut object_loader = ObjectDefinitionLoader::new(loader.as_mut());
+
+        // Reload the object with the provided constants and target
+        let result = object_loader
+            .reload_single_object(&object_definition, constants, target_obj)
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        // Always commit for reload operations (they don't have dry-run mode)
+        loader
+            .commit()
+            .map_err(|_| SchedulerError::CouldNotStartTask)?;
+
+        Ok(result)
+    }
+
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::ForkTask);

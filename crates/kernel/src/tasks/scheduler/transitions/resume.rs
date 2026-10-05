@@ -11,14 +11,266 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Explicit resumption and input-driven wakeup of suspended tasks.
+//! Wake selection and resumption for timers, input, explicit requests, and worker responses.
+//!
+//! These methods acquire the lifecycle lock and transfer registered continuations into dispatch.
+//! Timer collection releases the lock before each dispatch. Immediate wakes retain one lock while
+//! draining the queue. Failed dispatch resolves terminal bookkeeping in the registry.
 
-use crate::tasks::{TaskStart, scheduler::Scheduler};
-use moor_common::{model::TaskPermissions, tasks::TaskId};
-use moor_var::{E_INVIND, Error, Obj, SYSTEM_OBJECT, Var};
+use crate::tasks::{
+    SchedulerOp, TaskStart, sched_counters,
+    scheduler::{ResumeAction, Scheduler},
+    task_q::{TaskQ, WakeCondition},
+    workers::WorkerResponse,
+};
+#[cfg(feature = "trace_events")]
+use crate::trace_task_resume;
+use moor_common::{
+    model::TaskPermissions,
+    tasks::{TaskId, WorkerError},
+};
+#[cfg(feature = "trace_events")]
+use moor_compiler::to_literal;
+use moor_var::{
+    E_EXEC, E_INVARG, E_INVIND, E_PERM, E_QUOTA, E_TYPE, Error, List, Obj, SYSTEM_OBJECT, Var,
+    v_bool_int, v_int,
+};
 use tracing::{error, warn};
 
 impl Scheduler {
+    /// Collect expired timer tasks and wake them.
+    /// Collection happens under one lock acquisition; each wake re-acquires
+    /// briefly so other operations aren't blocked for the entire batch.
+    pub(in crate::tasks::scheduler) fn collect_and_wake_expired_tasks(&self) {
+        // Collect expired tasks under lock, then release.
+        let to_wake = {
+            let mut lc = self.lifecycle.lock();
+            match lc.task_q.collect_wake_tasks() {
+                Some(tasks) => tasks,
+                None => return,
+            }
+        };
+
+        // Wake each task individually, re-acquiring the lock per task.
+        for sr in to_wake {
+            let task_id = sr.task.task_id;
+            let is_retry = matches!(sr.wake_condition, WakeCondition::Retry(_));
+
+            #[cfg(feature = "trace_events")]
+            {
+                let max_ticks = sr.task.vm_host.max_ticks;
+                let tick_count = sr.task.vm_host.tick_count();
+
+                let (wake_condition, wake_reason) = match &sr.wake_condition {
+                    WakeCondition::Time(_) => ("Time", "Timer expired"),
+                    WakeCondition::Input(_) => ("Input", "Input request fulfilled"),
+                    WakeCondition::Task(_) => ("Task", "Dependency task completed"),
+                    WakeCondition::Immediate(_) => ("Immediate", "Immediate wake"),
+                    WakeCondition::Worker(_) => ("Worker", "Worker response received"),
+                    WakeCondition::GCComplete => ("GCComplete", "Garbage collection completed"),
+                    WakeCondition::Never => ("Never", "Manual wake"),
+                    WakeCondition::Retry(_) => ("Retry", "Transaction retry backoff"),
+                    WakeCondition::TaskMessage(_) => ("TaskMessage", "Message received or timeout"),
+                    WakeCondition::Checkpoint(_) => ("Checkpoint", "Checkpoint completed"),
+                    WakeCondition::StorageCompaction(_) => {
+                        ("StorageCompaction", "Storage compaction completed")
+                    }
+                };
+
+                trace_task_resume!(
+                    task_id,
+                    wake_condition,
+                    wake_reason,
+                    to_literal(&v_int(0)),
+                    max_ticks,
+                    tick_count
+                );
+            }
+
+            let mut lc = self.lifecycle.lock();
+            if is_retry {
+                lc.task_q.wake_retry_suspended_task(
+                    sr,
+                    self,
+                    self.database.as_ref(),
+                    self.builtin_registry.clone(),
+                    self.config.clone(),
+                );
+            } else {
+                let resume_value = match &sr.wake_condition {
+                    WakeCondition::TaskMessage(_) => {
+                        let messages = lc.task_q.drain_messages(task_id);
+                        List::from_iter(messages).into()
+                    }
+                    WakeCondition::Immediate(val) => val.clone().unwrap_or_else(|| v_int(0)),
+                    WakeCondition::Checkpoint(_) => v_bool_int(true),
+                    WakeCondition::StorageCompaction(_) => v_int(0),
+                    _ => v_int(0),
+                };
+                if let Err(e) = lc.task_q.wake_suspended_task(
+                    sr,
+                    ResumeAction::Return(resume_value),
+                    self,
+                    self.database.as_ref(),
+                    self.builtin_registry.clone(),
+                    self.config.clone(),
+                ) {
+                    error!(?task_id, ?e, "Error resuming task");
+                }
+            }
+        }
+    }
+
+    /// Drains and processes all immediate wake tasks from the suspended queue.
+    ///
+    /// Iterates through tasks that have been signaled for immediate wake,
+    /// extracts their return values based on wake condition type (Immediate,
+    /// Time, TaskMessage), and resumes them with the appropriate action.
+    /// Handles latency recording and trace events when enabled.
+    ///
+    /// This method holds the lifecycle lock throughout execution to safely
+    /// manipulate the suspended task queue.
+    pub(crate) fn drain_immediate_wakes(&self) {
+        let mut lc = self.lifecycle.lock();
+        while let Some((task_id, signaled_at)) = lc.task_q.suspended.pop_immediate_wake() {
+            // Inline the wake logic here since we already hold the lock.
+            let Some(sr) = lc.task_q.suspended.remove_task(task_id) else {
+                // Task was already removed (e.g., killed), ignore
+                continue;
+            };
+            let perfc = sched_counters();
+            TaskQ::record_latency(
+                &perfc.timers,
+                SchedulerOp::TaskWakeSignalToDispatchStartLatency,
+                signaled_at.instant(),
+            );
+
+            // Extract the return value from the wake condition
+            // Note: Time-based tasks may arrive here if their timer expired before insertion
+            let return_value = match &sr.wake_condition {
+                WakeCondition::Immediate(val) => val.clone().unwrap_or_else(|| v_int(0)),
+                WakeCondition::Time(_) => v_int(0), // Expired timer - return 0 as suspend() normally does
+                WakeCondition::TaskMessage(_) => {
+                    // Task was waiting for messages — drain the queue and return as list
+                    let messages = lc.task_q.drain_messages(task_id);
+                    List::from_iter(messages).into()
+                }
+                _ => {
+                    error!(
+                        ?task_id,
+                        "Immediate wake task has unexpected wake condition"
+                    );
+                    v_int(0)
+                }
+            };
+
+            #[cfg(feature = "trace_events")]
+            {
+                let max_ticks = sr.task.vm_host.max_ticks;
+                let tick_count = sr.task.vm_host.tick_count();
+
+                trace_task_resume!(
+                    task_id,
+                    "Immediate",
+                    "Immediate wake",
+                    to_literal(&return_value),
+                    max_ticks,
+                    tick_count
+                );
+            }
+
+            if let Err(e) = lc.task_q.wake_suspended_task(
+                sr,
+                ResumeAction::Return(return_value),
+                self,
+                self.database.as_ref(),
+                self.builtin_registry.clone(),
+                self.config.clone(),
+            ) {
+                error!(?task_id, ?e, "Error resuming immediate wake task");
+            }
+        }
+    }
+
+    /// Handles a response from a worker task and resumes the suspended task.
+    ///
+    /// Converts worker responses (errors or successful responses) into appropriate
+    /// resume actions, finds the suspended task associated with the request ID,
+    /// and wakes it with the result. Handles error mapping from WorkerError to
+    /// MOO error types and records trace events when enabled.
+    ///
+    /// # Arguments
+    /// * `worker_response` - The response from a worker task containing either
+    ///   an error or a successful result value
+    ///
+    /// # Notes
+    /// If the suspended task is not found (e.g., was killed or expired), a warning
+    /// is logged and the response is discarded.
+    pub(crate) fn handle_worker_response(&self, worker_response: WorkerResponse) {
+        let (request_id, resume_action) = match worker_response {
+            WorkerResponse::Error { request_id, error } => {
+                let err_msg = error.to_string();
+                let err = match error {
+                    WorkerError::PermissionDenied(_) => E_PERM.msg(err_msg),
+                    WorkerError::NoWorkerAvailable(_) => E_TYPE.msg(err_msg),
+                    WorkerError::InvalidRequest(_) => E_INVARG.msg(err_msg),
+                    WorkerError::InternalError(_) => E_EXEC.msg(err_msg),
+                    WorkerError::RequestTimedOut(_) => E_QUOTA.msg(err_msg),
+                    WorkerError::RequestError(_) => E_INVARG.msg(err_msg),
+                    WorkerError::WorkerDetached(_) => E_EXEC.msg(err_msg),
+                };
+                (request_id, ResumeAction::Raise(err))
+            }
+            WorkerResponse::Response {
+                request_id,
+                response,
+            } => (request_id, ResumeAction::Return(response)),
+        };
+
+        let mut lc = self.lifecycle.lock();
+
+        // Find the suspended task for this request.
+        let task = lc.task_q.suspended.pull_task_for_worker(request_id);
+
+        // Find the task that requested this input, if any
+        let Some(sr) = task else {
+            warn!(?request_id, "Task for worker request not found; expired?");
+            return;
+        };
+
+        #[cfg(feature = "trace_events")]
+        {
+            let task_id = sr.task.task_id;
+            let max_ticks = sr.task.vm_host.max_ticks;
+            let tick_count = sr.task.vm_host.tick_count();
+
+            let (return_value_str, wake_reason) = match &resume_action {
+                ResumeAction::Return(v) => (to_literal(v), "Worker response"),
+                ResumeAction::Raise(e) => (e.to_string(), "Worker error"),
+            };
+
+            trace_task_resume!(
+                task_id,
+                "Worker",
+                wake_reason,
+                return_value_str,
+                max_ticks,
+                tick_count
+            );
+        }
+
+        if let Err(e) = lc.task_q.wake_suspended_task(
+            sr,
+            resume_action,
+            self,
+            self.database.as_ref(),
+            self.builtin_registry.clone(),
+            self.config.clone(),
+        ) {
+            error!("Failure to resume task after worker response: {:?}", e);
+        }
+    }
+
     pub fn handle_resume_task(
         &self,
         task_id: TaskId,

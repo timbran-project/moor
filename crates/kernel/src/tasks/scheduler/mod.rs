@@ -14,8 +14,8 @@
 pub(crate) mod effects;
 pub(crate) mod gc;
 pub(crate) mod lifecycle;
+mod maintenance;
 mod scheduler_config;
-mod scheduler_ops;
 mod scheduler_submit;
 mod schedules;
 mod services;
@@ -27,24 +27,16 @@ use self::lifecycle::TaskLifecycle;
 use crate::trace_task_create_command;
 use crate::trace_task_create_eval;
 use crate::trace_task_create_verb;
-#[cfg(feature = "trace_events")]
-use crate::trace_task_resume;
 use crate::{
     config::Config,
     tasks::{
         DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
         DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS, DEFAULT_FG_TICKS,
         DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX,
-        DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle, TaskStart,
-        checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
+        DEFAULT_MAX_TASK_RETRIES, ServerOptions, TaskHandle, TaskStart,
         maintenance::MaintenanceCoordinator,
-        sched_counters,
         schedule_q::ScheduleQ,
-        storage_compaction::{
-            StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
-            prepare_storage_compaction,
-        },
-        task_q::{LiveTaskRegistry, SuspensionQ, TaskQ, WakeCondition},
+        task_q::{LiveTaskRegistry, SuspensionQ, TaskQ},
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
         world_state_action::{WorldStateAction, WorldStateResponse},
@@ -58,27 +50,20 @@ use moor_common::{
     model::{TaskPermissions, WorldState},
     tasks::{
         CommandError, SchedulerError,
-        SchedulerError::{CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled},
-        Session, SystemControl, TaskId, WorkerError,
+        SchedulerError::{CommandExecutionError, InputRequestNotFound},
+        Session, SystemControl, TaskId,
     },
     threading::{TaskPoolAffinityConfig, set_task_pool_affinity_config, spawn_perf},
 };
-#[cfg(feature = "trace_events")]
-use moor_compiler::to_literal;
-use moor_db::{Database, DatabaseRelation};
-use moor_objdef::{collect_index_names, collect_object, dump_object};
-use moor_var::{
-    E_EXEC, E_INVARG, E_PERM, E_QUOTA, E_TYPE, Error, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol,
-    Var, v_bool_int, v_empty_str, v_int, v_obj,
-};
+use moor_db::Database;
+use moor_var::{Error, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str, v_int, v_obj};
 use parking_lot::{Condvar, Mutex};
 pub use services::SchedulerThreads;
 use std::{
-    collections::HashMap,
     sync::{Arc, LazyLock},
     time::Duration,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 pub(crate) type SchedulerClientRequest = Box<dyn FnOnce(&Scheduler) + Send + 'static>;
@@ -230,89 +215,6 @@ impl Scheduler {
         s
     }
 
-    /// Collect expired timer tasks and wake them.
-    /// Collection happens under one lock acquisition; each wake re-acquires
-    /// briefly so other operations aren't blocked for the entire batch.
-    fn collect_and_wake_expired_tasks(&self) {
-        // Collect expired tasks under lock, then release.
-        let to_wake = {
-            let mut lc = self.lifecycle.lock();
-            match lc.task_q.collect_wake_tasks() {
-                Some(tasks) => tasks,
-                None => return,
-            }
-        };
-
-        // Wake each task individually, re-acquiring the lock per task.
-        for sr in to_wake {
-            let task_id = sr.task.task_id;
-            let is_retry = matches!(sr.wake_condition, WakeCondition::Retry(_));
-
-            #[cfg(feature = "trace_events")]
-            {
-                let max_ticks = sr.task.vm_host.max_ticks;
-                let tick_count = sr.task.vm_host.tick_count();
-
-                let (wake_condition, wake_reason) = match &sr.wake_condition {
-                    WakeCondition::Time(_) => ("Time", "Timer expired"),
-                    WakeCondition::Input(_) => ("Input", "Input request fulfilled"),
-                    WakeCondition::Task(_) => ("Task", "Dependency task completed"),
-                    WakeCondition::Immediate(_) => ("Immediate", "Immediate wake"),
-                    WakeCondition::Worker(_) => ("Worker", "Worker response received"),
-                    WakeCondition::GCComplete => ("GCComplete", "Garbage collection completed"),
-                    WakeCondition::Never => ("Never", "Manual wake"),
-                    WakeCondition::Retry(_) => ("Retry", "Transaction retry backoff"),
-                    WakeCondition::TaskMessage(_) => ("TaskMessage", "Message received or timeout"),
-                    WakeCondition::Checkpoint(_) => ("Checkpoint", "Checkpoint completed"),
-                    WakeCondition::StorageCompaction(_) => {
-                        ("StorageCompaction", "Storage compaction completed")
-                    }
-                };
-
-                trace_task_resume!(
-                    task_id,
-                    wake_condition,
-                    wake_reason,
-                    to_literal(&v_int(0)),
-                    max_ticks,
-                    tick_count
-                );
-            }
-
-            let mut lc = self.lifecycle.lock();
-            if is_retry {
-                lc.task_q.wake_retry_suspended_task(
-                    sr,
-                    self,
-                    self.database.as_ref(),
-                    self.builtin_registry.clone(),
-                    self.config.clone(),
-                );
-            } else {
-                let resume_value = match &sr.wake_condition {
-                    WakeCondition::TaskMessage(_) => {
-                        let messages = lc.task_q.drain_messages(task_id);
-                        List::from_iter(messages).into()
-                    }
-                    WakeCondition::Immediate(val) => val.clone().unwrap_or_else(|| v_int(0)),
-                    WakeCondition::Checkpoint(_) => v_bool_int(true),
-                    WakeCondition::StorageCompaction(_) => v_int(0),
-                    _ => v_int(0),
-                };
-                if let Err(e) = lc.task_q.wake_suspended_task(
-                    sr,
-                    ResumeAction::Return(resume_value),
-                    self,
-                    self.database.as_ref(),
-                    self.builtin_registry.clone(),
-                    self.config.clone(),
-                ) {
-                    error!(?task_id, ?e, "Error resuming task");
-                }
-            }
-        }
-    }
-
     /// Submit a new task and wake it immediately if needed.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn submit_task(
@@ -391,7 +293,7 @@ mod tests {
             schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleId},
             task::Task,
             task_control::TaskControl,
-            task_q::{RunningTask, RunningTaskPhase, SuspendedTask},
+            task_q::{RunningTask, RunningTaskPhase, SuspendedTask, WakeCondition},
         },
         vm::TaskSuspend,
     };
@@ -399,12 +301,13 @@ mod tests {
         model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
         tasks::{
             ConnectionDetails, NarrativeEvent, NoopClientSession, NoopSystemControl,
-            SchedulerError::TaskAbortedError, SessionError, SessionFactory,
+            SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
+            SessionError, SessionFactory,
         },
         util::{BitEnum, Instant, Timestamp},
     };
     use moor_db::{DatabaseConfig, TxDB};
-    use moor_var::{v_float, v_str};
+    use moor_var::{E_INVARG, E_QUOTA, v_float, v_str};
     use std::time::SystemTime;
     use std::{
         collections::HashSet,
