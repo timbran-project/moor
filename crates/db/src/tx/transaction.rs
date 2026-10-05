@@ -21,7 +21,6 @@ use crate::{
 use ahash::AHasher;
 use moor_common::model::WorldStateError;
 use moor_var::Symbol;
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::{
     collections::HashMap,
@@ -30,7 +29,8 @@ use std::{
     sync::Arc,
 };
 
-type LocalCodomainIndexCache<Domain, Codomain> = RefCell<Option<Vec<(Codomain, Vec<Domain>)>>>;
+mod local_operations;
+use local_operations::LocalOperations;
 
 /// A key-value caching store that is scoped for the lifetime of a transaction.
 /// When the transaction is completed, it collapses into a WorkingSet which can be applied to the
@@ -53,13 +53,9 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    local_operations: HashMap<Domain, Op<Codomain>, BuildHasherDefault<AHasher>>,
-    // Lazily-built codomain -> domains overlay for local operations.
-    // Invalidated on mutation, used to accelerate repeated codomain lookups.
-    local_codomain_index_cache: LocalCodomainIndexCache<Domain, Codomain>,
+    local_operations: LocalOperations<Domain, Codomain>,
     master_entries: TransactionIndex<Domain, Codomain>,
     provider_fully_loaded: bool,
-    has_local_mutations: bool,
 }
 
 enum TransactionIndex<Domain, Codomain>
@@ -295,11 +291,9 @@ where
     ) -> RelationTransaction<Domain, Codomain, Source> {
         let provider_fully_loaded = canonical.is_provider_fully_loaded();
         let inner = Inner {
-            local_operations: HashMap::default(),
-            local_codomain_index_cache: RefCell::new(None),
+            local_operations: LocalOperations::new(),
             master_entries: TransactionIndex::Shared(canonical),
             provider_fully_loaded,
-            has_local_mutations: false,
         };
         RelationTransaction {
             tx,
@@ -307,35 +301,6 @@ where
             index: inner,
             backing_source,
         }
-    }
-
-    #[inline]
-    fn invalidate_local_codomain_index_cache(&self) {
-        self.index.local_codomain_index_cache.borrow_mut().take();
-    }
-
-    fn ensure_local_codomain_index_cache(&self) {
-        if self.index.local_codomain_index_cache.borrow().is_some() {
-            return;
-        }
-
-        let mut buckets: Vec<(Codomain, Vec<Domain>)> = Vec::new();
-        for (domain, op) in self.index.local_operations.iter() {
-            match &op.operation {
-                OpType::Insert(value) | OpType::Update(value) => {
-                    if let Some((_, domains)) =
-                        buckets.iter_mut().find(|(codomain, _)| codomain == value)
-                    {
-                        domains.push(domain.clone());
-                    } else {
-                        buckets.push((value.clone(), vec![domain.clone()]));
-                    }
-                }
-                OpType::Delete => {}
-            }
-        }
-
-        *self.index.local_codomain_index_cache.borrow_mut() = Some(buckets);
     }
 
     /// Helper to create a ConflictInfo for this relation.
@@ -348,7 +313,7 @@ where
         let write_ts = self.write_ts();
 
         // Common fast path: this transaction has not mutated anything yet.
-        if !self.index.has_local_mutations {
+        if self.index.local_operations.is_empty() {
             // If we or upstream has already inserted this domain, we can't insert it again.
             if self.index.master_entries.index_lookup(&domain).is_some() {
                 return Err(Error::Duplicate);
@@ -374,8 +339,7 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
+
             return Ok(());
         }
 
@@ -425,7 +389,6 @@ where
                 guaranteed_unique: false,
             },
         );
-        self.invalidate_local_codomain_index_cache();
 
         Ok(())
     }
@@ -448,8 +411,6 @@ where
                 guaranteed_unique: true,
             },
         );
-        self.invalidate_local_codomain_index_cache();
-        self.index.has_local_mutations = true;
 
         Ok(())
     }
@@ -460,7 +421,7 @@ where
 
         // Check our local index first, but only if we have mutations.
         // If we have an entry for this domain, we can update it.
-        if self.index.has_local_mutations
+        if !self.index.local_operations.is_empty()
             && let Some(entry) = self.index.local_operations.get_mut(domain)
         {
             // If the operation is a delete, we can't update it.
@@ -475,7 +436,7 @@ where
                 OpType::Update(current) => std::mem::replace(current, value),
                 OpType::Delete => return Ok(None),
             };
-            self.invalidate_local_codomain_index_cache();
+
             return Ok(Some(old_value));
         }
 
@@ -499,8 +460,6 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
 
             // Update local secondary index
 
@@ -542,8 +501,6 @@ where
                 guaranteed_unique: false,
             },
         );
-        self.invalidate_local_codomain_index_cache();
-        self.index.has_local_mutations = true;
 
         // Update local secondary index
 
@@ -555,7 +512,7 @@ where
         let write_ts = self.write_ts();
 
         // Check local operations first - single lookup that handles all cases, but only if we have mutations
-        if self.index.has_local_mutations
+        if !self.index.local_operations.is_empty()
             && let Some(entry) = self.index.local_operations.get_mut(&domain)
         {
             match &entry.operation {
@@ -573,8 +530,7 @@ where
                         entry.write_ts = write_ts;
                         entry.operation = OpType::Insert(value);
                     }
-                    self.invalidate_local_codomain_index_cache();
-                    self.index.has_local_mutations = true;
+
                     // Update local secondary index
                     return Ok(None);
                 }
@@ -587,8 +543,7 @@ where
                         }
                         OpType::Delete => unreachable!(), // Already handled above
                     };
-                    self.invalidate_local_codomain_index_cache();
-                    self.index.has_local_mutations = true;
+
                     return Ok(Some(old_value));
                 }
             }
@@ -607,8 +562,7 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
+
             // Update local secondary index
             return Ok(Some(old_value));
         }
@@ -628,8 +582,7 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
+
             // Update local secondary index
             return Ok(Some(backing_value));
         }
@@ -644,8 +597,7 @@ where
                 guaranteed_unique: false,
             },
         );
-        self.invalidate_local_codomain_index_cache();
-        self.index.has_local_mutations = true;
+
         Ok(None)
     }
 
@@ -665,7 +617,7 @@ where
         let visible_ts = self.visible_ts();
         let write_ts = self.write_ts();
 
-        if self.index.has_local_mutations
+        if !self.index.local_operations.is_empty()
             && let Some(entry) = self.index.local_operations.get_mut(&domain)
         {
             match &mut entry.operation {
@@ -679,8 +631,6 @@ where
                             entry.write_ts = write_ts;
                             entry.operation = OpType::Insert(new_value);
                         }
-                        self.invalidate_local_codomain_index_cache();
-                        self.index.has_local_mutations = true;
                     }
                     return Ok(None);
                 }
@@ -689,8 +639,6 @@ where
                     if let Some(new_value) = f(Some(&old_value)) {
                         entry.write_ts = write_ts;
                         *current = new_value;
-                        self.invalidate_local_codomain_index_cache();
-                        self.index.has_local_mutations = true;
                     }
                     return Ok(Some(old_value));
                 }
@@ -709,8 +657,6 @@ where
                         guaranteed_unique: false,
                     },
                 );
-                self.invalidate_local_codomain_index_cache();
-                self.index.has_local_mutations = true;
             }
             return Ok(Some(old_value));
         }
@@ -729,8 +675,6 @@ where
                         guaranteed_unique: false,
                     },
                 );
-                self.invalidate_local_codomain_index_cache();
-                self.index.has_local_mutations = true;
             }
             return Ok(Some(backing_value));
         }
@@ -745,8 +689,6 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
         }
 
         Ok(None)
@@ -765,7 +707,7 @@ where
 
     pub fn has_domain(&self, domain: &Domain) -> Result<bool, Error> {
         // Existence-only path: avoid cloning codomain values from `get()`.
-        if self.index.has_local_mutations
+        if !self.index.local_operations.is_empty()
             && let Some(op) = self.index.local_operations.get(domain)
         {
             return Ok(!op.operation.is_delete());
@@ -795,7 +737,7 @@ where
 
         for domain in domains {
             // Check local operations first (if we have mutations)
-            if self.index.has_local_mutations
+            if !self.index.local_operations.is_empty()
                 && let Some(op) = self.index.local_operations.get(&domain)
             {
                 match &op.operation {
@@ -851,25 +793,18 @@ where
                 }
             });
 
-        if !self.index.has_local_mutations {
+        if self.index.local_operations.is_empty() {
             return;
         }
 
-        self.ensure_local_codomain_index_cache();
-        let cache = self.index.local_codomain_index_cache.borrow();
-        let Some(cache) = cache.as_ref() else {
-            return;
-        };
-        if let Some((_, domains)) = cache.iter().find(|(c, _)| c == codomain) {
-            for domain in domains {
-                f(domain);
-            }
-        }
+        self.index
+            .local_operations
+            .for_each_by_codomain(codomain, f);
     }
 
     pub fn get(&self, domain: &Domain) -> Result<Option<Codomain>, Error> {
         // Fast path: no local mutations means no local-ops lookup needed.
-        if !self.index.has_local_mutations {
+        if self.index.local_operations.is_empty() {
             if let Some(entry) = self.index.master_entries.index_lookup(domain) {
                 return Ok(Some(entry.value.clone()));
             }
@@ -916,7 +851,7 @@ where
         F: FnOnce(&Codomain) -> R,
     {
         // Fast path: no local mutations means no local-ops lookup needed.
-        if !self.index.has_local_mutations {
+        if self.index.local_operations.is_empty() {
             if let Some(entry) = self.index.master_entries.index_lookup(domain) {
                 return Ok(Some(f(&entry.value)));
             }
@@ -961,7 +896,7 @@ where
         // This is like update, but we're removing.
         // Check our local index first, but only if we have mutations.
         // If we have an entry for this domain, we can delete it and move on
-        if self.index.has_local_mutations
+        if !self.index.local_operations.is_empty()
             && let Some(entry) = self.index.local_operations.get_mut(domain)
         {
             // If the operation is a delete, we can't delete it again.
@@ -977,8 +912,7 @@ where
                 }
                 OpType::Delete => return Ok(None),
             };
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
+
             return Ok(Some(old_value));
         }
 
@@ -995,8 +929,7 @@ where
                     guaranteed_unique: false,
                 },
             );
-            self.invalidate_local_codomain_index_cache();
-            self.index.has_local_mutations = true;
+
             return Ok(Some(old_value));
         }
 
@@ -1031,8 +964,6 @@ where
                 guaranteed_unique: false,
             },
         );
-        self.invalidate_local_codomain_index_cache();
-        self.index.has_local_mutations = true;
 
         // Update local secondary index (remove from old codomain)
 
@@ -1137,7 +1068,7 @@ where
         let mut results = HashMap::with_capacity(domains.len());
         for domain in domains {
             // Check local operations first (if we have mutations)
-            if self.index.has_local_mutations
+            if !self.index.local_operations.is_empty()
                 && let Some(op) = self.index.local_operations.get(domain)
             {
                 match &op.operation {
@@ -1197,7 +1128,7 @@ where
             ..
         } = self.index;
         Ok(WorkingSet::new_shared(
-            local_operations,
+            local_operations.into_map(),
             master_entries.into_shared(),
             provider_fully_loaded,
         ))

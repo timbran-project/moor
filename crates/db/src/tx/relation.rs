@@ -948,4 +948,50 @@ mod tests {
         assert_eq!(committed_result_b.len(), 1);
         assert!(committed_result_b.contains(&domain3));
     }
+    #[test]
+    fn local_reverse_lookup_tracks_every_mutation_and_early_return() {
+        let provider = TestProvider {
+            data: Arc::new(Mutex::new(HashMap::new())),
+        };
+        let relation = Relation::new_with_secondary(Symbol::mk("test"), Arc::new(provider));
+        let tx = Tx {
+            ts: Timestamp(10),
+            visible_ts: Timestamp(0),
+            snapshot_version: 0,
+        };
+        let mut local = relation.start(&tx);
+        let key = TestDomain(1);
+        let a = TestCodomain(10);
+        let b = TestCodomain(20);
+        assert!(local.get_by_codomain(&a).is_empty());
+        local.insert(key.clone(), a.clone()).unwrap();
+        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        assert!(local.insert(key.clone(), b.clone()).is_err());
+        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        local.update(&key, b.clone()).unwrap();
+        assert!(local.get_by_codomain(&a).is_empty());
+        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        local.upsert_with(key.clone(), |_| None).unwrap();
+        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        local.upsert_with(key.clone(), |_| Some(a.clone())).unwrap();
+        assert!(local.get_by_codomain(&b).is_empty());
+        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        local.delete(&key).unwrap();
+        assert!(local.get_by_codomain(&a).is_empty());
+        assert!(local.update(&key, b.clone()).unwrap().is_none());
+        local.insert(key.clone(), b.clone()).unwrap();
+        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        local
+            .insert_guaranteed_unique(TestDomain(2), a.clone())
+            .unwrap();
+        assert_eq!(local.get_by_codomain(&a), vec![TestDomain(2)]);
+        let ws = local.working_set().unwrap();
+        assert_eq!(ws.tuples_ref().get(&key).unwrap().write_ts, tx.ts);
+        assert!(
+            ws.tuples_ref()
+                .get(&TestDomain(2))
+                .unwrap()
+                .guaranteed_unique
+        );
+    }
 }
