@@ -34,15 +34,13 @@ use crate::{
         task_scheduler_client::{TaskLimitDisposition, TaskLimitInfo, TaskSchedulerClient},
     },
     trace_task_abort, trace_task_complete, trace_task_suspend, trace_task_suspend_with_delay,
-    vm::{TaskSuspend, VMHostResponse, builtins::BuiltinRegistry},
+    vm::{Fork, TaskInputRequest, TaskSuspend, VMHostResponse, builtins::BuiltinRegistry},
 };
-#[cfg(feature = "trace_events")]
-use moor_common::tasks::AbortLimitReason;
 use moor_common::{
     model::{CommitResult, DispatchFlagsSource, VerbDispatch, VerbLookup, WorldStateError},
-    tasks::Session,
+    tasks::{AbortLimitReason, Exception, Session},
 };
-use moor_var::{List, SYSTEM_OBJECT, v_empty_str, v_err, v_int, v_obj, v_str, v_string};
+use moor_var::{List, SYSTEM_OBJECT, Var, v_empty_str, v_err, v_int, v_obj, v_str, v_string};
 use tracing::{error, warn};
 
 impl Task {
@@ -84,452 +82,497 @@ impl Task {
         // Having done that, what should we now do?
         match vm_exec_result {
             VMHostResponse::DispatchFork(fork_request) => {
-                // Commit current transaction, dispatch fork, then resume in a new transaction.
-                let task_id_var = fork_request.task_id;
-                let fork_request = fork_request;
-
-                let renewal = self.renew_transaction(task_scheduler_client, session, || {
-                    let new_world_state =
-                        task_scheduler_client.begin_new_transaction().map_err(|e| {
-                            WorldStateError::DatabaseError(format!("Scheduler error: {e:?}"))
-                        })?;
-                    let task_id = task_scheduler_client.request_fork(fork_request);
-                    Ok((new_world_state, task_id))
-                });
-                match renewal {
-                    Renewal::Cancelled => None,
-                    Renewal::Continued(task_id) => {
-                        if let Some(task_id_var) = task_id_var {
-                            self.vm_host
-                                .set_variable(&task_id_var, v_int(task_id as i64));
-                        }
-                        // Mirror the other successful-commit paths (task_recv, immediate
-                        // resume, suspend): snapshot state for retry *after* mutating the
-                        // VM with this boundary's result (the task id variable, if any),
-                        // and reset `retries` since a fork dispatch that commits is a
-                        // successful transaction boundary like any other.
-                        self.refresh_retry_state();
-                        Some(self)
-                    }
-                    Renewal::Conflict(conflict_info) => {
-                        self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
-                        session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self, "fork dispatch", conflict_info);
-                        None
-                    }
-                    Renewal::CommitFailed(e) => {
-                        error!("Failed to commit before fork dispatch: {e:?}");
-                        self.reject_commit(task_scheduler_client, e);
-                        None
-                    }
-                    Renewal::BeginFailed(e) => {
-                        error!("Failed to begin transaction after fork commit: {e:?}");
-                        task_scheduler_client.abort_transaction_renewal_failed();
-                        None
-                    }
-                }
+                self.dispatch_fork(fork_request, task_scheduler_client, session)
             }
             VMHostResponse::Suspend(delay) => {
                 self.dispatch_suspend(*delay, task_scheduler_client, session)
             }
             VMHostResponse::SuspendNeedInput(input_request) => {
-                // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
-
-                // Attempt commit... See comments/notes on Suspend above.
-                let commit_result =
-                    self.commit_yield_transaction(task_scheduler_client, session)?;
-
-                let boundary = match commit_result {
-                    YieldCommit::Committed(boundary) => boundary,
-                    YieldCommit::Conflict(conflict_info) => {
-                        self.log_conflict_retry("input suspend", conflict_info.as_ref());
-                        session.rollback().unwrap();
-                        task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
-                        return None;
-                    }
-                };
-
-                self.refresh_retry_state();
-                self.vm_host.stop();
-
-                trace_task_suspend!(self.task_id, "Waiting for input");
-
-                // Consume us, passing back to the scheduler that we're waiting for input.
-                task_scheduler_client.request_input(
-                    self,
-                    input_request.player,
-                    input_request.metadata,
-                    boundary,
-                );
-                None
+                self.dispatch_input(*input_request, task_scheduler_client, session)
             }
             VMHostResponse::ContinueOk => Some(self),
 
             VMHostResponse::CompleteSuccess(result) => {
-                // Special case: in case of return from $do_command @ top-level, we need to look at the results:
-                //      non-true value? => parse_command and restart (in same transaction)
-                //      true value? => commit and return success.
-                if let TaskStart::StartDoCommand {
-                    handler_object,
+                self.dispatch_success(result, task_scheduler_client, session)
+            }
+            VMHostResponse::CompleteAbort => self.dispatch_abort(task_scheduler_client),
+            VMHostResponse::CompleteException(exception) => {
+                self.dispatch_exception(exception, task_scheduler_client, session)
+            }
+            VMHostResponse::CompleteRollback(commit_session) => {
+                self.dispatch_rollback(commit_session, task_scheduler_client, session)
+            }
+
+            VMHostResponse::AbortLimit(reason) => {
+                self.dispatch_limit(reason, task_scheduler_client, session)
+            }
+            VMHostResponse::RollbackRetry => self.dispatch_retry(task_scheduler_client, session),
+        }
+    }
+
+    fn dispatch_fork(
+        mut self: Box<Self>,
+        fork_request: Box<Fork>,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        // Commit current transaction, dispatch fork, then resume in a new transaction.
+        let task_id_var = fork_request.task_id;
+        let fork_request = fork_request;
+
+        let renewal = self.renew_transaction(task_scheduler_client, session, || {
+            let new_world_state = task_scheduler_client
+                .begin_new_transaction()
+                .map_err(|e| WorldStateError::DatabaseError(format!("Scheduler error: {e:?}")))?;
+            let task_id = task_scheduler_client.request_fork(fork_request);
+            Ok((new_world_state, task_id))
+        });
+        match renewal {
+            Renewal::Cancelled => None,
+            Renewal::Continued(task_id) => {
+                if let Some(task_id_var) = task_id_var {
+                    self.vm_host
+                        .set_variable(&task_id_var, v_int(task_id as i64));
+                }
+                // Mirror the other successful-commit paths (task_recv, immediate
+                // resume, suspend): snapshot state for retry *after* mutating the
+                // VM with this boundary's result (the task id variable, if any),
+                // and reset `retries` since a fork dispatch that commits is a
+                // successful transaction boundary like any other.
+                self.refresh_retry_state();
+                Some(self)
+            }
+            Renewal::Conflict(conflict_info) => {
+                self.log_conflict_retry("fork dispatch", conflict_info.as_ref());
+                session.rollback().unwrap();
+                task_scheduler_client.conflict_retry(self, "fork dispatch", conflict_info);
+                None
+            }
+            Renewal::CommitFailed(e) => {
+                error!("Failed to commit before fork dispatch: {e:?}");
+                self.reject_commit(task_scheduler_client, e);
+                None
+            }
+            Renewal::BeginFailed(e) => {
+                error!("Failed to begin transaction after fork commit: {e:?}");
+                task_scheduler_client.abort_transaction_renewal_failed();
+                None
+            }
+        }
+    }
+
+    fn dispatch_input(
+        mut self: Box<Self>,
+        input_request: TaskInputRequest,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        // VMHost is now suspended for input, and we'll be waiting for a ResumeReceiveInput
+
+        // Attempt commit... See comments/notes on Suspend above.
+        let commit_result = self.commit_yield_transaction(task_scheduler_client, session)?;
+
+        let boundary = match commit_result {
+            YieldCommit::Committed(boundary) => boundary,
+            YieldCommit::Conflict(conflict_info) => {
+                self.log_conflict_retry("input suspend", conflict_info.as_ref());
+                session.rollback().unwrap();
+                task_scheduler_client.conflict_retry(self, "input suspend", conflict_info);
+                return None;
+            }
+        };
+
+        self.refresh_retry_state();
+        self.vm_host.stop();
+
+        trace_task_suspend!(self.task_id, "Waiting for input");
+
+        // Consume us, passing back to the scheduler that we're waiting for input.
+        task_scheduler_client.request_input(
+            self,
+            input_request.player,
+            input_request.metadata,
+            boundary,
+        );
+        None
+    }
+
+    fn dispatch_success(
+        mut self: Box<Self>,
+        result: Var,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        // Special case: in case of return from $do_command @ top-level, we need to look at the results:
+        //      non-true value? => parse_command and restart (in same transaction)
+        //      true value? => commit and return success.
+        if let TaskStart::StartDoCommand {
+            handler_object,
+            player,
+            command,
+        } = self.state.task_start()
+        {
+            let (player, command) = (*player, command.clone());
+            if !result.is_true() {
+                // Intercept and rewrite us back to StartVerbCommand and do old school parse.
+                self.state = TaskState::Prepared(TaskStart::StartCommandVerb {
+                    handler_object: *handler_object,
                     player,
-                    command,
-                } = self.state.task_start()
-                {
-                    let (player, command) = (*player, command.clone());
-                    if !result.is_true() {
-                        // Intercept and rewrite us back to StartVerbCommand and do old school parse.
-                        self.state = TaskState::Prepared(TaskStart::StartCommandVerb {
-                            handler_object: *handler_object,
-                            player,
-                            command: command.clone(),
-                        });
+                    command: command.clone(),
+                });
 
-                        if let Err(e) = with_current_transaction_mut(|world_state| {
-                            self.setup_start_parse_command(&player, &command, world_state)
-                        }) {
-                            task_scheduler_client.command_error(e);
-                        }
-                        return Some(self);
-                    }
+                if let Err(e) = with_current_transaction_mut(|world_state| {
+                    self.setup_start_parse_command(&player, &command, world_state)
+                }) {
+                    task_scheduler_client.command_error(e);
                 }
+                return Some(self);
+            }
+        }
 
-                // Special case: if we're returning from $handle_uncaught_error, check the result
-                if self.handling_uncaught_error {
-                    self.handling_uncaught_error = false;
+        // Special case: if we're returning from $handle_uncaught_error, check the result
+        if self.handling_uncaught_error {
+            self.handling_uncaught_error = false;
 
-                    // If handler returned false, proceed with normal exception handling
-                    if !result.is_true() {
-                        let Some(original_exception) = self.pending_exception.take() else {
-                            warn!(
-                                task_id = self.task_id,
-                                "handle_uncaught_error returned false, but original exception lost"
-                            );
-                            return None; // Can't restore exception, abort task
-                        };
-
-                        // Restore the original exception and handle it normally
-                        let commit_result =
-                            self.commit_terminal_transaction(task_scheduler_client, session)?;
-
-                        let CommitResult::Success { .. } = commit_result else {
-                            let conflict_info = match commit_result {
-                                CommitResult::ConflictRetry { conflict_info } => conflict_info,
-                                CommitResult::Success { .. } => unreachable!(),
-                            };
-                            self.log_conflict_retry("exception handling", conflict_info.as_ref());
-                            session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(
-                                self,
-                                "exception handling",
-                                conflict_info,
-                            );
-                            return None;
-                        };
-
-                        // Debug level - this is normal when handle_uncaught_error doesn't exist or returns false
-                        // The exception itself is already being handled and reported to the client
-                        tracing::debug!(
-                            task_id = self.task_id,
-                            ?original_exception,
-                            "Task exception (handle_uncaught_error returned false)"
-                        );
-                        self.vm_host.stop();
-
-                        trace_task_abort!(
-                            self.task_id,
-                            &format!("Exception: {}", original_exception.error.err_type())
-                        );
-
-                        task_scheduler_client.exception(Box::new(original_exception));
-                        return None;
-                    }
-
-                    // Handler returned true, clear pending exception and continue with success
-                    self.pending_exception = None;
-                }
-
-                let commit_result =
-                    self.commit_terminal_transaction(task_scheduler_client, session)?;
-
-                let (mutations_made, timestamp) = match commit_result {
-                    CommitResult::Success {
-                        mutations_made,
-                        timestamp,
-                    } => (mutations_made, timestamp),
-                    CommitResult::ConflictRetry { conflict_info } => {
-                        self.log_conflict_retry("task completion", conflict_info.as_ref());
-                        session.rollback().unwrap();
-
-                        // Backoff is handled by the scheduler via suspension-based retry
-                        task_scheduler_client.conflict_retry(
-                            self,
-                            "task completion",
-                            conflict_info,
-                        );
-                        return None;
-                    }
+            // If handler returned false, proceed with normal exception handling
+            if !result.is_true() {
+                let Some(original_exception) = self.pending_exception.take() else {
+                    warn!(
+                        task_id = self.task_id,
+                        "handle_uncaught_error returned false, but original exception lost"
+                    );
+                    return None; // Can't restore exception, abort task
                 };
 
-                self.vm_host.stop();
-
-                trace_task_complete!(self.task_id, &format!("{result:?}"));
-
-                task_scheduler_client.success(result, mutations_made, timestamp);
-                None
-            }
-            VMHostResponse::CompleteAbort => {
-                error!(task_id = self.task_id, "Task aborted");
-
-                if !self.rollback_terminal_transaction(task_scheduler_client) {
-                    return None;
-                }
-
-                self.vm_host.stop();
-
-                trace_task_abort!(self.task_id, "Task aborted");
-
-                task_scheduler_client.abort_cancelled();
-                None
-            }
-            VMHostResponse::CompleteException(exception) => {
-                // Check if we're already handling an uncaught error (prevent infinite recursion)
-                if self.handling_uncaught_error {
-                    // We're in the handler and it threw an exception.
-                    // Fall through to normal exception reporting below.
-                } else if let TaskState::Prepared(TaskStart::StartExceptionHandler { .. })
-                | TaskState::Pending(TaskStart::StartExceptionHandler { .. }) =
-                    &self.state
-                {
-                    // Current task IS the exception handler and it threw.
-                    // Fall through to normal exception reporting.
-                } else {
-                    // Try to find and invoke $handle_uncaught_error on #0 (SYSTEM_OBJECT)
-                    let verb_lookup = with_current_transaction(|world_state| {
-                        world_state.dispatch_verb(
-                            &self.task_permissions(),
-                            VerbDispatch::new(
-                                VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
-                                DispatchFlagsSource::Permissions,
-                            ),
-                        )
-                    });
-
-                    if let Ok(Some(verb_result)) = verb_lookup {
-                        // Handler exists - prepare to invoke it
-                        // Prepare arguments: {code, msg, value, stack, traceback}
-                        let code = v_err(exception.error.err_type());
-                        let msg = match exception.error.msg() {
-                            Some(m) => v_string(m.to_string()),
-                            None => v_str(""),
-                        };
-                        let value = exception.error.value().cloned().unwrap_or(v_int(0));
-                        let stack = List::from_iter(exception.stack.clone());
-                        let traceback = List::from_iter(exception.backtrace.clone());
-
-                        let args =
-                            List::from_iter(vec![code, msg, value, stack.into(), traceback.into()]);
-
-                        // Store the original exception and mark that we're handling uncaught error
-                        self.pending_exception = Some((*exception).clone());
-                        self.handling_uncaught_error = true;
-
-                        // Set up the handler as a method call on SYSTEM_OBJECT
-                        self.vm_host.start_call_method_verb(
-                            self.task_id,
-                            verb_result.verbdef,
-                            *HANDLE_UNCAUGHT_ERROR_SYM,
-                            v_obj(SYSTEM_OBJECT),
-                            self.player,
-                            args,
-                            v_obj(self.player),
-                            v_empty_str(),
-                            verb_result.permissions_flags,
-                            match with_current_transaction(|ws| {
-                                ws.retrieve_verb(
-                                    &self.task_permissions(),
-                                    &verb_result.program_key.verb_definer,
-                                    verb_result.program_key.verb_uuid,
-                                )
-                            }) {
-                                Ok((program, _)) => program,
-                                Err(e) => {
-                                    error!(
-                                        task_id = ?self.task_id,
-                                        "Error resolving handler program: {e:?}"
-                                    );
-                                    return None;
-                                }
-                            },
-                        );
-
-                        // Continue execution - the handler will now run
-                        return Some(self);
-                    }
-
-                    // No handler exists or error looking it up
-                    if let Err(e) = verb_lookup {
-                        error!(task_id = ?self.task_id, "Error looking up handle_uncaught_error: {:?}", e);
-                        // Proceed with normal exception reporting
-                    }
-                }
-
-                // Normal exception reporting (either no handler found, or handler itself threw)
-                // Commands that end in exceptions are still expected to be committed, to
-                // conform with MOO's expectations.
+                // Restore the original exception and handle it normally
                 let commit_result =
                     self.commit_terminal_transaction(task_scheduler_client, session)?;
 
-                if let CommitResult::ConflictRetry { conflict_info } = commit_result {
-                    self.log_conflict_retry("exception reporting", conflict_info.as_ref());
+                let CommitResult::Success { .. } = commit_result else {
+                    let conflict_info = match commit_result {
+                        CommitResult::ConflictRetry { conflict_info } => conflict_info,
+                        CommitResult::Success { .. } => unreachable!(),
+                    };
+                    self.log_conflict_retry("exception handling", conflict_info.as_ref());
                     session.rollback().unwrap();
-                    task_scheduler_client.conflict_retry(
-                        self,
-                        "exception reporting",
-                        conflict_info,
-                    );
+                    task_scheduler_client.conflict_retry(self, "exception handling", conflict_info);
                     return None;
-                }
+                };
 
-                // Format the backtrace for logging
-                let backtrace_str: String = exception
-                    .backtrace
-                    .iter()
-                    .filter_map(|v| v.as_string())
-                    .map(|s| format!("        {}", s))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                error!(
+                // Debug level - this is normal when handle_uncaught_error doesn't exist or returns false
+                // The exception itself is already being handled and reported to the client
+                tracing::debug!(
                     task_id = self.task_id,
-                    player_id = self.player.to_literal(),
-                    authority_principal = self.authority_principal.to_literal(),
-                    error = %exception.error,
-                    "Task exception:\n{}",
-                    backtrace_str
+                    ?original_exception,
+                    "Task exception (handle_uncaught_error returned false)"
                 );
                 self.vm_host.stop();
 
                 trace_task_abort!(
                     self.task_id,
-                    &format!("Exception: {}", exception.error.err_type())
+                    &format!("Exception: {}", original_exception.error.err_type())
                 );
 
-                task_scheduler_client.exception(exception);
-                None
-            }
-            VMHostResponse::CompleteRollback(commit_session) => {
-                if !self.rollback_terminal_transaction(task_scheduler_client) {
-                    return None;
-                }
-
-                // And then decide if we are going to rollback th session as well.
-                if !commit_session {
-                    session.rollback().expect("Could not rollback session");
-                } else {
-                    session.commit().expect("Could not commit session");
-                }
-                self.vm_host.stop();
-                task_scheduler_client.abort_cancelled();
-                None
+                task_scheduler_client.exception(Box::new(original_exception));
+                return None;
             }
 
-            VMHostResponse::AbortLimit(reason) => {
-                warn!(task_id = self.task_id, "Task abort limit reached");
+            // Handler returned true, clear pending exception and continue with success
+            self.pending_exception = None;
+        }
 
-                // Inside a running task, stack should never be empty - if it is, that's a critical bug
-                let this = self
-                    .vm_host
-                    .this()
-                    .expect("Task has empty activation stack during abort - critical bug");
-                let verb_name = self
-                    .vm_host
-                    .verb_name()
-                    .expect("Task has empty activation stack during abort - critical bug");
-                let line_number = self
-                    .vm_host
-                    .line_number()
-                    .expect("Task has empty activation stack during abort - critical bug");
+        let commit_result = self.commit_terminal_transaction(task_scheduler_client, session)?;
 
-                // Emit trace event for abort limit
-                #[cfg(feature = "trace_events")]
-                {
-                    let (limit_type, limit_value) = match &reason {
-                        AbortLimitReason::Ticks(ticks) => {
-                            ("Ticks".to_string(), format!("{}", ticks))
-                        }
-                        AbortLimitReason::Time(duration) => (
-                            "Time".to_string(),
-                            format!("{:.3}s", duration.as_secs_f64()),
-                        ),
-                        AbortLimitReason::OutputEvents(events) => {
-                            ("OutputEvents".to_string(), events.to_string())
-                        }
-                        AbortLimitReason::OutputBytes(bytes) => {
-                            ("OutputBytes".to_string(), bytes.to_string())
-                        }
-                    };
+        let (mutations_made, timestamp) = match commit_result {
+            CommitResult::Success {
+                mutations_made,
+                timestamp,
+            } => (mutations_made, timestamp),
+            CommitResult::ConflictRetry { conflict_info } => {
+                self.log_conflict_retry("task completion", conflict_info.as_ref());
+                session.rollback().unwrap();
 
-                    trace_abort_limit_reached!(
-                        self.task_id,
-                        &limit_type,
-                        limit_value,
-                        self.vm_host.max_ticks,
-                        self.vm_host.tick_count(),
-                        verb_name,
-                        this.clone(),
-                        line_number
-                    );
-                }
+                // Backoff is handled by the scheduler via suspension-based retry
+                task_scheduler_client.conflict_retry(self, "task completion", conflict_info);
+                return None;
+            }
+        };
 
-                // Collect traceback information for the handler
-                let (stack_list, backtrace_list) = self.vm_host.get_traceback();
-                let disposition = if task_scheduler_client.rollback_on_task_limit() {
-                    if !self.rollback_terminal_transaction(task_scheduler_client) {
-                        return None;
-                    }
-                    TaskLimitDisposition::Rollback
-                } else {
-                    match self.commit_terminal_transaction(task_scheduler_client, session)? {
-                        CommitResult::Success {
-                            mutations_made,
-                            timestamp,
-                        } => TaskLimitDisposition::Commit {
-                            mutations_made,
-                            timestamp,
-                        },
-                        CommitResult::ConflictRetry { conflict_info } => {
-                            self.log_conflict_retry("task limit", conflict_info.as_ref());
-                            session.rollback().unwrap();
-                            task_scheduler_client.conflict_retry(self, "task limit", conflict_info);
+        self.vm_host.stop();
+
+        trace_task_complete!(self.task_id, &format!("{result:?}"));
+
+        task_scheduler_client.success(result, mutations_made, timestamp);
+        None
+    }
+
+    fn dispatch_abort(
+        mut self: Box<Self>,
+        task_scheduler_client: &TaskSchedulerClient,
+    ) -> Option<Box<Self>> {
+        error!(task_id = self.task_id, "Task aborted");
+
+        if !self.rollback_terminal_transaction(task_scheduler_client) {
+            return None;
+        }
+
+        self.vm_host.stop();
+
+        trace_task_abort!(self.task_id, "Task aborted");
+
+        task_scheduler_client.abort_cancelled();
+        None
+    }
+
+    fn dispatch_exception(
+        mut self: Box<Self>,
+        exception: Box<Exception>,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        // Check if we're already handling an uncaught error (prevent infinite recursion)
+        if self.handling_uncaught_error {
+            // We're in the handler and it threw an exception.
+            // Fall through to normal exception reporting below.
+        } else if let TaskState::Prepared(TaskStart::StartExceptionHandler { .. })
+        | TaskState::Pending(TaskStart::StartExceptionHandler { .. }) = &self.state
+        {
+            // Current task IS the exception handler and it threw.
+            // Fall through to normal exception reporting.
+        } else {
+            // Try to find and invoke $handle_uncaught_error on #0 (SYSTEM_OBJECT)
+            let verb_lookup = with_current_transaction(|world_state| {
+                world_state.dispatch_verb(
+                    &self.task_permissions(),
+                    VerbDispatch::new(
+                        VerbLookup::method(&SYSTEM_OBJECT, *HANDLE_UNCAUGHT_ERROR_SYM),
+                        DispatchFlagsSource::Permissions,
+                    ),
+                )
+            });
+
+            if let Ok(Some(verb_result)) = verb_lookup {
+                // Handler exists - prepare to invoke it
+                // Prepare arguments: {code, msg, value, stack, traceback}
+                let code = v_err(exception.error.err_type());
+                let msg = match exception.error.msg() {
+                    Some(m) => v_string(m.to_string()),
+                    None => v_str(""),
+                };
+                let value = exception.error.value().cloned().unwrap_or(v_int(0));
+                let stack = List::from_iter(exception.stack.clone());
+                let traceback = List::from_iter(exception.backtrace.clone());
+
+                let args = List::from_iter(vec![code, msg, value, stack.into(), traceback.into()]);
+
+                // Store the original exception and mark that we're handling uncaught error
+                self.pending_exception = Some((*exception).clone());
+                self.handling_uncaught_error = true;
+
+                // Set up the handler as a method call on SYSTEM_OBJECT
+                self.vm_host.start_call_method_verb(
+                    self.task_id,
+                    verb_result.verbdef,
+                    *HANDLE_UNCAUGHT_ERROR_SYM,
+                    v_obj(SYSTEM_OBJECT),
+                    self.player,
+                    args,
+                    v_obj(self.player),
+                    v_empty_str(),
+                    verb_result.permissions_flags,
+                    match with_current_transaction(|ws| {
+                        ws.retrieve_verb(
+                            &self.task_permissions(),
+                            &verb_result.program_key.verb_definer,
+                            verb_result.program_key.verb_uuid,
+                        )
+                    }) {
+                        Ok((program, _)) => program,
+                        Err(e) => {
+                            error!(
+                                task_id = ?self.task_id,
+                                "Error resolving handler program: {e:?}"
+                            );
                             return None;
                         }
-                    }
-                };
+                    },
+                );
 
-                // The scheduler finalizes task effects and invokes $handle_task_timeout separately.
-                self.vm_host.stop();
-                task_scheduler_client.abort_limits_reached(TaskLimitInfo {
-                    reason,
-                    disposition,
-                    this,
-                    verb_name,
-                    line_number,
-                    stack: stack_list,
-                    backtrace: backtrace_list,
-                });
-                None
+                // Continue execution - the handler will now run
+                return Some(self);
             }
-            VMHostResponse::RollbackRetry => {
-                warn!(task_id = self.task_id, "Task rollback requested, retrying");
 
-                self.vm_host.stop();
-                rollback_current_transaction().expect("Could not rollback world state");
-
-                session.rollback().unwrap();
-                task_scheduler_client.conflict_retry(self, "explicit rollback", None);
-                None
+            // No handler exists or error looking it up
+            if let Err(e) = verb_lookup {
+                error!(task_id = ?self.task_id, "Error looking up handle_uncaught_error: {:?}", e);
+                // Proceed with normal exception reporting
             }
         }
+
+        // Normal exception reporting (either no handler found, or handler itself threw)
+        // Commands that end in exceptions are still expected to be committed, to
+        // conform with MOO's expectations.
+        let commit_result = self.commit_terminal_transaction(task_scheduler_client, session)?;
+
+        if let CommitResult::ConflictRetry { conflict_info } = commit_result {
+            self.log_conflict_retry("exception reporting", conflict_info.as_ref());
+            session.rollback().unwrap();
+            task_scheduler_client.conflict_retry(self, "exception reporting", conflict_info);
+            return None;
+        }
+
+        // Format the backtrace for logging
+        let backtrace_str: String = exception
+            .backtrace
+            .iter()
+            .filter_map(|v| v.as_string())
+            .map(|s| format!("        {}", s))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        error!(
+            task_id = self.task_id,
+            player_id = self.player.to_literal(),
+            authority_principal = self.authority_principal.to_literal(),
+            error = %exception.error,
+            "Task exception:\n{}",
+            backtrace_str
+        );
+        self.vm_host.stop();
+
+        trace_task_abort!(
+            self.task_id,
+            &format!("Exception: {}", exception.error.err_type())
+        );
+
+        task_scheduler_client.exception(exception);
+        None
+    }
+
+    fn dispatch_rollback(
+        mut self: Box<Self>,
+        commit_session: bool,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        if !self.rollback_terminal_transaction(task_scheduler_client) {
+            return None;
+        }
+
+        // And then decide if we are going to rollback th session as well.
+        if !commit_session {
+            session.rollback().expect("Could not rollback session");
+        } else {
+            session.commit().expect("Could not commit session");
+        }
+        self.vm_host.stop();
+        task_scheduler_client.abort_cancelled();
+        None
+    }
+
+    fn dispatch_limit(
+        mut self: Box<Self>,
+        reason: AbortLimitReason,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        warn!(task_id = self.task_id, "Task abort limit reached");
+
+        // Inside a running task, stack should never be empty - if it is, that's a critical bug
+        let this = self
+            .vm_host
+            .this()
+            .expect("Task has empty activation stack during abort - critical bug");
+        let verb_name = self
+            .vm_host
+            .verb_name()
+            .expect("Task has empty activation stack during abort - critical bug");
+        let line_number = self
+            .vm_host
+            .line_number()
+            .expect("Task has empty activation stack during abort - critical bug");
+
+        // Emit trace event for abort limit
+        #[cfg(feature = "trace_events")]
+        {
+            let (limit_type, limit_value) = match &reason {
+                AbortLimitReason::Ticks(ticks) => ("Ticks".to_string(), format!("{}", ticks)),
+                AbortLimitReason::Time(duration) => (
+                    "Time".to_string(),
+                    format!("{:.3}s", duration.as_secs_f64()),
+                ),
+                AbortLimitReason::OutputEvents(events) => {
+                    ("OutputEvents".to_string(), events.to_string())
+                }
+                AbortLimitReason::OutputBytes(bytes) => {
+                    ("OutputBytes".to_string(), bytes.to_string())
+                }
+            };
+
+            trace_abort_limit_reached!(
+                self.task_id,
+                &limit_type,
+                limit_value,
+                self.vm_host.max_ticks,
+                self.vm_host.tick_count(),
+                verb_name,
+                this.clone(),
+                line_number
+            );
+        }
+
+        // Collect traceback information for the handler
+        let (stack_list, backtrace_list) = self.vm_host.get_traceback();
+        let disposition = if task_scheduler_client.rollback_on_task_limit() {
+            if !self.rollback_terminal_transaction(task_scheduler_client) {
+                return None;
+            }
+            TaskLimitDisposition::Rollback
+        } else {
+            match self.commit_terminal_transaction(task_scheduler_client, session)? {
+                CommitResult::Success {
+                    mutations_made,
+                    timestamp,
+                } => TaskLimitDisposition::Commit {
+                    mutations_made,
+                    timestamp,
+                },
+                CommitResult::ConflictRetry { conflict_info } => {
+                    self.log_conflict_retry("task limit", conflict_info.as_ref());
+                    session.rollback().unwrap();
+                    task_scheduler_client.conflict_retry(self, "task limit", conflict_info);
+                    return None;
+                }
+            }
+        };
+
+        // The scheduler finalizes task effects and invokes $handle_task_timeout separately.
+        self.vm_host.stop();
+        task_scheduler_client.abort_limits_reached(TaskLimitInfo {
+            reason,
+            disposition,
+            this,
+            verb_name,
+            line_number,
+            stack: stack_list,
+            backtrace: backtrace_list,
+        });
+        None
+    }
+
+    fn dispatch_retry(
+        mut self: Box<Self>,
+        task_scheduler_client: &TaskSchedulerClient,
+        session: &dyn Session,
+    ) -> Option<Box<Self>> {
+        warn!(task_id = self.task_id, "Task rollback requested, retrying");
+
+        self.vm_host.stop();
+        rollback_current_transaction().expect("Could not rollback world state");
+
+        session.rollback().unwrap();
+        task_scheduler_client.conflict_retry(self, "explicit rollback", None);
+        None
     }
 
     pub(super) fn dispatch_suspend(
