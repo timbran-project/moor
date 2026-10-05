@@ -200,6 +200,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Tasks now report an error if they cannot load `$handle_uncaught_error`. Previously, these tasks
+  could leave callers waiting indefinitely for a result.
+
 `telnet-host`:
 
 - Deliver inbound client-data message names as strings to prevent client-supplied GMCP and MSDP

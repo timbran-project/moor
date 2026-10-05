@@ -38,7 +38,7 @@ use crate::{
 };
 use moor_common::{
     model::{CommitResult, DispatchFlagsSource, VerbDispatch, VerbLookup, WorldStateError},
-    tasks::{AbortLimitReason, Exception, Session},
+    tasks::{AbortLimitReason, CommandError, Exception, Session},
 };
 use moor_var::{List, SYSTEM_OBJECT, Var, v_empty_str, v_err, v_int, v_obj, v_str, v_string};
 use tracing::{error, warn};
@@ -225,6 +225,7 @@ impl Task {
                     self.setup_start_parse_command(&player, &command, world_state)
                 }) {
                     task_scheduler_client.command_error(e);
+                    return None;
                 }
                 return Some(self);
             }
@@ -241,7 +242,8 @@ impl Task {
                         task_id = self.task_id,
                         "handle_uncaught_error returned false, but original exception lost"
                     );
-                    return None; // Can't restore exception, abort task
+                    self.cancel_before_commit(task_scheduler_client);
+                    return None;
                 };
 
                 // Restore the original exception and handle it normally
@@ -393,6 +395,7 @@ impl Task {
                                 task_id = ?self.task_id,
                                 "Error resolving handler program: {e:?}"
                             );
+                            task_scheduler_client.command_error(CommandError::DatabaseError(e));
                             return None;
                         }
                     },
@@ -698,3 +701,6 @@ impl Task {
         None
     }
 }
+
+#[cfg(test)]
+mod tests;
