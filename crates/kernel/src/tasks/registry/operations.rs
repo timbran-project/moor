@@ -292,6 +292,7 @@ impl TaskQ {
             Ok(ws) => ws,
             Err(e) => {
                 error!(error = ?e, "Could not start transaction for task resumption due to DB error");
+                self.finish_failed_wakeup(registration, result_sender);
                 return Err(SchedulerError::CouldNotStartTask);
             }
         };
@@ -502,7 +503,29 @@ impl TaskQ {
         // Fork the session for the new attempt. This is the same task running again, not a new
         // one, so use `fork_retry`: a session accumulating output for a caller has to keep that
         // accumulator across the retry.
-        let new_session = session.fork_retry().unwrap();
+        let new_session = match session.fork_retry() {
+            Ok(session) => session,
+            Err(error) => {
+                error!(task_id, ?error, "Could not create session for retry wakeup");
+                self.finish_failed_wakeup(registration, result_sender);
+                return;
+            }
+        };
+
+        // Complete fallible preparation before installing an active attempt. No worker exists
+        // yet to report these errors or remove a partially constructed active record.
+        let world_state = match database.new_world_state() {
+            Ok(ws) => ws,
+            Err(error) => {
+                error!(
+                    task_id,
+                    ?error,
+                    "Could not start transaction for retry wakeup"
+                );
+                self.finish_failed_wakeup(registration, result_sender);
+                return;
+            }
+        };
 
         let control = Arc::new(TaskControl::new());
         task.control = control.clone();
@@ -526,12 +549,6 @@ impl TaskQ {
 
         let scheduler_clone = scheduler.clone();
 
-        let world_state = match database.new_world_state() {
-            Ok(ws) => ws,
-            Err(e) => {
-                panic!("Could not start transaction for retry wake task due to DB error: {e:?}");
-            }
-        };
         let task_scheduler_client = TaskSchedulerClient::new(task_id, scheduler.clone());
         let player = task.player();
         let wake_to_dispatch_started_at = Instant::now();
@@ -594,6 +611,23 @@ impl TaskQ {
                 scheduler_clone.handle_task_abort_panicked(task_id, panic_msg, backtrace);
             }
         });
+    }
+
+    /// Finish a wakeup that failed before worker dispatch. The caller holds the lifecycle lock,
+    /// and the continuation has already left suspension. No transaction ran in this attempt.
+    fn finish_failed_wakeup(
+        &mut self,
+        registration: LiveTaskRegistration,
+        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    ) {
+        let task_id = registration.task_id();
+        self.remove_message_queue(task_id);
+        self.suspended.enqueue_dependents_for(task_id);
+        self.send_task_result_direct(
+            registration,
+            result_sender,
+            Err(SchedulerError::CouldNotStartTask),
+        );
     }
 
     /// Take a task out of the queues and stop it running. Returns false if the task was not
