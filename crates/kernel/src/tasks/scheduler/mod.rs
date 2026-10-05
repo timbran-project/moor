@@ -1190,7 +1190,11 @@ mod tests {
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Never,
+                task.with_committed_boundary(boundary),
+            );
         });
 
         commit_entered.wait();
@@ -1270,8 +1274,7 @@ mod tests {
             callback_scheduler.handle_task_suspend(
                 task_id,
                 TaskSuspend::Timed(Duration::from_secs(60)),
-                task,
-                boundary,
+                task.with_committed_boundary(boundary),
             );
         });
         commit_entered.wait();
@@ -1331,7 +1334,11 @@ mod tests {
         let boundary = task.control.claim_boundary().unwrap().committed();
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Never,
+                task.with_committed_boundary(boundary),
+            );
         });
         commit_entered.wait();
         let replacement =
@@ -1755,10 +1762,9 @@ mod tests {
         let callback = std::thread::spawn(move || {
             callback_scheduler.handle_task_request_input(
                 task_id,
-                task,
+                task.with_committed_boundary(boundary),
                 SYSTEM_OBJECT,
                 None,
-                boundary,
             );
         });
 
@@ -1836,7 +1842,11 @@ mod tests {
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Never,
+                task.with_committed_boundary(boundary),
+            );
         });
 
         commit_entered.wait();
@@ -1901,7 +1911,11 @@ mod tests {
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Never,
+                task.with_committed_boundary(boundary),
+            );
         });
         commit_entered.wait();
 
@@ -1967,7 +1981,11 @@ mod tests {
 
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
-            callback_scheduler.handle_task_suspend(task_id, TaskSuspend::Never, task, boundary);
+            callback_scheduler.handle_task_suspend(
+                task_id,
+                TaskSuspend::Never,
+                task.with_committed_boundary(boundary),
+            );
         });
         commit_entered.wait();
 

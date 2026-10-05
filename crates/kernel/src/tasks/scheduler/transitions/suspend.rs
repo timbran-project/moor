@@ -48,20 +48,26 @@ use uuid::Uuid;
 struct SuspensionTransition {
     task: Box<Task>,
     session: Arc<dyn Session>,
-    boundary: CommittedBoundary,
+    // Legacy callers can supply a task without proof. Session I/O keeps its existing order,
+    // but finish rejects continuation and never publishes its effects.
+    boundary: Option<CommittedBoundary>,
     phase: RunningTaskPhase,
 }
 
 impl SuspensionTransition {
     fn prepare(
         lc: &mut TaskLifecycle,
-        task: Box<Task>,
-        boundary: CommittedBoundary,
+        mut task: Box<Task>,
         phase: RunningTaskPhase,
     ) -> Option<Self> {
         let task_id = task.task_id;
         let active = lc.task_q.active.get_mut(&task_id)?;
-        if !boundary.belongs_to(&active.control) || !boundary.belongs_to(&task.control) {
+        let boundary = task.take_committed_boundary();
+        if !Arc::ptr_eq(&active.control, &task.control)
+            || boundary
+                .as_ref()
+                .is_some_and(|boundary| !boundary.belongs_to(&task.control))
+        {
             warn!(task_id, "Ignoring a boundary from a replaced task attempt");
             return None;
         }
@@ -84,7 +90,7 @@ impl SuspensionTransition {
             .active
             .get(&self.task.task_id)
             .is_some_and(|active| {
-                self.boundary.belongs_to(&active.control) && active.phase == self.phase
+                Arc::ptr_eq(&self.task.control, &active.control) && active.phase == self.phase
             })
     }
 
@@ -135,7 +141,7 @@ impl SuspensionTransition {
             return None;
         }
         let task_id = self.task.task_id;
-        if !self.boundary.finish() {
+        if !self.boundary.is_some_and(CommittedBoundary::finish) {
             lc.task_q.remove_message_queue(task_id);
             lc.task_q
                 .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -147,18 +153,17 @@ impl SuspensionTransition {
 }
 
 impl Scheduler {
-    pub(crate) fn handle_task_suspend(
+    /// Accept a task handoff. Only a task carrying its committed boundary can enter suspension.
+    pub fn handle_task_suspend(
         &self,
         task_id: TaskId,
         wake_condition: TaskSuspend,
         task: Box<Task>,
-        boundary: CommittedBoundary,
     ) {
         assert_eq!(task_id, task.task_id);
         let Some(transition) = SuspensionTransition::prepare(
             &mut self.lifecycle.lock(),
             task,
-            boundary,
             RunningTaskPhase::Suspending,
         ) else {
             return;
@@ -306,20 +311,19 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn handle_task_request_input(
+    /// Accept an input handoff while retaining active membership across session I/O.
+    pub fn handle_task_request_input(
         &self,
         task_id: TaskId,
         task: Box<Task>,
         input_player: Obj,
         metadata: Option<Vec<(Symbol, Var)>>,
-        boundary: CommittedBoundary,
     ) {
         assert_eq!(task_id, task.task_id);
         let input_request_id = Uuid::new_v4();
         let Some(transition) = SuspensionTransition::prepare(
             &mut self.lifecycle.lock(),
             task,
-            boundary,
             RunningTaskPhase::RequestingInput,
         ) else {
             return;
@@ -364,3 +368,6 @@ impl Scheduler {
         );
     }
 }
+
+#[cfg(test)]
+mod tests;

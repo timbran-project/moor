@@ -68,10 +68,11 @@ pub(super) struct SuspensionRequest {
 
 impl SuspensionRequest {
     pub(super) fn handoff(self, client: &TaskSchedulerClient) {
+        let task = self.task.with_committed_boundary(self.boundary);
         match self.kind {
-            SuspensionKind::Wait(delay) => client.suspend(delay, self.task, self.boundary),
+            SuspensionKind::Wait(delay) => client.suspend(delay, task),
             SuspensionKind::Input(input) => {
-                client.request_input(self.task, input.player, input.metadata, self.boundary);
+                client.request_input(task, input.player, input.metadata);
             }
         }
     }

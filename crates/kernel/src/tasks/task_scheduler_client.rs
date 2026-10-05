@@ -29,11 +29,7 @@ use moor_common::{
 };
 use moor_var::{E_INVARG, E_INVIND, Error, List, Obj, Symbol, Var, v_err};
 
-use crate::tasks::{
-    scheduler::Scheduler,
-    task_control::{CommittedBoundary, TaskControl},
-    task_q::TaskAttempt,
-};
+use crate::tasks::{scheduler::Scheduler, task_control::TaskControl, task_q::TaskAttempt};
 
 pub use moor_common::tasks::WorkerInfo;
 
@@ -178,30 +174,21 @@ impl TaskSchedulerClient {
         self.scheduler.rollback_on_task_limit()
     }
 
-    pub(crate) fn suspend(
-        &self,
-        resume_condition: TaskSuspend,
-        task: Box<Task>,
-        boundary: CommittedBoundary,
-    ) {
+    /// Hand off a task after its database boundary. The owned task carries the commit proof.
+    pub fn suspend(&self, resume_condition: TaskSuspend, task: Box<Task>) {
         self.scheduler
-            .handle_task_suspend(self.task_id, resume_condition, task, boundary);
+            .handle_task_suspend(self.task_id, resume_condition, task);
     }
 
-    pub(crate) fn request_input(
+    /// Hand off an input request after the task's database boundary.
+    pub fn request_input(
         &self,
         task: Box<Task>,
         input_player: Obj,
         metadata: Option<Vec<(Symbol, Var)>>,
-        boundary: CommittedBoundary,
     ) {
-        self.scheduler.handle_task_request_input(
-            self.task_id,
-            task,
-            input_player,
-            metadata,
-            boundary,
-        );
+        self.scheduler
+            .handle_task_request_input(self.task_id, task, input_player, metadata);
     }
 
     pub fn task_list(&self) -> Vec<TaskDescription> {

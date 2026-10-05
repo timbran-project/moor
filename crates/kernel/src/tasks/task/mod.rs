@@ -32,7 +32,9 @@ use crate::{
     config::Config,
     task_context::with_current_transaction,
     tasks::{
-        ServerOptions, TaskStart, task_control::TaskControl, task_program_cache::TaskProgramCache,
+        ServerOptions, TaskStart,
+        task_control::{CommittedBoundary, TaskControl},
+        task_program_cache::TaskProgramCache,
         task_scheduler_client::TaskSchedulerClient,
     },
     trace_task_start,
@@ -98,6 +100,9 @@ pub struct Task {
     pub(crate) vm_host: VmHost,
     /// Arbitration between cancellation and transaction commit.
     pub(crate) control: Arc<TaskControl>,
+    /// Committed boundary carried only between an owned outcome and scheduler handoff.
+    /// This capability is never serialized or restored.
+    committed_boundary: Option<CommittedBoundary>,
     /// The number of retries this process has undergone.
     pub(crate) retries: u8,
     /// A copy of the VM state at the time the task was created or last committed/suspended.
@@ -192,12 +197,34 @@ impl Task {
             authority_principal,
             authority_principal_flags: BitEnum::new(),
             control,
+            committed_boundary: None,
             retries: 0,
             retry_state,
             handling_uncaught_error: false,
             pending_exception: None,
             program_cache: TaskProgramCache::default(),
         })
+    }
+
+    /// Carry the existing commit proof through the public Box<Task> handoff interface.
+    pub(crate) fn with_committed_boundary(
+        mut self: Box<Self>,
+        boundary: CommittedBoundary,
+    ) -> Box<Self> {
+        assert!(
+            self.committed_boundary.is_none(),
+            "task already owns a boundary"
+        );
+        assert!(
+            boundary.belongs_to(&self.control),
+            "boundary belongs to another dispatch"
+        );
+        self.committed_boundary = Some(boundary);
+        self
+    }
+
+    pub(crate) fn take_committed_boundary(&mut self) -> Option<CommittedBoundary> {
+        self.committed_boundary.take()
     }
 
     #[inline]
@@ -240,6 +267,7 @@ impl Task {
             authority_principal,
             authority_principal_flags,
             control,
+            committed_boundary: None,
             retries,
             retry_state,
             handling_uncaught_error,
