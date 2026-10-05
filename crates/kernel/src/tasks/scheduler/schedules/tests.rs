@@ -15,7 +15,7 @@ use crate::tasks::{
     schedule_q::{PendingKind, ScheduleError, ScheduleId, ScheduleKind, ScheduleOptions},
     scheduler::{
         Scheduler,
-        tests::{insert_active_task, scheduler},
+        test_support::{insert_active_task, scheduler},
     },
     task_scheduler_client::TaskSchedulerClient,
 };

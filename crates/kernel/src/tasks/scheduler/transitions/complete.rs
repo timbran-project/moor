@@ -509,3 +509,6 @@ impl Scheduler {
         completion.finish(&mut lc);
     }
 }
+
+#[cfg(test)]
+mod tests;

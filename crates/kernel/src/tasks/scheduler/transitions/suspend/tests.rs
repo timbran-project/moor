@@ -13,7 +13,7 @@
 
 use super::*;
 use crate::tasks::{
-    scheduler::tests::{insert_active_task, scheduler},
+    scheduler::test_support::{insert_active_task, scheduler},
     task_scheduler_client::TaskSchedulerClient,
 };
 use moor_common::tasks::MockClientSession;

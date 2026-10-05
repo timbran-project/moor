@@ -409,3 +409,6 @@ impl TaskLifecycle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

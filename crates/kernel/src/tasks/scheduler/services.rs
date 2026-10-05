@@ -475,7 +475,7 @@ impl Scheduler {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{NoopSessionFactory, scheduler, suspended_task};
+    use super::super::test_support::{NoopSessionFactory, scheduler, suspended_task};
     use super::*;
     use crate::{
         config::Config,
@@ -706,3 +706,6 @@ mod tests {
         assert_eq!(finished.load(Ordering::Acquire), 2);
     }
 }
+
+#[cfg(test)]
+mod shutdown_tests;

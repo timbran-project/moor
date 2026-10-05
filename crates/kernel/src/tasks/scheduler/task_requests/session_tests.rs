@@ -15,7 +15,7 @@ use crate::{
     task_context::{TaskGuard, rollback_current_transaction},
     tasks::{
         registry::RunningTaskPhase,
-        scheduler::tests::{insert_active_task, scheduler},
+        scheduler::test_support::{insert_active_task, scheduler},
         task_scheduler_client::TaskSchedulerClient,
     },
     vm::Fork,
@@ -402,7 +402,7 @@ fn stale_resume_cannot_consume_another_tasks_continuation() {
     let old = TaskSchedulerClient::new(TASK, scheduler.clone());
     insert_active_task(&scheduler, TASK, Arc::new(RecordingSession::default()));
     let target = TASK + 1;
-    let suspended = crate::tasks::scheduler::tests::suspended_task(target);
+    let suspended = crate::tasks::scheduler::test_support::suspended_task(target);
     {
         let mut lc = scheduler.lifecycle.lock();
         let registration = lc.task_q.register_task(target);

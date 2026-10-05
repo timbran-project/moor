@@ -390,7 +390,7 @@ impl Scheduler {
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::{scheduler, suspended_task};
+    use super::super::test_support::{scheduler, suspended_task};
     use super::*;
     use crate::tasks::registry::WakeCondition;
     use moor_common::model::{ObjAttrs, ObjFlag, ObjectKind, WorldStateError};
@@ -638,3 +638,6 @@ mod tests {
         assert_waiter_released_once(&scheduler);
     }
 }
+
+#[cfg(test)]
+mod suspension_tests;

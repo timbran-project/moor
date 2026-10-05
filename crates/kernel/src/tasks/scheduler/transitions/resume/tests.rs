@@ -323,12 +323,12 @@ fn immediate_wakes_wait_for_admission() {
         (SchedulerState::Stopped, GcPhase::Idle),
         (SchedulerState::Running, GcPhase::Sweeping(1)),
     ] {
-        let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+        let mut scheduler = crate::tasks::scheduler::test_support::scheduler();
         let database = Arc::new(FailingDatabase {
             calls: AtomicUsize::new(0),
         });
         scheduler.database = database.clone();
-        let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+        let task = crate::tasks::scheduler::test_support::suspended_task(71).task;
         let (sender, results) = flume::unbounded();
         {
             let mut lc = scheduler.lifecycle.lock();
@@ -370,12 +370,12 @@ fn immediate_wakes_wait_for_admission() {
 #[test]
 fn expired_retry_uses_retry_session_preparation() {
     use crate::tasks::scheduler::lifecycle::SchedulerState;
-    let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+    let mut scheduler = crate::tasks::scheduler::test_support::scheduler();
     let database = Arc::new(FailingDatabase {
         calls: AtomicUsize::new(0),
     });
     scheduler.database = database.clone();
-    let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+    let task = crate::tasks::scheduler::test_support::suspended_task(71).task;
     let (sender, results) = flume::unbounded();
     {
         let mut lc = scheduler.lifecycle.lock();
@@ -474,13 +474,13 @@ struct BlockedWake {
 impl BlockedWake {
     fn new(source: WakeSource) -> Self {
         use crate::tasks::scheduler::{gc::GcPhase, lifecycle::SchedulerState};
-        let mut scheduler = crate::tasks::scheduler::tests::scheduler();
+        let mut scheduler = crate::tasks::scheduler::test_support::scheduler();
         let database = Arc::new(FailingDatabase {
             calls: AtomicUsize::new(0),
         });
         scheduler.database = database.clone();
         let request = Uuid::new_v4();
-        let task = crate::tasks::scheduler::tests::suspended_task(71).task;
+        let task = crate::tasks::scheduler::test_support::suspended_task(71).task;
         let (sender, results) = flume::unbounded();
         {
             let mut lc = scheduler.lifecycle.lock();
@@ -717,7 +717,7 @@ fn deferred_returns_and_errors_reach_the_vm() {
             v_err(E_PERM),
         ),
     ] {
-        let scheduler = crate::tasks::scheduler::tests::scheduler();
+        let scheduler = crate::tasks::scheduler::test_support::scheduler();
         let mut world = scheduler.database.new_world_state().unwrap();
         world
             .create_object(

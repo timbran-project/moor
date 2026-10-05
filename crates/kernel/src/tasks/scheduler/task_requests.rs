@@ -760,3 +760,6 @@ mod tests;
 
 #[cfg(test)]
 mod session_tests;
+
+#[cfg(test)]
+mod player_tests;

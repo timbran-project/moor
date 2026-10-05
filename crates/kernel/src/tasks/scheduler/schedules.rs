@@ -531,3 +531,6 @@ impl TaskLifecycle {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod lifecycle_tests;

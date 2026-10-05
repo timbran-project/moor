@@ -14,7 +14,7 @@
 use crate::tasks::{
     scheduler::{
         Scheduler,
-        tests::{insert_active_task, scheduler},
+        test_support::{insert_active_task, scheduler},
     },
     task_scheduler_client::TaskSchedulerClient,
 };

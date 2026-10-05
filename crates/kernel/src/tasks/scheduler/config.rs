@@ -280,3 +280,6 @@ impl Scheduler {
         self.server_options.load().rollback_on_task_limit
     }
 }
+
+#[cfg(test)]
+mod tests;
