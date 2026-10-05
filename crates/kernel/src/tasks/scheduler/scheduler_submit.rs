@@ -213,39 +213,6 @@ impl Scheduler {
         Ok(())
     }
 
-    pub(crate) fn handle_get_gc_stats(
-        &self,
-    ) -> Result<crate::tasks::scheduler_client::GCStats, SchedulerError> {
-        let lc = self.lifecycle.lock();
-        Ok(crate::tasks::scheduler_client::GCStats {
-            cycle_count: lc.gc_cycle_count,
-        })
-    }
-
-    pub(crate) fn handle_request_gc(&self) -> Result<(), SchedulerError> {
-        debug!("Direct GC request received via scheduler client");
-
-        let mut lc = self.lifecycle.lock();
-
-        // Check if anonymous objects are enabled first
-        if !self.config.features.anonymous_objects {
-            warn!("GC requested but anonymous objects are disabled, ignoring request");
-            Ok(())
-        } else if lc.gc_collection_in_progress {
-            info!("GC already in progress, request acknowledged but no additional cycle started");
-            Ok(())
-        } else if lc.task_q.active.is_empty() {
-            // Can run GC immediately since no active tasks
-            self.run_gc_cycle(&mut lc);
-            Ok(())
-        } else {
-            // Set flag for GC to run when tasks complete
-            lc.gc_force_collect = true;
-            debug!("GC requested but tasks are active, will run when tasks complete");
-            Ok(())
-        }
-    }
-
     pub(crate) fn handle_load_object_request(
         &self,
         object_definition: String,
@@ -262,57 +229,6 @@ impl Scheduler {
         target_obj: Option<Obj>,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
         self.handle_reload_object(object_definition, constants, target_obj)
-    }
-
-    pub(crate) fn handle_gc_mark_complete(
-        &self,
-        unreachable_objects: std::collections::HashSet<Obj>,
-        mutation_timestamp_before_mark: Option<u64>,
-    ) {
-        let mut lc = self.lifecycle.lock();
-
-        // Clear the concurrent GC flag
-        lc.gc_mark_in_progress = false;
-
-        debug!(
-            "GC mark phase completed, received {} unreachable objects",
-            unreachable_objects.len()
-        );
-
-        if lc.state != SchedulerState::Running {
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Check if mutations happened during mark phase
-        if mutation_timestamp_before_mark != lc.last_mutation_timestamp {
-            info!(
-                "Minor GC cycle #{}: mark phase invalidated by mutation during marking (before: {:?}, after: {:?}), skipping sweep phase",
-                lc.gc_cycle_count, mutation_timestamp_before_mark, lc.last_mutation_timestamp
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Check if there's work to do
-        if unreachable_objects.is_empty() {
-            debug!(
-                "Minor GC cycle #{}: mark phase found no objects to collect, skipping sweep phase",
-                lc.gc_cycle_count
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Start blocking sweep phase - drop lock first since run_blocking_sweep_phase manages its own locking
-        drop(lc);
-        let _ = self.run_blocking_sweep_phase(unreachable_objects);
-        let mut lc = self.lifecycle.lock();
-        lc.gc_collection_in_progress = false;
-        lc.task_q.suspended.enqueue_gc_waiting_tasks();
     }
 
     pub(crate) fn submit_system_handler_task_inner(

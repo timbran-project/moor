@@ -12,9 +12,9 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub(crate) mod effects;
+mod gc;
 pub(crate) mod lifecycle;
 mod scheduler_config;
-mod scheduler_gc;
 mod scheduler_ops;
 mod scheduler_submit;
 mod schedules;
@@ -37,7 +37,6 @@ use crate::{
         DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH, DEFAULT_MAX_TASK_MAILBOX,
         DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle, TaskStart,
         checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
-        gc_thread::spawn_gc_mark_phase,
         maintenance::MaintenanceCoordinator,
         sched_counters,
         schedule_q::{Outcome, RetireReason, ScheduleEntry, ScheduleExpiry, ScheduleQ},
@@ -56,7 +55,7 @@ use crate::{
 use arc_swap::ArcSwap;
 use flume::{Receiver, Sender};
 use moor_common::{
-    model::{CommitResult, TaskPermissions, WorldState},
+    model::{TaskPermissions, WorldState},
     tasks::{
         CommandError, SchedulerError,
         SchedulerError::{CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled},
