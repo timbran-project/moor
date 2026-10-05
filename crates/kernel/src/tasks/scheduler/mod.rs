@@ -18,6 +18,7 @@ mod scheduler_ops;
 mod scheduler_submit;
 mod scheduler_task_callbacks;
 mod task_q_ops;
+mod transitions;
 
 use arc_swap::ArcSwap;
 use fast_telemetry::LabeledSampledTimer;
@@ -70,7 +71,7 @@ use crate::{
         world_state_executor::{WorldStateActionExecutor, match_object_ref},
     },
     trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
-    vm::{Fork, TaskSuspend, builtins::BuiltinRegistry},
+    vm::{Fork, builtins::BuiltinRegistry},
 };
 
 #[cfg(feature = "trace_events")]
@@ -758,6 +759,7 @@ mod tests {
     use super::*;
     use crate::tasks::TasksDbError;
     use crate::tasks::schedule_q::ScheduleId;
+    use crate::vm::TaskSuspend;
     use moor_common::tasks::{
         ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
     };
