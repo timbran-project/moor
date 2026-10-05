@@ -18,40 +18,25 @@ mod scheduler_gc;
 mod scheduler_ops;
 mod scheduler_submit;
 mod schedules;
-mod task_q_ops;
 mod task_requests;
 mod transitions;
 
-use arc_swap::ArcSwap;
-use fast_telemetry::LabeledSampledTimer;
-
-use crate::{
-    task_context::TaskGuard,
-    tasks::checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
-};
-use flume::{Receiver, RecvTimeoutError, Sender};
-use moor_common::util::{Deadline, Instant};
-use parking_lot::{Condvar, Mutex};
-use std::{
-    sync::{Arc, LazyLock, OnceLock},
-    time::{Duration, SystemTime},
-};
-use tracing::{debug, error, info, trace, warn};
-use uuid::Uuid;
-
-use moor_common::model::{CommitResult, TaskPermissions, WorldState};
+pub use self::lifecycle::SchedulerState;
+use self::lifecycle::TaskLifecycle;
+use crate::trace_task_create_command;
+use crate::trace_task_create_eval;
+use crate::trace_task_create_verb;
 #[cfg(feature = "trace_events")]
-use moor_compiler::to_literal;
-use moor_db::{Database, DatabaseRelation};
-
+use crate::trace_task_resume;
 use crate::{
     config::Config,
     tasks::{
-        AbortTaskOutcome, DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS,
+        DEFAULT_BG_SECONDS, DEFAULT_BG_TICKS, DEFAULT_COMPACT_INTERVAL_SECONDS,
         DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_FG_SECONDS,
         DEFAULT_FG_TICKS, DEFAULT_GC_INTERVAL_SECONDS, DEFAULT_MAX_STACK_DEPTH,
         DEFAULT_MAX_TASK_MAILBOX, DEFAULT_MAX_TASK_RETRIES, SchedulerOp, ServerOptions, TaskHandle,
-        TaskNotification, TaskStart,
+        TaskStart,
+        checkpoint::{CheckpointJob, CheckpointTicket, prepare_checkpoint},
         gc_thread::spawn_gc_mark_phase,
         maintenance::MaintenanceCoordinator,
         sched_counters,
@@ -60,27 +45,18 @@ use crate::{
             StorageCompactionJob, compaction_failure_to_var, compaction_results_to_var,
             prepare_storage_compaction,
         },
-        task::Task,
-        task_control::{CancelResult, TaskControl},
-        task_q::{
-            LiveTaskRegistry, RunningTask, RunningTaskPhase, SuspendedTask, SuspensionQ, TaskQ,
-            WakeCondition,
-        },
-        task_scheduler_client::TaskSchedulerClient,
-        task_telemetry::TaskRunBaseline,
+        task_q::{LiveTaskRegistry, SuspensionQ, TaskQ, WakeCondition},
         tasks_db::TasksDb,
         workers::{WorkerRequest, WorkerResponse},
         world_state_action::{WorldStateAction, WorldStateResponse},
         world_state_executor::{WorldStateActionExecutor, match_object_ref},
     },
-    trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
     vm::builtins::BuiltinRegistry,
 };
-
-#[cfg(feature = "trace_events")]
-use crate::trace_task_resume;
-
+use arc_swap::ArcSwap;
+use flume::{Receiver, RecvTimeoutError, Sender};
 use moor_common::{
+    model::{CommitResult, TaskPermissions, WorldState},
     tasks::{
         CommandError, SchedulerError,
         SchedulerError::{CommandExecutionError, InputRequestNotFound, TaskAbortedCancelled},
@@ -91,16 +67,22 @@ use moor_common::{
         set_task_pool_affinity_config, spawn_perf,
     },
 };
+#[cfg(feature = "trace_events")]
+use moor_compiler::to_literal;
+use moor_db::{Database, DatabaseRelation};
 use moor_objdef::{collect_index_names, collect_object, dump_object};
 use moor_var::{
-    E_EXEC, E_INVARG, E_PERM, E_QUOTA, E_TYPE, Error, ErrorCode, List, NOTHING, Obj, SYSTEM_OBJECT,
-    Symbol, Var, v_bool_int, v_empty_str, v_err, v_float, v_int, v_obj, v_str,
+    E_EXEC, E_INVARG, E_PERM, E_QUOTA, E_TYPE, Error, List, NOTHING, Obj, SYSTEM_OBJECT, Symbol,
+    Var, v_bool_int, v_empty_str, v_float, v_int, v_obj, v_str,
 };
-use std::collections::HashMap;
-
-use self::lifecycle::TaskLifecycle;
-
-pub use self::lifecycle::SchedulerState;
+use parking_lot::{Condvar, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+    time::{Duration, SystemTime},
+};
+use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 pub(crate) type SchedulerClientRequest = Box<dyn FnOnce(&Scheduler) + Send + 'static>;
 
@@ -711,8 +693,8 @@ impl Scheduler {
             &so,
             gc_in_progress,
         ) {
-            task_q_ops::TaskSubmission::Suspended(handle) => Ok(handle),
-            task_q_ops::TaskSubmission::NeedsWake {
+            crate::tasks::registry::TaskSubmission::Suspended(handle) => Ok(handle),
+            crate::tasks::registry::TaskSubmission::NeedsWake {
                 handle,
                 task,
                 session,
@@ -754,21 +736,30 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tasks::TasksDbError;
-    use crate::tasks::schedule_q::ScheduleId;
-    use crate::vm::TaskSuspend;
-    use moor_common::tasks::{
-        ConnectionDetails, NoopClientSession, NoopSystemControl, SessionError, SessionFactory,
+    use crate::{
+        tasks::{
+            AbortTaskOutcome, TaskNotification, TasksDbError,
+            schedule_q::ScheduleId,
+            task::Task,
+            task_control::TaskControl,
+            task_q::{RunningTask, RunningTaskPhase, SuspendedTask},
+        },
+        vm::TaskSuspend,
     };
-    use moor_common::tasks::{NarrativeEvent, SchedulerError::TaskAbortedError};
     use moor_common::{
         model::{ObjFlag, ObjectKind, PropFlag, WorldStateSource},
-        util::{BitEnum, Timestamp},
+        tasks::{
+            ConnectionDetails, NarrativeEvent, NoopClientSession, NoopSystemControl,
+            SchedulerError::TaskAbortedError, SessionError, SessionFactory,
+        },
+        util::{BitEnum, Instant, Timestamp},
     };
     use moor_db::{DatabaseConfig, TxDB};
     use moor_var::v_float;
-    use std::collections::HashSet;
-    use std::sync::Barrier;
+    use std::{
+        collections::HashSet,
+        sync::{Barrier, OnceLock},
+    };
 
     struct NoopSessionFactory;
 

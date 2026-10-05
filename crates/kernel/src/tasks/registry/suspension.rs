@@ -11,46 +11,42 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Suspended tasks and wake indexes, mutated under the scheduler lifecycle lock.
+
+use super::active::LiveTaskRegistry;
+use crate::tasks::{
+    TaskDescription, TaskNotification, TaskStart, TasksDb,
+    task::{Task, TaskState},
+};
 use ahash::AHasher;
 use flume::Sender;
 use hierarchical_hash_wheel_timer::wheels::{
     Skip, TimerEntryWithDelay,
     quad_wheel::{PruneDecision, QuadWheelWithOverflow},
 };
-use moor_common::util::{Deadline, Instant, Timestamp};
+use moor_common::{
+    tasks::{SchedulerError, Session, SessionFactory, TaskId},
+    util::{Deadline, Instant, Timestamp},
+};
+use moor_var::{Obj, Var};
 use std::{
     collections::{HashMap, VecDeque},
     hash::BuildHasherDefault,
-    sync::{Arc, OnceLock},
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use moor_common::threading::{
-    DetectionResult, TaskPoolPinningMode, detect_performance_cores, logical_core_count,
-    task_pool_pinning_mode,
-};
-use moor_var::{Obj, Var};
-use papaya::HashMap as PapayaHashMap;
-
-use crate::{
-    tasks::{
-        task::Task, task_control::TaskControl, task_pool::TaskThreadPool,
-        task_telemetry::TaskRunBaseline,
-    },
-    vm::extract_anonymous_refs_from_vm_exec_state,
-};
-
 /// Timer entry for the hash wheel timer
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TimerEntry {
-    task_id: TaskId,
+pub(super) struct TimerEntry {
+    pub(super) task_id: TaskId,
     delay: Duration,
     /// Monotonic generation stamp assigned when the entry is created.
     /// Compared against the current `SuspendedTask::timer_generation` to
     /// detect stale entries left behind by earlier suspensions of the same task.
-    generation: u64,
+    pub(super) generation: u64,
 }
 
 impl TimerEntryWithDelay for TimerEntry {
@@ -58,350 +54,6 @@ impl TimerEntryWithDelay for TimerEntry {
         self.delay
     }
 }
-use crate::tasks::task::TaskState;
-use crate::tasks::{TaskDescription, TaskNotification, TaskStart, TasksDb};
-use moor_common::tasks::{SchedulerError, Session, SessionFactory, TaskId};
-
-type LiveTasks = PapayaHashMap<TaskId, (), BuildHasherDefault<AHasher>>;
-
-/// Lock-free membership index for tasks accepted by the scheduler.
-#[derive(Clone)]
-pub(crate) struct LiveTaskRegistry {
-    tasks: Arc<LiveTasks>,
-}
-
-impl LiveTaskRegistry {
-    fn new() -> Self {
-        Self {
-            tasks: Arc::new(PapayaHashMap::with_hasher(BuildHasherDefault::default())),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn contains(&self, task_id: TaskId) -> bool {
-        self.tasks.pin().contains_key(&task_id)
-    }
-
-    #[inline]
-    pub(crate) fn insert(&self, task_id: TaskId) {
-        self.tasks.pin().insert(task_id, ());
-    }
-
-    #[inline]
-    pub(crate) fn remove(&self, task_id: TaskId) {
-        self.tasks.pin().remove(&task_id);
-    }
-}
-
-/// The internal state of the task queue.
-pub struct TaskQ {
-    /// Information about the active, running tasks. The actual `Task` is owned by the task thread
-    /// and this is just an information, and control record for communicating with it.
-    pub(crate) active: HashMap<TaskId, RunningTask, BuildHasherDefault<AHasher>>,
-    /// Tasks in various types of suspension:
-    ///     Forked background tasks that will execute someday
-    ///     Suspended foreground tasks that are either indefinitely suspended or will execute someday
-    ///     Suspended tasks waiting for input from the player or a task id to complete
-    pub(crate) suspended: SuspensionQ,
-    /// Thread pool for task execution
-    pub(crate) thread_pool: TaskThreadPool,
-    /// Inter-task message queues. Keyed by receiving task_id, shared across active and suspended.
-    /// Each message stores enqueue timestamp for mailbox-wait latency accounting.
-    pub(crate) task_message_queues:
-        HashMap<TaskId, VecDeque<(Timestamp, Var)>, BuildHasherDefault<AHasher>>,
-    /// Task membership shared with lock-free scheduler readers.
-    pub(crate) live_tasks: LiveTaskRegistry,
-    /// Terminal results delivered since the last drain, for the scheduler to
-    /// settle native-schedule firings against. Every terminal path funnels
-    /// through `send_task_result_direct`, so recording there catches them all.
-    pub(crate) settled_results: Vec<(TaskId, Result<Var, SchedulerError>)>,
-}
-
-/// Scheduler-side phase for a task which still occupies the active-task slot.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum RunningTaskPhase {
-    /// The VM may still be executing.
-    Running,
-    /// The VM has yielded and its session is committing before completion.
-    Completing(Result<Var, SchedulerError>),
-    /// The VM has yielded and its session is committing before suspension.
-    Suspending,
-    /// The VM has yielded and its input request is being registered.
-    RequestingInput,
-}
-
-/// Scheduler-side per-task record protected by the scheduler lifecycle lock.
-/// The actual `Task` is owned by the task thread until it is suspended or completed.
-/// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
-pub(crate) struct RunningTask {
-    /// Unpublished messages and schedule operations owned by this active attempt.
-    pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
-    /// Current phase of the active-to-suspended transition.
-    pub(crate) phase: RunningTaskPhase,
-    /// For which player this task is running on behalf of.
-    pub(crate) player: Obj,
-    /// What triggered this task to start.
-    pub(crate) task_start: TaskStart,
-    /// When this task was submitted to the task-pool queue.
-    pub(crate) dispatched_at: Instant,
-    /// Immutable operating-system counters captured by the worker on entry.
-    pub(crate) run_baseline: Arc<OnceLock<TaskRunBaseline>>,
-    /// Arbitration between cancellation and transaction commit.
-    pub(crate) control: Arc<TaskControl>,
-    /// The connection-session for this task.
-    pub(crate) session: Arc<dyn Session>,
-    /// An error requested by a scheduler-side operation. The worker observes cancellation,
-    /// rolls back, and reports this error instead of a generic cancellation.
-    pub(crate) abort_error: Option<SchedulerError>,
-    /// A mailbox to deliver the result of the task to a waiting party with a subscription, if any.
-    pub(crate) result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
-}
-
-impl TaskQ {
-    pub fn new(suspended: SuspensionQ) -> Self {
-        let live_tasks = suspended.live_tasks.clone();
-        // Use topology-derived logical core count for fallback worker sizing so the
-        // scheduler pool is not accidentally limited by current-thread affinity.
-        let fallback_threads = logical_core_count().max(1);
-        let pinning_mode = task_pool_pinning_mode();
-
-        let pinned_core_ids = match pinning_mode {
-            TaskPoolPinningMode::None => {
-                info!("Task pool pinning disabled by runtime config");
-                None
-            }
-            TaskPoolPinningMode::Auto | TaskPoolPinningMode::Performance => {
-                match detect_performance_cores() {
-                    Ok(DetectionResult::PerformanceCores(selection)) => {
-                        info!(
-                            source = selection.source,
-                            threshold = selection.threshold,
-                            min_metric = selection.min_metric,
-                            max_metric = selection.max_metric,
-                            metric_tiers = selection.metric_tiers,
-                            physical_cores = selection.physical_cores,
-                            logical_processors = selection.logical_processors,
-                            pinning_mode = ?pinning_mode,
-                            "Detected high-performance CPU tier for task pool pinning"
-                        );
-                        let worker_core_ids =
-                            moor_common::threading::worker_performance_core_ids_ref();
-                        if worker_core_ids.is_empty() {
-                            warn!(
-                                "No worker performance cores reserved, task pool pinning disabled"
-                            );
-                            None
-                        } else {
-                            info!(
-                                reserved_worker_cores = ?worker_core_ids,
-                                reserved_service_cores = ?moor_common::threading::service_performance_core_ids_ref(),
-                                "Using reserved worker/service performance-core split"
-                            );
-                            Some(worker_core_ids.to_vec())
-                        }
-                    }
-                    Ok(DetectionResult::NoSelection { reason }) => {
-                        if pinning_mode == TaskPoolPinningMode::Performance {
-                            warn!(
-                                reason,
-                                "Task pool pinning mode 'performance' requested, but no high-performance tier detected; using unpinned task pool"
-                            );
-                        } else {
-                            info!(
-                                reason,
-                                "No clear high-performance CPU tier detected, task pool pinning disabled"
-                            );
-                        }
-                        None
-                    }
-                    Err(e) => {
-                        warn!(error = ?e, "Could not detect CPU topology, using unpinned task pool");
-                        None
-                    }
-                }
-            }
-        };
-
-        let num_threads = pinned_core_ids
-            .as_ref()
-            .map_or(fallback_threads, |core_ids| core_ids.len());
-
-        if let Some(core_ids) = pinned_core_ids {
-            let core_ids = Arc::new(core_ids);
-            info!(
-                worker_threads = num_threads,
-                pinned_cores = ?core_ids,
-                "Pinning task pool workers to performance CPU cores"
-            );
-
-            let thread_pool = TaskThreadPool::new(num_threads, Some((*core_ids).clone()))
-                .expect("Failed to create task thread pool");
-
-            return Self {
-                active: Default::default(),
-                suspended,
-                thread_pool,
-                task_message_queues: HashMap::default(),
-                live_tasks,
-                settled_results: Vec::new(),
-            };
-        } else {
-            info!(
-                worker_threads = num_threads,
-                "Using unpinned task pool workers"
-            );
-        }
-
-        let thread_pool =
-            TaskThreadPool::new(num_threads, None).expect("Failed to create task thread pool");
-
-        Self {
-            active: Default::default(),
-            suspended,
-            thread_pool,
-            task_message_queues: HashMap::default(),
-            live_tasks,
-            settled_results: Vec::new(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn insert_active(&mut self, task_id: TaskId, task: RunningTask) {
-        self.active.insert(task_id, task);
-    }
-
-    #[inline]
-    pub(crate) fn register_task(&self, task_id: TaskId) {
-        self.live_tasks.insert(task_id);
-    }
-
-    /// Check if a task exists and return its controlling principal.
-    /// Checks both active and suspended tasks atomically.
-    pub(crate) fn task_owner(&self, task_id: TaskId) -> Option<Obj> {
-        // Check active tasks first
-        if let Some(running) = self.active.get(&task_id) {
-            return Some(running.player);
-        }
-
-        // Check suspended tasks
-        self.suspended.task_owner(task_id)
-    }
-
-    /// Collect tasks that need to be woken up by timer, pull them from our suspended list, and
-    /// return them. Other wake paths are event-driven through the immediate wake queue.
-    pub(crate) fn collect_wake_tasks(&mut self) -> Option<Vec<SuspendedTask>> {
-        let mut to_wake: Option<Vec<TaskId>> = None;
-
-        // 1. Advance timer wheel based on elapsed time and collect expired timers
-        // (Always advance the timer wheel to maintain accurate timing, even when no tasks are suspended)
-        if let Some(expired_timers) = self.suspended.advance_timer_wheel() {
-            to_wake.get_or_insert_with(Vec::new).extend(
-                expired_timers
-                    .into_iter()
-                    .filter(|e| {
-                        // Ignore stale timer entries from prior suspensions of the same task.
-                        self.suspended
-                            .tasks
-                            .get(&e.task_id)
-                            .is_some_and(|st| st.timer_generation == e.generation)
-                    })
-                    .map(|e| e.task_id),
-            );
-        }
-
-        if self.suspended.tasks.is_empty() {
-            return None;
-        }
-        let to_wake = to_wake?;
-        let tasks: Vec<_> = to_wake
-            .into_iter()
-            .filter_map(|task_id| self.suspended.remove_task(task_id))
-            .collect();
-
-        if tasks.is_empty() { None } else { Some(tasks) }
-    }
-
-    /// Collect anonymous object references from all suspended tasks
-    pub(crate) fn collect_anonymous_object_references(&self) -> std::collections::HashSet<Obj> {
-        let mut refs = std::collections::HashSet::new();
-
-        // Scan all suspended tasks
-        for suspended_task in self.suspended.tasks.values() {
-            // Scan the current VM state
-            let current_vm_state = suspended_task.task.vm_host.vm_exec_state();
-            extract_anonymous_refs_from_vm_exec_state(current_vm_state, &mut refs);
-
-            // Scan the retry state
-            extract_anonymous_refs_from_vm_exec_state(&suspended_task.task.retry_state, &mut refs);
-        }
-
-        refs
-    }
-
-    /// Deliver a message to a task's incoming queue. If the target task is suspended
-    /// waiting for messages (WakeCondition::TaskMessage), trigger an immediate wake.
-    pub(crate) fn deliver_message(&mut self, target_task_id: TaskId, value: Var) {
-        self.task_message_queues
-            .entry(target_task_id)
-            .or_default()
-            .push_back((Timestamp::now(), value));
-
-        // If the target is suspended and waiting for messages, wake it immediately
-        if self
-            .suspended
-            .message_waiting_tasks
-            .contains(&target_task_id)
-        {
-            self.suspended.enqueue_immediate_wake(target_task_id);
-        }
-    }
-
-    /// Drain all messages from a task's queue, returning them.
-    pub(crate) fn drain_messages(&mut self, task_id: TaskId) -> Vec<Var> {
-        let (messages, _, _) = self.drain_messages_with_wait_nanos(task_id);
-        messages
-    }
-
-    /// Drain all messages from a task's queue and include aggregate wait-time accounting.
-    /// Returns `(messages, total_wait_nanos, message_count)`.
-    pub(crate) fn drain_messages_with_wait_nanos(
-        &mut self,
-        task_id: TaskId,
-    ) -> (Vec<Var>, u128, usize) {
-        let now = Timestamp::now();
-        self.task_message_queues
-            .remove(&task_id)
-            .map(|q| {
-                let mut total_wait_nanos = 0u128;
-                let mut messages = Vec::with_capacity(q.len());
-                let message_count = q.len();
-                for (enqueued_at, value) in q {
-                    total_wait_nanos += now.duration_since(enqueued_at).as_nanos();
-                    messages.push(value);
-                }
-                (messages, total_wait_nanos, message_count)
-            })
-            .unwrap_or((Vec::new(), 0, 0))
-    }
-
-    /// Return the current number of messages in a task's mailbox.
-    pub(crate) fn mailbox_len(&self, task_id: TaskId) -> usize {
-        self.task_message_queues
-            .get(&task_id)
-            .map_or(0, |q| q.len())
-    }
-
-    /// Remove a task's message queue (e.g., when task is killed/completed).
-    pub(crate) fn remove_message_queue(&mut self, task_id: TaskId) {
-        self.task_message_queues.remove(&task_id);
-    }
-
-    /// Trigger database compaction to reclaim space and reduce journal size.
-    pub fn compact(&self) {
-        self.suspended.compact();
-    }
-}
-
 /// State a suspended task sits in inside the `suspended` side of the task queue.
 /// When tasks are not running they are moved into these.
 pub struct SuspendedTask {
@@ -508,13 +160,13 @@ pub struct SuspensionQ {
     retry_tasks: Vec<TaskId>,
 
     /// Tasks waiting for inter-task messages (via task_recv with timeout)
-    message_waiting_tasks: Vec<TaskId>,
+    pub(super) message_waiting_tasks: Vec<TaskId>,
 
     /// Monotonic counter for timer entry generation stamps.
     next_generation: u64,
 
     tasks_database: Box<dyn TasksDb>,
-    live_tasks: LiveTaskRegistry,
+    pub(super) live_tasks: LiveTaskRegistry,
 }
 
 impl SuspensionQ {
@@ -576,7 +228,7 @@ impl SuspensionQ {
     }
 
     /// Advance the timer wheel based on elapsed time and return expired entries.
-    fn advance_timer_wheel(&mut self) -> Option<Vec<TimerEntry>> {
+    pub(super) fn advance_timer_wheel(&mut self) -> Option<Vec<TimerEntry>> {
         let now = Instant::now();
         let last_advance = self.last_timer_advance.unwrap_or(now);
 
@@ -1171,7 +823,7 @@ mod tests {
     use super::*;
     use crate::tasks::{
         DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_MAX_TASK_MAILBOX,
-        DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart,
+        DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, TaskStart, task_control::TaskControl,
     };
     use moor_common::tasks::NoopClientSession;
     use moor_var::SYSTEM_OBJECT;

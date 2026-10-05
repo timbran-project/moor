@@ -13,11 +13,15 @@
 
 use flume::{Receiver, Sender};
 use moor_common::threading::{
+    DetectionResult, TaskPoolPinningMode, detect_performance_cores, logical_core_count,
+    task_pool_pinning_mode,
+};
+use moor_common::threading::{
     pin_current_thread_to_core, set_current_task_worker_index, set_task_worker_count,
     unpin_current_thread,
 };
 use std::{io, thread::JoinHandle};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 trait WorkItem {
     fn run(self: Box<Self>);
@@ -44,6 +48,85 @@ pub(crate) struct TaskThreadPool {
 }
 
 impl TaskThreadPool {
+    pub(crate) fn configured() -> io::Result<Self> {
+        // Use topology-derived logical core count for fallback worker sizing so the
+        // scheduler pool is not accidentally limited by current-thread affinity.
+        let fallback_threads = logical_core_count().max(1);
+        let pinning_mode = task_pool_pinning_mode();
+
+        let pinned_core_ids = match pinning_mode {
+            TaskPoolPinningMode::None => {
+                info!("Task pool pinning disabled by runtime config");
+                None
+            }
+            TaskPoolPinningMode::Auto | TaskPoolPinningMode::Performance => {
+                match detect_performance_cores() {
+                    Ok(DetectionResult::PerformanceCores(selection)) => {
+                        info!(
+                            source = selection.source,
+                            threshold = selection.threshold,
+                            min_metric = selection.min_metric,
+                            max_metric = selection.max_metric,
+                            metric_tiers = selection.metric_tiers,
+                            physical_cores = selection.physical_cores,
+                            logical_processors = selection.logical_processors,
+                            pinning_mode = ?pinning_mode,
+                            "Detected high-performance CPU tier for task pool pinning"
+                        );
+                        let worker_core_ids =
+                            moor_common::threading::worker_performance_core_ids_ref();
+                        if worker_core_ids.is_empty() {
+                            warn!(
+                                "No worker performance cores reserved, task pool pinning disabled"
+                            );
+                            None
+                        } else {
+                            info!(
+                                reserved_worker_cores = ?worker_core_ids,
+                                reserved_service_cores = ?moor_common::threading::service_performance_core_ids_ref(),
+                                "Using reserved worker/service performance-core split"
+                            );
+                            Some(worker_core_ids.to_vec())
+                        }
+                    }
+                    Ok(DetectionResult::NoSelection { reason }) => {
+                        if pinning_mode == TaskPoolPinningMode::Performance {
+                            warn!(
+                                reason,
+                                "Task pool pinning mode 'performance' requested, but no high-performance tier detected; using unpinned task pool"
+                            );
+                        } else {
+                            info!(
+                                reason,
+                                "No clear high-performance CPU tier detected, task pool pinning disabled"
+                            );
+                        }
+                        None
+                    }
+                    Err(e) => {
+                        warn!(error = ?e, "Could not detect CPU topology, using unpinned task pool");
+                        None
+                    }
+                }
+            }
+        };
+
+        let num_threads = pinned_core_ids
+            .as_ref()
+            .map_or(fallback_threads, |core_ids| core_ids.len());
+
+        if let Some(core_ids) = &pinned_core_ids {
+            info!(worker_threads = num_threads, pinned_cores = ?core_ids,
+                "Pinning task pool workers to performance CPU cores");
+        } else {
+            info!(
+                worker_threads = num_threads,
+                "Using unpinned task pool workers"
+            );
+        }
+        Self::new(num_threads, pinned_core_ids)
+    }
+
     pub(crate) fn new(num_threads: usize, pinned_core_ids: Option<Vec<usize>>) -> io::Result<Self> {
         let (sender, receiver) = flume::unbounded::<WorkerMsg>();
         let pinned_core_ids = pinned_core_ids.map(std::sync::Arc::new);

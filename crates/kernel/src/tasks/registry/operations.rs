@@ -11,11 +11,41 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+//! Task admission, wakeup, cancellation, and result delivery under exclusive registry access.
+
+use crate::{
+    config::Config,
+    task_context::TaskGuard,
+    tasks::{
+        AbortTaskOutcome, SchedulerOp, ServerOptions, TaskHandle, TaskNotification, TaskStart,
+        sched_counters,
+        scheduler::{ResumeAction, Scheduler},
+        task::Task,
+        task_control::{CancelResult, TaskControl},
+        task_q::{RunningTask, RunningTaskPhase, SuspendedTask, TaskQ, WakeCondition},
+        task_scheduler_client::TaskSchedulerClient,
+        task_telemetry::TaskRunBaseline,
+    },
+    vm::builtins::BuiltinRegistry,
+};
+use fast_telemetry::LabeledSampledTimer;
+use flume::Sender;
+use moor_common::{
+    model::TaskPermissions,
+    tasks::{SchedulerError, Session, TaskId},
+    util::{Deadline, Instant},
+};
+use moor_db::Database;
+use moor_var::{E_INVARG, E_PERM, ErrorCode, Obj, Var, v_bool_int, v_err};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
+use tracing::{error, trace, warn};
 
 /// Result of submitting a new task - either already suspended (delayed/GC-blocked)
 /// or needs immediate wake by the caller.
-pub(super) enum TaskSubmission {
+pub(crate) enum TaskSubmission {
     /// Task is suspended with a delay or waiting for GC - no further action needed
     Suspended(TaskHandle),
     /// Task should start immediately - caller must wake it
@@ -85,7 +115,7 @@ impl TaskQ {
     }
 
     #[inline]
-    pub(super) fn require_task_send_authority(
+    pub(crate) fn require_task_send_authority(
         &self,
         target_task_id: TaskId,
         sender_authority: TaskPermissions,
@@ -102,7 +132,7 @@ impl TaskQ {
     }
 
     #[inline]
-    pub(super) fn record_latency(
+    pub(crate) fn record_latency(
         timers: &LabeledSampledTimer<SchedulerOp>,
         op: SchedulerOp,
         started_at: Instant,
@@ -111,7 +141,7 @@ impl TaskQ {
     }
 
     #[inline]
-    pub(super) fn wake_suspended_task(
+    pub(crate) fn wake_suspended_task(
         &mut self,
         suspended_task: SuspendedTask,
         resume_action: ResumeAction,
@@ -144,7 +174,7 @@ impl TaskQ {
     }
 
     #[inline]
-    pub(super) fn wake_retry_suspended_task(
+    pub(crate) fn wake_retry_suspended_task(
         &mut self,
         suspended_task: SuspendedTask,
         scheduler: &Scheduler,
@@ -170,7 +200,7 @@ impl TaskQ {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn submit_new_task(
+    pub(crate) fn submit_new_task(
         &mut self,
         task_id: TaskId,
         player: &Obj,
@@ -226,7 +256,7 @@ impl TaskQ {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn wake_task_thread(
+    pub(crate) fn wake_task_thread(
         &mut self,
         mut task: Box<Task>,
         resume_action: ResumeAction,
@@ -373,7 +403,7 @@ impl TaskQ {
         Ok(())
     }
 
-    pub(super) fn send_task_result(
+    pub(crate) fn send_task_result(
         &mut self,
         task_id: TaskId,
         result: Result<Var, SchedulerError>,
@@ -388,7 +418,7 @@ impl TaskQ {
         self.send_task_result_direct(task_id, result_sender, result);
     }
 
-    pub(super) fn send_reserved_task_result(&mut self, task_id: TaskId) {
+    pub(crate) fn send_reserved_task_result(&mut self, task_id: TaskId) {
         let Some(task) = self.active.get_mut(&task_id) else {
             warn!(
                 task_id,
@@ -409,7 +439,7 @@ impl TaskQ {
     }
 
     /// Send task result directly with an explicit result_sender (for tasks not in active queue)
-    pub(super) fn send_task_result_direct(
+    pub(crate) fn send_task_result_direct(
         &mut self,
         task_id: TaskId,
         result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
@@ -430,7 +460,7 @@ impl TaskQ {
 
     /// Wake a task that was suspended for retry backoff
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn wake_retry_task(
+    pub(crate) fn wake_retry_task(
         &mut self,
         mut task: Box<Task>,
         session: Arc<dyn Session>,
@@ -570,7 +600,7 @@ impl TaskQ {
         true
     }
 
-    pub(super) fn kill_task(
+    pub(crate) fn kill_task(
         &mut self,
         victim_task_id: TaskId,
         sender_authority: TaskPermissions,
@@ -597,7 +627,7 @@ impl TaskQ {
 
     /// Cancel a task the server itself started, with no permission check. Used when whatever
     /// was waiting for the task's result has given up on it.
-    pub(super) fn abort_task(&mut self, victim_task_id: TaskId) -> AbortTaskOutcome {
+    pub(crate) fn abort_task(&mut self, victim_task_id: TaskId) -> AbortTaskOutcome {
         let perfc = sched_counters();
         let _t = perfc.timers.start(SchedulerOp::KillTask);
 
@@ -627,7 +657,7 @@ impl TaskQ {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn resume_task(
+    pub(crate) fn resume_task(
         &mut self,
         requesting_task_id: TaskId,
         queued_task_id: TaskId,
@@ -669,7 +699,7 @@ impl TaskQ {
         v_bool_int(false)
     }
 
-    pub(super) fn disconnect_task(&mut self, disconnect_task_id: TaskId, player: &Obj) {
+    pub(crate) fn disconnect_task(&mut self, disconnect_task_id: TaskId, player: &Obj) {
         let Some(task) = self.active.get_mut(&disconnect_task_id) else {
             warn!(task = disconnect_task_id, "Disconnecting task not found");
             return;
@@ -702,9 +732,10 @@ mod tests {
     use super::*;
     use crate::tasks::{
         DEFAULT_DB_COMMIT_QUEUE_TIMEOUT, DEFAULT_DB_COMMIT_QUEUE_WARN, DEFAULT_MAX_TASK_MAILBOX,
-        DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions,
+        DEFAULT_MAX_TASK_RETRIES, NoopTasksDb, ServerOptions, task_q::SuspensionQ,
     };
     use moor_common::{model::ObjFlag, tasks::NoopClientSession, util::BitEnum};
+    use moor_var::v_int;
     use uuid::Uuid;
 
     fn test_server_options() -> ServerOptions {

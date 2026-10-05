@@ -1,0 +1,101 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Active task metadata and lock-free membership. The lifecycle mutex protects metadata.
+
+use crate::tasks::{
+    TaskNotification, TaskStart, task_control::TaskControl, task_telemetry::TaskRunBaseline,
+};
+use ahash::AHasher;
+use flume::Sender;
+use moor_common::{
+    tasks::{SchedulerError, Session, TaskId},
+    util::Instant,
+};
+use moor_var::{Obj, Var};
+use papaya::HashMap as PapayaHashMap;
+use std::{
+    hash::BuildHasherDefault,
+    sync::{Arc, OnceLock},
+};
+
+type LiveTasks = PapayaHashMap<TaskId, (), BuildHasherDefault<AHasher>>;
+
+/// Lock-free membership index for tasks accepted by the scheduler.
+#[derive(Clone)]
+pub(crate) struct LiveTaskRegistry {
+    tasks: Arc<LiveTasks>,
+}
+
+impl LiveTaskRegistry {
+    pub(super) fn new() -> Self {
+        Self {
+            tasks: Arc::new(PapayaHashMap::with_hasher(BuildHasherDefault::default())),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn contains(&self, task_id: TaskId) -> bool {
+        self.tasks.pin().contains_key(&task_id)
+    }
+
+    #[inline]
+    pub(crate) fn insert(&self, task_id: TaskId) {
+        self.tasks.pin().insert(task_id, ());
+    }
+
+    #[inline]
+    pub(crate) fn remove(&self, task_id: TaskId) {
+        self.tasks.pin().remove(&task_id);
+    }
+}
+
+/// Scheduler-side phase for a task which still occupies the active-task slot.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum RunningTaskPhase {
+    /// The VM may still be executing.
+    Running,
+    /// The VM has yielded and its session is committing before completion.
+    Completing(Result<Var, SchedulerError>),
+    /// The VM has yielded and its session is committing before suspension.
+    Suspending,
+    /// The VM has yielded and its input request is being registered.
+    RequestingInput,
+}
+
+/// Scheduler-side per-task record protected by the scheduler lifecycle lock.
+/// The actual `Task` is owned by the task thread until it is suspended or completed.
+/// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
+pub(crate) struct RunningTask {
+    /// Unpublished messages and schedule operations owned by this active attempt.
+    pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
+    /// Current phase of the active-to-suspended transition.
+    pub(crate) phase: RunningTaskPhase,
+    /// For which player this task is running on behalf of.
+    pub(crate) player: Obj,
+    /// What triggered this task to start.
+    pub(crate) task_start: TaskStart,
+    /// When this task was submitted to the task-pool queue.
+    pub(crate) dispatched_at: Instant,
+    /// Immutable operating-system counters captured by the worker on entry.
+    pub(crate) run_baseline: Arc<OnceLock<TaskRunBaseline>>,
+    /// Arbitration between cancellation and transaction commit.
+    pub(crate) control: Arc<TaskControl>,
+    /// The connection-session for this task.
+    pub(crate) session: Arc<dyn Session>,
+    /// An error requested by a scheduler-side operation. The worker observes cancellation,
+    /// rolls back, and reports this error instead of a generic cancellation.
+    pub(crate) abort_error: Option<SchedulerError>,
+    /// A mailbox to deliver the result of the task to a waiting party with a subscription, if any.
+    pub(crate) result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+}
