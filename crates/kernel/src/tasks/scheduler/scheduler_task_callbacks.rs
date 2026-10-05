@@ -62,7 +62,7 @@ impl Scheduler {
                 "Session commit failed after world-state commit; output may be lost"
             );
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
+            lc.discard_task_effects(task_id);
             if let Some(task) = lc.task_q.active.get_mut(&task_id) {
                 task.terminal_result = Some(Err(TaskAbortedError));
             }
@@ -71,7 +71,7 @@ impl Scheduler {
         }
 
         let mut lc = self.lifecycle.lock();
-        lc.flush_pending_sends(task_id);
+        lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
         lc.task_q.send_reserved_task_result(task_id);
         lc.settle_schedule_firings();
@@ -89,7 +89,7 @@ impl Scheduler {
 
         let mut lc = self.lifecycle.lock();
 
-        lc.discard_pending_sends(task_id);
+        lc.discard_task_effects(task_id);
 
         // Make sure the old thread is dead.
         task.control.request_cancel();
@@ -194,7 +194,7 @@ impl Scheduler {
                 );
             }
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
+            lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             return lc.task_q.send_task_result(task_id, Err(error));
         }
@@ -206,7 +206,7 @@ impl Scheduler {
         // "Aborted" message or commit buffered output; the shutdown notice has already been sent.
         let (session, shutting_down) = {
             let mut lc = self.lifecycle.lock();
-            lc.discard_pending_sends(task_id);
+            lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             let shutting_down = lc.state != SchedulerState::Running;
 
@@ -269,7 +269,7 @@ impl Scheduler {
         let session_result = session.commit();
 
         let mut lc = self.lifecycle.lock();
-        lc.flush_pending_sends(task_id);
+        lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
 
         let result = match session_result {
@@ -297,7 +297,7 @@ impl Scheduler {
 
         let mut lc = self.lifecycle.lock();
 
-        lc.discard_pending_sends(task_id);
+        lc.discard_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
 
         // Task already dead, can't access session. Just send error result directly.
@@ -326,7 +326,7 @@ impl Scheduler {
         let (session, player) = {
             let mut lc = self.lifecycle.lock();
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
-                lc.discard_pending_sends(task_id);
+                lc.discard_task_effects(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 warn!(task_id, "Task not found for abort");
                 return;
@@ -344,9 +344,9 @@ impl Scheduler {
                     if mutations_made {
                         lc.last_mutation_timestamp = Some(timestamp);
                     }
-                    lc.flush_pending_sends(task_id);
+                    lc.publish_task_effects(task_id);
                 }
-                TaskLimitDisposition::Rollback => lc.discard_pending_sends(task_id),
+                TaskLimitDisposition::Rollback => lc.discard_task_effects(task_id),
             }
             lc.task_q.remove_message_queue(task_id);
             (session, player)
@@ -495,7 +495,7 @@ impl Scheduler {
         let _ = session.commit();
 
         let mut lc = self.lifecycle.lock();
-        lc.flush_pending_sends(task_id);
+        lc.publish_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
         lc.task_q.send_task_result(
             task_id,
@@ -514,7 +514,7 @@ impl Scheduler {
             task.terminal_result = Some(Err(TaskAbortedException(exception.as_ref().clone())));
             task.phase = RunningTaskPhase::Completing;
             let session = task.session.clone();
-            lc.discard_pending_sends(task_id);
+            lc.discard_task_effects(task_id);
             lc.task_q.remove_message_queue(task_id);
             session
         };
@@ -843,12 +843,11 @@ impl Scheduler {
         // Check mailbox size limit (committed queue + pending sends
         // from this task to same target)
         let committed_len = lc.task_q.mailbox_len(target_task_id);
-        let pending_len = lc.pending_task_sends.get(&task_id).map_or(0, |sends| {
-            sends
-                .iter()
-                .filter(|(tid, _)| *tid == target_task_id)
-                .count()
-        });
+        let pending_len = lc
+            .task_q
+            .active
+            .get(&task_id)
+            .map_or(0, |task| task.effects.messages_for(target_task_id));
         if committed_len + pending_len >= self.server_options.load().max_task_mailbox {
             return v_error(E_QUOTA.with_msg(|| {
                 format!(
@@ -859,10 +858,9 @@ impl Scheduler {
         }
 
         // Buffer the message for delivery at commit time
-        lc.pending_task_sends
-            .entry(task_id)
-            .or_default()
-            .push((target_task_id, value));
+        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+            task.effects.send(target_task_id, value);
+        }
 
         v_int(0)
     }
@@ -893,8 +891,8 @@ impl Scheduler {
             }
         }
         let id = lc.reserve_schedule_id();
-        lc.pending_schedule_ops.entry(task_id).or_default().push(
-            super::lifecycle::PendingScheduleOp::Create(Box::new(PendingCreate {
+        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+            task.effects.create_schedule(PendingCreate {
                 id,
                 kind,
                 target,
@@ -903,8 +901,8 @@ impl Scheduler {
                 authority_principal,
                 owner,
                 options,
-            })),
-        );
+            });
+        }
         Ok(id)
     }
 
@@ -919,18 +917,12 @@ impl Scheduler {
         authority: &TaskPermissions,
     ) -> Result<bool, moor_var::Error> {
         let mut lc = self.lifecycle.lock();
-        let pending_created = lc.pending_schedule_ops.get(&task_id).is_some_and(|ops| {
-            ops.iter().any(|op| {
-                matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
-            })
-        });
-        if pending_created {
-            // Cancel before it was ever inserted: drop the pending create.
-            if let Some(ops) = lc.pending_schedule_ops.get_mut(&task_id) {
-                ops.retain(|op| {
-                    !matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
-                });
-            }
+        if lc
+            .task_q
+            .active
+            .get_mut(&task_id)
+            .is_some_and(|task| task.effects.cancel_created_schedule(schedule_id))
+        {
             return Ok(true);
         }
         let Some(entry) = lc.schedule_q.info(schedule_id) else {
@@ -946,10 +938,9 @@ impl Scheduler {
         if !authorized {
             return Err(E_PERM.msg("schedule_stop: not the owner of this schedule"));
         }
-        lc.pending_schedule_ops
-            .entry(task_id)
-            .or_default()
-            .push(super::lifecycle::PendingScheduleOp::Stop(schedule_id));
+        if let Some(task) = lc.task_q.active.get_mut(&task_id) {
+            task.effects.stop_schedule(schedule_id);
+        }
         Ok(live)
     }
 
@@ -962,11 +953,10 @@ impl Scheduler {
         if lc.schedule_q.is_valid(schedule_id) {
             return true;
         }
-        lc.pending_schedule_ops.get(&task_id).is_some_and(|ops| {
-            ops.iter().any(|op| {
-                matches!(op, super::lifecycle::PendingScheduleOp::Create(c) if c.id == schedule_id)
-            })
-        })
+        lc.task_q
+            .active
+            .get(&task_id)
+            .is_some_and(|task| task.effects.contains_schedule(schedule_id))
     }
 
     pub fn handle_schedule_info(
@@ -1072,7 +1062,7 @@ impl Scheduler {
         task_id: TaskId,
     ) -> Result<Box<dyn WorldState>, SchedulerError> {
         let mut lc = self.lifecycle.lock();
-        lc.flush_pending_sends(task_id);
+        lc.publish_task_effects(task_id);
         drop(lc);
 
         self.database

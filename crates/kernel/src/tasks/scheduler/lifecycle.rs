@@ -18,21 +18,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use moor_common::tasks::{SessionFactory, TaskId};
-use moor_var::Var;
 
 use crate::tasks::TaskStart;
 use crate::tasks::schedule_q::{ScheduleId, ScheduleQ};
 use crate::tasks::task_q::TaskQ;
-
-/// A schedule mutation a task has asked for but not yet committed. Flushed to
-/// the `ScheduleQ` when the task commits, discarded on rollback or conflict
-/// retry, so `schedule_at()` behaves like a world-state write rather than
-/// like `fork`.
-#[derive(Debug)]
-pub(crate) enum PendingScheduleOp {
-    Create(Box<crate::tasks::schedule_q::PendingCreate>),
-    Stop(ScheduleId),
-}
 
 /// Lifecycle state for the scheduler and its service threads.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,10 +41,6 @@ pub enum SchedulerState {
 pub(crate) struct TaskLifecycle {
     /// The internal task queue holding active and suspended tasks.
     pub(crate) task_q: TaskQ,
-
-    /// Buffered inter-task messages awaiting commit. Keyed by sending task_id.
-    /// Delivered to target queues when the sending task commits; discarded on abort/conflict.
-    pub(crate) pending_task_sends: HashMap<TaskId, Vec<(TaskId, Var)>>,
 
     /// Task ID counter.
     pub(crate) next_task_id: usize,
@@ -85,34 +70,11 @@ pub(crate) struct TaskLifecycle {
     /// Native scheduled tasks: records of intent, fired from the timer loop.
     pub(crate) schedule_q: ScheduleQ,
 
-    /// Schedule creations/stops buffered per task until that task commits.
-    pub(crate) pending_schedule_ops: HashMap<TaskId, Vec<PendingScheduleOp>>,
-
     /// Factory for the sessions scheduled firings run under; set at `start()`.
     pub(crate) bg_session_factory: Option<Arc<dyn SessionFactory>>,
 }
 
 impl TaskLifecycle {
-    /// Apply the schedule mutations a task buffered, now that it has committed.
-    pub(crate) fn flush_pending_schedule_ops(&mut self, task_id: TaskId) {
-        if let Some(ops) = self.pending_schedule_ops.remove(&task_id) {
-            let now = std::time::SystemTime::now();
-            for op in ops {
-                match op {
-                    PendingScheduleOp::Create(create) => {
-                        let id = create.id;
-                        self.schedule_q.add_pending(*create, now);
-                        self.persist_schedule(id);
-                    }
-                    PendingScheduleOp::Stop(id) => {
-                        self.schedule_q.stop(id);
-                        self.persist_schedule(id);
-                    }
-                }
-            }
-        }
-    }
-
     /// Write-through persistence for one schedule: a live, persistent entry
     /// is saved; anything else (stopped, retired, non-persistent) is deleted.
     /// Called after every mutation so the store mirrors the queue and a
@@ -223,11 +185,6 @@ impl TaskLifecycle {
         }
     }
 
-    /// Drop a task's buffered schedule mutations (rollback / conflict retry).
-    pub(crate) fn discard_pending_schedule_ops(&mut self, task_id: TaskId) {
-        self.pending_schedule_ops.remove(&task_id);
-    }
-
     /// Settle native-schedule firings against the terminal results delivered
     /// since the last call: re-arm or retire each schedule whose task just
     /// ended. Conflict retries never produce a terminal result, so they never
@@ -255,23 +212,5 @@ impl TaskLifecycle {
             self.schedule_q.complete(schedule_id, task_id, outcome, now);
             self.persist_schedule(schedule_id);
         }
-    }
-
-    /// Deliver all buffered messages from the given task to their target queues.
-    /// Called when a task commits (success, suspend, input request, exception, new transaction).
-    pub(crate) fn flush_pending_sends(&mut self, task_id: TaskId) {
-        self.flush_pending_schedule_ops(task_id);
-        if let Some(sends) = self.pending_task_sends.remove(&task_id) {
-            for (target_task_id, value) in sends {
-                self.task_q.deliver_message(target_task_id, value);
-            }
-        }
-    }
-
-    /// Discard all buffered messages from the given task without delivering.
-    /// Called when task finalization rolls back its effects.
-    pub(crate) fn discard_pending_sends(&mut self, task_id: TaskId) {
-        self.discard_pending_schedule_ops(task_id);
-        self.pending_task_sends.remove(&task_id);
     }
 }

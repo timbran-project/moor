@@ -2349,7 +2349,7 @@ mod tests {
             "rolled-back schedule_at must not leave an entry: {:?}",
             lc.schedule_q.all_ids()
         );
-        assert!(lc.pending_schedule_ops.is_empty());
+        assert!(lc.task_q.active.is_empty());
     }
 
     /// Trigger a MOO VM exception

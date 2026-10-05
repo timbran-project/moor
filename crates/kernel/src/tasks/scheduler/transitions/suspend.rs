@@ -102,7 +102,7 @@ impl SuspensionTransition {
         }
         let task_id = self.task.task_id;
         self.task.control.request_cancel();
-        lc.discard_pending_sends(task_id);
+        lc.discard_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
         lc.task_q
             .send_task_result(task_id, Err(TaskAbortedCancelled));
@@ -117,7 +117,7 @@ impl SuspensionTransition {
             "Session commit failed after world-state commit; output may be lost"
         );
         if self.is_current(lc) {
-            lc.discard_pending_sends(task_id);
+            lc.discard_task_effects(task_id);
             lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
         }
     }
@@ -141,7 +141,7 @@ impl SuspensionTransition {
                 .send_task_result(task_id, Err(TaskAbortedCancelled));
             return None;
         }
-        lc.flush_pending_sends(task_id);
+        lc.publish_task_effects(task_id);
         Some(self.task)
     }
 }

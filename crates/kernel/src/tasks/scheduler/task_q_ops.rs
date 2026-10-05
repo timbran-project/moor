@@ -256,6 +256,7 @@ impl TaskQ {
         task.control = control.clone();
         let run_baseline = Arc::new(OnceLock::new());
         let task_control = RunningTask {
+            effects: Default::default(),
             phase: RunningTaskPhase::Running,
             player,
             control,
@@ -463,6 +464,7 @@ impl TaskQ {
         let run_baseline = Arc::new(OnceLock::new());
 
         let task_control = RunningTask {
+            effects: Default::default(),
             phase: RunningTaskPhase::Running,
             player: task.player(),
             control,
@@ -789,6 +791,7 @@ mod tests {
         task_q.insert_active(
             task_id,
             RunningTask {
+                effects: Default::default(),
                 phase: RunningTaskPhase::Running,
                 player,
                 task_start: TaskStart::StartEval {

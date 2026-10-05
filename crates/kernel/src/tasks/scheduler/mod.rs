@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub(crate) mod effects;
 pub(crate) mod lifecycle;
 mod scheduler_config;
 mod scheduler_gc;
@@ -246,7 +247,6 @@ impl Scheduler {
 
         let lifecycle = TaskLifecycle {
             task_q,
-            pending_task_sends: HashMap::new(),
             // Reserve zero for the no-task sentinel.
             next_task_id: 1,
             gc_collection_in_progress: false,
@@ -264,7 +264,6 @@ impl Scheduler {
                     .scheduler_tick_duration
                     .unwrap_or(Duration::from_millis(10)),
             ),
-            pending_schedule_ops: HashMap::new(),
             bg_session_factory: None,
         };
 
@@ -1445,6 +1444,7 @@ mod tests {
         lifecycle.task_q.insert_active(
             task_id,
             RunningTask {
+                effects: Default::default(),
                 phase: RunningTaskPhase::Running,
                 player: SYSTEM_OBJECT,
                 task_start,
@@ -1773,8 +1773,12 @@ mod tests {
         {
             let mut lc = scheduler.lifecycle.lock();
             lc.task_q.active.get_mut(&task_id).unwrap().result_sender = Some(send);
-            lc.pending_task_sends
-                .insert(task_id, vec![(target_id, v_int(17))]);
+            lc.task_q
+                .active
+                .get_mut(&task_id)
+                .unwrap()
+                .effects
+                .send(target_id, v_int(17));
         }
         let callback_scheduler = scheduler.clone();
         let callback = std::thread::spawn(move || {
@@ -1855,6 +1859,49 @@ mod tests {
         assert_eq!(active.phase, RunningTaskPhase::Running);
         assert!(!replacement.control.is_cancelled());
         assert!(!lc.task_q.suspended.tasks.contains_key(&task_id));
+    }
+
+    #[test]
+    fn removed_attempt_cannot_publish_effects_through_replacement() {
+        use crate::tasks::schedule_q::{PendingKind, ScheduleKind, ScheduleOptions};
+        let scheduler = scheduler();
+        let task_id = 245;
+        let target_id = 246;
+        let session = Arc::new(NoopClientSession::new());
+        insert_active_task(&scheduler, task_id, session.clone());
+        let interval = Duration::from_secs(60);
+        let schedule_id = scheduler
+            .handle_schedule_create(
+                task_id,
+                PendingKind::Every(interval),
+                SYSTEM_OBJECT,
+                Symbol::mk("tick"),
+                List::mk_list(&[]),
+                SYSTEM_OBJECT,
+                SYSTEM_OBJECT,
+                ScheduleOptions::for_kind(&ScheduleKind::Every { interval }),
+            )
+            .unwrap();
+        assert!(scheduler.handle_schedule_valid(task_id, schedule_id));
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.task_q
+                .active
+                .get_mut(&task_id)
+                .unwrap()
+                .effects
+                .send(target_id, v_int(17));
+            assert!(matches!(
+                lc.task_q.abort_task(task_id),
+                AbortTaskOutcome::Cancelled
+            ));
+        }
+        insert_active_task(&scheduler, task_id, session);
+        assert!(!scheduler.handle_schedule_valid(task_id, schedule_id));
+        let mut lc = scheduler.lifecycle.lock();
+        lc.publish_task_effects(task_id);
+        assert!(lc.task_q.drain_messages(target_id).is_empty());
+        assert!(!lc.schedule_q.is_valid(schedule_id));
     }
 
     #[test]

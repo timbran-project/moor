@@ -134,6 +134,8 @@ pub(crate) enum RunningTaskPhase {
 /// The actual `Task` is owned by the task thread until it is suspended or completed.
 /// (When suspended it is moved into a `SuspendedTask` in the `.suspended` list)
 pub(crate) struct RunningTask {
+    /// Unpublished messages and schedule operations owned by this active attempt.
+    pub(crate) effects: crate::tasks::scheduler::effects::PendingTaskEffects,
     /// Current phase of the active-to-suspended transition.
     pub(crate) phase: RunningTaskPhase,
     /// For which player this task is running on behalf of.
