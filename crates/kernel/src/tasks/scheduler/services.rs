@@ -311,18 +311,19 @@ impl Scheduler {
                 }
             }
 
-            // Check GC conditions
+            let run_gc = {
+                let lc = self.lifecycle.lock();
+                lc.state == SchedulerState::Running
+                    && self.config.features.anonymous_objects
+                    && !lc.gc_phase.is_active()
+                    && self.should_run_gc(&lc)
+            };
+            if run_gc {
+                self.run_gc_cycle();
+            }
+
             {
                 let mut lc = self.lifecycle.lock();
-                if lc.state == SchedulerState::Running
-                    && self.config.features.anonymous_objects
-                    && !lc.gc_collection_in_progress
-                    && !lc.gc_mark_in_progress
-                    && self.should_run_gc(&lc)
-                {
-                    self.run_gc_cycle(&mut lc);
-                }
-
                 // Periodic tasks DB compaction
                 if lc.last_compact_time.elapsed()
                     >= Duration::from_secs(DEFAULT_COMPACT_INTERVAL_SECONDS)

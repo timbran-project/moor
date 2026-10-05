@@ -215,6 +215,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Resume tasks queued during garbage collection when the collection finishes. Previously, new GC
   waiters could remain suspended until a server restart.
+- Release GC admission and waiting tasks after a GC worker panic, so later collection cycles can
+  run.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
   their bodies access local bindings ([#554](https://github.com/timbran-project/moor/issues/554)).
   Stored program format 6 retains the entry layout; affected older programs need recompilation.

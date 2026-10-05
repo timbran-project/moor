@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub(crate) mod effects;
-mod gc;
+pub(crate) mod gc;
 pub(crate) mod lifecycle;
 mod scheduler_config;
 mod scheduler_ops;
@@ -193,9 +193,7 @@ impl Scheduler {
             task_q,
             // Reserve zero for the no-task sentinel.
             next_task_id: 1,
-            gc_collection_in_progress: false,
-            gc_mark_in_progress: false,
-            gc_sweep_in_progress: false,
+            gc_phase: gc::GcPhase::Idle,
             gc_force_collect: false,
             gc_cycle_count: 0,
             gc_last_cycle_time: std::time::Instant::now(),
@@ -461,7 +459,7 @@ impl Scheduler {
         }
 
         let gc_in_progress = self.config.features.anonymous_objects
-            && (lc.gc_sweep_in_progress || lc.gc_force_collect);
+            && (lc.gc_phase.blocks_admission() || lc.gc_force_collect);
 
         let so = self.server_options.load();
         match lc.task_q.submit_new_task(
@@ -1894,12 +1892,17 @@ mod tests {
         let (gc_done_send, gc_done_recv) = flume::bounded(1);
         let gc_scheduler = scheduler.clone();
         let gc = std::thread::spawn(move || {
-            let result = gc_scheduler.run_blocking_sweep_phase(HashSet::new());
+            let result = {
+                let cycle = gc::GcCycle::begin(&gc_scheduler).unwrap();
+                assert!(cycle.marking());
+                let timestamp = gc_scheduler.lifecycle.lock().last_mutation_timestamp;
+                cycle.sweep(HashSet::new(), timestamp)
+            };
             gc_done_send.send(result).ok();
         });
 
         let wait_started = std::time::Instant::now();
-        while !scheduler.lifecycle.lock().gc_sweep_in_progress {
+        while !scheduler.lifecycle.lock().gc_phase.blocks_admission() {
             assert!(
                 wait_started.elapsed() < Duration::from_secs(1),
                 "GC sweep did not enter its waiting phase"
@@ -1953,9 +1956,14 @@ mod tests {
         commit_entered.wait();
 
         let gc_scheduler = scheduler.clone();
-        let gc = std::thread::spawn(move || gc_scheduler.run_blocking_sweep_phase(HashSet::new()));
+        let gc = std::thread::spawn(move || {
+            let cycle = gc::GcCycle::begin(&gc_scheduler).unwrap();
+            assert!(cycle.marking());
+            let timestamp = gc_scheduler.lifecycle.lock().last_mutation_timestamp;
+            cycle.sweep(HashSet::new(), timestamp)
+        });
         let wait_started = std::time::Instant::now();
-        while !scheduler.lifecycle.lock().gc_sweep_in_progress {
+        while !scheduler.lifecycle.lock().gc_phase.blocks_admission() {
             assert!(
                 wait_started.elapsed() < Duration::from_secs(1),
                 "GC sweep did not enter its waiting phase"
@@ -1994,7 +2002,7 @@ mod tests {
         gc.join()
             .expect("GC sweep thread should stop")
             .expect("cancelled GC sweep should exit cleanly");
-        assert!(!scheduler.lifecycle.lock().gc_sweep_in_progress);
+        assert!(!scheduler.lifecycle.lock().gc_phase.blocks_admission());
         assert!(!scheduler.handle_task_exists(task_id));
 
         threads
@@ -2003,24 +2011,19 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_joins_in_flight_gc_cycle() {
+    fn shutdown_collects_gc_worker_handle() {
         let scheduler = scheduler();
         let threads = scheduler
             .start(Arc::new(NoopSessionFactory))
             .expect("scheduler should start");
 
-        {
-            let mut lc = scheduler.lifecycle.lock();
-            scheduler.run_gc_cycle(&mut lc);
-            assert!(lc.gc_collection_in_progress);
-            assert!(lc.gc_mark_in_progress);
-        }
+        scheduler.run_gc_cycle();
+        assert!(scheduler.gc_thread.lock().is_some());
 
         scheduler.stop(None).expect("scheduler should stop");
         assert!(scheduler.gc_thread.lock().is_none());
         let lc = scheduler.lifecycle.lock();
-        assert!(!lc.gc_collection_in_progress);
-        assert!(!lc.gc_mark_in_progress);
+        assert_eq!(lc.gc_phase, gc::GcPhase::Idle);
         drop(lc);
 
         threads

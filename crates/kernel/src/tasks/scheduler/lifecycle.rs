@@ -45,15 +45,11 @@ pub(crate) struct TaskLifecycle {
     /// Task ID counter.
     pub(crate) next_task_id: usize,
 
-    /// Anonymous object garbage collection flag.
-    pub(crate) gc_collection_in_progress: bool,
-    /// Flag indicating concurrent GC mark phase is in progress.
-    pub(crate) gc_mark_in_progress: bool,
-    /// Flag indicating GC sweep phase is in progress (blocks new tasks).
-    pub(crate) gc_sweep_in_progress: bool,
+    /// Current collection phase and the identity of its owner.
+    pub(crate) gc_phase: super::gc::GcPhase,
     /// Flag to force GC on next opportunity (set by gc_collect() builtin).
     pub(crate) gc_force_collect: bool,
-    /// Counter tracking the number of GC cycles completed.
+    /// Number of GC cycles started, including failed cycles.
     pub(crate) gc_cycle_count: u64,
     /// Time of last GC cycle (for interval-based collection).
     pub(crate) gc_last_cycle_time: std::time::Instant,

@@ -11,34 +11,254 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! GC admission, mark completion, and sweep orchestration.
+//! GC cycle ownership, admission, mark completion, and sweep orchestration.
+//! A cycle owner crosses the worker boundary and releases waiters on every exit.
 
 use super::{Scheduler, SchedulerState, lifecycle::TaskLifecycle};
 use crate::tasks::{
     DEFAULT_GC_INTERVAL_SECONDS, SchedulerOp, gc_thread::spawn_gc_mark_phase, sched_counters,
 };
 use moor_common::{model::CommitResult, tasks::SchedulerError};
+use moor_db::GCInterface;
 use moor_var::Obj;
-use std::time::Duration;
+use std::{collections::HashSet, thread::JoinHandle, time::Duration};
 use tracing::{debug, error, info, warn};
 
-fn gc_error(context: &str, e: impl std::fmt::Debug) -> SchedulerError {
-    SchedulerError::GarbageCollectionFailed(format!("{context}: {e:?}"))
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum GcPhase {
+    #[default]
+    Idle,
+    Preparing(u64),
+    Marking(u64),
+    Sweeping(u64),
+}
+
+impl GcPhase {
+    fn cycle(self) -> Option<u64> {
+        match self {
+            Self::Idle => None,
+            Self::Preparing(id) | Self::Marking(id) | Self::Sweeping(id) => Some(id),
+        }
+    }
+
+    pub(crate) fn is_active(self) -> bool {
+        self.cycle().is_some()
+    }
+
+    pub(crate) fn blocks_admission(self) -> bool {
+        matches!(self, Self::Sweeping(_))
+    }
+}
+
+/// Owns one collection cycle, including admission blocking during sweep.
+/// Drop runs after local lifecycle lock guards unwind. It never commits GC work.
+#[must_use]
+pub(crate) struct GcCycle {
+    scheduler: Scheduler,
+    id: u64,
+}
+
+struct MarkInput {
+    transaction: Box<dyn GCInterface>,
+    roots: HashSet<Obj>,
+    mutation_timestamp: Option<u64>,
+}
+
+impl GcCycle {
+    pub(super) fn begin(scheduler: &Scheduler) -> Option<Self> {
+        let mut lc = scheduler.lifecycle.lock();
+        if lc.state != SchedulerState::Running || lc.gc_phase.is_active() {
+            return None;
+        }
+        lc.gc_force_collect = false;
+        lc.gc_cycle_count += 1;
+        let id = lc.gc_cycle_count;
+        lc.gc_phase = GcPhase::Preparing(id);
+        Some(Self {
+            scheduler: scheduler.clone(),
+            id,
+        })
+    }
+
+    fn prepare_mark(&self) -> Result<Option<MarkInput>, SchedulerError> {
+        let (roots, mutation_timestamp) = {
+            let mut lc = self.scheduler.lifecycle.lock();
+            if lc.state != SchedulerState::Running || lc.gc_phase != GcPhase::Preparing(self.id) {
+                return Ok(None);
+            }
+            let mut roots = lc.task_q.collect_anonymous_object_references();
+            lc.schedule_q.purge_retired(std::time::SystemTime::now());
+            lc.schedule_q
+                .collect_anonymous_object_references(&mut roots);
+            (roots, lc.last_mutation_timestamp)
+        };
+        let transaction = self
+            .scheduler
+            .database
+            .gc_interface()
+            .map_err(|error| gc_error("Failed to create GC interface", error))?;
+        Ok(Some(MarkInput {
+            transaction,
+            roots,
+            mutation_timestamp,
+        }))
+    }
+
+    pub(super) fn marking(&self) -> bool {
+        let mut lc = self.scheduler.lifecycle.lock();
+        if lc.state != SchedulerState::Running || lc.gc_phase != GcPhase::Preparing(self.id) {
+            return false;
+        }
+        lc.gc_phase = GcPhase::Marking(self.id);
+        true
+    }
+
+    pub(crate) fn finish_mark(
+        self,
+        unreachable: HashSet<Obj>,
+        mutation_timestamp: Option<u64>,
+    ) -> Result<(), SchedulerError> {
+        debug!(
+            cycle = self.id,
+            unreachable = unreachable.len(),
+            "GC mark phase completed"
+        );
+        if unreachable.is_empty() {
+            return Ok(());
+        }
+        self.sweep(unreachable, mutation_timestamp)
+    }
+
+    /// Admission and mark validation change together under the lifecycle lock.
+    /// This consuming operation retains the cycle owner through waits and database I/O.
+    pub(super) fn sweep(
+        self,
+        unreachable: HashSet<Obj>,
+        mutation_timestamp: Option<u64>,
+    ) -> Result<(), SchedulerError> {
+        {
+            let mut lc = self.scheduler.lifecycle.lock();
+            if lc.state != SchedulerState::Running || lc.gc_phase != GcPhase::Marking(self.id) {
+                return Ok(());
+            }
+            if lc.last_mutation_timestamp != mutation_timestamp {
+                info!(
+                    cycle = self.id,
+                    "GC mark invalidated by a world-state mutation"
+                );
+                return Ok(());
+            }
+            lc.gc_phase = GcPhase::Sweeping(self.id);
+        }
+        loop {
+            {
+                let lc = self.scheduler.lifecycle.lock();
+                if lc.state != SchedulerState::Running || lc.gc_phase != GcPhase::Sweeping(self.id)
+                {
+                    return Ok(());
+                }
+                if lc.last_mutation_timestamp != mutation_timestamp {
+                    info!(
+                        cycle = self.id,
+                        "GC sweep invalidated while waiting for active tasks"
+                    );
+                    return Ok(());
+                }
+                if lc.task_q.active.is_empty() {
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        self.scheduler.run_gc_sweep_phase(unreachable)
+    }
+}
+
+impl Drop for GcCycle {
+    fn drop(&mut self) {
+        let mut lc = self.scheduler.lifecycle.lock();
+        if lc.gc_phase.cycle() == Some(self.id) {
+            lc.gc_phase = GcPhase::Idle;
+            lc.task_q.suspended.enqueue_gc_waiting_tasks();
+        }
+    }
+}
+
+fn gc_error(context: &str, error: impl std::fmt::Debug) -> SchedulerError {
+    SchedulerError::GarbageCollectionFailed(format!("{context}: {error:?}"))
 }
 
 impl Scheduler {
     pub(super) fn join_gc_thread(&self) -> Result<(), SchedulerError> {
-        let Some(gc_thread) = self.gc_thread.lock().take() else {
+        let Some(thread) = self.gc_thread.lock().take() else {
             return Ok(());
         };
-        gc_thread.join().map_err(|_| {
-            SchedulerError::GarbageCollectionFailed(
-                "GC thread panicked during scheduler shutdown".to_string(),
-            )
-        })
+        if thread.thread().id() == std::thread::current().id() {
+            return Err(gc_error(
+                "Cannot join current GC thread",
+                thread.thread().id(),
+            ));
+        }
+        thread
+            .join()
+            .map_err(|_| gc_error("GC worker panicked", "shutdown"))
     }
 
-    /// Check if garbage collection should run
+    /// Reserve a cycle before preparing roots. Joins and retries never hold the lifecycle lock.
+    pub(super) fn run_gc_cycle(&self) {
+        // Serialize handle publication with shutdown. The GC worker never takes this mutex.
+        let mut thread_slot = self.gc_thread.lock();
+        let Some(cycle) = GcCycle::begin(self) else {
+            return;
+        };
+        let result = self.launch_gc(cycle, &mut thread_slot);
+        // Preserve the interval measured from cycle startup, including a failed start.
+        self.lifecycle.lock().gc_last_cycle_time = std::time::Instant::now();
+        if let Err(error) = result {
+            error!(?error, "GC cycle could not start");
+        }
+    }
+
+    fn launch_gc(
+        &self,
+        cycle: GcCycle,
+        thread_slot: &mut Option<JoinHandle<()>>,
+    ) -> Result<(), SchedulerError> {
+        if let Some(previous) = thread_slot.take() {
+            previous
+                .join()
+                .map_err(|_| gc_error("Previous GC worker panicked", "cycle startup"))?;
+        }
+        for attempt in 1..=3 {
+            match cycle.prepare_mark() {
+                Ok(Some(input)) => {
+                    if !cycle.marking() {
+                        return Ok(());
+                    }
+                    *thread_slot = Some(
+                        spawn_gc_mark_phase(
+                            input.transaction,
+                            cycle,
+                            input.roots,
+                            input.mutation_timestamp,
+                        )
+                        .map_err(|error| gc_error("Could not spawn GC worker", error))?,
+                    );
+                    return Ok(());
+                }
+                Ok(None) => return Ok(()),
+                Err(error)
+                    if error.to_string().contains("GC transaction conflict") && attempt < 3 =>
+                {
+                    warn!(attempt, ?error, "Retrying GC preparation after conflict");
+                    std::thread::sleep(Duration::from_millis(attempt * 10));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("the final attempt returns its result")
+    }
+
     pub(super) fn should_run_gc(&self, lc: &TaskLifecycle) -> bool {
         // Force GC if requested via gc_collect() builtin
         if lc.gc_force_collect {
@@ -49,7 +269,6 @@ impl Scheduler {
         self.should_run_automatic_gc(lc)
     }
 
-    /// Check if automatic GC should run based on heuristics
     fn should_run_automatic_gc(&self, lc: &TaskLifecycle) -> bool {
         let gc_interval = if let Some(config_interval) = self.config.runtime.gc_interval {
             config_interval
@@ -77,179 +296,9 @@ impl Scheduler {
         false
     }
 
-    /// Run a garbage collection cycle - mark & sweep collection
-    pub(super) fn run_gc_cycle(&self, lc: &mut TaskLifecycle) {
-        if lc.state != SchedulerState::Running || lc.gc_collection_in_progress {
-            return;
-        }
-
-        lc.gc_collection_in_progress = true;
-        lc.gc_force_collect = false; // Clear force flag
-        lc.gc_cycle_count += 1;
-
-        // Run concurrent mark & sweep GC with retry logic for conflicts
-        let max_retries = 3;
-        let mut mark_started = false;
-        for attempt in 1..=max_retries {
-            let result = self.run_concurrent_gc(lc);
-
-            match result {
-                Ok(()) => {
-                    mark_started = true;
-                    break;
-                } // Success, exit retry loop
-                Err(e)
-                    if e.to_string().contains("GC transaction conflict")
-                        && attempt < max_retries =>
-                {
-                    warn!(
-                        "GC cycle attempt {} failed with conflict, retrying in {}ms",
-                        attempt,
-                        attempt * 10
-                    );
-                    std::thread::sleep(Duration::from_millis((attempt * 10) as u64));
-                    continue;
-                }
-                Err(e) => {
-                    error!("GC cycle failed after {} attempts: {}", attempt, e);
-                    break;
-                }
-            }
-        }
-
-        if !mark_started {
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            lc.gc_collection_in_progress = false;
-        }
-
-        // Update the timestamp AFTER GC completes, not before
-        lc.gc_last_cycle_time = std::time::Instant::now();
-    }
-
-    /// Run concurrent mark & sweep GC
-    fn run_concurrent_gc(&self, lc: &mut TaskLifecycle) -> Result<(), SchedulerError> {
-        if let Some(previous_gc) = self.gc_thread.lock().take() {
-            previous_gc.join().map_err(|_| {
-                SchedulerError::GarbageCollectionFailed(
-                    "Previous GC thread panicked before it could be joined".to_string(),
-                )
-            })?;
-        }
-
-        // Collect VM references before spawning thread. Native schedules are
-        // roots too: their target, args, state and last fault may be anonymous.
-        // Retired entries past their retention are dropped first so they do
-        // not keep anything alive.
-        let mut vm_refs = lc.task_q.collect_anonymous_object_references();
-        lc.schedule_q.purge_retired(std::time::SystemTime::now());
-        lc.schedule_q
-            .collect_anonymous_object_references(&mut vm_refs);
-        let mutation_timestamp_before_mark = lc.last_mutation_timestamp;
-
-        // Create GC transaction for the background thread
-        let gc_tx = self.database.gc_interface().map_err(|e| {
-            SchedulerError::GarbageCollectionFailed(format!("Failed to create GC interface: {e}"))
-        })?;
-        let config_clone = self.config.clone();
-        let scheduler = self.clone();
-        let gc_cycle_count = lc.gc_cycle_count;
-
-        // Set flag to prevent additional concurrent GC
-        lc.gc_mark_in_progress = true;
-
-        // Spawn the mark thread
-        let handle = spawn_gc_mark_phase(
-            gc_tx,
-            config_clone,
-            scheduler,
-            vm_refs,
-            mutation_timestamp_before_mark,
-            gc_cycle_count,
-        );
-        *self.gc_thread.lock() = Some(handle);
-
-        Ok(())
-    }
-
-    /// Wait for all active tasks to finish before starting sweep phase.
-    /// This method manages its own locking since it must drop and reacquire
-    /// the lifecycle lock while waiting.
-    fn wait_for_active_tasks_to_finish(&self) -> Result<(), SchedulerError> {
-        loop {
-            {
-                let lc = self.lifecycle.lock();
-                if lc.task_q.active.is_empty() {
-                    return Ok(());
-                }
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
-
-    /// Blocking sweep phase for concurrent GC - waits for tasks and collects objects
-    pub(super) fn run_blocking_sweep_phase(
-        &self,
-        unreachable_objects: std::collections::HashSet<Obj>,
-    ) -> Result<(), SchedulerError> {
-        debug!(
-            "Starting blocking sweep phase for {} unreachable objects",
-            unreachable_objects.len()
-        );
-
-        // Block new tasks during sweep
-        {
-            let mut lc = self.lifecycle.lock();
-            if lc.state != SchedulerState::Running {
-                return Ok(());
-            }
-            lc.gc_sweep_in_progress = true;
-        }
-
-        // Check mutation timestamp before waiting for tasks
-        let mutation_timestamp_before_wait = {
-            let lc = self.lifecycle.lock();
-            lc.last_mutation_timestamp
-        };
-
-        // Wait for all active tasks to finish (manages its own locking)
-        self.wait_for_active_tasks_to_finish()?;
-
-        // Check mutation timestamp after waiting for tasks
-        {
-            let mut lc = self.lifecycle.lock();
-            if lc.state != SchedulerState::Running {
-                lc.gc_sweep_in_progress = false;
-                return Ok(());
-            }
-            let mutation_timestamp_after_wait = lc.last_mutation_timestamp;
-            if mutation_timestamp_before_wait != mutation_timestamp_after_wait {
-                info!(
-                    "Minor GC cycle #{}: mutations detected while waiting for tasks (before: {:?}, after: {:?}), sweep phase invalidated",
-                    lc.gc_cycle_count,
-                    mutation_timestamp_before_wait,
-                    mutation_timestamp_after_wait
-                );
-                lc.gc_sweep_in_progress = false;
-                return Ok(());
-            }
-        }
-
-        // Run the actual sweep
-        let result = self.run_gc_sweep_phase(std::collections::HashSet::new(), unreachable_objects);
-
-        // Unblock new tasks
-        {
-            let mut lc = self.lifecycle.lock();
-            lc.gc_sweep_in_progress = false;
-        }
-
-        result
-    }
-
-    /// Sweep phase of minor GC - collects unreachable objects (promotion already done in mark phase)
+    /// Collect unreachable anonymous objects in a new transaction.
     fn run_gc_sweep_phase(
         &self,
-        _reachable_objects: std::collections::HashSet<Obj>,
         unreachable_objects: std::collections::HashSet<Obj>,
     ) -> Result<(), SchedulerError> {
         let start_time = std::time::Instant::now();
@@ -312,6 +361,7 @@ impl Scheduler {
             cycle_count: lc.gc_cycle_count,
         })
     }
+
     pub(crate) fn handle_request_gc(&self) -> Result<(), SchedulerError> {
         debug!("Direct GC request received via scheduler client");
 
@@ -321,12 +371,13 @@ impl Scheduler {
         if !self.config.features.anonymous_objects {
             warn!("GC requested but anonymous objects are disabled, ignoring request");
             Ok(())
-        } else if lc.gc_collection_in_progress {
+        } else if lc.gc_phase.is_active() {
             info!("GC already in progress, request acknowledged but no additional cycle started");
             Ok(())
         } else if lc.task_q.active.is_empty() {
             // Can run GC immediately since no active tasks
-            self.run_gc_cycle(&mut lc);
+            drop(lc);
+            self.run_gc_cycle();
             Ok(())
         } else {
             // Set flag for GC to run when tasks complete
@@ -335,54 +386,253 @@ impl Scheduler {
             Ok(())
         }
     }
-    pub(crate) fn handle_gc_mark_complete(
-        &self,
-        unreachable_objects: std::collections::HashSet<Obj>,
-        mutation_timestamp_before_mark: Option<u64>,
-    ) {
-        let mut lc = self.lifecycle.lock();
+}
 
-        // Clear the concurrent GC flag
-        lc.gc_mark_in_progress = false;
+#[cfg(test)]
+mod tests {
+    use super::super::tests::{scheduler, suspended_task};
+    use super::*;
+    use crate::tasks::task_q::WakeCondition;
+    use moor_common::model::{ObjAttrs, ObjFlag, ObjectKind, WorldStateError};
+    use moor_db::GCError;
+    use moor_var::NOTHING;
 
-        debug!(
-            "GC mark phase completed, received {} unreachable objects",
-            unreachable_objects.len()
+    enum MarkOutcome {
+        Empty,
+        Error,
+        Panic,
+    }
+
+    struct ControlledMark {
+        entered: flume::Sender<()>,
+        release: flume::Receiver<()>,
+        outcome: MarkOutcome,
+    }
+
+    impl GCInterface for ControlledMark {
+        fn get_anonymous_objects(&self) -> Result<HashSet<Obj>, WorldStateError> {
+            self.entered.send(()).unwrap();
+            self.release.recv().unwrap();
+            match self.outcome {
+                MarkOutcome::Empty => Ok(HashSet::new()),
+                MarkOutcome::Error => {
+                    Err(WorldStateError::DatabaseError("injected mark error".into()))
+                }
+                MarkOutcome::Panic => panic!("injected mark panic"),
+            }
+        }
+        fn scan_anonymous_object_references(
+            &mut self,
+        ) -> Result<Vec<(Obj, HashSet<Obj>)>, WorldStateError> {
+            Ok(Vec::new())
+        }
+        fn collect_unreachable_anonymous_objects(
+            &mut self,
+            _: &HashSet<Obj>,
+        ) -> Result<usize, WorldStateError> {
+            unreachable!("mark interface cannot sweep")
+        }
+        fn commit(self: Box<Self>) -> Result<CommitResult, GCError> {
+            unreachable!("mark is read only")
+        }
+        fn rollback(self: Box<Self>) -> Result<(), GCError> {
+            unreachable!("mark is read only")
+        }
+    }
+
+    fn waiting_scheduler() -> Scheduler {
+        let scheduler = scheduler();
+        let waiting = suspended_task(81);
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.state = SchedulerState::Running;
+            lc.task_q.suspended.add_task(
+                WakeCondition::GCComplete,
+                waiting.task,
+                waiting.session,
+                None,
+            );
+        }
+        scheduler
+    }
+
+    fn assert_waiter_released_once(scheduler: &Scheduler) {
+        let mut lc = scheduler.lifecycle.lock();
+        assert_eq!(lc.gc_phase, GcPhase::Idle);
+        assert_eq!(lc.task_q.suspended.pop_immediate_wake().unwrap().0, 81);
+        assert!(lc.task_q.suspended.pop_immediate_wake().is_none());
+    }
+
+    #[test]
+    fn mark_error_and_panic_release_gc_waiters() {
+        for outcome in [MarkOutcome::Error, MarkOutcome::Panic] {
+            let scheduler = waiting_scheduler();
+            let cycle = GcCycle::begin(&scheduler).unwrap();
+            assert!(cycle.marking());
+            let (entered, started) = flume::bounded(1);
+            let (release, resume) = flume::bounded(1);
+            let panics = matches!(outcome, MarkOutcome::Panic);
+            let worker = spawn_gc_mark_phase(
+                Box::new(ControlledMark {
+                    entered,
+                    release: resume,
+                    outcome,
+                }),
+                cycle,
+                HashSet::new(),
+                None,
+            )
+            .unwrap();
+            started.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert!(matches!(
+                scheduler.lifecycle.lock().gc_phase,
+                GcPhase::Marking(_)
+            ));
+            release.send(()).unwrap();
+            assert_eq!(worker.join().is_err(), panics);
+            assert_waiter_released_once(&scheduler);
+        }
+    }
+
+    #[test]
+    fn abandoned_preparation_releases_gc_waiters() {
+        let scheduler = waiting_scheduler();
+        let cycle = GcCycle::begin(&scheduler).unwrap();
+        assert!(GcCycle::begin(&scheduler).is_none());
+        drop(cycle);
+        assert_waiter_released_once(&scheduler);
+    }
+
+    #[test]
+    fn previous_worker_can_finish_while_next_cycle_starts() {
+        let scheduler = waiting_scheduler();
+        let (release, resume) = flume::bounded(1);
+        let previous = scheduler.clone();
+        *scheduler.gc_thread.lock() = Some(std::thread::spawn(move || {
+            resume.recv().unwrap();
+            // A join under this mutex would prevent the previous worker from exiting.
+            let _lc = previous.lifecycle.lock();
+        }));
+        let next = scheduler.clone();
+        let (finished, completion) = flume::bounded(1);
+        let launch = std::thread::spawn(move || {
+            next.run_gc_cycle();
+            finished.send(()).unwrap();
+        });
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(lc) = scheduler.lifecycle.try_lock()
+                && matches!(lc.gc_phase, GcPhase::Preparing(_))
+            {
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::yield_now();
+        }
+        release.send(()).unwrap();
+        completion.recv_timeout(Duration::from_secs(5)).unwrap();
+        launch.join().unwrap();
+        scheduler.join_gc_thread().unwrap();
+        assert_waiter_released_once(&scheduler);
+    }
+
+    #[test]
+    fn stale_mark_cannot_release_a_replacement_cycle() {
+        let scheduler = waiting_scheduler();
+        let stale = GcCycle::begin(&scheduler).unwrap();
+        assert!(stale.marking());
+        let replacement = {
+            let mut lc = scheduler.lifecycle.lock();
+            lc.gc_cycle_count += 1;
+            let id = lc.gc_cycle_count;
+            lc.gc_phase = GcPhase::Marking(id);
+            GcCycle {
+                scheduler: scheduler.clone(),
+                id,
+            }
+        };
+        stale
+            .finish_mark(HashSet::from([Obj::mk_anonymous_generated()]), None)
+            .unwrap();
+        {
+            let mut lc = scheduler.lifecycle.lock();
+            assert_eq!(lc.gc_phase, GcPhase::Marking(replacement.id));
+            assert!(lc.task_q.suspended.pop_immediate_wake().is_none());
+        }
+        drop(replacement);
+        assert_waiter_released_once(&scheduler);
+    }
+
+    #[test]
+    fn invalidated_mark_preserves_unreachable_objects() {
+        let scheduler = waiting_scheduler();
+        let mut loader = scheduler.database.loader_client().unwrap();
+        let owner = Obj::mk_id(2);
+        loader
+            .create_object(
+                ObjectKind::Objid(owner),
+                &ObjAttrs::new(owner, NOTHING, NOTHING, ObjFlag::all_flags(), "Wizard"),
+            )
+            .unwrap();
+        let anonymous = loader
+            .create_object(
+                ObjectKind::Anonymous,
+                &ObjAttrs::new(owner, NOTHING, NOTHING, ObjFlag::all_flags(), "Anonymous"),
+            )
+            .unwrap();
+        loader.commit().unwrap();
+
+        let cycle = GcCycle::begin(&scheduler).unwrap();
+        assert!(cycle.marking());
+        scheduler.lifecycle.lock().last_mutation_timestamp = Some(12);
+        cycle.finish_mark(HashSet::from([anonymous]), None).unwrap();
+        assert!(
+            scheduler
+                .database
+                .gc_interface()
+                .unwrap()
+                .get_anonymous_objects()
+                .unwrap()
+                .contains(&anonymous)
         );
+        assert_waiter_released_once(&scheduler);
+    }
 
-        if lc.state != SchedulerState::Running {
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
+    #[test]
+    fn shutdown_joins_in_flight_gc_cycle() {
+        let scheduler = waiting_scheduler();
+        let cycle = GcCycle::begin(&scheduler).unwrap();
+        assert!(cycle.marking());
+        let (entered, started) = flume::bounded(1);
+        let (release, resume) = flume::bounded(1);
+        let worker = spawn_gc_mark_phase(
+            Box::new(ControlledMark {
+                entered,
+                release: resume,
+                outcome: MarkOutcome::Empty,
+            }),
+            cycle,
+            HashSet::new(),
+            None,
+        )
+        .unwrap();
+        *scheduler.gc_thread.lock() = Some(worker);
+        started.recv_timeout(Duration::from_secs(5)).unwrap();
+
+        let shutdown = scheduler.clone();
+        let (completed, done) = flume::bounded(1);
+        let stop = std::thread::spawn(move || completed.send(shutdown.stop(None)).unwrap());
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while scheduler.state() != SchedulerState::Stopping {
+            assert!(std::time::Instant::now() < deadline);
+            std::thread::yield_now();
         }
-
-        // Check if mutations happened during mark phase
-        if mutation_timestamp_before_mark != lc.last_mutation_timestamp {
-            info!(
-                "Minor GC cycle #{}: mark phase invalidated by mutation during marking (before: {:?}, after: {:?}), skipping sweep phase",
-                lc.gc_cycle_count, mutation_timestamp_before_mark, lc.last_mutation_timestamp
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Check if there's work to do
-        if unreachable_objects.is_empty() {
-            debug!(
-                "Minor GC cycle #{}: mark phase found no objects to collect, skipping sweep phase",
-                lc.gc_cycle_count
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Start blocking sweep phase - drop lock first since run_blocking_sweep_phase manages its own locking
-        drop(lc);
-        let _ = self.run_blocking_sweep_phase(unreachable_objects);
-        let mut lc = self.lifecycle.lock();
-        lc.gc_collection_in_progress = false;
-        lc.task_q.suspended.enqueue_gc_waiting_tasks();
+        assert!(done.try_recv().is_err());
+        release.send(()).unwrap();
+        done.recv_timeout(Duration::from_secs(5)).unwrap().unwrap();
+        stop.join().unwrap();
+        assert_eq!(scheduler.state(), SchedulerState::Stopped);
+        assert!(scheduler.gc_thread.lock().is_none());
+        assert_waiter_released_once(&scheduler);
     }
 }
