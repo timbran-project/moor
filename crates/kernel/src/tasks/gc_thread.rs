@@ -13,48 +13,40 @@
 
 //! Concurrent GC mark phase thread spawned by scheduler
 
-use std::{collections::HashSet, sync::Arc, thread, time::Instant};
+use std::{collections::HashSet, io, thread, time::Instant};
 
 use moor_var::Obj;
 use tracing::{debug, error, info};
 
-use crate::{
-    config::Config,
-    tasks::{SchedulerOp, sched_counters, scheduler::Scheduler},
-};
+use crate::tasks::{SchedulerOp, sched_counters, scheduler::gc::GcCycle};
 use moor_common::{tasks::SchedulerError, tasks::SchedulerError::GarbageCollectionFailed};
 
-/// Spawn a thread to perform concurrent GC mark phase
-pub fn spawn_gc_mark_phase(
+/// Spawn a mark worker which owns cycle cleanup, including during unwinding.
+pub(crate) fn spawn_gc_mark_phase(
     gc_tx: Box<dyn moor_db::GCInterface>,
-    _config: Arc<Config>,
-    scheduler: Scheduler,
+    cycle: GcCycle,
     vm_refs: HashSet<Obj>,
-    mutation_timestamp_before_mark: Option<u64>,
-    gc_cycle_count: u64,
-) -> thread::JoinHandle<()> {
-    thread::spawn(move || {
-        let result = run_gc_mark_phase(gc_tx, vm_refs, gc_cycle_count);
-
-        match result {
-            Ok(unreachable_objects) => {
-                scheduler
-                    .handle_gc_mark_complete(unreachable_objects, mutation_timestamp_before_mark);
+    mutation_timestamp: Option<u64>,
+) -> io::Result<thread::JoinHandle<()>> {
+    thread::Builder::new()
+        .name("moor-gc".into())
+        .spawn(move || {
+            match run_gc_mark_phase(gc_tx, vm_refs) {
+                Ok(unreachable) => {
+                    if let Err(error) = cycle.finish_mark(unreachable, mutation_timestamp) {
+                        error!(?error, "GC sweep failed");
+                    }
+                }
+                Err(error) => error!(?error, "GC mark phase failed"),
             }
-            Err(e) => {
-                error!("GC mark phase failed: {e}");
-                // Send empty results to indicate failure
-                scheduler.handle_gc_mark_complete(HashSet::new(), mutation_timestamp_before_mark);
-            }
-        }
-    })
+            // A failed mark drops the cycle here. A panic drops it while unwinding.
+        })
 }
 
 /// Run the mark phase in a background thread
 fn run_gc_mark_phase(
     mut gc: Box<dyn moor_db::GCInterface>,
     vm_refs: HashSet<Obj>,
-    _gc_cycle_count: u64,
 ) -> Result<HashSet<Obj>, SchedulerError> {
     let start_time = Instant::now();
     let perfc = sched_counters();

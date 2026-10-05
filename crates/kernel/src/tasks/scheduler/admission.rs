@@ -11,10 +11,105 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
-use moor_common::model::ObjectRef;
+//! New-task construction, scheduler admission, and initial dispatch.
+//!
+//! Submission entry points allocate IDs under the lifecycle lock. `submit_task` receives that
+//! borrowed state, checks scheduler and GC admission, and registers or dispatches the task.
+//! Input delivery resumes an existing task in `transitions::resume` instead.
+
+use super::{ResumeAction, Scheduler, SchedulerState, lifecycle::TaskLifecycle};
+use crate::{
+    tasks::{
+        SchedulerOp, ServerOptions, TaskHandle, TaskNotification, TaskStart,
+        registry::{LiveTaskRegistration, WakeCondition},
+        sched_counters,
+        task::Task,
+        task_control::TaskControl,
+        world_state_action::WorldStateAction,
+        world_state_executor::match_object_ref,
+    },
+    trace_task_create_command, trace_task_create_eval, trace_task_create_verb,
+};
+use flume::Sender;
+use moor_common::{
+    model::ObjectRef,
+    tasks::{CommandError, SchedulerError, SchedulerError::CommandExecutionError, Session, TaskId},
+    util::Deadline,
+};
+use moor_var::{List, NOTHING, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str, v_int, v_obj};
+use std::{sync::Arc, time::Duration};
+use tracing::{debug, warn};
+
+/// Result of submitting a new task - either already suspended (delayed/GC-blocked)
+/// or needs immediate wake by the caller.
+enum TaskSubmission {
+    /// Task is suspended with a delay or waiting for GC - no further action needed
+    Suspended(TaskHandle),
+    /// Task should start immediately - caller must wake it
+    NeedsWake {
+        registration: LiveTaskRegistration,
+        handle: TaskHandle,
+        task: Box<Task>,
+        session: Arc<dyn Session>,
+        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    },
+}
 
 impl Scheduler {
+    /// Submit a new task and wake it immediately if needed.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_task(
+        &self,
+        lc: &mut TaskLifecycle,
+        task_id: TaskId,
+        player: &Obj,
+        authority_principal: &Obj,
+        task_start: TaskStart,
+        delay_start: Option<Duration>,
+        session: Arc<dyn Session>,
+    ) -> Result<TaskHandle, SchedulerError> {
+        if lc.state != SchedulerState::Running {
+            return Err(SchedulerError::SchedulerNotResponding);
+        }
+
+        let gc_in_progress = self.config.features.anonymous_objects
+            && (lc.gc_phase.blocks_admission() || lc.gc_force_collect);
+
+        let so = self.server_options.load();
+        match lc.submit_new_task(
+            task_id,
+            player,
+            authority_principal,
+            task_start,
+            delay_start,
+            session,
+            &so,
+            gc_in_progress,
+        ) {
+            TaskSubmission::Suspended(handle) => Ok(handle),
+            TaskSubmission::NeedsWake {
+                registration,
+                handle,
+                task,
+                session,
+                result_sender,
+            } => {
+                lc.dispatch_task(
+                    task,
+                    ResumeAction::Return(v_int(0)),
+                    session,
+                    result_sender,
+                    self,
+                    self.database.as_ref(),
+                    self.builtin_registry.clone(),
+                    self.config.clone(),
+                    registration,
+                )?;
+                Ok(handle)
+            }
+        }
+    }
+
     pub(crate) fn submit_command_task_inner(
         &self,
         handler_object: Obj,
@@ -101,39 +196,6 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn submit_task_input_inner(
-        &self,
-        connection: Obj,
-        player: Obj,
-        input_request_id: Uuid,
-        input: Var,
-    ) -> Result<(), SchedulerError> {
-        let mut lc = self.lifecycle.lock();
-
-        // Validate that the given input request is valid, and if so, resume the task, sending it
-        // the given input, clearing the input request out.
-
-        // Find the task that requested this input, if any
-        let Some(sr) =
-            lc.task_q
-                .suspended
-                .pull_task_for_input(input_request_id, &connection, &player)
-        else {
-            warn!(?input_request_id, "Input request not found");
-            return Err(InputRequestNotFound(input_request_id.as_u128()));
-        };
-
-        // Wake and bake.
-        lc.task_q.wake_suspended_task(
-            sr,
-            ResumeAction::Return(input),
-            self,
-            self.database.as_ref(),
-            self.builtin_registry.clone(),
-            self.config.clone(),
-        )
-    }
-
     /// Start `handler_object:verb` for a connection-level hook (`do_out_of_band_command`,
     /// `do_client_data`). The handler is a plain object id, so no transaction is needed to
     /// resolve it.
@@ -202,119 +264,6 @@ impl Scheduler {
         )
     }
 
-    pub(crate) fn handle_shutdown_request(&self, msg: String) -> Result<(), SchedulerError> {
-        self.stop(Some(msg))
-    }
-
-    pub(crate) fn handle_check_status(&self) -> Result<(), SchedulerError> {
-        if self.lifecycle.lock().state != SchedulerState::Running {
-            return Err(SchedulerError::SchedulerNotResponding);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn handle_get_gc_stats(
-        &self,
-    ) -> Result<crate::tasks::scheduler_client::GCStats, SchedulerError> {
-        let lc = self.lifecycle.lock();
-        Ok(crate::tasks::scheduler_client::GCStats {
-            cycle_count: lc.gc_cycle_count,
-        })
-    }
-
-    pub(crate) fn handle_request_gc(&self) -> Result<(), SchedulerError> {
-        debug!("Direct GC request received via scheduler client");
-
-        let mut lc = self.lifecycle.lock();
-
-        // Check if anonymous objects are enabled first
-        if !self.config.features.anonymous_objects {
-            warn!("GC requested but anonymous objects are disabled, ignoring request");
-            Ok(())
-        } else if lc.gc_collection_in_progress {
-            info!("GC already in progress, request acknowledged but no additional cycle started");
-            Ok(())
-        } else if lc.task_q.active.is_empty() {
-            // Can run GC immediately since no active tasks
-            self.run_gc_cycle(&mut lc);
-            Ok(())
-        } else {
-            // Set flag for GC to run when tasks complete
-            lc.gc_force_collect = true;
-            debug!("GC requested but tasks are active, will run when tasks complete");
-            Ok(())
-        }
-    }
-
-    pub(crate) fn handle_load_object_request(
-        &self,
-        object_definition: String,
-        options: moor_objdef::ObjDefLoaderOptions,
-        return_conflicts: bool,
-    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        self.handle_load_object(object_definition, options, return_conflicts)
-    }
-
-    pub(crate) fn handle_reload_object_request(
-        &self,
-        object_definition: String,
-        constants: Option<moor_objdef::Constants>,
-        target_obj: Option<Obj>,
-    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        self.handle_reload_object(object_definition, constants, target_obj)
-    }
-
-    pub(crate) fn handle_gc_mark_complete(
-        &self,
-        unreachable_objects: std::collections::HashSet<Obj>,
-        mutation_timestamp_before_mark: Option<u64>,
-    ) {
-        let mut lc = self.lifecycle.lock();
-
-        // Clear the concurrent GC flag
-        lc.gc_mark_in_progress = false;
-
-        debug!(
-            "GC mark phase completed, received {} unreachable objects",
-            unreachable_objects.len()
-        );
-
-        if lc.state != SchedulerState::Running {
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Check if mutations happened during mark phase
-        if mutation_timestamp_before_mark != lc.last_mutation_timestamp {
-            info!(
-                "Minor GC cycle #{}: mark phase invalidated by mutation during marking (before: {:?}, after: {:?}), skipping sweep phase",
-                lc.gc_cycle_count, mutation_timestamp_before_mark, lc.last_mutation_timestamp
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Check if there's work to do
-        if unreachable_objects.is_empty() {
-            debug!(
-                "Minor GC cycle #{}: mark phase found no objects to collect, skipping sweep phase",
-                lc.gc_cycle_count
-            );
-            lc.gc_collection_in_progress = false;
-            lc.task_q.suspended.enqueue_gc_waiting_tasks();
-            return;
-        }
-
-        // Start blocking sweep phase - drop lock first since run_blocking_sweep_phase manages its own locking
-        drop(lc);
-        let _ = self.run_blocking_sweep_phase(unreachable_objects);
-        let mut lc = self.lifecycle.lock();
-        lc.gc_collection_in_progress = false;
-        lc.task_q.suspended.enqueue_gc_waiting_tasks();
-    }
-
     pub(crate) fn submit_system_handler_task_inner(
         &self,
         player: Obj,
@@ -363,55 +312,6 @@ impl Scheduler {
         result
     }
 
-    pub(crate) fn execute_world_state_actions_inner(
-        &self,
-        actions: Vec<crate::tasks::world_state_action::WorldStateRequest>,
-        rollback: bool,
-    ) -> Result<Vec<WorldStateResponse>, SchedulerError> {
-        // Create transaction in caller's context
-        let tx = self
-            .database
-            .new_world_state()
-            .map_err(|e| CommandExecutionError(CommandError::DatabaseError(e)))?;
-
-        // Extract just the actions from the requests
-        let action_vec: Vec<WorldStateAction> =
-            actions.iter().map(|req| req.action.clone()).collect();
-        let config = self.config.clone();
-
-        // Use a channel to get the result back from the spawned thread
-        let (tx_send, rx_recv) = std::sync::mpsc::channel();
-
-        // Spawn thread to execute actions, moving transaction into the thread
-        spawn_perf("ws-actions", move || {
-            let executor = WorldStateActionExecutor::new(tx, config);
-
-            match executor.execute_batch(action_vec, rollback) {
-                Ok(results) => {
-                    // Build responses with the original request IDs
-                    let responses: Vec<WorldStateResponse> = actions
-                        .into_iter()
-                        .zip(results)
-                        .map(|(request, result)| WorldStateResponse::Success {
-                            id: request.id,
-                            result,
-                        })
-                        .collect();
-
-                    let _ = tx_send.send(Ok(responses));
-                }
-                Err(error) => {
-                    let _ = tx_send.send(Err(error));
-                }
-            }
-        })
-        .expect("Could not spawn WorldStateAction execution thread");
-
-        rx_recv
-            .recv()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?
-    }
-
     pub(crate) fn submit_batch_world_state_task_inner(
         &self,
         player: Obj,
@@ -444,3 +344,71 @@ impl Scheduler {
         )
     }
 }
+
+impl TaskLifecycle {
+    #[allow(clippy::too_many_arguments)]
+    fn submit_new_task(
+        &mut self,
+        task_id: TaskId,
+        player: &Obj,
+        authority_principal: &Obj,
+        task_start: TaskStart,
+        delay_start: Option<Duration>,
+        session: Arc<dyn Session>,
+        server_options: &ServerOptions,
+        gc_in_progress: bool,
+    ) -> TaskSubmission {
+        let perfc = sched_counters();
+        let _t = perfc.timers.start(SchedulerOp::StartTask);
+        let (sender, receiver) = flume::unbounded();
+
+        let control = Arc::new(TaskControl::new());
+        let task = Task::new(
+            task_id,
+            *player,
+            *authority_principal,
+            task_start.clone(),
+            server_options,
+            control.clone(),
+        );
+        let registration = self.task_q.register_task(task_id);
+
+        let handle = TaskHandle(task_id, receiver);
+
+        // Delayed tasks go into suspension
+        if let Some(delay) = delay_start {
+            self.task_q.suspended.add_task(
+                WakeCondition::Time(Deadline::from_now(delay).instant()),
+                task,
+                session,
+                Some(sender),
+                registration,
+            );
+            return TaskSubmission::Suspended(handle);
+        }
+
+        // GC-blocked tasks go into suspension
+        if gc_in_progress {
+            self.task_q.suspended.add_task(
+                WakeCondition::GCComplete,
+                task,
+                session,
+                Some(sender),
+                registration,
+            );
+            return TaskSubmission::Suspended(handle);
+        }
+
+        // Immediate start - return task directly, skip suspension queue entirely
+        TaskSubmission::NeedsWake {
+            registration,
+            handle,
+            task,
+            session,
+            result_sender: Some(sender),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

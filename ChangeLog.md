@@ -200,6 +200,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Tasks now report an error if they cannot load `$handle_uncaught_error`. Previously, these tasks
+  could leave callers waiting indefinitely for a result.
+
 `telnet-host`:
 
 - Deliver inbound client-data message names as strings to prevent client-supplied GMCP and MSDP
@@ -213,6 +216,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Defer input, worker responses, explicit task resumes, and maintenance wakeups during GC sweep.
+  Resumed tasks keep their return values or errors. Shutdown cancels these accepted responses
+  instead of starting more execution or saving incomplete continuations.
+
+- Keep expired task continuations visible to garbage collection and shutdown until dispatch. Timer
+  and immediate wakeups now wait during GC sweep and stop dispatching during shutdown.
+- Ignore queued wake signals from an earlier suspension of the same task. These signals could
+  otherwise resume a task before its current wake condition was satisfied.
+
+- Resume tasks queued during garbage collection when the collection finishes. Previously, new GC
+  waiters could remain suspended until a server restart.
+- Release GC admission and waiting tasks after a GC worker panic, so later collection cycles can
+  run.
+- Report task resumption and retry setup failures to callers, release dependent tasks, and settle
+  scheduled firings. Retry setup errors no longer panic in the scheduler service.
+- Ignore completion, retry, and panic callbacks from replaced task attempts. Late callbacks no
+  longer remove a replacement task or publish its pending effects.
+- Reject message and transaction-renewal requests from replaced task dispatches. Late requests no
+  longer drain the replacement's mailbox or change its pending effects.
+- Keep pending schedule changes with their originating task dispatch. Late create, stop, and query
+  requests no longer change or expose a replacement task's unpublished schedules.
+- Ignore stale session, fork, and task-control requests from replaced task dispatches. A late
+  notification error or player-switch reply no longer changes the replacement task's identity or
+  cancellation state.
+- Retain terminal task results during session finalization, including cancellation and transaction
+  renewal failure. Concurrent abort requests wait for the reserved result.
 - Preserve empty enclosing scopes when calling nested parameterless lambdas, preventing a panic when
   their bodies access local bindings ([#554](https://github.com/timbran-project/moor/issues/554)).
   Stored program format 6 retains the entry layout; affected older programs need recompilation.

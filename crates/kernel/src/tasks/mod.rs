@@ -11,6 +11,37 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Task execution, scheduler transitions, and persistent continuations.
+//!
+//! `task::Task` owns executable VM state. `scheduler::Scheduler` coordinates lifecycle changes
+//! under one mutex. `registry` owns active metadata, suspended tasks, wake indexes, and mailboxes.
+//! `task_control` arbitrates cancellation against commits without acquiring that mutex.
+//!
+//! Reading paths:
+//! - Submission: `SchedulerClient::submit_command_task` queues a request. The scheduler calls
+//!   `submit_command_task_inner`, then `submit_task` in `scheduler/admission.rs`.
+//! - Execution: `TaskLifecycle::dispatch_task` starts a worker. `Task::run_task_loop` calls
+//!   `Task::vm_dispatch`; its named handlers return the owned outcomes in `task/outcome.rs`.
+//! - Suspension: `Task::dispatch_suspend` commits through `commit_yield_transaction`.
+//!   `SuspensionRequest::handoff` calls `Scheduler::handle_task_suspend`, which finalizes the
+//!   session before transferring the continuation into `SuspensionQ::add_task`.
+//! - Resumption: `collect_and_wake_expired_tasks` selects registered continuations.
+//!   `drain_immediate_wakes` checks GC and shutdown admission before dispatching them.
+//! - Retry: `RetryRequest::handoff` calls `handle_task_conflict_retry`. After backoff,
+//!   `dispatch_retry_task` restores the snapshot and prepares a replacement worker dispatch.
+//! - Completion: `TerminalRequest::finish` calls the relevant scheduler transition.
+//!   `TaskCompletion` retains the result across session I/O; the transition decides effect policy.
+//!
+//! External `SchedulerClient` requests run through a service queue. `TaskSchedulerClient` calls
+//! directly from workers and retains dispatch identity across callbacks. Scheduler domain methods
+//! acquire the lifecycle lock; registry methods borrow its state. A dispatch identity is separate
+//! from transaction retries, live-registration generations, and schedule-expiry generations.
+//!
+//! `scheduler/services.rs` owns startup and shutdown. `scheduler/gc.rs` owns sweep admission.
+//! `schedule_q` owns deadlines and firing identity; `scheduler/schedules.rs` revalidates expiry
+//! before task submission. Tests live beside these domains, with shared scheduler fixtures in
+//! `scheduler/test_support.rs` and full-task execution cases under `task/tests/`.
+
 use std::{
     fmt::Debug,
     sync::LazyLock,
@@ -40,6 +71,7 @@ pub(crate) mod checkpoint;
 pub mod convert_task;
 pub(crate) mod gc_thread;
 pub(crate) mod maintenance;
+pub(crate) mod registry;
 pub mod schedule_q;
 pub(crate) mod scheduler_client;
 pub(crate) mod storage_compaction;
@@ -47,7 +79,6 @@ pub(crate) mod task;
 pub(crate) mod task_control;
 pub(crate) mod task_pool;
 pub(crate) mod task_program_cache;
-pub(crate) mod task_q;
 pub mod task_scheduler_client;
 pub mod task_telemetry;
 mod tasks_db;
