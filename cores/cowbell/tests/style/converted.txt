@@ -1,4 +1,5 @@
 relations
+git
 initial/housekeeping.moo
 initial/henri.moo:start_behaviours
 initial/henri.moo:stop_behaviours

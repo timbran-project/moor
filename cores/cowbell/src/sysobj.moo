@@ -50,6 +50,10 @@ object SYSOBJ [
   property first_room (owner: HACKER, flags: "r") = FIRST_ROOM;
   property food (owner: ARCH_WIZARD, flags: "r") = FOOD;
   property format (owner: HACKER, flags: "r") = FORMAT;
+  property git (owner: ARCH_WIZARD, flags: "r") = GIT;
+  property git_entry (owner: ARCH_WIZARD, flags: "r") = GIT_ENTRY;
+  property git_repository (owner: ARCH_WIZARD, flags: "r") = GIT_REPOSITORY;
+  property git_snapshot (owner: ARCH_WIZARD, flags: "r") = GIT_SNAPSHOT;
   property grant_utils (owner: HACKER, flags: "r") = GRANT_UTILS;
   property hacker (owner: HACKER, flags: "r") = HACKER;
   property help (owner: HACKER, flags: "r") = HELP;

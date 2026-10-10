@@ -22,6 +22,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `Cowbell`:
 
+- Add `$git` repository access with wizard-only network operations. Repository, snapshot, and entry
+  flyweights support commit-pinned reads, local lookup, exact binary contents, and explicit UTF-8
+  decoding.
 - Show native schedules in `@ps`. Add `@schedules` for listing, `@schedule ID` for diagnostics, and
   `@stop-schedule ID` (`@kill-schedule`) for stopping future firings. Programmers manage their own
   schedules; wizards can manage all owners. Running firings remain separate tasks controlled by

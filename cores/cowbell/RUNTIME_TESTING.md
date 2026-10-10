@@ -10,6 +10,11 @@ The check runs the style audit, method tests, headless scenarios, session scenar
 export roundtrip, real telnet/restart checks, and source inventory checks. Targets run in order because they share generated
 directories.
 
+`make -C cores/cowbell test-git-worker` checks Git access through the daemon, telnet host, and Git worker.
+It uses a temporary local HTTP repository and requires the Git CLI for the fixture.
+It checks binary contents, symlinks, tree metadata, worker errors, and reads pinned to a commit after a branch moves.
+The method suite also checks wizard-only dispatch, forged descriptors, local lookup, and malformed responses.
+
 `make -C cores/cowbell` exports the shipped core. `make rebuild` first checks export stability, then
 copies the exported sources into `src/`. Export removes source comments. Use this target only when
 you intend to replace working sources.

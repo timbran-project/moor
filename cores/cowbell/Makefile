@@ -69,7 +69,7 @@ OUTPUT_DIRECTORY = /work
 MOORC = docker run --rm -v $(CURDIR):/work -w /work $(MOORC_IMAGE) /moor/moorc $(OPTIONS)
 endif
 
-.PHONY: test-wire test-build-inventory runtime-test-src runtime-session test-harness check check-style roundtrip rebuild test runtime-headless runtime-headless-src clean FORCE
+.PHONY: test-git-worker test-wire test-build-inventory runtime-test-src runtime-session test-harness check check-style roundtrip rebuild test runtime-headless runtime-headless-src clean FORCE
 
 check:
 	$(MAKE) check-style
@@ -79,6 +79,7 @@ check:
 	$(MAKE) test-harness
 	$(MAKE) roundtrip
 	$(MAKE) test-wire
+	$(MAKE) test-git-worker
 	$(MAKE) test-build-inventory
 
 check-style:
@@ -195,3 +196,8 @@ test-wire:
 	CARGO_TARGET_DIR=$(abspath ../../target) $(CARGO) build --manifest-path ../../Cargo.toml -p moor-server --bin moor
 	python3 -m unittest discover -s tests -p test_wire.py
 	python3 tests/wire.py --server ../../target/debug/moor --core-dir src
+
+# Exercise the Cowbell wrapper through the standalone worker and a local Git HTTP fixture.
+test-git-worker:
+	$(CARGO) build --manifest-path ../../Cargo.toml -p moor-daemon -p moor-telnet-host -p moor-git-worker
+	python3 tests/git_worker.py --bin-dir $(CARGO_TARGET_DIR)/debug --core-dir src

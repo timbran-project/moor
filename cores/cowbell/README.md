@@ -502,6 +502,72 @@ this:fire_trigger('on_unlock, ['Actor -> player, 'Key -> key_obj]);
 See the kibble cupboard (`kibble_cupboard.moo`) for a complete example of lockable/openable behavior
 configured entirely through rules and reactions.
 
+### Git repositories
+
+Cowbell provides `$git` for read-only repository access through `moor-git-worker`.
+Start the worker as described in the [server configuration](../../book/src/the-system/server-configuration.md#git-worker).
+The worker currently supports public HTTP(S) repositories and SHA-1 object IDs.
+
+```moo
+repo = $git:repository("https://github.com/timbran-project/moor.git");
+refs = repo:refs();
+snapshot = repo:snapshot(['ref -> "refs/heads/main"], "cores/cowbell/src");
+entry = snapshot:entry("root.moo");
+source = entry:text();
+```
+
+Each network operation requires a wizard **caller**, even though the methods have wizard owners.
+The wrapper checks `caller_perms()`. A repository flyweight carries a URL and settings, without authority.
+An ordinary caller can create a descriptor or inspect data that a wizard shares.
+
+| Call | Result |
+| --- | --- |
+| `$git:capabilities()` | Worker capabilities and limits, with string keys |
+| `repo:refs()` | List of maps with symbol keys: `name`, `oid`, and optional `peeled` |
+| `repo:tree(revision, path = "", recursive = false)` | Directory metadata as a `$git_snapshot` flyweight |
+| `repo:read(revision, path)` | One `$git_entry` with content |
+| `repo:snapshot(revision, path = "")` | Complete recursive directory snapshot with content |
+
+A revision map contains exactly one full ref name or full commit ID.
+Use `['commit -> snapshot.commit]` for later requests at the same revision.
+Refs can move between requests. Each individual result identifies its resolved commit.
+
+Snapshot slots are `repository`, `commit`, `tree`, `path`, `complete`, and `entries`.
+`entries` contains `$git_entry` flyweights. `complete` is true for snapshots and false for tree listings.
+`:entry(path)` uses exact, case-sensitive paths relative to the selected directory.
+It raises `E_RANGE` for an absent entry and never contacts the worker.
+A `read` result retains the repository-relative path.
+
+Entry slots include `repository`, `commit`, `path`, `kind`, and `oid`.
+The `kind` symbol is `file`, `symlink`, `directory`, or `submodule`.
+Files and symlinks have `size`; files also have `executable`.
+Entries from `read` and `snapshot` include binary `content` for files and symlinks.
+
+- `entry:has_content()` reports whether local bytes are present, including an empty file.
+- `entry:bytes()` returns the exact bytes. Missing content raises `E_NACC`.
+- `entry:text()` decodes strict UTF-8. Invalid UTF-8 raises `E_INVARG`.
+
+Text decoding preserves line endings. Symlink contents are the target bytes; the wrapper never follows the target.
+Submodules contain the recorded commit ID. The wrapper does not fetch their repositories.
+
+Optional repository settings limit requests:
+
+```moo
+repo = $git:repository(url, ['max_entries -> 512, 'max_file_bytes -> 1048576,
+                           'max_total_bytes -> 4194304], 20.0);
+```
+
+The final argument is a positive timeout in seconds, as a float. Its default is `30.0`.
+The worker also enforces its operator limits. Unknown settings are errors.
+
+Worker application errors raise `E_GIT`. In `except error (E_GIT)`, `error[3]` contains
+`['code -> worker_code, 'message -> worker_message]`. Branch on the code, such as `path_not_found`
+or `limit_exceeded`. Transport exceptions propagate unchanged. Malformed responses raise `E_INVARG`.
+
+Every worker call suspends and commits the current transaction. After it returns, recheck authority
+and database state before applying changes. Git retrieval does not import or execute the fetched files.
+The public result constructors accept ordinary data; a flyweight is not proof of origin or approval.
+
 ## Development
 
 Run the local check from the repository root:

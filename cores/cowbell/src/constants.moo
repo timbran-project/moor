@@ -55,6 +55,12 @@ define FORMAT_ANNOTATION = #134;
 define FORMAT_LINK = #82;
 define FORMAT_PARAGRAPH = #114;
 
+// git
+define GIT = #135;
+define GIT_REPOSITORY = #136;
+define GIT_SNAPSHOT = #137;
+define GIT_ENTRY = #138;
+
 // help
 define HELP_UTILS = #58;
 define HELP = #75;
