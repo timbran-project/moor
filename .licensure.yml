@@ -167,7 +167,6 @@ excludes:
   - book/*
   - lambdamoo/*
   - __pycache__/*
-  - .envrc
   - .*\.env$
   - .*\.env\..*
   - node_modules/*
