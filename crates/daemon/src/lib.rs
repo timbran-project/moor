@@ -239,6 +239,11 @@ fn perform_import(
     mut loader_interface: Box<dyn LoaderInterface>,
     version: semver::Version,
 ) -> Result<bool, Report> {
+    if config.import_export.import_enroll
+        && !matches!(config.import_export.import_format, ImportFormat::Objdef)
+    {
+        return Err(eyre!("--import-enroll requires objdef import"));
+    }
     let start = std::time::Instant::now();
     // We have two ways of loading textdump.
     // legacy "textdump" format from LambdaMOO,
@@ -261,6 +266,9 @@ fn perform_import(
                     return Err(Report::new(e));
                 }
             };
+            if config.import_export.import_enroll {
+                od.enroll_imported_programs()?;
+            }
             info!(
                 "Imported {} objects w/ {} verbs, {} properties and {} property overrides",
                 results.loaded_objects.len(),

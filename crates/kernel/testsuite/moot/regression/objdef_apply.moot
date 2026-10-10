@@ -1,0 +1,38 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; return load_object({"object #9400", "owner: #3", "verb test (this none this) owner: #3 flags: \"rxd\"", "return 1;", "endverb", "endobject"});
+#9400
+
+; add_property(#0, "change_sources", {["label" -> "root.moo", "text" -> dump_object(#9400)]}, {player, ""});
+> add_property(#0, "change_request", ["schema" -> 1, "operation" -> "adopt", "objects" -> {#9400}, "fields" -> {"program"}], {player, ""});
+> add_property(#0, "change_report", preview_objdef_changes(#0.change_sources, #0.change_request), {player, ""});
+> const receipt = apply_objdef_changes(#0.change_sources, #0.change_request, #0.change_report["evidence"], []); return {length(receipt["decisions"]), #9400:test()};
+{1, 1}
+
+; #0.change_request["operation"] = "update"; #0.change_sources = {["label" -> "root.moo", "text" -> {"object #9400", "owner: #3", "verb test (this none this) owner: #3 flags: \"rxd\"", "return 2;", "endverb", "endobject"}]}; #0.change_report = preview_objdef_changes(#0.change_sources, #0.change_request); return #0.change_report["rows"][1]["classification"];
+"upstream"
+
+; const receipt = apply_objdef_changes(#0.change_sources, #0.change_request, #0.change_report["evidence"], []); return {length(receipt["decisions"]), #9400:test()};
+{1, 2}
+
+; return `apply_objdef_changes(#0.change_sources, #0.change_request, #0.change_report["evidence"], []) ! E_INVARG => "stale"';
+"stale"
+
+; return preview_objdef_changes(#0.change_sources, #0.change_request)["rows"][1]["classification"];
+"unchanged"
+
+@programmer
+; return apply_objdef_changes({}, [], [], []);
+E_PERM

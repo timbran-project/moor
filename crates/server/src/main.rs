@@ -109,6 +109,10 @@ struct Args {
     )]
     import: Option<PathBuf>,
 
+    /// Enroll source-derived program baselines during a fresh objdef import.
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true")]
+    import_enroll: Option<bool>,
+
     #[arg(
         long,
         value_name = "export",
@@ -520,6 +524,9 @@ async fn main() -> Result<(), Report> {
 }
 
 fn apply_cli_overrides(args: &Args, config: &mut CombinedConfig) {
+    if let Some(enroll) = args.import_enroll {
+        config.import_export.import_enroll = enroll;
+    }
     if let Some(import) = args.import.as_ref() {
         config.import_export.input_path = Some(import.clone());
     }

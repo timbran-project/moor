@@ -626,6 +626,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         compile_options: CompileOptions,
         options: ObjDefLoaderOptions,
     ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
+        self.restore_tracking = false;
+        self.mutation_started = false;
+        self.object_definitions.clear();
         let start_time = Instant::now();
         let source_name = "<string>".to_string();
 
@@ -771,6 +774,9 @@ impl<'a> ObjectDefinitionLoader<'a> {
         constants: Option<Constants>,
         target_obj: Option<Obj>,
     ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
+        self.restore_tracking = false;
+        self.mutation_started = false;
+        self.object_definitions.clear();
         let start_time = Instant::now();
         let source_name = "<reload>".to_string();
 
@@ -885,6 +891,73 @@ impl<'a> ObjectDefinitionLoader<'a> {
             num_loaded_property_definitions,
             num_loaded_property_overrides,
         })
+    }
+
+    /// Derive accepted program baselines from the definitions just imported from a directory.
+    ///
+    /// This opt-in bootstrap operation belongs to the same transaction as import. Source tracking
+    /// metadata is replaced with derived hashes. Direct imports cannot invoke this path.
+    pub fn enroll_imported_programs(&mut self) -> Result<(), ObjdefLoaderError> {
+        if !self.restore_tracking {
+            return Err(ObjdefLoaderError::InputLimit(
+                "enrollment requires a directory import".into(),
+            ));
+        }
+        for (object, (label, definition)) in &self.object_definitions {
+            let verbs = self.loader.get_existing_verbs(object).map_err(|e| {
+                ObjdefLoaderError::CouldNotDefineVerb(label.clone(), *object, vec![], e)
+            })?;
+            for source in &definition.verbs {
+                let error = |e| {
+                    ObjdefLoaderError::CouldNotDefineVerb(
+                        label.clone(),
+                        *object,
+                        source.names.clone(),
+                        e,
+                    )
+                };
+                let matches = verbs
+                    .iter()
+                    .filter(|d| d.names() == source.names && d.args() == source.argspec)
+                    .collect::<Vec<_>>();
+                if matches.len() != 1 {
+                    return Err(error(WorldStateError::DatabaseError(
+                        "ambiguous enrollment target".into(),
+                    )));
+                }
+                let hash = crate::fingerprint::program_fingerprint(&source.program)
+                    .map_err(|e| error(WorldStateError::DatabaseError(e)))?;
+                self.loader
+                    .set_verb_metadata(
+                        object,
+                        matches[0].uuid(),
+                        Symbol::mk(crate::review::BASE_KEY),
+                        crate::review::record(&[
+                            (
+                                "schema",
+                                moor_var::v_str(crate::fingerprint::PROGRAM_SCHEMA),
+                            ),
+                            ("program", moor_var::v_str(&hash)),
+                        ]),
+                    )
+                    .map_err(error)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Read an application descriptor from imported source without assigning it native semantics.
+    pub fn imported_metadata(&self, key: Symbol) -> Vec<(Obj, Var)> {
+        self.object_definitions
+            .iter()
+            .flat_map(|(object, (_, definition))| {
+                definition
+                    .metadata
+                    .iter()
+                    .filter(move |(k, _)| *k == key)
+                    .map(move |(_, v)| (*object, v.clone()))
+            })
+            .collect()
     }
 
     /// Create import_export_id metadata from constants when the input declares no explicit IDs.

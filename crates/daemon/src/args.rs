@@ -217,6 +217,9 @@ pub enum Format {
 #[allow(dead_code)]
 #[derive(Parser, Debug, Serialize, Deserialize)]
 pub struct ImportExportArgs {
+    /// Enroll source-derived program baselines during a fresh objdef import.
+    #[arg(long, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true")]
+    pub import_enroll: Option<bool>,
     #[arg(short, long, value_name = "import", help = "Path to a textdump or objdef directory to import", value_hint = ValueHint::FilePath)]
     pub import: Option<PathBuf>,
 
@@ -255,6 +258,9 @@ pub struct ImportExportArgs {
 
 impl ImportExportArgs {
     pub fn merge_config(&self, config: &mut ImportExportConfig) -> Result<(), eyre::Report> {
+        if let Some(enroll) = self.import_enroll {
+            config.import_enroll = enroll;
+        }
         if let Some(args) = self.import.as_ref() {
             config.input_path = Some(args.clone());
         }
@@ -534,9 +540,27 @@ impl Args {
 
 #[cfg(test)]
 mod tests {
-    use super::Args;
+    use super::{Args, ImportExportArgs};
     use clap::Parser as _;
     use moor_kernel::config::ImportFormat;
+
+    #[test]
+    fn enrollment_is_opt_in_and_can_override_configuration() {
+        let omitted = ImportExportArgs::try_parse_from(["test"]).unwrap();
+        let mut config = moor_kernel::config::ImportExportConfig::default();
+        omitted.merge_config(&mut config).unwrap();
+        assert!(!config.import_enroll);
+        ImportExportArgs::try_parse_from(["test", "--import-enroll"])
+            .unwrap()
+            .merge_config(&mut config)
+            .unwrap();
+        assert!(config.import_enroll);
+        ImportExportArgs::try_parse_from(["test", "--import-enroll", "false"])
+            .unwrap()
+            .merge_config(&mut config)
+            .unwrap();
+        assert!(!config.import_enroll);
+    }
 
     fn write_config(contents: &str) -> (tempfile::TempDir, std::path::PathBuf) {
         let dir = tempfile::tempdir().expect("create temp dir");

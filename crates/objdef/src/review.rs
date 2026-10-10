@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Read-only objdef program review. Reports are data, never executable mutation plans.
+//! Objdef program review and guarded application. Reports are data, never executable mutation plans.
 //!
 //! Requests use schema 1, an `adopt` or `update` operation, explicit `objects`, a
 //! `fields` list containing only `program`, and optional `constants` and `details`.
@@ -160,6 +160,12 @@ pub fn classify(base: Option<&str>, live: &str, incoming: &str) -> &'static str 
 pub(crate) struct ProgramRow {
     pub id: String,
     pub eligible: bool,
+    pub object: moor_var::Obj,
+    pub uuid: uuid::Uuid,
+    pub incoming: ProgramType,
+    pub incoming_hash: String,
+    pub live_hash: String,
+    pub default: &'static str,
 }
 
 pub(crate) struct Analysis {
@@ -207,7 +213,12 @@ fn read_baseline(value: Option<Var>) -> Result<Option<String>, ReviewError> {
     let hash = required(&data, "program")?
         .as_string()
         .ok_or_else(|| ReviewError::Invalid("invalid baseline hash".into()))?;
-    if !hash.starts_with(&format!("{PROGRAM_SCHEMA}:")) || hash.len() != PROGRAM_SCHEMA.len() + 65 {
+    if !hash.starts_with(&format!("{PROGRAM_SCHEMA}:"))
+        || hash.len() != PROGRAM_SCHEMA.len() + 65
+        || !hash[PROGRAM_SCHEMA.len() + 1..]
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit())
+    {
         return Err("invalid baseline hash".to_string().into());
     }
     Ok(Some(hash.into()))
@@ -523,7 +534,16 @@ pub(crate) fn analyze(
                 output.push(("incoming_text", incoming_text));
             }
             report_rows.push(record(&output));
-            rows.push(ProgramRow { id, eligible });
+            rows.push(ProgramRow {
+                id,
+                eligible,
+                object,
+                uuid: definition.uuid(),
+                incoming: verb.program.clone(),
+                incoming_hash,
+                live_hash,
+                default,
+            });
         }
         // Structural fields remain outside this operation's managed policy.
         if !incoming.property_definitions.is_empty() || !incoming.property_overrides.is_empty() {
@@ -569,6 +589,17 @@ pub fn preview(
     choices: Option<&Var>,
 ) -> Result<Var, ReviewError> {
     let analysis = analyze(world, permissions, options, sources, request)?;
+    let validation = validate_choices(&analysis, options, choices)?;
+    let mut output = analysis.report.as_map().unwrap().iter().collect::<Vec<_>>();
+    output.push((v_str("validation"), v_list(&validation)));
+    Ok(v_map(&output))
+}
+
+fn validate_choices(
+    analysis: &Analysis,
+    options: &CompileOptions,
+    choices: Option<&Var>,
+) -> Result<Vec<Var>, ReviewError> {
     let mut validation = Vec::new();
     let mut draft_bytes = 0usize;
     if let Some(choices) = choices {
@@ -639,9 +670,188 @@ pub fn preview(
             }
         }
     }
-    let mut output = analysis.report.as_map().unwrap().iter().collect::<Vec<_>>();
-    output.push((v_str("validation"), v_list(&validation)));
-    Ok(v_map(&output))
+    Ok(validation)
+}
+
+/// Apply failures distinguish read-only rejection from a transaction that must be discarded.
+#[derive(Debug, thiserror::Error)]
+pub enum ApplyError {
+    #[error(transparent)]
+    Review(#[from] ReviewError),
+    /// A write may have occurred. Retry conflicts normally; abort other failures without committing.
+    #[error("objdef write failed: {0}")]
+    Mutation(WorldStateError),
+}
+
+struct ProgramAction {
+    object: moor_var::Obj,
+    uuid: uuid::Uuid,
+    program: Option<ProgramType>,
+    baseline: Var,
+}
+
+/// Apply reviewed programs and accepted hashes in the caller's current transaction.
+///
+/// Reparse input and revalidate the original evidence on every invocation, including retries.
+/// No source acquisition or task suspension occurs here. All choices and drafts are validated
+/// before writes start. The caller must discard the transaction on `ApplyError::Mutation`.
+/// Returned receipts contain hashes and decisions, never source or historical program bodies.
+pub fn apply(
+    world: &mut dyn WorldState,
+    permissions: &TaskPermissions,
+    options: &CompileOptions,
+    sources: &Var,
+    request: &Var,
+    evidence: &Var,
+    choices: &Var,
+) -> Result<Var, ApplyError> {
+    if !world
+        .flags_of(&permissions.principal())
+        .map_err(ReviewError::from)?
+        .contains(ObjFlag::Wizard)
+        && !permissions.can_call_builtin(Symbol::mk("apply_objdef_changes"))
+    {
+        return Err(ReviewError::World(WorldStateError::VerbPermissionDenied).into());
+    }
+    let analysis = analyze(world, permissions, options, sources, request)?;
+    let provided = fields(evidence, &["schema", "guard"])?;
+    if required(&provided, "schema")?.as_integer() != Some(1)
+        || digest(evidence).map_err(ReviewError::from)?
+            != digest(&analysis.evidence).map_err(ReviewError::from)?
+    {
+        return Err(ReviewError::Invalid(
+            "stale review evidence; inspect current state before applying".into(),
+        )
+        .into());
+    }
+    // Preview's choice decoder supplies the same strict eligibility and draft checks.
+    let validation = validate_choices(&analysis, options, Some(choices))?;
+    let choice_map = choices.as_map().unwrap();
+
+    let mut actions = Vec::new();
+    let mut decisions = Vec::new();
+    for row in analysis.rows {
+        let choice = choice_map
+            .iter()
+            .find(|(id, _)| id.as_string() == Some(row.id.as_str()))
+            .map(|(_, v)| v);
+        let fields = choice
+            .as_ref()
+            .map(|c| fields(c, &["choice", "program", "validation"]))
+            .transpose()?;
+        let kind = fields
+            .as_ref()
+            .and_then(|c| c.get("choice"))
+            .and_then(Var::as_string)
+            .unwrap_or(row.default);
+        if kind == "unresolved" {
+            return Err(
+                ReviewError::Invalid(format!("missing conflict choice: {}", row.id)).into(),
+            );
+        }
+        if kind == "defer" {
+            continue;
+        }
+        let program = if kind == "edited" {
+            let selected = fields.as_ref().unwrap();
+            let check = validation
+                .iter()
+                .find(|v| {
+                    v.as_map().unwrap().iter().any(|(k, v)| {
+                        k.as_string() == Some("id") && v.as_string() == Some(row.id.as_str())
+                    })
+                })
+                .unwrap();
+            let check = self::fields(
+                check,
+                &[
+                    "id",
+                    "valid",
+                    "fingerprint",
+                    "validation",
+                    "pane",
+                    "line",
+                    "column",
+                    "message",
+                ],
+            )?;
+            if !required(&check, "valid")?.is_true()
+                || selected.get("validation").and_then(Var::as_string)
+                    != check.get("validation").and_then(Var::as_string)
+            {
+                return Err(ReviewError::Invalid(
+                    "edited program needs successful validation for this exact review and draft"
+                        .into(),
+                )
+                .into());
+            }
+            let text = source_text(required(selected, "program")?)?;
+            Some(ProgramType::MooR(
+                compile(&text, options.clone()).map_err(|e| ReviewError::Invalid(e.to_string()))?,
+            ))
+        } else if kind == "incoming" && !analysis.adoption && row.live_hash != row.incoming_hash {
+            Some(row.incoming)
+        } else {
+            None
+        };
+        actions.push(ProgramAction {
+            object: row.object,
+            uuid: row.uuid,
+            program,
+            baseline: record(&[
+                ("schema", v_str(PROGRAM_SCHEMA)),
+                ("program", v_str(&row.incoming_hash)),
+            ]),
+        });
+        decisions.push(record(&[
+            ("id", v_str(&row.id)),
+            ("choice", v_str(kind)),
+            ("accepted", v_str(&row.incoming_hash)),
+        ]));
+    }
+    let receipt = record(&[
+        ("schema", v_int(1)),
+        ("evidence", analysis.evidence),
+        ("decisions", v_list(&decisions)),
+    ]);
+    write_actions(world, permissions, actions)?;
+    Ok(receipt)
+}
+
+fn write_actions(
+    world: &mut dyn WorldState,
+    permissions: &TaskPermissions,
+    actions: Vec<ProgramAction>,
+) -> Result<(), ApplyError> {
+    for action in actions {
+        if let Some(program) = action.program {
+            world
+                .update_verb_with_id(
+                    permissions,
+                    &action.object,
+                    action.uuid,
+                    moor_common::model::VerbAttrs {
+                        program: Some(program),
+                        definer: None,
+                        owner: None,
+                        names: None,
+                        flags: None,
+                        args_spec: None,
+                    },
+                )
+                .map_err(ApplyError::Mutation)?;
+        }
+        world
+            .set_verb_metadata(
+                permissions,
+                &action.object,
+                action.uuid,
+                Symbol::mk(BASE_KEY),
+                action.baseline,
+            )
+            .map_err(ApplyError::Mutation)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

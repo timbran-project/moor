@@ -11,7 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::task_context::{with_current_transaction, with_loader_interface};
+use crate::task_context::{
+    with_current_transaction, with_current_transaction_mut, with_loader_interface,
+};
 use crate::vm::builtins::BfRet::Ret;
 use crate::vm::builtins::{BfCallState, BfErr, BfRet, BuiltinFunction, world_state_bf_err};
 use moor_common::builtins::offset_for_builtin;
@@ -328,7 +330,49 @@ fn bf_preview_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     })
 }
 
+/// Usage: `map apply_objdef_changes(sources, request, evidence, choices)`
+/// Revalidate original review evidence and apply supported programs and baselines atomically.
+/// Permanent failures after the first write abort the whole task, even inside a MOO catch.
+fn bf_apply_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 4 {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("apply_objdef_changes() takes 4 arguments"),
+        ));
+    }
+    bf_args.require_wizard_or_builtin_call()?;
+    match with_current_transaction_mut(|world| {
+        moor_objdef::review::apply(
+            world,
+            &bf_args.task_permissions(),
+            &bf_args.config.compile_options(),
+            &bf_args.args[0],
+            &bf_args.args[1],
+            &bf_args.args[2],
+            &bf_args.args[3],
+        )
+    }) {
+        Ok(receipt) => Ok(Ret(receipt)),
+        Err(moor_objdef::review::ApplyError::Mutation(
+            moor_common::model::WorldStateError::RollbackRetry,
+        )) => Err(BfErr::Rollback),
+        Err(moor_objdef::review::ApplyError::Mutation(error)) => {
+            tracing::warn!(%error,"objdef apply failed; rolling back task");
+            Ok(BfRet::VmInstr(
+                crate::vm::vm_host::ExecutionResult::TaskRollback(false),
+            ))
+        }
+        Err(moor_objdef::review::ApplyError::Review(moor_objdef::review::ReviewError::World(
+            error,
+        ))) => Err(world_state_bf_err(error)),
+        Err(moor_objdef::review::ApplyError::Review(moor_objdef::review::ReviewError::Parse(
+            error,
+        ))) if error.is_retry() => Err(BfErr::Rollback),
+        Err(error) => Err(BfErr::ErrValue(E_INVARG.msg(error.to_string()))),
+    }
+}
+
 pub(crate) fn register_bf_obj_load(builtins: &mut [BuiltinFunction]) {
+    builtins[offset_for_builtin("apply_objdef_changes")] = bf_apply_objdef_changes;
     builtins[offset_for_builtin("preview_objdef_changes")] = bf_preview_objdef_changes;
     builtins[offset_for_builtin("dump_object")] = bf_dump_object;
     builtins[offset_for_builtin("load_object")] = bf_load_object;

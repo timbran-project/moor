@@ -122,6 +122,9 @@ pub struct ImportExportConfig {
     pub checkpoint_interval: Option<Duration>,
     /// Which format to use for import.
     pub import_format: ImportFormat,
+    /// Derive program baselines during a fresh objdef import. Existing databases are unaffected.
+    #[serde(default)]
+    pub import_enroll: bool,
 }
 
 // Use humantime to parse durations from strings

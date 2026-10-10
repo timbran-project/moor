@@ -850,6 +850,18 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_LIST), Typed(TYPE_MAP), Typed(TYPE_MAP)],
             true,
         ),
+        mk_builtin(
+            "apply_objdef_changes",
+            Q(4),
+            Q(4),
+            vec![
+                Typed(TYPE_LIST),
+                Typed(TYPE_MAP),
+                Typed(TYPE_MAP),
+                Typed(TYPE_MAP),
+            ],
+            true,
+        ),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "object load/dump");

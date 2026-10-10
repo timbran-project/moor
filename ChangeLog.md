@@ -45,6 +45,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Add `apply_objdef_changes()` for guarded program updates and metadata-only adoption. Apply checks
+  original review evidence and validated drafts before writing programs and baselines together.
+  Optional `--import-enroll` derives baselines during a fresh objdef import.
+
 - Add `preview_objdef_changes()` for read-only program comparison and edited-draft validation.
   Reports include field fingerprints, target identity guards, and per-row eligibility.
 

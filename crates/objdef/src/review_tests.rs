@@ -306,3 +306,368 @@ fn forged_identity_and_unknown_schema_block_automatic_update() {
     let report = inspect(world.as_ref(), SOURCE, "adopt", None);
     assert!(get(&row(&report), "eligible").is_true());
 }
+
+fn apply_report(
+    world: &mut dyn WorldState,
+    source: &str,
+    operation: &str,
+    report: &Var,
+    choices: &Var,
+) -> Result<Var, ApplyError> {
+    apply(
+        world,
+        &permissions(),
+        &CompileOptions::default(),
+        &sources(source),
+        &request(operation),
+        &get(report, "evidence"),
+        choices,
+    )
+}
+
+fn live_program(world: &dyn WorldState) -> ProgramType {
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    world
+        .retrieve_verb(&permissions(), &ROOT, definition.uuid())
+        .unwrap()
+        .0
+}
+
+#[test]
+fn adoption_keep_local_and_repeat_preserve_live_program() {
+    let db = database();
+    let mut world = db.new_world_state().unwrap();
+    let original = program_fingerprint(&live_program(world.as_ref())).unwrap();
+    let report = inspect(world.as_ref(), SOURCE, "adopt", None);
+    apply_report(world.as_mut(), SOURCE, "adopt", &report, &v_map(&[])).unwrap();
+    assert_eq!(
+        program_fingerprint(&live_program(world.as_ref())).unwrap(),
+        original
+    );
+    world.commit().unwrap();
+
+    let incoming = SOURCE.replace("Base", "Upstream");
+    let mut world = db.new_world_state().unwrap();
+    let report = inspect(world.as_ref(), &incoming, "update", None);
+    assert_eq!(get(&row(&report), "classification"), v_str("upstream"));
+    let choice = v_map(&[(
+        get(&row(&report), "id"),
+        record(&[("choice", v_str("local"))]),
+    )]);
+    apply_report(world.as_mut(), &incoming, "update", &report, &choice).unwrap();
+    world.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    assert_eq!(
+        program_fingerprint(&live_program(world.as_ref())).unwrap(),
+        original
+    );
+    let report = inspect(world.as_ref(), &incoming, "update", None);
+    assert_eq!(get(&row(&report), "classification"), v_str("local"));
+    apply_report(world.as_mut(), &incoming, "update", &report, &v_map(&[])).unwrap();
+    assert!(matches!(
+        world.commit().unwrap(),
+        CommitResult::Success {
+            mutations_made: false,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn edited_choice_installs_result_but_accepts_incoming() {
+    let db = database();
+    let mut world = db.new_world_state().unwrap();
+    stamp(world.as_mut());
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    world
+        .set_verb_metadata(
+            &permissions(),
+            &ROOT,
+            definition.uuid(),
+            Symbol::mk("unmanaged"),
+            v_str("keep"),
+        )
+        .unwrap();
+    let incoming = SOURCE.replace("Base", "Upstream");
+    let report = inspect(world.as_ref(), &incoming, "update", None);
+    let id = get(&row(&report), "id");
+    let draft = record(&[
+        ("choice", v_str("edited")),
+        ("program", v_str("return \"Result\";")),
+    ]);
+    assert!(
+        apply_report(
+            world.as_mut(),
+            &incoming,
+            "update",
+            &report,
+            &v_map(&[(id.clone(), draft.clone())])
+        )
+        .is_err()
+    );
+    let validation = inspect(
+        world.as_ref(),
+        &incoming,
+        "update",
+        Some(&v_map(&[(id.clone(), draft)])),
+    );
+    let validation = get(&validation, "validation")
+        .as_list()
+        .unwrap()
+        .iter()
+        .next()
+        .unwrap();
+    let token = get(&validation, "validation");
+    let choice = |source| {
+        v_map(&[(
+            id.clone(),
+            record(&[
+                ("choice", v_str("edited")),
+                ("program", v_str(source)),
+                ("validation", token.clone()),
+            ]),
+        )])
+    };
+    assert!(
+        apply_report(
+            world.as_mut(),
+            &incoming,
+            "update",
+            &report,
+            &choice("return \"Changed\";")
+        )
+        .is_err()
+    );
+    apply_report(
+        world.as_mut(),
+        &incoming,
+        "update",
+        &report,
+        &choice("return \"Result\";"),
+    )
+    .unwrap();
+    let updated = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    assert_eq!(updated.uuid(), definition.uuid());
+    assert_eq!(updated.names(), definition.names());
+    assert_eq!(updated.flags(), definition.flags());
+    assert_eq!(updated.owner(), definition.owner());
+    assert_eq!(
+        world
+            .get_verb_metadata(
+                &permissions(),
+                &ROOT,
+                updated.uuid(),
+                Symbol::mk("unmanaged")
+            )
+            .unwrap(),
+        Some(v_str("keep"))
+    );
+    let next = inspect(world.as_ref(), &incoming, "update", None);
+    assert_eq!(get(&row(&next), "classification"), v_str("local"));
+    assert_eq!(get(&row(&next), "base"), get(&row(&report), "incoming"));
+    assert_eq!(
+        program_text(&live_program(world.as_ref())).unwrap(),
+        v_str("return \"Result\";")
+    );
+    world.commit().unwrap();
+}
+
+#[test]
+fn stale_evidence_and_unresolved_conflicts_write_nothing() {
+    let db = database();
+    let mut world = db.new_world_state().unwrap();
+    stamp(world.as_mut());
+    world.commit().unwrap();
+    let world = db.new_world_state().unwrap();
+    let source = SOURCE.replace("Base", "First");
+    let report = inspect(world.as_ref(), &source, "update", None);
+    world.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    assert!(
+        apply_report(
+            world.as_mut(),
+            &SOURCE.replace("Base", "Other"),
+            "update",
+            &report,
+            &v_map(&[])
+        )
+        .is_err()
+    );
+    assert!(matches!(
+        world.commit().unwrap(),
+        CommitResult::Success {
+            mutations_made: false,
+            ..
+        }
+    ));
+    let mut world = db.new_world_state().unwrap();
+    apply_report(world.as_mut(), &source, "update", &report, &v_map(&[])).unwrap();
+    world.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    assert!(apply_report(world.as_mut(), &source, "update", &report, &v_map(&[])).is_err());
+    // Establish an older baseline to model an independent local edit.
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    world
+        .set_verb_metadata(
+            &permissions(),
+            &ROOT,
+            definition.uuid(),
+            Symbol::mk(BASE_KEY),
+            record(&[
+                ("schema", v_str(PROGRAM_SCHEMA)),
+                ("program", get(&row(&report), "base")),
+            ]),
+        )
+        .unwrap();
+    world.commit().unwrap();
+    let source = SOURCE.replace("Base", "Second");
+    let mut world = db.new_world_state().unwrap();
+    let report = inspect(world.as_ref(), &source, "update", None);
+    assert_eq!(get(&row(&report), "classification"), v_str("conflict"));
+    assert!(apply_report(world.as_mut(), &source, "update", &report, &v_map(&[])).is_err());
+    let choice = v_map(&[(
+        get(&row(&report), "id"),
+        record(&[("choice", v_str("defer"))]),
+    )]);
+    apply_report(world.as_mut(), &source, "update", &report, &choice).unwrap();
+    assert!(matches!(
+        world.commit().unwrap(),
+        CommitResult::Success {
+            mutations_made: false,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn late_writer_failure_requires_rollback_of_program_and_baseline() {
+    let db = database();
+    let mut world = db.new_world_state().unwrap();
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    let original = program_fingerprint(&live_program(world.as_ref())).unwrap();
+    let actions = vec![
+        ProgramAction {
+            object: ROOT,
+            uuid: definition.uuid(),
+            program: Some(ProgramType::MooR(
+                compile("return 9;", CompileOptions::default()).unwrap(),
+            )),
+            baseline: record(&[
+                ("schema", v_str(PROGRAM_SCHEMA)),
+                ("program", v_str("injected")),
+            ]),
+        },
+        ProgramAction {
+            object: ROOT,
+            uuid: uuid::Uuid::nil(),
+            program: None,
+            baseline: v_int(0),
+        },
+    ];
+    assert!(matches!(
+        write_actions(world.as_mut(), &permissions(), actions),
+        Err(ApplyError::Mutation(_))
+    ));
+    world.rollback().unwrap();
+    let world = db.new_world_state().unwrap();
+    assert_eq!(
+        program_fingerprint(&live_program(world.as_ref())).unwrap(),
+        original
+    );
+    assert_eq!(
+        world
+            .get_verb_metadata(
+                &permissions(),
+                &ROOT,
+                definition.uuid(),
+                Symbol::mk(BASE_KEY)
+            )
+            .unwrap(),
+        None
+    );
+}
+
+#[test]
+fn bootstrap_derives_baselines_in_import_transaction() {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("root.moo"), SOURCE).unwrap();
+    let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = db.loader_client().unwrap();
+    let mut import = ObjectDefinitionLoader::new(loader.as_mut());
+    import
+        .load_objdef_directory(
+            CompileOptions::default(),
+            directory.path(),
+            Default::default(),
+        )
+        .unwrap();
+    import.enroll_imported_programs().unwrap();
+    loader.commit().unwrap();
+    let world = db.new_world_state().unwrap();
+    assert_eq!(
+        get(
+            &row(&inspect(world.as_ref(), SOURCE, "update", None)),
+            "classification"
+        ),
+        v_str("unchanged")
+    );
+}
+
+#[test]
+fn baseline_survives_process_restart() {
+    if let Ok(path) = std::env::var("MOOR_REVIEW_RESTART_DB") {
+        let db = TxDB::try_open(Some(std::path::Path::new(&path)), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        if std::env::var("MOOR_REVIEW_RESTART_PHASE").unwrap() == "enroll" {
+            let mut loader = db.loader_client().unwrap();
+            ObjectDefinitionLoader::new(loader.as_mut())
+                .load_single_object(SOURCE, Default::default(), Default::default())
+                .unwrap();
+            loader.commit().unwrap();
+            let mut world = db.new_world_state().unwrap();
+            let report = inspect(world.as_ref(), SOURCE, "adopt", None);
+            apply_report(world.as_mut(), SOURCE, "adopt", &report, &v_map(&[])).unwrap();
+            world.commit().unwrap();
+            db.wait_for_persistence().unwrap();
+        } else {
+            let world = db.new_world_state().unwrap();
+            assert_eq!(
+                get(
+                    &row(&inspect(world.as_ref(), SOURCE, "update", None)),
+                    "classification"
+                ),
+                v_str("unchanged")
+            );
+        }
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    for phase in ["enroll", "verify"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "review::tests::baseline_survives_process_restart",
+                "--exact",
+            ])
+            .env("MOOR_REVIEW_RESTART_DB", directory.path())
+            .env("MOOR_REVIEW_RESTART_PHASE", phase)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+}

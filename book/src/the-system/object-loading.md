@@ -169,3 +169,30 @@ sort by folded name. Captured lambda values and non-finite floats are unsupporte
 These rules describe content equality, not behavioral equivalence. A hash cannot recover old source.
 Unknown baseline schemas block updates until explicit re-adoption. Automatic eligibility requires
 administrator-owned objects and verbs whose content and metadata are not publicly writable.
+
+## Apply a reviewed decision
+
+```moo
+receipt = apply_objdef_changes(sources, request, report["evidence"], choices);
+```
+
+Apply reparses the saved input and compares current state with the original evidence. A stale review
+fails before writing. A transaction retry must use that same evidence. Evidence grants no authority.
+
+Missing choices use each row's default. Conflicts require an explicit choice. Unknown rows and
+unsupported choices fail. For `edited`, include the exact draft and its successful preview token:
+
+```moo
+choices[row_id] = ["choice" -> "edited", "program" -> draft,
+                   "validation" -> validation["validation"]];
+```
+
+Adoption writes source-derived baselines without changing programs. An incoming choice installs the
+incoming program. Local preserves the live program; edited installs the validated draft. All three
+record incoming as the accepted baseline. Defer writes nothing.
+
+Program writes preserve definition UUIDs, aliases, owners, flags, lookup order, and ordinary
+metadata. The receipt contains decisions and hashes, without historical source. It remains
+uncommitted until the calling task commits. If a write fails, the whole task rolls back. Core
+applications must save their completion record in that same transaction and abort if that
+bookkeeping fails.

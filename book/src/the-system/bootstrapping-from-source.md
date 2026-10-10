@@ -146,3 +146,13 @@ later server starts.
   server options.
 - [Emergency Medical Hologram Tool](moor-emh-tool.md) can load or reload objdef files while the
   regular server is stopped.
+
+## Enroll imported programs
+
+For a new objdef database, `--import-enroll` derives accepted program fingerprints in the import
+transaction. It is optional and defaults to false. Both `moor` and `moor-daemon` accept the flag;
+the configuration setting is `import_export.import_enroll`.
+
+Enrollment derives hashes from compiled source. Imported tracking metadata does not substitute for
+that calculation. The flag requires objdef format and does not re-enroll an existing database. Use
+an explicit reviewed adoption for an existing installation.
