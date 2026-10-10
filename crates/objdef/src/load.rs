@@ -26,17 +26,13 @@
 #[cfg(test)]
 use crate::set::compile_normalized_object_definitions;
 use crate::{ObjDefSet, ObjDefSource, ObjdefLoaderError};
-use moor_common::{
-    model::{
-        HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
-        WorldStateError, loader::LoaderInterface,
-    },
-    util::BitEnum,
+use moor_common::model::{
+    HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, ValSet, WorldStateError, loader::LoaderInterface,
 };
 #[cfg(test)]
 use moor_compiler::ObjFileContext;
 use moor_compiler::{CompileOptions, ObjectDefinition};
-use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
+use moor_var::{NOTHING, Obj, Symbol, Var};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -61,110 +57,114 @@ pub enum Constants {
 ///
 /// The loader is stateful for one import operation. It stores the parsed object definitions,
 /// creates placeholder objects first, and then applies the remaining object state in phases so
-/// parent/location/owner references can resolve across the incoming set. Conflict records are
-/// accumulated as each phase compares incoming state with existing database state.
+/// parent/location/owner references can resolve across the incoming set. Direct imports apply
+/// supplied values; reviewed program updates use the separate comparison and review APIs.
 pub struct ObjectDefinitionLoader<'a> {
     object_definitions: HashMap<Obj, (String, ObjectDefinition)>,
     parsed_constants: HashMap<Symbol, Var>,
     loader: &'a mut dyn LoaderInterface,
-    // Track conflicts as we go
-    conflicts: Vec<(Obj, ConflictEntity)>,
+    restore_tracking: bool,
     mutation_started: bool,
 }
 
-/// How to handle an existing database entity that differs from the incoming objdef.
-///
-/// Conflicts can arise from object flags, parent/location/owner attributes, defined properties,
-/// property overrides, verb definitions, or verb programs.
-#[derive(Debug, Clone, Copy)]
-pub enum ConflictMode {
-    /// Indiscriminately overwrite the existing entity with the new value.
-    Clobber,
-    /// Skip all conflicts entirely and only add new verbs and properties that do not conflict.
-    Skip,
-}
-
-/// Entity classes that can be selectively overridden during conflict handling.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Entity {
-    ObjectFlags,
-    BuiltinProps,
-    Parentage,
-    PropertyDef(Symbol),
-    PropertyValue(Symbol),
-    PropertyFlag(Symbol),
-    VerbDef(Vec<Symbol>),
-    VerbProgram(Vec<Symbol>),
-}
-
 /// Options controlling objdef apply behavior.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ObjDefLoaderOptions {
-    /// Parse and collect conflicts against current state without allocating objects or writing.
-    /// Mutation-time validation, including parent changes, is performed only by a real load.
-    pub dry_run: bool,
-    /// How to handle conflicts.
-    pub conflict_mode: ConflictMode,
     /// How to allocate the object ID. If None, uses the ID from the objdef file (default).
     /// Can be NextObjid (0), Anonymous (1), UuObjId (2), or Objid(#123) for a specific ID.
     pub object_kind: Option<ObjectKind>,
     /// Optional constants for compilation (either as a map or as file content to parse)
     pub constants: Option<Constants>,
-    /// The set of entities for which we will allow overriding and treat as if their specific
-    /// ConflictMode was "Clobber"
-    pub overrides: Vec<(Obj, Entity)>,
     /// If true, validate parent changes for cycles, invalid parents, and descendant property conflicts.
     /// Should be true for individual load_object() calls, false for bulk operations (textdump, objdef directory import).
     pub validate_parent_changes: bool,
 }
 
-impl Default for ObjDefLoaderOptions {
-    fn default() -> Self {
-        Self {
-            dry_run: false,
-            conflict_mode: ConflictMode::Clobber,
-            object_kind: None,
-            constants: None,
-            overrides: vec![],
-            validate_parent_changes: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ConflictEntity {
-    ObjectFlags(BitEnum<ObjFlag>),
-    BuiltinProps(Symbol, Var),
-    Parentage(Obj),
-    PropertyDef(Symbol, PropDef),
-    PropertyValue(Symbol, Var),
-    PropertyFlag(Symbol, BitEnum<PropFlag>),
-    VerbDef(Vec<Symbol>, VerbDef),
-    VerbProgram(Vec<Symbol>, ProgramType),
-}
-
 /// Result summary from directory, single-object, or reload apply.
 ///
-/// Conflict entries identify the object and incoming entity that differed from existing state.
+/// These counts describe applied source declarations. The caller still owns the transaction
+/// and must commit it before reporting the import as durable.
 #[derive(Debug)]
 pub struct ObjDefLoaderResults {
-    /// Whether the load applied changes. Dry runs leave the transaction unchanged, so callers may
-    /// still commit unrelated work when this is false.
+    /// Whether the operation applied changes that require committing the transaction.
     pub commit: bool,
-    /// The set of conflicts discovered during loading, and handled using ConflictMode above
-    pub conflicts: Vec<(Obj, ConflictEntity)>,
-    /// Loaded objects, or requested targets in dry-run mode. A dry run with an allocating
-    /// `ObjectKind` reports `NOTHING` because no object ID has been allocated.
+    /// Object IDs affected by the import, including any newly allocated IDs.
     pub loaded_objects: Vec<Obj>,
+    /// Number of verb declarations applied.
     pub num_loaded_verbs: usize,
+    /// Number of local property definitions applied.
     pub num_loaded_property_definitions: usize,
+    /// Number of property overrides applied.
     pub num_loaded_property_overrides: usize,
 }
-
-enum AttributeKind {
-    Parent,
-    Location,
-    Owner,
+/// A target override changes the declaration address, not embedded object references.
+/// Reject self-references that would require a clone/remapping protocol.
+fn validate_relocation(
+    def: &ObjectDefinition,
+    target: Option<Obj>,
+) -> Result<(), ObjdefLoaderError> {
+    if target == Some(def.oid) {
+        return Ok(());
+    }
+    fn contains(value: &Var, object: Obj) -> bool {
+        match value.variant() {
+            moor_var::Variant::Obj(o) => o == object,
+            moor_var::Variant::List(l) => l.iter().any(|v| contains(&v, object)),
+            moor_var::Variant::Map(m) => m
+                .iter()
+                .any(|(k, v)| contains(&k, object) || contains(&v, object)),
+            moor_var::Variant::Flyweight(f) => {
+                *f.delegate() == object
+                    || f.slots().iter().any(|(_, v)| contains(v, object))
+                    || f.contents().iter().any(|v| contains(&v, object))
+            }
+            moor_var::Variant::Err(e) => e.value().is_some_and(|v| contains(v, object)),
+            _ => false,
+        }
+    }
+    let metadata = |entries: &[(Symbol, Var)]| {
+        entries
+            .iter()
+            .any(|(k, v)| *k != Symbol::mk(crate::review::BASE_KEY) && contains(v, def.oid))
+    };
+    let mut references =
+        [def.parent, def.owner, def.location].contains(&def.oid) || metadata(&def.metadata);
+    for property in &def.property_definitions {
+        references |= property.perms.owner() == def.oid
+            || property
+                .value
+                .as_ref()
+                .is_some_and(|v| contains(v, def.oid))
+            || metadata(&property.metadata);
+    }
+    for property in &def.property_overrides {
+        references |= property
+            .perms_update
+            .as_ref()
+            .is_some_and(|p| p.owner() == def.oid)
+            || property
+                .value
+                .as_ref()
+                .is_some_and(|v| contains(v, def.oid))
+            || metadata(&property.metadata);
+    }
+    for verb in &def.verbs {
+        let moor_var::program::ProgramType::MooR(program) = &verb.program;
+        let tree = moor_compiler::program_to_tree(program)
+            .map_err(|e| ObjdefLoaderError::InvalidRelocation(e.to_string()))?;
+        let (_, literals) = moor_compiler::unparse_for_comparison(&tree)
+            .map_err(|e| ObjdefLoaderError::InvalidRelocation(e.to_string()))?;
+        references |= verb.owner == def.oid
+            || metadata(&verb.metadata)
+            || literals.iter().any(|v| contains(v, def.oid));
+    }
+    if references {
+        return Err(ObjdefLoaderError::InvalidRelocation(
+            "source contains self-references; bind them explicitly before selecting another target"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 impl<'a> ObjectDefinitionLoader<'a> {
@@ -174,7 +174,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
             object_definitions: HashMap::new(),
             parsed_constants: HashMap::new(),
             loader,
-            conflicts: Vec::new(),
+            restore_tracking: false,
             mutation_started: false,
         }
     }
@@ -201,86 +201,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
             .map(|(_, d)| d.property_overrides.len())
             .sum();
         (verbs, property_defs, property_overrides)
-    }
-
-    /// Check if an entity should be overridden regardless of conflict mode
-    fn should_override(&self, obj: &Obj, entity: &Entity, options: &ObjDefLoaderOptions) -> bool {
-        options.overrides.contains(&(*obj, entity.clone()))
-    }
-
-    /// Determine the effective conflict mode for a given entity
-    fn effective_conflict_mode(
-        &self,
-        obj: &Obj,
-        entity: &Entity,
-        options: &ObjDefLoaderOptions,
-    ) -> ConflictMode {
-        if self.should_override(obj, entity, options) {
-            ConflictMode::Clobber
-        } else {
-            options.conflict_mode
-        }
-    }
-
-    /// Check if we should proceed with an operation based on conflict detection
-    /// Returns (should_proceed, conflict_option)
-    fn check_conflict<T: Clone + PartialEq>(
-        &self,
-        obj: &Obj,
-        entity: Entity,
-        current_value: Option<T>,
-        new_value: &T,
-        conflict_entity_fn: impl FnOnce(T) -> ConflictEntity,
-        options: &ObjDefLoaderOptions,
-    ) -> (bool, Option<(Obj, ConflictEntity)>) {
-        // If there's no current value, no conflict
-        let Some(current) = current_value else {
-            return (true, None);
-        };
-
-        // If values are the same, no conflict
-        if &current == new_value {
-            return (true, None);
-        }
-
-        // We have a conflict - create conflict record
-        let conflict = conflict_entity_fn(current.clone());
-        let conflict_record = (*obj, conflict);
-
-        // Determine how to handle the conflict
-        let should_proceed = match self.effective_conflict_mode(obj, &entity, options) {
-            ConflictMode::Clobber => true, // Proceed with overwrite
-            ConflictMode::Skip => false,   // Skip this operation
-        };
-
-        (should_proceed, Some(conflict_record))
-    }
-
-    /// Compare an explicit assignment or clear clause with the current local value.
-    /// Preserve the existing policy that a clear local value has no value conflict.
-    fn check_property_value_conflict(
-        &self,
-        obj: &Obj,
-        name: Symbol,
-        current: Option<Var>,
-        incoming: &Option<Var>,
-        clear_value: bool,
-        options: &ObjDefLoaderOptions,
-    ) -> (bool, Option<(Obj, ConflictEntity)>) {
-        if incoming.is_none() && !clear_value {
-            return (true, None);
-        }
-        let Some(current) = current else {
-            return (true, None);
-        };
-        self.check_conflict(
-            obj,
-            Entity::PropertyValue(name),
-            Some(Some(current.clone())),
-            incoming,
-            |_| ConflictEntity::PropertyValue(name, current),
-            options,
-        )
     }
 
     /// Recursively collect all .moo files in a directory tree
@@ -322,6 +242,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         options: ObjDefLoaderOptions,
     ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
         let compilation_started_at = Instant::now();
+        self.restore_tracking = true;
         // Check that the directory exists
         if !dirpath.exists() {
             return Err(ObjdefLoaderError::DirectoryNotFound(dirpath.to_path_buf()));
@@ -393,13 +314,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.define_verbs(&options)?;
 
         // Create import_export_id metadata from constants when the input has no explicit IDs.
-        if !options.dry_run {
-            self.create_import_export_ids_if_needed()?;
-        }
+        self.create_import_export_ids_if_needed()?;
 
         Ok(ObjDefLoaderResults {
-            commit: !options.dry_run,
-            conflicts: self.conflicts.clone(),
+            commit: true,
             loaded_objects: self.object_definitions.keys().cloned().collect(),
             num_loaded_verbs,
             num_loaded_property_definitions,
@@ -443,13 +361,11 @@ impl<'a> ObjectDefinitionLoader<'a> {
     fn stage_objdef_set(
         &mut self,
         objdef_set: ObjDefSet,
-        options: &ObjDefLoaderOptions,
+        _options: &ObjDefLoaderOptions,
     ) -> Result<(), ObjdefLoaderError> {
         let (object_definitions, constants) = objdef_set.into_parts();
         self.object_definitions = object_definitions;
-        if !options.dry_run {
-            self.create_placeholder_objects()?;
-        }
+        self.create_placeholder_objects()?;
         self.parsed_constants = constants;
         Ok(())
     }
@@ -472,606 +388,229 @@ impl<'a> ObjectDefinitionLoader<'a> {
         Ok(())
     }
 
+    /// Apply object attributes after all referenced objects have been allocated.
     pub fn apply_attributes(
         &mut self,
         options: &ObjDefLoaderOptions,
     ) -> Result<(), ObjdefLoaderError> {
-        // First phase: collect all conflicts
-        let mut attribute_actions: Vec<(Obj, AttributeKind, Obj, String)> = Vec::new();
-
         for (obj, (path, def)) in &self.object_definitions {
-            // Check if object already exists
-            let existing_attrs = self
-                .loader
-                .get_existing_object(obj)
-                .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
-
-            if let Some(existing) = existing_attrs {
-                // Check parent conflict (always check if existing parent differs)
-                if existing.parent() != Some(def.parent) {
-                    let (should_proceed, conflict) = self.check_conflict(
-                        obj,
-                        Entity::Parentage,
-                        existing.parent(),
-                        &def.parent,
-                        ConflictEntity::Parentage,
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    if should_proceed {
-                        attribute_actions.push((
-                            *obj,
-                            AttributeKind::Parent,
-                            def.parent,
-                            path.clone(),
-                        ));
-                    }
-                }
-
-                // Check location conflict
-                if def.location != NOTHING {
-                    let (should_proceed, conflict) = self.check_conflict(
-                        obj,
-                        Entity::BuiltinProps,
-                        existing.location(),
-                        &def.location,
-                        |current| {
-                            ConflictEntity::BuiltinProps(
-                                Symbol::mk("location"),
-                                moor_var::v_obj(current),
-                            )
-                        },
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    if should_proceed {
-                        attribute_actions.push((
-                            *obj,
-                            AttributeKind::Location,
-                            def.location,
-                            path.clone(),
-                        ));
-                    }
-                }
-
-                // Check owner conflict
-                if def.owner != NOTHING {
-                    let (should_proceed, conflict) = self.check_conflict(
-                        obj,
-                        Entity::BuiltinProps,
-                        existing.owner(),
-                        &def.owner,
-                        |current| {
-                            ConflictEntity::BuiltinProps(
-                                Symbol::mk("owner"),
-                                moor_var::v_obj(current),
-                            )
-                        },
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    if should_proceed {
-                        attribute_actions.push((
-                            *obj,
-                            AttributeKind::Owner,
-                            def.owner,
-                            path.clone(),
-                        ));
-                    }
-                }
-
-                // Check flags conflict
-                let (should_proceed, conflict) = self.check_conflict(
-                    obj,
-                    Entity::ObjectFlags,
-                    Some(existing.flags()),
-                    &def.flags,
-                    ConflictEntity::ObjectFlags,
-                    options,
-                );
-                if let Some(conflict) = conflict {
-                    self.conflicts.push(conflict);
-                }
-                if options.dry_run {
-                    continue;
-                }
-                if should_proceed {
-                    self.loader
-                        .update_object_flags(obj, def.flags)
-                        .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
-                } else {
-                    // In Skip mode, restore the original flags (since object was created with empty flags)
-                    self.loader
-                        .update_object_flags(obj, existing.flags())
-                        .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
-                }
-            } else {
-                // Object doesn't exist yet, add all non-nothing attributes
-                if def.parent != NOTHING {
-                    attribute_actions.push((*obj, AttributeKind::Parent, def.parent, path.clone()));
-                }
-                if def.location != NOTHING {
-                    attribute_actions.push((
-                        *obj,
-                        AttributeKind::Location,
-                        def.location,
-                        path.clone(),
-                    ));
-                }
-                if def.owner != NOTHING {
-                    attribute_actions.push((*obj, AttributeKind::Owner, def.owner, path.clone()));
-                }
-            }
-        }
-
-        if options.dry_run {
-            return Ok(());
-        }
-
-        // Second phase: apply all the actions
-        for (obj, kind, value, path) in attribute_actions {
-            match kind {
-                AttributeKind::Parent => {
-                    self.loader
-                        .set_object_parent(&obj, &value, options.validate_parent_changes)
-                        .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
-                }
-                AttributeKind::Location => {
-                    self.loader.set_object_location(&obj, &value).map_err(|e| {
-                        ObjdefLoaderError::CouldNotSetObjectLocation(path.clone(), e)
-                    })?;
-                }
-                AttributeKind::Owner => {
-                    self.loader
-                        .set_object_owner(&obj, &value)
-                        .map_err(|e| ObjdefLoaderError::CouldNotSetObjectOwner(path.clone(), e))?;
-                }
-            }
+            let error = |e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e);
+            self.loader
+                .set_object_name(obj, def.name.clone())
+                .map_err(error)?;
+            self.loader
+                .set_object_parent(obj, &def.parent, options.validate_parent_changes)
+                .map_err(error)?;
+            self.loader
+                .set_object_location(obj, &def.location)
+                .map_err(|e| ObjdefLoaderError::CouldNotSetObjectLocation(path.clone(), e))?;
+            self.loader
+                .set_object_owner(obj, &def.owner)
+                .map_err(|e| ObjdefLoaderError::CouldNotSetObjectOwner(path.clone(), e))?;
+            self.loader
+                .update_object_flags(obj, def.flags)
+                .map_err(error)?;
         }
         Ok(())
     }
 
     fn apply_object_metadata(
         &mut self,
-        options: &ObjDefLoaderOptions,
+        _options: &ObjDefLoaderOptions,
     ) -> Result<(), ObjdefLoaderError> {
-        if options.dry_run {
-            return Ok(());
-        }
-
         for (obj, (path, def)) in &self.object_definitions {
             for (key, value) in &def.metadata {
+                if !self.restore_tracking && *key == Symbol::mk(crate::review::BASE_KEY) {
+                    continue;
+                }
                 self.loader
                     .set_object_metadata(obj, *key, value.clone())
-                    .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(path.clone(), e))?;
+                    .map_err(|e| {
+                        ObjdefLoaderError::CouldNotSetObjectMetadata(
+                            path.clone(),
+                            *obj,
+                            key.to_string(),
+                            e,
+                        )
+                    })?;
             }
         }
         Ok(())
     }
 
-    pub fn define_verbs(&mut self, options: &ObjDefLoaderOptions) -> Result<(), ObjdefLoaderError> {
-        // First phase: collect conflicts and determine actions
-        let mut verb_actions = Vec::new();
-
+    /// Merge exact verb declarations. Preserve matching UUIDs and append new declarations in order.
+    /// An overlapping alias alone does not identify the same declaration.
+    pub fn define_verbs(
+        &mut self,
+        _options: &ObjDefLoaderOptions,
+    ) -> Result<(), ObjdefLoaderError> {
         for (obj, (path, def)) in &self.object_definitions {
-            for v in &def.verbs {
-                // Check if verb already exists
-                let existing_verb = self
-                    .loader
-                    .get_existing_verb_by_names(obj, &v.names)
-                    .map_err(|wse| {
-                        ObjdefLoaderError::CouldNotDefineVerb(
-                            path.clone(),
-                            *obj,
-                            v.names.clone(),
-                            wse,
-                        )
-                    })?;
-
-                if let Some((existing_uuid, existing_verbdef)) = existing_verb {
-                    // Verb exists - check for conflicts in both metadata and program
-                    // Create a comparable VerbDef for metadata comparison
-                    let new_verbdef = VerbDef::new(
-                        existing_uuid, // Use existing UUID for fair comparison
-                        *obj,          // location
-                        v.owner,       // owner
-                        &v.names,      // names
-                        v.flags,       // flags
-                        v.argspec,     // args
-                    );
-
-                    // Check for metadata conflicts
-                    let (should_proceed_metadata, conflict_metadata) = self.check_conflict(
-                        obj,
-                        Entity::VerbDef(v.names.clone()),
-                        Some(existing_verbdef.clone()),
-                        &new_verbdef,
-                        |current| ConflictEntity::VerbDef(v.names.clone(), current),
-                        options,
-                    );
-
-                    // Also check if the program changed
-                    let existing_program = self
-                        .loader
-                        .get_verb_program(obj, existing_uuid)
-                        .map_err(|wse| {
-                            ObjdefLoaderError::CouldNotDefineVerb(
-                                path.clone(),
-                                *obj,
-                                v.names.clone(),
-                                wse,
-                            )
-                        })?;
-
-                    let program_changed = existing_program != v.program;
-
-                    // Determine final conflict and proceed status
-                    let mut should_proceed = should_proceed_metadata;
-                    if let Some(conflict) = conflict_metadata {
-                        self.conflicts.push(conflict);
-                    } else if program_changed {
-                        // Metadata matches but program differs - still a conflict
-                        let conflict =
-                            ConflictEntity::VerbDef(v.names.clone(), existing_verbdef.clone());
-                        self.conflicts.push((*obj, conflict));
-
-                        // Apply conflict mode to program-only changes
-                        should_proceed = match self.effective_conflict_mode(
+            let mut seen = std::collections::HashSet::new();
+            for verb in &def.verbs {
+                let error = |e| {
+                    ObjdefLoaderError::CouldNotDefineVerb(path.clone(), *obj, verb.names.clone(), e)
+                };
+                if !seen.insert((verb.names.clone(), verb.argspec)) {
+                    return Err(error(WorldStateError::DatabaseError(
+                        "duplicate verb declaration".into(),
+                    )));
+                }
+                let existing = self.loader.get_existing_verbs(obj).map_err(error)?;
+                let matches = existing
+                    .iter()
+                    .filter(|d| d.names() == verb.names && d.args() == verb.argspec)
+                    .collect::<Vec<_>>();
+                if matches.len() > 1 {
+                    return Err(error(WorldStateError::DatabaseError(
+                        "ambiguous verb declaration".into(),
+                    )));
+                }
+                let uuid = if let Some(existing) = matches.first() {
+                    self.loader
+                        .update_verb(
                             obj,
-                            &Entity::VerbDef(v.names.clone()),
-                            options,
-                        ) {
-                            ConflictMode::Clobber => true,
-                            ConflictMode::Skip => false,
-                        };
-                    }
-
-                    if should_proceed && !options.dry_run {
-                        // Use update_verb for existing verbs in Clobber mode
-                        self.loader
-                            .update_verb(
-                                obj,
-                                existing_uuid,
-                                &v.names,
-                                &v.owner,
-                                v.flags,
-                                v.argspec,
-                                v.program.clone(),
-                            )
-                            .map_err(|wse| {
-                                ObjdefLoaderError::CouldNotDefineVerb(
-                                    path.clone(),
-                                    *obj,
-                                    v.names.clone(),
-                                    wse,
-                                )
-                            })?;
-                        for (key, value) in &v.metadata {
-                            self.loader
-                                .set_verb_metadata(obj, existing_uuid, *key, value.clone())
-                                .map_err(|wse| {
-                                    ObjdefLoaderError::CouldNotDefineVerb(
-                                        path.clone(),
-                                        *obj,
-                                        v.names.clone(),
-                                        wse,
-                                    )
-                                })?;
-                        }
-                    }
+                            existing.uuid(),
+                            &verb.names,
+                            &verb.owner,
+                            verb.flags,
+                            verb.argspec,
+                            verb.program.clone(),
+                        )
+                        .map_err(error)?;
+                    existing.uuid()
                 } else {
-                    // Verb doesn't exist, add it
-                    verb_actions.push((*obj, v.clone(), path.clone()));
+                    let before: std::collections::HashSet<_> =
+                        existing.iter().map(|d| d.uuid()).collect();
+                    self.loader
+                        .add_verb(
+                            obj,
+                            &verb.names,
+                            &verb.owner,
+                            verb.flags,
+                            verb.argspec,
+                            verb.program.clone(),
+                        )
+                        .map_err(error)?;
+                    self.loader
+                        .get_existing_verbs(obj)
+                        .map_err(error)?
+                        .iter()
+                        .find(|d| !before.contains(&d.uuid()))
+                        .ok_or_else(|| {
+                            error(WorldStateError::DatabaseError(
+                                "new verb was not found".into(),
+                            ))
+                        })?
+                        .uuid()
+                };
+                for (key, value) in &verb.metadata {
+                    if !self.restore_tracking && *key == Symbol::mk(crate::review::BASE_KEY) {
+                        continue;
+                    }
+                    self.loader
+                        .set_verb_metadata(obj, uuid, *key, value.clone())
+                        .map_err(error)?;
                 }
             }
         }
-
-        if options.dry_run {
-            return Ok(());
-        }
-
-        // Second phase: apply all the verb actions
-        for (obj, verb, path) in verb_actions {
-            self.loader
-                .add_verb(
-                    &obj,
-                    &verb.names,
-                    &verb.owner,
-                    verb.flags,
-                    verb.argspec,
-                    verb.program.clone(),
-                )
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotDefineVerb(
-                        path.clone(),
-                        obj,
-                        verb.names.clone(),
-                        wse,
-                    )
-                })?;
-            let Some((uuid, _)) = self
-                .loader
-                .get_existing_verb_by_names(&obj, &verb.names)
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotDefineVerb(
-                        path.clone(),
-                        obj,
-                        verb.names.clone(),
-                        wse,
-                    )
-                })?
-            else {
-                return Err(ObjdefLoaderError::CouldNotDefineVerb(
-                    path.clone(),
-                    obj,
-                    verb.names.clone(),
-                    WorldStateError::VerbNotFound(obj, verb.names[0].to_string()),
-                ));
-            };
-            for (key, value) in &verb.metadata {
-                self.loader
-                    .set_verb_metadata(&obj, uuid, *key, value.clone())
-                    .map_err(|wse| {
-                        ObjdefLoaderError::CouldNotDefineVerb(
-                            path.clone(),
-                            obj,
-                            verb.names.clone(),
-                            wse,
-                        )
-                    })?;
-            }
-        }
         Ok(())
     }
+
+    /// Apply explicitly declared property definitions, preserving exact values and clear states.
     pub fn define_properties(
         &mut self,
-        options: &ObjDefLoaderOptions,
+        _options: &ObjDefLoaderOptions,
     ) -> Result<(), ObjdefLoaderError> {
-        // Track actions as either create or update
-        let mut create_actions = Vec::new();
-        let mut update_actions = Vec::new();
-
         for (obj, (path, def)) in &self.object_definitions {
-            for pd in &def.property_definitions {
-                // Check if property already exists
-                let existing_value = self
+            for property in &def.property_definitions {
+                let error = |e| {
+                    ObjdefLoaderError::CouldNotDefineProperty(
+                        path.clone(),
+                        *obj,
+                        property.name.to_string(),
+                        e,
+                    )
+                };
+                let existing = self
                     .loader
-                    .get_existing_property_state(obj, pd.name)
-                    .map_err(|wse| {
-                        ObjdefLoaderError::CouldNotDefineProperty(
-                            path.clone(),
-                            *obj,
-                            pd.name.as_arc_str().to_string(),
-                            wse,
+                    .get_existing_properties(obj)
+                    .map_err(error)?
+                    .iter()
+                    .find(|p| p.name() == property.name && p.definer() == *obj);
+                if existing.is_some() {
+                    self.loader
+                        .set_property(
+                            obj,
+                            property.name,
+                            Some(property.perms.owner()),
+                            Some(property.perms.flags()),
+                            property.value.clone(),
                         )
-                    })?;
-
-                if let Some((existing_val, existing_perms)) = existing_value {
-                    // Property exists - check for conflicts
-                    let mut should_proceed = true;
-
-                    let (proceed_value, conflict) = self.check_property_value_conflict(
-                        obj,
-                        pd.name,
-                        existing_val,
-                        &pd.value,
-                        pd.clear_value,
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    should_proceed &= proceed_value;
-
-                    // Check permissions conflict
-                    let (proceed_perms, conflict) = self.check_conflict(
-                        obj,
-                        Entity::PropertyFlag(pd.name),
-                        Some(existing_perms.flags()),
-                        &pd.perms.flags(),
-                        |current| ConflictEntity::PropertyFlag(pd.name, current),
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    should_proceed &= proceed_perms;
-
-                    if should_proceed {
-                        // Property exists and we should proceed (Clobber mode) - use update
-                        update_actions.push((*obj, pd.clone(), path.clone()));
+                        .map_err(error)?;
+                    if property.clear_value {
+                        self.loader
+                            .clear_property_value(obj, property.name)
+                            .map_err(error)?;
                     }
                 } else {
-                    // Property doesn't exist, define it
-                    create_actions.push((*obj, pd.clone(), path.clone()));
+                    self.loader
+                        .define_property(
+                            obj,
+                            obj,
+                            property.name,
+                            &property.perms.owner(),
+                            property.perms.flags(),
+                            property.value.clone(),
+                        )
+                        .map_err(error)?;
+                }
+                for (key, value) in &property.metadata {
+                    if !self.restore_tracking && *key == Symbol::mk(crate::review::BASE_KEY) {
+                        continue;
+                    }
+                    self.loader
+                        .set_property_metadata(obj, property.name, *key, value.clone())
+                        .map_err(error)?;
                 }
             }
         }
-
-        if options.dry_run {
-            return Ok(());
-        }
-
-        // Apply create actions using define_property
-        for (obj, prop_def, path) in create_actions {
-            self.loader
-                .define_property(
-                    &obj,
-                    &obj,
-                    prop_def.name,
-                    &prop_def.perms.owner(),
-                    prop_def.perms.flags(),
-                    prop_def.value.clone(),
-                )
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotDefineProperty(
-                        path.clone(),
-                        obj,
-                        prop_def.name.as_arc_str().to_string(),
-                        wse,
-                    )
-                })?;
-            self.apply_property_metadata(&path, &obj, prop_def.name, &prop_def.metadata)?;
-        }
-
-        // Apply update actions using set_property
-        for (obj, prop_def, path) in update_actions {
-            self.loader
-                .set_property(
-                    &obj,
-                    prop_def.name,
-                    Some(prop_def.perms.owner()),
-                    Some(prop_def.perms.flags()),
-                    prop_def.value.clone(),
-                )
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotDefineProperty(
-                        path.clone(),
-                        obj,
-                        prop_def.name.as_arc_str().to_string(),
-                        wse,
-                    )
-                })?;
-            if prop_def.clear_value {
-                self.loader
-                    .clear_property_value(&obj, prop_def.name)
-                    .map_err(|error| {
-                        ObjdefLoaderError::CouldNotDefineProperty(
-                            path.clone(),
-                            obj,
-                            prop_def.name.to_string(),
-                            error,
-                        )
-                    })?;
-            }
-            self.apply_property_metadata(&path, &obj, prop_def.name, &prop_def.metadata)?;
-        }
-
         Ok(())
     }
 
-    fn apply_property_metadata(
-        &mut self,
-        path: &str,
-        obj: &Obj,
-        propname: Symbol,
-        metadata: &[(Symbol, Var)],
-    ) -> Result<(), ObjdefLoaderError> {
-        for (key, value) in metadata {
-            self.loader
-                .set_property_metadata(obj, propname, *key, value.clone())
-                .map_err(|wse| {
-                    ObjdefLoaderError::CouldNotDefineProperty(
-                        path.to_string(),
-                        *obj,
-                        propname.as_arc_str().to_string(),
-                        wse,
-                    )
-                })?;
-        }
-        Ok(())
-    }
-
-    fn set_properties(&mut self, options: &ObjDefLoaderOptions) -> Result<(), ObjdefLoaderError> {
-        // First phase: collect conflicts and determine actions
-        let mut override_actions = Vec::new();
-
+    fn set_properties(&mut self, _options: &ObjDefLoaderOptions) -> Result<(), ObjdefLoaderError> {
         for (obj, (path, def)) in &self.object_definitions {
-            for pv in &def.property_overrides {
-                // Check existing property value for conflicts
-                let existing_value = self
-                    .loader
-                    .get_existing_property_state(obj, pv.name)
-                    .map_err(|wse| {
-                        ObjdefLoaderError::CouldNotOverrideProperty(
-                            path.clone(),
-                            *obj,
-                            pv.name.as_arc_str().to_string(),
-                            wse,
-                        )
-                    })?;
-
-                let mut should_proceed = true;
-
-                if let Some((existing_val, existing_perms)) = existing_value {
-                    let (proceed_value, conflict) = self.check_property_value_conflict(
-                        obj,
-                        pv.name,
-                        existing_val,
-                        &pv.value,
-                        pv.clear_value,
-                        options,
-                    );
-                    if let Some(conflict) = conflict {
-                        self.conflicts.push(conflict);
-                    }
-                    should_proceed &= proceed_value;
-
-                    // Check permissions conflict if we're updating permissions
-                    if let Some(pu) = &pv.perms_update {
-                        let (proceed_perms, conflict) = self.check_conflict(
-                            obj,
-                            Entity::PropertyFlag(pv.name),
-                            Some(existing_perms.flags()),
-                            &pu.flags(),
-                            |current| ConflictEntity::PropertyFlag(pv.name, current),
-                            options,
-                        );
-                        if let Some(conflict) = conflict {
-                            self.conflicts.push(conflict);
-                        }
-                        should_proceed &= proceed_perms;
-                    }
-                }
-
-                if should_proceed {
-                    override_actions.push((*obj, pv.clone(), path.clone()));
-                }
-            }
-        }
-
-        if options.dry_run {
-            return Ok(());
-        }
-
-        // Second phase: apply all the override actions
-        for (obj, prop_override, path) in override_actions {
-            let pu = &prop_override.perms_update;
-            self.loader
-                .set_property(
-                    &obj,
-                    prop_override.name,
-                    pu.as_ref().map(|p| p.owner()),
-                    pu.as_ref().map(|p| p.flags()),
-                    prop_override.value.clone(),
-                )
-                .map_err(|wse| {
+            for property in &def.property_overrides {
+                let error = |e| {
                     ObjdefLoaderError::CouldNotOverrideProperty(
                         path.clone(),
-                        obj,
-                        prop_override.name.as_arc_str().to_string(),
-                        wse,
+                        *obj,
+                        property.name.to_string(),
+                        e,
                     )
-                })?;
-            if prop_override.clear_value {
+                };
                 self.loader
-                    .clear_property_value(&obj, prop_override.name)
-                    .map_err(|error| {
-                        ObjdefLoaderError::CouldNotOverrideProperty(
-                            path.clone(),
-                            obj,
-                            prop_override.name.to_string(),
-                            error,
-                        )
-                    })?;
+                    .set_property(
+                        obj,
+                        property.name,
+                        property.perms_update.as_ref().map(|p| p.owner()),
+                        property.perms_update.as_ref().map(|p| p.flags()),
+                        property.value.clone(),
+                    )
+                    .map_err(error)?;
+                if property.clear_value {
+                    self.loader
+                        .clear_property_value(obj, property.name)
+                        .map_err(error)?;
+                }
+                for (key, value) in &property.metadata {
+                    if !self.restore_tracking && *key == Symbol::mk(crate::review::BASE_KEY) {
+                        continue;
+                    }
+                    self.loader
+                        .set_property_metadata(obj, property.name, *key, value.clone())
+                        .map_err(error)?;
+                }
             }
-            self.apply_property_metadata(&path, &obj, prop_override.name, &prop_override.metadata)?;
         }
         Ok(())
     }
@@ -1079,8 +618,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
     /// Load one object definition from a string.
     ///
     /// This is the scalar import path used by `load_object()`. It accepts exactly one object
-    /// definition, optionally uses caller-supplied constants, and applies conflict handling according
-    /// to `options`.
+    /// definition and optional constant substitutions. Omitted attributes and members survive.
+    /// Explicit values are applied exactly, including case-only edits and clear states.
     pub fn load_single_object(
         &mut self,
         object_definition: &str,
@@ -1103,7 +642,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 definitions.len(),
             ));
         }
-        let compiled_def = definitions.values().next().unwrap().1.clone();
+        let mut compiled_def = definitions.values().next().unwrap().1.clone();
 
         // Determine the ObjectKind to use for creation
         let object_kind = match &options.object_kind {
@@ -1117,6 +656,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
             _ => None,
         };
 
+        validate_relocation(&compiled_def, expected_oid)?;
+
         // Check if object already exists (only for specific Objid)
         let existing_obj = if let Some(obj_id) = expected_oid {
             self.loader
@@ -1126,12 +667,38 @@ impl<'a> ObjectDefinitionLoader<'a> {
             None
         };
 
-        self.mutation_started = !options.dry_run;
+        if let Some(existing) = &existing_obj
+            && let Some(present) = &compiled_def.declared_attributes
+        {
+            if !present.contains("name") {
+                compiled_def.name = existing.name().unwrap_or_default().to_string();
+            }
+            if !present.contains("owner") {
+                compiled_def.owner = existing.owner().unwrap_or(NOTHING);
+            }
+            if !present.contains("parent") {
+                compiled_def.parent = existing.parent().unwrap_or(NOTHING);
+            }
+            if !present.contains("location") {
+                compiled_def.location = existing.location().unwrap_or(NOTHING);
+            }
+            for (name, flag) in [
+                ("wizard", ObjFlag::Wizard),
+                ("programmer", ObjFlag::Programmer),
+                ("player", ObjFlag::User),
+                ("readable", ObjFlag::Read),
+                ("writeable", ObjFlag::Write),
+                ("fertile", ObjFlag::Fertile),
+            ] {
+                if !present.contains(name) && existing.flags().contains(flag) {
+                    compiled_def.flags.set(flag);
+                }
+            }
+        }
+        self.mutation_started = true;
 
         // Only create the object if it doesn't exist
-        let oid = if options.dry_run {
-            expected_oid.unwrap_or(NOTHING)
-        } else if existing_obj.is_none() {
+        let oid = if existing_obj.is_none() {
             self.loader
                 .create_object(
                     object_kind,
@@ -1159,7 +726,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.object_definitions
             .insert(oid, (source_name.clone(), compiled_def));
 
-        // Use the conflict-aware methods instead of inline logic
+        // Apply supplied declarations in dependency order
         self.apply_attributes(&options)?;
         self.apply_object_metadata(&options)?;
         self.define_properties(&options)?;
@@ -1176,8 +743,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         );
 
         Ok(ObjDefLoaderResults {
-            commit: !options.dry_run,
-            conflicts: self.conflicts.clone(),
+            commit: true,
             loaded_objects: vec![oid],
             num_loaded_verbs,
             num_loaded_property_definitions,
@@ -1188,9 +754,10 @@ impl<'a> ObjectDefinitionLoader<'a> {
     /// Replace one existing object with the contents of an objdef.
     ///
     /// Existing verbs and locally defined properties that are absent from the incoming definition
-    /// are deleted. Flags, attributes, properties, and verbs from the incoming definition are then
-    /// applied in clobber mode. If `target_obj` is supplied, the incoming object ID is treated as the
-    /// source identity but the mutation is applied to `target_obj`.
+    /// are deleted. Verb definitions are recreated in source order, invalidating their baselines.
+    /// Flags, attributes, properties, and ordinary metadata are replaced with source content.
+    /// If `target_obj` is supplied, the incoming object ID is treated as the source identity
+    /// but the mutation is applied to `target_obj`.
     ///
     /// # Arguments
     /// * `object_definition` - The MOO object definition string
@@ -1225,120 +792,74 @@ impl<'a> ObjectDefinitionLoader<'a> {
         // Determine the target object ID
         let target_oid = target_obj.unwrap_or(compiled_def.oid);
 
+        validate_relocation(&compiled_def, Some(target_oid))?;
+
         // Check if object exists
         let existing_obj = self
             .loader
             .get_existing_object(&target_oid)
             .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?;
 
+        if existing_obj.is_none() {
+            return Err(ObjdefLoaderError::CouldNotSetObjectParent(
+                source_name,
+                WorldStateError::ObjectNotFound(moor_common::model::ObjectRef::Id(target_oid)),
+            ));
+        }
         self.mutation_started = true;
-
-        // If object exists, we need to selectively delete things not in the objdef
-        if existing_obj.is_some() {
-            // Get all existing verbs
-            let existing_verbs = self.loader.get_existing_verbs(&target_oid).map_err(|e| {
-                ObjdefLoaderError::CouldNotDefineVerb(source_name.clone(), target_oid, vec![], e)
-            })?;
-
-            // Build set of verb names that should exist (from objdef)
-            let mut objdef_verb_names = std::collections::HashSet::new();
-            for verb in &compiled_def.verbs {
-                for name in &verb.names {
-                    objdef_verb_names.insert(*name);
-                }
-            }
-
-            // Delete verbs that exist but aren't in the objdef
-            for verb_def in existing_verbs.iter() {
-                let has_matching_name = verb_def
-                    .names()
-                    .iter()
-                    .any(|name| objdef_verb_names.contains(name));
-
-                if !has_matching_name {
-                    self.loader
-                        .remove_verb(&target_oid, verb_def.uuid())
-                        .map_err(|e| {
-                            ObjdefLoaderError::CouldNotDefineVerb(
-                                source_name.clone(),
-                                target_oid,
-                                verb_def.names().to_vec(),
-                                e,
-                            )
-                        })?;
-                }
-            }
-
-            // Get all existing properties
-            let existing_props = self
-                .loader
-                .get_existing_properties(&target_oid)
+        self.loader
+            .prepare_object_replacement(&target_oid, Symbol::mk(crate::review::BASE_KEY))
+            .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?;
+        for verb in self
+            .loader
+            .get_existing_verbs(&target_oid)
+            .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?
+            .iter()
+        {
+            self.loader
+                .remove_verb(&target_oid, verb.uuid())
                 .map_err(|e| {
-                    ObjdefLoaderError::CouldNotDefineProperty(
+                    ObjdefLoaderError::CouldNotDefineVerb(
                         source_name.clone(),
                         target_oid,
-                        String::new(),
+                        verb.names().to_vec(),
                         e,
                     )
                 })?;
-
-            // Build set of property names that should exist (from objdef)
-            let mut objdef_prop_names = std::collections::HashSet::new();
-            for prop_def in &compiled_def.property_definitions {
-                objdef_prop_names.insert(prop_def.name);
+        }
+        for property in self
+            .loader
+            .get_existing_properties(&target_oid)
+            .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?
+            .iter()
+        {
+            if property.definer() == target_oid
+                && !compiled_def
+                    .property_definitions
+                    .iter()
+                    .any(|p| p.name == property.name())
+            {
+                self.loader
+                    .delete_property(&target_oid, property.name())
+                    .map_err(|e| {
+                        ObjdefLoaderError::CouldNotDefineProperty(
+                            source_name.clone(),
+                            target_oid,
+                            property.name().to_string(),
+                            e,
+                        )
+                    })?;
             }
-
-            // Delete properties defined on this object that aren't in the objdef
-            for prop_def in existing_props.iter() {
-                if prop_def.definer() == target_oid && !objdef_prop_names.contains(&prop_def.name())
-                {
-                    self.loader
-                        .delete_property(&target_oid, prop_def.name())
-                        .map_err(|e| {
-                            ObjdefLoaderError::CouldNotDefineProperty(
-                                source_name.clone(),
-                                target_oid,
-                                prop_def.name().as_arc_str().to_string(),
-                                e,
-                            )
-                        })?;
-                }
-            }
-
-            // Update the object name
-            self.loader
-                .set_object_name(&target_oid, compiled_def.name.clone())
-                .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?;
-        } else {
-            // Object doesn't exist, create it
-            self.loader
-                .create_object(
-                    ObjectKind::Objid(target_oid),
-                    &ObjAttrs::new(
-                        NOTHING,
-                        NOTHING,
-                        NOTHING,
-                        compiled_def.flags,
-                        &compiled_def.name,
-                    ),
-                )
-                .map_err(|e| {
-                    ObjdefLoaderError::CouldNotCreateObject(source_name.clone(), target_oid, e)
-                })?;
         }
 
         // Store the definition for processing
         self.object_definitions
             .insert(target_oid, (source_name.clone(), compiled_def));
 
-        // Apply all attributes, properties, and verbs using existing conflict-aware methods
-        // Force Clobber mode and validation for reload operations
+        // Replace source content and validate the resulting parent relationship.
         let apply_options = ObjDefLoaderOptions {
-            dry_run: false,
-            conflict_mode: ConflictMode::Clobber,
             object_kind: None,
             constants: None,
-            overrides: vec![],
             validate_parent_changes: true,
         };
 
@@ -1359,7 +880,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
         Ok(ObjDefLoaderResults {
             commit: true,
-            conflicts: vec![], // No conflicts in reload mode - we deleted everything first
             loaded_objects: vec![target_oid],
             num_loaded_verbs,
             num_loaded_property_definitions,
@@ -1415,7 +935,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ConflictMode, ObjDefLoaderOptions, ObjdefLoaderError, ObjectDefinitionLoader};
+    use crate::{ObjDefLoaderOptions, ObjdefLoaderError, ObjectDefinitionLoader};
     use moor_common::model::{HasUuid, Named, TaskPermissions, WorldStateSource};
     use moor_common::util::BitEnum;
     use moor_compiler::{CompileOptions, ObjFileContext};
@@ -1490,7 +1010,7 @@ mod tests {
     }
 
     #[test]
-    fn directory_import_detects_existing_object_conflicts() {
+    fn directory_import_updates_existing_object() {
         let tmpdir = tempfile::tempdir().unwrap();
         let import_dir = tmpdir.path().join("import");
         fs::create_dir(&import_dir).unwrap();
@@ -1546,11 +1066,7 @@ mod tests {
                 ObjDefLoaderOptions::default(),
             )
             .unwrap();
-        assert_eq!(results.conflicts.len(), 1);
-        assert!(matches!(
-            results.conflicts[0].1,
-            crate::ConflictEntity::ObjectFlags(_)
-        ));
+        assert_eq!(results.loaded_objects, vec![Obj::mk_id(10)]);
         loader.commit().unwrap();
 
         let ws = db.new_world_state().unwrap();
@@ -1653,7 +1169,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clobber_mode_detects_flags_conflict() {
+    fn test_merge_updates_flags() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -1706,18 +1222,7 @@ mod tests {
             )
             .unwrap();
 
-        // Should detect conflict in flags
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one flags conflict"
-        );
-
-        // Verify conflict is for object flags
-        match &results.conflicts[0].1 {
-            crate::ConflictEntity::ObjectFlags(_) => {}
-            other => panic!("Expected ObjectFlags conflict, got {other:?}"),
-        }
+        assert_eq!(results.loaded_objects, vec![Obj::mk_id(50)]);
 
         loader.commit().unwrap();
 
@@ -1731,82 +1236,7 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_mode_preserves_existing_flags() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create initial object with wizard=true
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #51
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                wizard: true
-                programmer: false
-                player: false
-                fertile: false
-                readable: false
-            endobject"#;
-
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Now load with wizard=false in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let conflicting_spec = r#"
-            object #51
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                wizard: false
-                programmer: false
-                player: false
-                fertile: false
-                readable: false
-            endobject"#;
-
-        let results = parser
-            .load_single_object(
-                conflicting_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one flags conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify flags were NOT updated (Skip mode)
-        let ws = db.new_world_state().unwrap();
-        let flags = ws.flags_of(&Obj::mk_id(51)).unwrap();
-        assert!(
-            flags.contains(moor_common::model::ObjFlag::Wizard),
-            "Wizard flag should still be true after skip"
-        );
-    }
-
-    #[test]
-    fn test_clobber_works_for_parent() {
+    fn test_merge_updates_parent() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -1930,7 +1360,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clobber_works_for_location() {
+    fn test_merge_updates_location() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -2022,7 +1452,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clobber_works_for_owner() {
+    fn test_merge_updates_owner() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -2110,7 +1540,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clobber_works_for_property_values() {
+    fn test_merge_updates_property_values() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -2186,7 +1616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clobber_works_for_verbs() {
+    fn test_merge_updates_verbs() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
@@ -2283,491 +1713,6 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_mode_preserves_existing_parent() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create parent objects first
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("test.moo");
-        let parents_spec = r#"
-            object #1
-                name: "Parent One"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject
-            object #2
-                name: "Parent Two"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject"#;
-        parser
-            .parse_objects(
-                mock_path,
-                &mut context,
-                parents_spec,
-                &CompileOptions::default(),
-            )
-            .unwrap();
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        loader.commit().unwrap();
-
-        // Create child object with parent=#1
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #60
-                name: "Child Object"
-                owner: #0
-                parent: #1
-                location: #-1
-            endobject"#;
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Verify initial parent is #1
-        let ws = db.new_world_state().unwrap();
-        let parent = ws
-            .parent_of(&system_permissions(), &Obj::mk_id(60))
-            .unwrap();
-        assert_eq!(parent, Obj::mk_id(1), "Initial parent should be #1");
-
-        // Now load with parent=#2 in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let updated_spec = r#"
-            object #60
-                name: "Child Object"
-                owner: #0
-                parent: #2
-                location: #-1
-            endobject"#;
-        let results = parser
-            .load_single_object(
-                updated_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one parent conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify parent was NOT updated (Skip mode)
-        let ws = db.new_world_state().unwrap();
-        let parent = ws
-            .parent_of(&system_permissions(), &Obj::mk_id(60))
-            .unwrap();
-        assert_eq!(
-            parent,
-            Obj::mk_id(1),
-            "Parent should still be #1 after skip"
-        );
-    }
-
-    #[test]
-    fn test_skip_mode_preserves_existing_location() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create location objects first
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("test.moo");
-        let locations_spec = r#"
-            object #1
-                name: "Location One"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject
-            object #2
-                name: "Location Two"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject"#;
-        parser
-            .parse_objects(
-                mock_path,
-                &mut context,
-                locations_spec,
-                &CompileOptions::default(),
-            )
-            .unwrap();
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        loader.commit().unwrap();
-
-        // Create object with location=#1
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #61
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #1
-            endobject"#;
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Verify initial location
-        let ws = db.new_world_state().unwrap();
-        let location = ws
-            .location_of(&system_permissions(), &Obj::mk_id(61))
-            .unwrap();
-        assert_eq!(location, Obj::mk_id(1), "Initial location should be #1");
-
-        // Now load with location=#2 in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let updated_spec = r#"
-            object #61
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #2
-            endobject"#;
-        let results = parser
-            .load_single_object(
-                updated_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one location conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify location was NOT updated (Skip mode)
-        let ws = db.new_world_state().unwrap();
-        let location = ws
-            .location_of(&system_permissions(), &Obj::mk_id(61))
-            .unwrap();
-        assert_eq!(
-            location,
-            Obj::mk_id(1),
-            "Location should still be #1 after skip"
-        );
-    }
-
-    #[test]
-    fn test_skip_mode_preserves_existing_owner() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create owner objects first
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let mut context = ObjFileContext::new();
-        let mock_path = Path::new("test.moo");
-        let owners_spec = r#"
-            object #1
-                name: "Owner One"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject
-            object #2
-                name: "Owner Two"
-                owner: #0
-                parent: #-1
-                location: #-1
-            endobject"#;
-        parser
-            .parse_objects(
-                mock_path,
-                &mut context,
-                owners_spec,
-                &CompileOptions::default(),
-            )
-            .unwrap();
-        let options = ObjDefLoaderOptions::default();
-        parser.apply_attributes(&options).unwrap();
-        loader.commit().unwrap();
-
-        // Create object with owner=#1
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #62
-                name: "Test Object"
-                owner: #1
-                parent: #-1
-                location: #-1
-            endobject"#;
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Verify initial owner
-        let ws = db.new_world_state().unwrap();
-        let owner = ws.owner_of(&Obj::mk_id(62)).unwrap();
-        assert_eq!(owner, Obj::mk_id(1), "Initial owner should be #1");
-
-        // Now load with owner=#2 in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let updated_spec = r#"
-            object #62
-                name: "Test Object"
-                owner: #2
-                parent: #-1
-                location: #-1
-            endobject"#;
-        let results = parser
-            .load_single_object(
-                updated_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one owner conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify owner was NOT updated (Skip mode)
-        let ws = db.new_world_state().unwrap();
-        let owner = ws.owner_of(&Obj::mk_id(62)).unwrap();
-        assert_eq!(owner, Obj::mk_id(1), "Owner should still be #1 after skip");
-    }
-
-    #[test]
-    fn test_skip_mode_preserves_existing_property_values() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create object with property = "initial"
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #63
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                property test_prop (owner: #63, flags: "rc") = "initial value";
-            endobject"#;
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Verify initial property value
-        let ws = db.new_world_state().unwrap();
-        let prop_value = ws
-            .retrieve_property(
-                &system_permissions(),
-                &Obj::mk_id(63),
-                Symbol::mk("test_prop"),
-            )
-            .unwrap();
-        assert_eq!(
-            prop_value,
-            v_str("initial value"),
-            "Initial property value should be 'initial value'"
-        );
-
-        // Now load with property = "updated" in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let updated_spec = r#"
-            object #63
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                property test_prop (owner: #63, flags: "rc") = "updated value";
-            endobject"#;
-        let results = parser
-            .load_single_object(
-                updated_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one property value conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify property value was NOT updated (Skip mode)
-        let ws = db.new_world_state().unwrap();
-        let prop_value = ws
-            .retrieve_property(
-                &system_permissions(),
-                &Obj::mk_id(63),
-                Symbol::mk("test_prop"),
-            )
-            .unwrap();
-        assert_eq!(
-            prop_value,
-            v_str("initial value"),
-            "Property value should still be 'initial value' after skip"
-        );
-    }
-
-    #[test]
-    fn test_skip_mode_preserves_existing_verbs() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let db = test_db(tmpdir.path());
-
-        // Create object with verb returning "initial"
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let initial_spec = r#"
-            object #64
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                verb "test_verb" (this none none) owner: #64 flags: "rxd"
-                    return "initial";
-                endverb
-            endobject"#;
-        parser
-            .load_single_object(
-                initial_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions::default(),
-            )
-            .unwrap();
-        loader.commit().unwrap();
-
-        // Get initial verb
-        let ws = db.new_world_state().unwrap();
-        let initial_verbdef = ws
-            .get_verb(
-                &system_permissions(),
-                &Obj::mk_id(64),
-                Symbol::mk("test_verb"),
-            )
-            .unwrap();
-        let initial_uuid = initial_verbdef.uuid();
-        let (initial_program, _) = ws
-            .retrieve_verb(&system_permissions(), &Obj::mk_id(64), initial_uuid)
-            .unwrap();
-
-        // Now load with verb returning "updated" in Skip mode
-        let mut loader = db.loader_client().unwrap();
-        let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let updated_spec = r#"
-            object #64
-                name: "Test Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                verb "test_verb" (this none none) owner: #64 flags: "rxd"
-                    return "updated";
-                endverb
-            endobject"#;
-        let results = parser
-            .load_single_object(
-                updated_spec,
-                CompileOptions::default(),
-                ObjDefLoaderOptions {
-                    conflict_mode: ConflictMode::Skip,
-                    ..ObjDefLoaderOptions::default()
-                },
-            )
-            .unwrap();
-
-        // Should detect conflict
-        assert_eq!(
-            results.conflicts.len(),
-            1,
-            "Should detect one verb conflict"
-        );
-
-        loader.commit().unwrap();
-
-        // Verify verb was NOT updated (Skip mode) - UUID should be unchanged
-        let ws = db.new_world_state().unwrap();
-        let final_verbdef = ws
-            .get_verb(
-                &system_permissions(),
-                &Obj::mk_id(64),
-                Symbol::mk("test_verb"),
-            )
-            .unwrap();
-        assert_eq!(
-            final_verbdef.uuid(),
-            initial_uuid,
-            "Verb UUID should be unchanged in skip mode"
-        );
-        let (final_program, _) = ws
-            .retrieve_verb(&system_permissions(), &Obj::mk_id(64), final_verbdef.uuid())
-            .unwrap();
-        assert_eq!(
-            final_program, initial_program,
-            "Skip mode should preserve the verb program"
-        );
-    }
-
-    #[test]
     fn test_reject_parent_cycle() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
@@ -2817,11 +1762,8 @@ mod tests {
             cycle_spec,
             CompileOptions::default(),
             ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: true,
             },
         );
@@ -2879,11 +1821,8 @@ mod tests {
             invalid_parent_spec,
             CompileOptions::default(),
             ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: true,
             },
         );
@@ -2919,11 +1858,8 @@ mod tests {
             nothing_parent_spec,
             CompileOptions::default(),
             ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: true,
             },
         );
@@ -3040,7 +1976,6 @@ mod tests {
 
         assert_eq!(results.loaded_objects.len(), 1);
         assert_eq!(results.loaded_objects[0], Obj::mk_id(100));
-        assert_eq!(results.conflicts.len(), 0); // No conflicts in reload mode
         loader.commit().unwrap();
 
         // Verify final state
@@ -3146,7 +2081,7 @@ mod tests {
                 owner: #0
                 parent: #-1
                 location: #-1
-                property new_prop (owner: #999, flags: "rc") = "new";
+                property new_prop (owner: #200, flags: "rc") = "new";
             endobject"#;
 
         let results = parser
@@ -3189,34 +2124,30 @@ mod tests {
     }
 
     #[test]
-    fn test_reload_creates_object_if_not_exists() {
+    fn test_reload_rejects_missing_object() {
         let tmpdir = tempfile::tempdir().unwrap();
         let db = test_db(tmpdir.path());
 
-        // Reload a non-existent object - should create it
         let mut loader = db.loader_client().unwrap();
         let mut parser = ObjectDefinitionLoader::new(loader.as_mut());
-        let reload_spec = r#"
-            object #300
-                name: "New Object"
-                owner: #0
-                parent: #-1
-                location: #-1
-                property test_prop (owner: #300, flags: "rc") = "test";
-            endobject"#;
-
-        let results = parser
-            .reload_single_object(reload_spec, CompileOptions::default(), None, None)
-            .unwrap();
-
-        assert_eq!(results.loaded_objects[0], Obj::mk_id(300));
+        assert!(
+            parser
+                .reload_single_object(
+                    "object #300 endobject",
+                    CompileOptions::default(),
+                    None,
+                    None
+                )
+                .is_err()
+        );
+        assert!(!parser.mutation_started());
         loader.commit().unwrap();
-
-        // Verify object was created
-        let ws = db.new_world_state().unwrap();
-        assert!(ws.valid(&Obj::mk_id(300)).unwrap());
-        let name = ws.name_of(&system_permissions(), &Obj::mk_id(300)).unwrap();
-        assert_eq!(name, "New Object");
+        assert!(
+            !db.new_world_state()
+                .unwrap()
+                .valid(&Obj::mk_id(300))
+                .unwrap()
+        );
     }
 
     #[test]
@@ -3394,7 +2325,11 @@ mod tests {
                 location: #-1
             endobject"#;
         parser
-            .reload_single_object(initial_spec, CompileOptions::default(), None, None)
+            .load_single_object(
+                initial_spec,
+                CompileOptions::default(),
+                ObjDefLoaderOptions::default(),
+            )
             .unwrap();
         loader.commit().unwrap();
 
@@ -3616,11 +2551,8 @@ mod tests {
             conflict_spec,
             CompileOptions::default(),
             ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: true,
             },
         );

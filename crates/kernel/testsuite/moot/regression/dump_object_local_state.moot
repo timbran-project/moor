@@ -23,7 +23,7 @@
 // Dump committed state, then import it onto a new child of the same parent.
 ; add_property(#0, "dump_state", dump_object(#9001), {player, ""});
 
-; return load_object(#0.dump_state, [], #9002);
+; return load_object(#0.dump_state, ["target" -> #9002]);
 #9002
 
 ; #9000.title = "Changed"; #9000.case_value = "Changed"; #9000.annotated = 2;
@@ -34,7 +34,14 @@
 // Merge a clear export over a stale local value, retaining its metadata.
 ; #9002.annotated = 99;
 
-; return load_object(#0.dump_state, [], #9002);
+; return load_object(#0.dump_state, ["target" -> #9002]);
+#9002
+
+; return {#9002.annotated, is_clear_property(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
+{2, 1, "local metadata"}
+
+// Replacement restores a clear inherited value with metadata over a local value.
+; #9002.annotated = 99; return reload_object(#0.dump_state, ["target" -> #9002]);
 #9002
 
 ; return {#9002.annotated, is_clear_property(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};

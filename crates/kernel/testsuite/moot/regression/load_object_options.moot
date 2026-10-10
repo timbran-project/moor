@@ -1,0 +1,83 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; return load_object("object #9300 name: \"Parent\" owner: #3 property inherited (owner: #3, flags: \"rw\") = 10; endobject");
+#9300
+
+; return load_object({"object #9301 [revision -> 1]", "name: \"Original\"", "parent: #9300", "owner: #3", "readable: true", "property value (owner: #3, flags: \"rw\") = \"Hello\";", "override inherited = 20;", "verb test (this none this) owner: #3 flags: \"rxd\" [note -> 1]", "return 1;", "endverb", "endobject"});
+#9301
+
+// Omitted attributes survive; exact case changes are applied.
+; return load_object("object #9301 property value (owner: #3, flags: \"rw\") = \"hello\"; override inherited [note -> 2]; endobject");
+#9301
+
+; return {#9301.name, parent(#9301), #9301.owner, #9301.r, #9301.value, #9301.inherited, property_metadata(#9301, "inherited", "note"), #9301:test()};
+{"Original", #9300, #3, 1, "hello", 20, 2, 1}
+
+// Permission-only overrides preserve the local value too.
+; return load_object("object #9301 override inherited (owner: #3, flags: \"r\"); endobject");
+#9301
+
+; return {#9301.inherited, property_info(#9301, "inherited")};
+{20, {#3, "r"}}
+
+// An explicit clear clause also permits permission and metadata updates.
+; return load_object("object #9301 readable: false override inherited (owner: #3, flags: \"rw\") [note -> 3] clear; endobject");
+#9301
+
+; return {#9301.r, #9301.inherited, is_clear_property(#9301, "inherited"), property_metadata(#9301, "inherited", "note")};
+{0, 10, 1, 3}
+
+// Removed controls and invalid option combinations fail before writes.
+; let errors = {}; for key in ({"dry_run", "conflict_mode", "return_conflicts", "overrides", "diagnostics", "unknown"}) errors = {@errors, `load_object("object #9302 endobject", [key -> 1]) ! E_INVARG => 1'}; endfor return {errors, valid(#9302)};
+{{1, 1, 1, 1, 1, 1}, 0}
+
+; return `load_object("object #9302 endobject", ["target" -> #9302, "allocation" -> "next"]) ! E_INVARG => 1';
+1
+
+; return `load_object("object #9302 endobject", ["target" -> #9302, 'TARGET -> #9302]) ! E_INVARG => 1';
+1
+
+; return `reload_object("object #9302 endobject") ! E_INVARG => 1';
+1
+
+; return `reload_object("object #9301 endobject", ["allocation" -> "source"]) ! E_INVARG => 1';
+1
+
+; return `load_object("object #9302 property self (owner: #3, flags: \"rw\") = {#9302}; endobject", ["target" -> #9303]) ! E_INVARG => 1';
+1
+
+; return {valid(#9302), valid(#9303)};
+{0, 0}
+
+// Direct input cannot enroll a new or existing verb by forging tracking metadata.
+; set_verb_metadata(#9301, "test", "objdef_base", ["marker" -> 1]); return load_object({"object #9301", "verb test (this none this) owner: #3 flags: \"rxd\" [objdef_base -> [\"marker\" -> 2]]", "return 2;", "endverb", "endobject"});
+#9301
+
+; return {#9301:test(), verb_metadata(#9301, "test", "objdef_base")};
+{2, ["marker" -> 1]}
+
+// Replacement resets omitted attributes, removes metadata and members, and preserves source order.
+; return reload_object({"object #9301", "owner: #3", "parent: #9300", "verb \"test alias\" (this none this) owner: #3 flags: \"rxd\" [objdef_base -> [\"marker\" -> 3]]", "return 3;", "endverb", "verb alias (any none any) owner: #3 flags: \"rxd\"", "return 4;", "endverb", "endobject"});
+#9301
+
+; return {#9301.name, properties(#9301), object_metadata(#9301, "revision"), property_metadata(#9301, "inherited", "note"), #9301.inherited, verb_metadata(#9301, "test", "objdef_base"), verbs(#9301), #9301:test()};
+{"", {}, {}, {}, 10, {}, {"test", "alias"}, 3}
+
+// Allocation has the same return shape as a fixed target.
+; const o = load_object("object #9302 owner: #3 endobject", ["allocation" -> "next"]); return valid(o);
+1
+
+; return load_object("object TARGET owner: #3 endobject", ["constants" -> ["TARGET" -> #9305]]);
+#9305

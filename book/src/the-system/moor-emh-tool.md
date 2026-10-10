@@ -250,22 +250,11 @@ The `load` command imports objects from objdef format with flexible conflict han
 
 - `--file PATH` - Load from file instead of stdin
 - `--constants PATH` - MOO file with constant definitions for compilation
-- `--dry-run` - Validate without making changes
-- `--conflict-mode MODE` - How to handle conflicts: `clobber`, `skip`, or `detect`
 - `--as SPEC` - Where to load: `new`, `anonymous` (or `anon`), `uuid`, or `#OBJ`
-- `--return-conflicts` - Return detailed conflict information
 
 **Advanced Examples:**
 
 ```moo
-(#2): load --file obj.moo --dry-run
-⚠ Load would have conflicts (dry-run or detect mode)
-
-Would load: 1
-Conflicts: 3
-
-156 lines processed
-
 (#2): load --file obj.moo --as #123
 ✓ Object #123 loaded successfully
 
@@ -276,7 +265,7 @@ Conflicts: 3
 
 156 lines processed
 
-(#2): load --file package.moo --constants defs.moo --conflict-mode skip
+(#2): load --file package.moo --constants defs.moo
 ✓ Object #150 loaded successfully
 
 203 lines processed
@@ -331,7 +320,6 @@ in the new definition:
 **Important Notes:**
 
 - `reload` is destructive - it removes anything not in the new definition
-- Use `load --dry-run` to preview changes before applying them
 - The `--constants` flag allows you to share common definitions across multiple objects
 - Object IDs can be inferred from the objdef file or explicitly specified with `--as #OBJ`
 
@@ -462,18 +450,6 @@ MOO.
 ✓ Object #1 reloaded successfully
 
 234 lines processed
-```
-
-**Import a package with conflict detection:**
-
-```moo
-(#2): load --file new-package.moo --dry-run --return-conflicts
-⚠ Load would have conflicts (dry-run or detect mode)
-
-Would load: 1
-Conflicts: 2
-
-156 lines processed
 ```
 
 **Create a new object from a template:**

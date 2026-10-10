@@ -480,6 +480,7 @@ mod tests {
     #[test]
     fn empty_verb_name_prevents_dump() {
         let object = ObjectDefinition {
+            declared_attributes: None,
             oid: Obj::mk_id(1),
             name: "empty verb".to_string(),
             parent: NOTHING,

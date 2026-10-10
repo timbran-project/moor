@@ -1616,6 +1616,25 @@ impl WorldStateTransaction {
         Ok(())
     }
 
+    /// Remove an inherited local permission override during explicit objdef replacement.
+    pub fn clear_local_property_permissions(
+        &mut self,
+        obj: &Obj,
+        uuid: Uuid,
+    ) -> Result<(), WorldStateError> {
+        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        {
+            let edit = self.edit(EditScope::Permissions(holder.clone()));
+            edit.object_propflags.delete(&holder).map_err(|e| {
+                WorldStateError::DatabaseError(format!(
+                    "Error clearing local property permissions: {e:?}"
+                ))
+            })?;
+        }
+        self.prop_perm_memo.invalidate_known_for_holder(&holder);
+        Ok(())
+    }
+
     pub fn delete_property(&mut self, obj: &Obj, uuid: Uuid) -> Result<(), WorldStateError> {
         // delete propdef from self and all descendants
         let descendants = self.descendants(obj, false)?;

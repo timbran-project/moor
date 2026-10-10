@@ -27,7 +27,18 @@ pub(crate) struct ParsedFlags {
 }
 
 impl ParsedFlags {
+    /// Reject options outside the command's supported interface.
+    pub(crate) fn validate_flags(&self, allowed: &[&str]) -> Result<(), Report> {
+        for flag in self.flags.keys() {
+            if !allowed.contains(&flag.as_str()) {
+                bail!("Unknown option: --{flag}");
+            }
+        }
+        Ok(())
+    }
+
     /// Get a boolean flag value (true if present, false if absent)
+    #[cfg(test)]
     pub(crate) fn get_bool(&self, name: &str) -> bool {
         self.flags.contains_key(name)
     }
@@ -46,7 +57,7 @@ impl ParsedFlags {
 /// Parse command arguments into flags and positional args
 /// Supports: --flag, --flag value, --flag=value
 pub(crate) fn parse_flags(args: &str) -> ParsedFlags {
-    const VALUE_FLAGS: &[&str] = &["file", "constants", "conflict-mode", "as"];
+    const VALUE_FLAGS: &[&str] = &["file", "constants", "as"];
 
     let mut result = ParsedFlags::default();
     let mut tokens: Vec<String> = Vec::new();
@@ -265,9 +276,9 @@ mod tests {
 
     #[test]
     fn parse_flags_supports_quoted_values() {
-        let parsed = parse_flags(r#"--file "path with spaces.moo" --dry-run #42"#);
+        let parsed = parse_flags(r#"--file "path with spaces.moo" --example #42"#);
         assert_eq!(parsed.get_string("file"), Some("path with spaces.moo"));
-        assert!(parsed.get_bool("dry-run"));
+        assert!(parsed.get_bool("example"));
         assert_eq!(parsed.first_positional(), Some("#42"));
     }
 

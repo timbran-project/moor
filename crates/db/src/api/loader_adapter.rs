@@ -185,6 +185,34 @@ impl LoaderInterface for DbWorldState {
         self.get_tx_mut().clear_property(obj, definition.uuid())
     }
 
+    fn prepare_object_replacement(
+        &mut self,
+        obj: &Obj,
+        preserved_key: Symbol,
+    ) -> Result<(), WorldStateError> {
+        for (key, _) in self.get_tx().object_metadata(obj)? {
+            if key != preserved_key {
+                self.get_tx_mut().clear_object_metadata(obj, key)?;
+            }
+        }
+        for ancestor in self.get_tx().ancestors(obj, true)?.iter() {
+            for property in self.get_tx().get_properties(&ancestor)?.iter() {
+                self.get_tx_mut().clear_property(obj, property.uuid())?;
+                if property.definer() != *obj {
+                    self.get_tx_mut()
+                        .clear_local_property_permissions(obj, property.uuid())?;
+                }
+                for (key, _) in self.get_tx().property_metadata(obj, property.uuid())? {
+                    if key != preserved_key {
+                        self.get_tx_mut()
+                            .clear_property_metadata(obj, property.uuid(), key)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn set_object_metadata(
         &mut self,
         objid: &Obj,

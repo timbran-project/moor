@@ -84,6 +84,8 @@ impl ObjFileContext {
 
 #[derive(Clone)]
 pub struct ObjectDefinition {
+    /// Explicit source attributes. None denotes a complete collected definition.
+    pub declared_attributes: Option<std::collections::HashSet<String>>,
     pub oid: Obj,
     pub name: String,
     pub parent: Obj,

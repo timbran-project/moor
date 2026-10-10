@@ -458,14 +458,14 @@ export const useObjectMutations = ({
             const objdefLines = objdefText.split(/\r?\n/);
             const objdefLiteral = listToMooLiteral(objdefLines);
 
-            let expr = `return reload_object(${objdefLiteral}, [], ${objectExpr});`;
+            let expr = `return reload_object(${objdefLiteral}, ["target" -> ${objectExpr}]);`;
 
             if (form.constantsFile) {
                 const constantsText = await readFileAsText(form.constantsFile);
                 const constantsLines = constantsText.split(/\r?\n/);
                 const constantsLiteral = listToMooLiteral(constantsLines);
                 expr = `constants = parse_objdef_constants(${constantsLiteral}); `
-                    + `return reload_object(${objdefLiteral}, constants, ${objectExpr});`;
+                    + `return reload_object(${objdefLiteral}, ["constants" -> constants, "target" -> ${objectExpr}]);`;
             }
 
             const result = await performEvalFlatBuffer(authToken, expr);

@@ -1038,6 +1038,7 @@ impl<'a> LiteralParser<'a> {
         self.skip_trivia();
         let oid = self.parse_object_attr_value()?;
         let mut objdef = ObjectDefinition {
+            declared_attributes: Some(Default::default()),
             oid,
             name: String::new(),
             parent: NOTHING,
@@ -1079,6 +1080,14 @@ impl<'a> LiteralParser<'a> {
             self.skip_trivia();
             self.expect_char(':', "expected ':' after object attribute")?;
             self.skip_trivia();
+            if !objdef
+                .declared_attributes
+                .as_mut()
+                .unwrap()
+                .insert(attr.clone())
+            {
+                return Err(self.parse_error("duplicate object attribute"));
+            }
             match attr.as_str() {
                 "parent" => objdef.parent = self.parse_object_attr_value()?,
                 "name" => objdef.name = self.parse_string_attr_value()?,

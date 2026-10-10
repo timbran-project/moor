@@ -166,6 +166,7 @@ pub(crate) fn collect_export_object(
     object: SnapshotExportObject,
 ) -> Result<ObjectDefinition, moor_common::model::WorldStateError> {
     let mut definition = ObjectDefinition {
+        declared_attributes: None,
         oid: object.oid,
         name: object.name,
         parent: object.parent,
@@ -1342,11 +1343,8 @@ mod tests {
         let mut loader = db.loader_client().unwrap();
         let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
         let options = crate::ObjDefLoaderOptions {
-            dry_run: false,
-            conflict_mode: crate::ConflictMode::Clobber,
             object_kind: None,
             constants: None,
-            overrides: vec![],
             validate_parent_changes: false,
         };
         let results = defloader
@@ -1498,11 +1496,8 @@ mod tests {
             let mut loader = db2.loader_client().unwrap();
             let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
             let options = crate::ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: crate::ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: false,
             };
             defloader
@@ -1862,11 +1857,8 @@ mod tests {
             let mut loader = db2.loader_client().unwrap();
             let mut defloader = ObjectDefinitionLoader::new(loader.as_mut());
             let options = crate::ObjDefLoaderOptions {
-                dry_run: false,
-                conflict_mode: crate::ConflictMode::Clobber,
                 object_kind: None,
                 constants: None,
-                overrides: vec![],
                 validate_parent_changes: false,
             };
             defloader

@@ -500,17 +500,6 @@ impl Completer for MooAdminHelper {
                     if flag_name == "file" || flag_name == "constants" {
                         // Filename completion for both --file and --constants
                         return self.complete_filename(partial_value, value_start);
-                    } else if flag_name == "conflict-mode" {
-                        let modes = ["clobber", "skip", "detect"];
-                        let matches: Vec<Pair> = modes
-                            .iter()
-                            .filter(|mode| mode.starts_with(partial_value))
-                            .map(|mode| Pair {
-                                display: mode.to_string(),
-                                replacement: mode.to_string(),
-                            })
-                            .collect();
-                        return Ok((value_start, matches));
                     } else if flag_name == "as" {
                         // Complete object kinds or object IDs
                         if partial_value.starts_with('#') {
@@ -552,14 +541,7 @@ impl Completer for MooAdminHelper {
                     } else if is_reload {
                         vec!["--file", "--constants"]
                     } else if is_load {
-                        vec![
-                            "--file",
-                            "--constants",
-                            "--dry-run",
-                            "--conflict-mode",
-                            "--as",
-                            "--return-conflicts",
-                        ]
+                        vec!["--file", "--constants", "--as"]
                     } else {
                         vec![]
                     };

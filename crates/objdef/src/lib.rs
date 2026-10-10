@@ -41,7 +41,7 @@ fn import_export_hierarchy() -> Symbol {
 #[cfg(test)]
 mod collect_tests;
 #[cfg(test)]
-mod conflict_tests;
+mod direct_tests;
 
 use moor_common::model::{CompileError, WorldStateError};
 use moor_compiler::ObjDefParseError;
@@ -53,14 +53,13 @@ pub use dump::{
     ObjectDumpStats, collect_index_names, collect_object, collect_transaction_index_names,
     dump_object, dump_snapshot_object_definitions,
 };
-pub use load::{
-    ConflictEntity, ConflictMode, Constants, Entity, ObjDefLoaderOptions, ObjDefLoaderResults,
-    ObjectDefinitionLoader,
-};
+pub use load::{Constants, ObjDefLoaderOptions, ObjDefLoaderResults, ObjectDefinitionLoader};
 pub use set::{ObjDefIdentity, ObjDefSet, ObjDefSource, ProposedObjectGraph};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjdefLoaderError {
+    #[error("unsupported objdef relocation: {0}")]
+    InvalidRelocation(String),
     #[error("objdef input limit exceeded: {0}")]
     InputLimit(String),
     #[error("Directory not found: {0}")]
@@ -110,7 +109,7 @@ impl ObjdefLoaderError {
 
     pub fn source(&self) -> &str {
         match self {
-            ObjdefLoaderError::InputLimit(_) => "<input>",
+            ObjdefLoaderError::InputLimit(_) | ObjdefLoaderError::InvalidRelocation(_) => "<input>",
             ObjdefLoaderError::DirectoryNotFound(path) => path.to_str().unwrap_or("<unknown>"),
             ObjdefLoaderError::InvalidObjectFilename(path) => path.to_str().unwrap_or("<unknown>"),
             ObjdefLoaderError::ObjectFileReadError(path, _) => path.to_str().unwrap_or("<unknown>"),

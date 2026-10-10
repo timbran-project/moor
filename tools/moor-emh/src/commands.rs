@@ -59,18 +59,11 @@ pub(crate) fn print_help() {
     println!("Load options");
     println!("  --file PATH                        Load from file instead of stdin");
     println!("  --constants PATH                   MOO file with constant definitions");
-    println!("  --dry-run                          Validate without making changes");
-    println!("  --conflict-mode MODE               clobber | skip | detect");
     println!("  --as SPEC                          new | anonymous | uuid | #OBJ");
-    println!("  --return-conflicts                 Return detailed conflict information");
 }
 
 pub(crate) fn print_success(message: impl AsRef<str>) {
     println!("{} {}", "✓".green().bold(), message.as_ref());
-}
-
-pub(crate) fn print_warning(message: impl AsRef<str>) {
-    println!("{} {}", "!".yellow().bold(), message.as_ref());
 }
 
 /// Format a SchedulerError for user-friendly display
@@ -733,10 +726,11 @@ pub(crate) fn cmd_load(
     args: &str,
     rl: &mut Editor<MooAdminHelper, rustyline::history::DefaultHistory>,
 ) -> Result<(), Report> {
-    use moor_objdef::{ConflictMode, ObjDefLoaderOptions};
+    use moor_objdef::ObjDefLoaderOptions;
 
     // Parse args with flag parser
     let parsed = parse_flags(args);
+    parsed.validate_flags(&["file", "as", "constants"])?;
 
     let filename = parsed.get_string("file").map(PathBuf::from);
 
@@ -784,25 +778,6 @@ pub(crate) fn cmd_load(
 
     let object_definition = definition_lines.join("\n");
 
-    // Parse options from flags
-    let mut dry_run = parsed.get_bool("dry-run");
-    let return_conflicts = parsed.get_bool("return-conflicts");
-
-    let conflict_mode = if let Some(mode) = parsed.get_string("conflict-mode") {
-        match mode {
-            "clobber" => ConflictMode::Clobber,
-            "skip" => ConflictMode::Skip,
-            "detect" => {
-                // "detect" mode is dry_run + return_conflicts
-                dry_run = true;
-                ConflictMode::Skip
-            }
-            _ => bail!("Invalid conflict-mode: must be clobber, skip, or detect"),
-        }
-    } else {
-        ConflictMode::Clobber
-    };
-
     // Parse object specification: "new", "anonymous"/"anon", "uuid", #N=specific ID, omitted=use objdef's ID
     let object_kind = if let Some(spec_str) = parsed.get_string("as") {
         if spec_str.starts_with('#') {
@@ -837,12 +812,9 @@ pub(crate) fn cmd_load(
 
     // No explicit permission check needed - load_object will check permissions internally
     let loader_options = ObjDefLoaderOptions {
-        dry_run,
-        conflict_mode,
         object_kind,
         constants,
         validate_parent_changes: true, // Individual load_object command should validate
-        ..Default::default()
     };
 
     // Load through the scheduler client so it uses the scheduler's database
@@ -850,20 +822,7 @@ pub(crate) fn cmd_load(
         .load_object(object_definition, loader_options)
         .map_err(|e| eyre!("Failed to load object: {}", e))?;
 
-    // Display results
-    if return_conflicts {
-        if result.commit {
-            print_success("Load completed successfully");
-            println!("Loaded objects: {}", result.loaded_objects.len());
-            println!("Conflicts: {}", result.conflicts.len());
-            println!("{} lines processed", definition_lines.len());
-        } else {
-            print_warning("Load would have conflicts (dry-run or detect mode)");
-            println!("Would load: {}", result.loaded_objects.len());
-            println!("Conflicts: {}", result.conflicts.len());
-            println!("{} lines processed", definition_lines.len());
-        }
-    } else if result.loaded_objects.is_empty() {
+    if result.loaded_objects.is_empty() {
         bail!("No objects were loaded");
     } else {
         let obj = result.loaded_objects[0];

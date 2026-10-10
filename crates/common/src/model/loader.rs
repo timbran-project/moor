@@ -181,8 +181,17 @@ pub trait LoaderInterface: Send {
         value: Option<Var>,
     ) -> Result<(), WorldStateError>;
 
-    /// Remove a property's local value without changing its permissions or metadata.
+    /// Remove a local value row, preserving definition, permissions, and metadata.
     fn clear_property_value(&mut self, obj: &Obj, name: Symbol) -> Result<(), WorldStateError>;
+
+    /// Clear ordinary object/property metadata and local values before replacement.
+    /// Also remove inherited local permission rows.
+    /// Retain bookkeeping under `preserved_key` on definitions that survive replacement.
+    fn prepare_object_replacement(
+        &mut self,
+        obj: &Obj,
+        preserved_key: Symbol,
+    ) -> Result<(), WorldStateError>;
 
     /// Set metadata attached directly to an object.
     fn set_object_metadata(

@@ -12,6 +12,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+### Changed
+
+- `load_object()` and `reload_object()` now take source plus one options map and return an object.
+  Use `target`, `constants`, and load-only `allocation`. Removed conflict controls now fail
+  explicitly; use `preview_objdef_changes()` for review. Merge preserves omitted attributes, and
+  reload requires an existing target. Replacement clears absent members and ordinary metadata, and
+  recreates verbs in source order. Direct input cannot supply accepted-baseline metadata.
+
 ### Added
 
 `moor-git-worker`:

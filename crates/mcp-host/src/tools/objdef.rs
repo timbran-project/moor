@@ -30,6 +30,78 @@ fn auto_constants_builder() -> &'static str {
     r#"constants = []; for o in (objects()) id = object_metadata(o, 'import_export_id); if (typeof(id) == TYPE_STR && id != "") constants[id:uppercase()] = o; endif endfor"#
 }
 
+/// Build the shared source/options call used by text, file, and patch imports.
+fn import_expression(
+    lines: &str,
+    target: Option<&str>,
+    auto_constants: bool,
+    reload: bool,
+) -> Result<String> {
+    let mut options = Vec::new();
+    if auto_constants {
+        options.push("\"constants\" -> constants".to_string());
+    }
+    if let Some(target) = target {
+        let allocation = if reload {
+            None
+        } else {
+            match target {
+                "0" | "next" => Some("next"),
+                "1" | "anonymous" => Some("anonymous"),
+                "2" | "uuid" => Some("uuid"),
+                _ => None,
+            }
+        };
+        if let Some(kind) = allocation {
+            options.push(format!("\"allocation\" -> \"{kind}\""));
+        } else {
+            let reference = super::helpers::parse_object_ref(target)
+                .ok_or_else(|| eyre::eyre!("Invalid target object reference"))?;
+            let expression = match reference {
+                moor_common::model::ObjectRef::Id(object) => object.to_literal(),
+                moor_common::model::ObjectRef::SysObj(names)
+                    if names.iter().all(|n| {
+                        let name = n.as_arc_str();
+                        !name.is_empty()
+                            && name.chars().enumerate().all(|(i, c)| {
+                                c == '_' || c.is_ascii_alphabetic() || (i > 0 && c.is_ascii_digit())
+                            })
+                    }) =>
+                {
+                    format!(
+                        "${}",
+                        names
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(".")
+                    )
+                }
+                _ => {
+                    return Err(eyre::eyre!(
+                        "Target must be an object address or system object reference"
+                    ));
+                }
+            };
+            options.push(format!("\"target\" -> {expression}"));
+        }
+    }
+    let prefix = if auto_constants {
+        auto_constants_builder()
+    } else {
+        ""
+    };
+    let builtin = if reload {
+        "reload_object"
+    } else {
+        "load_object"
+    };
+    Ok(format!(
+        "{prefix} return {builtin}({lines}, [{}]);",
+        options.join(", ")
+    ))
+}
+
 pub fn tool_moo_dump_object() -> Tool {
     Tool {
         name: "moo_dump_object".to_string(),
@@ -383,24 +455,7 @@ pub async fn execute_moo_load_object(
 
     // Build the MOO expression
     // If auto_constants is enabled, build constants map from import_export_id metadata.
-    let expr = if auto_constants {
-        let constants_builder = auto_constants_builder();
-        if let Some(spec) = object_spec {
-            format!(
-                "{} return load_object({}, constants, {});",
-                constants_builder, lines_literal, spec
-            )
-        } else {
-            format!(
-                "{} return load_object({}, constants);",
-                constants_builder, lines_literal
-            )
-        }
-    } else if let Some(spec) = object_spec {
-        format!("return load_object({}, [], {});", lines_literal, spec)
-    } else {
-        format!("return load_object({});", lines_literal)
-    };
+    let expr = import_expression(&lines_literal, object_spec, auto_constants, false)?;
 
     match client.eval(&expr).await? {
         MoorResult::Success(var) => Ok(ToolCallResult::text(format!(
@@ -438,29 +493,9 @@ pub async fn execute_moo_reload_object(
             .join(", ")
     );
 
-    // Build the MOO expression: reload_object(lines [, constants] [, target])
+    // Build the MOO expression: reload_object(lines [, options])
     // If auto_constants is enabled, build constants map from import_export_id metadata.
-    let expr = if auto_constants {
-        let constants_builder = auto_constants_builder();
-        if let Some(target_obj) = target {
-            format!(
-                "{} return reload_object({}, constants, {});",
-                constants_builder, lines_literal, target_obj
-            )
-        } else {
-            format!(
-                "{} return reload_object({}, constants);",
-                constants_builder, lines_literal
-            )
-        }
-    } else if let Some(target_obj) = target {
-        format!(
-            "return reload_object({}, [], {});",
-            lines_literal, target_obj
-        )
-    } else {
-        format!("return reload_object({});", lines_literal)
-    };
+    let expr = import_expression(&lines_literal, target, auto_constants, true)?;
 
     match client.eval(&expr).await? {
         MoorResult::Success(var) => Ok(ToolCallResult::text(format!(
@@ -566,24 +601,7 @@ pub async fn execute_moo_load_objdef_file(
 
     // Build the MOO expression
     // If auto_constants is enabled, build constants map from import_export_id metadata.
-    let expr = if auto_constants {
-        let constants_builder = auto_constants_builder();
-        if let Some(spec) = object_spec {
-            format!(
-                "{} return load_object({}, constants, {});",
-                constants_builder, lines_literal, spec
-            )
-        } else {
-            format!(
-                "{} return load_object({}, constants);",
-                constants_builder, lines_literal
-            )
-        }
-    } else if let Some(spec) = object_spec {
-        format!("return load_object({}, [], {});", lines_literal, spec)
-    } else {
-        format!("return load_object({});", lines_literal)
-    };
+    let expr = import_expression(&lines_literal, object_spec, auto_constants, false)?;
 
     match client.eval(&expr).await? {
         MoorResult::Success(var) => Ok(ToolCallResult::text(format!(
@@ -633,29 +651,9 @@ pub async fn execute_moo_reload_objdef_file(
             .join(", ")
     );
 
-    // Build the MOO expression: reload_object(lines [, constants] [, target])
+    // Build the MOO expression: reload_object(lines [, options])
     // If auto_constants is enabled, build constants map from import_export_id metadata.
-    let expr = if auto_constants {
-        let constants_builder = auto_constants_builder();
-        if let Some(target_obj) = target {
-            format!(
-                "{} return reload_object({}, constants, {});",
-                constants_builder, lines_literal, target_obj
-            )
-        } else {
-            format!(
-                "{} return reload_object({}, constants);",
-                constants_builder, lines_literal
-            )
-        }
-    } else if let Some(target_obj) = target {
-        format!(
-            "return reload_object({}, [], {});",
-            lines_literal, target_obj
-        )
-    } else {
-        format!("return reload_object({});", lines_literal)
-    };
+    let expr = import_expression(&lines_literal, target, auto_constants, true)?;
 
     match client.eval(&expr).await? {
         MoorResult::Success(var) => Ok(ToolCallResult::text(format!(
@@ -733,27 +731,7 @@ pub async fn execute_moo_apply_patch_objdef(
             .join(", ")
     );
 
-    let reload_expr = if auto_constants {
-        let constants_builder = auto_constants_builder();
-        if let Some(target_obj) = target {
-            format!(
-                "{} return reload_object({}, constants, {});",
-                constants_builder, lines_literal, target_obj
-            )
-        } else {
-            format!(
-                "{} return reload_object({}, constants);",
-                constants_builder, lines_literal
-            )
-        }
-    } else if let Some(target_obj) = target {
-        format!(
-            "return reload_object({}, [], {});",
-            lines_literal, target_obj
-        )
-    } else {
-        format!("return reload_object({});", lines_literal)
-    };
+    let reload_expr = import_expression(&lines_literal, target, auto_constants, true)?;
 
     match client.eval(&reload_expr).await? {
         MoorResult::Success(var) => Ok(ToolCallResult::text(format!(
