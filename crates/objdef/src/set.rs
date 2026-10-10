@@ -243,7 +243,7 @@ impl ObjDefSet {
             if let Some(base) = base {
                 local.metadata.push((
                     key,
-                    crate::review::inspection::baseline(base, provenance.as_ref()),
+                    crate::review::inspection::baseline(base, &baseline.graph, provenance.as_ref()),
                 ));
             }
             for (index, verb) in local.verbs.iter().enumerate() {

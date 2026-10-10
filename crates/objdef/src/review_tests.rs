@@ -1295,3 +1295,94 @@ fn property_and_attribute_edits_use_the_imported_ancestor() {
         }
     }
 }
+
+#[test]
+fn inherited_property_inspection_uses_imported_permissions() {
+    let parse = |text: &str| {
+        ObjDefSet::parse_sources(
+            &CompileOptions::default(),
+            None,
+            None,
+            [ObjDefSource::new("core.moo", text)],
+        )
+        .unwrap()
+    };
+    for flags in ["r", "rc"] {
+        let owner = if flags == "rc" { 2 } else { 1 };
+        let source = |child_permissions: &str| {
+            format!(
+                r#"
+object #1
+owner: #1
+wizard: true
+property foo (owner: #1, flags: "{flags}") = 0;
+property note (owner: #1, flags: "{flags}") = 0;
+endobject
+object #2
+parent: #1
+owner: #1
+override foo (owner: #1, flags: "w") = 2;
+endobject
+object #3
+parent: #2
+owner: #2
+override foo {child_permissions} = 1;
+override note [comment -> "Child metadata"];
+endobject
+"#
+            )
+        };
+        let same = format!("(owner: #{owner}, flags: \"{flags}\")");
+        let edited = format!("(owner: #{owner}, flags: \"w\")");
+        let other = format!("(owner: #{owner}, flags: \"rw\")");
+        let base = parse(&source(""));
+        for (local, incoming, expected) in [
+            ("", "", None),
+            (same.as_str(), "", None),
+            ("", same.as_str(), None),
+            (edited.as_str(), "", Some("local")),
+            ("", edited.as_str(), Some("upstream")),
+            (edited.as_str(), edited.as_str(), Some("converged")),
+            (edited.as_str(), other.as_str(), Some("conflict")),
+        ] {
+            let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+            let mut loader = db.loader_client().unwrap();
+            ObjectDefinitionLoader::new(loader.as_mut())
+                .load_objdef_set(
+                    parse(&source(local)).with_baseline(&base, None).unwrap(),
+                    Default::default(),
+                )
+                .unwrap();
+            loader.commit().unwrap();
+            let world = db.new_world_state().unwrap();
+            let req = record(&[
+                ("schema", v_int(1)),
+                ("operation", v_str("inspect")),
+                ("objects", v_list(&[v_obj(Obj::mk_id(3))])),
+                ("fields", v_list(&[v_str("property")])),
+            ]);
+            let report = preview(
+                world.as_ref(),
+                &permissions(),
+                &CompileOptions::default(),
+                &sources(&source(incoming)),
+                &req,
+                None,
+            )
+            .unwrap();
+            let rows = get(&report, "rows");
+            let rows = rows.as_list().unwrap();
+            if let Some(expected) = expected {
+                assert_eq!(rows.len(), 1);
+                let row = rows.iter().next().unwrap();
+                assert_eq!(get(&row, "name"), v_str("foo"));
+                assert_eq!(get(&row, "classification"), v_str(expected));
+            } else {
+                assert!(
+                    rows.is_empty(),
+                    "{flags}: local={local}, incoming={incoming}: {rows:?}"
+                );
+            }
+        }
+    }
+}

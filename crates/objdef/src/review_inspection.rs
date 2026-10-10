@@ -14,8 +14,8 @@
 //! Read-only differences outside the existing-program writer's scope.
 
 use super::{MAX_ROWS, MAX_SOURCE_BYTES, ReviewError, program_text, record};
-use crate::{ObjDefSet, collect_object_definitions, fingerprint::digest};
-use moor_common::model::{ObjFlag, TaskPermissions, WorldState};
+use crate::{ObjDefSet, ProposedObjectGraph, collect_object_definitions, fingerprint::digest};
+use moor_common::model::{ObjFlag, PropFlag, PropPerms, TaskPermissions, WorldState};
 use moor_compiler::{ObjectDefinition, to_literal};
 use moor_var::{
     Associative, ByteSized, Obj, Symbol, Var, v_bool, v_int, v_list, v_map, v_obj, v_str,
@@ -52,34 +52,72 @@ fn attributes(object: &ObjectDefinition) -> BTreeMap<String, Var> {
     values
 }
 
-fn properties(object: &ObjectDefinition) -> BTreeMap<String, Var> {
+struct Property {
+    value: Var,
+    permissions_known: bool,
+}
+
+// Setting an inherited value materializes the defining property's permissions, with the
+// receiving object's owner for +c. Intermediate overrides do not supply these permissions.
+fn inherited_permissions(
+    object: &ObjectDefinition,
+    name: Symbol,
+    graph: &ProposedObjectGraph,
+) -> Option<PropPerms> {
+    let mut parent = object.parent;
+    let mut visited = BTreeSet::from([object.oid]);
+    while visited.insert(parent) {
+        let (_, ancestor) = graph.object_definitions().get(&parent)?;
+        if let Some(property) = ancestor
+            .property_definitions
+            .iter()
+            .find(|p| p.name == name)
+        {
+            return Some(if property.perms.flags().contains(PropFlag::Chown) {
+                property.perms.clone().with_owner(object.owner)
+            } else {
+                property.perms.clone()
+            });
+        }
+        parent = ancestor.parent;
+    }
+    None
+}
+
+fn properties(
+    object: &ObjectDefinition,
+    graph: Option<&ProposedObjectGraph>,
+) -> BTreeMap<String, Property> {
     let mut result = BTreeMap::new();
     for property in &object.property_definitions {
         result.insert(
             property.name.to_folded_case(),
-            record(&[
-                ("kind", v_str("definition")),
-                ("owner", v_obj(property.perms.owner())),
-                (
-                    "flags",
-                    v_str(&moor_common::model::prop_flags_string(
-                        property.perms.flags(),
-                    )),
-                ),
-                (
-                    "state",
-                    v_str(if property.value.is_some() {
-                        "value"
-                    } else {
-                        "clear"
-                    }),
-                ),
-                (
-                    "value",
-                    property.value.clone().unwrap_or_else(|| v_list(&[])),
-                ),
-                ("metadata", metadata(&property.metadata)),
-            ]),
+            Property {
+                permissions_known: true,
+                value: record(&[
+                    ("kind", v_str("definition")),
+                    ("owner", v_obj(property.perms.owner())),
+                    (
+                        "flags",
+                        v_str(&moor_common::model::prop_flags_string(
+                            property.perms.flags(),
+                        )),
+                    ),
+                    (
+                        "state",
+                        v_str(if property.value.is_some() {
+                            "value"
+                        } else {
+                            "clear"
+                        }),
+                    ),
+                    (
+                        "value",
+                        property.value.clone().unwrap_or_else(|| v_list(&[])),
+                    ),
+                    ("metadata", metadata(&property.metadata)),
+                ]),
+            },
         );
     }
     for property in &object.property_overrides {
@@ -99,14 +137,24 @@ fn properties(object: &ObjectDefinition) -> BTreeMap<String, Var> {
             ),
             ("metadata", metadata(&property.metadata)),
         ];
-        if let Some(perms) = &property.perms_update {
+        let perms = property.perms_update.clone().or_else(|| {
+            property.value.as_ref()?;
+            inherited_permissions(object, property.name, graph?)
+        });
+        if let Some(perms) = &perms {
             fields.push(("owner", v_obj(perms.owner())));
             fields.push((
                 "flags",
                 v_str(&moor_common::model::prop_flags_string(perms.flags())),
             ));
         }
-        result.insert(property.name.to_folded_case(), record(&fields));
+        result.insert(
+            property.name.to_folded_case(),
+            Property {
+                value: record(&fields),
+                permissions_known: property.value.is_none() || perms.is_some(),
+            },
+        );
     }
     result
 }
@@ -114,7 +162,11 @@ fn properties(object: &ObjectDefinition) -> BTreeMap<String, Var> {
 // This metadata records hashes, not copies of the imported object graph.
 const FIELD_SCHEMA: &str = "objdef-v1:fields:sha256";
 
-pub(crate) fn baseline(object: &ObjectDefinition, source: Option<&Var>) -> Var {
+pub(crate) fn baseline(
+    object: &ObjectDefinition,
+    graph: &ProposedObjectGraph,
+    source: Option<&Var>,
+) -> Var {
     let hashes = |values: BTreeMap<String, Var>| {
         v_map(
             &values
@@ -128,7 +180,16 @@ pub(crate) fn baseline(object: &ObjectDefinition, source: Option<&Var>) -> Var {
     let mut fields = vec![
         ("schema", v_str(FIELD_SCHEMA)),
         ("attribute", hashes(attributes(object))),
-        ("property", hashes(properties(object))),
+        (
+            "property",
+            hashes(
+                properties(object, Some(graph))
+                    .into_iter()
+                    .filter(|(_, property)| property.permissions_known)
+                    .map(|(name, property)| (name, property.value))
+                    .collect(),
+            ),
+        ),
     ];
     if let Some(source) = source {
         fields.push(("source", source.clone()));
@@ -344,8 +405,13 @@ pub(super) fn inspect(
                 None,
             )?;
         }
-        let local_props = live.as_ref().map(properties).unwrap_or_default();
-        let incoming_props = incoming.map(properties).unwrap_or_default();
+        let local_props = live
+            .as_ref()
+            .map(|object| properties(object, None))
+            .unwrap_or_default();
+        let incoming_props = incoming
+            .map(|object| properties(object, Some(set.graph())))
+            .unwrap_or_default();
         for name in local_props
             .keys()
             .chain(incoming_props.keys())
@@ -355,9 +421,16 @@ pub(super) fn inspect(
                 *object,
                 "property",
                 name,
-                local_props.get(name).cloned(),
-                incoming_props.get(name).cloned(),
-                baseline_hash(live.as_ref(), "property", name),
+                local_props.get(name).map(|property| property.value.clone()),
+                incoming_props
+                    .get(name)
+                    .map(|property| property.value.clone()),
+                // An external ancestor's permissions cannot be reconstructed from this
+                // source. Do not mistake missing information for a local/upstream edit.
+                incoming_props
+                    .get(name)
+                    .filter(|property| property.permissions_known)
+                    .and_then(|_| baseline_hash(live.as_ref(), "property", name)),
             )?;
         }
         let local_verbs = live
