@@ -804,6 +804,66 @@ mod tests {
     }
 
     #[test]
+    fn test_typed_catch_preserves_error_payload() {
+        let result = run_moo(
+            r#"
+            try
+                raise(E_INVARG, "Worker failed", ["code" -> "limit_exceeded"]);
+            except e (E_PERM)
+                return 0;
+            except e (E_INVARG)
+                return {e[1], e[2], e[3]["code"]};
+            endtry
+            "#,
+        );
+        assert_eq!(
+            result,
+            Ok(v_list(&[
+                v_err(E_INVARG),
+                v_str("Worker failed"),
+                v_str("limit_exceeded"),
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_typed_catch_expression_ignores_error_payload() {
+        assert_eq!(
+            run_moo(r#"return `raise(E_INVARG, "detail", 123) ! E_INVARG => 456';"#),
+            Ok(v_int(456))
+        );
+    }
+
+    #[test]
+    fn test_typed_catch_across_verb_preserves_error_payload() {
+        let catcher = compile(
+            r#"
+            try
+                this:raiser();
+            except e (E_ARGS)
+                return e[3];
+            endtry
+            "#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let raiser = compile(
+            r#"raise(E_ARGS, "detail", 123);"#,
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let state = world_with_test_programs(&[("catcher", &catcher), ("raiser", &raiser)]);
+        let result = call_verb(
+            state,
+            Arc::new(NoopClientSession::new()),
+            BuiltinRegistry::new(),
+            "catcher",
+            List::mk_list(&[]),
+        );
+        assert_eq!(result, Ok(v_int(123)));
+    }
+
+    #[test]
     fn test_try_except_str() {
         let program = r#"try
           return "hello world"[2..$];

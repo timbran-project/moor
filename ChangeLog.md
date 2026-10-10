@@ -229,6 +229,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Match exception handlers by error code even when an error carries a value. Typed `except` clauses
+  and error-catching expressions now catch these errors and retain their payloads.
 - Defer input, worker responses, explicit task resumes, and maintenance wakeups during GC sweep.
   Resumed tasks keep their return values or errors. Shutdown cancels these accepted responses
   instead of starting more execution or saving incomplete continuations.

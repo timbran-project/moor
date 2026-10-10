@@ -199,7 +199,9 @@ impl ExecState {
     fn catch_matches(catch: &CatchType, error: &Error) -> bool {
         match catch {
             CatchType::Any => true,
-            CatchType::Errors(errs) => errs.contains(error),
+            CatchType::Errors(errs) => errs
+                .iter()
+                .any(|candidate| candidate.err_type() == error.err_type()),
         }
     }
 
