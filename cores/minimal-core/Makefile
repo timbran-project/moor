@@ -38,9 +38,9 @@ endif
 SRC_FILES := $(wildcard src/*.moo src/*/*.moo)
 
 # Build a normalized objdef dump from the local source tree.
-gen.objdir: $(SRC_FILES)
+gen.objdir: Makefile $(SRC_FILES)
 	rm -rf gen.objdir
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 
 rebuild: gen.objdir
 	test -d gen.objdir
@@ -50,7 +50,7 @@ rebuild: gen.objdir
 
 test: $(SRC_FILES)
 	rm -rf gen.objdir
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=3 --test-programmer=3 --test-player=3 --run-tests true
 
 clean:

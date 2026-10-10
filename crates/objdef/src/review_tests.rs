@@ -697,6 +697,53 @@ fn directory_import_preserves_supplied_baseline_for_local_program() {
     let report = inspect(world.as_ref(), SOURCE, "update", None);
     assert_eq!(get(&row(&report), "base"), v_str(&base));
     assert_eq!(get(&row(&report), "classification"), v_str("converged"));
+    drop(world);
+
+    // Backups preserve the accepted baseline; source exports establish a new one on import.
+    let snapshot = db.create_snapshot().unwrap();
+    for include_baselines in [true, false] {
+        let export = tempfile::tempdir().unwrap();
+        if include_baselines {
+            crate::dump_snapshot_object_definitions(snapshot.as_ref(), export.path()).unwrap();
+        } else {
+            crate::dump_snapshot_object_definitions_with_options(
+                snapshot.as_ref(),
+                export.path(),
+                crate::ObjectDumpOptions {
+                    include_baselines: false,
+                },
+            )
+            .unwrap();
+        }
+        let text = std::fs::read_to_string(export.path().join("review_root.moo")).unwrap();
+        assert_eq!(text.contains("objdef_base ->"), include_baselines);
+        let restored = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let mut loader = restored.loader_client().unwrap();
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .load_objdef_directory(CompileOptions::default(), export.path(), Default::default())
+            .unwrap();
+        loader.commit().unwrap();
+        let world = restored.new_world_state().unwrap();
+        let report = inspect(world.as_ref(), SOURCE, "update", None);
+        let expected = if include_baselines {
+            base.clone()
+        } else {
+            program_fingerprint(&ProgramType::MooR(
+                compile("return \"Base\";", CompileOptions::default()).unwrap(),
+            ))
+            .unwrap()
+        };
+        assert_eq!(get(&row(&report), "base"), v_str(&expected));
+    }
+    // Exporting without baselines must not alter the source database's tracking state.
+    let world = db.new_world_state().unwrap();
+    assert_eq!(
+        get(
+            &row(&inspect(world.as_ref(), SOURCE, "update", None)),
+            "base"
+        ),
+        v_str(&base)
+    );
 }
 
 #[test]

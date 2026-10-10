@@ -29,9 +29,9 @@ gen.moo-textdump: $(wildcard src/*.moo)
 
 # Target to generate a new objdef dump from the compilation of the local
 # directory.
-gen.objdir: $(wildcard src/*.moo)
+gen.objdir: Makefile $(wildcard src/*.moo)
 	rm -rf gen.objdir
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 
 # Builds a new objdef dump and then copies over the local working sources.
 # WARNING: this is destructive to local changes you might have -- it *will*
@@ -41,7 +41,7 @@ rebuild: gen.objdir
 	cp gen.objdir/*.moo ./src
 
 test:  $(wildcard src/*.moo)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY)  --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=6 --test-player=4 --run-tests true
 
 clean:

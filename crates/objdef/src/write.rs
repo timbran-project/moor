@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::dump::ObjectDumpError;
+use crate::dump::{ObjectDumpError, ObjectDumpOptions};
 use moor_common::model::{
     ObjFlag, PrepSpec, VerbArgsSpec, VerbFlag, prop_flags_string, verb_perms_string,
 };
@@ -149,46 +149,49 @@ pub(crate) fn generate_constants_file(
 pub(crate) fn collect_dump_object_lines(
     index_names: &HashMap<Obj, String>,
     o: &ObjectDefinition,
+    options: ObjectDumpOptions,
 ) -> Result<DumpLines, ObjectDumpError> {
     let mut collector = LineCollector::new();
-    write_dump_object(index_names, o, &mut collector)?;
+    write_dump_object(index_names, o, options, &mut collector)?;
     collector.finish()
 }
 
 pub(crate) fn write_dump_object<W: Write>(
     index_names: &HashMap<Obj, String>,
     o: &ObjectDefinition,
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
     validate_verb_names(o)?;
-    write_validated_dump_object(index_names, o, writer)
+    write_validated_dump_object(index_names, o, options, writer)
 }
 
 pub(crate) fn write_validated_dump_object<W: Write>(
     index_names: &HashMap<Obj, String>,
     o: &ObjectDefinition,
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
     let object_decl = format!("object {}", canon_name(&o.oid, index_names));
     write!(writer, "{object_decl}")?;
-    write_object_metadata_suffix(index_names, &o.metadata, writer)?;
+    write_object_metadata_suffix(index_names, &o.metadata, options, writer)?;
     writeln!(writer)?;
     write_dump_object_header(index_names, o, "  ", writer)?;
     if !o.property_definitions.is_empty() {
         writeln!(writer)?;
     }
     for pd in &o.property_definitions {
-        write_property_definition(index_names, "  ", pd, writer)?;
+        write_property_definition(index_names, "  ", pd, options, writer)?;
     }
     if !o.property_overrides.is_empty() {
         writeln!(writer)?;
     }
     for ps in &o.property_overrides {
-        write_property_override(index_names, "  ", ps, writer)?;
+        write_property_override(index_names, "  ", ps, options, writer)?;
     }
     for v in &o.verbs {
         writeln!(writer)?;
-        write_verb(index_names, "  ", v, &o.oid, writer)?;
+        write_verb(index_names, "  ", v, &o.oid, options, writer)?;
     }
     writeln!(writer, "endobject")?;
     Ok(())
@@ -251,6 +254,7 @@ fn write_verb<W: Write>(
     indent: &str,
     v: &ObjVerbDef,
     obj: &Obj,
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), ObjectDumpError> {
     let owner = canon_name(&v.owner, index_names);
@@ -297,7 +301,14 @@ fn write_verb<W: Write>(
             format!("{indent}method {names} owner: {owner} flags: \"{vflags}\"")
         };
         write!(writer, "{header}")?;
-        write_metadata_suffix(index_names, indent, header.len(), &v.metadata, writer)?;
+        write_metadata_suffix(
+            index_names,
+            indent,
+            header.len(),
+            &v.metadata,
+            options,
+            writer,
+        )?;
         writeln!(writer)?;
         for line in unparsed {
             writeln!(writer, "{indent}{indent}{line}")?;
@@ -319,7 +330,14 @@ fn write_verb<W: Write>(
         let header =
             format!("{indent}verb {names} ({verbargsspec}) owner: {owner} flags: \"{vflags}\"");
         write!(writer, "{header}")?;
-        write_metadata_suffix(index_names, indent, header.len(), &v.metadata, writer)?;
+        write_metadata_suffix(
+            index_names,
+            indent,
+            header.len(),
+            &v.metadata,
+            options,
+            writer,
+        )?;
         writeln!(writer)?;
         for line in unparsed {
             writeln!(writer, "{indent}{indent}{line}")?;
@@ -333,6 +351,7 @@ fn write_property_definition<W: Write>(
     index_names: &HashMap<Obj, String>,
     indent: &str,
     pd: &ObjPropDef,
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), std::io::Error> {
     let owner = canon_name(&pd.perms.owner(), index_names);
@@ -341,7 +360,14 @@ fn write_property_definition<W: Write>(
 
     let header = format!("{indent}property {name} (owner: {owner}, flags: \"{flags}\")");
     write!(writer, "{header}")?;
-    write_metadata_suffix(index_names, indent, header.len(), &pd.metadata, writer)?;
+    write_metadata_suffix(
+        index_names,
+        indent,
+        header.len(),
+        &pd.metadata,
+        options,
+        writer,
+    )?;
     if let Some(value) = &pd.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
@@ -356,6 +382,7 @@ fn write_property_override<W: Write>(
     index_names: &HashMap<Obj, String>,
     indent: &str,
     ps: &ObjPropOverride,
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), std::io::Error> {
     let name = propname(ps.name);
@@ -366,7 +393,14 @@ fn write_property_override<W: Write>(
         header.push_str(&format!(" (owner: {owner}, flags: \"{flags}\")"));
     }
     write!(writer, "{header}")?;
-    write_metadata_suffix(index_names, indent, header.len(), &ps.metadata, writer)?;
+    write_metadata_suffix(
+        index_names,
+        indent,
+        header.len(),
+        &ps.metadata,
+        options,
+        writer,
+    )?;
     if let Some(value) = &ps.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
@@ -382,13 +416,13 @@ fn write_metadata_suffix<W: Write>(
     indent: &str,
     current_len: usize,
     metadata: &[(Symbol, Var)],
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), std::io::Error> {
-    if metadata.is_empty() {
+    let entries = metadata_entries(index_names, exported_metadata(metadata, options));
+    if entries.is_empty() {
         return Ok(());
     }
-
-    let entries = metadata_entries(index_names, metadata.iter());
     let inline = format!(" [ {} ]", entries.join(", "));
     if current_len + inline.len() <= 100 {
         write!(writer, "{inline}")?;
@@ -407,13 +441,19 @@ fn write_metadata_suffix<W: Write>(
 fn write_object_metadata_suffix<W: Write>(
     index_names: &HashMap<Obj, String>,
     metadata: &[(Symbol, Var)],
+    options: ObjectDumpOptions,
     writer: &mut W,
 ) -> Result<(), std::io::Error> {
     if metadata.is_empty() {
         return Ok(());
     }
 
-    let mut ordered = metadata.iter().enumerate().collect::<Vec<_>>();
+    let mut ordered = exported_metadata(metadata, options)
+        .enumerate()
+        .collect::<Vec<_>>();
+    if ordered.is_empty() {
+        return Ok(());
+    }
     ordered.sort_by_key(|(idx, (key, _))| (object_metadata_order_key(key), *idx));
     let entries = metadata_entries(
         index_names,
@@ -427,6 +467,15 @@ fn write_object_metadata_suffix<W: Write>(
     }
     write!(writer, "]")?;
     Ok(())
+}
+
+fn exported_metadata(
+    metadata: &[(Symbol, Var)],
+    options: ObjectDumpOptions,
+) -> impl Iterator<Item = &(Symbol, Var)> {
+    metadata.iter().filter(move |(key, _)| {
+        options.include_baselines || *key != Symbol::mk(crate::review::BASE_KEY)
+    })
 }
 
 fn metadata_entries<'a>(
@@ -478,6 +527,63 @@ mod tests {
     use moor_compiler::{CompileOptions, compile};
 
     #[test]
+    fn source_dump_filters_only_reserved_metadata() {
+        let source = r#"
+            object #1 [objdef_base -> 1, keep -> ["objdef_base" -> 2]]
+                property p (owner: #1, flags: "rw") [objdef_base -> 3, keep -> 4] = 5;
+                override inherited [objdef_base -> 6, keep -> 7] clear;
+                method test owner: #1 [objdef_base -> 8]
+                    return 1;
+                endmethod
+            endobject
+        "#;
+        let mut context = moor_compiler::ObjFileContext::new();
+        let definitions =
+            moor_compiler::compile_object_definitions(source, &Default::default(), &mut context)
+                .unwrap();
+        let object = &definitions[0];
+        let baseline = Symbol::mk(crate::review::BASE_KEY);
+        let full = crate::dump_object(&HashMap::new(), object).unwrap();
+        let clean = crate::dump_object_with_options(
+            &HashMap::new(),
+            object,
+            ObjectDumpOptions {
+                include_baselines: false,
+            },
+        )
+        .unwrap();
+        let text = clean
+            .iter()
+            .map(|line| line.as_string().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut context = moor_compiler::ObjFileContext::new();
+        let parsed =
+            moor_compiler::compile_object_definitions(&text, &Default::default(), &mut context)
+                .unwrap();
+        let clean = &parsed[0];
+        for metadata in [
+            &clean.metadata,
+            &clean.property_definitions[0].metadata,
+            &clean.property_overrides[0].metadata,
+            &clean.verbs[0].metadata,
+        ] {
+            assert!(metadata.iter().all(|(key, _)| *key != baseline));
+        }
+        assert_eq!(clean.metadata, object.metadata[1..]);
+        assert_eq!(
+            clean.property_definitions[0].metadata,
+            object.property_definitions[0].metadata[1..]
+        );
+        assert_eq!(
+            clean.property_overrides[0].metadata,
+            object.property_overrides[0].metadata[1..]
+        );
+        assert!(text.contains("method test owner: #1\n"));
+        assert_eq!(crate::dump_object(&HashMap::new(), object).unwrap(), full);
+    }
+
+    #[test]
     fn empty_verb_name_prevents_dump() {
         let object = ObjectDefinition {
             declared_attributes: None,
@@ -503,7 +609,13 @@ mod tests {
             property_overrides: Vec::new(),
         };
         let mut output = Vec::new();
-        let error = write_dump_object(&HashMap::new(), &object, &mut output).unwrap_err();
+        let error = write_dump_object(
+            &HashMap::new(),
+            &object,
+            ObjectDumpOptions::default(),
+            &mut output,
+        )
+        .unwrap_err();
         assert!(matches!(
             error,
             ObjectDumpError::EmptyVerbName {

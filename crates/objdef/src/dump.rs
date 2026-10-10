@@ -35,6 +35,21 @@ use tracing::info;
 #[cfg(test)]
 use tracing::warn;
 
+/// Controls which bookkeeping is included in an objdef export.
+#[derive(Clone, Copy, Debug)]
+pub struct ObjectDumpOptions {
+    /// Preserve accepted program baselines. Disable for source exports, not backups.
+    pub include_baselines: bool,
+}
+
+impl Default for ObjectDumpOptions {
+    fn default() -> Self {
+        Self {
+            include_baselines: true,
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum ObjectDumpError {
     #[error("Worldstate error: {0}")]
@@ -501,6 +516,7 @@ fn regular_object_file_name(
 }
 
 struct ObjectDumpSink<'a> {
+    options: ObjectDumpOptions,
     directory_path: &'a Path,
     index_names: &'a HashMap<Obj, String>,
     file_names: &'a HashMap<Obj, String>,
@@ -515,12 +531,14 @@ impl<'a> ObjectDumpSink<'a> {
         index_names: &'a HashMap<Obj, String>,
         file_names: &'a HashMap<Obj, String>,
         hierarchies: &'a HashMap<Obj, Vec<String>>,
+        options: ObjectDumpOptions,
     ) -> Result<Self, ObjectDumpError> {
         std::fs::create_dir_all(directory_path)?;
         crate::write::generate_constants_file(index_names, hierarchies, directory_path)?;
         let mut directories = HashMap::new();
         directories.insert(Vec::new(), directory_path.to_path_buf());
         Ok(Self {
+            options,
             directory_path,
             index_names,
             file_names,
@@ -558,7 +576,12 @@ impl<'a> ObjectDumpSink<'a> {
         if !object.oid.is_anonymous() {
             let path = target_dir.join(regular_object_file_name(object, self.file_names));
             let mut file = File::create(path)?;
-            return crate::write::write_validated_dump_object(self.index_names, object, &mut file);
+            return crate::write::write_validated_dump_object(
+                self.index_names,
+                object,
+                self.options,
+                &mut file,
+            );
         }
 
         let anonymous_path = target_dir.join("_anonymous_objects.moo");
@@ -571,7 +594,7 @@ impl<'a> ObjectDumpSink<'a> {
         if !first_in_hierarchy {
             writeln!(file)?;
         }
-        crate::write::write_validated_dump_object(self.index_names, object, &mut file)
+        crate::write::write_validated_dump_object(self.index_names, object, self.options, &mut file)
     }
 }
 
@@ -582,6 +605,19 @@ impl<'a> ObjectDumpSink<'a> {
 pub fn dump_snapshot_object_definitions(
     loader: &dyn SnapshotInterface,
     directory_path: &Path,
+) -> Result<ObjectDumpStats, ObjectDumpError> {
+    dump_snapshot_object_definitions_with_options(
+        loader,
+        directory_path,
+        ObjectDumpOptions::default(),
+    )
+}
+
+/// Export one stable snapshot with explicit control over baseline metadata.
+pub fn dump_snapshot_object_definitions_with_options(
+    loader: &dyn SnapshotInterface,
+    directory_path: &Path,
+    options: ObjectDumpOptions,
 ) -> Result<ObjectDumpStats, ObjectDumpError> {
     let metadata_started = Instant::now();
     let mut export = loader.begin_export(&[import_export_id(), import_export_hierarchy()])?;
@@ -594,7 +630,13 @@ pub fn dump_snapshot_object_definitions(
         .map(|identity| (identity.oid, identity.hierarchy.clone()))
         .collect::<HashMap<_, _>>();
 
-    let mut sink = ObjectDumpSink::new(directory_path, &index_names, &file_names, &hierarchies)?;
+    let mut sink = ObjectDumpSink::new(
+        directory_path,
+        &index_names,
+        &file_names,
+        &hierarchies,
+        options,
+    )?;
 
     let started = Instant::now();
     let mut regular_count = 0;
@@ -671,7 +713,13 @@ pub(crate) fn dump_object_definitions(
         .filter(|object| !object.oid.is_anonymous())
         .count();
     let anonymous_count = object_defs.len() - regular_count;
-    let mut sink = ObjectDumpSink::new(directory_path, &index_names, &file_names, &hierarchies)?;
+    let mut sink = ObjectDumpSink::new(
+        directory_path,
+        &index_names,
+        &file_names,
+        &hierarchies,
+        ObjectDumpOptions::default(),
+    )?;
     for object in object_defs {
         sink.write_validated_object(object)?;
     }
@@ -687,7 +735,16 @@ pub fn dump_object(
     index_names: &HashMap<Obj, String>,
     o: &ObjectDefinition,
 ) -> Result<Vec<Var>, ObjectDumpError> {
-    Ok(crate::write::collect_dump_object_lines(index_names, o)?.lines)
+    dump_object_with_options(index_names, o, ObjectDumpOptions::default())
+}
+
+/// Export an object with explicit control over baseline metadata.
+pub fn dump_object_with_options(
+    index_names: &HashMap<Obj, String>,
+    o: &ObjectDefinition,
+    options: ObjectDumpOptions,
+) -> Result<Vec<Var>, ObjectDumpError> {
+    Ok(crate::write::collect_dump_object_lines(index_names, o, options)?.lines)
 }
 
 #[cfg(test)]

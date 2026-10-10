@@ -13,11 +13,20 @@ the review APIs described below.
 ```moo
 definition = dump_object(#123);
 definition = dump_object(#123, ["constants" -> true]);
+source = dump_object(#123, ["include_baselines" -> false]);
 ```
 
 The result is a list of source lines. The optional `constants` boolean selects symbolic object
 names. The dump includes pending changes in the calling task. It does not create a separate database
 snapshot. A client can save the returned lines as a `.moo` file.
+
+The `include_baselines` boolean defaults to true. Set it to false for source exports that do not
+need the reserved `objdef_base` annotations. Other metadata and the database's stored baselines
+remain unchanged. Directory import derives fresh baselines when those annotations are absent.
+
+For directory source exports, use `moorc --include-baselines=false --out-objdef-dir DIRECTORY` with
+the usual input options. Core rebuilds use this setting. Backup and checkpoint exports retain
+baselines so restoration preserves the distinction between accepted programs and local edits.
 
 Dumps preserve explicit local values, clear states, local permissions, and metadata independently.
 An inherited property remains inherited even when its current value equals an explicit local value

@@ -36,9 +36,9 @@ MOORC = cargo run --release -p moorc -- $(OPTIONS)
 
 SRC_FILES := $(wildcard src/*.moo src/*/*.moo)
 
-gen.objdir: $(SRC_FILES)
+gen.objdir: Makefile $(SRC_FILES)
 	rm -rf gen.objdir
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 
 rebuild: gen.objdir
 	test -d gen.objdir
@@ -47,27 +47,27 @@ rebuild: gen.objdir
 	cp -r gen.objdir/* ./src/
 
 bench: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-directory $(TEST_DIRECTORY) --test-wizard=2 --test-programmer=2 --test-player=4 --run-tests true
 
 bench-game-update: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_run_bench"
 
 bench-write-stress: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(APPEND_MODE)}"
 
 bench-string-history: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_string_history_append" --test-timeout $(HISTORY_TIMEOUT) --test-args "{$(HISTORY_WRITERS), $(HISTORY_ENTRIES), $(HISTORY_ENTRY_BYTES), $(HISTORY_APPENDS), $(HISTORY_APPEND_DELAY), $(HISTORY_SETTLE_SECONDS), $(HISTORY_APPEND_WIDTH), $(HISTORY_MUTATION_MODE)}"
 
 bench-combat-stress: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_combat_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(FANOUT), $(CHECKS_PER_TICK), $(STATE_WRITES), $(DELAY_RATIO), $(UPDATE_HZ)}"
 
 bench-intent-match: $(SRC_FILES)
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--test-wizard=2 --run-tests true --test-filter "#669:test_intent_match" --test-args "{$(INTENT_ITERATIONS)}"
 
 # Profile with perf to identify blocking spots
@@ -76,7 +76,7 @@ bench-write-stress-perf: $(wildcard src/*.moo)
 	cargo build --release -p moorc
 	perf record -g --call-graph dwarf -o perf.data -- \
 		../../target/release/moorc $(OPTIONS) \
-		--src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout 60
 	@echo "Perf data written to perf.data"
 	@echo "Analyze with: perf report -g"
@@ -85,7 +85,7 @@ bench-combat-stress-perf: $(wildcard src/*.moo)
 	cargo build --release -p moorc
 	perf record -e cycles:u -F 999 -g --call-graph dwarf -o perf-combat.data -- \
 		../../target/release/moorc $(OPTIONS) \
-		--src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --run-tests true --test-filter "#668:test_combat_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(FANOUT), $(CHECKS_PER_TICK), $(STATE_WRITES), $(DELAY_RATIO), $(UPDATE_HZ)}"
 	@echo "Perf data written to perf-combat.data"
 	@echo "Analyze with: perf report -i perf-combat.data --stdio --sort comm,dso,symbol --no-children"
@@ -94,7 +94,7 @@ bench-combat-stress-perf-stat: $(wildcard src/*.moo)
 	cargo build --release -p moorc
 	perf stat -x, -e $(PERF_STAT_EVENTS) -o $(PERF_STAT_OUTPUT) -- \
 		../../target/release/moorc $(OPTIONS) \
-		--src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --run-tests true --test-filter "#668:test_combat_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(FANOUT), $(CHECKS_PER_TICK), $(STATE_WRITES), $(DELAY_RATIO), $(UPDATE_HZ)}"
 	@echo "Perf stat written to $(PERF_STAT_OUTPUT)"
 	@echo "View with: cat $(PERF_STAT_OUTPUT)"
@@ -111,7 +111,7 @@ bench-write-stress-perf-sched: $(wildcard src/*.moo)
 	IOSTAT_PID=$$! && \
 	sudo perf record -g --call-graph dwarf -e sched:sched_switch,sched:sched_stat_sleep -o perf-sched.data -- \
 		../../target/release/moorc $(OPTIONS) \
-		--src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+		--src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 		--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout 60 ; \
 	kill $$IOSTAT_PID 2>/dev/null || true
 	sudo chown $(USER):$(USER) perf-sched.data
@@ -130,7 +130,7 @@ bench-write-stress-slow: $(wildcard src/*.moo)
 	@rm -f iostat-slow.log && \
 	iostat -x 1 > iostat-slow.log & \
 	IOSTAT_PID=$$! && \
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir \
 	--db-path $(SLOW_DB_PATH) \
 	--test-wizard=2 --run-tests true --test-filter "#668:test_write_stress" --test-timeout $$(($(DURATION) + 60)) --test-args "{$(DURATION), $(SUBSCRIBERS), $(WORK_PER_TICK), $(APPEND_MODE)}" ; \
 	kill $$IOSTAT_PID 2>/dev/null || true

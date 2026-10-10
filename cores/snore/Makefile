@@ -84,7 +84,7 @@ rebuild: reformat
 
 gen.objdir: check-sources
 	rm -rf gen.objdir gen.objdir.in-progress
-	$(MOORC) $(FEATURES) --src-objdef-dir src --out-objdef-dir gen.objdir
+	$(MOORC) $(FEATURES) --src-objdef-dir src --include-baselines=false --out-objdef-dir gen.objdir
 	@test -d gen.objdir || { echo "FAIL: compiler did not produce an export" >&2; exit 1; }
 
 check-sources:
@@ -170,7 +170,7 @@ test-extraction:
 # Execute a stored captured closure after fixture export and reimport.
 test-collection-roundtrip: gen.testsrc
 	rm -rf gen.collections.rt gen.collections.rt.in-progress
-	$(MOORC) $(FEATURES) --src-objdef-dir gen.testsrc --out-objdef-dir gen.collections.rt
+	$(MOORC) $(FEATURES) --src-objdef-dir gen.testsrc --include-baselines=false --out-objdef-dir gen.collections.rt
 	@test -d gen.collections.rt || { echo "FAIL: compiler did not produce an export" >&2; exit 1; }
 	@$(MOORC) $(FEATURES) --src-objdef-dir gen.collections.rt \
 		--run-tests true --test-wizard $(TEST_WIZARD) \
@@ -198,7 +198,7 @@ measure: gen.testsrc
 # Core identities must survive export and reimport unchanged.
 roundtrip: gen.objdir
 	rm -rf gen.objdir.rt
-	$(MOORC) $(FEATURES) --src-objdef-dir gen.objdir --out-objdef-dir gen.objdir.rt
+	$(MOORC) $(FEATURES) --src-objdef-dir gen.objdir --include-baselines=false --out-objdef-dir gen.objdir.rt
 	diff -r gen.objdir gen.objdir.rt
 	@echo "roundtrip: export is stable across reimport"
 

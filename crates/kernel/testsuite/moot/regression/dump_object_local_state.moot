@@ -66,3 +66,15 @@
 > const literal = dump_object(o); const symbolic = dump_object(o, ["constants" -> true]);
 > return {index(toliteral(literal), "42") > 0, index(toliteral(symbolic), "PENDING_DUMP") > 0, index(toliteral(symbolic), "42") > 0};
 {1, 1, 1}
+
+// Source dumps omit only baseline annotations and do not change stored metadata.
+; set_verb_metadata(#9010, "test", "objdef_base", ["marker" -> 1]); set_verb_metadata(#9010, "test", "note", "kept");
+> const full = toliteral(dump_object(#9010)); const source = toliteral(dump_object(#9010, ["include_baselines" -> false, "constants" -> true]));
+> return {index(full, "objdef_base") > 0, index(source, "objdef_base"), index(source, "kept") > 0, index(source, "PENDING_DUMP") > 0, verb_metadata(#9010, "test", "objdef_base")};
+{1, 0, 1, 1, ["marker" -> 1]}
+
+; return `dump_object(#9010, ["include_baselines" -> "no"]) ! E_TYPE => 1';
+1
+
+; return `dump_object(#9010, ["include_baselines" -> false, 'INCLUDE_BASELINES -> true]) ! E_INVARG => 1';
+1

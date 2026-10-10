@@ -35,7 +35,9 @@ use moor_kernel::{
     tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
 };
 use moor_moot::MootOptions;
-use moor_objdef::{ObjectDefinitionLoader, dump_snapshot_object_definitions};
+use moor_objdef::{
+    ObjectDefinitionLoader, ObjectDumpOptions, dump_snapshot_object_definitions_with_options,
+};
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, Var, v_float, v_int};
 use std::{
@@ -69,6 +71,10 @@ pub struct Args {
         help = "If set, output form should be an 'objdef' style directory written to this path."
     )]
     out_objdef_dir: Option<PathBuf>,
+
+    /// Include accepted program baselines in objdef output. Disable for source exports.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+    include_baselines: bool,
 
     #[clap(
         long,
@@ -492,7 +498,13 @@ fn main() -> Result<(), eyre::Report> {
             )
         })?;
         info!(path = ?in_progress_path, "Dumping objects");
-        let stats = dump_snapshot_object_definitions(loader_interface.as_ref(), &in_progress_path)?;
+        let stats = dump_snapshot_object_definitions_with_options(
+            loader_interface.as_ref(),
+            &in_progress_path,
+            ObjectDumpOptions {
+                include_baselines: args.include_baselines,
+            },
+        )?;
         fs::rename(&in_progress_path, &dirdump_path).map_err(|e| {
             eyre!(
                 "Failed to finalize objdef export from {} to {}: {e}",

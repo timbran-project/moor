@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `dump_object()` and `moorc` can omit accepted-baseline annotations with `include_baselines` set to
+  false. Core source rebuilds use this option. Backup and checkpoint exports retain baselines by
+  default.
+
 - `load_object()` and `reload_object()` now take source plus one options map and return an object.
   Use `target`, `constants`, and load-only `allocation`. Removed conflict controls now fail
   explicitly; use `preview_objdef_changes()` for review. Merge preserves omitted attributes, and

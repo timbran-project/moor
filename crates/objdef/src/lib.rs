@@ -50,8 +50,9 @@ use std::{io, path::PathBuf};
 
 pub use collect::{ObjectCollectionError, collect_object_definitions};
 pub use dump::{
-    ObjectDumpStats, collect_index_names, collect_object, collect_transaction_index_names,
-    dump_object, dump_snapshot_object_definitions,
+    ObjectDumpOptions, ObjectDumpStats, collect_index_names, collect_object,
+    collect_transaction_index_names, dump_object, dump_object_with_options,
+    dump_snapshot_object_definitions, dump_snapshot_object_definitions_with_options,
 };
 pub use load::{Constants, ObjDefLoaderOptions, ObjDefLoaderResults, ObjectDefinitionLoader};
 pub use set::{ObjDefIdentity, ObjDefSet, ObjDefSource, ProposedObjectGraph};

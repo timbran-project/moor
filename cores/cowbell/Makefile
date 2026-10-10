@@ -91,7 +91,7 @@ FORCE:
 
 roundtrip: gen.objdir
 	rm -rf gen.objdir.rt gen.objdir.rt.in-progress
-	$(MOORC) --src-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir.rt
+	$(MOORC) --src-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir.rt
 	@test -n "$$(find gen.objdir.rt -name '*.moo' -print -quit)" || { echo "FAIL: reimport export is empty" >&2; exit 1; }
 	diff -r gen.objdir gen.objdir.rt
 
@@ -99,7 +99,7 @@ roundtrip: gen.objdir
 # directory. This is the default validation/compilation target.
 gen.objdir: FORCE
 	rm -rf gen.objdir gen.objdir.in-progress
-	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
+	$(MOORC) --src-objdef-dir $(SRC_DIRECTORY) --include-baselines=false --out-objdef-dir $(OUTPUT_DIRECTORY)/gen.objdir
 	@test -n "$$(find gen.objdir -name '*.moo' -print -quit)" || { echo "FAIL: export is empty" >&2; exit 1; }
 	@! grep -qE '= #(900[0-9]+|901[0-9]+);' gen.objdir/constants.moo || { echo "FAIL: test fixtures entered shipped export" >&2; exit 1; }
 

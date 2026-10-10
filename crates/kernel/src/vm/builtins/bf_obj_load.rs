@@ -19,7 +19,7 @@ use crate::vm::builtins::{BfCallState, BfErr, BfRet, BuiltinFunction, world_stat
 use moor_common::builtins::offset_for_builtin;
 use moor_common::model::ObjectKind;
 use moor_compiler::{DiagnosticRenderOptions, format_compile_error};
-use moor_objdef::{Constants, ObjDefLoaderOptions};
+use moor_objdef::{Constants, ObjDefLoaderOptions, ObjectDumpOptions};
 use moor_var::{E_ARGS, E_INVARG, E_TYPE, Symbol, Var, Variant, v_list, v_map, v_obj, v_sym};
 use std::sync::LazyLock;
 
@@ -73,7 +73,8 @@ fn option_keys(options: &moor_var::Map, allowed: &[&str]) -> Result<(), BfErr> {
 
 /// Usage: `list dump_object(obj object [, map options])`
 /// Returns the object definition as a list of strings in objdef format.
-/// Options: `constants -> true` to use symbolic constant names. Wizard-only.
+/// Options: `constants -> true` to use symbolic constant names;
+/// `include_baselines -> false` to omit accepted-baseline metadata. Wizard-only.
 fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.is_empty() || bf_args.args.len() > 2 {
         return Err(BfErr::ErrValue(
@@ -89,16 +90,21 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     // Parse options map (second argument)
     let mut use_constants = false;
+    let mut dump_options = ObjectDumpOptions::default();
     if bf_args.args.len() == 2 {
         let options_map = bf_args.map_or_alist_to_map(&bf_args.args[1])?;
-        option_keys(&options_map, &["constants"])?;
+        option_keys(&options_map, &["constants", "include_baselines"])?;
         for (key, value) in options_map.iter() {
             let key_sym = key.as_symbol().map_err(BfErr::ErrValue)?;
+            if !matches!(value.variant(), Variant::Bool(_) | Variant::Int(0 | 1)) {
+                return Err(BfErr::ErrValue(
+                    E_TYPE.msg(format!("{key_sym} must be a boolean")),
+                ));
+            }
             if key_sym == *CONSTANTS_SYM {
-                if !matches!(value.variant(), Variant::Bool(_) | Variant::Int(0 | 1)) {
-                    return Err(BfErr::ErrValue(E_TYPE.msg("constants must be a boolean")));
-                }
                 use_constants = value.is_true();
+            } else {
+                dump_options.include_baselines = value.is_true();
             }
         }
     }
@@ -125,7 +131,7 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         } else {
             std::collections::HashMap::new()
         };
-        moor_objdef::dump_object(&names, &definitions[0])
+        moor_objdef::dump_object_with_options(&names, &definitions[0], dump_options)
             .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))
     })?;
     Ok(Ret(v_list(&lines)))
