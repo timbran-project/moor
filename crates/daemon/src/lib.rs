@@ -17,7 +17,7 @@ use std::io::IsTerminal;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, atomic::AtomicBool},
 };
 
@@ -235,7 +235,7 @@ fn log_objdef_compile_error(path: &str, compile_error: &CompileError, verb_sourc
 
 fn perform_import(
     config: &Config,
-    import_path: &PathBuf,
+    import_path: &Path,
     mut loader_interface: Box<dyn LoaderInterface>,
     version: semver::Version,
 ) -> Result<bool, Report> {
@@ -247,11 +247,13 @@ fn perform_import(
         ImportFormat::Objdef => {
             let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
             let options = moor_objdef::ObjDefLoaderOptions::default();
-            let results = match od.load_objdef_directory(
-                config.features.compile_options(),
-                import_path.as_ref(),
-                options,
-            ) {
+            let prepared = moor_objdef::ObjDefSet::read_directory_with_baseline(
+                &config.features.compile_options(),
+                import_path,
+                config.import_export.git_upstream.as_deref(),
+                config.import_export.baseline_objdef_dir.as_deref(),
+            );
+            let results = match prepared.and_then(|set| od.load_objdef_set(set, options)) {
                 Ok(results) => results,
                 Err(e) => {
                     if let Some((source, compile_error, verb_source)) = e.compile_error() {
@@ -273,7 +275,7 @@ fn perform_import(
         ImportFormat::Textdump => {
             textdump_load(
                 loader_interface.as_mut(),
-                import_path.clone(),
+                import_path.to_path_buf(),
                 version.clone(),
                 config.features.compile_options(),
                 TextdumpImportOptions::default(),
@@ -524,6 +526,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         #[cfg(feature = "trace_events")]
         trace_output_path,
     } = runtime_config;
+    config.validate().map_err(|e| eyre!(e))?;
     let DaemonKeys {
         private_key,
         public_key,
@@ -603,7 +606,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     if let Some(import_path) = config.import_export.input_path.as_ref() {
         // If the database already existed, do not try to import the textdump...
         if !freshly_made {
-            info!("Database already exists, skipping textdump import");
+            info!("Database already exists, skipping import");
         } else {
             let import_format_name = match &config.import_export.import_format {
                 ImportFormat::Objdef => "objdef",
@@ -1027,3 +1030,71 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
 #[cfg(test)]
 mod directory_lock_tests;
+
+#[cfg(test)]
+mod import_tests {
+    use super::*;
+    use moor_common::{
+        model::{HasUuid, ObjFlag, TaskPermissions, WorldStateSource},
+        util::BitEnum,
+    };
+    use moor_objdef::{ObjDefSet, fingerprint::program_fingerprint};
+    use moor_var::{Associative, v_str};
+
+    #[test]
+    fn startup_import_uses_separate_baseline_and_preserves_live_program() {
+        let source = "object #1 [import_export_id -> \"root\"]\nowner: #1\nwizard: true\nverb test (this none this) owner: #1 flags: \"rxd\"\nreturn 1;\nendverb\nendobject\n";
+        let baseline = tempfile::tempdir().unwrap();
+        let local = tempfile::tempdir().unwrap();
+        fs::write(baseline.path().join("root.moo"), source).unwrap();
+        fs::write(
+            local.path().join("root.moo"),
+            source.replace("return 1", "return 2"),
+        )
+        .unwrap();
+        let mut config = Config::default();
+        config.import_export.input_path = Some(local.path().to_path_buf());
+        config.import_export.import_format = ImportFormat::Objdef;
+        config.import_export.baseline_objdef_dir = Some(baseline.path().to_path_buf());
+        config.validate().unwrap();
+        let db = TxDB::try_open(None, Default::default()).unwrap().0;
+        assert!(
+            perform_import(
+                &config,
+                local.path(),
+                db.loader_client().unwrap(),
+                semver::Version::new(2, 0, 0),
+            )
+            .unwrap()
+        );
+
+        let object = Obj::mk_id(1);
+        let permissions = TaskPermissions::new(object, BitEnum::new_with(ObjFlag::Wizard));
+        let world = db.new_world_state().unwrap();
+        let verb = world
+            .get_verb(&permissions, &object, Symbol::mk("test"))
+            .unwrap();
+        let hash = |path: &std::path::Path| {
+            let set = ObjDefSet::read_directory(&config.features.compile_options(), path).unwrap();
+            program_fingerprint(&set.graph().object_definitions()[&object].1.verbs[0].program)
+                .unwrap()
+        };
+        let metadata = world
+            .get_verb_metadata(
+                &permissions,
+                &object,
+                verb.uuid(),
+                Symbol::mk("objdef_base"),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            metadata.as_map().unwrap().get(&v_str("program")).unwrap(),
+            v_str(&hash(baseline.path()))
+        );
+        let (program, _) = world
+            .retrieve_verb(&permissions, &object, verb.uuid())
+            .unwrap();
+        assert_eq!(program_fingerprint(&program).unwrap(), hash(local.path()));
+    }
+}

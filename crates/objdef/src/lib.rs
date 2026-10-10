@@ -16,6 +16,7 @@
 mod collect;
 mod dump;
 pub mod fingerprint;
+mod git_baseline;
 mod load;
 pub mod review;
 mod set;
@@ -59,6 +60,8 @@ pub use set::{ObjDefIdentity, ObjDefSet, ObjDefSource, ProposedObjectGraph};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjdefLoaderError {
+    #[error("invalid objdef baseline: {0}")]
+    InvalidBaseline(String),
     #[error("unsupported objdef relocation: {0}")]
     InvalidRelocation(String),
     #[error("objdef input limit exceeded: {0}")]
@@ -110,6 +113,7 @@ impl ObjdefLoaderError {
 
     pub fn source(&self) -> &str {
         match self {
+            ObjdefLoaderError::InvalidBaseline(_) => "<baseline>",
             ObjdefLoaderError::InputLimit(_) | ObjdefLoaderError::InvalidRelocation(_) => "<input>",
             ObjdefLoaderError::DirectoryNotFound(path) => path.to_str().unwrap_or("<unknown>"),
             ObjdefLoaderError::InvalidObjectFilename(path) => path.to_str().unwrap_or("<unknown>"),

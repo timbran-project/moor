@@ -24,14 +24,16 @@ Starts the split-process daemon, web host, and Meadow's Vite dev server.
 Ctrl-C stops the whole stack. If a service exits, the other services stop too.
 
 Options:
-  --curl-worker     Start the HTTP worker
-  --git-worker      Start the Git worker
-  --core PATH       Objdef core directory (default: cores/cowbell/src)
-  --data-dir PATH   Database, keys, and IPC directory (default: moor-data)
-  --clean           Wipe the data directory before startup (fresh core import)
-  --debug           Build debug binaries (default)
-  --release         Build release binaries
-  --help            Show this help
+  --curl-worker              Start the HTTP worker
+  --git-worker               Start the Git worker
+  --core PATH                Objdef core directory (default: cores/cowbell/src)
+  --git-upstream REF         Prepare import baselines from a local Git upstream (e.g. origin/main)
+  --baseline-objdef-dir PATH  Prepare import baselines from another objdef directory
+  --data-dir PATH            Database, keys, and IPC directory (default: moor-data)
+  --clean                    Wipe the data directory before startup (fresh core import)
+  --debug                    Build debug binaries (default)
+  --release                  Build release binaries
+  --help                     Show this help
 
 Environment:
   MOOR_CORE         Core directory; overridden by --core
@@ -42,11 +44,12 @@ Environment:
 
 Examples:
   scripts/dev.sh --curl-worker --git-worker
-  scripts/dev.sh --clean --curl-worker --git-worker
+  scripts/dev.sh --clean --git-upstream origin/main --curl-worker --git-worker
   MOOR_CORE=cores/snore/src scripts/dev.sh --curl-worker
 
 Existing databases are reused unless --clean is given.
-The core is imported only for a new database.
+The core and its baseline are imported only for a new database.
+Git preparation uses local history; it does not fetch from the remote.
 Meadow: http://localhost:3000    Web host: http://localhost:8080
 Worker IPC sockets are printed at startup so other workers can attach.
 EOF
@@ -58,6 +61,8 @@ profile=debug
 curl_worker=false
 git_worker=false
 clean=false
+git_upstream=
+baseline_objdef_dir=
 
 while (($#)); do
     case "$1" in
@@ -67,17 +72,27 @@ while (($#)); do
         --clean) clean=true; shift ;;
         --debug) profile=debug; shift ;;
         --release) profile=release; shift ;;
-        --core|--data-dir)
+        --core|--data-dir|--git-upstream|--baseline-objdef-dir)
             if (($# < 2)) || [[ -z $2 || $2 == --* ]]; then
                 echo "Missing value for $1" >&2
                 exit 2
             fi
-            if [[ $1 == --core ]]; then core=$2; else data_dir=$2; fi
+            case "$1" in
+                --core) core=$2 ;;
+                --data-dir) data_dir=$2 ;;
+                --git-upstream) git_upstream=$2 ;;
+                --baseline-objdef-dir) baseline_objdef_dir=$2 ;;
+            esac
             shift 2
             ;;
         *) echo "Unknown option: $1 (see --help)" >&2; exit 2 ;;
     esac
 done
+
+if [[ -n $git_upstream && -n $baseline_objdef_dir ]]; then
+    echo "Choose either --git-upstream or --baseline-objdef-dir" >&2
+    exit 2
+fi
 
 for tool in cargo node npm; do
     command -v "$tool" >/dev/null || { echo "Required command not found: $tool" >&2; exit 1; }
@@ -150,6 +165,9 @@ daemon_args=(
     --custom-errors true --use-uuobjids true --anonymous-objects true
     --enable-eventlog true --use-symbols-in-builtins true
 )
+
+if [[ -n $git_upstream ]]; then daemon_args+=(--git-upstream "$git_upstream"); fi
+if [[ -n $baseline_objdef_dir ]]; then daemon_args+=(--baseline-objdef-dir "$baseline_objdef_dir"); fi
 
 # concurrently uses a shell. Quote each argument for the explicitly selected Bash shell.
 commands=()

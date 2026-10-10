@@ -236,6 +236,15 @@ pub struct ImportExportArgs {
     )]
     pub import_format: Option<Format>,
 
+    /// Prepare initial program baselines from HEAD's common ancestor with this remote-tracking ref.
+    /// Uses local Git history only; fetch the remote first when needed.
+    #[arg(long, conflicts_with = "baseline_objdef_dir")]
+    pub git_upstream: Option<String>,
+
+    /// Use this objdef directory as the upstream baseline for the initial import.
+    #[arg(long)]
+    pub baseline_objdef_dir: Option<PathBuf>,
+
     #[arg(
         long,
         value_name = "export-format",
@@ -269,6 +278,14 @@ impl ImportExportArgs {
                 Format::Textdump => ImportFormat::Textdump,
                 Format::Objdef => ImportFormat::Objdef,
             };
+        }
+        if let Some(upstream) = &self.git_upstream {
+            config.git_upstream = Some(upstream.clone());
+            config.baseline_objdef_dir = None;
+        }
+        if let Some(directory) = &self.baseline_objdef_dir {
+            config.baseline_objdef_dir = Some(directory.clone());
+            config.git_upstream = None;
         }
         if self.export_format.is_some() {
             tracing::warn!(
@@ -724,6 +741,50 @@ runtime:
         .expect("parse args");
 
         assert!(args.load_config().is_err());
+    }
+
+    #[test]
+    fn baseline_preparation_combines_cli_and_yaml() {
+        let (_dir, config_path) = write_config(
+            "import_export:\n  input_path: core\n  import_format: Objdef\n  baseline_objdef_dir: base\n",
+        );
+        let args = Args::try_parse_from([
+            "moor-daemon",
+            "--config-file",
+            config_path.to_str().unwrap(),
+            "--git-upstream",
+            "origin/main",
+        ])
+        .unwrap();
+        let config = args.load_config().unwrap();
+        assert_eq!(
+            config.import_export.git_upstream.as_deref(),
+            Some("origin/main")
+        );
+        assert!(config.import_export.baseline_objdef_dir.is_none());
+
+        // Validate after combining settings: the import may come from YAML.
+        for extra in [
+            vec![],
+            vec!["--import", "core", "--import-format", "textdump"],
+        ] {
+            let mut argv = vec!["moor-daemon", "--git-upstream", "origin/main"];
+            argv.extend(extra);
+            assert!(Args::try_parse_from(argv).unwrap().load_config().is_err());
+        }
+        let (_dir, config_path) = write_config(
+            "import_export:\n  input_path: core\n  import_format: Objdef\n  git_upstream: origin/main\n  baseline_objdef_dir: base\n",
+        );
+        assert!(
+            Args::try_parse_from([
+                "moor-daemon",
+                "--config-file",
+                config_path.to_str().unwrap(),
+            ])
+            .unwrap()
+            .load_config()
+            .is_err()
+        );
     }
 
     #[test]

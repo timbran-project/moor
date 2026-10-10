@@ -22,7 +22,7 @@ snapshot. A client can save the returned lines as a `.moo` file.
 
 The `include_baselines` boolean defaults to true. Set it to false for source exports that do not
 need the reserved `objdef_base` annotations. Other metadata and the database's stored baselines
-remain unchanged. Directory import derives fresh baselines when those annotations are absent.
+remain unchanged. Directory import leaves the baseline unknown when those annotations are absent.
 
 For directory source exports, use `moorc --include-baselines=false --out-objdef-dir DIRECTORY` with
 the usual input options. Core rebuilds use this setting. Backup and checkpoint exports retain
@@ -168,12 +168,13 @@ contains `program`, a string or list of lines. Preview compiles the draft and re
 rows with a fingerprint and validation token, or compiler diagnostics with result-pane coordinates.
 Drafts remain separate from incoming source. Changing draft text invalidates its validation token.
 
-Program baselines use the metadata key `objdef_base`, with `schema` and `program` entries. The
-schema is `objdef-v1:program:sha256`. Its fingerprint uses decompiled program structure and separate
-typed literals, encoded with CBOR and hashed with SHA-256. Layout is ignored. String case, literal
-types, execution order, finite floating-point bits, and installed object references remain
-significant. Symbols use Unicode case-folded names. Map entries sort by encoded key; flyweight slots
-sort by folded name. Captured lambda values and non-finite floats are unsupported.
+Program baselines use the metadata key `objdef_base`, with `schema` and `program` entries and an
+optional `source` provenance map. The schema is `objdef-v1:program:sha256`. Its fingerprint uses
+decompiled program structure and separate typed literals, encoded with CBOR and hashed with SHA-256.
+Layout is ignored. String case, literal types, execution order, finite floating-point bits, and
+installed object references remain significant. Symbols use Unicode case-folded names. Map entries
+sort by encoded key; flyweight slots sort by folded name. Captured lambda values and non-finite
+floats are unsupported.
 
 These rules describe content equality, not behavioral equivalence. A hash cannot recover old source.
 Unknown baseline schemas block updates until explicit re-adoption. Automatic eligibility requires
@@ -217,11 +218,12 @@ terminal commands. Snore requires a wizard. Cowbell also accepts current adminis
 with an `@changes` allowlist entry. Each API call and background job checks that authority again.
 Source, drafts, and saved reviews are private administrator data.
 
-Each core declares its default package and object bindings in its own source. Fresh import already
-establishes program baselines. Cowbell defaults to the mooR GitHub repository, `refs/heads/main`,
-and the `cores/cowbell/src` subtree. With `moor-git-worker` running, a wizard can use
-`@changes stage` without configuring an upstream. Existing databases retain their saved package
-settings.
+Each core declares its default package and object bindings in its own source. Prepare upstream
+baselines with `moorc` before a fresh import, as described in
+[Preparing an upstream baseline](bootstrapping-from-source.md#preparing-an-upstream-baseline).
+Cowbell defaults to the mooR GitHub repository, `refs/heads/main`, and the `cores/cowbell/src`
+subtree. With `moor-git-worker` running, a wizard can use `@changes fetch` without configuring an
+upstream. Existing databases retain their saved package settings.
 
 Cowbell accepts this command to select a Git upstream:
 

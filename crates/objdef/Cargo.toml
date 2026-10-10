@@ -15,7 +15,6 @@ description = "New style import/export of object definitions in text files in di
 [dev-dependencies]
 moor-db = { path = "../db" }
 moor-textdump = { path = "../textdump" }
-tempfile.workspace = true
 
 [dependencies]
 # Internal Dependencies
@@ -24,10 +23,12 @@ moor-compiler = { path = "../compiler" }
 moor-var = { path = "../var" }
 
 # Error Handling & Logging
+eyre.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 # Utilities & Helpers
 semver.workspace = true
 sha2.workspace = true
+tempfile.workspace = true
 uuid.workspace = true

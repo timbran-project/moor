@@ -235,7 +235,15 @@ pub(crate) fn read_baseline(value: Option<Var>) -> Result<Option<String>, Review
     let Some(value) = value else {
         return Ok(None);
     };
-    let data = fields(&value, &["schema", "program"])?;
+    let data = fields(&value, &["schema", "program", "source"])?;
+    if data
+        .get("source")
+        .is_some_and(|source| source.as_map().is_none())
+    {
+        return Err("baseline source provenance must be a map"
+            .to_string()
+            .into());
+    }
     if required(&data, "schema")?.as_string() != Some(PROGRAM_SCHEMA) {
         return Err(
             "unsupported baseline schema; explicit re-adoption is required"

@@ -1436,31 +1436,21 @@ mod tests {
         assert_eq!(restored_stats.objects, exported_count);
         assert_eq!(restored_stats.verbs, original_verbs);
         assert_eq!(restored_stats.properties, original_properties);
-        // A textdump has no tracking metadata. Its first objdef import establishes baselines;
-        // all other exported content must remain identical.
-        let mut definitions = collect_object_definitions(restored_snapshot.as_ref()).unwrap();
-        for definition in &mut definitions {
-            for verb in &mut definition.verbs {
-                let expected = crate::fingerprint::program_fingerprint(&verb.program).unwrap();
-                let baseline = verb
-                    .metadata
-                    .iter()
-                    .find(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
-                    .unwrap()
-                    .1
-                    .clone();
-                assert_eq!(
-                    crate::review::read_baseline(Some(baseline)).unwrap(),
-                    Some(expected)
-                );
-                verb.metadata
-                    .retain(|(key, _)| *key != Symbol::mk(crate::review::BASE_KEY));
-            }
-        }
-        let untracked_dir = tempfile::tempdir().unwrap();
-        dump_object_definitions(&definitions, untracked_dir.path()).unwrap();
+        // A source import must not silently enroll a world with no accepted history.
+        let definitions = collect_object_definitions(restored_snapshot.as_ref()).unwrap();
+        assert!(
+            definitions
+                .iter()
+                .flat_map(|definition| &definition.verbs)
+                .all(|verb| {
+                    !verb
+                        .metadata
+                        .iter()
+                        .any(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
+                })
+        );
         let expected = read_directory_tree(tmpdir_path);
-        let actual = read_directory_tree(untracked_dir.path());
+        let actual = read_directory_tree(restored_dir.path());
         assert_eq!(actual.len(), expected.len());
         for (name, bytes) in &expected {
             assert!(

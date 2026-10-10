@@ -147,17 +147,74 @@ later server starts.
 - [Emergency Medical Hologram Tool](moor-emh-tool.md) can load or reload objdef files while the
   regular server is stopped.
 
-## Imported program baselines
+## Preparing an upstream baseline
 
-Objdef directory import establishes program baselines in the import transaction. If a verb has no
-baseline metadata, the importer derives its baseline from the compiled program. If the source
-contains a valid baseline, import preserves it, including when the program has local modifications.
-Malformed or unsupported baselines fail the import rather than silently replacing history.
+Import installs the source you give it. That source may contain local commits and uncommitted edits,
+so import alone cannot identify its upstream baseline. Ordinary directory import preserves valid
+`objdef_base` metadata when supplied and leaves missing baselines unknown. Invalid baselines fail
+the import. Existing databases still skip import entirely.
 
-An older export without baselines establishes its imported content as the initial baseline. Upstream
-history absent from that export cannot be recovered. Existing databases continue to skip import on
-startup. Direct `load_object()` and `reload_object()` operations retain their separate rules; they
-do not adopt supplied baseline metadata.
+When importing from a Git checkout, `moor`, `moor-daemon`, and `moorc` accept
+`--git-upstream origin/main` to establish the baseline from Git history. The development launcher
+passes this option through to the daemon:
 
-Cowbell and Snore declare their own initial package configuration in objdef source. The importer
-loads it as ordinary property data. It has no knowledge of the change manager or its package schema.
+```bash
+scripts/dev.sh --git-upstream origin/main --curl-worker --git-worker
+```
+
+Add `--clean` to discard the development database and create it again. Without `--clean`, an
+existing database is reused: neither source import nor baseline preparation runs. The flag does not
+repair an existing database's baselines.
+
+For direct startup, add `--git-upstream origin/main` alongside
+`--import cores/cowbell/src --import-format objdef`. Both server executables also accept
+`import_export.git_upstream` in YAML configuration. Use `--baseline-objdef-dir PATH` (or
+`import_export.baseline_objdef_dir`) for an explicit base without Git. Select one baseline source;
+it requires an objdef import.
+
+`moorc` can also prepare an objdef directory for deployment elsewhere:
+
+```bash
+moorc --src-objdef-dir cores/cowbell/src \
+    --git-upstream origin/main \
+    --out-objdef-dir cowbell-prepared \
+    --use-boolean-returns true --use-symbols-in-builtins true \
+    --custom-errors true --use-uuobjids true --anonymous-objects true
+```
+
+`origin/main` must be a locally available remote-tracking branch. Fetch it beforehand if needed;
+`moorc` does not fetch or alter the checkout. It finds the unique common ancestor of that branch and
+`HEAD`, reads the ancestor's objdefs, and records their program hashes as baselines. The installed
+programs come from the working files, including committed local work and uncommitted edits.
+
+If upstream is behind the checkout, its commit supplies the base. If both branches have advanced,
+their common ancestor supplies the base, so subsequent reviews can distinguish local edits from
+upstream edits and conflicts. Missing or ambiguous ancestry fails preparation. Object identities
+must match at the same object IDs; preparation does not relocate objects or guess ambiguous verb
+bindings. Local objects and verbs absent from the base receive no program baseline.
+
+Import the prepared directory when creating the world, for example:
+
+```bash
+scripts/dev.sh --core cowbell-prepared --curl-worker --git-worker
+```
+
+The development script reuses an existing database. Select a fresh data directory when creating a
+separate world. A prepared import does not repair baselines in a database that already exists.
+
+Each prepared program baseline includes Git provenance: repository, subtree, upstream branch, base
+commit, checkout commit, resolved upstream commit, and whether the source directory had working-tree
+changes. This records how the baseline was established; the hashes remain the basis for program
+comparison. Prepared exports must retain baselines, so these preparation options cannot be combined
+with `--include-baselines=false` when writing objdefs. Ordinary source rebuilds may continue to omit
+them.
+
+For a supplied base without Git history, use `--baseline-objdef-dir PATH` instead of
+`--git-upstream`. This is an explicit choice of the accepted source, including when the working
+files differ. Both sources use the same compiler options. `moorc --db-path PATH` can keep the
+prepared database directly instead of exporting objdefs.
+
+Cowbell and Snore declare their package configuration in ordinary objdef properties. Configure
+`@changes` to fetch the same repository and subtree selected during preparation. Git preparation
+runs before the bulk importer; the importer has no knowledge of Git, the change manager, or its
+package schema.

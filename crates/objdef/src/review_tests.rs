@@ -652,7 +652,7 @@ fn late_writer_failure_requires_rollback_of_program_and_baseline() {
 }
 
 #[test]
-fn bootstrap_derives_baselines_in_import_transaction() {
+fn ordinary_directory_import_leaves_unknown_baselines_unmanaged() {
     let directory = tempfile::tempdir().unwrap();
     std::fs::write(directory.path().join("root.moo"), SOURCE).unwrap();
     let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
@@ -672,8 +672,136 @@ fn bootstrap_derives_baselines_in_import_transaction() {
             &row(&inspect(world.as_ref(), SOURCE, "update", None)),
             "classification"
         ),
-        v_str("unchanged")
+        v_str("unbased")
     );
+    let report = inspect(world.as_ref(), SOURCE, "update", None);
+    assert_eq!(get(&row(&report), "default"), v_str("defer"));
+    assert_eq!(get(&row(&report), "eligible"), v_bool(false));
+}
+
+#[test]
+fn bulk_import_compares_working_source_against_explicit_ancestor() {
+    let parse = |text: &str| {
+        ObjDefSet::parse_sources(
+            &CompileOptions::default(),
+            None,
+            None,
+            [ObjDefSource::new("core.moo", text)],
+        )
+        .unwrap()
+    };
+    let base = parse(SOURCE);
+    let local = SOURCE.replace("Base", "Local").replace(
+        "endobject",
+        "verb added (this none this) owner: #1 flags: \"rxd\"\nreturn 42;\nendverb\nendobject",
+    );
+    let provenance = record(&[("transport", v_str("git")), ("commit", v_str("ancestor"))]);
+    let prepared = parse(&local)
+        .with_program_baseline(&base, Some(provenance.clone()))
+        .unwrap();
+    let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = db.loader_client().unwrap();
+    ObjectDefinitionLoader::new(loader.as_mut())
+        .load_objdef_set(prepared, Default::default())
+        .unwrap();
+    loader.commit().unwrap();
+    let world = db.new_world_state().unwrap();
+    let report = inspect(world.as_ref(), SOURCE, "update", None);
+    assert_eq!(get(&row(&report), "classification"), v_str("local"));
+    assert_eq!(get(&row(&report), "default"), v_str("defer"));
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    let baseline = world
+        .get_verb_metadata(
+            &permissions(),
+            &ROOT,
+            definition.uuid(),
+            Symbol::mk(BASE_KEY),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(get(&baseline, "source"), provenance);
+    let added = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("added"))
+        .unwrap();
+    assert!(
+        world
+            .get_verb_metadata(&permissions(), &ROOT, added.uuid(), Symbol::mk(BASE_KEY))
+            .unwrap()
+            .is_none()
+    );
+    let report = inspect(
+        world.as_ref(),
+        &SOURCE.replace("Base", "Upstream"),
+        "update",
+        None,
+    );
+    assert_eq!(get(&row(&report), "classification"), v_str("conflict"));
+    drop(world);
+
+    // A prepared deployment survives export and reimport with the ancestor intact.
+    let exported = tempfile::tempdir().unwrap();
+    crate::dump_snapshot_object_definitions(
+        db.create_snapshot().unwrap().as_ref(),
+        exported.path(),
+    )
+    .unwrap();
+    let restored = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = restored.loader_client().unwrap();
+    ObjectDefinitionLoader::new(loader.as_mut())
+        .load_objdef_directory(
+            CompileOptions::default(),
+            exported.path(),
+            Default::default(),
+        )
+        .unwrap();
+    loader.commit().unwrap();
+    let world = restored.new_world_state().unwrap();
+    let report = inspect(world.as_ref(), SOURCE, "update", None);
+    assert_eq!(get(&row(&report), "classification"), v_str("local"));
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("test"))
+        .unwrap();
+    assert_eq!(
+        get(
+            &world
+                .get_verb_metadata(
+                    &permissions(),
+                    &ROOT,
+                    definition.uuid(),
+                    Symbol::mk(BASE_KEY)
+                )
+                .unwrap()
+                .unwrap(),
+            "source"
+        ),
+        provenance
+    );
+}
+
+#[test]
+fn baseline_binding_rejects_reused_or_relocated_objects_and_ambiguous_verbs() {
+    let parse = |text: &str| {
+        ObjDefSet::parse_sources(
+            &CompileOptions::default(),
+            None,
+            None,
+            [ObjDefSource::new("core.moo", text)],
+        )
+        .unwrap()
+    };
+    let base = parse(SOURCE);
+    for text in [
+        SOURCE.replace("review_root", "different_object"),
+        SOURCE.replace("#1", "#2"),
+        SOURCE.replace(
+            "endobject",
+            "verb test (this none this) owner: #1 flags: \"rxd\"\nreturn 42;\nendverb\nendobject",
+        ),
+    ] {
+        assert!(parse(&text).with_program_baseline(&base, None).is_err());
+    }
 }
 
 #[test]
@@ -753,7 +881,7 @@ fn directory_import_preserves_supplied_baseline_for_local_program() {
     assert_eq!(get(&row(&report), "classification"), v_str("converged"));
     drop(world);
 
-    // Backups preserve the accepted baseline; source exports establish a new one on import.
+    // Backups preserve the accepted baseline; source exports leave it unknown on import.
     let snapshot = db.create_snapshot().unwrap();
     for include_baselines in [true, false] {
         let export = tempfile::tempdir().unwrap();
@@ -780,14 +908,11 @@ fn directory_import_preserves_supplied_baseline_for_local_program() {
         let world = restored.new_world_state().unwrap();
         let report = inspect(world.as_ref(), SOURCE, "update", None);
         let expected = if include_baselines {
-            base.clone()
+            v_str(&base)
         } else {
-            program_fingerprint(&ProgramType::MooR(
-                compile("return \"Base\";", CompileOptions::default()).unwrap(),
-            ))
-            .unwrap()
+            v_list(&[])
         };
-        assert_eq!(get(&row(&report), "base"), v_str(&expected));
+        assert_eq!(get(&row(&report), "base"), expected);
     }
     // Exporting without baselines must not alter the source database's tracking state.
     let world = db.new_world_state().unwrap();

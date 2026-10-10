@@ -4653,6 +4653,7 @@ dependencies = [
 name = "moor-objdef"
 version = "2.0.0-dev"
 dependencies = [
+ "eyre",
  "moor-common",
  "moor-compiler",
  "moor-db",

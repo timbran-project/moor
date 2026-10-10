@@ -93,6 +93,7 @@ impl RuntimeConfig {
 impl Config {
     /// Check settings that only make sense within a range, whatever source they came from.
     pub fn validate(&self) -> Result<(), String> {
+        self.import_export.validate()?;
         self.runtime.validate()
     }
 }
@@ -122,6 +123,26 @@ pub struct ImportExportConfig {
     pub checkpoint_interval: Option<Duration>,
     /// Which format to use for import.
     pub import_format: ImportFormat,
+    /// Local remote-tracking ref used to find the Git ancestor for initial objdef import.
+    pub git_upstream: Option<String>,
+    /// Explicit upstream baseline source for initial objdef import, without Git.
+    pub baseline_objdef_dir: Option<PathBuf>,
+}
+
+impl ImportExportConfig {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.git_upstream.is_some() && self.baseline_objdef_dir.is_some() {
+            return Err("choose either git_upstream or baseline_objdef_dir for import".into());
+        }
+        if (self.git_upstream.is_some() || self.baseline_objdef_dir.is_some())
+            && (self.input_path.is_none() || self.import_format != ImportFormat::Objdef)
+        {
+            return Err(
+                "baseline preparation requires an import path and objdef import format".into(),
+            );
+        }
+        Ok(())
+    }
 }
 
 // Use humantime to parse durations from strings

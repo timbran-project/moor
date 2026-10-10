@@ -33,11 +33,7 @@ use moor_common::model::{
 use moor_compiler::ObjFileContext;
 use moor_compiler::{CompileOptions, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{collections::HashMap, path::Path, time::Instant};
 use tracing::info;
 
 /// Constants supplied to objdef parsing.
@@ -203,95 +199,52 @@ impl<'a> ObjectDefinitionLoader<'a> {
         (verbs, property_defs, property_overrides)
     }
 
-    /// Recursively collect all .moo files in a directory tree
-    fn collect_moo_files_recursive(path: &Path) -> std::io::Result<Vec<PathBuf>> {
-        let mut files = Vec::new();
-
-        if path.is_dir() {
-            for entry in std::fs::read_dir(path)? {
-                let entry = entry?;
-                let entry_path = entry.path();
-
-                if entry_path.is_dir() {
-                    // Recursively collect files from subdirectories
-                    files.extend(Self::collect_moo_files_recursive(&entry_path)?);
-                } else if entry_path.is_file()
-                    && entry_path
-                        .extension()
-                        .map(|ext| ext == "moo")
-                        .unwrap_or(false)
-                {
-                    files.push(entry_path);
-                }
-            }
-        }
-
-        Ok(files)
-    }
-
-    /// Load an objdef directory into the database.
-    ///
-    /// This reads `constants.moo` from the directory root when present, reads every other `.moo`
-    /// file recursively, parses all sources through `ObjDefSet`, then applies the parsed graph in
-    /// loader phases. Existing public import behavior is preserved, but parsing/staging is shared
-    /// with read-only objdef-set analysis.
+    /// Import a directory, preserving supplied baselines without inventing missing history.
     pub fn load_objdef_directory(
         &mut self,
         compile_options: CompileOptions,
         dirpath: &Path,
         options: ObjDefLoaderOptions,
     ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
-        let compilation_started_at = Instant::now();
-        self.restore_tracking = true;
-        // Check that the directory exists
-        if !dirpath.exists() {
-            return Err(ObjdefLoaderError::DirectoryNotFound(dirpath.to_path_buf()));
-        }
+        let set = ObjDefSet::read_directory(&compile_options, dirpath)?;
+        self.load_objdef_set(set, options)
+    }
 
-        // Verb compilation options
-        let mut compile_options = compile_options.clone();
-        compile_options.call_unsupported_builtins = true;
-
-        // Recursively collect all .moo files
-        let filenames = Self::collect_moo_files_recursive(dirpath)
-            .expect("Unable to recursively read import directory");
-
-        let mut sources = Vec::new();
-        let constants_file = filenames
-            .iter()
-            .find(|f| f.file_name().unwrap() == "constants.moo" && f.parent().unwrap() == dirpath);
-
-        if let Some(constants_file) = constants_file {
-            let constants_file_contents = std::fs::read_to_string(constants_file)
-                .map_err(|e| ObjdefLoaderError::ObjectFileReadError(constants_file.clone(), e))?;
-            sources.push(ObjDefSource::from_path(
-                constants_file.to_path_buf(),
-                constants_file_contents,
-            ));
-        }
-
-        for object_file in filenames {
-            if object_file.extension().unwrap() != "moo"
-                || object_file.file_name().unwrap() == "constants.moo"
-            {
-                continue;
+    /// Bulk import an already parsed source set, optionally prepared with upstream baselines.
+    /// The caller owns the transaction and must commit or roll back the entire import.
+    pub fn load_objdef_set(
+        &mut self,
+        objdef_set: ObjDefSet,
+        options: ObjDefLoaderOptions,
+    ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
+        let staging_started_at = Instant::now();
+        for (label, definition) in objdef_set.graph().object_definitions().values() {
+            for verb in &definition.verbs {
+                if let Some((_, baseline)) = verb
+                    .metadata
+                    .iter()
+                    .find(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
+                {
+                    crate::review::read_baseline(Some(baseline.clone())).map_err(|e| {
+                        ObjdefLoaderError::CouldNotDefineVerb(
+                            label.clone(),
+                            definition.oid,
+                            verb.names.clone(),
+                            WorldStateError::DatabaseError(e.to_string()),
+                        )
+                    })?;
+                }
             }
-
-            let object_file_contents = std::fs::read_to_string(object_file.clone())
-                .map_err(|e| ObjdefLoaderError::ObjectFileReadError(object_file.clone(), e))?;
-            sources.push(ObjDefSource::from_path(object_file, object_file_contents));
         }
-
-        let objdef_set = ObjDefSet::parse_sources(&compile_options, Some(dirpath), None, sources)?;
+        self.restore_tracking = true;
         let constant_count = objdef_set.constants().len();
         self.stage_objdef_set(objdef_set, &options)?;
 
         info!(
-            directory = %dirpath.display(),
             object_count = self.object_definitions.len(),
             constant_count,
-            elapsed_ms = compilation_started_at.elapsed().as_secs_f64() * 1000.0,
-            "Compiled object definition directory"
+            elapsed_ms = staging_started_at.elapsed().as_secs_f64() * 1000.0,
+            "Staged object definitions"
         );
 
         let (num_loaded_verbs, num_loaded_property_definitions, num_loaded_property_overrides) =
@@ -312,7 +265,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.set_properties(&options)?;
         info!("Defining and compiling {} verbs...", num_loaded_verbs);
         self.define_verbs(&options)?;
-        self.initialize_imported_baselines()?;
 
         // Create import_export_id metadata from constants when the input has no explicit IDs.
         self.create_import_export_ids_if_needed()?;
@@ -892,64 +844,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
             num_loaded_property_definitions,
             num_loaded_property_overrides,
         })
-    }
-
-    /// Preserve supplied program baselines and derive missing ones during directory import.
-    ///
-    /// A restored export can contain locally modified programs, so its accepted hashes must not
-    /// be replaced by hashes of live content. Invalid supplied baselines fail the import instead
-    /// of silently changing that history. All baseline writes share the import transaction.
-    fn initialize_imported_baselines(&mut self) -> Result<(), ObjdefLoaderError> {
-        for (object, (label, definition)) in &self.object_definitions {
-            let verbs = self.loader.get_existing_verbs(object).map_err(|e| {
-                ObjdefLoaderError::CouldNotDefineVerb(label.clone(), *object, vec![], e)
-            })?;
-            for source in &definition.verbs {
-                let error = |e| {
-                    ObjdefLoaderError::CouldNotDefineVerb(
-                        label.clone(),
-                        *object,
-                        source.names.clone(),
-                        e,
-                    )
-                };
-                let matches = verbs
-                    .iter()
-                    .filter(|d| d.names() == source.names && d.args() == source.argspec)
-                    .collect::<Vec<_>>();
-                if matches.len() != 1 {
-                    return Err(error(WorldStateError::DatabaseError(
-                        "ambiguous enrollment target".into(),
-                    )));
-                }
-                if let Some((_, baseline)) = source
-                    .metadata
-                    .iter()
-                    .find(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
-                {
-                    crate::review::read_baseline(Some(baseline.clone()))
-                        .map_err(|e| error(WorldStateError::DatabaseError(e.to_string())))?;
-                    continue;
-                }
-                let hash = crate::fingerprint::program_fingerprint(&source.program)
-                    .map_err(|e| error(WorldStateError::DatabaseError(e)))?;
-                self.loader
-                    .set_verb_metadata(
-                        object,
-                        matches[0].uuid(),
-                        Symbol::mk(crate::review::BASE_KEY),
-                        crate::review::record(&[
-                            (
-                                "schema",
-                                moor_var::v_str(crate::fingerprint::PROGRAM_SCHEMA),
-                            ),
-                            ("program", moor_var::v_str(&hash)),
-                        ]),
-                    )
-                    .map_err(error)?;
-            }
-        }
-        Ok(())
     }
 
     /// Create import_export_id metadata from constants when the input declares no explicit IDs.

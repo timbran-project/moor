@@ -36,7 +36,8 @@ use moor_kernel::{
 };
 use moor_moot::MootOptions;
 use moor_objdef::{
-    ObjectDefinitionLoader, ObjectDumpOptions, dump_snapshot_object_definitions_with_options,
+    ObjDefSet, ObjectDefinitionLoader, ObjectDumpOptions,
+    dump_snapshot_object_definitions_with_options,
 };
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, Var, v_float, v_int};
@@ -75,6 +76,19 @@ pub struct Args {
     /// Include accepted program baselines in objdef output. Disable for source exports.
     #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     include_baselines: bool,
+
+    /// Prepare upstream baselines from the common ancestor of HEAD and a local remote-tracking ref.
+    /// Uses local Git history only; fetch the remote first when needed.
+    #[arg(
+        long,
+        requires = "src_objdef_dir",
+        conflicts_with = "baseline_objdef_dir"
+    )]
+    git_upstream: Option<String>,
+
+    /// Use these objdefs as the accepted baseline while installing src-objdef-dir as live content.
+    #[arg(long, requires = "src_objdef_dir")]
+    baseline_objdef_dir: Option<PathBuf>,
 
     #[clap(
         long,
@@ -349,6 +363,13 @@ fn main() -> Result<(), eyre::Report> {
         std::process::exit(1);
     }
 
+    if (args.git_upstream.is_some() || args.baseline_objdef_dir.is_some())
+        && args.out_objdef_dir.is_some()
+        && !args.include_baselines
+    {
+        bail!("baseline preparation requires --include-baselines=true for objdef output");
+    }
+
     // Actual binary database is either in a specified path or tmpdir.
     // Keep the TempDir alive for the entire scope if we're using a temp directory.
     let _temp_dir_guard;
@@ -425,35 +446,41 @@ fn main() -> Result<(), eyre::Report> {
         let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
 
         let options = moor_objdef::ObjDefLoaderOptions::default();
-        let commit =
-            match od.load_objdef_directory(make_compile_options(), objdef_dir.as_ref(), options) {
-                Ok(results) => {
-                    info!(
-                        "Imported {} objects w/ {} verbs, {} properties and {} property overrides",
-                        results.loaded_objects.len(),
-                        results.num_loaded_verbs,
-                        results.num_loaded_property_definitions,
-                        results.num_loaded_property_overrides
-                    );
+        let compile_options = make_compile_options();
+        let prepared = ObjDefSet::read_directory_with_baseline(
+            &compile_options,
+            &objdef_dir,
+            args.git_upstream.as_deref(),
+            args.baseline_objdef_dir.as_deref(),
+        );
+        let commit = match prepared.and_then(|set| od.load_objdef_set(set, options)) {
+            Ok(results) => {
+                info!(
+                    "Imported {} objects w/ {} verbs, {} properties and {} property overrides",
+                    results.loaded_objects.len(),
+                    results.num_loaded_verbs,
+                    results.num_loaded_property_definitions,
+                    results.num_loaded_property_overrides
+                );
 
-                    results.commit
+                results.commit
+            }
+            Err(e) => {
+                if let Some((file_path, compile_error, verb_source)) = e.compile_error() {
+                    let source_to_use = if !verb_source.is_empty() {
+                        Some(verb_source)
+                    } else {
+                        None
+                    };
+                    emit_objdef_compile_error(file_path, compile_error, source_to_use);
+                    error!("Object load failed");
+                    return Err(e.into());
                 }
-                Err(e) => {
-                    if let Some((file_path, compile_error, verb_source)) = e.compile_error() {
-                        let source_to_use = if !verb_source.is_empty() {
-                            Some(verb_source)
-                        } else {
-                            None
-                        };
-                        emit_objdef_compile_error(file_path, compile_error, source_to_use);
-                        error!("Object load failed");
-                        return Ok(());
-                    }
-                    error!("Object load failure @ {}", e.source());
-                    error!("{:#}", e);
-                    return Ok(());
-                }
-            };
+                error!("Object load failure @ {}", e.source());
+                error!("{:#}", e);
+                return Err(e.into());
+            }
+        };
         info!("Loaded objdef directory in {:?}", start.elapsed());
         if commit {
             loader_interface

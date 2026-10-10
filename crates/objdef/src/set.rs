@@ -115,6 +115,171 @@ pub struct ObjDefSet {
 }
 
 impl ObjDefSet {
+    /// Read a bulk source directory with the same constants and include rules as import.
+    pub fn read_directory(
+        compile_options: &CompileOptions,
+        directory: &Path,
+    ) -> Result<Self, ObjdefLoaderError> {
+        fn collect(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
+            for entry in std::fs::read_dir(path)? {
+                let path = entry?.path();
+                if path.is_dir() {
+                    collect(&path, files)?;
+                } else if path.is_file() && path.extension().is_some_and(|ext| ext == "moo") {
+                    files.push(path);
+                }
+            }
+            Ok(())
+        }
+        if !directory.is_dir() {
+            return Err(ObjdefLoaderError::DirectoryNotFound(
+                directory.to_path_buf(),
+            ));
+        }
+        let mut files = Vec::new();
+        collect(directory, &mut files)
+            .map_err(|e| ObjdefLoaderError::ObjectFileReadError(directory.to_path_buf(), e))?;
+        files.sort();
+        let constants = directory.join("constants.moo");
+        files.retain(|path| path.file_name().is_some_and(|name| name != "constants.moo"));
+        if constants.is_file() {
+            files.insert(0, constants);
+        }
+        let sources = files
+            .into_iter()
+            .map(|path| {
+                let text = std::fs::read_to_string(&path)
+                    .map_err(|e| ObjdefLoaderError::ObjectFileReadError(path.clone(), e))?;
+                Ok(ObjDefSource::from_path(path, text))
+            })
+            .collect::<Result<Vec<_>, ObjdefLoaderError>>()?;
+        let mut options = compile_options.clone();
+        options.call_unsupported_builtins = true;
+        Self::parse_sources(&options, Some(directory), None, sources)
+    }
+
+    /// Read deployment source, optionally preparing baselines from separate upstream history.
+    /// Git preparation uses local history only and never modifies the working tree.
+    pub fn read_directory_with_baseline(
+        compile_options: &CompileOptions,
+        directory: &Path,
+        git_upstream: Option<&str>,
+        baseline_directory: Option<&Path>,
+    ) -> Result<Self, ObjdefLoaderError> {
+        if git_upstream.is_some() && baseline_directory.is_some() {
+            return Err(ObjdefLoaderError::InvalidBaseline(
+                "choose either --git-upstream or --baseline-objdef-dir".into(),
+            ));
+        }
+        let baseline = if let Some(upstream) = git_upstream {
+            let (base, provenance) =
+                crate::git_baseline::prepare(directory, upstream, compile_options)
+                    .map_err(|e| ObjdefLoaderError::InvalidBaseline(format!("{e:#}")))?;
+            Some((base, Some(provenance)))
+        } else if let Some(path) = baseline_directory {
+            Some((Self::read_directory(compile_options, path)?, None))
+        } else {
+            None
+        };
+        let local = Self::read_directory(compile_options, directory)?;
+        match baseline {
+            Some((base, provenance)) => local.with_program_baseline(&base, provenance),
+            None => Ok(local),
+        }
+    }
+
+    /// Derive program baselines from a separately identified source, retaining local programs.
+    /// Unmatched local declarations have no baseline. Object relocation is not inferred.
+    pub fn with_program_baseline(
+        mut self,
+        baseline: &Self,
+        provenance: Option<Var>,
+    ) -> Result<Self, ObjdefLoaderError> {
+        use crate::{
+            fingerprint::{PROGRAM_SCHEMA, program_fingerprint},
+            review::{BASE_KEY, record},
+        };
+        use moor_var::v_str;
+        if provenance.as_ref().is_some_and(|v| v.as_map().is_none()) {
+            return Err(ObjdefLoaderError::InvalidBaseline(
+                "source provenance must be a map".into(),
+            ));
+        }
+        let key = Symbol::mk(BASE_KEY);
+        for (oid, (label, local)) in &mut self.graph.object_definitions {
+            let identity = self.graph.identities.get(oid).cloned().unwrap_or_default();
+            if let Some(id) = &identity.import_export_id {
+                let candidates = baseline
+                    .graph
+                    .identities
+                    .iter()
+                    .filter(|(_, identity)| identity.import_export_id.as_ref() == Some(id))
+                    .map(|(oid, _)| oid)
+                    .collect::<Vec<_>>();
+                if candidates.len() > 1
+                    || candidates.first().is_some_and(|base_oid| *base_oid != oid)
+                {
+                    return Err(ObjdefLoaderError::InvalidBaseline(format!(
+                        "{label}: object identity {id} is ambiguous or has moved; explicit rebinding is required"
+                    )));
+                }
+            }
+            let base = baseline
+                .graph
+                .object_definitions
+                .get(oid)
+                .map(|(_, definition)| definition);
+            if base.is_some() {
+                let base_identity = baseline.graph.identity(oid).cloned().unwrap_or_default();
+                if identity.import_export_id != base_identity.import_export_id {
+                    return Err(ObjdefLoaderError::InvalidBaseline(format!(
+                        "{label}: object {oid} has a different identity in the baseline"
+                    )));
+                }
+            }
+            for (index, verb) in local.verbs.iter().enumerate() {
+                if local.verbs[..index]
+                    .iter()
+                    .any(|other| other.names == verb.names && other.argspec == verb.argspec)
+                {
+                    return Err(ObjdefLoaderError::InvalidBaseline(format!(
+                        "{label}: ambiguous local verb declaration"
+                    )));
+                }
+            }
+            for verb in &mut local.verbs {
+                verb.metadata
+                    .retain(|(metadata_key, _)| *metadata_key != key);
+                let Some(base) = base else {
+                    continue;
+                };
+                let candidates = base
+                    .verbs
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.names == verb.names && candidate.argspec == verb.argspec
+                    })
+                    .collect::<Vec<_>>();
+                if candidates.len() > 1 {
+                    return Err(ObjdefLoaderError::InvalidBaseline(format!(
+                        "{label}: ambiguous verb declaration in baseline binding"
+                    )));
+                }
+                let Some(base_verb) = candidates.first() else {
+                    continue;
+                };
+                let hash = program_fingerprint(&base_verb.program)
+                    .map_err(ObjdefLoaderError::InvalidBaseline)?;
+                let mut fields = vec![("schema", v_str(PROGRAM_SCHEMA)), ("program", v_str(&hash))];
+                if let Some(source) = &provenance {
+                    fields.push(("source", source.clone()));
+                }
+                verb.metadata.push((key, record(&fields)));
+            }
+        }
+        Ok(self)
+    }
+
     /// Parse objdef sources into a proposed graph without mutating the database.
     ///
     /// `root_path` is the include security boundary for filesystem-backed source sets. `constants`

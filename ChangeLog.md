@@ -14,6 +14,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `moor`, `moor-daemon`, `moorc`, and `scripts/dev.sh` accept `--git-upstream origin/main` to
+  prepare program baselines from the common ancestor of the checkout and a locally available
+  upstream branch while installing the working files as live code. `--baseline-objdef-dir` accepts
+  an explicitly supplied base without Git. Prepared baselines survive export and import; Git
+  preparation also records the source revisions. Server startup prepares baselines only when
+  importing a new database; existing databases are left unchanged.
+- Ordinary objdef directory imports preserve supplied baselines but no longer invent missing ones
+  from the imported programs. Prepare an upstream baseline or explicitly adopt one before applying
+  updates to an installation without tracking metadata.
+
 - Cowbell and Snore now present upstream updates as `@changes fetch`, review, and apply. Commands
   explain review IDs and next steps, and background fetch/apply results are reported automatically
   to the requesting player. Diff output summarizes changes, hides unchanged programs, and uses

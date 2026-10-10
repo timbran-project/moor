@@ -125,6 +125,15 @@ struct Args {
     )]
     import_format: Option<Format>,
 
+    /// Prepare initial program baselines from HEAD's common ancestor with this remote-tracking ref.
+    /// Uses local Git history only; fetch the remote first when needed.
+    #[arg(long, conflicts_with = "baseline_objdef_dir")]
+    git_upstream: Option<String>,
+
+    /// Use this objdef directory as the upstream baseline for the initial import.
+    #[arg(long)]
+    baseline_objdef_dir: Option<PathBuf>,
+
     #[arg(
         short,
         long,
@@ -346,6 +355,7 @@ async fn main() -> Result<(), Report> {
     )?;
     apply_cli_overrides(&args, &mut combined_config);
     let (config, services_config) = combined_config.into_parts();
+    config.validate().map_err(|e| eyre!(e))?;
 
     prepare_config_dir()?;
     std::fs::create_dir_all(&args.data_dir)?;
@@ -528,6 +538,14 @@ fn apply_cli_overrides(args: &Args, config: &mut CombinedConfig) {
     }
     if let Some(import_format) = args.import_format {
         config.import_export.import_format = import_format.into();
+    }
+    if let Some(upstream) = &args.git_upstream {
+        config.import_export.git_upstream = Some(upstream.clone());
+        config.import_export.baseline_objdef_dir = None;
+    }
+    if let Some(directory) = &args.baseline_objdef_dir {
+        config.import_export.baseline_objdef_dir = Some(directory.clone());
+        config.import_export.git_upstream = None;
     }
     if args.no_telnet {
         config.services.telnet.enabled = false;
@@ -727,6 +745,27 @@ mod tests {
         let mut file = tempfile::NamedTempFile::new()?;
         file.write_all(yaml.as_bytes())?;
         moor_common::config::apply_yaml_config_file(CombinedConfig::default(), Some(file.path()))
+    }
+
+    #[test]
+    fn baseline_preparation_combines_cli_and_yaml() {
+        use clap::Parser;
+        let mut config = load(
+            "import_export:\n  input_path: core\n  import_format: Objdef\n  git_upstream: origin/main\n",
+        ).unwrap();
+        let args = super::Args::try_parse_from(["moor", "--baseline-objdef-dir", "base"]).unwrap();
+        super::apply_cli_overrides(&args, &mut config);
+        let (config, _) = config.into_parts();
+        config.validate().unwrap();
+        assert!(config.import_export.git_upstream.is_none());
+        assert_eq!(
+            config.import_export.baseline_objdef_dir.as_deref(),
+            Some(std::path::Path::new("base"))
+        );
+
+        let mut config = CombinedConfig::default();
+        super::apply_cli_overrides(&args, &mut config);
+        assert!(config.into_parts().0.validate().is_err());
     }
 
     #[test]
