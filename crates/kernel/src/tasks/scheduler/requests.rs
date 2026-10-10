@@ -44,9 +44,8 @@ impl Scheduler {
         &self,
         object_definition: String,
         options: moor_objdef::ObjDefLoaderOptions,
-        return_conflicts: bool,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        self.handle_load_object(object_definition, options, return_conflicts)
+        self.handle_load_object(object_definition, options)
     }
 
     pub(crate) fn handle_reload_object_request(

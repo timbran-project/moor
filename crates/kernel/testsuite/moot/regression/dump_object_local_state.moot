@@ -52,3 +52,10 @@
 
 ; return {#9002.annotated, is_clear_property(#9002, "annotated"), property_info(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
 {2, 1, {#3, "r"}, "updated"}
+
+// Both dump modes must see pending creations, metadata, values, and programs.
+; const o = load_object({"object #9010", "owner: #3", "property value (owner: #3, flags: \"rw\") = 1;", "verb test (this none this) owner: #3 flags: \"rxd\"", "return 1;", "endverb", "endobject"});
+> set_object_metadata(o, "import_export_id", "pending_dump"); o.value = 42; set_verb_code(o, "test", {"return 42;"});
+> const literal = dump_object(o); const symbolic = dump_object(o, ["constants" -> true]);
+> return {index(toliteral(literal), "42") > 0, index(toliteral(symbolic), "PENDING_DUMP") > 0, index(toliteral(symbolic), "42") > 0};
+{1, 1, 1}

@@ -23,10 +23,9 @@
 //! Use `ObjectDefinitionLoader` when code is ready to apply an objdef set or single definition to a
 //! `LoaderInterface`.
 
-use crate::{
-    ObjDefSet, ObjDefSource, ObjdefLoaderError,
-    set::{apply_constants, compile_normalized_object_definitions},
-};
+#[cfg(test)]
+use crate::set::compile_normalized_object_definitions;
+use crate::{ObjDefSet, ObjDefSource, ObjdefLoaderError};
 use moor_common::{
     model::{
         HasUuid, Named, ObjAttrs, ObjFlag, ObjectKind, PropDef, PropFlag, ValSet, VerbDef,
@@ -34,7 +33,9 @@ use moor_common::{
     },
     util::BitEnum,
 };
-use moor_compiler::{CompileOptions, ObjFileContext, ObjectDefinition};
+#[cfg(test)]
+use moor_compiler::ObjFileContext;
+use moor_compiler::{CompileOptions, ObjectDefinition};
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
 use std::{
     collections::HashMap,
@@ -68,6 +69,7 @@ pub struct ObjectDefinitionLoader<'a> {
     loader: &'a mut dyn LoaderInterface,
     // Track conflicts as we go
     conflicts: Vec<(Obj, ConflictEntity)>,
+    mutation_started: bool,
 }
 
 /// How to handle an existing database entity that differs from the incoming objdef.
@@ -96,6 +98,7 @@ pub enum Entity {
 }
 
 /// Options controlling objdef apply behavior.
+#[derive(Clone)]
 pub struct ObjDefLoaderOptions {
     /// Parse and collect conflicts against current state without allocating objects or writing.
     /// Mutation-time validation, including parent changes, is performed only by a real load.
@@ -172,7 +175,13 @@ impl<'a> ObjectDefinitionLoader<'a> {
             parsed_constants: HashMap::new(),
             loader,
             conflicts: Vec::new(),
+            mutation_started: false,
         }
+    }
+
+    /// Whether a failed operation requires discarding its enclosing transaction.
+    pub fn mutation_started(&self) -> bool {
+        self.mutation_started
     }
 
     fn definition_counts(&self) -> (usize, usize, usize) {
@@ -1081,31 +1090,20 @@ impl<'a> ObjectDefinitionLoader<'a> {
         let start_time = Instant::now();
         let source_name = "<string>".to_string();
 
-        // Create a fresh context for this single object
-        let mut context = ObjFileContext::new();
-
-        // Parse constants if provided
-        if let Some(constants) = &options.constants {
-            apply_constants(constants, &mut context, &source_name)?;
-        }
-
-        // Parse the object definition
-        let compiled_defs = compile_normalized_object_definitions(
-            object_definition,
+        let set = ObjDefSet::parse_sources(
             &compile_options,
-            &mut context,
-        )
-        .map_err(|e| ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e)))?;
-
-        // Ensure we got exactly one object
-        if compiled_defs.len() != 1 {
+            None,
+            options.constants.as_ref(),
+            [ObjDefSource::new(&source_name, object_definition)],
+        )?;
+        let definitions = set.graph().object_definitions();
+        if definitions.len() != 1 {
             return Err(ObjdefLoaderError::SingleObjectExpected(
                 source_name,
-                compiled_defs.len(),
+                definitions.len(),
             ));
         }
-
-        let compiled_def = compiled_defs.into_iter().next().unwrap();
+        let compiled_def = definitions.values().next().unwrap().1.clone();
 
         // Determine the ObjectKind to use for creation
         let object_kind = match &options.object_kind {
@@ -1127,6 +1125,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
         } else {
             None
         };
+
+        self.mutation_started = !options.dry_run;
 
         // Only create the object if it doesn't exist
         let oid = if options.dry_run {
@@ -1194,42 +1194,33 @@ impl<'a> ObjectDefinitionLoader<'a> {
     ///
     /// # Arguments
     /// * `object_definition` - The MOO object definition string
+    /// * `compile_options` - Runtime language features used to compile source and constants
     /// * `constants` - Optional constants (either as a map or as file content to parse)
     /// * `target_obj` - Optional target object ID. If None, uses the ID from the objdef
     pub fn reload_single_object(
         &mut self,
         object_definition: &str,
+        compile_options: CompileOptions,
         constants: Option<Constants>,
         target_obj: Option<Obj>,
     ) -> Result<ObjDefLoaderResults, ObjdefLoaderError> {
         let start_time = Instant::now();
         let source_name = "<reload>".to_string();
 
-        // Create a fresh context for this object
-        let mut context = ObjFileContext::new();
-
-        // Parse constants if provided
-        if let Some(constants) = &constants {
-            apply_constants(constants, &mut context, &source_name)?;
-        }
-
-        // Parse the object definition
-        let compile_opts = CompileOptions::default();
-        let compiled_defs =
-            compile_normalized_object_definitions(object_definition, &compile_opts, &mut context)
-                .map_err(|e| {
-                ObjdefLoaderError::ObjectDefParseError(source_name.clone(), Box::new(e))
-            })?;
-
-        // Ensure we got exactly one object
-        if compiled_defs.len() != 1 {
+        let set = ObjDefSet::parse_sources(
+            &compile_options,
+            None,
+            constants.as_ref(),
+            [ObjDefSource::new(&source_name, object_definition)],
+        )?;
+        let definitions = set.graph().object_definitions();
+        if definitions.len() != 1 {
             return Err(ObjdefLoaderError::SingleObjectExpected(
                 source_name,
-                compiled_defs.len(),
+                definitions.len(),
             ));
         }
-
-        let compiled_def = compiled_defs.into_iter().next().unwrap();
+        let compiled_def = definitions.values().next().unwrap().1.clone();
 
         // Determine the target object ID
         let target_oid = target_obj.unwrap_or(compiled_def.oid);
@@ -1239,6 +1230,8 @@ impl<'a> ObjectDefinitionLoader<'a> {
             .loader
             .get_existing_object(&target_oid)
             .map_err(|e| ObjdefLoaderError::CouldNotSetObjectParent(source_name.clone(), e))?;
+
+        self.mutation_started = true;
 
         // If object exists, we need to selectively delete things not in the objdef
         if existing_obj.is_some() {
@@ -3042,7 +3035,7 @@ mod tests {
             endobject"#;
 
         let results = parser
-            .reload_single_object(reload_spec, None, None)
+            .reload_single_object(reload_spec, CompileOptions::default(), None, None)
             .unwrap();
 
         assert_eq!(results.loaded_objects.len(), 1);
@@ -3157,7 +3150,12 @@ mod tests {
             endobject"#;
 
         let results = parser
-            .reload_single_object(reload_spec, None, Some(Obj::mk_id(200)))
+            .reload_single_object(
+                reload_spec,
+                CompileOptions::default(),
+                None,
+                Some(Obj::mk_id(200)),
+            )
             .unwrap();
 
         assert_eq!(results.loaded_objects[0], Obj::mk_id(200)); // Should use target override
@@ -3208,7 +3206,7 @@ mod tests {
             endobject"#;
 
         let results = parser
-            .reload_single_object(reload_spec, None, None)
+            .reload_single_object(reload_spec, CompileOptions::default(), None, None)
             .unwrap();
 
         assert_eq!(results.loaded_objects[0], Obj::mk_id(300));
@@ -3281,7 +3279,7 @@ mod tests {
             endobject"#;
 
         parser
-            .reload_single_object(reload_spec, None, None)
+            .reload_single_object(reload_spec, CompileOptions::default(), None, None)
             .unwrap();
         loader.commit().unwrap();
 
@@ -3365,7 +3363,7 @@ mod tests {
                 location: #-1
             endobject"#;
 
-        let result = parser.reload_single_object(cycle_spec, None, None);
+        let result = parser.reload_single_object(cycle_spec, CompileOptions::default(), None, None);
 
         // Should fail with a cycle detection error
         assert!(result.is_err(), "Reloading object with cycle should fail");
@@ -3396,7 +3394,7 @@ mod tests {
                 location: #-1
             endobject"#;
         parser
-            .reload_single_object(initial_spec, None, None)
+            .reload_single_object(initial_spec, CompileOptions::default(), None, None)
             .unwrap();
         loader.commit().unwrap();
 
@@ -3411,7 +3409,8 @@ mod tests {
                 location: #-1
             endobject"#;
 
-        let result = parser.reload_single_object(invalid_parent_spec, None, None);
+        let result =
+            parser.reload_single_object(invalid_parent_spec, CompileOptions::default(), None, None);
 
         // Should fail with invalid parent error
         assert!(
@@ -3510,7 +3509,8 @@ mod tests {
                 location: #-1
             endobject"#;
 
-        let result = parser.reload_single_object(conflict_spec, None, None);
+        let result =
+            parser.reload_single_object(conflict_spec, CompileOptions::default(), None, None);
 
         // Should fail with property name conflict error
         assert!(

@@ -751,14 +751,13 @@ impl SchedulerClient {
         &self,
         object_definition: String,
         options: moor_objdef::ObjDefLoaderOptions,
-        return_conflicts: bool,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
         let _timer = sched_counters()
             .timers
             .start(SchedulerOp::LoadObjectLatency);
 
         self.request_with_timeout(LONG_REQUEST_TIMEOUT, move |scheduler| {
-            scheduler.handle_load_object_request(object_definition, options, return_conflicts)
+            scheduler.handle_load_object_request(object_definition, options)
         })
     }
 

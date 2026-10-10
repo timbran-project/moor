@@ -11,9 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::task_context::{
-    current_task_scheduler_client, with_current_transaction, with_loader_interface,
-};
+use crate::task_context::{with_current_transaction, with_loader_interface};
 use crate::vm::builtins::BfRet::Ret;
 use crate::vm::builtins::{
     BfCallState, BfErr, BfRet, BuiltinFunction, DiagnosticOutput, parse_diagnostic_options,
@@ -21,9 +19,7 @@ use crate::vm::builtins::{
 };
 use moor_common::builtins::offset_for_builtin;
 use moor_common::model::{ObjectKind, obj_flags_string, prop_flags_string};
-use moor_compiler::{
-    CompileOptions, DiagnosticRenderOptions, ObjDefParseError, ObjFileContext, format_compile_error,
-};
+use moor_compiler::{DiagnosticRenderOptions, format_compile_error};
 use moor_objdef::{
     ConflictEntity, ConflictMode, Constants, Entity, ObjDefLoaderOptions, ObjdefLoaderError,
 };
@@ -51,6 +47,52 @@ static CLOBBER_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("clobber"));
 static SKIP_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("skip"));
 static DETECT_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("detect"));
 
+/// Decode bounded source before copying or joining caller-owned strings.
+fn source_text(value: &Var) -> Result<String, BfErr> {
+    const MAX_BYTES: usize = 16 * 1024 * 1024;
+    if let Some(text) = value.as_string() {
+        if text.len() > MAX_BYTES {
+            return Err(BfErr::ErrValue(
+                moor_var::E_QUOTA.msg("objdef source exceeds 16 MiB"),
+            ));
+        }
+        return Ok(text.to_owned());
+    }
+    let lines = value.as_list().ok_or_else(|| {
+        BfErr::ErrValue(E_TYPE.msg("objdef source must be a string or list of strings"))
+    })?;
+    let mut size = 0usize;
+    for line in lines.iter() {
+        let text = line
+            .as_string()
+            .ok_or_else(|| BfErr::ErrValue(E_TYPE.msg("objdef source lines must be strings")))?;
+        size = size.saturating_add(text.len()).saturating_add(1);
+        if size > MAX_BYTES {
+            return Err(BfErr::ErrValue(
+                moor_var::E_QUOTA.msg("objdef source exceeds 16 MiB"),
+            ));
+        }
+    }
+    Ok(lines
+        .iter()
+        .map(|v| v.as_string().unwrap().to_owned())
+        .collect::<Vec<_>>()
+        .join("\n"))
+}
+
+fn option_keys(options: &moor_var::Map, allowed: &[&str]) -> Result<(), BfErr> {
+    let mut seen = std::collections::HashSet::new();
+    for (key, _) in options.iter() {
+        let name = key.as_symbol().map_err(BfErr::ErrValue)?.to_folded_case();
+        if !allowed.contains(&name.as_str()) || !seen.insert(name) {
+            return Err(BfErr::ErrValue(
+                E_INVARG.msg("unknown or duplicate objdef option"),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Usage: `list dump_object(obj object [, map options])`
 /// Returns the object definition as a list of strings in objdef format.
 /// Options: `constants -> true` to use symbolic constant names. Wizard-only.
@@ -71,9 +113,13 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let mut use_constants = false;
     if bf_args.args.len() == 2 {
         let options_map = bf_args.map_or_alist_to_map(&bf_args.args[1])?;
+        option_keys(&options_map, &["constants"])?;
         for (key, value) in options_map.iter() {
             let key_sym = key.as_symbol().map_err(BfErr::ErrValue)?;
             if key_sym == *CONSTANTS_SYM {
+                if !matches!(value.variant(), Variant::Bool(_) | Variant::Int(0 | 1)) {
+                    return Err(BfErr::ErrValue(E_TYPE.msg("constants must be a boolean")));
+                }
                 use_constants = value.is_true();
             }
         }
@@ -91,12 +137,19 @@ fn bf_dump_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Check permissions: wizard only (object dumps can expose properties owned by others)
     bf_args.require_wizard_or_builtin_call()?;
 
-    // Use the task scheduler client to request the dump from the scheduler.
-    // The scheduler already returns string Vars, so there is no reason to bounce
-    // through an intermediate Vec<String> here.
-    let lines = current_task_scheduler_client()
-        .dump_object(obj, use_constants)
-        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(format!("Failed to dump object: {e}"))))?;
+    let permissions = bf_args.task_permissions();
+    let lines = with_current_transaction(|world| {
+        let definitions = moor_objdef::collect_object_definitions(world, &permissions, &[obj])
+            .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
+        let names = if use_constants {
+            moor_objdef::collect_transaction_index_names(world, &permissions)
+                .map_err(world_state_bf_err)?
+        } else {
+            std::collections::HashMap::new()
+        };
+        moor_objdef::dump_object(&names, &definitions[0])
+            .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))
+    })?;
     Ok(Ret(v_list(&lines)))
 }
 
@@ -110,54 +163,18 @@ fn bf_parse_objdef_constants(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
         ));
     }
 
-    let source = match bf_args.args[0].variant() {
-        Variant::Str(_) => bf_args.args[0].as_string().unwrap().to_string(),
-        Variant::List(lines_list) => {
-            let mut lines = Vec::new();
-            for line_val in lines_list.iter() {
-                let Some(line_str) = line_val.as_string() else {
-                    return Err(BfErr::ErrValue(E_TYPE.msg(
-                        "parse_objdef_constants() requires a string or list of strings",
-                    )));
-                };
-                lines.push(line_str.to_string());
-            }
-            lines.join("\n")
-        }
-        _ => {
-            return Err(BfErr::ErrValue(E_TYPE.msg(
-                "parse_objdef_constants() requires a string or list of strings",
-            )));
-        }
-    };
+    let source = source_text(&bf_args.args[0])?;
 
-    let mut context = ObjFileContext::new();
-    let compile_options = CompileOptions::default();
-    if let Err(err) =
-        moor_compiler::compile_object_definitions(&source, &compile_options, &mut context)
-    {
-        let diagnostic_options = DiagnosticRenderOptions::default();
-        match err {
-            ObjDefParseError::ParseError(compile_error) => {
-                let formatted =
-                    format_compile_error(&compile_error, Some(&source), diagnostic_options);
-                return Err(BfErr::ErrValue(E_INVARG.msg(formatted.join("\n"))));
-            }
-            ObjDefParseError::VerbCompileError(compile_error, verb_source) => {
-                let formatted = format_compile_error(
-                    &compile_error,
-                    Some(verb_source.as_str()),
-                    diagnostic_options,
-                );
-                return Err(BfErr::ErrValue(E_INVARG.msg(formatted.join("\n"))));
-            }
-            other => {
-                return Err(BfErr::ErrValue(E_INVARG.msg(other.to_string())));
-            }
-        }
-    }
+    let compile_options = bf_args.config.compile_options();
+    let set = moor_objdef::ObjDefSet::parse_sources(
+        &compile_options,
+        None,
+        None,
+        [moor_objdef::ObjDefSource::new("<constants>", &source)],
+    )
+    .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.to_string())))?;
 
-    let constants = context
+    let constants = set
         .constants()
         .iter()
         .map(|(name, value)| (v_sym(*name), value.clone()))
@@ -407,23 +424,7 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    let Some(lines_list) = bf_args.args[0].as_list() else {
-        return Err(BfErr::ErrValue(E_TYPE.msg(
-            "load_object() requires a list of strings as the first argument",
-        )));
-    };
-
-    // Convert list of values to list of strings, joining with newlines
-    let mut lines = Vec::new();
-    for line_val in lines_list.iter() {
-        let Some(line_str) = line_val.as_string() else {
-            return Err(BfErr::ErrValue(
-                E_TYPE.msg("load_object() requires a list of strings"),
-            ));
-        };
-        lines.push(line_str.to_string());
-    }
-    let object_definition = lines.join("\n");
+    let object_definition = source_text(&bf_args.args[0])?;
 
     // Parse options map (second argument)
     let options_map = if bf_args.args.len() >= 2 {
@@ -431,6 +432,18 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     } else {
         v_empty_map().as_map().unwrap().clone()
     };
+
+    option_keys(
+        &options_map,
+        &[
+            "dry_run",
+            "conflict_mode",
+            "constants",
+            "overrides",
+            "return_conflicts",
+            "diagnostics",
+        ],
+    )?;
 
     // Parse the object specification (third argument)
     let object_kind = if bf_args.args.len() == 3 {
@@ -494,18 +507,20 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 return Err(BfErr::ErrValue(E_TYPE.msg("diagnostics must be a map")));
             };
 
+            option_keys(diag_map, &["verbosity", "output_mode"])?;
             let mut verbosity = None;
             let mut output_mode = None;
 
             for (k, v) in diag_map.iter() {
-                let Some(key_str) = k.as_string() else {
-                    continue;
-                };
+                let key_str = k.as_symbol().map_err(BfErr::ErrValue)?.to_folded_case();
+                let number = v.as_integer().ok_or_else(|| {
+                    BfErr::ErrValue(E_TYPE.msg("diagnostic options must be integers"))
+                })?;
 
                 if key_str == "verbosity" {
-                    verbosity = v.as_integer();
+                    verbosity = Some(number);
                 } else if key_str == "output_mode" {
-                    output_mode = v.as_integer();
+                    output_mode = Some(number);
                 }
             }
 
@@ -539,14 +554,27 @@ fn bf_load_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     // Get the compile options from the config
     let compile_options = bf_args.config.compile_options();
 
+    let mut mutation_started = false;
     let loader_result: Result<_, ObjdefLoaderError> = with_loader_interface(|loader| {
         let mut object_loader = moor_objdef::ObjectDefinitionLoader::new(loader);
-        object_loader.load_single_object(&object_definition, compile_options, loader_options)
+        let result =
+            object_loader.load_single_object(&object_definition, compile_options, loader_options);
+        mutation_started = object_loader.mutation_started();
+        result
     });
 
     let result = match loader_result {
         Ok(results) => results,
         Err(e) => {
+            if e.is_retry() {
+                return Err(BfErr::Rollback);
+            }
+            if mutation_started {
+                tracing::warn!(error = %e, "objdef load failed; rolling back task");
+                return Ok(BfRet::VmInstr(
+                    crate::vm::vm_host::ExecutionResult::TaskRollback(false),
+                ));
+            }
             if let Some((_, compile_error, verb_source)) = e.compile_error() {
                 let source_to_use = if !verb_source.is_empty() {
                     Some(verb_source)
@@ -582,23 +610,7 @@ fn bf_reload_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         ));
     }
 
-    let Some(lines_list) = bf_args.args[0].as_list() else {
-        return Err(BfErr::ErrValue(E_TYPE.msg(
-            "reload_object() requires a list of strings as the first argument",
-        )));
-    };
-
-    // Convert list of values to list of strings, joining with newlines
-    let mut lines = Vec::new();
-    for line_val in lines_list.iter() {
-        let Some(line_str) = line_val.as_string() else {
-            return Err(BfErr::ErrValue(
-                E_TYPE.msg("reload_object() requires a list of strings"),
-            ));
-        };
-        lines.push(line_str.to_string());
-    }
-    let object_definition = lines.join("\n");
+    let object_definition = source_text(&bf_args.args[0])?;
 
     // Parse constants map (second argument)
     let constants = if bf_args.args.len() >= 2 {
@@ -639,14 +651,32 @@ fn bf_reload_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args.require_wizard_or_builtin_call()?;
 
     // Use the current task's transaction via loader interface
+    let mut mutation_started = false;
+    let compile_options = bf_args.config.compile_options();
     let result = match with_loader_interface(|loader| {
         let mut object_loader = moor_objdef::ObjectDefinitionLoader::new(loader);
 
         // Reload the object with the provided constants and target
-        object_loader.reload_single_object(&object_definition, constants, target_obj)
+        let result = object_loader.reload_single_object(
+            &object_definition,
+            compile_options,
+            constants,
+            target_obj,
+        );
+        mutation_started = object_loader.mutation_started();
+        result
     }) {
         Ok(result) => result,
         Err(e) => {
+            if e.is_retry() {
+                return Err(BfErr::Rollback);
+            }
+            if mutation_started {
+                tracing::warn!(error = %e, "objdef reload failed; rolling back task");
+                return Ok(BfRet::VmInstr(
+                    crate::vm::vm_host::ExecutionResult::TaskRollback(false),
+                ));
+            }
             return Err(BfErr::ErrValue(
                 E_INVARG.with_msg(|| format!("failed to load object: {e}")),
             ));

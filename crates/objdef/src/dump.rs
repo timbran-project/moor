@@ -13,7 +13,7 @@
 
 use crate::{import_export_hierarchy, import_export_id};
 use moor_common::model::{
-    HasUuid, Named, ObjFlag, ValSet,
+    HasUuid, Named, ObjFlag, ValSet, WorldStateError,
     loader::{
         SnapshotExportMetadata, SnapshotExportObject, SnapshotExportSession, SnapshotExportVerb,
         SnapshotInterface,
@@ -458,6 +458,27 @@ pub fn collect_index_names(
 ) -> Result<HashMap<Obj, String>, ObjectDumpError> {
     let export = loader.begin_export(&[import_export_id(), import_export_hierarchy()])?;
     let identities = collect_snapshot_identities(export.as_ref());
+    Ok(extract_object_constants_from_identities(&identities).0)
+}
+
+/// Collect export names from the same transaction as a live object dump.
+pub fn collect_transaction_index_names(
+    world: &dyn moor_common::model::WorldState,
+    permissions: &moor_common::model::TaskPermissions,
+) -> Result<HashMap<Obj, String>, WorldStateError> {
+    let mut identities = Vec::new();
+    for oid in world.all_objects()?.iter() {
+        let metadata = world.object_metadata(permissions, &oid)?;
+        identities.push(ObjectExportIdentity {
+            oid,
+            parent: world.parent_of(permissions, &oid)?,
+            export_id: metadata
+                .iter()
+                .find(|(key, _)| *key == import_export_id())
+                .and_then(|(_, value)| string_or_symbol_to_string(value)),
+            hierarchy: Vec::new(),
+        });
+    }
     Ok(extract_object_constants_from_identities(&identities).0)
 }
 

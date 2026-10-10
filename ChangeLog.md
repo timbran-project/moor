@@ -241,6 +241,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Match exception handlers by error code even when an error carries a value. Typed `except` clauses
   and error-catching expressions now catch these errors and retain their payloads.
+- objdef dumps now include the calling task's pending changes. Reload and constants parsing use the
+  configured language features. In-memory source labels no longer permit filesystem includes.
+- A load or reload failure after writes begin now aborts the task and rolls back its transaction,
+  including earlier writes. Catching an error cannot commit a partial import. Administrative imports
+  retry commit conflicts and report success only after commit.
+
 - Defer input, worker responses, explicit task resumes, and maintenance wakeups during GC sweep.
   Resumed tasks keep their return values or errors. Shutdown cancels these accepted responses
   instead of starting more execution or saving incomplete continuations.

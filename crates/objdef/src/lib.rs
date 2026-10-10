@@ -48,8 +48,8 @@ use std::{io, path::PathBuf};
 
 pub use collect::{ObjectCollectionError, collect_object_definitions};
 pub use dump::{
-    ObjectDumpStats, collect_index_names, collect_object, dump_object,
-    dump_snapshot_object_definitions,
+    ObjectDumpStats, collect_index_names, collect_object, collect_transaction_index_names,
+    dump_object, dump_snapshot_object_definitions,
 };
 pub use load::{
     ConflictEntity, ConflictMode, Constants, Entity, ObjDefLoaderOptions, ObjDefLoaderResults,
@@ -59,6 +59,8 @@ pub use set::{ObjDefIdentity, ObjDefSet, ObjDefSource, ProposedObjectGraph};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObjdefLoaderError {
+    #[error("objdef input limit exceeded: {0}")]
+    InputLimit(String),
     #[error("Directory not found: {0}")]
     DirectoryNotFound(PathBuf),
     #[error("Invalid object file name: {0} (should be number)")]
@@ -90,8 +92,23 @@ pub enum ObjdefLoaderError {
 }
 
 impl ObjdefLoaderError {
+    pub fn is_retry(&self) -> bool {
+        matches!(
+            self,
+            Self::CouldNotCreateObject(_, _, WorldStateError::RollbackRetry)
+                | Self::CouldNotSetObjectParent(_, WorldStateError::RollbackRetry)
+                | Self::CouldNotSetObjectLocation(_, WorldStateError::RollbackRetry)
+                | Self::CouldNotSetObjectOwner(_, WorldStateError::RollbackRetry)
+                | Self::CouldNotSetObjectMetadata(_, _, _, WorldStateError::RollbackRetry)
+                | Self::CouldNotDefineProperty(_, _, _, WorldStateError::RollbackRetry)
+                | Self::CouldNotOverrideProperty(_, _, _, WorldStateError::RollbackRetry)
+                | Self::CouldNotDefineVerb(_, _, _, WorldStateError::RollbackRetry)
+        )
+    }
+
     pub fn source(&self) -> &str {
         match self {
+            ObjdefLoaderError::InputLimit(_) => "<input>",
             ObjdefLoaderError::DirectoryNotFound(path) => path.to_str().unwrap_or("<unknown>"),
             ObjdefLoaderError::InvalidObjectFilename(path) => path.to_str().unwrap_or("<unknown>"),
             ObjdefLoaderError::ObjectFileReadError(path, _) => path.to_str().unwrap_or("<unknown>"),

@@ -33,7 +33,7 @@ use std::{
 ///
 /// `path` is optional because callers may supply objdefs from memory rather than from a directory.
 /// When present, it is used for include path resolution and for diagnostics. When absent, `label`
-/// is used only as a diagnostic/base-path stand-in.
+/// is used only for diagnostics and grants no filesystem access.
 pub struct ObjDefSource {
     /// Human-readable source name for parse errors and duplicate diagnostics.
     pub label: String,
@@ -60,12 +60,6 @@ impl ObjDefSource {
             contents,
             path: Some(path),
         }
-    }
-
-    fn base_path_source(&self) -> &Path {
-        self.path
-            .as_deref()
-            .unwrap_or_else(|| Path::new(self.label.as_str()))
     }
 }
 
@@ -142,12 +136,24 @@ impl ObjDefSet {
         }
 
         if let Some(constants) = constants {
-            apply_constants(constants, &mut context, "<constants>")?;
+            apply_constants(constants, compile_options, &mut context, "<constants>")?;
         }
 
         let mut object_definitions: HashMap<Obj, (String, ObjectDefinition)> = HashMap::new();
+        let mut memory_bytes = 0usize;
+        let mut memory_units = 0usize;
         for source in sources {
-            context.set_base_path(source.base_path_source());
+            if source.path.is_none() {
+                memory_units += 1;
+                memory_bytes = memory_bytes.saturating_add(source.contents.len());
+                if memory_units > 4096 || memory_bytes > 16 * 1024 * 1024 {
+                    return Err(ObjdefLoaderError::InputLimit("4096 units or 16 MiB".into()));
+                }
+            }
+            match source.path.as_deref() {
+                Some(path) => context.set_base_path(path),
+                None => context.clear_base_path(),
+            }
             let compiled_defs = compile_normalized_object_definitions(
                 &source.contents,
                 compile_options,
@@ -167,6 +173,11 @@ impl ObjDefSet {
                     ));
                 }
                 object_definitions.insert(oid, (source.label.clone(), compiled_def));
+                if source.path.is_none() && object_definitions.len() > 32768 {
+                    return Err(ObjdefLoaderError::InputLimit(
+                        "32768 object declarations".into(),
+                    ));
+                }
             }
         }
 
@@ -254,6 +265,7 @@ pub(crate) fn compile_normalized_object_definitions(
 
 pub(crate) fn apply_constants(
     constants: &Constants,
+    compile_options: &CompileOptions,
     context: &mut ObjFileContext,
     source_name: &str,
 ) -> Result<(), ObjdefLoaderError> {
@@ -272,8 +284,7 @@ pub(crate) fn apply_constants(
             }
         }
         Constants::FileContent(content) => {
-            let compile_opts = CompileOptions::default();
-            compile_object_definitions(content, &compile_opts, context).map_err(|e| {
+            compile_object_definitions(content, compile_options, context).map_err(|e| {
                 ObjdefLoaderError::ObjectDefParseError(source_name.to_string(), Box::new(e))
             })?;
         }
@@ -561,5 +572,71 @@ mod tests {
             }
             other => panic!("expected duplicate constant diagnostic, got {other:?}"),
         }
+    }
+    #[test]
+    fn memory_labels_never_authorize_includes() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("secret"), "private").unwrap();
+        for binary in [false, true] {
+            let macro_name = if binary { "include_bin" } else { "include" };
+            let text = format!(
+                "object #1 property secret (owner: #1, flags: \"r\") = {macro_name}!(\"secret\"); endobject"
+            );
+            let label = dir.path().join("input.moo").to_string_lossy().into_owned();
+            let error = ObjDefSet::parse_sources(
+                &CompileOptions::default(),
+                Some(dir.path()),
+                None,
+                [ObjDefSource::new(label, text)],
+            )
+            .err()
+            .expect("memory include must fail");
+            assert!(
+                error.to_string().contains("file-based compilation context"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn memory_source_does_not_inherit_previous_file_authority() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("secret"), "private").unwrap();
+        let disk =
+            ObjDefSource::from_path(dir.path().join("constants.moo"), "define ROOT = #1;".into());
+        let memory = ObjDefSource::new(
+            "next.moo",
+            "object ROOT property secret (owner: ROOT, flags: \"r\") = include!(\"secret\"); endobject",
+        );
+        let error = ObjDefSet::parse_sources(
+            &CompileOptions::default(),
+            Some(dir.path()),
+            None,
+            [disk, memory],
+        )
+        .err()
+        .expect("memory source must clear include context");
+        assert!(
+            error.to_string().contains("file-based compilation context"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn constants_use_the_configured_compilation_profile() {
+        let options = CompileOptions {
+            bool_type: false,
+            ..CompileOptions::default()
+        };
+        let source = "object #1 verb test (this none this) owner: #1 flags: \"rxd\"\nreturn true;\nendverb\nendobject";
+        let error = ObjDefSet::parse_sources(
+            &options,
+            None,
+            Some(&Constants::FileContent(source.into())),
+            Vec::<ObjDefSource>::new(),
+        )
+        .err()
+        .expect("constants must use caller compile options");
+        assert!(error.compile_error().is_some(), "{error}");
     }
 }

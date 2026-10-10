@@ -847,7 +847,7 @@ pub(crate) fn cmd_load(
 
     // Load through the scheduler client so it uses the scheduler's database
     let result = scheduler_client
-        .load_object(object_definition, loader_options, return_conflicts)
+        .load_object(object_definition, loader_options)
         .map_err(|e| eyre!("Failed to load object: {}", e))?;
 
     // Display results

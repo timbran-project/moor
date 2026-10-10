@@ -61,6 +61,11 @@ impl ObjFileContext {
         self.base_path = source_file.parent().map(|p| p.to_path_buf());
     }
 
+    /// Remove filesystem include authority when switching to an in-memory source.
+    pub fn clear_base_path(&mut self) {
+        self.base_path = None;
+    }
+
     pub fn base_path(&self) -> Option<&Path> {
         self.base_path.as_deref()
     }

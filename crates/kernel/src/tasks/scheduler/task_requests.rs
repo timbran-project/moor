@@ -91,100 +91,99 @@ impl Scheduler {
         Ok(lines)
     }
 
-    /// Loads an object definition into the database.
+    /// Run an administrative import in a fresh transaction, retrying commit conflicts.
+    fn run_objdef_operation(
+        &self,
+        mut operation: impl FnMut(
+            &mut dyn moor_common::model::loader::LoaderInterface,
+        ) -> Result<
+            moor_objdef::ObjDefLoaderResults,
+            moor_objdef::ObjdefLoaderError,
+        >,
+    ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
+        for _ in 0..16 {
+            let world = self
+                .database
+                .new_world_state()
+                .map_err(|_| SchedulerError::CouldNotStartTask)?;
+            let mut loader = Box::new(world)
+                .as_loader_interface()
+                .map_err(|_| SchedulerError::CouldNotStartTask)?;
+            let result = match operation(loader.as_mut()) {
+                Ok(result) => result,
+                Err(error) if error.is_retry() => continue,
+                Err(error) => {
+                    warn!(%error, "Administrative objdef operation failed");
+                    return Err(SchedulerError::CouldNotStartTask);
+                }
+            };
+            if !result.commit {
+                return Ok(result);
+            }
+            match loader
+                .commit()
+                .map_err(|_| SchedulerError::CouldNotStartTask)?
+            {
+                moor_common::model::CommitResult::Success { .. } => return Ok(result),
+                moor_common::model::CommitResult::ConflictRetry { .. } => continue,
+            }
+        }
+        Err(SchedulerError::CouldNotStartTask)
+    }
+
+    /// Loads one object definition into the database.
     ///
-    /// Creates a new world state, initializes an object definition loader,
-    /// and loads a single object from the provided definition string.
-    /// Commits the transaction if the loader result indicates success.
+    /// Uses the configured compilation options and a fresh transaction for each attempt.
+    /// Commit conflicts retry the complete operation. Dry runs return without committing.
     ///
     /// # Arguments
-    /// * `object_definition` - The object definition string to load
-    /// * `options` - Loader options controlling the load behavior
-    /// * `_return_conflicts` - Whether to return conflict information (unused)
+    /// * `object_definition` - The object definition string to load.
+    /// * `options` - Loader options controlling allocation, merging, and dry runs.
     ///
     /// # Returns
-    /// The loader results containing loaded object information, or a SchedulerError
+    /// Loader results after a successful commit or read-only dry run. Returns a scheduler
+    /// error if parsing, application, or commit fails, or the retry limit is exhausted.
     pub(crate) fn handle_load_object(
         &self,
         object_definition: String,
         options: moor_objdef::ObjDefLoaderOptions,
-        _return_conflicts: bool,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        use moor_objdef::ObjectDefinitionLoader;
-
-        // Create a new world state for loading
-        let world_state = self
-            .database
-            .new_world_state()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        let mut loader = Box::new(world_state)
-            .as_loader_interface()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        let mut object_loader = ObjectDefinitionLoader::new(loader.as_mut());
-
-        // Load the object with the provided options
-        let compile_options = self.config.features.compile_options();
-
-        let result = object_loader
-            .load_single_object(&object_definition, compile_options, options)
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        // Commit the transaction if the result says we should
-        if result.commit {
-            loader
-                .commit()
-                .map_err(|_| SchedulerError::CouldNotStartTask)?;
-        }
-
-        Ok(result)
+        self.run_objdef_operation(|loader| {
+            moor_objdef::ObjectDefinitionLoader::new(loader).load_single_object(
+                &object_definition,
+                self.config.features.compile_options(),
+                options.clone(),
+            )
+        })
     }
 
-    /// Reloads an object definition, updating an existing object in the database.
+    /// Reloads an object definition in the database.
     ///
-    /// Creates a new world state, initializes an object definition loader,
-    /// and reloads a single object from the provided definition string.
-    /// Unlike load, this always commits the transaction (no dry-run mode).
+    /// Uses the configured compilation options and a fresh transaction for each attempt.
+    /// Commit conflicts retry the complete replacement. Reload has no dry-run mode.
     ///
     /// # Arguments
-    /// * `object_definition` - The object definition string to reload
-    /// * `constants` - Optional constants to use during reload
-    /// * `target_obj` - Optional target object to reload into
+    /// * `object_definition` - The object definition string to reload.
+    /// * `constants` - Optional constant substitutions used during compilation.
+    /// * `target_obj` - Optional target address, overriding the source object's address.
     ///
     /// # Returns
-    /// The loader results containing reloaded object information, or a SchedulerError
+    /// Loader results after a successful commit. Returns a scheduler error if parsing,
+    /// application, or commit fails, or the retry limit is exhausted.
     pub(crate) fn handle_reload_object(
         &self,
         object_definition: String,
         constants: Option<moor_objdef::Constants>,
         target_obj: Option<Obj>,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
-        use moor_objdef::ObjectDefinitionLoader;
-
-        // Create a new world state for reloading
-        let world_state = self
-            .database
-            .new_world_state()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        let mut loader = Box::new(world_state)
-            .as_loader_interface()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        let mut object_loader = ObjectDefinitionLoader::new(loader.as_mut());
-
-        // Reload the object with the provided constants and target
-        let result = object_loader
-            .reload_single_object(&object_definition, constants, target_obj)
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        // Always commit for reload operations (they don't have dry-run mode)
-        loader
-            .commit()
-            .map_err(|_| SchedulerError::CouldNotStartTask)?;
-
-        Ok(result)
+        self.run_objdef_operation(|loader| {
+            moor_objdef::ObjectDefinitionLoader::new(loader).reload_single_object(
+                &object_definition,
+                self.config.features.compile_options(),
+                constants.clone(),
+                target_obj,
+            )
+        })
     }
 
     pub fn handle_task_request_fork(&self, task_id: TaskId, fork_request: Box<Fork>) -> TaskId {

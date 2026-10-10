@@ -210,3 +210,73 @@ fn test_single() {
     // CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --test moot-suite -- test_single --ignored
     test_with_db(&testsuite_dir().join("moot/objects/test_ways_of_specifying_nothing.moot"));
 }
+
+#[test]
+fn objdef_late_failure_aborts_catching_task() {
+    let features = Arc::new(moor_kernel::config::FeaturesConfig::default());
+    let scheduler = Scheduler::new(
+        semver::Version::new(0, 1, 0),
+        create_db(),
+        Box::new(NoopTasksDb {}),
+        Arc::new(Config {
+            features: features.clone(),
+            ..Config::default()
+        }),
+        Arc::new(NoopSystemControl::default()),
+        None,
+        None,
+    );
+    let client = scheduler.client().unwrap();
+    let handle = scheduler.start(Arc::new(NoopSessionFactory {})).unwrap();
+    let eval = |source: &str| {
+        scheduler_test_utils::call_eval_with_features(
+            client.clone(),
+            Arc::new(NoopClientSession::new()),
+            &Obj::mk_id(3),
+            source.into(),
+            features.clone(),
+        )
+    };
+    eval(r#"add_property(#0, "atomic_marker", 0, {player, "rw"});"#).unwrap();
+    let before = eval("return max_object();").unwrap();
+    let failure = eval(
+        r#"
+        #0.atomic_marker = 1;
+        try
+            load_object({"object #9100", "owner: #3", "property first (owner: #3, flags: \"rw\") = 1;", "override missing = 2;", "endobject"});
+        except e (ANY)
+            #0.atomic_marker = 2;
+        endtry
+        #0.atomic_marker = 3;
+    "#,
+    );
+    assert!(
+        failure.is_err(),
+        "late failure must terminate, not reach a catch handler"
+    );
+    assert_eq!(
+        eval("return #0.atomic_marker;").unwrap(),
+        moor_var::v_int(0)
+    );
+    assert!(!eval("return valid(#9100);").unwrap().is_true());
+    // Failed allocation must not publish an object; sequence gaps are allowed by the DB.
+    assert!(eval("return max_object();").unwrap() >= before);
+    eval(r#"load_object({"object #9101", "owner: #3", "property kept (owner: #3, flags: \"rw\") = 7;", "endobject"});"#).unwrap();
+    let failure = eval(
+        r#"
+        try
+            reload_object({"object #9101", "owner: #3", "override missing = 2;", "endobject"});
+        except e (ANY)
+            #0.atomic_marker = 4;
+        endtry
+    "#,
+    );
+    assert!(failure.is_err());
+    assert_eq!(eval("return #9101.kept;").unwrap(), moor_var::v_int(7));
+    assert_eq!(
+        eval("return #0.atomic_marker;").unwrap(),
+        moor_var::v_int(0)
+    );
+    client.submit_shutdown("Test is done").unwrap();
+    handle.join().unwrap();
+}
