@@ -93,6 +93,7 @@ COPY --from=backend-build /moor-build/target-final/moor-web-host /moor/moor-web-
 COPY --from=backend-build /moor-build/target-final/moor-telnet-host /moor/moor-telnet-host
 COPY --from=backend-build /moor-build/target-final/moor-curl-worker /moor/moor-curl-worker
 COPY --from=backend-build /moor-build/target-final/moor-file-worker /moor/moor-file-worker
+COPY --from=backend-build /moor-build/target-final/moor-git-worker /moor/moor-git-worker
 
 # Utility binaries
 COPY --from=backend-build /moor-build/target-final/moorc /moor/moorc

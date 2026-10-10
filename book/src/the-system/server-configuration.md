@@ -477,3 +477,143 @@ When enabling anonymous objects on an existing MOO:
 - No changes needed to existing numbered or UUID object code
 - Consider updating builder documentation to explain the new object type option
 - Test performance impact during peak usage periods before enabling permanently
+
+## Git worker
+
+`moor-git-worker` provides read-only Git repository access through `worker_request('git, ...)`. It
+runs as a separate process and uses the existing worker sockets and CURVE enrollment. The daemon
+does not need Git installed. The worker uses the Rust `gix` library.
+
+Build and start the worker with the same socket addresses as the daemon:
+
+```bash
+cargo build -p moor-git-worker
+./target/debug/moor-git-worker --work-dir=/tmp/moor-git-jobs
+```
+
+The default addresses match the daemon's default IPC addresses. Use `--help` for connection options.
+For TCP connections, use the standard host enrollment options and a separate worker identity
+directory. The `deploy/clustered/web-basic` deployment includes an optional `git-worker` profile:
+
+```bash
+COMPOSE_PROFILES=git-worker ./start.sh
+```
+
+The worker accepts public HTTP and HTTPS repository URLs. It rejects embedded credentials, URL query
+strings, fragments, local paths, and other transports. It does not follow HTTP redirects. Use the
+repository's final URL. Private repository credentials and persistent repository caches are not
+supported in this version.
+
+Each request uses a disposable bare repository. The worker does not check out files, run repository
+hooks, follow symlinks, fetch submodules, or apply content filters. Job processes have an empty
+inherited environment and isolated Git configuration. A request cannot select a host filesystem
+path. The worker uses Linux resource limits for each job. An operator can also limit the worker's
+network access and temporary storage through its container or service configuration.
+
+### Git request protocol
+
+Requests contain an operation and a schema-1 map. Field names and operation names accept strings or
+symbols. Unknown fields and duplicate normalized field names are errors.
+
+```moo
+response = worker_request('git, {'snapshot, [
+    "schema" -> 1,
+    "repository" -> "https://github.com/timbran-project/moor.git",
+    "revision" -> ["ref" -> "refs/heads/main"],
+    "path" -> "cores/cowbell/src"
+]}, ["timeout_seconds" -> 30.0]);
+```
+
+The caller needs wizard authority or an explicit grant for `worker_request()`. The worker does not
+interpret the returned files or write to the world database.
+
+| Operation      | Request fields, in addition to `schema`                          | Result fields                                                                                                      |
+| -------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `capabilities` | None                                                             | `operations`, `transports`, `object_formats`, `limits`, `max_concurrent_requests`, `content_type`, `path_encoding` |
+| `refs`         | `repository`, optional `limits`                                  | `refs`                                                                                                             |
+| `tree`         | `repository`, `revision`, optional `path`, `recursive`, `limits` | `commit`, `tree`, `path`, `entries`                                                                                |
+| `read`         | `repository`, `revision`, `path`, optional `limits`              | `commit`, `entry`                                                                                                  |
+| `snapshot`     | `repository`, `revision`, optional `path`, `limits`              | `commit`, `tree`, `path`, `entries`                                                                                |
+
+A revision contains exactly one full ref name or full commit ID:
+
+```moo
+["ref" -> "refs/tags/v1.2.3"]
+["commit" -> "sha1:0123456789abcdef0123456789abcdef01234567"]
+```
+
+Schema 1 initially supports SHA-1 repositories. Annotated tags resolve to commits. Branch and tag
+short names, abbreviated IDs, and revision expressions are rejected. A requested commit must be
+available from the remote. Some servers restrict fetching commits that no advertised ref names. A
+failed commit fetch never falls back to the current branch head.
+
+The worker resolves the revision once for each request. All returned entries come from that commit.
+Use the returned commit ID in later requests to keep the same revision when a branch moves. `refs`
+lists advertised branches and tags without fetching their object contents. Each ref has a `name` and
+`oid`. Annotated tags also have a `peeled` ID when the server provides it.
+
+Paths are UTF-8 strings, relative to the repository root. An empty path selects the root directory.
+Absolute paths, empty components, dot segments, backslashes, and NUL bytes are rejected. A
+repository entry with an unsupported name fails the listing instead of receiving a lossy replacement
+name.
+
+`tree` lists immediate children by default. Set `recursive` to `true` to include descendants.
+`snapshot` always includes descendants. Returned listing paths are relative to the selected
+directory and sorted by their UTF-8 bytes. A `read` entry retains the requested repository-relative
+path.
+
+Every entry has `path`, `kind`, and an algorithm-prefixed `oid`:
+
+| Kind        | Additional fields                        | Behavior                                                                |
+| ----------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| `file`      | `size`, `executable`, optional `content` | Exact blob bytes and executable mode.                                   |
+| `symlink`   | `size`, optional `content`               | Link-target bytes. The target is never followed.                        |
+| `directory` | None                                     | The `oid` identifies the directory tree.                                |
+| `submodule` | None                                     | The `oid` identifies the recorded submodule commit. No recursive fetch. |
+
+`read` and `snapshot` include `content` for files and symlinks. Content is a MOO binary value.
+`tree` returns metadata only. The worker does not decode text, change line endings, or expand Git
+LFS pointers. Git LFS pointer files remain ordinary file contents.
+
+### Results, errors, and limits
+
+Successful responses have this envelope:
+
+```moo
+["schema" -> 1, "ok" -> true, "result" -> result_map]
+```
+
+Application failures have this envelope:
+
+```moo
+["schema" -> 1, "ok" -> false,
+ "error" -> ["code" -> "path_not_found", "message" -> "Requested path does not exist."]]
+```
+
+Callers should branch on `code`, not the message. Codes include `invalid_request`,
+`unsupported_schema`, `unsupported_operation`, `unsupported_transport`, `revision_not_found`,
+`path_not_found`, `wrong_object_type`, `unsupported_path`, `authentication_required`,
+`fetch_failed`, `invalid_repository`, `limit_exceeded`, `busy`, and `job_failed`. `job_failed`
+includes child process failures such as memory exhaustion. Unavailable workers, disconnection,
+request deadlines, and worker infrastructure failures use the existing raised `worker_request()`
+errors.
+
+| Worker option               | Default    | Meaning                                                                                   |
+| --------------------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| `--max-concurrent-requests` | 4          | Active Git jobs. Further requests return `busy`.                                          |
+| `--max-entries`             | 4096       | Entries or refs in one result, including directories.                                     |
+| `--max-file-bytes`          | 4194304    | Bytes in one returned file or symlink.                                                    |
+| `--max-total-bytes`         | 16777216   | Combined returned file and symlink contents.                                              |
+| `--max-fetch-bytes`         | 268435456  | Git HTTP response headers and bodies across the request. Also limits each temporary file. |
+| `--max-memory-bytes`        | 1073741824 | Virtual address space for each job process.                                               |
+| `--max-seconds`             | 30         | Maximum job duration, including connection and download.                                  |
+
+A request can lower `max_entries`, `max_file_bytes`, and `max_total_bytes` through its `limits` map.
+It cannot raise the operator's limits. Metadata has a separate bounded response allowance. The
+effective deadline is the smaller of `timeout_seconds` and `--max-seconds`.
+
+A successful snapshot is complete for the selected directory. Exceeding a limit fails the whole
+request, without a partial result. Deadlines terminate and reap the child before releasing its slot.
+Normal completion, failure, and graceful shutdown remove temporary repositories. After an abrupt
+worker or machine termination, an operator can remove leftover `job-*` directories while the worker
+is stopped. These directories contain no review state and are not required by later requests.

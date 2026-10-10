@@ -1,0 +1,38 @@
+[package]
+name = "moor-git-worker"
+version = "2.0.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Read-only Git repository worker"
+
+[dependencies]
+clap.workspace = true
+clap_derive.workspace = true
+color-eyre.workspace = true
+eyre.workspace = true
+gix = { version = "0.87.1", default-features = false, features = ["blocking-http-transport-reqwest", "sha1"] }
+libc.workspace = true
+moor-common = { path = "../common" }
+moor-runtime-api = { path = "../runtime-api" }
+moor-var = { path = "../var" }
+moor-zmq-client = { path = "../zmq-client" }
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+moor-schema = { path = "../schema" }
+planus.workspace = true
+r0z.workspace = true
+tiny_http = "0.12"

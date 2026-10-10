@@ -14,6 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+`moor-git-worker`:
+
+- Add a standalone Git worker for refs, directory listings, file reads, and complete directory
+  snapshots over HTTP(S). Results identify the resolved commit and preserve binary file contents.
+  Requests have configurable byte, entry, memory, concurrency, and time limits.
+
 `Cowbell`:
 
 - Show native schedules in `@ps`. Add `@schedules` for listing, `@schedule ID` for diagnostics, and

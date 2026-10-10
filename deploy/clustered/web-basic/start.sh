@@ -32,6 +32,11 @@ case ",${COMPOSE_PROFILES:-}," in
         DIRS="$DIRS moor-file-worker-data moor-file-worker-sandbox"
         ;;
 esac
+case ",${COMPOSE_PROFILES:-}," in
+    *,git-worker,*)
+        DIRS="$DIRS moor-git-worker-data moor-git-worker-jobs"
+        ;;
+esac
 for dir in $DIRS; do
     if [ -d "$dir" ] && [ "$(stat -c '%u' "$dir")" != "$USER_ID" ]; then
         echo "ERROR: $dir is not owned by you (uid $USER_ID). This usually happens when"
