@@ -284,6 +284,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Change reviews account for inherited permissions when comparing value-only property overrides,
   avoiding false local edits after import.
+- Meadow can refresh a stale change comparison against the running MOO. Refreshing asks for
+  confirmation before clearing saved choices and unsaved edits.
 
 - Tasks now report an error if they cannot load `$handle_uncaught_error`. Previously, these tasks
   could leave callers waiting indefinitely for a result.

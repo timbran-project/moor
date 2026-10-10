@@ -153,7 +153,7 @@ export class ChangeReviewClient {
     constructor(private token: string, private target: ChangeTarget) {}
 
     private async invoke(
-        method: "status" | "review" | "details" | "inspection" | "resolve" | "apply",
+        method: "status" | "review" | "details" | "inspection" | "resolve" | "apply" | "refresh",
         args: StructuredArgument[],
     ) {
         const { result } = await invokeVerbFlatBuffer(
@@ -248,5 +248,11 @@ export class ChangeReviewClient {
     async apply(generation: number): Promise<ReviewStatus> {
         await this.invoke("apply", [this.target.review, generation]);
         return this.status();
+    }
+    async refresh(generation: number): Promise<number> {
+        const result = await this.invoke("refresh", [this.target.review, generation]);
+        const next = number(result.generation);
+        if (next !== generation + 1) throw new Error("Unexpected refresh response. Reload the review.");
+        return next;
     }
 }

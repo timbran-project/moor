@@ -96,7 +96,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
     const [comparison, setComparison] = useState("local-upstream");
     const [sideBySide, setSideBySide] = useState(true);
     const [collapsedObjects, setCollapsedObjects] = useState<Set<string>>(() => new Set());
-    const [confirmation, setConfirmation] = useState<"apply" | "discard" | null>(null);
+    const [confirmation, setConfirmation] = useState<"apply" | "discard" | "refresh" | null>(null);
     const pendingNavigation = useRef<(() => void) | null>(null);
     const sequence = useRef(0);
     const dirty = editing && draft !== initialDraft;
@@ -269,6 +269,23 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
         }
     };
 
+    const refresh = async () => {
+        setConfirmation(null);
+        const request = ++sequence.current;
+        setBusy(true);
+        setError("");
+        setNotice("");
+        try {
+            const next = await client.refresh(status?.generation ?? generation);
+            if (request !== sequence.current) return;
+            await load(next, undefined, category);
+        } catch (failure) {
+            if (request === sequence.current) fail(failure);
+        } finally {
+            if (request === sequence.current) setBusy(false);
+        }
+    };
+
     const displayedRows = [...rows, ...(inspection?.rows ?? [])].sort((a, b) => a.label.localeCompare(b.label));
     const groups = new Map<string, { label: string; object?: ChangeRow; members: ChangeRow[] }>();
     for (const item of displayedRows) {
@@ -371,6 +388,15 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                         >
                             Reload review
                         </button>
+                        {status && ["ready", "partial", "rejected"].includes(status.status) && (
+                            <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setConfirmation("refresh")}
+                            >
+                                Refresh comparison
+                            </button>
+                        )}
                     </div>
                 )}
                 {notice && <p role="status" className="change-review-notice">{notice}</p>}
@@ -669,6 +695,8 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                         <p>
                             {confirmation === "discard"
                                 ? "Discard the unsaved draft?"
+                                : confirmation === "refresh"
+                                ? "Compare the fetched source with the running MOO again? This clears all saved choices and any unsaved draft."
                                 : page?.operation === "adopt"
                                 ? `Accept ${selectedCount} baselines? Live code will stay as it is.`
                                 : `Apply ${selectedCount} program choices to the running MOO?`}
@@ -678,6 +706,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                             type="button"
                             onClick={() => {
                                 if (confirmation === "apply") void apply();
+                                else if (confirmation === "refresh") void refresh();
                                 else {
                                     setConfirmation(null);
                                     pendingNavigation.current?.();
@@ -685,7 +714,11 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                                 }
                             }}
                         >
-                            {confirmation === "apply" ? "Confirm apply" : "Discard draft"}
+                            {confirmation === "apply"
+                                ? "Confirm apply"
+                                : confirmation === "refresh"
+                                ? "Confirm refresh"
+                                : "Discard draft"}
                         </button>
                     </div>
                 )}

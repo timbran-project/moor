@@ -94,7 +94,10 @@ beforeEach(() => {
                 output: [],
             };
         }
-        if (method === "details") return { result: { ...common, row: { ...baseRow, choice: saved } }, output: [] };
+        if (method === "details") {
+            if (rejectChoice) throw new Error("Live state changed. Refresh before choosing.");
+            return { result: { ...common, row: { ...baseRow, choice: saved } }, output: [] };
+        }
         if (method === "resolve") {
             if (rejectChoice) throw new Error("Live state changed. Refresh before choosing.");
             saved = { choice: args[3], program: args[4] };
@@ -104,6 +107,12 @@ beforeEach(() => {
         if (method === "apply") {
             applied = true;
             return { result: { ...common, status: "applying" }, output: [] };
+        }
+        if (method === "refresh") {
+            saved = {};
+            rejectChoice = false;
+            generation++;
+            return { result: { ...common, generation, status: "ready" }, output: [] };
         }
         throw new Error(`Unexpected method ${method}`);
     });
@@ -150,13 +159,34 @@ it("keeps an edited resolution separate from the running verb and protects unsav
     expect(applied).toBe(false);
 });
 
-it("does not offer apply when live evidence becomes stale", async () => {
-    rejectChoice = true;
+it("requires confirmation to rebuild stale evidence and clear choices", async () => {
     open();
+    fireEvent.click(await screen.findByRole("button", { name: "Keep local" }));
+    await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Apply 1 choice" })).toHaveProperty("disabled", false)
+    );
+    rejectChoice = true;
     fireEvent.click(await screen.findByRole("button", { name: "Use upstream" }));
     await screen.findByText("Live state changed. Refresh before choosing.");
-    expect(screen.getByRole("button", { name: "Reload review" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Apply 1 choice" })).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "Reload review" }));
+    await screen.findByText("Live state changed. Refresh before choosing.");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh comparison" }));
+    expect(saved.choice).toBe("local");
+    expect(generation).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(saved.choice).toBe("local");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh comparison" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm refresh" }));
+    await screen.findByRole("heading", { name: "$test:verb" });
+    expect(saved).toEqual({});
+    expect(generation).toBe(3);
     expect(screen.getByRole("button", { name: "Apply 0 choices" })).toHaveProperty("disabled", true);
+    expect(applied).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Use upstream" }));
+    await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Apply 1 choice" })).toHaveProperty("disabled", false)
+    );
 });
 
 it("can retry a failed review read without closing the panel", async () => {
