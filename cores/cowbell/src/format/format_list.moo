@@ -13,7 +13,14 @@ object FORMAT_LIST [
     "Create list flyweight with optional ordered attribute";
     const {content, ?ordered = false, ?columns = false} = args;
     typeof(content) != TYPE_LIST && raise(E_TYPE, "List content must be a list");
-    return <this, .ordered = ordered, .columns = columns, {@content}>;
+    return <this, .ordered = ordered, .layout = columns ? "reference-columns" | "", {@content}>;
+  endmethod
+
+  method actions owner: HACKER
+    "Group labelled interactions as actions; plain output remains a list.";
+    const {content} = args;
+    typeof(content) == TYPE_LIST || raise(E_TYPE);
+    return <this, .ordered = false, .layout = "action-list", {@content}>;
   endmethod
 
   method compose owner: HACKER
@@ -22,11 +29,11 @@ object FORMAT_LIST [
     const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
     if (content_type == 'text_html)
       const items = { <$html, {"li", {}, {part}}> for part in (parts) };
-      return $format:result(<$html, {this.ordered ? "ol" | "ul", this.columns ? {"class", "reference-columns"} | {}, items}>, annotations);
+      return $format:result(<$html, {this.ordered ? "ol" | "ul", this.layout ? {"class", this.layout} | {}, items}>, annotations);
     endif
     const prefix = this.ordered ? "1. " | "* ";
-    const lines = { prefix + part for part in (parts) };
-    const layout = content_type == 'text_djot && this.columns ? "{.reference-columns}\n" | "";
+    const lines = { prefix + part:replace_all("\n", "\n" + (this.ordered ? "   " | "  ")) for part in (parts) };
+    const layout = content_type == 'text_djot && this.layout ? "{." + this.layout + "}\n" | "";
     const body = layout + lines:join("\n");
     return $format:result(content_type == 'text_djot ? "\n" + body + "\n" | body, annotations);
   endmethod

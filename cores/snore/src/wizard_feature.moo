@@ -1359,7 +1359,7 @@ object WIZARD_FEATURE [
   endmethod
 
   verb "@changes" (any any any) owner: #2 flags: "rd"
-    "Review and apply program updates. Use @changes help for commands.";
+    "Review and apply program updates. Use help @changes for commands.";
     this == $wizard_feature && $wizard_feature in player.features && player.wizard || raise(E_PERM);
     set_task_perms(player);
     let lines;

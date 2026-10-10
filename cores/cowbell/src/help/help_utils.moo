@@ -61,7 +61,7 @@ object HELP_UTILS [
             const invocation = this:command_usage(label, viewer, reference[3]);
             fragment = $obj_utils:command_with_source(invocation, reference[1], name, reference[2], viewer);
           elseif (label != name && !index(label, "["))
-            fragment = $obj_utils:command_with_source($format.annotation:command(label), reference[1], name, reference[2], viewer);
+            fragment = $obj_utils:command_with_source($format.annotation:command(label, $format.code:inline(label)), reference[1], name, reference[2], viewer);
           else
             fragment = $obj_utils:command_entry(reference[1], {name, reference[2], @reference[3]}, viewer, label, reference[4]);
           endif
@@ -94,7 +94,7 @@ object HELP_UTILS [
     index(template, "<") && return usage;
     "Unconstrained verbs consume free text; a parser slot alone does not imply an object.";
     if (argspec == {"any", "any", "any"})
-      return $format.annotation:command_template(template, fields, usage);
+      return $format.annotation:command_template(template, fields, $format.code:inline(usage));
     endif
     const parsed = parse_command(strsub(strsub(template, "{dobj}", "#-2"), "{iobj}", "#-3"), {}, false);
     for slot in (mapkeys(fields))
@@ -104,7 +104,7 @@ object HELP_UTILS [
         fields[slot]["suggestions"] = ["provider" -> $url_utils:to_curie_str(viewer), "source" -> "nearby"];
       endif
     endfor
-    return $format.annotation:command_template(template, fields, usage);
+    return $format.annotation:command_template(template, fields, $format.code:inline(usage));
   endmethod
 
   method extract_verb_documentation owner: ARCH_WIZARD

@@ -8,11 +8,12 @@ object FORMAT_ANNOTATION [
   readable: true
 
   method mk owner: HACKER
-    "Capture a label and a descriptor; allocation of occurrence anchors happens during rendering.";
-    const {label, descriptor, ?plain_label = label} = args;
-    typeof(label) == TYPE_STR && typeof(plain_label) == TYPE_STR && typeof(descriptor) == TYPE_MAP || raise(E_TYPE);
+    "Attach an interaction to text or a formatting fragment; anchors are allocated when rendered.";
+    const {label, descriptor} = args;
+    typeof(label) in {TYPE_STR, TYPE_FLYWEIGHT} && typeof(descriptor) == TYPE_MAP || raise(E_TYPE);
     length(toliteral(descriptor)) <= 2048 || raise(E_INVARG, "Annotation descriptor is too large");
-    return <this, .label = label, .plain_label = plain_label, .descriptor = descriptor>;
+    const content = typeof(label) == TYPE_STR ? $format.text:mk(label) | label;
+    return <this, .label = content, .descriptor = descriptor>;
   endmethod
 
   method object owner: HACKER
@@ -26,25 +27,14 @@ object FORMAT_ANNOTATION [
     const {action} = args;
     let descriptor = this.descriptor;
     descriptor["action"] = action;
-    return <$format.annotation, .label = this.label, .plain_label = `this.plain_label ! E_PROPNF => this.label', .descriptor = descriptor, .code = `this.code ! E_PROPNF => false'>;
+    this.descriptor = descriptor;
+    return this;
   endmethod
 
   method command owner: HACKER
     "Capture the exact single-line command for explicit review.";
     const {command, ?label = command} = args;
-    return this:mk(label, ["kind" -> "command", "command" -> command], label == command ? label | tostr(label, ": ", command));
-  endmethod
-
-  method as_code owner: HACKER
-    "Keep the annotation clickable while rendering its label as inline code.";
-    return <$format.annotation, .label = this.label, .plain_label = `this.plain_label ! E_PROPNF => this.label', .descriptor = this.descriptor, .code = true>;
-  endmethod
-
-  method command_syntax owner: HACKER
-    "Show clickable command syntax followed by its description.";
-    const {command, ?label = command} = args;
-    const link = this:mk(command, ["kind" -> "command", "command" -> command]):as_code();
-    return label == command ? link | $format.paragraph:inline(link, " — ", label);
+    return this:mk(label, ["kind" -> "command", "command" -> command]);
   endmethod
 
   method command_template owner: HACKER
@@ -85,27 +75,17 @@ object FORMAT_ANNOTATION [
     return this:mk(label, ["kind" -> "property", "object" -> $url_utils:to_curie_str(object), "name" -> name]);
   endmethod
 
-  method escape_djot owner: HACKER
-    "Escape ASCII punctuation in captured labels, including table delimiters and attribute syntax.";
-    const {label} = args;
-    let escaped = "";
-    for i in [1..length(label)]
-      const ch = label[i];
-      const punctuation = index("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", ch);
-      escaped = escaped + (punctuation ? "\\" | "") + ch;
-    endfor
-    return escaped;
-  endmethod
-
   method compose owner: HACKER
     "Produce an occurrence anchor and descriptor for rich output, or just the label for telnet.";
     const {render_for, content_type, event} = args;
-    content_type in {'text_html, 'text_djot} || return `this.plain_label ! E_PROPNF => this.label';
+    const {label, annotations} = $format:unpack(this.label:compose(@args));
+    length(annotations) == 0 || raise(E_INVARG, "An annotation cannot contain another annotation.");
+    content_type in {'text_html, 'text_djot} || return label;
     "Each occurrence gets an independent anchor, even when the same fragment appears twice.";
     const id = "a" + uuid();
-    const code = `this.code ! E_PROPNF => false';
-    const label = code ? $format.code:inline(this.label):compose(render_for, content_type, event) | this.label;
-    const body = content_type == 'text_html ? <$html, {"span", {"data-moor-annotation", id}, {label}}> | "[" + (code ? label | this:escape_djot(label)) + "]{annotation=" + id + "}";
-    return $format:result(body, [id -> this.descriptor]);
+    if (content_type == 'text_html)
+      return $format:result(<$html, {"span", {"data-moor-annotation", id}, {label}}>, [id -> this.descriptor]);
+    endif
+    return $format:result("[" + label + "]{annotation=" + id + "}", [id -> this.descriptor]);
   endmethod
 endobject

@@ -3927,6 +3927,58 @@ button:disabled {
   border-radius: 2px;
 }
 
+/* Authored action lists share the inspector's label/command hierarchy. */
+.content-renderer .action-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-width: 28rem;
+}
+
+.content-renderer .action-list > li {
+  margin: 0;
+  padding: 0;
+}
+
+.action-list .semantic-annotation {
+  display: block;
+  position: relative;
+  padding: 9px 36px 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.action-list .semantic-annotation:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-light);
+}
+
+.action-list .semantic-annotation code {
+  display: block;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: normal;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.action-list .semantic-annotation::after {
+  content: "→";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-secondary);
+  font-weight: normal;
+}
+
 /* Command review shares the inspector's movable, viewport-bounded card behavior. */
 .command-card {
     position: fixed;

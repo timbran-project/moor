@@ -15,10 +15,14 @@
 //!
 //! Requests use schema 1, an `adopt` or `update` operation, explicit `objects`, a
 //! `fields` list containing only `program`, and optional `constants`, `details`, and
-//! explicitly trusted non-wizard `trusted_owners`.
+//! explicitly trusted non-wizard `trusted_owners`. The read-only `inspect` operation also
+//! accepts object, attribute, property, and unmatched-program fields; it produces no apply evidence.
 //! Object addresses are installation-local bindings; supplied export identities must
 //! agree with live metadata. Evidence binds the exact input and compilation profile
 //! to the reviewed definitions, authority, live programs, and accepted baselines.
+
+#[path = "review_inspection.rs"]
+pub(crate) mod inspection;
 
 use crate::{
     Constants, ObjDefSet, ObjDefSource, ObjdefLoaderError,
@@ -269,7 +273,7 @@ fn program_text(program: &ProgramType) -> Result<Var, ReviewError> {
     let ProgramType::MooR(program) = program;
     let tree = program_to_tree(program).map_err(|e| e.to_string())?;
     Ok(v_str(
-        &unparse(&tree, true, false)
+        &unparse(&tree, false, true)
             .map_err(|e| e.to_string())?
             .join("\n"),
     ))
@@ -300,17 +304,34 @@ pub(crate) fn analyze(
     let operation = required(&req, "operation")?
         .as_string()
         .ok_or_else(|| ReviewError::Invalid("operation must be a string".into()))?;
-    if !matches!(operation, "adopt" | "update") {
+    if !matches!(operation, "adopt" | "update" | "inspect") {
         return Err("unsupported operation".to_string().into());
     }
     let adoption = operation == "adopt";
     let selected_fields = required(&req, "fields")?
         .as_list()
         .ok_or_else(|| ReviewError::Invalid("fields must be a list".into()))?;
-    if selected_fields.len() != 1
+    if operation == "inspect" {
+        if selected_fields.is_empty()
+            || selected_fields.iter().any(|field| {
+                !matches!(
+                    field.as_string(),
+                    Some("object" | "attribute" | "property" | "program")
+                )
+            })
+        {
+            return Err(
+                "inspection fields must be object, attribute, property, or program"
+                    .to_owned()
+                    .into(),
+            );
+        }
+    } else if selected_fields.len() != 1
         || selected_fields.iter().next().unwrap().as_string() != Some("program")
     {
-        return Err("only the program field is supported".to_string().into());
+        return Err("only the program field is supported for updates"
+            .to_owned()
+            .into());
     }
     let actor_flags = world.flags_of(&permissions.principal())?;
     if !actor_flags.contains(ObjFlag::Wizard)
@@ -389,6 +410,24 @@ pub(crate) fn analyze(
         });
     if work > MAX_ROWS {
         return Err("review exceeds 8192 declarations".to_string().into());
+    }
+    if operation == "inspect" {
+        return Ok(Analysis {
+            report: inspection::inspect(
+                world,
+                permissions,
+                &set,
+                &scope,
+                &selected_details,
+                &selected_fields
+                    .iter()
+                    .map(|field| field.as_string().unwrap().to_owned())
+                    .collect(),
+            )?,
+            evidence: v_list(&[]),
+            rows: Vec::new(),
+            adoption: false,
+        });
     }
     let source_digest = digest(sources)?;
     let request_identity = record(
@@ -828,6 +867,17 @@ pub fn apply(
         return Err(ReviewError::World(WorldStateError::VerbPermissionDenied).into());
     }
     let analysis = analyze(world, permissions, options, sources, request)?;
+    if analysis
+        .report
+        .as_map()
+        .unwrap()
+        .get(&v_str("operation"))
+        .unwrap()
+        .as_string()
+        == Some("inspect")
+    {
+        return Err(ReviewError::Invalid("inspection cannot be applied".into()).into());
+    }
     let provided = fields(evidence, &["schema", "guard"])?;
     if required(&provided, "schema")?.as_integer() != Some(1)
         || digest(evidence).map_err(ReviewError::from)?

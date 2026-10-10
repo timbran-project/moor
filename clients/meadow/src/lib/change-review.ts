@@ -21,12 +21,17 @@ export const changeLabels = {
     converged: "Already match",
     unbased: "Without a baseline",
     unchanged: "Unchanged",
+    local_only: "Local only",
+    incoming_only: "Upstream only",
 } as const;
 export type Classification = keyof typeof changeLabels;
 export type Choice = "incoming" | "local" | "edited" | "defer" | "unresolved";
 export interface ChangeRow {
     id: string;
     label: string;
+    objectKey: string;
+    objectLabel: string;
+    memberLabel: string;
     classification: Classification;
     eligible: boolean;
     blockers: string[];
@@ -39,6 +44,11 @@ export interface ChangeRow {
     live_text?: string;
     incoming_text?: string;
     base_text?: string;
+    read_only?: boolean;
+    field?: string;
+    live_present?: boolean;
+    incoming_present?: boolean;
+    inspection_error?: string;
 }
 export interface ReviewPage {
     generation: number;
@@ -54,9 +64,10 @@ export interface ReviewStatus {
     status: string;
     error?: { message?: string };
 }
-export interface LocalItemPage {
-    items: { label: string; kind: "object" | "verb" }[];
-    total: number;
+export interface InspectionPage {
+    revision: string;
+    rows: ChangeRow[];
+    counts: Partial<Record<Classification, number>>;
     next: number;
 }
 
@@ -84,10 +95,29 @@ export function decodeChangeRow(value: unknown, details = false): ChangeRow {
     if (!Object.hasOwn(changeLabels, classification) || !Array.isArray(row.choices) || !Array.isArray(row.blockers)) {
         throw new Error("Invalid change review row.");
     }
+    const label = text(row.label);
+    const field = typeof row.field === "string" ? row.field : "program";
+    const separator = field === "program" ? ":" : ".";
+    const member = field === "object" ? "" : typeof row.name === "string"
+        ? field === "program" ? row.name.replace(/^\d+:/, "") : row.name
+        : field === "program" && Array.isArray(row.names) && row.names.length
+        ? text(row.names[0])
+        : label.slice(label.lastIndexOf(separator) + 1);
+    const objectLabel = member && label.endsWith(separator + member)
+        ? label.slice(0, -(member.length + 1))
+        : label;
     const saved = object(row.choice ?? {});
     return {
+        read_only: row.read_only === true || row.read_only === 1,
+        field,
+        objectKey: row.object ? JSON.stringify(row.object) : objectLabel,
+        objectLabel,
+        memberLabel: member ? separator + member : objectLabel,
+        live_present: row.live_present !== false && row.live_present !== 0,
+        incoming_present: row.incoming_present !== false && row.incoming_present !== 0,
+        inspection_error: typeof row.inspection_error === "string" ? row.inspection_error : undefined,
         id: text(row.id),
-        label: text(row.label),
+        label,
         classification: classification as Classification,
         eligible: row.eligible === true || row.eligible === 1,
         default: choice(row.default),
@@ -110,7 +140,7 @@ export function decodeChangeRow(value: unknown, details = false): ChangeRow {
     };
 }
 
-/** A matching program hash gives us the accepted source without storing another copy. */
+/** A matching content hash gives us the accepted source without storing another copy. */
 export function baselineText(row: ChangeRow): string | undefined {
     if (row.base_text !== undefined) return row.base_text;
     if (!row.base) return undefined;
@@ -123,7 +153,7 @@ export class ChangeReviewClient {
     constructor(private token: string, private target: ChangeTarget) {}
 
     private async invoke(
-        method: "status" | "review" | "details" | "diagnostics" | "resolve" | "apply",
+        method: "status" | "review" | "details" | "inspection" | "resolve" | "apply",
         args: StructuredArgument[],
     ) {
         const { result } = await invokeVerbFlatBuffer(
@@ -185,25 +215,23 @@ export class ChangeReviewClient {
         }
         return detail;
     }
-    async localItems(generation: number, offset = 1): Promise<LocalItemPage> {
-        const result = await this.invoke("diagnostics", [
+    async inspection(generation: number, offset = 1, classification = "", revision = ""): Promise<InspectionPage> {
+        const result = await this.invoke("inspection", [
             this.target.review,
             generation,
             offset,
-            ["missing_source", "live_definition_unmatched"],
+            classification,
+            "",
+            revision,
         ]);
-        if (result.generation !== generation || !Array.isArray(result.diagnostics)) {
+        if (result.generation !== generation || !Array.isArray(result.rows)) {
             throw new Error("Review changed. Reload it before continuing.");
         }
+        const counts = object(result.counts);
         return {
-            items: result.diagnostics.map(value => {
-                const item = object(value);
-                if (!["missing_source", "live_definition_unmatched"].includes(text(item.code))) {
-                    throw new Error("Unexpected local item in review.");
-                }
-                return { label: text(item.label), kind: item.code === "missing_source" ? "object" : "verb" };
-            }),
-            total: number(result.total),
+            revision: text(result.revision),
+            rows: result.rows.map(row => decodeChangeRow(row)),
+            counts: Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, number(value)])),
             next: number(result.next),
         };
     }

@@ -35,7 +35,7 @@ object FORMAT_LINK [
 
   method to_djot owner: HACKER
     "Render an external URL with an escaped Djot label.";
-    return "[" + $format.annotation:escape_djot(this.label) + "](" + this.url + "){.external}";
+    return "[" + $format.text:escape_djot(this.label) + "](" + this.url + "){.external}";
   endmethod
 
   method to_html owner: HACKER

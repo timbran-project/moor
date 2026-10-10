@@ -697,7 +697,7 @@ fn bulk_import_compares_working_source_against_explicit_ancestor() {
     );
     let provenance = record(&[("transport", v_str("git")), ("commit", v_str("ancestor"))]);
     let prepared = parse(&local)
-        .with_program_baseline(&base, Some(provenance.clone()))
+        .with_baseline(&base, Some(provenance.clone()))
         .unwrap();
     let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
     let mut loader = db.loader_client().unwrap();
@@ -800,7 +800,7 @@ fn baseline_binding_rejects_reused_or_relocated_objects_and_ambiguous_verbs() {
             "verb test (this none this) owner: #1 flags: \"rxd\"\nreturn 42;\nendverb\nendobject",
         ),
     ] {
-        assert!(parse(&text).with_program_baseline(&base, None).is_err());
+        assert!(parse(&text).with_baseline(&base, None).is_err());
     }
 }
 
@@ -1099,4 +1099,199 @@ fn explicit_owner_trust_is_guarded_and_does_not_allow_public_writes() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn inspection_browses_unmatched_contents_and_property_changes_without_applying() {
+    let local = SOURCE.replace(
+        "endobject",
+        "property title (owner: #1, flags: \"r\") = \"Local\";\nendobject",
+    );
+    let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = db.loader_client().unwrap();
+    let mut importer = ObjectDefinitionLoader::new(loader.as_mut());
+    importer
+        .load_single_object(&local, Default::default(), Default::default())
+        .unwrap();
+    importer
+        .load_single_object(
+            &local
+                .replace("#1", "#2")
+                .replace("review_root", "local_object")
+                .replace("wizard: true", "wizard: false"),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+    loader.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    let incoming = local.replace("Local", "local");
+    let req = record(&[
+        ("schema", v_int(1)),
+        ("operation", v_str("inspect")),
+        ("objects", v_list(&[v_obj(ROOT), v_obj(Obj::mk_id(2))])),
+        (
+            "fields",
+            v_list(&[
+                v_str("object"),
+                v_str("attribute"),
+                v_str("property"),
+                v_str("program"),
+            ]),
+        ),
+    ]);
+    let report = preview(
+        world.as_ref(),
+        &permissions(),
+        &CompileOptions::default(),
+        &sources(&incoming),
+        &req,
+        None,
+    )
+    .unwrap();
+    let rows = get(&report, "rows");
+    let rows = rows.as_list().unwrap().iter().collect::<Vec<_>>();
+    let local_program = rows
+        .iter()
+        .find(|row| {
+            get(row, "field") == v_str("program") && get(row, "object") == v_obj(Obj::mk_id(2))
+        })
+        .unwrap();
+    assert_eq!(get(local_program, "classification"), v_str("local_only"));
+    assert_eq!(get(local_program, "choices"), v_list(&[]));
+    assert_eq!(get(local_program, "incoming_present"), v_bool(false));
+    assert!(
+        !local_program
+            .as_map()
+            .unwrap()
+            .contains_key(&v_str("live_text"), true)
+            .unwrap()
+    );
+    assert!(rows.iter().any(|row| get(row, "field") == v_str("property")
+        && get(row, "classification") == v_str("unbased")));
+    assert!(rows.iter().any(|row| get(row, "field") == v_str("property")
+        && get(row, "classification") == v_str("local_only")));
+    assert!(rows.iter().any(|row| get(row, "field") == v_str("object")
+        && get(row, "classification") == v_str("local_only")));
+    let detail_req = req
+        .as_map()
+        .unwrap()
+        .set(&v_str("details"), &v_list(&[get(local_program, "id")]))
+        .unwrap();
+    let details = preview(
+        world.as_ref(),
+        &permissions(),
+        &CompileOptions::default(),
+        &sources(&incoming),
+        &detail_req,
+        None,
+    )
+    .unwrap();
+    let rows = get(&details, "rows");
+    let detail = rows
+        .as_list()
+        .unwrap()
+        .iter()
+        .find(|row| get(row, "id") == get(local_program, "id"))
+        .unwrap();
+    assert_eq!(get(&detail, "live_text"), v_str("return \"Base\";"));
+    assert_eq!(get(&detail, "incoming_text"), v_str(""));
+    assert!(
+        apply(
+            world.as_mut(),
+            &permissions(),
+            &CompileOptions::default(),
+            &sources(&incoming),
+            &req,
+            &v_list(&[]),
+            &record(&[])
+        )
+        .is_err()
+    );
+    let unauthorized = TaskPermissions::new(Obj::mk_id(2), BitEnum::new());
+    assert!(
+        preview(
+            world.as_ref(),
+            &unauthorized,
+            &CompileOptions::default(),
+            &sources(&incoming),
+            &req,
+            None
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn property_and_attribute_edits_use_the_imported_ancestor() {
+    let source = |value: &str| {
+        SOURCE
+            .replace(
+                "owner: #1\nwizard",
+                &format!("name: \"{value}\"\nowner: #1\nwizard"),
+            )
+            .replace(
+                "endobject",
+                &format!("property title (owner: #1, flags: \"r\") = \"{value}\";\nendobject"),
+            )
+    };
+    let parse = |text: &str| {
+        ObjDefSet::parse_sources(
+            &CompileOptions::default(),
+            None,
+            None,
+            [ObjDefSource::new("core.moo", text)],
+        )
+        .unwrap()
+    };
+    let base = parse(&source("Base"));
+    for (local, incoming, expected) in [
+        ("Base", "Base", None),
+        ("Local", "Base", Some("local")),
+        ("Base", "Upstream", Some("upstream")),
+        ("Local", "Upstream", Some("conflict")),
+        ("Same", "Same", Some("converged")),
+    ] {
+        let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let mut loader = db.loader_client().unwrap();
+        let local_source = if expected == Some("local") {
+            source(local).replace("wizard: true", "wizard: true\nreadable: true")
+        } else {
+            source(local)
+        };
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .load_objdef_set(
+                parse(&local_source).with_baseline(&base, None).unwrap(),
+                Default::default(),
+            )
+            .unwrap();
+        loader.commit().unwrap();
+        let world = db.new_world_state().unwrap();
+        let req = record(&[
+            ("schema", v_int(1)),
+            ("operation", v_str("inspect")),
+            ("objects", v_list(&[v_obj(ROOT)])),
+            ("fields", v_list(&[v_str("attribute"), v_str("property")])),
+        ]);
+        let report = preview(
+            world.as_ref(),
+            &permissions(),
+            &CompileOptions::default(),
+            &sources(&source(incoming)),
+            &req,
+            None,
+        )
+        .unwrap();
+        let rows = get(&report, "rows");
+        let rows = rows.as_list().unwrap();
+        if let Some(expected) = expected {
+            assert_eq!(rows.len(), if expected == "local" { 3 } else { 2 });
+            for row in rows.iter() {
+                assert_eq!(get(&row, "classification"), v_str(expected));
+                assert_eq!(get(&row, "read_only"), v_bool(true));
+            }
+        } else {
+            assert!(rows.is_empty());
+        }
+    }
 }

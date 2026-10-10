@@ -16,6 +16,7 @@ object FORMAT [
   property list (owner: HACKER, flags: "r") = FORMAT_LIST;
   property paragraph (owner: ARCH_WIZARD, flags: "r") = FORMAT_PARAGRAPH;
   property table (owner: HACKER, flags: "r") = FORMAT_TABLE;
+  property text (owner: HACKER, flags: "r") = FORMAT_TEXT;
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;
 
   override description (owner: HACKER, flags: "rc") = "Container for formatting objects like block, list, table, and title.";

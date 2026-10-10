@@ -17,7 +17,7 @@ object FORMAT_PARAGRAPH [
     else
       parts = args;
     endif
-    return <this, {@parts}>;
+    return <this, .inline = false, {@parts}>;
   endmethod
 
   method inline owner: ARCH_WIZARD
@@ -29,7 +29,7 @@ object FORMAT_PARAGRAPH [
     "Compose paragraph children while preserving their annotations.";
     const {render_for, content_type, event} = args;
     const {parts, annotations} = $format:compose_parts(flycontents(this), @args);
-    const body = content_type == 'text_html ? <$html, {`this.inline ! E_PROPNF => false' ? "span" | "p", {}, parts}> | parts:join("");
+    const body = content_type == 'text_html ? <$html, {this.inline ? "span" | "p", {}, parts}> | parts:join("");
     return $format:result(body, annotations);
   endmethod
 endobject

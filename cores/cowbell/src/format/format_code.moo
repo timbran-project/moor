@@ -10,27 +10,18 @@ object FORMAT_CODE [
   override description (owner: HACKER, flags: "rc") = "Flyweight delegate for code block content. Renders code in fenced blocks with optional language specification for syntax highlighting.";
 
   method mk owner: HACKER
-    "Create a code block flyweight. Args: (code_content) or (code_content, language)";
-    "Code content can be a string or list of strings (one per line)";
-    if (length(args) < 1 || length(args) > 2)
-      raise(E_INVARG, "Code block requires 1-2 arguments: code content and optional language");
-    endif
-    code_content = args[1];
-    typeof(code_content) != TYPE_STR && typeof(code_content) != TYPE_LIST && raise(E_TYPE, "Code content must be a string or list");
-    if (length(args) == 2)
-      language = args[2];
-      typeof(language) != TYPE_STR && typeof(language) != TYPE_SYM && raise(E_TYPE, "Language must be a string or symbol");
-      return <this, .language = language, {code_content}>;
-    else
-      return <this, {code_content}>;
-    endif
+    "Create a code block, optionally with a language for syntax highlighting.";
+    const {content, ?language = ""} = args;
+    typeof(content) in {TYPE_STR, TYPE_LIST} || raise(E_TYPE, "Code content must be a string or list");
+    typeof(language) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE, "Language must be a string or symbol");
+    return <this, .inline = false, .language = language, {content}>;
   endmethod
 
   method inline owner: HACKER
     "Render a short command or reference as inline code.";
     const {text} = args;
     typeof(text) == TYPE_STR || raise(E_TYPE);
-    return <this, .inline = true, {text}>;
+    return <this, .inline = true, .language = "", {text}>;
   endmethod
 
   method compose owner: HACKER
@@ -40,7 +31,7 @@ object FORMAT_CODE [
     if (typeof(code_content) == TYPE_LIST)
       code_content = code_content:join("\n");
     endif
-    if (`this.inline ! E_PROPNF => false')
+    if (this.inline)
       if (content_type == 'text_html)
         return <$html, {"code", {}, {code_content}}>;
       elseif (content_type == 'text_djot)
@@ -52,7 +43,7 @@ object FORMAT_CODE [
       endif
       return code_content;
     endif
-    language = `tostr(this.language) ! E_PROPNF => ""';
+    language = tostr(this.language);
     if (content_type == 'text_djot)
       if (language)
         return "\n```" + language + "\n" + code_content + "\n```\n\n";

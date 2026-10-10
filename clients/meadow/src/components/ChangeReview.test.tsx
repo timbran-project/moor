@@ -26,11 +26,18 @@ vi.mock("@monaco-editor/react", () => ({
     DiffEditor: ({ original, modified }: { original: string; modified: string }) => (
         <div data-testid="diff">{original} → {modified}</div>
     ),
-    default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+    default: (
+        { value, onChange, options }: {
+            value: string;
+            onChange?: (value: string) => void;
+            options?: { readOnly?: boolean };
+        },
+    ) => (
         <textarea
-            aria-label="Proposed program"
+            aria-label={options?.readOnly ? "Source" : "Proposed program"}
+            readOnly={options?.readOnly}
             value={value}
-            onChange={event => onChange(event.target.value)}
+            onChange={event => onChange?.(event.target.value)}
         />
     ),
 }));
@@ -71,8 +78,8 @@ beforeEach(() => {
             };
         }
         if (args[1] !== generation) throw new Error("Review changed; reload its status.");
-        if (method === "diagnostics") {
-            return { result: { ...common, diagnostics: [], total: 0, next: 0 }, output: [] };
+        if (method === "inspection") {
+            return { result: { ...common, rows: [], counts: {}, revision: "view-1", next: 0 }, output: [] };
         }
         if (method === "review") {
             return {
@@ -158,4 +165,82 @@ it("can retry a failed review read without closing the panel", async () => {
     expect((await screen.findByRole("alert")).textContent).toContain("Permission denied.");
     fireEvent.click(screen.getByRole("button", { name: "Reload review" }));
     await screen.findByRole("heading", { name: "$test:verb" });
+});
+
+it("browses local-only objects, verbs and properties without offering mutation choices", async () => {
+    const items = [
+        { id: "inspect/object", label: "$local", field: "object", live_text: "name: Local" },
+        { id: "inspect/program", label: "$local:run", field: "program", live_text: "return 42;" },
+        { id: "inspect/property", label: "$local.title", field: "property", live_text: "value: Local" },
+    ].map(item => ({
+        ...baseRow,
+        ...item,
+        classification: "local_only",
+        read_only: true,
+        live_present: true,
+        incoming_present: false,
+        incoming_text: "",
+        eligible: false,
+        choices: [],
+    }));
+    items.push({
+        ...items[2],
+        id: "inspect/edited",
+        label: "$local.edited",
+        classification: "local",
+        incoming_present: true,
+        incoming_text: "value: Original",
+    });
+    const program = { ...baseRow, classification: "local" };
+    const common = { schema: 1, review_id: 1, generation: 1 };
+    vi.mocked(invokeVerbFlatBuffer).mockImplementation(async (_token, _provider, method, bytes) => {
+        const args = new MoorVar(Var.getRootAsVar(new ByteBuffer(bytes!))).toJS() as unknown[];
+        if (method === "status") return { result: { ...common, package: "cowbell", status: "ready" }, output: [] };
+        if (method === "review") {
+            return {
+                result: {
+                    ...common,
+                    rows: args[3] === "changed" || args[3] === "local" ? [program] : [],
+                    cursor: [],
+                    counts: { local: 1 },
+                    decision_counts: { selected: 0, unresolved: 0, blocked: 0 },
+                },
+                output: [],
+            };
+        }
+        if (method === "inspection") {
+            return {
+                result: {
+                    ...common,
+                    rows: items.filter(item => !args[3] || item.classification === args[3]),
+                    counts: { local_only: 3, local: 1 },
+                    revision: "view-1",
+                    next: 0,
+                },
+                output: [],
+            };
+        }
+        if (method === "details") {
+            return { result: { ...common, row: items.find(item => item.id === args[2]) ?? program }, output: [] };
+        }
+        throw new Error(`Inspection must not call ${method}`);
+    });
+    render(<ChangeReview visible target={{ ...target, row: undefined }} authToken="token" onClose={vi.fn()} />);
+    await screen.findByRole("heading", { name: "$local" });
+    fireEvent.click(screen.getByRole("button", { name: /\$local:run/ }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("value", "return 42;"));
+    expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("readOnly", true);
+    fireEvent.click(screen.getByRole("button", { name: /\$local.title/ }));
+    await waitFor(() =>
+        expect(screen.getByRole("textbox", { name: "Source" })).toHaveProperty("value", "value: Local")
+    );
+    expect(screen.queryByRole("button", { name: "Use upstream" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit resolution" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Apply 0 choices" })).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByRole("combobox", { name: "Show" }), { target: { value: "local" } });
+    await screen.findByRole("heading", { name: "$local.edited" });
+    expect(screen.getByRole("option", { name: "Local edits (2)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /\$local.edited/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /\$test:verb/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /\$local:run/ })).toBeNull();
 });

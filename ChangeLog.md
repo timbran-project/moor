@@ -14,6 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Change reviews now let you browse local-only objects and verbs, including their source, and
+  inspect property and object-attribute differences. Import preparation records ancestor hashes for
+  those fields so Meadow can group their local edits, upstream edits, and conflicts with verb
+  changes. These additional comparisons are read-only; applying changes still updates existing verb
+  programs.
+
 - `moor`, `moor-daemon`, `moorc`, and `scripts/dev.sh` accept `--git-upstream origin/main` to
   prepare program baselines from the common ancestor of the checkout and a locally available
   upstream branch while installing the working files as live code. `--baseline-objdef-dir` accepts
@@ -33,9 +39,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   choices to keep local code, use upstream code, or edit a proposal before applying. Accepted source
   is compared when one of the programs matches its baseline hash. System objects use their `$name`
   references. Usage links prompt for arguments and show command syntax; overview and background
-  status messages use inset styling. Direct authenticated API calls retain administrator permission
-  checks. Meadow also lists package objects and verbs absent from the fetched source. Source
-  information and upgrade checks are available through `@changes details`.
+  status messages use inset styling. In Meadow, Cowbell replaces pulsing fetch/apply progress with
+  the result on the initiating connection. Review actions show their command beneath the label.
+  Direct authenticated API calls retain administrator permission checks. Meadow also lists package
+  objects and verbs absent from the fetched source. Source information and upgrade checks are
+  available through `@changes details`. Both cores keep the command reference in `help @changes`.
+  Missing generation arguments report the required command instead of repeating a help page.
 
 - `dump_object()` and `moorc` can omit accepted-baseline annotations with `include_baselines` set to
   false. Core source rebuilds use this option. Backup and checkpoint exports retain baselines by

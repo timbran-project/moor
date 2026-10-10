@@ -172,7 +172,7 @@ pub(crate) fn prepare(
         checkout = head,
         upstream = incoming,
         dirty,
-        "Prepared Git program baseline"
+        "Prepared Git import baseline"
     );
     Ok((baseline, provenance))
 }

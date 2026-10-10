@@ -269,7 +269,7 @@ object CHANGE_MANAGER [
     "Describe the versioned review API and its limits.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
-    return ["schema" -> 1, "operations" -> {"packages", "configure", "upstream", "stage", "status", "review", "diagnostics", "details", "resolve", "apply", "refresh", "discard"}, "fields" -> {"program"}, "choices" -> {"incoming", "local", "edited", "defer"}, "transports" -> {"upload", "http"}, "authorization" -> "administrator", "default_package" -> this.default_package, "max_source_bytes" -> 4194304, "max_pending_bytes" -> 33554432, "max_packages" -> 32, "page_rows" -> 50, "max_detail_bytes" -> 524288, "max_page_bytes" -> 262144, "receipt_decisions" -> 50];
+    return ["schema" -> 1, "operations" -> {"packages", "configure", "upstream", "stage", "status", "review", "inspection", "diagnostics", "details", "resolve", "apply", "refresh", "discard"}, "fields" -> {"program"}, "choices" -> {"incoming", "local", "edited", "defer"}, "transports" -> {"upload", "http"}, "authorization" -> "administrator", "default_package" -> this.default_package, "max_source_bytes" -> 4194304, "max_pending_bytes" -> 33554432, "max_packages" -> 32, "page_rows" -> 50, "max_detail_bytes" -> 524288, "max_page_bytes" -> 262144, "receipt_decisions" -> 50];
   endmethod
 
   method packages owner: #2
@@ -534,7 +534,7 @@ object CHANGE_MANAGER [
     for i in [offset..length(rows)]
       next_offset = i + 1;
       let row = rows[i];
-      if (classification != "" && row["classification"] != classification)
+      if (classification == "changed" ? row["classification"] == "unchanged" | classification != "" && row["classification"] != classification)
         continue;
       endif
       const choice = `record["choices"][row["id"]] ! E_RANGE => []';
@@ -579,11 +579,47 @@ object CHANGE_MANAGER [
     return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "total" -> length(all), "diagnostics" -> page, "next" -> offset + length(page) <= length(all) ? offset + length(page) | 0];
   endmethod
 
+  method inspection owner: #2
+    "Browse current local contents against the saved incoming source, without making update choices.";
+    const auth = this:_entry(caller_perms());
+    set_task_perms(auth[2]);
+    const {id, generation, ?offset = 1, ?classification = "", ?selected = "", ?expected = ""} = args;
+    const record = this:_get(auth, id, generation);
+    record["status"] in {"ready", "partial", "rejected"} || this:_error("not_ready", "Review is not ready.");
+    typeof(offset) == TYPE_INT && offset >= 1 || raise(E_INVARG);
+    let request = record["request"];
+    request["operation"] = "inspect";
+    request["fields"] = {"object", "attribute", "property", "program"};
+    request["details"] = selected ? {selected} | {};
+    const report = preview_objdef_changes(record["sources"], request);
+    !expected || expected == report["revision"] || this:_error("stale_inspection", "Local contents changed. Reload the review.");
+    const all = {row for row in (report["rows"]) if ((!classification || row["classification"] == classification) && (!selected || row["id"] == selected))};
+    const names = this:_command_names();
+    let page = {};
+    for row in (all[offset..min(offset + 49, length(all))])
+      let name = row["name"];
+      if (row["field"] == "program")
+        name = name[index(name, ":") + 1..$];
+        row["label"] = this:_command_label(row["object"], names, name);
+      else
+        row["label"] = this:_command_label(row["object"], names) + (name ? "." + name | "");
+      endif
+      page = {@page, row};
+    endfor
+    value_bytes(page) <= 524288 || raise(E_QUOTA, "Inspection page exceeds the service limit.");
+    return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "rows" -> page, "revision" -> report["revision"], "counts" -> report["counts"], "total" -> length(all), "next" -> offset + length(page) <= length(all) ? offset + length(page) | 0];
+  endmethod
+
   method details owner: #2
     "Return selected live/incoming text only while original review evidence still matches.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
     const {id, generation, row_id} = args;
+    if (index(row_id, "inspect/") == 1)
+      const result = this:inspection(id, generation, 1, "", row_id);
+      length(result["rows"]) == 1 || this:_error("missing_row", "Inspection item no longer exists.");
+      return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "row" -> result["rows"][1]];
+    endif
     const record = this:_get(auth, id, generation);
     let request = record["request"];
     request["details"] = {row_id};
@@ -778,6 +814,9 @@ object CHANGE_MANAGER [
     caller == this || raise(E_PERM);
     let names = [];
     for name in (properties(#0))
+      if (is_clear_property(#0, name))
+        continue;
+      endif
       const object = `#0.(name) ! E_PERM, E_PROPNF => false';
       if (typeof(object) == TYPE_OBJ && !maphaskey(names, object))
         names[object] = tostr("$", name);
@@ -824,7 +863,7 @@ object CHANGE_MANAGER [
     if (package["active"])
       return this:_command_status(this:status(package["active"]));
     endif
-    return {tostr(this.default_package, " changes"), "Check upstream for updates, compare the code, then choose what to apply.", "Check for updates: @changes fetch", "Command reference: @changes help"};
+    return {tostr(this.default_package, " changes"), "Check upstream for updates, compare the code, then choose what to apply.", "Check for updates: @changes fetch", "Command reference: help @changes"};
   endmethod
 
   method _command_status owner: #2
@@ -1019,12 +1058,6 @@ object CHANGE_MANAGER [
     return {@output, $string_utils:from_list({tostr("@changes diff ", id)}, "\n")};
   endmethod
 
-  method _command_help owner: #2
-    "Explain the update workflow before listing less common commands.";
-    caller == this || raise(E_PERM);
-    return {"Changes", "Fetch upstream code, review the differences, then apply your choices.", tostr("Default package: ", this.default_package, ". Fetch and apply results arrive automatically."), this:_command_table({"Command", "What it does"}, {{"@changes fetch", "Fetch the default package and create a review."}, {"@changes diff ID [OFFSET]", "Review program changes and local additions."}, {"@changes apply ID GENERATION", "Apply your choices."}, {"@changes status ID", "Check progress after reconnecting."}, {"@changes details ID [OFFSET]", "See the fetched source and upgrade checks."}}), "Review choices", "ID is the review number. GENERATION is shown in the review; use the new value after each choice. ROW is the number beside a verb.", this:_command_table({"Command", "What it does"}, {{"@changes source ID GENERATION ROW live|incoming [OFFSET]", "Read a program."}, {"@changes resolve ID GENERATION ROW incoming|local|defer", "Use upstream, keep local, or skip."}, {"@changes resolve ID GENERATION ROW edited PROGRAM", "Use an edited program."}, {"@changes refresh ID GENERATION", "Compare the saved source again; clears choices."}, {"@changes discard ID GENERATION", "Remove the review."}}), "Package setup", this:_command_table({"Command", "What it does"}, {{"@changes packages", "List packages and active reviews."}, {"@changes fetch [NAME]", "Fetch another package."}, {"@changes package NAME #OBJECT ...", "Register package objects."}, {"@changes upstream [NAME] HTTP-BUNDLE-URL", "Set an HTTP bundle source."}, {"@changes adopt [NAME]", "Review and record an upstream baseline without changing live programs."}})};
-  endmethod
-
   method _command_row owner: #2
     "Translate a displayed row number without changing the service's stable row IDs.";
     caller == this || raise(E_PERM);
@@ -1045,10 +1078,9 @@ object CHANGE_MANAGER [
     let {words} = args;
     if (!words)
       return this:_command_overview();
-    elseif (words[1] == "help")
-      return this:_command_help();
     endif
     const action = words[1];
+    action in {"packages", "package", "upstream", "fetch", "stage", "adopt", "status", "diff", "details", "source", "apply", "refresh", "discard", "resolve"} || raise(E_INVARG, tostr("Unknown @changes command: ", action, ". Use help @changes."));
     if (action in {"fetch", "stage", "adopt"} && length(words) == 1)
       words = {@words, this.default_package};
     elseif (action == "upstream" && length(words) == 2)
@@ -1093,7 +1125,7 @@ object CHANGE_MANAGER [
       return this:_command_status(result);
     endif
     if (length(words) < 2)
-      return this:_command_help();
+      raise(E_INVARG, "Use help @changes for command syntax.");
     endif
     const id = toint(words[2]);
     if (action == "status")
@@ -1110,7 +1142,11 @@ object CHANGE_MANAGER [
       return action == "diff" ? this:_command_diff(record, offset) | this:_command_details(record, offset);
     endif
     if (length(words) < 3)
-      return this:_command_help();
+      if (action in {"apply", "refresh", "discard"})
+        const current = this:_get(auth, id);
+        raise(E_INVARG, tostr("Missing generation. Use @changes ", action, " ", id, " ", current["generation"], "."));
+      endif
+      raise(E_INVARG, "Use help @changes for command syntax.");
     endif
     const generation = toint(words[3]);
     if (action == "source" && length(words) in {5, 6})
@@ -1158,6 +1194,6 @@ object CHANGE_MANAGER [
       endfor
       return {@output, $string_utils:from_list({tostr("@changes diff ", id)}, "\n")};
     endif
-    return this:_command_help();
+    raise(E_INVARG, "Use help @changes for command syntax.");
   endmethod
 endobject

@@ -183,14 +183,14 @@ impl ObjDefSet {
         };
         let local = Self::read_directory(compile_options, directory)?;
         match baseline {
-            Some((base, provenance)) => local.with_program_baseline(&base, provenance),
+            Some((base, provenance)) => local.with_baseline(&base, provenance),
             None => Ok(local),
         }
     }
 
-    /// Derive program baselines from a separately identified source, retaining local programs.
+    /// Derive program, property, and attribute baselines from separately identified source.
     /// Unmatched local declarations have no baseline. Object relocation is not inferred.
-    pub fn with_program_baseline(
+    pub fn with_baseline(
         mut self,
         baseline: &Self,
         provenance: Option<Var>,
@@ -236,6 +236,15 @@ impl ObjDefSet {
                         "{label}: object {oid} has a different identity in the baseline"
                     )));
                 }
+            }
+            local
+                .metadata
+                .retain(|(metadata_key, _)| *metadata_key != key);
+            if let Some(base) = base {
+                local.metadata.push((
+                    key,
+                    crate::review::inspection::baseline(base, provenance.as_ref()),
+                ));
             }
             for (index, verb) in local.verbs.iter().enumerate() {
                 if local.verbs[..index]

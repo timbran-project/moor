@@ -1000,7 +1000,7 @@ object WIZ_FEATURES [
   endverb
 
   verb "@changes" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "Review and apply program updates. Use @changes help for commands.";
+    "Review and apply program updates. Use help @changes for commands.";
     this == $wiz_features || raise(E_PERM);
     this:_challenge_command_perms();
     const authority = player.wizard ? player | $admin_features:_resolve_delegate(player);
@@ -1011,9 +1011,10 @@ object WIZ_FEATURES [
     except failure (E_INVARG)
       lines = {$format.title:mk("Changes", 3), $format.paragraph:mk(failure[2])};
       if (typeof(failure[3]) == TYPE_MAP && `failure[3]["code"] ! E_RANGE => ""' == "missing_review")
-        lines = {@lines, $format.annotation:command_syntax("@changes packages", "Find active reviews")};
+        lines = {@lines, $format.list:actions({$format.annotation:command("@changes packages", $format.paragraph:inline("Find active reviews", "\n", $format.code:inline("@changes packages")))})};
       endif
     endtry
+    length(lines) || return;
     player:inform_current($event:mk_info(player, $format.block:mk(@lines)):with_audience('utility):with_presentation_hint('inset));
   endverb
 endobject

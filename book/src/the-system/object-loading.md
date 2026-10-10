@@ -126,6 +126,37 @@ The [Meadow object browser](../web-client/authoring-tools.md#exporting-and-reloa
 uses replacement for uploaded definitions. The [moor-emh tool](moor-emh-tool.md#object-importexport)
 can import local files while the regular server is stopped.
 
+## Inspecting local and incoming contents
+
+`preview_objdef_changes()` also accepts `operation: "inspect"` with selected `fields` from `object`,
+`attribute`, `property`, and `program`. This compares current database contents with the supplied
+source inside the requested object scope. It includes objects and verbs present on only one side,
+property definitions and overrides, and object attributes. Source definitions are interpreted as a
+complete import: omitted attributes take their creation defaults, and properties without values are
+clear. This is a content comparison, not the partial-merge semantics of `load_object()`. Matched
+verb programs remain part of the program review described below.
+
+Property and attribute rows use the same classifications as verb programs: `local`, `upstream`,
+`conflict`, `converged`, or `unbased`. Import preparation records ancestor hashes for these fields
+in object metadata, alongside the existing per-verb baselines. Unsupported values whose contents
+cannot be fingerprinted remain unbased. No object graph or additional database format is stored.
+
+Items present on only one side are `local_only` or `incoming_only`; absence alone does not establish
+whether something was added or deleted. Properties distinguish stored values, clear values,
+permissions, and metadata. Meadow includes all item types in the same change filters and review
+list. These comparisons do not advance field baselines when program updates are applied.
+
+Rows have `read_only: true`, explicit `live_present` and `incoming_present` flags, and no choices.
+`details` requests text for selected opaque row IDs. Large or unsupported values carry an
+`inspection_error` instead of preventing inspection of other fields. A report revision lets clients
+reject pagination across changing local contents. Inspection produces no apply evidence and
+`apply_objdef_changes()` rejects inspection requests.
+
+Cowbell and Snore expose this through `$change_manager:inspection()`. Meadow combines those rows
+with program reviews in its initial **All differences** list. Local-only members have a read-only
+source pane; properties and attributes present on both sides have a comparison view. These reads
+observe current local state against the saved incoming source and do not change pending choices.
+
 ## Read-only program review
 
 `preview_objdef_changes(sources, request [, choices])` compares existing verb programs without
@@ -213,7 +244,7 @@ bookkeeping fails.
 
 ## Review packages with `@changes`
 
-Cowbell and Snore expose the same schema-1 service at `$change_manager`. `@changes help` lists the
+Cowbell and Snore expose the same schema-1 service at `$change_manager`. `help @changes` lists the
 terminal commands. Snore requires a wizard. Cowbell also accepts current administrator delegation
 with an `@changes` allowlist entry. Each API call and background job checks that authority again.
 Source, drafts, and saved reviews are private administrator data.

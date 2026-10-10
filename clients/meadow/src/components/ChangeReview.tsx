@@ -20,7 +20,7 @@ import {
     ChangeTarget,
     Choice,
     Classification,
-    LocalItemPage,
+    InspectionPage,
     ReviewPage,
     ReviewStatus,
 } from "../lib/change-review";
@@ -49,8 +49,32 @@ const blockers: Record<string, string> = {
     object_identity_mismatch: "The installed object and upstream object have different identities.",
     adoption_required: "Accept an upstream baseline before updating this verb.",
 };
-const categories: Classification[] = ["conflict", "upstream", "local", "unbased", "converged"];
-type ReviewFilter = Classification | "unmatched";
+const fieldLabels: Record<string, string> = {
+    program: "Verb",
+    property: "Property",
+    attribute: "Attribute",
+    object: "Object",
+};
+const rowLabels: Record<Classification, string> = {
+    conflict: "Conflict",
+    upstream: "Upstream",
+    local: "Local",
+    converged: "Match",
+    unbased: "No baseline",
+    unchanged: "Unchanged",
+    local_only: "Local only",
+    incoming_only: "Upstream only",
+};
+const categories: Classification[] = [
+    "conflict",
+    "upstream",
+    "local",
+    "local_only",
+    "incoming_only",
+    "unbased",
+    "converged",
+];
+type ReviewFilter = Classification | "all";
 
 export function ChangeReview({ target, authToken, onClose }: Props) {
     const id = useId();
@@ -59,8 +83,8 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
     const [generation, setGeneration] = useState(target.generation);
     const [status, setStatus] = useState<ReviewStatus | null>(null);
     const [page, setPage] = useState<ReviewPage | null>(null);
-    const [category, setCategory] = useState<ReviewFilter>("conflict");
-    const [localItems, setLocalItems] = useState<LocalItemPage | null>(null);
+    const [category, setCategory] = useState<ReviewFilter>("all");
+    const [inspection, setInspection] = useState<InspectionPage | null>(null);
     const [rows, setRows] = useState<ChangeRow[]>([]);
     const [row, setRow] = useState<ChangeRow | null>(null);
     const [busy, setBusy] = useState(true);
@@ -70,6 +94,8 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
     const [draft, setDraft] = useState("");
     const [initialDraft, setInitialDraft] = useState("");
     const [comparison, setComparison] = useState("local-upstream");
+    const [sideBySide, setSideBySide] = useState(true);
+    const [collapsedObjects, setCollapsedObjects] = useState<Set<string>>(() => new Set());
     const [confirmation, setConfirmation] = useState<"apply" | "discard" | null>(null);
     const pendingNavigation = useRef<(() => void) | null>(null);
     const sequence = useRef(0);
@@ -101,20 +127,24 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                 setPage(null);
                 return;
             }
-            const [overview, local] = await Promise.all([client.page(version), client.localItems(version)]);
             const detail = selected ? await client.details(version, selected) : null;
-            const nextCategory = filter ?? detail?.classification ?? categories.find(key => overview.counts[key])
-                ?? (local.total ? "unmatched" : "upstream");
-            const nextPage = nextCategory !== "unmatched" && overview.counts[nextCategory]
-                ? await client.page(version, [], nextCategory)
-                : { ...overview, rows: [], cursor: [] };
-            const first = detail ?? (nextPage.rows[0] ? await client.details(version, nextPage.rows[0].id) : null);
+            const nextCategory = filter ?? "all";
+            const [overview, inspected] = await Promise.all([
+                client.page(version, [], nextCategory === "all" ? "changed" : nextCategory),
+                client.inspection(
+                    version,
+                    1,
+                    nextCategory === "all" ? "" : nextCategory,
+                ),
+            ]);
+            const shownRows = [...overview.rows, ...inspected.rows].sort((a, b) => a.label.localeCompare(b.label));
+            const first = detail ?? (shownRows[0] ? await client.details(version, shownRows[0].id) : null);
             if (request !== sequence.current) return;
             setGeneration(version);
             setCategory(nextCategory);
-            setPage(nextPage);
-            setLocalItems(local);
-            setRows(nextPage.rows);
+            setPage(overview);
+            setInspection(inspected);
+            setRows(overview.rows);
             selectDetail(first);
         } catch (failure) {
             if (request === sequence.current) fail(failure);
@@ -172,28 +202,30 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
         }
     };
     const more = async () => {
-        if (!page?.cursor.length) return;
+        if (!page || (!page.cursor.length && !inspection?.next)) return;
         const request = ++sequence.current;
         setBusy(true);
         try {
-            const next = await client.page(generation, page.cursor, category === "unmatched" ? "" : category);
+            const [next, inspected] = await Promise.all([
+                page.cursor.length
+                    ? client.page(generation, page.cursor, category === "all" ? "changed" : category)
+                    : null,
+                inspection?.next
+                    ? client.inspection(
+                        generation,
+                        inspection.next,
+                        category === "all" ? "" : category,
+                        inspection.revision,
+                    )
+                    : null,
+            ]);
             if (request !== sequence.current) return;
-            setRows(previous => [...previous, ...next.rows]);
-            setPage(next);
-        } catch (failure) {
-            if (request === sequence.current) fail(failure);
-        } finally {
-            if (request === sequence.current) setBusy(false);
-        }
-    };
-    const moreLocalItems = async () => {
-        if (!localItems?.next) return;
-        const request = ++sequence.current;
-        setBusy(true);
-        try {
-            const next = await client.localItems(generation, localItems.next);
-            if (request === sequence.current) {
-                setLocalItems(previous => ({ ...next, items: [...(previous?.items ?? []), ...next.items] }));
+            if (next) {
+                setRows(previous => [...previous, ...next.rows]);
+                setPage(next);
+            }
+            if (inspected) {
+                setInspection(previous => ({ ...inspected, rows: [...(previous?.rows ?? []), ...inspected.rows] }));
             }
         } catch (failure) {
             if (request === sequence.current) fail(failure);
@@ -202,7 +234,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
         }
     };
     const resolve = async (selected: Choice) => {
-        if (!row) return;
+        if (!row || row.read_only) return;
         const request = ++sequence.current;
         setBusy(true);
         setError("");
@@ -237,6 +269,59 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
         }
     };
 
+    const displayedRows = [...rows, ...(inspection?.rows ?? [])].sort((a, b) => a.label.localeCompare(b.label));
+    const groups = new Map<string, { label: string; object?: ChangeRow; members: ChangeRow[] }>();
+    for (const item of displayedRows) {
+        let group = groups.get(item.objectKey);
+        if (!group) {
+            group = { label: item.objectLabel, members: [] };
+            groups.set(item.objectKey, group);
+        }
+        if (item.objectLabel.length > group.label.length) group.label = item.objectLabel;
+        if (item.field === "object") group.object = item;
+        else group.members.push(item);
+    }
+    const toggleObject = (key: string) =>
+        setCollapsedObjects(previous => {
+            const next = new Set(previous);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    const itemButton = (item: ChangeRow, object = false) => {
+        const blocked = !item.read_only && !item.eligible;
+        const description = `${item.label}, ${fieldLabels[item.field ?? "program"]}, ${rowLabels[item.classification]}${
+            blocked ? ", Blocked" : ""
+        }`;
+        return (
+            <button
+                type="button"
+                className="change-review-item"
+                title={description}
+                aria-label={description}
+                aria-current={row?.id === item.id ? "true" : undefined}
+                disabled={busy}
+                onClick={() =>
+                    navigate(() => {
+                        void select(item);
+                    })}
+            >
+                <code>{object ? item.objectLabel : item.memberLabel}</code>
+                {(category === "all" || blocked) && (
+                    <small>{blocked ? "Blocked" : rowLabels[item.classification]}</small>
+                )}
+            </button>
+        );
+    };
+    const counts: Partial<Record<Classification, number>> = { ...page?.counts };
+    for (const [classification, count] of Object.entries(inspection?.counts ?? {})) {
+        const key = classification as Classification;
+        counts[key] = (counts[key] ?? 0) + (count ?? 0);
+    }
+    const total = Object.entries(counts).reduce(
+        (sum, [key, count]) => key === "unchanged" ? sum : sum + (count ?? 0),
+        0,
+    );
     const baseline = row ? baselineText(row) : undefined;
     const original = comparison === "local-upstream" ? row?.live_text : baseline;
     const modified = comparison === "baseline-local" ? row?.live_text : row?.incoming_text;
@@ -254,7 +339,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
         ? "Updates applied."
         : status?.status === "discarded"
         ? "This review was discarded."
-        : "Save your choices, then apply them to the running MOO.";
+        : "Compare local contents with the fetched source.";
     const canApply = Boolean(
         page && selectedCount && !page.decision_counts.unresolved && !busy && !dirty && !error && !applying,
     );
@@ -262,13 +347,14 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
     return (
         <div className="change-review-shell" aria-busy={busy || applying}>
             <DialogSheet
-                title={`${status?.package ?? "Changes"} · Review upstream changes`}
+                title={`${status?.package ?? "Changes"} · Review ${target.review}`}
                 titleId={id}
                 onCancel={() => navigate(onClose)}
                 maxWidth="1440px"
             >
                 <div className="change-review-toolbar">
                     <span role="status">{statusText}</span>
+                    <small>Generation {status?.generation ?? generation}</small>
                     <button type="button" onClick={() => navigate(onClose)}>Close</button>
                 </div>
                 {error && (
@@ -279,7 +365,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                             disabled={busy}
                             onClick={() =>
                                 navigate(() => {
-                                    void client.status().then(current => load(current.generation, row?.id, category))
+                                    void client.status().then(current => load(current.generation, undefined, category))
                                         .catch(fail);
                                 })}
                         >
@@ -291,7 +377,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                 {status?.error?.message && <p role="alert">{status.error.message}</p>}
                 {page && !applying && (
                     <div className="change-review-workspace" aria-busy={busy}>
-                        <aside className="change-review-sidebar" aria-label="Program changes">
+                        <aside className="change-review-sidebar" aria-label="Changes">
                             <label htmlFor={`${id}-filter`}>Show</label>
                             <select
                                 id={`${id}-filter`}
@@ -302,37 +388,67 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                                         void load(generation, undefined, event.target.value as ReviewFilter);
                                     })}
                             >
+                                <option value="all">All differences ({total})</option>
                                 {(category === "unchanged" ? [...categories, "unchanged" as const] : categories).map(
                                     key => (
                                         <option key={key} value={key}>
-                                            {changeLabels[key]} ({page.counts[key] ?? 0})
+                                            {changeLabels[key]} ({counts[key] ?? 0})
                                         </option>
                                     ),
                                 )}
-                                {!!localItems?.total && (
-                                    <option value="unmatched">Only in this MOO ({localItems.total})</option>
-                                )}
                             </select>
                             <div className="change-review-programs">
-                                {rows.map(item => (
-                                    <button
-                                        type="button"
-                                        key={item.id}
-                                        aria-current={row?.id === item.id ? "true" : undefined}
-                                        disabled={busy}
-                                        onClick={() =>
-                                            navigate(() => {
-                                                void select(item);
-                                            })}
-                                    >
-                                        <code>{item.label}</code>
-                                        {!item.eligible && <small>Blocked</small>}
-                                    </button>
+                                {[...groups.entries()].map(([key, group]) => (
+                                    <section className="change-review-object" key={key} aria-label={group.label}>
+                                        <div className="change-review-object-heading">
+                                            {group.members.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    className="change-review-disclosure"
+                                                    aria-label={`${
+                                                        collapsedObjects.has(key) ? "Expand" : "Collapse"
+                                                    } ${group.label}`}
+                                                    aria-expanded={!collapsedObjects.has(key)}
+                                                    onClick={() => toggleObject(key)}
+                                                >
+                                                    <span aria-hidden="true">
+                                                        {collapsedObjects.has(key) ? "▸" : "▾"}
+                                                    </span>
+                                                </button>
+                                            )}
+                                            {group.object
+                                                ? itemButton(group.object, true)
+                                                : (
+                                                    <button
+                                                        type="button"
+                                                        className="change-review-item"
+                                                        aria-label={`${
+                                                            collapsedObjects.has(key) ? "Expand" : "Collapse"
+                                                        } members of ${group.label}`}
+                                                        aria-expanded={!collapsedObjects.has(key)}
+                                                        onClick={() => toggleObject(key)}
+                                                        title={group.label}
+                                                    >
+                                                        <code>{group.label}</code>
+                                                    </button>
+                                                )}
+                                        </div>
+                                        {!collapsedObjects.has(key) && group.members.length > 0
+                                            && (
+                                                <ul>
+                                                    {group.members.map(item => (
+                                                        <li key={item.id}>{itemButton(item)}</li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                    </section>
                                 ))}
-                                {!rows.length && category !== "unmatched" && (
-                                    <p>No {changeLabels[category].toLowerCase()}.</p>
+                                {!displayedRows.length && (
+                                    <p>
+                                        No {category === "all" ? "differences" : changeLabels[category].toLowerCase()}.
+                                    </p>
                                 )}
-                                {!!page.cursor.length && (
+                                {(!!page.cursor.length || !!inspection?.next) && (
                                     <button
                                         type="button"
                                         disabled={busy}
@@ -340,7 +456,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                                             void more();
                                         }}
                                     >
-                                        Load more ({rows.length} shown)
+                                        Load more ({displayedRows.length} shown)
                                     </button>
                                 )}
                             </div>
@@ -349,31 +465,7 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                             </small>
                         </aside>
                         <main className="change-review-code">
-                            {category === "unmatched" && localItems
-                                ? (
-                                    <>
-                                        <h3>Only in this MOO</h3>
-                                        <p>These objects and verbs are absent from upstream. They will be kept.</p>
-                                        <ul className="change-review-local-items">
-                                            {localItems.items.map(item => (
-                                                <li key={`${item.kind}:${item.label}`}>
-                                                    <code>{item.label}</code>
-                                                    <span>{item.kind === "object" ? "Object" : "Verb"}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        {!!localItems.next && (
-                                            <button
-                                                type="button"
-                                                disabled={busy}
-                                                onClick={() => void moreLocalItems()}
-                                            >
-                                                Load more ({localItems.items.length} of {localItems.total})
-                                            </button>
-                                        )}
-                                    </>
-                                )
-                                : row
+                            {row
                                 ? (
                                     <>
                                         <header>
@@ -382,62 +474,130 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                                             </h3>
                                             <span>{changeLabels[row.classification]}</span>
                                         </header>
-                                        {!row.eligible && (
+                                        {!row.read_only && !row.eligible && (
                                             <p role="status">
                                                 {row.blockers.map(reason => blockers[reason] ?? reason).join(" ")}
                                             </p>
                                         )}
-                                        <div className="change-review-comparison">
-                                            <label htmlFor={`${id}-comparison`}>Compare</label>
-                                            <select
-                                                id={`${id}-comparison`}
-                                                value={comparison}
-                                                onChange={event => setComparison(event.target.value)}
-                                            >
-                                                <option value="local-upstream">Local → Upstream</option>
-                                                {baseline !== undefined && (
-                                                    <>
-                                                        <option value="baseline-local">
-                                                            Accepted baseline → Local
-                                                        </option>
-                                                        <option value="baseline-upstream">
-                                                            Accepted baseline → Upstream
-                                                        </option>
-                                                    </>
+                                        {row.live_present !== false && row.incoming_present !== false && (
+                                            <div className="change-review-comparison">
+                                                <label htmlFor={`${id}-comparison`}>Compare</label>
+                                                <select
+                                                    id={`${id}-comparison`}
+                                                    value={comparison}
+                                                    onChange={event => setComparison(event.target.value)}
+                                                >
+                                                    <option value="local-upstream">Local → Upstream</option>
+                                                    {baseline !== undefined && (
+                                                        <>
+                                                            <option value="baseline-local">
+                                                                Accepted baseline → Local
+                                                            </option>
+                                                            <option value="baseline-upstream">
+                                                                Accepted baseline → Upstream
+                                                            </option>
+                                                        </>
+                                                    )}
+                                                </select>
+                                                <div
+                                                    className="change-review-layout"
+                                                    role="group"
+                                                    aria-label="Diff layout"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        aria-pressed={sideBySide}
+                                                        onClick={() => setSideBySide(true)}
+                                                    >
+                                                        Side by side
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        aria-pressed={!sideBySide}
+                                                        onClick={() => setSideBySide(false)}
+                                                    >
+                                                        Unified
+                                                    </button>
+                                                </div>
+                                                {baseline === undefined && (
+                                                    <small>
+                                                        {row.base
+                                                            ? "Accepted source wasn’t saved; only its hash is available."
+                                                            : "This item has no accepted baseline."}
+                                                    </small>
                                                 )}
-                                            </select>
-                                            {baseline === undefined && (
-                                                <small>
-                                                    {row.base
-                                                        ? "Accepted source wasn’t saved; only its hash is available."
-                                                        : "This program has no accepted baseline."}
-                                                </small>
+                                            </div>
+                                        )}
+                                        {row.read_only && (
+                                            <p className="change-review-inspection-note">
+                                                {row.live_present === false
+                                                    ? "No local definition."
+                                                    : row.incoming_present === false
+                                                    ? "No upstream definition."
+                                                    : ""} Read only.
+                                            </p>
+                                        )}
+                                        {row.inspection_error && <p role="status">{row.inspection_error}</p>}
+                                        <div
+                                            className="change-review-pane-labels"
+                                            data-layout={sideBySide ? "split" : "unified"}
+                                        >
+                                            <span>
+                                                {!sideBySide && row.live_present !== false
+                                                    && row.incoming_present !== false && "− "}
+                                                {row.live_present === false
+                                                    ? "Upstream"
+                                                    : comparison === "local-upstream"
+                                                    ? "Local"
+                                                    : "Accepted baseline"}
+                                            </span>
+                                            {row.live_present !== false && row.incoming_present !== false && (
+                                                <span>
+                                                    {!sideBySide && "+ "}
+                                                    {comparison === "baseline-local" ? "Local" : "Upstream"}
+                                                </span>
                                             )}
                                         </div>
-                                        <div className="change-review-pane-labels">
-                                            <span>
-                                                {comparison === "local-upstream" ? "Local" : "Accepted baseline"}
-                                            </span>
-                                            <span>{comparison === "baseline-local" ? "Local" : "Upstream"}</span>
-                                        </div>
                                         <div className="change-review-diff">
-                                            <DiffEditor
-                                                key={row.id}
-                                                original={original ?? ""}
-                                                modified={modified ?? ""}
-                                                language="moo"
-                                                theme={monacoThemeFor(theme)}
-                                                beforeMount={registerMooLanguage}
-                                                options={{
-                                                    readOnly: true,
-                                                    originalEditable: false,
-                                                    automaticLayout: true,
-                                                    minimap: { enabled: false },
-                                                    renderSideBySide: true,
-                                                    diffWordWrap: "on",
-                                                    scrollBeyondLastLine: false,
-                                                }}
-                                            />
+                                            {row.live_present === false || row.incoming_present === false
+                                                ? (
+                                                    <Editor
+                                                        key={row.id}
+                                                        value={row.live_present === false
+                                                            ? row.incoming_text
+                                                            : row.live_text}
+                                                        language="moo"
+                                                        theme={monacoThemeFor(theme)}
+                                                        beforeMount={registerMooLanguage}
+                                                        options={{
+                                                            readOnly: true,
+                                                            automaticLayout: true,
+                                                            minimap: { enabled: false },
+                                                            wordWrap: "on",
+                                                            scrollBeyondLastLine: false,
+                                                        }}
+                                                    />
+                                                )
+                                                : (
+                                                    <DiffEditor
+                                                        key={row.id}
+                                                        original={original ?? ""}
+                                                        modified={modified ?? ""}
+                                                        language="moo"
+                                                        theme={monacoThemeFor(theme)}
+                                                        beforeMount={registerMooLanguage}
+                                                        options={{
+                                                            readOnly: true,
+                                                            originalEditable: false,
+                                                            automaticLayout: true,
+                                                            minimap: { enabled: false },
+                                                            renderSideBySide: sideBySide,
+                                                            useInlineViewWhenSpaceIsLimited: false,
+                                                            diffWordWrap: "on",
+                                                            scrollBeyondLastLine: false,
+                                                        }}
+                                                    />
+                                                )}
                                         </div>
                                         {editing && (
                                             <section className="change-review-draft">
@@ -458,45 +618,47 @@ export function ChangeReview({ target, authToken, onClose }: Props) {
                                                 />
                                             </section>
                                         )}
-                                        <div className="change-review-resolution">
-                                            <span>On apply: {choices[row.choice?.choice ?? row.default]}</span>
-                                            {row.choices.filter(value => value !== "edited").map(value => (
-                                                <button
-                                                    type="button"
-                                                    key={value}
-                                                    disabled={busy || !!error || !row.eligible && value !== "defer"}
-                                                    onClick={() =>
-                                                        navigate(() => {
-                                                            void resolve(value);
-                                                        })}
-                                                >
-                                                    {value === "incoming" && page.operation === "adopt"
-                                                        ? "Accept baseline"
-                                                        : choices[value]}
-                                                </button>
-                                            ))}
-                                            {row.eligible && row.choices.includes("edited") && (
-                                                <button
-                                                    type="button"
-                                                    disabled={busy || !!error}
-                                                    onClick={() => {
-                                                        if (editing) void resolve("edited");
-                                                        else setEditing(true);
-                                                    }}
-                                                >
-                                                    {editing ? "Save proposed program" : "Edit resolution"}
-                                                </button>
-                                            )}
-                                        </div>
+                                        {!row.read_only && (
+                                            <div className="change-review-resolution">
+                                                <span>On apply: {choices[row.choice?.choice ?? row.default]}</span>
+                                                {row.choices.filter(value => value !== "edited").map(value => (
+                                                    <button
+                                                        type="button"
+                                                        key={value}
+                                                        disabled={busy || !!error || !row.eligible && value !== "defer"}
+                                                        onClick={() =>
+                                                            navigate(() => {
+                                                                void resolve(value);
+                                                            })}
+                                                    >
+                                                        {value === "incoming" && page.operation === "adopt"
+                                                            ? "Accept baseline"
+                                                            : choices[value]}
+                                                    </button>
+                                                ))}
+                                                {row.eligible && row.choices.includes("edited") && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={busy || !!error}
+                                                        onClick={() => {
+                                                            if (editing) void resolve("edited");
+                                                            else setEditing(true);
+                                                        }}
+                                                    >
+                                                        {editing ? "Save proposed program" : "Edit resolution"}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </>
                                 )
                                 : (
                                     <p>
                                         {busy
-                                            ? "Loading program…"
-                                            : categories.some(key => page.counts[key])
-                                            ? "Select a program from the list."
-                                            : "The compared programs haven’t changed."}
+                                            ? "Loading source…"
+                                            : total > 0
+                                            ? "Select an item from the list."
+                                            : "No differences to review."}
                                     </p>
                                 )}
                         </main>

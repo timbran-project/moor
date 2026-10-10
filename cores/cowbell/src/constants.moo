@@ -53,6 +53,7 @@ define FORMAT_DEFLIST = #72;
 define FORMAT_LINK = #82;
 define FORMAT_PARAGRAPH = #114;
 define FORMAT_ANNOTATION = #134;
+define FORMAT_TEXT = #139;
 
 // git
 define GIT = #135;
