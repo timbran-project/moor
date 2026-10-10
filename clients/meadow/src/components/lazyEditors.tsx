@@ -13,6 +13,11 @@
 
 import { lazySurface } from "./lazySurface";
 
+export const ChangeReview = lazySurface(
+    "change review",
+    async () => ({ default: (await import("./ChangeReview")).ChangeReview }),
+);
+
 export const VerbEditor = lazySurface(
     "verb editor",
     async () => ({ default: (await import("./VerbEditor")).VerbEditor }),

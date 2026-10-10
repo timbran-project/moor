@@ -608,6 +608,7 @@ export function bindAnnotationMarkers(html: string, annotations?: AnnotationTabl
             help: "Read help",
             verb: "Browse verb",
             property: "Browse property",
+            change: "Review changes",
         }[annotation.kind];
         const sourceLink = annotation.kind === "verb" && element.textContent === "↗";
         const label = sourceLink ? `${annotation.receiver}:${annotation.name}` : element.textContent;

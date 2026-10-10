@@ -1005,9 +1005,15 @@ object WIZ_FEATURES [
     this:_challenge_command_perms();
     const authority = player.wizard ? player | $admin_features:_resolve_delegate(player);
     set_task_perms(authority);
-    const lines = $change_manager:command(args);
-    for line in (lines)
-      player:inform_current($event:mk_info(player, line):with_audience('utility));
-    endfor
+    let lines;
+    try
+      lines = $change_manager:command(args);
+    except failure (E_INVARG)
+      lines = {$format.title:mk("Changes", 3), $format.paragraph:mk(failure[2])};
+      if (typeof(failure[3]) == TYPE_MAP && `failure[3]["code"] ! E_RANGE => ""' == "missing_review")
+        lines = {@lines, $format.annotation:command_syntax("@changes packages", "Find active reviews")};
+      endif
+    endtry
+    player:inform_current($event:mk_info(player, $format.block:mk(@lines)):with_audience('utility):with_presentation_hint('inset));
   endverb
 endobject

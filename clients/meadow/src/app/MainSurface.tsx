@@ -24,6 +24,7 @@ import { EncryptionPasswordPrompt } from "../components/EncryptionPasswordPrompt
 import { EncryptionSetupPrompt } from "../components/EncryptionSetupPrompt";
 import { InspectPopover } from "../components/InspectPopover";
 import {
+    ChangeReview,
     EvalPanel,
     ObjectBrowser,
     PropertyEditor,
@@ -267,6 +268,7 @@ export const MainSurface: React.FC = () => {
     const { handleLinkClick } = useNarrativeLinks();
 
     const [memberReference, setMemberReference] = useState<string | null>(null);
+    const [changeReview, setChangeReview] = useState<Extract<SemanticAnnotation, { kind: "change" }> | null>(null);
     const [memberCopyNotice, setMemberCopyNotice] = useState("");
     const [memberNavigation, setMemberNavigation] = useState<MemberNavigation | undefined>();
     const navigationSequence = useRef(0);
@@ -277,6 +279,7 @@ export const MainSurface: React.FC = () => {
         } | null
     >(null);
     useEffect(() => {
+        setChangeReview(null);
         setAnnotationCommand(null);
         setMemberNavigation(undefined);
         setMemberReference(null);
@@ -289,6 +292,10 @@ export const MainSurface: React.FC = () => {
         helpRequest.current += 1;
     }, [authToken]);
     const handleAnnotationActivation = useCallback(({ annotation, position }: AnnotationActivation) => {
+        if (annotation.kind === "change") {
+            setChangeReview(annotation);
+            return;
+        }
         if (annotation.kind === "object" && !argumentCoordinator.select(annotation.ref)) {
             void inspectObject(annotation.ref, position);
         }
@@ -454,6 +461,7 @@ export const MainSurface: React.FC = () => {
             // data fetched under the previous player's token
             setIsObjectBrowserOpen(false);
             setIsEvalPanelOpen(false);
+            setChangeReview(null);
             closeInspectPopover();
         },
         onSessionEnded: () => {
@@ -915,6 +923,18 @@ export const MainSurface: React.FC = () => {
                                 </button>
                             </div>
                         </DialogSheet>
+                    )}
+
+                    {changeReview && authToken && (
+                        <ChangeReview
+                            visible
+                            key={`${authToken}:${changeReview.provider}:${changeReview.review}:${changeReview.generation}:${
+                                changeReview.row ?? ""
+                            }`}
+                            target={changeReview}
+                            authToken={authToken}
+                            onClose={() => setChangeReview(null)}
+                        />
                     )}
 
                     {annotationCommand && (

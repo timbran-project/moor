@@ -1362,7 +1362,15 @@ object WIZARD_FEATURE [
     "Review and apply program updates. Use @changes help for commands.";
     this == $wizard_feature && $wizard_feature in player.features && player.wizard || raise(E_PERM);
     set_task_perms(player);
-    const lines = $change_manager:command(args);
+    let lines;
+    try
+      lines = $change_manager:command(args);
+    except failure (E_INVARG)
+      lines = {tostr("Changes: ", failure[2])};
+      if (typeof(failure[3]) == TYPE_MAP && `failure[3]["code"] ! E_RANGE => ""' == "missing_review")
+        lines = {@lines, "Find active reviews: @changes packages"};
+      endif
+    endtry
     for line in (lines)
       player:tell_current(line);
     endfor

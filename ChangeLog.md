@@ -14,6 +14,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Cowbell and Snore now present upstream updates as `@changes fetch`, review, and apply. Commands
+  explain review IDs and next steps, and background fetch/apply results are reported automatically
+  to the requesting player. Diff output summarizes changes, hides unchanged programs, and uses
+  object/verb names and short row numbers. Package objects and installed verbs with no matching
+  upstream definition are reported separately and preserved during program updates. Cowbell uses a
+  short overview and a dedicated code review in Meadow. Review links open program differences, with
+  choices to keep local code, use upstream code, or edit a proposal before applying. Accepted source
+  is compared when one of the programs matches its baseline hash. System objects use their `$name`
+  references. Usage links prompt for arguments and show command syntax; overview and background
+  status messages use inset styling. Direct authenticated API calls retain administrator permission
+  checks. Meadow also lists package objects and verbs absent from the fetched source. Source
+  information and upgrade checks are available through `@changes details`.
+
 - `dump_object()` and `moorc` can omit accepted-baseline annotations with `include_baselines` set to
   false. Core source rebuilds use this option. Backup and checkpoint exports retain baselines by
   default.

@@ -1,0 +1,34 @@
+// Top-level authenticated calls have caller_perms() == #-1. Exercise the
+// production authorization verb using the harness's top-level system hook.
+@wizard
+; add_property(#0, "auth_service", $change_manager, {player, ""}); add_property(#0, "auth_probe", {}, {player, ""}); add_verb(#0, {player, "xd", "_entry"}, {"this", "none", "this"}); set_verb_code(#0, "_entry", verb_code($change_manager, "_entry")); add_verb(#0, {player, "xd", "api_auth_probe"}, {"this", "none", "this"}); set_verb_code(#0, "api_auth_probe", {"try", "const auth = this:_entry(caller_perms());", "this.auth_probe = {true, @auth, caller_perms()};", "except (E_PERM)", "this.auth_probe = {false, player, caller_perms()};", "endtry"}); #0.change_manager = #0; return true;
+true
+
+@@ api_auth_probe #90100
+; return #0.auth_probe;
+{true, #90100, #90100, #-1}
+
+// Owning the public entry verb as a wizard must not authorize its player.
+@@ api_auth_probe #90102
+; return #0.auth_probe;
+{false, #90102, #-1}
+
+// A nested MOO verb cannot claim to be a top-level authenticated invocation.
+; add_verb(#0, {player, "xd", "nested_auth_probe"}, {"this", "none", "this"}); set_verb_code(#0, "nested_auth_probe", {"return this:_entry(#-1);"}); return `#0:nested_auth_probe() ! E_PERM => "denied"';
+"denied"
+
+; #90101.admin_features = {$admin_features}; $admin_features.sudo_delegates[#90101] = player; $admin_features.sudo_allowed[#90101] = {"@changes"}; return true;
+true
+@@ api_auth_probe #90101
+; return #0.auth_probe;
+{true, #90101, #90100, #-1}
+
+; $admin_features.sudo_allowed[#90101] = {}; return true;
+true
+@@ api_auth_probe #90101
+; return #0.auth_probe;
+{false, #90101, #-1}
+
+; #0.change_manager = #0.auth_service; for name in ({"_entry", "api_auth_probe", "nested_auth_probe"}) delete_verb(#0, name); endfor delete_property(#0, "auth_probe"); delete_property(#0, "auth_service"); return true;
+true
+@quiet

@@ -1,0 +1,68 @@
+// Command UX: clear review IDs, expected errors, and automatic background results.
+@wizard
+; if (!($wizard_feature in player.features)) player.features = {@player.features, $wizard_feature}; endif return true;
+true
+
+% @changes status 52
+~~Changes: No pending review with that ID.
+~~Find active reviews: @changes packages
+
+; const overview = $string_utils:from_list($change_manager:command({}), "\n"); return {index(overview, "Check for updates") != 0, index(overview, "GENERATION") == 0};
+{true, true}
+
+; const help = $string_utils:from_list($change_manager:command({"help"}), "\n"); return {index(help, "Fetch upstream code, review the differences") != 0, index(help, "ID is the review number") != 0};
+{true, true}
+
+; $change_manager:command({"upstream", "http://127.0.0.1:1/bundle.moo"}); return true;
+true
+
+// The harness has no worker transport. Inject the daemon's missing-worker error at the call site.
+; let code = verb_code($change_manager, "_fetch"); for i in [1..length(code)] const offset = index(code[i], "worker_request("); if (offset) code[i] = code[i][1..offset - 1] + "raise(E_INVARG, \"No worker available for curl\");"; endif endfor return set_verb_code($change_manager, "_fetch", code);
+0
+
+% @changes fetch
+~~snore · Review 1
+~~Generation 1.
+~~Fetching upstream code. You’ll get a message when it finishes.
+~~@changes status 1
+
+// No status call is needed to receive the fetch failure.
+; suspend(0.2); return true;
+true
+~~snore · Review 1
+~~Generation 1.
+~~Fetch failed: No worker available for curl
+~~The server needs a curl worker. Start one, then fetch again.
+~~@changes discard 1 1
+
+% @changes status 1
+~~snore · Review 1
+~~Generation 1.
+~~Fetch failed: No worker available for curl
+~~The server needs a curl worker. Start one, then fetch again.
+~~@changes discard 1 1
+
+% @changes discard 1 1
+~~Review 1 discarded.
+
+// Native service calls keep returning structured values; terminal apply gets a completion notice.
+; load_object({"object #9500", tostr("owner: ", player), tostr("verb test (this none this) owner: ", player, " flags: \"rxd\""), "return 1;", "endverb", "endobject"}); $change_manager:configure("probe", {#9500}, []); const review = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> dump_object(#9500)]}, "adopt"); return {review["review_id"], review["status"]};
+{2, "ready"}
+
+% @changes apply 2 1
+~~probe · Review 2
+~~Generation 2.
+~~Applying your choices. You’ll get a message when it finishes.
+~~@changes status 2
+
+; suspend(0.2); return true;
+true
+~~probe · Review 2
+~~Generation 3.
+~~Changes applied.
+
+; return {#9500:test(), $change_manager:status(2)["status"]};
+{1, "complete"}
+
+@nonprogrammer
+@quiet

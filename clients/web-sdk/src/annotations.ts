@@ -34,7 +34,8 @@ export type SemanticAnnotation =
     )
     | { kind: "help"; provider: string; topic: string }
     | { kind: "verb"; receiver: string; name: string; definer?: string }
-    | { kind: "property"; object: string; name: string };
+    | { kind: "property"; object: string; name: string }
+    | { kind: "change"; provider: string; review: number; generation: number; row?: string };
 
 export interface ExitDescriptor {
     source: string;
@@ -80,6 +81,19 @@ export function decodeAnnotation(value: unknown): SemanticAnnotation | undefined
     }
     if (size > MAX_ANNOTATION_SIZE) return undefined;
     switch (value.kind) {
+        case "change":
+            return reference(value.provider)
+                    && Number.isSafeInteger(value.review) && (value.review as number) > 0
+                    && Number.isSafeInteger(value.generation) && (value.generation as number) > 0
+                    && (value.row === undefined || text(value.row))
+                ? {
+                    kind: "change",
+                    provider: value.provider,
+                    review: value.review as number,
+                    generation: value.generation as number,
+                    ...(value.row === undefined ? {} : { row: value.row as string }),
+                }
+                : undefined;
         case "object":
             return reference(value.ref)
                 ? {

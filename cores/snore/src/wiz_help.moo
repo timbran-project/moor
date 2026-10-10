@@ -56,14 +56,15 @@ object WIZ_HELP [
     "See `help blacklist' for a description of the functions of these lists."
   };
   property "@changes" (owner: HACKER, flags: "rc") = {
-    "Use @changes help to list package review commands.",
-    "The core package is already configured. Set an HTTP bundle with @changes upstream URL.",
-    "Use @changes stage for core updates. Additional application packages must have separate object bindings.",
-    "Use status ID and diff ID, then source ID GENERATION ROW live or incoming to inspect code.",
-    "Resolve ID GENERATION ROW incoming, local, edited PROGRAM, or defer; apply ID GENERATION commits the review.",
-    "Use the displayed generation after each choice. Refresh clears approvals; discard removes pending source.",
-    "After an interrupted task, query status and explicitly refresh or discard. Source and drafts remain private.",
-    "Multiline uploads and drafts use the versioned $change_manager service. Baselines store hashes without old source."
+    "Update verb programs from upstream while the MOO stays online.",
+    "1. Run @changes fetch. You’ll get a message when the source is ready.",
+    "2. Run @changes diff ID to review upstream edits, local edits, and conflicts.",
+    "3. Run @changes apply ID GENERATION after reviewing all pages and resolving conflicts.",
+    "ID is the review number. GENERATION is shown in the review and changes after each choice.",
+    "Objects and verbs missing from the fetched source are listed separately and kept.",
+    "Use @changes details ID for source information and upgrade checks.",
+    "@changes status ID checks progress after reconnecting; @changes help lists all commands.",
+    "Set the source with @changes upstream HTTP-BUNDLE-URL."
   };
   property "@chown" (owner: HACKER, flags: "rc") = {
     "Syntax:  @chown <object>            [to] <owner>",

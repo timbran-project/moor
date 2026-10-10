@@ -1,0 +1,263 @@
+.change-review-shell > .dialog-sheet {
+  top: 5vh;
+  right: 4vw;
+  bottom: 5vh;
+  left: 4vw;
+  transform: none;
+  animation: none;
+  color: var(--color-text-primary);
+  width: auto;
+  height: 90vh;
+  margin: 0 auto;
+  padding: 16px;
+  gap: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.change-review-shell .dialog-sheet-header {
+  padding-bottom: 12px;
+}
+
+.change-review-toolbar, .change-review-footer, .change-review-comparison, .change-review-resolution {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.change-review-toolbar > span, .change-review-footer > small {
+  flex: 1;
+}
+
+.change-review-toolbar, .change-review-footer {
+  flex-shrink: 0;
+}
+
+.change-review-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+}
+
+.change-review-sidebar {
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.change-review-sidebar > small {
+  color: var(--color-text-secondary);
+}
+
+.change-review-programs {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.change-review-programs > button {
+  text-align: left;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+}
+
+.change-review-programs > button > code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.change-review-programs > button > small {
+  color: var(--color-text-secondary);
+}
+
+.change-review-programs > button[aria-current="true"] {
+  border-color: var(--color-border-medium);
+  background: var(--color-bg-secondary);
+}
+
+.change-review-code {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.change-review-code > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.change-review-code h3, .change-review-code h4 {
+  margin: 0;
+}
+
+.change-review-code p {
+  margin: 0;
+}
+
+.change-review-local-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.change-review-local-items > li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.change-review-local-items code {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.change-review-local-items span {
+  color: var(--color-text-secondary);
+}
+
+.change-review-code > header > span, .change-review-comparison > small {
+  color: var(--color-text-secondary);
+}
+
+.change-review-pane-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  color: var(--color-text-secondary);
+}
+
+.change-review-diff {
+  flex: 1;
+  min-height: 160px;
+  border: 1px solid var(--color-border-medium);
+}
+
+.change-review-draft {
+  height: 230px;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.change-review-resolution {
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.change-review-resolution > span {
+  margin-right: auto;
+}
+
+.change-review-error {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-error);
+}
+
+.change-review-notice {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.change-review-confirmation {
+  padding: 12px;
+  border: 1px solid var(--color-border-medium);
+  background: var(--color-bg-secondary);
+}
+
+.change-review-confirmation p {
+  margin: 0 0 10px;
+}
+
+.change-review-confirmation button + button {
+  margin-left: 10px;
+}
+
+.change-review-footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+@media (max-width: 700px) {
+  .change-review-shell > .dialog-sheet {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding: 10px;
+  }
+  .change-review-workspace {
+    flex-direction: column;
+  }
+  .change-review-sidebar {
+    width: auto;
+    max-height: 170px;
+  }
+  .change-review-sidebar > small {
+    display: none;
+  }
+  .change-review-code {
+    min-height: 250px;
+  }
+}
+
+.change-review-shell button, .change-review-shell select {
+  font: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.change-review-shell button:not(:disabled) {
+  cursor: pointer;
+}
+
+.change-review-shell button:focus-visible, .change-review-shell select:focus-visible {
+  outline: 2px solid var(--color-text-accent);
+  outline-offset: 2px;
+}
+
+.change-review-draft > section {
+  flex: 1;
+  min-height: 0;
+}
+
+.change-review-shell code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  background: transparent;
+  padding: 0;
+}
+
+.change-review-shell[aria-busy="true"],
+.change-review-shell[aria-busy="true"] button,
+.change-review-shell[aria-busy="true"] select {
+  cursor: progress;
+}
+
+.change-review-shell[aria-busy="true"] button:disabled,
+.change-review-shell[aria-busy="true"] select:disabled {
+  cursor: progress;
+}

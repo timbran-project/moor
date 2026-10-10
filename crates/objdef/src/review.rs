@@ -622,6 +622,17 @@ pub(crate) fn analyze(
                 default,
             });
         }
+        // A program-only update cannot manage unmatched live definitions, but omitting them
+        // would make local additions disappear from the read-only comparison.
+        for definition in &definitions {
+            if !matched.contains(&definition.uuid()) {
+                diagnostics.push(record(&[
+                    ("object", v_obj(object)),
+                    ("names", names(definition.names())),
+                    ("code", v_str("live_definition_unmatched")),
+                ]));
+            }
+        }
         // Structural fields remain outside this operation's managed policy.
         if !incoming.property_definitions.is_empty() || !incoming.property_overrides.is_empty() {
             diagnostics.push(record(&[

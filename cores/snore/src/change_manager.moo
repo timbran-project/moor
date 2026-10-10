@@ -224,8 +224,13 @@ object CHANGE_MANAGER [
   method _entry owner: #2
     "Authorize the invoking administrator without treating this verb's owner as the caller.";
     caller == this && this == $change_manager || raise(E_PERM);
-    const {origin} = args;
+    let {origin} = args;
     const actor = player;
+    if (origin == #-1)
+      "Top-level authenticated verb calls have no MOO caller; nested calls retain their original authority.";
+      length(callers()) == 1 || raise(E_PERM);
+      origin = actor;
+    endif
     valid(actor) && valid(origin) || raise(E_PERM);
     const authority = actor;
     actor.wizard && origin == actor || raise(E_PERM);
@@ -452,10 +457,14 @@ object CHANGE_MANAGER [
         record = this.pending[id];
         record["status"] = "failed";
         record["task"] = 0;
-        record["error"] = typeof(failure[3]) == TYPE_MAP ? failure[3] | ["schema" -> 1, "code" -> "fetch_failed", "message" -> tostr(failure[2])];
+        record["error"] = typeof(failure[3]) == TYPE_MAP ? failure[3] | ["schema" -> 1, "code" -> "fetch_failed"];
+        record["error"]["message"] = tostr(failure[2]);
         this.pending[id] = record;
       endif
     endtry
+    if (maphaskey(this.pending, id) && this.pending[id]["generation"] == generation && this.pending[id]["status"] in {"ready", "failed"})
+      `this:_notify_review(this.pending[id]) ! ANY';
+    endif
   endmethod
 
   method status owner: #2
@@ -484,6 +493,27 @@ object CHANGE_MANAGER [
     return summary;
   endmethod
 
+  method _review_decisions owner: #2
+    "Count saved and default choices across the complete review, including pages not yet read.";
+    caller == this || raise(E_PERM);
+    const {record} = args;
+    let selected = 0;
+    let unresolved = 0;
+    let blocked = 0;
+    for row in (record["report"]["rows"])
+      const saved = `record["choices"][row["id"]] ! E_RANGE => []';
+      const kind = saved ? saved["choice"] | row["default"];
+      if (!row["eligible"])
+        blocked = blocked + (row["classification"] != "unchanged" ? 1 | 0);
+      elseif (kind == "unresolved" || kind == "edited" && !maphaskey(saved, "validation"))
+        unresolved = unresolved + 1;
+      elseif (kind in {"incoming", "local", "edited"})
+        selected = selected + 1;
+      endif
+    endfor
+    return ["selected" -> selected, "unresolved" -> unresolved, "blocked" -> blocked];
+  endmethod
+
   method review owner: #2
     "Return a bounded row page; the cursor binds review ID, generation, and offset.";
     const auth = this:_entry(caller_perms());
@@ -498,6 +528,7 @@ object CHANGE_MANAGER [
     endif
     typeof(offset) == TYPE_INT && offset >= 1 || raise(E_INVARG);
     const rows = record["report"]["rows"];
+    const names = this:_command_names();
     let page = {};
     let next_offset = offset;
     for i in [offset..length(rows)]
@@ -507,6 +538,7 @@ object CHANGE_MANAGER [
         continue;
       endif
       const choice = `record["choices"][row["id"]] ! E_RANGE => []';
+      row["label"] = this:_command_label(row["object"], names, row["names"][1]);
       row["choice"] = choice ? ["choice" -> choice["choice"], "validated" -> maphaskey(choice, "validation")] | [];
       if (value_bytes(page) + value_bytes(row) > 262144)
         length(page) > 0 || raise(E_QUOTA, "Row exceeds the page limit.");
@@ -519,19 +551,30 @@ object CHANGE_MANAGER [
       endif
     endfor
     const next_cursor = next_offset <= length(rows) ? {id, generation, next_offset} | {};
-    return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "total" -> length(rows), "rows" -> page, "cursor" -> next_cursor, "counts" -> record["report"]["counts"], "diagnostic_count" -> length(record["report"]["diagnostics"]), "diagnostics" -> record["report"]["diagnostics"][1..min(50, length(record["report"]["diagnostics"]))], "provenance" -> record["provenance"]];
+    return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "total" -> length(rows), "rows" -> page, "cursor" -> next_cursor, "counts" -> record["report"]["counts"], "decision_counts" -> this:_review_decisions(record), "operation" -> record["request"]["operation"], "diagnostic_count" -> length(record["report"]["diagnostics"]), "diagnostics" -> record["report"]["diagnostics"][1..min(50, length(record["report"]["diagnostics"]))], "provenance" -> record["provenance"]];
   endmethod
 
   method diagnostics owner: #2
     "Return a bounded diagnostic page bound to the saved review generation.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
-    const {id, generation, ?offset = 1} = args;
+    const {id, generation, ?offset = 1, ?codes = {}} = args;
     const record = this:_get(auth, id, generation);
     record["status"] in {"ready", "partial", "rejected"} || this:_error("not_ready", "Review is not ready.");
-    typeof(offset) == TYPE_INT && offset >= 1 || raise(E_INVARG);
-    const all = record["report"]["diagnostics"];
-    const page = all[offset..min(offset + 49, length(all))];
+    typeof(offset) == TYPE_INT && offset >= 1 && typeof(codes) == TYPE_LIST || raise(E_INVARG);
+    for code in (codes)
+      typeof(code) == TYPE_STR || raise(E_INVARG);
+    endfor
+    const all = {item for item in (record["report"]["diagnostics"]) if (!codes || item["code"] in codes)};
+    const names = this:_command_names();
+    let page = {};
+    for diagnostic in (all[offset..min(offset + 49, length(all))])
+      if (maphaskey(diagnostic, "object"))
+        const verb_name = diagnostic["code"] == "live_definition_unmatched" ? diagnostic["names"][1] | "";
+        diagnostic["label"] = this:_command_label(diagnostic["object"], names, verb_name);
+      endif
+      page = {@page, diagnostic};
+    endfor
     value_bytes(page) <= 262144 || raise(E_QUOTA, "Diagnostic page exceeds the service limit.");
     return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "total" -> length(all), "diagnostics" -> page, "next" -> offset + length(page) <= length(all) ? offset + length(page) | 0];
   endmethod
@@ -549,6 +592,7 @@ object CHANGE_MANAGER [
     for selected in (current["rows"])
       let row = selected;
       if (row["id"] == row_id)
+        row["label"] = this:_command_label(row["object"], this:_command_names(), row["names"][1]);
         row["choice"] = `record["choices"][row_id] ! E_RANGE => []';
         value_bytes(row) <= 524288 || raise(E_QUOTA, "Selected details exceed the service limit.");
         return ["schema" -> 1, "review_id" -> id, "generation" -> generation, "row" -> row];
@@ -684,6 +728,7 @@ object CHANGE_MANAGER [
       record["error"] = ["schema" -> 1, "code" -> "apply_rejected", "message" -> tostr(failure[2])];
       this.pending[id] = record;
     endtry
+    `this:_notify_review(record) ! ANY';
   endmethod
 
   method discard owner: #2
@@ -698,28 +743,327 @@ object CHANGE_MANAGER [
     return ["schema" -> 1, "review_id" -> id, "status" -> "discarded"];
   endmethod
 
+  method _notify_review owner: #2
+    "Deliver a terminal review result after the result task commits; output failure cannot undo it.";
+    caller == this && this == $change_manager || raise(E_PERM);
+    const {record} = args;
+    `record["notify"] ! E_RANGE => false' || return;
+    const parent_task = task_id();
+    fork delivery_task (0)
+      let ended = false;
+      for attempt in [1..1000]
+        if (!valid_task(parent_task))
+          ended = true;
+          break;
+        endif
+        suspend(0.01);
+      endfor
+      ended || return;
+      try
+        const id = record["id"];
+        const current = `this.pending[id] ! E_RANGE => `this.receipts[id] ! E_RANGE => []'';
+        current && current["generation"] == record["generation"] && current["status"] == record["status"] || return;
+        this:_authorized(record["actor"], record["authority"]);
+        set_task_perms(record["authority"]);
+        const lines = this:_command_status(this:_summary(record));
+        record["actor"]:tell_lines(lines);
+      except (ANY)
+        "Notification is optional; the committed result remains available through status.";
+      endtry
+    endfork
+  endmethod
+
+  method _command_names owner: #2
+    "Prefer system object references in command output.";
+    caller == this || raise(E_PERM);
+    let names = [];
+    for name in (properties(#0))
+      const object = `#0.(name) ! E_PERM, E_PROPNF => false';
+      if (typeof(object) == TYPE_OBJ && !maphaskey(names, object))
+        names[object] = tostr("$", name);
+      endif
+    endfor
+    return names;
+  endmethod
+
+  method _command_label owner: #2
+    "Label an object or verb using its system reference when available.";
+    caller == this || raise(E_PERM);
+    const {object, names, ?verb_name = ""} = args;
+    let label = `names[object] ! E_RANGE => tostr(object)';
+    if (verb_name)
+      label = tostr(label, ":", verb_name);
+      return label;
+    endif
+    if (!maphaskey(names, object))
+      const name = `tostr(object.name) ! ANY => ""';
+      name && (label = tostr(label, " (", name[1..min(length(name), 80)], ")"));
+    endif
+    return label;
+  endmethod
+
+
+  method _command_item owner: #2
+    caller == this || raise(E_PERM);
+    return this:_command_label(@args);
+  endmethod
+  method _command_table owner: #2
+    "Render a small review table for text clients.";
+    caller == this || raise(E_PERM);
+    const {headers, rows} = args;
+    let lines = {$string_utils:from_list(headers, " | ")};
+    for row in (rows)
+      lines = {@lines, $string_utils:from_list({tostr(cell) for cell in (row)}, " | ")};
+    endfor
+    return $string_utils:from_list(lines, "\n");
+  endmethod
+
+  method _command_overview owner: #2
+    caller == this || raise(E_PERM);
+    const package = this.packages[this.default_package];
+    if (package["active"])
+      return this:_command_status(this:status(package["active"]));
+    endif
+    return {tostr(this.default_package, " changes"), "Check upstream for updates, compare the code, then choose what to apply.", "Check for updates: @changes fetch", "Command reference: @changes help"};
+  endmethod
+
+  method _command_status owner: #2
+    "Show progress and the next useful action.";
+    caller == this || raise(E_PERM);
+    const {summary} = args;
+    const id = summary["review_id"];
+    const generation = summary["generation"];
+    const status = summary["status"];
+    let output = {tostr(summary["package"], " · Review ", id), tostr("Generation ", generation, ".")};
+    if (status == "fetching")
+      return {@output, "Fetching upstream code. You’ll get a message when it finishes.", tostr("@changes status ", id)};
+    elseif (status == "ready")
+      return {@output, "Upstream fetched. Ready to review.", tostr("@changes diff ", id)};
+    elseif (status == "applying")
+      return {@output, "Applying your choices. You’ll get a message when it finishes.", tostr("@changes status ", id)};
+    elseif (status == "complete")
+      return {@output, "Changes applied."};
+    elseif (status == "partial")
+      return {@output, "Changes applied. Some were skipped.", tostr("@changes diff ", id)};
+    endif
+    const error = summary["error"];
+    const message = `error["message"] ! E_RANGE => `error["code"] ! E_RANGE => "No error details available."'';
+    output = {@output, tostr(status == "failed" ? "Fetch failed: " | "Update stopped: ", message)};
+    if (index(message, "No worker available for git"))
+      output = {@output, "The server needs a Git worker. Start one, then fetch again."};
+    elseif (index(message, "No worker available for curl"))
+      output = {@output, "The server needs a curl worker. Start one, then fetch again."};
+    endif
+    if (status == "failed")
+      return {@output, $string_utils:from_list({tostr("@changes discard ", id, " ", generation)}, "\n")};
+    endif
+    return {@output, $string_utils:from_list({tostr("@changes refresh ", id, " ", generation), tostr("@changes discard ", id, " ", generation)}, "\n")};
+  endmethod
+
+  method _command_diff owner: #2
+    "Show program choices and local items absent from the fetched source.";
+    caller == this || raise(E_PERM);
+    const {record, offset} = args;
+    typeof(offset) == TYPE_INT && offset >= 1 || raise(E_INVARG, "Page offset must be a positive number.");
+    const id = record["id"];
+    const generation = record["generation"];
+    const rows = record["report"]["rows"];
+    const counts = record["report"]["counts"];
+    const names = this:_command_names();
+    let output = {tostr(record["package"], " · Review ", id), tostr("Generation ", generation, ".")};
+    const labels = ["upstream" -> {"upstream update", "upstream updates"}, "local" -> {"local edit", "local edits"}, "conflict" -> {"conflict", "conflicts"}, "converged" -> {"program already matches upstream", "programs already match upstream"}, "unbased" -> {"program without a baseline", "programs without a baseline"}];
+    let summary = "";
+    for classification in ({"upstream", "local", "conflict", "converged", "unbased"})
+      const count = `counts[classification] ! E_RANGE => 0';
+      if (count)
+        summary = tostr(summary, summary ? "; " | "", count, " ", labels[classification][count == 1 ? 1 | 2]);
+      endif
+    endfor
+    const unchanged = `counts["unchanged"] ! E_RANGE => 0';
+    summary = tostr(summary, summary ? ". " | "", unchanged, " unchanged.");
+    output = {@output, summary};
+    let change_rows = {};
+    let next_offset = 0;
+    const choice_counts = this:_review_decisions(record);
+    const selected = choice_counts["selected"];
+    const unresolved = choice_counts["unresolved"];
+    const descriptions = ["upstream" -> "Upstream edit", "local" -> "Local edit", "conflict" -> "Conflict", "converged" -> "Already matches", "unbased" -> "No baseline", "unchanged" -> "Unchanged"];
+    const decisions = ["incoming" -> "Use upstream", "local" -> "Keep local", "edited" -> "Use edited program", "defer" -> "Skip", "unresolved" -> "Choose"];
+    const reasons = ["adoption_required" -> "Adopt a baseline first", "untrusted_target_authority" -> "Ownership or permissions block upgrades", "object_identity_mismatch" -> "Object identity doesn’t match"];
+    for i in [1..length(rows)]
+      const row = rows[i];
+      const choice = `record["choices"][row["id"]] ! E_RANGE => []';
+      const kind = choice ? choice["choice"] | row["default"];
+      if (row["classification"] == "unchanged" && kind == "defer" && !choice)
+        continue;
+      endif
+      const invalid = kind == "edited" && !maphaskey(choice, "validation");
+      if (i < offset || next_offset)
+        continue;
+      endif
+      if (length(change_rows) == 20)
+        next_offset = i;
+        continue;
+      endif
+      let decision = decisions[kind];
+      if (!row["eligible"])
+        decision = $string_utils:from_list({`reasons[reason] ! E_RANGE => reason' for reason in (row["blockers"])}, "; ");
+      elseif (invalid)
+        decision = "Edited program has errors";
+      elseif (kind == "incoming" && (record["request"]["operation"] == "adopt" || row["classification"] in {"unchanged", "converged"}))
+        decision = "Record baseline";
+      elseif (kind == "defer" && row["classification"] in {"local", "unchanged"})
+        decision = "Keep local";
+      endif
+      const live_command = tostr("@changes source ", id, " ", generation, " ", i, " live");
+      const incoming_command = tostr("@changes source ", id, " ", generation, " ", i, " incoming");
+      let inspection = tostr(live_command, " / ", incoming_command);
+      if (row["eligible"] && (kind == "unresolved" || invalid || kind == "defer" && row["classification"] in {"upstream", "conflict", "unbased"}))
+        decision = tostr(decision, "; choose with @changes resolve ", id, " ", generation, " ", i, " incoming|local|defer");
+      endif
+      const displayed = {i, this:_command_item(row["object"], names, row["names"][1]), descriptions[row["classification"]], decision, inspection};
+      value_bytes(change_rows) + value_bytes(displayed) <= 60000 || raise(E_QUOTA, "Review page is too large.");
+      change_rows = {@change_rows, displayed};
+    endfor
+    if (change_rows)
+      output = {@output, this:_command_table({"Row", "Verb", "Change", "On apply", "Read program"}, change_rows)};
+    else
+      output = {@output, offset == 1 ? "No program updates to apply." | "No more program changes on this page."};
+    endif
+    let local_rows = {};
+    let local_total = 0;
+    for diagnostic in (record["report"]["diagnostics"])
+      if (!(diagnostic["code"] in {"missing_source", "live_definition_unmatched"}))
+        continue;
+      endif
+      local_total = local_total + 1;
+      if (length(local_rows) < 20)
+        const object = diagnostic["object"];
+        const verb_name = diagnostic["code"] == "live_definition_unmatched" ? diagnostic["names"][1] | "";
+        local_rows = {@local_rows, {this:_command_item(object, names, verb_name), verb_name ? "Verb" | "Object"}};
+      endif
+    endfor
+    if (local_rows)
+      output = {@output, "Not in fetched source", "These local objects and verbs have no matching upstream definition. They’ll be kept.", this:_command_table({"Local item", "Kind"}, local_rows)};
+      if (local_total > length(local_rows))
+        output = {@output, tostr("Showing ", length(local_rows), " of ", local_total, ". See review details for the full list.")};
+      endif
+    endif
+    let commands = {};
+    if (next_offset)
+      commands = {@commands, tostr("@changes diff ", id, " ", next_offset)};
+    endif
+    if (unresolved)
+      output = {@output, tostr(unresolved, unresolved == 1 ? " program needs a choice before applying." | " programs need choices before applying.")};
+    elseif (selected)
+      commands = {@commands, tostr("@changes apply ", id, " ", generation)};
+    endif
+    commands = {@commands, tostr("@changes details ", id), tostr("@changes discard ", id, " ", generation)};
+    output = {@output, $string_utils:from_list(commands, "\n")};
+    return output;
+  endmethod
+
+  method _command_details owner: #2
+    "Keep source provenance and checks out of the main review.";
+    caller == this || raise(E_PERM);
+    const {record, offset} = args;
+    typeof(offset) == TYPE_INT && offset >= 1 || raise(E_INVARG, "Page offset must be a positive number.");
+    const id = record["id"];
+    const names = this:_command_names();
+    let output = {tostr(record["package"], " · Review ", id, " details"), tostr("Generation ", record["generation"], ".")};
+    const provenance = record["provenance"];
+    let source = {};
+    for field in ({"repository", "revision", "commit", "path", "url", "etag", "digest"})
+      if (maphaskey(provenance, field))
+        let value = provenance[field];
+        if (field == "revision" && typeof(value) == TYPE_MAP)
+          value = `value["ref"] ! E_RANGE => value["commit"]';
+        endif
+        source = {@source, {field, tostr(value)}};
+      endif
+    endfor
+    if (source)
+      output = {@output, "Source", this:_command_table({"Field", "Value"}, source)};
+    endif
+    let checks = {};
+    const reasons = ["adoption_required" -> "Adopt a baseline first", "untrusted_target_authority" -> "Ownership or permissions block upgrades", "object_identity_mismatch" -> "Object identity doesn’t match"];
+    for row in (record["report"]["rows"])
+      if (!row["eligible"])
+        const explanation = $string_utils:from_list({`reasons[reason] ! E_RANGE => reason' for reason in (row["blockers"])}, "; ");
+        checks = {@checks, {this:_command_item(row["object"], names, row["names"][1]), tostr(explanation, row["classification"] == "unchanged" ? " (program unchanged)" | "")}};
+      endif
+    endfor
+    let property_objects = 0;
+    const diagnostic_labels = ["missing_source" -> "No upstream object definition", "live_definition_unmatched" -> "No matching upstream verb definition", "unsupported_creation" -> "New upstream object; creation isn’t supported", "unsupported_or_ambiguous_definition" -> "Upstream verb can’t be matched; definition changes aren’t supported", "definition_fields_unmanaged" -> "Owner/flags differ, or upstream includes verb metadata"];
+    for diagnostic in (record["report"]["diagnostics"])
+      if (diagnostic["code"] == "property_fields_unmanaged")
+        property_objects = property_objects + 1;
+        continue;
+      endif
+      const verb_name = maphaskey(diagnostic, "names") ? diagnostic["names"][1] | "";
+      checks = {@checks, {this:_command_item(diagnostic["object"], names, verb_name), `diagnostic_labels[diagnostic["code"]] ! E_RANGE => diagnostic["code"]'}};
+    endfor
+    if (offset <= length(checks))
+      const page = checks[offset..min(offset + 19, length(checks))];
+      if (page)
+        output = {@output, "Checks", this:_command_table({"Item", "Check"}, page)};
+      endif
+      if (offset + length(page) <= length(checks))
+        output = {@output, $string_utils:from_list({tostr("@changes details ", id, " ", offset + length(page))}, "\n")};
+      endif
+    endif
+    output = {@output, "Properties and object attributes aren’t compared or updated."};
+    if (property_objects)
+      output = {@output, tostr("The source contains property declarations on ", property_objects, " objects; this isn’t a count of property changes.")};
+    endif
+    return {@output, $string_utils:from_list({tostr("@changes diff ", id)}, "\n")};
+  endmethod
+
+  method _command_help owner: #2
+    "Explain the update workflow before listing less common commands.";
+    caller == this || raise(E_PERM);
+    return {"Changes", "Fetch upstream code, review the differences, then apply your choices.", tostr("Default package: ", this.default_package, ". Fetch and apply results arrive automatically."), this:_command_table({"Command", "What it does"}, {{"@changes fetch", "Fetch the default package and create a review."}, {"@changes diff ID [OFFSET]", "Review program changes and local additions."}, {"@changes apply ID GENERATION", "Apply your choices."}, {"@changes status ID", "Check progress after reconnecting."}, {"@changes details ID [OFFSET]", "See the fetched source and upgrade checks."}}), "Review choices", "ID is the review number. GENERATION is shown in the review; use the new value after each choice. ROW is the number beside a verb.", this:_command_table({"Command", "What it does"}, {{"@changes source ID GENERATION ROW live|incoming [OFFSET]", "Read a program."}, {"@changes resolve ID GENERATION ROW incoming|local|defer", "Use upstream, keep local, or skip."}, {"@changes resolve ID GENERATION ROW edited PROGRAM", "Use an edited program."}, {"@changes refresh ID GENERATION", "Compare the saved source again; clears choices."}, {"@changes discard ID GENERATION", "Remove the review."}}), "Package setup", this:_command_table({"Command", "What it does"}, {{"@changes packages", "List packages and active reviews."}, {"@changes fetch [NAME]", "Fetch another package."}, {"@changes package NAME #OBJECT ...", "Register package objects."}, {"@changes upstream [NAME] HTTP-BUNDLE-URL", "Set an HTTP bundle source."}, {"@changes adopt [NAME]", "Review and record an upstream baseline without changing live programs."}})};
+  endmethod
+
+  method _command_row owner: #2
+    "Translate a displayed row number without changing the service's stable row IDs.";
+    caller == this || raise(E_PERM);
+    const {auth, id, generation, selector} = args;
+    if (tostr(toint(selector)) != selector)
+      return selector;
+    endif
+    const record = this:_get(auth, id, generation);
+    const number = toint(selector);
+    number >= 1 && number <= length(record["report"]["rows"]) || this:_error("missing_row", "No such review row number. Check @changes diff.");
+    return record["report"]["rows"][number]["id"];
+  endmethod
+
   method command owner: #2
     "Terminal wrapper for the versioned review service; writes require a displayed generation.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
     let {words} = args;
-    const usage = {"@changes packages", "@changes package NAME #OBJECT ...", "@changes upstream [NAME] HTTP-BUNDLE-URL", "@changes stage [NAME] | adopt [NAME]", "@changes status ID", "@changes diff ID [OFFSET]", "@changes source ID GENERATION ROW live|incoming [OFFSET]", "@changes resolve ID GENERATION ROW incoming|local|defer", "@changes resolve ID GENERATION ROW edited PROGRAM", "@changes apply ID GENERATION | refresh ID GENERATION | discard ID GENERATION", "Uploads: $change_manager:stage(NAME, {[\"label\" -> \"file.moo\", \"text\" -> LINES]})."};
-    if (!words || words[1] == "help")
-      return usage;
+    if (!words)
+      return this:_command_overview();
+    elseif (words[1] == "help")
+      return this:_command_help();
     endif
     const action = words[1];
-    if (action in {"stage", "adopt"} && length(words) == 1)
+    if (action in {"fetch", "stage", "adopt"} && length(words) == 1)
       words = {@words, this.default_package};
     elseif (action == "upstream" && length(words) == 2)
       words = {action, this.default_package, words[2]};
     endif
     if (action == "packages")
-      let output = {"Change packages:"};
+      let rows = {};
       for name in (mapkeys(this.packages))
         const package = this.packages[name];
-        output = {@output, tostr(name, " generation=", package["generation"], " objects=", length(package["objects"]), " active=", package["active"], " upstream=", package["upstream"])};
+        const upstream = package["upstream"];
+        const source = typeof(upstream) == TYPE_STR ? (upstream ? upstream | "Not configured") | tostr(upstream["repository"], " · ", `upstream["revision"]["ref"] ! E_RANGE => upstream["revision"]["commit"]');
+        const review = package["active"] ? tostr("@changes diff ", package["active"]) | "None";
+        rows = {@rows, {name, length(package["objects"]), source, review}};
       endfor
-      return output;
+      return {"Change packages", this:_command_table({"Package", "Objects", "Upstream", "Review"}, rows)};
     endif
     if (action == "package" && length(words) >= 3)
       let objects = {};
@@ -743,60 +1087,77 @@ object CHANGE_MANAGER [
       this:upstream(words[2], words[3], package["generation"]);
       return {"HTTP upstream configured."};
     endif
-    if (action in {"stage", "adopt"} && length(words) == 2)
+    if (action in {"fetch", "stage", "adopt"} && length(words) == 2)
       const result = this:stage(words[2], {}, action == "adopt" ? "adopt" | "update");
-      return {toliteral(result)};
+      this.pending[result["review_id"]]["notify"] = true;
+      return this:_command_status(result);
     endif
     if (length(words) < 2)
-      return usage;
+      return this:_command_help();
     endif
     const id = toint(words[2]);
     if (action == "status")
-      return {toliteral(this:status(id))};
+      return this:_command_status(this:status(id));
     endif
-    if (action == "diff")
+    if (action in {"diff", "details"})
+      length(words) in {2, 3} || raise(E_INVARG, "Use @changes diff ID [OFFSET] or @changes details ID [OFFSET].");
       const status = this:status(id);
-      const offset = length(words) == 3 ? toint(words[3]) | 1;
-      const page = this:review(id, status["generation"], {id, status["generation"], offset});
-      let output = {tostr("Review ", id, " generation ", status["generation"], " (", page["total"], " rows)")};
-      for row in (page["rows"])
-        output = {@output, tostr(row["id"], " ", row["classification"], " eligible=", row["eligible"], " default=", row["default"], " choice=", toliteral(row["choice"]), " blockers=", toliteral(row["blockers"]))};
-      endfor
-      if (page["cursor"])
-        output = {@output, tostr("Next: @changes diff ", id, " ", page["cursor"][3])};
+      if (!(status["status"] in {"ready", "partial", "rejected"}))
+        return this:_command_status(status);
       endif
-      return output;
+      const offset = length(words) == 3 ? toint(words[3]) | 1;
+      const record = this:_get(auth, id, status["generation"]);
+      return action == "diff" ? this:_command_diff(record, offset) | this:_command_details(record, offset);
     endif
     if (length(words) < 3)
-      return usage;
+      return this:_command_help();
     endif
     const generation = toint(words[3]);
     if (action == "source" && length(words) in {5, 6})
-      const detail = this:details(id, generation, words[4]);
+      const detail = this:details(id, generation, this:_command_row(auth, id, generation, words[4]));
       words[5] in {"live", "incoming"} || raise(E_INVARG);
       const lines = explode(detail["row"][tostr(words[5], "_text")], "\n", true);
       const offset = length(words) == 6 ? toint(words[6]) | 1;
       offset >= 1 && offset <= length(lines) || raise(E_INVARG);
-      let output = {tostr(words[5], " decompiled program; base text unavailable")};
+      let code = {};
       for i in [offset..min(offset + 49, length(lines))]
-        value_bytes(output) + value_bytes(lines[i]) <= 65536 || raise(E_QUOTA, "Source page exceeds the terminal limit. Use the details API.");
-        output = {@output, tostr(i, ": ", lines[i])};
+        value_bytes(code) + value_bytes(lines[i]) <= 60000 || raise(E_QUOTA, "Source page is too large.");
+        code = {@code, tostr(i, ": ", lines[i])};
       endfor
-      return output;
+      const names = this:_command_names();
+      let output = {tostr(words[5] == "live" ? "Local program" | "Upstream program"), this:_command_item(detail["row"]["object"], names, detail["row"]["names"][1]), $string_utils:from_list(code, "\n")};
+      if (offset + 50 <= length(lines))
+        output = {@output, $string_utils:from_list({tostr("@changes source ", id, " ", generation, " ", words[4], " ", words[5], " ", offset + 50)}, "\n")};
+      endif
+      return {@output, $string_utils:from_list({tostr("@changes diff ", id)}, "\n")};
     endif
     if (action == "apply" && length(words) == 3)
-      return {toliteral(this:apply(id, generation))};
+      const result = this:apply(id, generation);
+      if (maphaskey(this.pending, id))
+        this.pending[id]["notify"] = true;
+      endif
+      return this:_command_status(result);
     elseif (action == "refresh" && length(words) == 3)
-      return {toliteral(this:refresh(id, generation))};
+      return this:_command_status(this:refresh(id, generation));
     elseif (action == "discard" && length(words) == 3)
-      return {toliteral(this:discard(id, generation))};
+      this:discard(id, generation);
+      return {tostr("Review ", id, " discarded. Fetch again when you want a new review.")};
     elseif (action == "resolve" && length(words) >= 5)
       let program = "";
       for i in [6..length(words)]
         program = tostr(program, i == 6 ? "" | " ", words[i]);
       endfor
-      return {toliteral(this:resolve(id, generation, words[4], words[5], program))};
+      const row_id = this:_command_row(auth, id, generation, words[4]);
+      const result = this:resolve(id, generation, row_id, words[5], program);
+      const labels = ["incoming" -> "Use upstream", "local" -> "Keep local", "defer" -> "Skip", "edited" -> "Use edited program"];
+      let output = {tostr("Review ", id, " · Generation ", result["generation"]), tostr(labels[words[5]], " saved for row ", words[4], ".")};
+      for validation in (result["validation"])
+        if (validation["id"] == row_id && !validation["valid"])
+          output = {@output, tostr("Program error at line ", validation["line"], ": ", validation["message"])};
+        endif
+      endfor
+      return {@output, $string_utils:from_list({tostr("@changes diff ", id)}, "\n")};
     endif
-    return usage;
+    return this:_command_help();
   endmethod
 endobject

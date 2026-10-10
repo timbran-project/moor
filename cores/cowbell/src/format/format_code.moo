@@ -26,12 +26,31 @@ object FORMAT_CODE [
     endif
   endmethod
 
+  method inline owner: HACKER
+    "Render a short command or reference as inline code.";
+    const {text} = args;
+    typeof(text) == TYPE_STR || raise(E_TYPE);
+    return <this, .inline = true, {text}>;
+  endmethod
+
   method compose owner: HACKER
     {render_for, content_type, event} = args;
     contents = flycontents(this);
     code_content = contents[1];
     if (typeof(code_content) == TYPE_LIST)
       code_content = code_content:join("\n");
+    endif
+    if (`this.inline ! E_PROPNF => false')
+      if (content_type == 'text_html)
+        return <$html, {"code", {}, {code_content}}>;
+      elseif (content_type == 'text_djot)
+        let fence = "`";
+        while (index(code_content, fence))
+          fence = fence + "`";
+        endwhile
+        return length(code_content) ? fence + (code_content[1] == "`" ? " " | "") + code_content + (code_content[$] == "`" ? " " | "") + fence | "";
+      endif
+      return code_content;
     endif
     language = `tostr(this.language) ! E_PROPNF => ""';
     if (content_type == 'text_djot)

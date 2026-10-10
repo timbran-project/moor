@@ -106,6 +106,60 @@ fn stamp(world: &mut dyn WorldState) {
 }
 
 #[test]
+fn unmatched_live_verbs_are_reported_and_preserved_by_apply() {
+    let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = db.loader_client().unwrap();
+    let local = SOURCE.replace(
+        "endobject",
+        "verb local_only (this none this) owner: #1 flags: \"rxd\"\nreturn 42;\nendverb\nendobject",
+    );
+    ObjectDefinitionLoader::new(loader.as_mut())
+        .load_single_object(&local, Default::default(), Default::default())
+        .unwrap();
+    loader.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    stamp(world.as_mut());
+    let report = inspect(world.as_ref(), SOURCE, "update", None);
+    assert_eq!(get(&report, "rows").as_list().unwrap().len(), 1);
+    assert_eq!(get(&row(&report), "classification"), v_str("unchanged"));
+    let diagnostic = get(&report, "diagnostics")
+        .as_list()
+        .unwrap()
+        .iter()
+        .find(|d| get(d, "code") == v_str("live_definition_unmatched"))
+        .unwrap();
+    assert_eq!(get(&diagnostic, "object"), v_obj(ROOT));
+    assert_eq!(get(&diagnostic, "names"), v_list(&[v_str("local_only")]));
+    let definition = world
+        .get_verb(&permissions(), &ROOT, Symbol::mk("local_only"))
+        .unwrap();
+    let original = world
+        .retrieve_verb(&permissions(), &ROOT, definition.uuid())
+        .unwrap()
+        .0;
+    let incoming = SOURCE.replace("Base", "Upstream");
+    let report = inspect(world.as_ref(), &incoming, "update", None);
+    apply_report(world.as_mut(), &incoming, "update", &report, &v_map(&[])).unwrap();
+    assert_eq!(
+        world
+            .get_verb(&permissions(), &ROOT, Symbol::mk("local_only"))
+            .unwrap()
+            .uuid(),
+        definition.uuid()
+    );
+    assert_eq!(
+        program_fingerprint(
+            &world
+                .retrieve_verb(&permissions(), &ROOT, definition.uuid())
+                .unwrap()
+                .0
+        )
+        .unwrap(),
+        program_fingerprint(&original).unwrap()
+    );
+}
+
+#[test]
 fn all_content_classifications() {
     for (b, l, i, want) in [
         (Some("a"), "a", "a", "unchanged"),

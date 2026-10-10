@@ -16,6 +16,7 @@ import { ObjId } from "@moor/schema/generated/moor-common/obj-id";
 import { ObjUnion } from "@moor/schema/generated/moor-common/obj-union";
 import { UuObjId } from "@moor/schema/generated/moor-common/uu-obj-id";
 import { Var as FbVar } from "@moor/schema/generated/moor-var/var";
+import { VarInt } from "@moor/schema/generated/moor-var/var-int";
 import { VarList } from "@moor/schema/generated/moor-var/var-list";
 import { VarMap } from "@moor/schema/generated/moor-var/var-map";
 import { VarMapPair } from "@moor/schema/generated/moor-var/var-map-pair";
@@ -52,13 +53,17 @@ export function buildObjRefList(curies: string[]): Uint8Array {
     return builder.asUint8Array();
 }
 
-/** Structured string/list/map arguments; object references remain explicit strings. */
-export type StructuredArgument = string | StructuredArgument[] | { [key: string]: StructuredArgument };
+/** Structured integer/string/list/map arguments; object references remain explicit strings. */
+export type StructuredArgument = string | number | StructuredArgument[] | { [key: string]: StructuredArgument };
 
 export function buildStructuredArgs(values: StructuredArgument[]): Uint8Array {
     const builder = new flatbuffers.Builder(1024);
     const encode = (value: StructuredArgument, depth = 0): number => {
         if (depth > 16) throw new Error("Argument nesting is too deep");
+        if (typeof value === "number") {
+            if (!Number.isSafeInteger(value)) throw new Error("Integer argument is outside the safe range");
+            return FbVar.createVar(builder, VarUnion.VarInt, VarInt.createVarInt(builder, BigInt(value)));
+        }
         if (typeof value === "string") {
             return FbVar.createVar(builder, VarUnion.VarStr, VarStr.createVarStr(builder, builder.createString(value)));
         }
