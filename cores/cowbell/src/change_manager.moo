@@ -1023,6 +1023,7 @@ object CHANGE_MANAGER [
 
 
   method _command_item owner: ARCH_WIZARD
+    "Label an object or verb and attach its inspection action when the object exists.";
     caller == this || raise(E_PERM);
     const {object, names, ?verb_name = ""} = args;
     const label = this:_command_label(@args);
@@ -1050,6 +1051,7 @@ object CHANGE_MANAGER [
   endmethod
 
   method _command_overview owner: ARCH_WIZARD
+    "Show the default package's active review or fetch action, with command and help links.";
     caller == this || raise(E_PERM);
     const package = this.packages[this.default_package];
     let output = {$format.title:mk(tostr(this.default_package, " changes"), 3)};

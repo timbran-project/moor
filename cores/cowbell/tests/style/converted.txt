@@ -199,7 +199,7 @@ format/format.moo:result
 format/format.moo:merge_annotations
 format/format.moo:compose_parts
 format/format_annotation.moo:mk
-format/format_annotation.moo:escape_djot
+format/format_text.moo:escape_djot
 world/room.moo:exit_annotation
 
 root.moo:help_topic

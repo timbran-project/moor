@@ -15,6 +15,7 @@ object FORMAT_TEXT [
   endmethod
 
   method compose owner: HACKER
+    "Escape literal text for Djot; return raw text for plain output or the HTML renderer.";
     const {render_for, content_type, event} = args;
     const {text} = flycontents(this);
     return content_type == 'text_djot ? this:escape_djot(text) | text;
