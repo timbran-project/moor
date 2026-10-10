@@ -1413,6 +1413,7 @@ impl<'a> LiteralParser<'a> {
         let flags = self.parse_verb_flags_value()?;
         let metadata = self.parse_optional_metadata_map()?;
 
+        let (_, source_column) = self.line_col(self.pos);
         let (statements_text, verb_start_line) = self.parse_verb_body_until_endverb()?;
         let program = compile(statements_text.as_str(), compile_options.clone()).map_err(|e| {
             ObjDefParseError::VerbCompileError(
@@ -1422,6 +1423,11 @@ impl<'a> LiteralParser<'a> {
         })?;
 
         Ok(ObjVerbDef {
+            source: Some(crate::objdef::ObjVerbSource {
+                text: statements_text,
+                line: verb_start_line,
+                column: source_column,
+            }),
             names,
             argspec: VerbArgsSpec { dobj, prep, iobj },
             owner,
@@ -1468,6 +1474,7 @@ impl<'a> LiteralParser<'a> {
         };
         let metadata = self.parse_optional_metadata_map()?;
 
+        let (_, source_column) = self.line_col(self.pos);
         let (statements_text, verb_start_line) =
             self.parse_verb_body_until_end_keyword("endmethod", "missing endmethod")?;
         let program = compile(statements_text.as_str(), compile_options.clone()).map_err(|e| {
@@ -1478,6 +1485,11 @@ impl<'a> LiteralParser<'a> {
         })?;
 
         Ok(ObjVerbDef {
+            source: Some(crate::objdef::ObjVerbSource {
+                text: statements_text,
+                line: verb_start_line,
+                column: source_column,
+            }),
             names,
             argspec: VerbArgsSpec::this_none_this(),
             owner,

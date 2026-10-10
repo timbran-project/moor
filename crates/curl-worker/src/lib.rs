@@ -276,16 +276,56 @@ async fn perform_http_request(
     arguments: Vec<Var>,
     timeout: Option<std::time::Duration>,
 ) -> Result<Var, WorkerError> {
-    if arguments.len() < 2 {
+    if !(2..=5).contains(&arguments.len()) {
         return Err(WorkerError::RequestError(
-            "At least two arguments are required".to_string(),
+            "Expected 2 to 5 HTTP arguments".into(),
         ));
     }
-
-    let mut builder = http_client_builder();
-    if let Some(timeout) = timeout {
-        builder = builder.timeout(timeout);
+    let mut max_bytes = 16 * 1024 * 1024usize;
+    let mut strict_utf8 = false;
+    let mut include_url = false;
+    if let Some(options) = arguments.get(4) {
+        let options = options
+            .as_map()
+            .ok_or_else(|| WorkerError::RequestError("HTTP options must be a map".into()))?;
+        let mut seen = std::collections::HashSet::new();
+        for (key, value) in options.iter() {
+            let key = key
+                .as_symbol()
+                .map_err(|_| {
+                    WorkerError::RequestError("HTTP option keys must be strings or symbols".into())
+                })?
+                .to_folded_case();
+            if !seen.insert(key.clone()) {
+                return Err(WorkerError::RequestError("Duplicate HTTP option".into()));
+            }
+            match key.as_str() {
+                "max_bytes" => {
+                    let value = value
+                        .as_integer()
+                        .filter(|n| (1..=16 * 1024 * 1024).contains(n))
+                        .ok_or_else(|| {
+                            WorkerError::RequestError("max_bytes must be 1 to 16777216".into())
+                        })?;
+                    max_bytes = value as usize;
+                }
+                "strict_utf8" | "include_url" => {
+                    if !matches!(value.variant(), Variant::Bool(_) | Variant::Int(0 | 1)) {
+                        return Err(WorkerError::RequestError(
+                            "HTTP option must be a boolean".into(),
+                        ));
+                    }
+                    if key == "strict_utf8" {
+                        strict_utf8 = value.is_true();
+                    } else {
+                        include_url = value.is_true();
+                    }
+                }
+                _ => return Err(WorkerError::RequestError("Unknown HTTP option".into())),
+            }
+        }
     }
+    let builder = http_client_builder().timeout(timeout.unwrap_or(Duration::from_secs(30)));
     let client = builder
         .build()
         .map_err(|e| WorkerError::RequestError(format!("Failed to build HTTP client: {e}")))?;
@@ -379,7 +419,7 @@ async fn perform_http_request(
         url = url.as_str(),
         "HTTP request"
     );
-    let response = match method.as_arc_str().to_lowercase().as_str() {
+    let mut response = match method.as_arc_str().to_lowercase().as_str() {
         "get" => {
             let client = client.get(url);
             let client = if let Some(headers) = headers {
@@ -442,13 +482,39 @@ async fn perform_http_request(
         .iter()
         .map(|(k, v)| v_list(&[v_str(k.as_str()), v_str(v.to_str().unwrap_or(""))]));
     let headers = v_list_iter(headers);
-    let body = response
-        .text()
+    let effective_url = v_str(response.url().as_str());
+    if response
+        .content_length()
+        .is_some_and(|length| length > max_bytes as u64)
+    {
+        return Err(WorkerError::RequestError(
+            "HTTP response exceeds max_bytes".into(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|e| WorkerError::RequestError(format!("Failed to read response body: {e}")))?;
-    let body = v_str(body.as_str());
-
-    Ok(v_list(&[status_code, headers, body]))
+        .map_err(|e| WorkerError::RequestError(format!("Failed to read response body: {e}")))?
+    {
+        if bytes.len().saturating_add(chunk.len()) > max_bytes {
+            return Err(WorkerError::RequestError(
+                "HTTP response exceeds max_bytes".into(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let text = if strict_utf8 {
+        String::from_utf8(bytes)
+            .map_err(|_| WorkerError::RequestError("HTTP response is not valid UTF-8".into()))?
+    } else {
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+    let mut result = vec![status_code, headers, v_str(&text)];
+    if include_url {
+        result.push(effective_url);
+    }
+    Ok(v_list(&result))
 }
 
 #[cfg(test)]
@@ -544,5 +610,36 @@ mod tests {
             matches!(error, WorkerError::RequestError(message) if message.contains("Failed to send GET request"))
         );
         server.abort();
+    }
+    #[tokio::test]
+    async fn bounds_bodies_and_preserves_exact_utf8() {
+        use moor_var::{v_bool, v_map};
+        for (response, limit, expected) in [
+            (&b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\n"[..], 4, "max_bytes"),
+            (&b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3\r\nabc\r\n3\r\ndef\r\n0\r\n\r\n"[..], 4, "max_bytes"),
+            (&b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\n\xff"[..], 4, "UTF-8"),
+            (&b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\na\r\nb"[..], 4, ""),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/bundle", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                read_request(&mut socket).await;
+                socket.write_all(response).await.unwrap();
+            });
+            let result = perform_http_request(Uuid::nil(), Symbol::mk("curl"), SYSTEM_OBJECT,
+                vec![v_str("GET"),v_str(&url),v_str(""),v_list(&[]),v_map(&[
+                    (v_str("max_bytes"),v_int(limit)),(v_str("strict_utf8"),v_bool(true)),(v_str("include_url"),v_bool(true))])],
+                Some(Duration::from_secs(2))).await;
+            if expected.is_empty() {
+                let result = result.unwrap();
+                let values = result.as_list().unwrap();
+                assert_eq!(values[2], v_str("a\r\nb"));
+                assert_eq!(values[3], v_str(&url));
+            } else {
+                assert!(matches!(result, Err(WorkerError::RequestError(message)) if message.contains(expected)));
+            }
+            server.await.unwrap();
+        }
     }
 }

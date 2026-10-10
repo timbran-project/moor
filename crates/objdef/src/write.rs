@@ -489,6 +489,7 @@ mod tests {
             flags: BitEnum::new(),
             metadata: Vec::new(),
             verbs: vec![ObjVerbDef {
+                source: None,
                 names: vec![Symbol::mk("")],
                 argspec: VerbArgsSpec::this_none_this(),
                 owner: Obj::mk_id(1),

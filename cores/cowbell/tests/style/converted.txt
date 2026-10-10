@@ -230,3 +230,4 @@ features/prog_features.moo:_schedule_id
 features/prog_features.moo:@schedules
 features/prog_features.moo:@schedule
 features/prog_features.moo:@stop-schedule
+change_manager.moo

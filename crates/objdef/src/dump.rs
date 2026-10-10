@@ -181,6 +181,7 @@ pub(crate) fn collect_export_object(
 
     for verb in object.verbs {
         definition.verbs.push(ObjVerbDef {
+            source: None,
             names: verb.names,
             argspec: verb.argspec,
             owner: verb.owner,
@@ -1378,11 +1379,38 @@ mod tests {
         assert_eq!(restored_stats.objects, exported_count);
         assert_eq!(restored_stats.verbs, original_verbs);
         assert_eq!(restored_stats.properties, original_properties);
-        assert_eq!(
-            read_directory_tree(restored_dir.path()),
-            read_directory_tree(tmpdir_path),
-            "committed objdef restore changed exported object definitions"
-        );
+        // A textdump has no tracking metadata. Its first objdef import establishes baselines;
+        // all other exported content must remain identical.
+        let mut definitions = collect_object_definitions(restored_snapshot.as_ref()).unwrap();
+        for definition in &mut definitions {
+            for verb in &mut definition.verbs {
+                let expected = crate::fingerprint::program_fingerprint(&verb.program).unwrap();
+                let baseline = verb
+                    .metadata
+                    .iter()
+                    .find(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
+                    .unwrap()
+                    .1
+                    .clone();
+                assert_eq!(
+                    crate::review::read_baseline(Some(baseline)).unwrap(),
+                    Some(expected)
+                );
+                verb.metadata
+                    .retain(|(key, _)| *key != Symbol::mk(crate::review::BASE_KEY));
+            }
+        }
+        let untracked_dir = tempfile::tempdir().unwrap();
+        dump_object_definitions(&definitions, untracked_dir.path()).unwrap();
+        let expected = read_directory_tree(tmpdir_path);
+        let actual = read_directory_tree(untracked_dir.path());
+        assert_eq!(actual.len(), expected.len());
+        for (name, bytes) in &expected {
+            assert!(
+                actual.get(name) == Some(bytes),
+                "committed objdef restore changed {name:?}"
+            );
+        }
     }
 
     /// Test lambda objdef serialization by creating lambdas and doing a round-trip

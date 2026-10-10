@@ -147,12 +147,17 @@ later server starts.
 - [Emergency Medical Hologram Tool](moor-emh-tool.md) can load or reload objdef files while the
   regular server is stopped.
 
-## Enroll imported programs
+## Imported program baselines
 
-For a new objdef database, `--import-enroll` derives accepted program fingerprints in the import
-transaction. It is optional and defaults to false. Both `moor` and `moor-daemon` accept the flag;
-the configuration setting is `import_export.import_enroll`.
+Objdef directory import establishes program baselines in the import transaction. If a verb has no
+baseline metadata, the importer derives its baseline from the compiled program. If the source
+contains a valid baseline, import preserves it, including when the program has local modifications.
+Malformed or unsupported baselines fail the import rather than silently replacing history.
 
-Enrollment derives hashes from compiled source. Imported tracking metadata does not substitute for
-that calculation. The flag requires objdef format and does not re-enroll an existing database. Use
-an explicit reviewed adoption for an existing installation.
+An older export without baselines establishes its imported content as the initial baseline. Upstream
+history absent from that export cannot be recovered. Existing databases continue to skip import on
+startup. Direct `load_object()` and `reload_object()` operations retain their separate rules; they
+do not adopt supplied baseline metadata.
+
+Cowbell and Snore declare their own initial package configuration in objdef source. The importer
+loads it as ordinary property data. It has no knowledge of the change manager or its package schema.

@@ -1,0 +1,169 @@
+// Shared service contract: authorization, review generations, guarded apply, and recovery.
+@wizard
+; return $change_manager:capabilities()["schema"];
+1
+
+; load_object({"object #9500", tostr("owner: ", player), tostr("verb test (this none this) owner: ", player, " flags: \"rxd\""), "return 1;", "endverb", "endobject"});
+> add_property(#0, "changes_probe", [], {player, "r"});
+> add_property(#0, "changes_original", dump_object(#9500), {player, ""});
+> return $change_manager:configure("probe", {#9500}, [])["generation"];
+1
+
+; const staged = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> #0.changes_original]}, "adopt"); #0.changes_probe = staged; return staged["status"];
+"ready"
+
+; return $change_manager:review(#0.changes_probe["review_id"], 1)["rows"][1]["classification"];
+"unbased"
+
+; const started = $change_manager:apply(#0.changes_probe["review_id"], 1); const repeated = $change_manager:apply(#0.changes_probe["review_id"], 1); return {started["status"], started["task"] == repeated["task"]};
+{"applying", true}
+
+; for i in [1..100] const status = $change_manager:status(#0.changes_probe["review_id"]); if (status["status"] != "applying") return status["status"]; endif suspend(0.01); endfor return "timed out";
+"complete"
+
+; return {#9500:test(), length($change_manager.pending), length($change_manager.receipts), $change_manager:apply(#0.changes_probe["review_id"], 1)["status"]};
+{1, 0, 1, "complete"}
+
+; const sources = {["label" -> "probe.moo", "text" -> {"object #9500", tostr("owner: ", player), tostr("verb test (this none this) owner: ", player, " flags: \"rxd\""), "return 2;", "endverb", "endobject"}]}; #0.changes_probe = $change_manager:stage("probe", sources); return #0.changes_probe["status"];
+"ready"
+
+; const id = #0.changes_probe["review_id"]; const row = $change_manager:review(id, 1)["rows"][1]; #0.changes_probe["row"] = row["id"]; return {row["classification"], $change_manager:details(id, 1, row["id"])["row"]["incoming_text"]};
+{"upstream", "return 2;"}
+
+; const id = #0.changes_probe["review_id"]; return $change_manager:resolve(id, 1, #0.changes_probe["row"], "edited", "return (;")["validation"][1]["valid"];
+false
+
+; return `$change_manager:resolve(#0.changes_probe["review_id"], 1, #0.changes_probe["row"], "local") ! ANY => "stale"';
+"stale"
+
+; return $change_manager:resolve(#0.changes_probe["review_id"], 2, #0.changes_probe["row"], "incoming")["generation"];
+3
+
+; return `$change_manager:stage("probe", {["label" -> "bad", "text" -> "object"]}) ! ANY => "active"';
+"active"
+
+; return $change_manager:apply(#0.changes_probe["review_id"], 3)["status"];
+"applying"
+
+; for i in [1..100] const status = $change_manager:status(#0.changes_probe["review_id"]); if (status["status"] != "applying") return status["status"]; endif suspend(0.01); endfor return "timed out";
+"complete"
+
+; return {#9500:test(), length($change_manager.pending), length($change_manager.receipts)};
+{2, 0, 2}
+
+// Details must not mix current source with an old approval.
+; #0.changes_probe = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> dump_object(#9500)]}); set_verb_code(#9500, "test", {"return 4;"}); const id = #0.changes_probe["review_id"]; const row = $change_manager:review(id, 1)["rows"][1]; return `$change_manager:details(id, 1, row["id"]) ! ANY => "stale"';
+"stale"
+
+; const id = #0.changes_probe["review_id"]; return {$change_manager:refresh(id, 1)["generation"], $change_manager:discard(id, 2)["status"]};
+{2, "discarded"}
+
+// An interrupted job preserves working input but requires a fresh review.
+; #0.changes_probe = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> dump_object(#9500)]}); const id = #0.changes_probe["review_id"]; $change_manager.pending[id]["status"] = "applying"; $change_manager.pending[id]["task"] = 0; return $change_manager:status(id)["status"];
+"interrupted"
+
+; const id = #0.changes_probe["review_id"]; return {$change_manager:refresh(id, 2)["generation"], $change_manager:discard(id, 3)["status"]};
+{3, "discarded"}
+
+// Failure after native apply must also roll back the program and baseline.
+; add_property(#0, "changes_receipts", $change_manager.receipts, {player, ""}); #0.changes_probe = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> #0.changes_original]}); const id = #0.changes_probe["review_id"]; const row = $change_manager:review(id, 1)["rows"][1]; $change_manager:resolve(id, 1, row["id"], "incoming"); const started = $change_manager:apply(id, 2); #0.changes_probe["task"] = started["task"]; $change_manager.receipts = 0; return started["status"];
+"applying"
+
+; for i in [1..100] if (!valid_task(#0.changes_probe["task"])) $change_manager.receipts = #0.changes_receipts; return $change_manager:status(#0.changes_probe["review_id"])["status"]; endif suspend(0.01); endfor return "timed out";
+"interrupted"
+
+; const id = #0.changes_probe["review_id"]; $change_manager:discard(id, $change_manager:status(id)["generation"]); return {#9500:test(), length($change_manager.receipts)};
+{4, 2}
+
+// An inherited service cannot authorize itself through wizard-owned inherited verbs.
+; #0.changes_probe = ["child" -> create($change_manager)]; return `#0.changes_probe["child"]:capabilities() ! E_PERM => "denied"';
+"denied"
+
+@programmer
+; return $change_manager:capabilities();
+E_PERM
+; return $change_manager.pending;
+E_PERM
+; return $change_manager:_apply(1, 1);
+E_PERM
+
+@wizard
+// Invalid incoming code returns a source-located diagnostic and no installed write.
+; const result = $change_manager:stage("probe", {["label" -> "broken.moo", "text" -> {"object #9500", tostr("verb test (this none this) owner: ", player, " flags: \"rxd\""), "return (;", "endverb", "endobject"}]}); #0.changes_probe = result; return {result["status"], result["error"]["code"], result["error"]["pane"], result["error"]["source"], result["error"]["line"]};
+{"failed", "compile_failure", "incoming", "broken.moo", 3}
+
+; return $change_manager:discard(#0.changes_probe["review_id"], 1)["status"];
+"discarded"
+
+// Deferral keeps source for a later decision, and returns a committed partial receipt.
+; #0.changes_probe = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> #0.changes_original]}); const id = #0.changes_probe["review_id"]; const row = $change_manager:review(id, 1)["rows"][1]; #0.changes_probe["row"] = row["id"]; $change_manager:resolve(id, 1, row["id"], "defer"); return $change_manager:apply(id, 2)["status"];
+"applying"
+
+; for i in [1..100] const status = $change_manager:status(#0.changes_probe["review_id"]); if (status["status"] != "applying") return {status["status"], status["last_receipt"]["decision_count"]}; endif suspend(0.01); endfor return "timed out";
+{"partial", 0}
+
+; const id = #0.changes_probe["review_id"]; const status = $change_manager:status(id); const detail = $change_manager:details(id, status["generation"], #0.changes_probe["row"])["row"]; return {detail["base_text_available"], detail["text_coordinates"]["kind"], detail["source_location"]["label"]};
+{false, "decompiled", "probe.moo"}
+
+; const id = #0.changes_probe["review_id"]; try $change_manager:review(id, $change_manager:status(id)["generation"], {id, 1, 1}); except failure (ANY) return failure[3]["code"]; endtry return "not rejected";
+"stale_cursor"
+
+; const id = #0.changes_probe["review_id"]; const status = $change_manager:status(id); const output = $change_manager:command({"source", tostr(id), tostr(status["generation"]), #0.changes_probe["row"], "live"}); $change_manager:discard(id, status["generation"]); return {output[2], #9500:test(), length($change_manager.pending)};
+{"1: return 4;", 4, 0}
+
+// Each programmatic request checks current delegation without borrowing another task's elevation.
+@wizard
+; add_property(#90101, "changes_review", [], {#90101, ""}); #90101.admin_features = {$admin_features}; $admin_features.sudo_delegates[#90101] = player; $admin_features.sudo_allowed[#90101] = {"@changes"}; return 1;
+1
+@programmer
+; return {$change_manager:capabilities()["schema"], player:has_admin_elevation()};
+{1, false}
+; try $change_manager:configure("delegated", {#9500}, []); except failure (ANY) return failure[3]["code"]; endtry return "not rejected";
+"overlapping_package"
+; player.changes_review = $change_manager:stage("probe", {["label" -> "probe.moo", "text" -> {"object #9500", "owner: #90100", "verb test (this none this) owner: #90100 flags: \"rxd\"", "return 4;", "endverb", "endobject"}]}, "adopt"); return player.changes_review["status"];
+"ready"
+; return $change_manager:apply(player.changes_review["review_id"], 1)["status"];
+"applying"
+; for i in [1..100] const status = $change_manager:status(player.changes_review["review_id"]); if (status["status"] != "applying") return status["status"]; endif suspend(0.01); endfor return "timed out";
+"complete"
+// Private source remains unreadable through ordinary object access.
+; return $change_manager.pending;
+E_PERM
+@wizard
+; $admin_features.sudo_allowed[#90101] = {}; return 1;
+1
+@programmer
+; return $change_manager:capabilities();
+E_PERM
+
+@wizard
+// The installed core is configured by source; another package cannot claim its objects.
+; const name = $change_manager:capabilities()["default_package"]; const package = $change_manager:packages()["packages"][name]; return {#0 in package["objects"] != 0, package["fields"], package["generation"]};
+{true, {"program"}, 1}
+
+; try $change_manager:configure("overlap", {#0}, []); except failure (ANY) return failure[3]["code"]; endtry return "not rejected";
+"overlapping_package"
+
+; $change_manager:command({"upstream", "http://127.0.0.1:1/bundle.moo"}); const name = $change_manager:capabilities()["default_package"]; return $change_manager:packages()["packages"][name]["upstream"];
+"http://127.0.0.1:1/bundle.moo"
+
+// A missing worker cannot leave a partial source set or touch installed content.
+; $change_manager:command({"stage"}); const name = $change_manager:capabilities()["default_package"]; #0.changes_probe = ["review_id" -> $change_manager:packages()["packages"][name]["active"]]; return 1;
+1
+
+; for i in [1..100] const status = $change_manager:status(#0.changes_probe["review_id"]); if (status["status"] != "fetching") return status["status"]; endif suspend(0.01); endfor return "timed out";
+"failed"
+
+; const id = #0.changes_probe["review_id"]; const source = $change_manager.pending[id]["sources"]; $change_manager:discard(id, $change_manager:status(id)["generation"]); return {source, #9500:test()};
+{{}, 4}
+
+; player.authoring_features = $wiz_features; return 1;
+1
+
+% @changes packages
+~~Change packages:
+
+@wizard
+// Core-declared owner policy also covers system code intentionally owned by a non-wizard.
+; load_object({"object #9501", tostr("owner: ", $hacker), tostr("verb test (this none this) owner: ", $hacker, " flags: \"rxd\""), "return 7;", "endverb", "endobject"}); const core = $change_manager:capabilities()["default_package"]; const owners = $change_manager:packages()["packages"][core]["trusted_owners"]; $change_manager:configure("system_probe", {#9501}, [], "", 0, owners); const staged = $change_manager:stage("system_probe", {["label" -> "system.moo", "text" -> dump_object(#9501)]}, "adopt"); const eligible = $change_manager:review(staged["review_id"], 1)["rows"][1]["eligible"]; $change_manager:discard(staged["review_id"], 1); return eligible;
+true

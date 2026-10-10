@@ -45,9 +45,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Add `@changes` to Cowbell and Snore for saved program reviews, conflict choices, validated drafts,
+  guarded apply, and recovery. Both expose a versioned `$change_manager` API. HTTP staging uses a
+  bounded UTF-8 text bundle. Each core declares its default package bindings in source.
+- Bound curl-worker response bodies to 16 MiB by default and requests to 30 seconds unless a timeout
+  is supplied. Optional HTTP settings select a smaller byte limit, strict UTF-8, and effective URL.
 - Add `apply_objdef_changes()` for guarded program updates and metadata-only adoption. Apply checks
   original review evidence and validated drafts before writing programs and baselines together.
-  Optional `--import-enroll` derives baselines during a fresh objdef import.
+  Objdef import derives missing program baselines and preserves supplied baselines on restore.
 
 - Add `preview_objdef_changes()` for read-only program comparison and edited-draft validation.
   Reports include field fingerprints, target identity guards, and per-row eligibility.

@@ -312,6 +312,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
         self.set_properties(&options)?;
         info!("Defining and compiling {} verbs...", num_loaded_verbs);
         self.define_verbs(&options)?;
+        self.initialize_imported_baselines()?;
 
         // Create import_export_id metadata from constants when the input has no explicit IDs.
         self.create_import_export_ids_if_needed()?;
@@ -893,16 +894,12 @@ impl<'a> ObjectDefinitionLoader<'a> {
         })
     }
 
-    /// Derive accepted program baselines from the definitions just imported from a directory.
+    /// Preserve supplied program baselines and derive missing ones during directory import.
     ///
-    /// This opt-in bootstrap operation belongs to the same transaction as import. Source tracking
-    /// metadata is replaced with derived hashes. Direct imports cannot invoke this path.
-    pub fn enroll_imported_programs(&mut self) -> Result<(), ObjdefLoaderError> {
-        if !self.restore_tracking {
-            return Err(ObjdefLoaderError::InputLimit(
-                "enrollment requires a directory import".into(),
-            ));
-        }
+    /// A restored export can contain locally modified programs, so its accepted hashes must not
+    /// be replaced by hashes of live content. Invalid supplied baselines fail the import instead
+    /// of silently changing that history. All baseline writes share the import transaction.
+    fn initialize_imported_baselines(&mut self) -> Result<(), ObjdefLoaderError> {
         for (object, (label, definition)) in &self.object_definitions {
             let verbs = self.loader.get_existing_verbs(object).map_err(|e| {
                 ObjdefLoaderError::CouldNotDefineVerb(label.clone(), *object, vec![], e)
@@ -925,6 +922,15 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         "ambiguous enrollment target".into(),
                     )));
                 }
+                if let Some((_, baseline)) = source
+                    .metadata
+                    .iter()
+                    .find(|(key, _)| *key == Symbol::mk(crate::review::BASE_KEY))
+                {
+                    crate::review::read_baseline(Some(baseline.clone()))
+                        .map_err(|e| error(WorldStateError::DatabaseError(e.to_string())))?;
+                    continue;
+                }
                 let hash = crate::fingerprint::program_fingerprint(&source.program)
                     .map_err(|e| error(WorldStateError::DatabaseError(e)))?;
                 self.loader
@@ -944,20 +950,6 @@ impl<'a> ObjectDefinitionLoader<'a> {
             }
         }
         Ok(())
-    }
-
-    /// Read an application descriptor from imported source without assigning it native semantics.
-    pub fn imported_metadata(&self, key: Symbol) -> Vec<(Obj, Var)> {
-        self.object_definitions
-            .iter()
-            .flat_map(|(object, (_, definition))| {
-                definition
-                    .metadata
-                    .iter()
-                    .filter(move |(k, _)| *k == key)
-                    .map(move |(_, v)| (*object, v.clone()))
-            })
-            .collect()
     }
 
     /// Create import_export_id metadata from constants when the input declares no explicit IDs.

@@ -101,12 +101,22 @@ pub struct ObjectDefinition {
 
 #[derive(Clone)]
 pub struct ObjVerbDef {
+    /// Original file body and its one-based start position, absent for database exports.
+    pub source: Option<ObjVerbSource>,
     pub names: Vec<Symbol>,
     pub argspec: VerbArgsSpec,
     pub owner: Obj,
     pub flags: BitEnum<VerbFlag>,
     pub program: ProgramType,
     pub metadata: Vec<(Symbol, Var)>,
+}
+
+/// Exact program body coordinates in the containing objdef source unit.
+#[derive(Clone)]
+pub struct ObjVerbSource {
+    pub text: String,
+    pub line: usize,
+    pub column: usize,
 }
 
 #[derive(Clone)]

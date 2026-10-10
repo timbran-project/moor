@@ -14,7 +14,8 @@
 //! Objdef program review and guarded application. Reports are data, never executable mutation plans.
 //!
 //! Requests use schema 1, an `adopt` or `update` operation, explicit `objects`, a
-//! `fields` list containing only `program`, and optional `constants` and `details`.
+//! `fields` list containing only `program`, and optional `constants`, `details`, and
+//! explicitly trusted non-wizard `trusted_owners`.
 //! Object addresses are installation-local bindings; supplied export identities must
 //! agree with live metadata. Evidence binds the exact input and compilation profile
 //! to the reviewed definitions, authority, live programs, and accepted baselines.
@@ -47,6 +48,38 @@ pub enum ReviewError {
     Parse(#[from] ObjdefLoaderError),
     #[error(transparent)]
     World(#[from] WorldStateError),
+}
+
+impl ReviewError {
+    /// Return a versioned diagnostic without embedding source in an error or receipt.
+    pub fn diagnostic(&self) -> Var {
+        let mut values = vec![
+            ("schema", v_int(1)),
+            ("code", v_str("invalid_review")),
+            (
+                "message",
+                v_str(&self.to_string().chars().take(4096).collect::<String>()),
+            ),
+        ];
+        if let Self::Parse(ObjdefLoaderError::ObjectDefParseError(label, error)) = self {
+            values[1] = ("code", v_str("compile_failure"));
+            values.push(("source", v_str(label)));
+            values.push(("pane", v_str("incoming")));
+            let error = match error.as_ref() {
+                moor_compiler::ObjDefParseError::VerbCompileError(error, _)
+                | moor_compiler::ObjDefParseError::ParseError(error) => Some(error),
+                _ => None,
+            };
+            if let Some(error) = error {
+                let (line, column) = error.context().line_col;
+                values.push(("line", v_int(line as i64)));
+                values.push(("column", v_int(column as i64)));
+                values.push(("end_line", v_int(line as i64)));
+                values.push(("end_column", v_int(column as i64 + 1)));
+            }
+        }
+        record(&values)
+    }
 }
 
 impl From<String> for ReviewError {
@@ -198,7 +231,7 @@ fn compile_context(options: &CompileOptions) -> Var {
     )
 }
 
-fn read_baseline(value: Option<Var>) -> Result<Option<String>, ReviewError> {
+pub(crate) fn read_baseline(value: Option<Var>) -> Result<Option<String>, ReviewError> {
     let Some(value) = value else {
         return Ok(None);
     };
@@ -250,6 +283,7 @@ pub(crate) fn analyze(
             "fields",
             "constants",
             "details",
+            "trusted_owners",
         ],
     )?;
     if required(&req, "schema")?.as_integer() != Some(1) {
@@ -290,6 +324,23 @@ pub(crate) fn analyze(
             .ok_or_else(|| ReviewError::Invalid("scope must contain objects".into()))?;
         if !scope.insert(object) {
             return Err("duplicate object in scope".to_string().into());
+        }
+    }
+    let mut trusted_owners = BTreeSet::new();
+    if let Some(owners) = req.get("trusted_owners") {
+        let owners = owners
+            .as_list()
+            .ok_or_else(|| ReviewError::Invalid("trusted_owners must be a list".into()))?;
+        if owners.len() > 128 {
+            return Err("too many trusted owners".to_string().into());
+        }
+        for owner in owners.iter() {
+            let owner = owner
+                .as_object()
+                .ok_or_else(|| ReviewError::Invalid("trusted owners must be objects".into()))?;
+            if !world.valid(&owner)? || !trusted_owners.insert(owner) {
+                return Err("invalid or duplicate trusted owner".to_string().into());
+            }
         }
     }
     let constants = req
@@ -379,8 +430,8 @@ pub(crate) fn analyze(
             (Some(_), None) => false,
             _ => true,
         };
-        let trusted =
-            owner_flags.contains(ObjFlag::Wizard) && !object_flags.contains(ObjFlag::Write);
+        let trusted = (owner_flags.contains(ObjFlag::Wizard) || trusted_owners.contains(&owner))
+            && !object_flags.contains(ObjFlag::Write);
         guards.push(v_list(&[
             v_obj(object),
             v_obj(owner),
@@ -431,7 +482,8 @@ pub(crate) fn analyze(
                 }
             };
             if !trusted
-                || !verb_owner_flags.contains(ObjFlag::Wizard)
+                || !(verb_owner_flags.contains(ObjFlag::Wizard)
+                    || trusted_owners.contains(&definition.owner()))
                 || definition
                     .flags()
                     .contains(moor_common::model::VerbFlag::Write)
@@ -532,6 +584,31 @@ pub(crate) fn analyze(
                 }
                 output.push(("live_text", live_text));
                 output.push(("incoming_text", incoming_text));
+                // Both comparison panes are decompiled. File coordinates refer only to source_text.
+                output.push((
+                    "text_coordinates",
+                    record(&[
+                        ("kind", v_str("decompiled")),
+                        ("line", v_int(1)),
+                        ("column", v_int(1)),
+                    ]),
+                ));
+                output.push(("base_text_available", v_bool(false)));
+                if let Some(source) = &verb.source {
+                    detail_bytes += source.text.len();
+                    if detail_bytes > MAX_SOURCE_BYTES {
+                        return Err("selected details exceed 16 MiB".to_string().into());
+                    }
+                    output.push(("source_text", v_str(&source.text)));
+                    output.push((
+                        "source_location",
+                        record(&[
+                            ("label", v_str(label)),
+                            ("line", v_int(source.line as i64)),
+                            ("column", v_int(source.column as i64)),
+                        ]),
+                    ));
+                }
             }
             report_rows.push(record(&output));
             rows.push(ProgramRow {
@@ -563,7 +640,23 @@ pub(crate) fn analyze(
         ("schema", v_int(1)),
         ("guard", v_str(&digest(&v_list(&guards))?)),
     ]);
+    let mut counts = BTreeMap::<String, i64>::new();
+    for row in &report_rows {
+        let classification = row.as_map().unwrap().get(&v_str("classification")).unwrap();
+        *counts
+            .entry(classification.as_string().unwrap().to_owned())
+            .or_default() += 1;
+    }
     let report = record(&[
+        (
+            "counts",
+            v_map(
+                &counts
+                    .into_iter()
+                    .map(|(key, count)| (v_str(&key), v_int(count)))
+                    .collect::<Vec<_>>(),
+            ),
+        ),
         ("schema", v_int(1)),
         ("operation", v_str(operation)),
         ("source_digest", v_str(&source_digest)),
@@ -659,6 +752,8 @@ fn validate_choices(
                             ("pane", v_str("result")),
                             ("line", v_int(line as i64)),
                             ("column", v_int(column as i64)),
+                            ("end_line", v_int(line as i64)),
+                            ("end_column", v_int(column as i64 + 1)),
                             ("message", v_str(&error.to_string())),
                         ]));
                     }

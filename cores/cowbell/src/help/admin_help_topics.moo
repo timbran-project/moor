@@ -8,6 +8,7 @@ object ADMIN_HELP_TOPICS [
   owner: ARCH_WIZARD
   readable: true
 
+  property topic_administration_changes (owner: ARCH_WIZARD, flags: "rc") = {"@changes", "Review and apply program updates", "Use @changes help to list package review commands.\n\nThe core package is already configured. Set an HTTP bundle with @changes upstream URL.\n\nUse @changes stage for core updates. Additional application packages must have separate object bindings.\n\nUse status ID and diff ID, then source ID GENERATION ROW live or incoming to inspect code.\n\nResolve ID GENERATION ROW incoming, local, edited PROGRAM, or defer; apply ID GENERATION commits the review.\n\nUse the displayed generation after each choice. Refresh clears approvals; discard removes pending source.\n\nAfter an interrupted task, query status and explicitly refresh or discard. Source and drafts remain private.\n\nMultiline uploads and drafts use the versioned $change_manager service. Baselines store hashes without old source.", {"changes", "upgrades"}, 'administration, {"@sudo"}};
   property topic_administration_dump_database (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@dump-database`\n\nManually triggers a database dump to disk.\n\nOnly admins can use this command.", .name = "@dump-database", .aliases = {"dump", "checkpoint", "save"}, .category = 'administration, .summary = "Trigger database dump", .see_also = {}>;
   property topic_administration_overview (owner: ARCH_WIZARD, flags: "rc") = {
     "administration",
@@ -40,6 +41,7 @@ object ADMIN_HELP_TOPICS [
   property topic_administration_sudo_who (owner: ARCH_WIZARD, flags: "rc") = <HELP, .content = "Usage: `@sudo-who`\n\nLists active sudo tasks and recent sudo audit log entries.", .name = "@sudo-who", .aliases = {"sudo-who", "sudo active", "sudo-active"}, .category = 'administration, .summary = "Show active sudo and recent audit", .see_also = {"@sudo-show", "@sudo-log"}>;
 
   override topic_order (owner: ARCH_WIZARD, flags: "rc") = {
+    'topic_administration_changes,
     'topic_administration_overview,
     'topic_administration_sudo,
     'topic_administration_sudo_grant,

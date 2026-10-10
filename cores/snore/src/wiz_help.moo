@@ -6,6 +6,17 @@ object WIZ_HELP [
   owner: HACKER
   readable: true
 
+  property "@changes" (owner: HACKER, flags: "rc") = {
+    "Use @changes help to list package review commands.",
+    "The core package is already configured. Set an HTTP bundle with @changes upstream URL.",
+    "Use @changes stage for core updates. Additional application packages must have separate object bindings.",
+    "Use status ID and diff ID, then source ID GENERATION ROW live or incoming to inspect code.",
+    "Resolve ID GENERATION ROW incoming, local, edited PROGRAM, or defer; apply ID GENERATION commits the review.",
+    "Use the displayed generation after each choice. Refresh clears approvals; discard removes pending source.",
+    "After an interrupted task, query status and explicitly refresh or discard. Source and drafts remain private.",
+    "Multiline uploads and drafts use the versioned $change_manager service. Baselines store hashes without old source."
+  };
+
   property "$site_db" (owner: HACKER, flags: "rc") = {
     "Database of places",
     "------------------",

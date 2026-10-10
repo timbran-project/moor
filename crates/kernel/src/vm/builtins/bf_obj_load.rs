@@ -326,7 +326,9 @@ fn bf_preview_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfE
     .map_err(|error| match error {
         moor_objdef::review::ReviewError::World(error) => world_state_bf_err(error),
         moor_objdef::review::ReviewError::Parse(error) if error.is_retry() => BfErr::Rollback,
-        other => BfErr::ErrValue(E_INVARG.msg(other.to_string())),
+        other => {
+            BfErr::ErrValue(E_INVARG.with_msg_and_value(|| other.to_string(), other.diagnostic()))
+        }
     })
 }
 

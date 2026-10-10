@@ -150,3 +150,5 @@ define TEST_UTILS = #127;
 define ROOM = #7;
 define AREA = #11;
 define PASSAGE = #12;
+
+define CHANGE_MANAGER = #2000;

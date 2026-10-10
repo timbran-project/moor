@@ -6,6 +6,7 @@ object SYSOBJ [
   owner: ARCH_WIZARD
   readable: true
 
+  property change_manager (owner: ARCH_WIZARD, flags: "r") = CHANGE_MANAGER;
   property actor (owner: HACKER, flags: "r") = ACTOR;
   property admin_features (owner: ARCH_WIZARD, flags: "rc") = ADMIN_FEATURES;
   property agent_building_tools (owner: HACKER, flags: "r") = AGENT_BUILDING_TOOLS;

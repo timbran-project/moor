@@ -998,4 +998,15 @@ object WIZ_FEATURES [
     player:inform_current($event:mk_info(player, content));
     player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
   endverb
+  verb "@changes" (any any any) owner: ARCH_WIZARD flags: "rd"
+    "Review and apply program updates. Use @changes help for commands.";
+    this == $wiz_features || raise(E_PERM);
+    this:_challenge_command_perms();
+    const authority = player.wizard ? player | $admin_features:_resolve_delegate(player);
+    set_task_perms(authority);
+    const lines = $change_manager:command(args);
+    for line in (lines)
+      player:inform_current($event:mk_info(player, line):with_audience('utility));
+    endfor
+  endverb
 endobject

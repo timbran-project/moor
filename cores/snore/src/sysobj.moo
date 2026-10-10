@@ -6,6 +6,7 @@ object SYSOBJ [
   owner: #2
   readable: true
 
+  property change_manager (owner: #2, flags: "r") = CHANGE_MANAGER;
   property ambiguous_match (owner: #2, flags: "rc") = #-2;
   property build_options (owner: #2, flags: "rc") = BUILD_OPTIONS;
   property builder (owner: #2, flags: "rc") = BUILDER;

@@ -168,7 +168,11 @@ sort by folded name. Captured lambda values and non-finite floats are unsupporte
 
 These rules describe content equality, not behavioral equivalence. A hash cannot recover old source.
 Unknown baseline schemas block updates until explicit re-adoption. Automatic eligibility requires
-administrator-owned objects and verbs whose content and metadata are not publicly writable.
+administrator-owned objects and verbs whose content and metadata are not publicly writable. An
+explicit `trusted_owners` list can additionally name non-wizard owners trusted by the administrator.
+This policy is part of the guarded request and does not bypass object or verb access permissions.
+Cowbell and Snore declare their system `Hacker` owner in their package data. Publicly writable
+targets remain ineligible even when their owner is trusted.
 
 ## Apply a reviewed decision
 
@@ -196,3 +200,74 @@ metadata. The receipt contains decisions and hashes, without historical source. 
 uncommitted until the calling task commits. If a write fails, the whole task rolls back. Core
 applications must save their completion record in that same transaction and abort if that
 bookkeeping fails.
+
+## Review packages with `@changes`
+
+Cowbell and Snore expose the same schema-1 service at `$change_manager`. `@changes help` lists the
+terminal commands. Snore requires a wizard. Cowbell also accepts current administrator delegation
+with an `@changes` allowlist entry. Each API call and background job checks that authority again.
+Source, drafts, and saved reviews are private administrator data.
+
+Each core declares its default package and object bindings in its own source. Fresh import already
+establishes program baselines. Configure an upstream and stage an update:
+
+```text
+@changes upstream https://example.org/releases/core.moo
+@changes stage
+@changes status 1
+@changes diff 1
+@changes apply 1 1
+```
+
+Use the review ID and generation returned by your own commands. `stage`, `adopt`, and `upstream`
+default to the installed core's package. Supply a package name to select an additional application.
+Use `@changes package NAME #OBJECT ...` to configure a separate application. Packages cannot share
+managed objects. This prevents two upstreams from changing the same program baselines.
+
+For existing content without a known baseline, `@changes adopt NAME` records supplied program
+fingerprints without changing live programs. An HTTP upstream must return one self-contained UTF-8
+objdef text bundle. The curl worker must be available. Directory URLs, archives, and filesystem
+includes are not supported. Effective URL, ETag, and the source digest are saved as provenance.
+
+`diff` lists stable row IDs, classifications, eligibility, choices, and blockers. Inspect a selected
+program with `@changes source ID GENERATION ROW live` or `incoming`. Add an offset to page through
+its decompiled lines. Both panes use decompiled coordinates. Structured details also contain exact
+incoming body text and its file position. Baselines contain hashes; historical base text is
+unavailable.
+
+Resolve a row with `@changes resolve ID GENERATION ROW incoming`, `local`, or `defer`. For a short
+edited program, use `@changes resolve ID GENERATION ROW edited PROGRAM`. The service validates the
+draft without changing live code. Apply uses the new generation returned after each decision. Edited
+and local resolutions acknowledge the incoming fingerprint as the baseline.
+
+Multiline uploads and drafts use the same programmatic service:
+
+```moo
+sources = {["label" -> "example.moo", "text" -> source_lines]};
+staged = $change_manager:stage("example", sources);
+page = $change_manager:review(staged["review_id"], staged["generation"]);
+validated = $change_manager:resolve(staged["review_id"], staged["generation"], row_id,
+                                   "edited", program_lines);
+```
+
+`capabilities()` publishes limits and supported operations. `packages()` returns bindings and
+upstream settings. `configure()` and `upstream()` require the expected package generation when
+replacing settings. `review()` accepts a generation-bound cursor and optional classification filter.
+It returns counts and up to 50 rows within 256 KiB. `diagnostics()` pages through reported issues.
+`details()` checks original evidence before returning selected text and a saved draft, within 512
+KiB. Compile errors identify the source or row, pane, and line/column range. Service errors carry a
+schema-1 map in the raised error value.
+
+Only one review can be active per package. The service permits eight pending reviews, 4 MiB of
+source per review, and 32 MiB of pending storage. Choice writes, refresh, discard, and apply require
+the displayed review generation. Refresh creates new evidence and clears old approvals.
+
+Fetch and apply return promptly and run as background tasks. Poll `status()` for the committed
+result. Apply writes programs, baselines, and its receipt in one transaction. Repeated apply calls
+return the existing job or receipt. A partial result retains source for deferred rows. Completion
+and discard remove working source and drafts. The last 64 completed receipts retain counts and up to
+50 decisions, without program bodies.
+
+After a restart or interrupted task, query status. An `interrupted` review requires an explicit
+refresh or discard. Rejection leaves installed content unchanged. A changed live program makes the
+original evidence stale; refresh before making new decisions.

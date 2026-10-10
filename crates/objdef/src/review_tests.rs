@@ -611,7 +611,6 @@ fn bootstrap_derives_baselines_in_import_transaction() {
             Default::default(),
         )
         .unwrap();
-    import.enroll_imported_programs().unwrap();
     loader.commit().unwrap();
     let world = db.new_world_state().unwrap();
     assert_eq!(
@@ -670,4 +669,208 @@ fn baseline_survives_process_restart() {
             String::from_utf8_lossy(&result.stderr)
         );
     }
+}
+
+#[test]
+fn directory_import_preserves_supplied_baseline_for_local_program() {
+    let directory = tempfile::tempdir().unwrap();
+    let base = program_fingerprint(&ProgramType::MooR(
+        compile("return \"Upstream\";", CompileOptions::default()).unwrap(),
+    ))
+    .unwrap();
+    let source = SOURCE.replace(
+        "flags: \"rxd\"",
+        &format!("flags: \"rxd\" [objdef_base -> [\"schema\" -> \"{PROGRAM_SCHEMA}\", \"program\" -> \"{base}\"]]"),
+    );
+    std::fs::write(directory.path().join("root.moo"), source).unwrap();
+    let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+    let mut loader = db.loader_client().unwrap();
+    ObjectDefinitionLoader::new(loader.as_mut())
+        .load_objdef_directory(
+            CompileOptions::default(),
+            directory.path(),
+            Default::default(),
+        )
+        .unwrap();
+    loader.commit().unwrap();
+    let world = db.new_world_state().unwrap();
+    let report = inspect(world.as_ref(), SOURCE, "update", None);
+    assert_eq!(get(&row(&report), "base"), v_str(&base));
+    assert_eq!(get(&row(&report), "classification"), v_str("converged"));
+}
+
+#[test]
+fn invalid_imported_baselines_fail_without_committing_objects() {
+    for baseline in [
+        "[\"schema\" -> \"future\", \"program\" -> \"unknown\"]".to_owned(),
+        format!("[\"schema\" -> \"{PROGRAM_SCHEMA}\", \"program\" -> \"invalid\"]"),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let source = SOURCE.replace(
+            "flags: \"rxd\"",
+            &format!("flags: \"rxd\" [objdef_base -> {baseline}]"),
+        );
+        std::fs::write(directory.path().join("root.moo"), source).unwrap();
+        let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let mut loader = db.loader_client().unwrap();
+        assert!(
+            ObjectDefinitionLoader::new(loader.as_mut())
+                .load_objdef_directory(
+                    CompileOptions::default(),
+                    directory.path(),
+                    Default::default()
+                )
+                .is_err()
+        );
+        drop(loader);
+        assert!(
+            db.loader_client()
+                .unwrap()
+                .get_existing_object(&ROOT)
+                .unwrap()
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn bundled_cores_declare_complete_default_package_bindings() {
+    for core in ["cowbell", "snore"] {
+        let db = TxDB::try_open(None, DatabaseConfig::default()).unwrap().0;
+        let mut loader = db.loader_client().unwrap();
+        let options = CompileOptions {
+            custom_errors: true,
+            ..CompileOptions::default()
+        };
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("../../cores/{core}/src"));
+        let imported = ObjectDefinitionLoader::new(loader.as_mut())
+            .load_objdef_directory(options, &path, Default::default())
+            .unwrap();
+        let manager = moor_var::Obj::mk_id(2000);
+        let packages = loader
+            .get_existing_property_value(&manager, Symbol::mk("packages"))
+            .unwrap()
+            .unwrap()
+            .0;
+        let package = get(&packages, core);
+        let bindings = get(&package, "objects");
+        let objects = bindings
+            .as_list()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_object().unwrap())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(objects, imported.loaded_objects.iter().copied().collect());
+        assert_eq!(get(&package, "fields"), v_list(&[v_str("program")]));
+        let constants = get(&package, "constants");
+        assert!(!constants.as_map().unwrap().is_empty());
+        let default = loader
+            .get_existing_property_value(&manager, Symbol::mk("default_package"))
+            .unwrap()
+            .unwrap()
+            .0;
+        assert_eq!(default, v_str(core));
+    }
+}
+
+#[test]
+fn explicit_owner_trust_is_guarded_and_does_not_allow_public_writes() {
+    let db = database();
+    let source = "object #2\nowner: #2\nverb test (this none this) owner: #2 flags: \"rxd\"\nreturn 42;\nendverb\nendobject";
+    let mut loader = db.loader_client().unwrap();
+    ObjectDefinitionLoader::new(loader.as_mut())
+        .load_single_object(source, Default::default(), Default::default())
+        .unwrap();
+    loader.commit().unwrap();
+    let mut world = db.new_world_state().unwrap();
+    let request = |trusted: bool| {
+        record(&[
+            ("schema", v_int(1)),
+            ("operation", v_str("adopt")),
+            ("objects", v_list(&[v_obj(Obj::mk_id(2))])),
+            ("fields", v_list(&[v_str("program")])),
+            (
+                "trusted_owners",
+                v_list(&if trusted {
+                    vec![v_obj(Obj::mk_id(2))]
+                } else {
+                    vec![]
+                }),
+            ),
+        ])
+    };
+    let options = CompileOptions::default();
+    let untrusted = preview(
+        world.as_ref(),
+        &permissions(),
+        &options,
+        &sources(source),
+        &request(false),
+        None,
+    )
+    .unwrap();
+    assert_eq!(get(&row(&untrusted), "eligible"), v_bool(false));
+    let trusted = preview(
+        world.as_ref(),
+        &permissions(),
+        &options,
+        &sources(source),
+        &request(true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(get(&row(&trusted), "eligible"), v_bool(true));
+    assert_ne!(get(&untrusted, "evidence"), get(&trusted, "evidence"));
+    assert!(
+        apply(
+            world.as_mut(),
+            &permissions(),
+            &options,
+            &sources(source),
+            &request(false),
+            &get(&trusted, "evidence"),
+            &v_map(&[])
+        )
+        .is_err()
+    );
+    apply(
+        world.as_mut(),
+        &permissions(),
+        &options,
+        &sources(source),
+        &request(true),
+        &get(&trusted, "evidence"),
+        &v_map(&[]),
+    )
+    .unwrap();
+    world
+        .set_flags_of(
+            &permissions(),
+            &Obj::mk_id(2),
+            BitEnum::new_with(ObjFlag::Write),
+        )
+        .unwrap();
+    let writable = preview(
+        world.as_ref(),
+        &permissions(),
+        &options,
+        &sources(source),
+        &request(true),
+        None,
+    )
+    .unwrap();
+    assert_eq!(get(&row(&writable), "eligible"), v_bool(false));
+    assert!(
+        apply(
+            world.as_mut(),
+            &permissions(),
+            &options,
+            &sources(source),
+            &request(true),
+            &get(&trusted, "evidence"),
+            &v_map(&[])
+        )
+        .is_err()
+    );
 }
