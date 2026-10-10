@@ -12,13 +12,13 @@ object NEWS [
   property current_news_going (owner: HACKER, flags: "rc") = {};
   property last_news_time (owner: HACKER, flags: "rc") = 1084848652;
 
-  override aliases = {"News"};
-  override description = "It's the current issue of the News, dated %d.";
-  override expire_period = 0;
-  override last_msg_date = 1084848652;
-  override last_used_time = 1084848652;
-  override mail_forward = {};
-  override messages = {
+  override aliases (owner: HACKER, flags: "rc") = {"News"};
+  override description (owner: HACKER, flags: "rc") = "It's the current issue of the News, dated %d.";
+  override expire_period (owner: HACKER, flags: "r") = 0;
+  override last_msg_date (owner: HACKER, flags: "r") = 1084848652;
+  override last_used_time (owner: HACKER, flags: "r") = 1084848652;
+  override mail_forward (owner: HACKER, flags: "r") = {};
+  override messages (owner: HACKER, flags: "") = {
     {
       1,
       {
@@ -175,9 +175,9 @@ object NEWS [
       }
     }
   };
-  override moderated = 1;
-  override object_size = {21017, 1084848672};
-  override readers = 1;
+  override moderated (owner: HACKER, flags: "rc") = 1;
+  override object_size (owner: HACKER, flags: "r") = {21017, 1084848672};
+  override readers (owner: HACKER, flags: "rc") = 1;
 
   method description owner: HACKER
     raw = ctime(this.last_news_time);

@@ -21,8 +21,8 @@ object ROOM [
   property victim_ejection_msg (owner: #2, flags: "rc") = "You have been expelled from %i by %n.";
   property who_location_msg (owner: #2, flags: "rc") = "%T";
 
-  override aliases = {"generic room"};
-  override object_size = {28944, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic room"};
+  override object_size (owner: HACKER, flags: "r") = {28944, 1084848672};
 
   method confunc owner: #2
     if ((cp = caller_perms()) == player || $perm_utils:controls(cp, player) || caller == this)

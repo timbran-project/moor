@@ -22,8 +22,8 @@ object MATCH_UTILS [
   };
   property ordw (owner: HACKER, flags: "rc") = {"1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"};
 
-  override aliases = {"matching utilities"};
-  override help_msg = {
+  override aliases (owner: HACKER, flags: "rc") = {"matching utilities"};
+  override help_msg (owner: HACKER, flags: "rc") = {
     "$match_utils defines the following verbs:",
     "",
     "match",
@@ -36,7 +36,7 @@ object MATCH_UTILS [
     "",
     "For more documentation, see help $match_utils:<specific verb>."
   };
-  override object_size = {9401, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {9401, 1084848672};
 
   method match owner: HACKER
     ":match(string, object-list)";

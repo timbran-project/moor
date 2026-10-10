@@ -16,8 +16,8 @@ object DISPLAY_OPTIONS [
     "./: will not show ancestor properties/verbs."
   };
 
-  override _namelist = "!blank_tnt!shortprep!thisonly!";
-  override aliases = {"Display Options"};
-  override names = {"blank_tnt", "shortprep", "thisonly"};
-  override object_size = {809, 1084848672};
+  override _namelist (owner: HACKER, flags: "r") = "!blank_tnt!shortprep!thisonly!";
+  override aliases (owner: HACKER, flags: "rc") = {"Display Options"};
+  override names (owner: HACKER, flags: "r") = {"blank_tnt", "shortprep", "thisonly"};
+  override object_size (owner: HACKER, flags: "r") = {809, 1084848672};
 endobject

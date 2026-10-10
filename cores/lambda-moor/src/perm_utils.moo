@@ -6,10 +6,10 @@ object PERM_UTILS [
   owner: #2
   readable: true
 
-  override description = {
+  override description (owner: #2, flags: "rc") = {
     "This is the permissions utilities utility package.  See `help $perm_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "Miscellaneous routines for permissions checking",
     "",
     "For a complete description of a given verb, do `help $perm_utils:verbname'",
@@ -27,7 +27,7 @@ object PERM_UTILS [
     ":caller()",
     "  -- returns the first caller in the callers() stack distinct from `this'"
   };
-  override object_size = {3491, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {3491, 1084848672};
 
   method controls owner: #2
     "$perm_utils:controls(who, what)";

@@ -1267,10 +1267,10 @@ object PROG_HELP [
   };
   property utils (owner: HACKER, flags: "rc") = {"*forward*", "utilities"};
 
-  override aliases = {"Programmer Help"};
-  override description = "This provides help on the programmer commands available on $prog and related topics.";
-  override index_cache = {"prog-index"};
-  override object_size = {90272, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Programmer Help"};
+  override description (owner: HACKER, flags: "rc") = "This provides help on the programmer commands available on $prog and related topics.";
+  override index_cache (owner: HACKER, flags: "r") = {"prog-index"};
+  override object_size (owner: HACKER, flags: "r") = {90272, 1084848672};
 
   method errors owner: HACKER
     text = args[1];

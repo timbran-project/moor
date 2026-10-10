@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object THING [
   import_export_id -> "thing",
   import_export_hierarchy -> {"items"}
@@ -235,14 +233,11 @@ object THING [
     old_location = this.location;
     if (old_location != who.location)
       const take_policy = old_location.take_rule;
-      old_location:can_take_from(who, this)['allowed]
-        || raise(E_PERM, "You can't take that from its container.");
-      old_location.take_rule == take_policy
-        || raise(E_PERM, "The container's access rules changed. Please try again.");
+      old_location:can_take_from(who, this)['allowed] || raise(E_PERM, "You can't take that from its container.");
+      old_location.take_rule == take_policy || raise(E_PERM, "The container's access rules changed. Please try again.");
     endif
     "Container policy callbacks may suspend; recheck the source before moving.";
-    this.location == old_location && $thing:take_reachable(this, who)
-      || raise(E_PERM, "That is no longer within reach.");
+    this.location == old_location && $thing:take_reachable(this, who) || raise(E_PERM, "That is no longer within reach.");
     this:moveto(who);
     if (!silent && isa(old_location, $room))
       event = $event:mk_moved(who, @this.get_msg):with_dobj(this):with_iobj(who);
@@ -267,9 +262,7 @@ object THING [
     return true;
   endmethod
 
-  verb get (this none none) owner: ARCH_WIZARD flags: "rxd" [
-    ui -> ["label" -> "Take"]
-  ]
+  verb get (this none none) owner: ARCH_WIZARD flags: "rxd" [ ui -> ["label" -> "Take"] ]
     "Get/take an object - command handler";
     set_task_perms(caller_perms());
     if (this.location == player)
@@ -407,9 +400,7 @@ object THING [
     const actions = pass(who);
     this.location != who && !$thing:take_reachable(this, who) && return {actions[1]};
     const carrying = this.location == who;
-    const transfer = ["id" -> "transfer", "label" -> carrying ? "Drop" | "Take",
-      "command" -> (carrying ? "drop " | "get ") + tostr(this),
-      "action" -> $thing:command_action(carrying ? "drop" | "get", this:name())];
+    const transfer = ["id" -> "transfer", "label" -> carrying ? "Drop" | "Take", "command" -> (carrying ? "drop " | "get ") + tostr(this), "action" -> $thing:command_action(carrying ? "drop" | "get", this:name())];
     return carrying || this.portable ? {actions[1], transfer, @actions[2..$]} | actions;
   endmethod
 

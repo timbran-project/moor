@@ -7,12 +7,12 @@ object NEW_PLAYER_LOG [
   owner: #2
 
   override aliases (owner: HACKER, flags: "r") = {"Player-Creation-Log", "PCL"};
-  override description = "Log of player creations.";
-  override mail_forward = {};
-  override mail_notify = {#2};
-  override moderated = {NEW_PLAYER_LOG};
-  override object_size = {3172, 1084848672};
-  override summary_uses_body = 1;
+  override description (owner: #2, flags: "rc") = "Log of player creations.";
+  override mail_forward (owner: HACKER, flags: "r") = {};
+  override mail_notify (owner: HACKER, flags: "r") = {#2};
+  override moderated (owner: #2, flags: "rc") = {NEW_PLAYER_LOG};
+  override object_size (owner: HACKER, flags: "r") = {3172, 1084848672};
+  override summary_uses_body (owner: #2, flags: "rc") = 1;
 
   method display_seq_headers owner: #2
     ":display_seq_headers(msg_seq[,cur])";

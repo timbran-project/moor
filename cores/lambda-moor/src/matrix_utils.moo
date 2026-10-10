@@ -8,9 +8,9 @@ object MATRIX_UTILS [
 
   property note (owner: HACKER, flags: "rc") = "Please contact Uther@LambdaMOO if you make changes to this object, so he can make the changes on Lambda and elsewhere.";
 
-  override aliases = {"Vector and Matrix Utils", "vector", "matrix"};
-  override description = "This is a utilities package for dealing with lists as representations of vectors and matrices. Type `help $matrix_utils' for more details.";
-  override help_msg = {
+  override aliases (owner: HACKER, flags: "rc") = {"Vector and Matrix Utils", "vector", "matrix"};
+  override description (owner: HACKER, flags: "rc") = "This is a utilities package for dealing with lists as representations of vectors and matrices. Type `help $matrix_utils' for more details.";
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Utility verbs for manipulating lists as vectors (one dimensional lists) or as matrices (two dimensional lists).",
     "",
     "Some definitions:",
@@ -74,7 +74,7 @@ object MATRIX_UTILS [
     ":is_partial_ordering (M) => 1 if M is a reflexive, asymmetric, transitive",
     "                            relation."
   };
-  override object_size = {29765, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {29765, 1084848672};
 
   method "vector_add vector_sub vector_mul vector_div" owner: HACKER
     ":vector_add(V1 [,V2 ...]) => VN such that VN[n] = V1[n] + V2[n]...";

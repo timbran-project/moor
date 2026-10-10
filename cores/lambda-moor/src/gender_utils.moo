@@ -89,11 +89,11 @@ object GENDER_UTILS [
   property ps (owner: HACKER, flags: "rc") = {"it", "he", "she", "s/he", "e", "*e", "they", "I", "we", "you"};
   property psc (owner: HACKER, flags: "rc") = {"It", "He", "She", "S/He", "E", "*E", "They", "I", "We", "You"};
 
-  override aliases = {"Gender_Utilities"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Gender_Utilities"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the gender utilities utility package.  See `help $gender_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Defines the list of standard genders, the default pronouns for each, and routines for adding or setting pronoun properties on any gendered object.",
     "",
     "Properties:",
@@ -113,7 +113,7 @@ object GENDER_UTILS [
     "  :get_pronoun     (which,object) -- return pronoun for a given object",
     "  :get_conj*ugation(verbspec,object) -- return appropriately conjugated verb"
   };
-  override object_size = {12822, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {12822, 1084848672};
 
   method set owner: #2
     "$gender_utils:set(object,gender) --- sets the pronoun properties of object.";

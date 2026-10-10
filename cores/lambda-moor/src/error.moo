@@ -43,13 +43,13 @@ object ERROR [
     "E_FLOAT"
   };
 
-  override aliases = {"Error Generator"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Error Generator"};
+  override description (owner: HACKER, flags: "rc") = {
     "Object to automatically generate errors.",
     "",
     "raise(error) actually raises the error."
   };
-  override object_size = {7458, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {7458, 1084848672};
 
   method raise owner: HACKER
     raise(@args);

@@ -12,9 +12,9 @@ object GENERIC_OPTIONS [
   property names (owner: HACKER, flags: "r") = {};
   property namewidth (owner: HACKER, flags: "rc") = 15;
 
-  override aliases = {"Generic Option Package"};
-  override description = "an option package in need of a description.  See `help $generic_option'...";
-  override object_size = {12729, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Generic Option Package"};
+  override description (owner: HACKER, flags: "rc") = "an option package in need of a description.  See `help $generic_option'...";
+  override object_size (owner: HACKER, flags: "r") = {12729, 1084848672};
 
   method get owner: HACKER
     ":get(options,name) => returns the value of the option specified by name";

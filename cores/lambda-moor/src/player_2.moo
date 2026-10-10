@@ -7,9 +7,9 @@ object #2
   wizard: true
   programmer: true
 
-  override aliases = {"Wizard"};
-  override current_folder = #2;
-  override current_message = {
+  override aliases (owner: #2, flags: "rc") = {"Wizard"};
+  override current_folder (owner: #2, flags: "c") = #2;
+  override current_message (owner: #2, flags: "c") = {
     0,
     0,
     {NEW_PLAYER_LOG, 0, 0},
@@ -17,13 +17,13 @@ object #2
     {QUOTA_LOG, 0, 0},
     {NEWT_LOG, 0, 0}
   };
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override first_connect_time = 1529444339;
-  override last_connect_place = "";
-  override last_connect_time = 1529543480;
-  override last_disconnect_time = 1529543472;
-  override object_size = {5052, 1084848672};
-  override owned_objects = {
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override first_connect_time (owner: #2, flags: "r") = 1529444339;
+  override last_connect_place (owner: #2, flags: "") = "";
+  override last_connect_time (owner: #2, flags: "r") = 1529543480;
+  override last_disconnect_time (owner: #2, flags: "r") = 1529543472;
+  override object_size (owner: HACKER, flags: "r") = {5052, 1084848672};
+  override owned_objects (owner: #2, flags: "r") = {
     SYSOBJ,
     ROOT_CLASS,
     #2,
@@ -62,8 +62,8 @@ object #2
     GENDERED_OBJECT,
     HTTP
   };
-  override ownership_quota = -10000;
-  override password = 0;
-  override previous_connection = {1529444339, "localhost"};
-  override size_quota = {50000, 769725, 1084848672, 0};
+  override ownership_quota (owner: HACKER, flags: "") = -10000;
+  override password (owner: #2, flags: "") = 0;
+  override previous_connection (owner: #2, flags: "") = {1529444339, "localhost"};
+  override size_quota (owner: HACKER, flags: "") = {50000, 769725, 1084848672, 0};
 endobject

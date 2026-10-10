@@ -9,11 +9,11 @@ object NOTE_EDITOR [
   property objects (owner: #96, flags: "rc") = {};
   property strmode (owner: #96, flags: "r") = {};
 
-  override aliases = {"Note Editor", "nedit"};
-  override blessed_task = 2137271057;
-  override change_msg = "There are changes.";
-  override commands = {{"e*dit", "<note>"}, {"save", "[<note>]"}, {"mode", "[string|list]"}};
-  override commands2 = {
+  override aliases (owner: #96, flags: "rc") = {"Note Editor", "nedit"};
+  override blessed_task (owner: #96, flags: "rc") = 2137271057;
+  override change_msg (owner: #96, flags: "rc") = "There are changes.";
+  override commands (owner: #96, flags: "rc") = {{"e*dit", "<note>"}, {"save", "[<note>]"}, {"mode", "[string|list]"}};
+  override commands2 (owner: #96, flags: "rc") = {
     {
       "say",
       "emote",
@@ -30,21 +30,21 @@ object NOTE_EDITOR [
     },
     {"y*ank", "w*hat", "mode", "e*dit", "save", "abort", "q*uit,done,pause"}
   };
-  override depart_msg = "A small swarm of 3x5 index cards arrives, engulfs %n, and carries %o away.";
-  override entrances = {#5750};
-  override help = {};
-  override no_change_msg = "Note has not been modified since the last save.";
-  override no_littering_msg = {
+  override depart_msg (owner: #96, flags: "rc") = "A small swarm of 3x5 index cards arrives, engulfs %n, and carries %o away.";
+  override entrances (owner: #96, flags: "c") = {#5750};
+  override help (owner: #96, flags: "rc") = {};
+  override no_change_msg (owner: #96, flags: "rc") = "Note has not been modified since the last save.";
+  override no_littering_msg (owner: #96, flags: "rc") = {
     "Partially edited text will be here when you get back.",
     "To return, give the `@notedit' command with no arguments.",
     "Please come back and SAVE or ABORT if you don't intend to be working on this text in the immediate future.  Keep Our MOO Clean!  No Littering!"
   };
-  override no_text_msg = "Note is devoid of text.";
-  override nothing_loaded_msg = "Use the EDIT command to select a note.";
-  override object_size = {9901, 1084848672};
-  override previous_session_msg = "You need to ABORT or SAVE this note before editing any other.";
-  override return_msg = "A small swarm of 3x5 index cards blows in and disperses, revealing %n.";
-  override stateprops = {
+  override no_text_msg (owner: #96, flags: "rc") = "Note is devoid of text.";
+  override nothing_loaded_msg (owner: #96, flags: "rc") = "Use the EDIT command to select a note.";
+  override object_size (owner: HACKER, flags: "r") = {9901, 1084848672};
+  override previous_session_msg (owner: #96, flags: "rc") = "You need to ABORT or SAVE this note before editing any other.";
+  override return_msg (owner: #96, flags: "rc") = "A small swarm of 3x5 index cards blows in and disperses, revealing %n.";
+  override stateprops (owner: #96, flags: "r") = {
     {"strmode", 0},
     {"objects", 0},
     {"texts", 0},
@@ -52,7 +52,7 @@ object NOTE_EDITOR [
     {"inserting", 1},
     {"readable", 0}
   };
-  override who_location_msg = "%L [editing notes]";
+  override who_location_msg (owner: #96, flags: "rc") = "%L [editing notes]";
 
   verb "e*dit" (any none none) owner: #96 flags: "rd"
     if (this:changed(who = player in this.active))

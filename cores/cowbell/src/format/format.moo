@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT [
   import_export_id -> "format",
   import_export_hierarchy -> {"format"}
@@ -21,6 +19,7 @@ object FORMAT [
   property title (owner: HACKER, flags: "r") = FORMAT_TITLE;
 
   override description (owner: HACKER, flags: "rc") = "Container for formatting objects like block, list, table, and title.";
+
   method result owner: HACKER
     "An unannotated fragment needs no envelope. Annotated fragments carry their own table.";
     const {content, annotations} = args;

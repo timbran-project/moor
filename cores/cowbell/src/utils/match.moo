@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object MATCH [
   import_export_id -> "match",
   import_export_hierarchy -> {"utils"}
@@ -239,6 +237,7 @@ object MATCH [
     result = this:resolve_in_scope("lobbi", scope, ['fuzzy_threshold -> 0.0]);
     result != #-3 && raise(E_ASSERT, "Fuzzy disabled should fail: " + toliteral(result));
   endmethod
+
   method object_suggestions owner: ARCH_WIZARD
     "Build labelled object choices from a visible match scope, retaining scope aliases.";
     set_task_perms(caller_perms());
@@ -257,8 +256,7 @@ object MATCH [
         continue;
       endif
       seen[obj] = length(result) + 1;
-      result = {@result, ["id" -> tostr(obj), "label" -> obj:name(), "value" -> tostr(obj),
-        "detail" -> tostr(obj), "objectKind" -> obj:reference_kind(), "keys" -> {@obj:aliases(), @aliases}]};
+      result = {@result, ["id" -> tostr(obj), "label" -> obj:name(), "value" -> tostr(obj), "detail" -> tostr(obj), "objectKind" -> obj:reference_kind(), "keys" -> {@obj:aliases(), @aliases}]};
     endfor
     return result;
   endmethod
@@ -321,8 +319,7 @@ object MATCH [
         find_command_verb(probe, command_env) && return candidates;
       endfor
     endif
-    const other_candidates = parsed[other_key] == $ambiguous_match
-      ? parsed[direct ? 'ambiguous_iobj | 'ambiguous_dobj] | {parsed[other_key]};
+    const other_candidates = parsed[other_key] == $ambiguous_match ? parsed[direct ? 'ambiguous_iobj | 'ambiguous_dobj] | {parsed[other_key]};
     let result = {};
     for candidate in (candidates)
       const object = toobj(candidate["value"]);
@@ -378,13 +375,10 @@ object MATCH [
       seen[id] = true;
       count = count + 1;
       if (length(buckets[rank]) < limit)
-        buckets[rank] = {@buckets[rank], ["id" -> id, "label" -> candidate["label"],
-          "value" -> candidate["value"], "detail" -> `candidate["detail"] ! E_RANGE => ""',
-          "objectKind" -> `candidate["objectKind"] ! E_RANGE => "object"']};
+        buckets[rank] = {@buckets[rank], ["id" -> id, "label" -> candidate["label"], "value" -> candidate["value"], "detail" -> `candidate["detail"] ! E_RANGE => ""', "objectKind" -> `candidate["objectKind"] ! E_RANGE => "object"']};
       endif
     endfor
     const ranked = {@buckets[1], @buckets[2], @buckets[3], @buckets[4]};
     return ["items" -> ranked[1..min(length(ranked), limit)], "more" -> count > limit];
   endmethod
-
 endobject

@@ -1357,6 +1357,7 @@ object WIZARD_FEATURE [
     const {who} = args;
     return valid(who) && $object_utils:isa(who, $wiz);
   endmethod
+
   verb "@changes" (any any any) owner: #2 flags: "rd"
     "Review and apply program updates. Use @changes help for commands.";
     this == $wizard_feature && $wizard_feature in player.features && player.wizard || raise(E_PERM);

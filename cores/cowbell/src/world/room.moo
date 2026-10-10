@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object ROOM [
   import_export_id -> "room",
   import_export_hierarchy -> {"world"}
@@ -412,9 +410,7 @@ object ROOM [
     valid(destination) || return [];
     const identity = area:passage_link_id(this, destination);
     identity != "" || return [];
-    return ["kind" -> "command", "command" -> "go " + direction,
-      "action" -> $player:command_action("go", direction),
-      "exit" -> ["source" -> $url_utils:to_curie_str(this), "destination" -> $url_utils:to_curie_str(destination), "passage" -> identity]];
+    return ["kind" -> "command", "command" -> "go " + direction, "action" -> $player:command_action("go", direction), "exit" -> ["source" -> $url_utils:to_curie_str(this), "destination" -> $url_utils:to_curie_str(destination), "passage" -> identity]];
   endmethod
 
   method action_go owner: ARCH_WIZARD
@@ -1161,7 +1157,7 @@ object ROOM [
         endif
       endif
     endfor
-    const exit_links = {["label" -> direction, "annotation" -> this:exit_annotation(direction)] for direction in (all_exits)};
+    const exit_links = { ["label" -> direction, "annotation" -> this:exit_annotation(direction)] for direction in (all_exits) };
     available_actions = `look_data.actions ! E_PROPNF => {}';
     actors = {};
     things = {};

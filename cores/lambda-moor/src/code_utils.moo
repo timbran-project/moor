@@ -133,11 +133,11 @@ object CODE_UTILS [
     "named/called/known as"
   };
 
-  override aliases = {"code", "utils"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"code", "utils"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the code utilities utility package.  See `help $code_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "parse_propref(\"foo.bar\")  => {\"foo\",\"bar\"} (or 0 if arg. isn't a property ref.)",
     "parse_verbref(\"foo:bar\")  => {\"foo\",\"bar\"} (or 0 if arg. isn't a verb ref.)",
     "parse_argspec(\"any\",\"in\",\"front\",\"of\",\"this\",\"baz\"...)",
@@ -204,7 +204,7 @@ object CODE_UTILS [
     "argstr(verb,args[,argstr] => returns a corrected argstr (see full verb help)",
     "substitute(string,subs)   => subs in form {{\"target\", \"sub\"}, {...}, ...}"
   };
-  override object_size = {59174, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {59174, 1084848672};
 
   verb eval_d (any any any) owner: #2 flags: "rx"
     ":eval_d(code...) => {compiled?,result}";

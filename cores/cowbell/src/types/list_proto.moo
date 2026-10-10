@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object LIST_PROTO [
   import_export_id -> "list_proto",
   import_export_hierarchy -> {"types"}

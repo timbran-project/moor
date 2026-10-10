@@ -6,7 +6,6 @@ object SYSOBJ [
   owner: #2
   readable: true
 
-  property change_manager (owner: #2, flags: "r") = CHANGE_MANAGER;
   property ambiguous_match (owner: #2, flags: "rc") = #-2;
   property build_options (owner: #2, flags: "rc") = BUILD_OPTIONS;
   property builder (owner: #2, flags: "rc") = BUILDER;
@@ -15,6 +14,7 @@ object SYSOBJ [
   property building_utils (owner: #2, flags: "rc") = BUILDING_UTILS;
   property builtin_function_help (owner: #2, flags: "rc") = BUILTIN_FUNCTION_HELP;
   property byte_quota_utils (owner: #2, flags: "rc") = BYTE_QUOTA_UTILS;
+  property change_manager (owner: #2, flags: "r") = CHANGE_MANAGER;
   property class_registry (owner: #2, flags: "rc") = {
     {
       "generics",

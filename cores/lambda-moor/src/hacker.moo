@@ -9,15 +9,15 @@ object HACKER [
   readable: true
 
   override aliases (owner: #2, flags: "r") = {"Hacker"};
-  override description = "A system character used to own non-wizardly system verbs , properties, and objects in the core.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override home = #-1;
-  override last_disconnect_time = 2147483647;
-  override mail_forward = {#2};
-  override object_size = {2102, 1084848672};
-  override owned_objects = 0;
-  override ownership_quota = 37331;
-  override size_quota = {100000008, -27508461, 1008125633, 1510455};
+  override description (owner: HACKER, flags: "rc") = "A system character used to own non-wizardly system verbs , properties, and objects in the core.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override home (owner: HACKER, flags: "rc") = #-1;
+  override last_disconnect_time (owner: #2, flags: "r") = 2147483647;
+  override mail_forward (owner: HACKER, flags: "rc") = {#2};
+  override object_size (owner: HACKER, flags: "r") = {2102, 1084848672};
+  override owned_objects (owner: #2, flags: "r") = 0;
+  override ownership_quota (owner: HACKER, flags: "") = 37331;
+  override size_quota (owner: HACKER, flags: "") = {100000008, -27508461, 1008125633, 1510455};
 
   method init_for_core owner: #2
     if (caller_perms().wizard)

@@ -11,9 +11,9 @@ object GENERIC_DB [
   property data (owner: HACKER, flags: "r") = 4;
   property node_perms (owner: HACKER, flags: "rc") = "r";
 
-  override aliases = {"Generic Database"};
-  override description = "A generic `database' (well, really more like a string-indexed array if you want the truth...). See `help $generic_db' for details.";
-  override object_size = {17214, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Generic Database"};
+  override description (owner: HACKER, flags: "rc") = "A generic `database' (well, really more like a string-indexed array if you want the truth...). See `help $generic_db' for details.";
+  override object_size (owner: HACKER, flags: "r") = {17214, 1084848672};
 
   method "find find_key" owner: HACKER
     "find(string[,n]) => datum corresponding to string with the search starting at node \" \"+string[1..n], n defaults to 0 (root node), $ambiguous_match or $failed_match";

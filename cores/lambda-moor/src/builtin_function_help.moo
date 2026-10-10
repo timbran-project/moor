@@ -1064,8 +1064,8 @@ object BUILTIN_FUNCTION_HELP [
     "Returns a list of the names of the verbs defined directly on the given <object>, not inherited from its parent.  If <object> is not valid, then E_INVARG is raised.  If the programmer does not have read permission on <object>, then E_PERM is raised."
   };
 
-  override aliases = {"Builtin Function Help"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Builtin Function Help"};
+  override description (owner: HACKER, flags: "rc") = {
     "A help database (in the sense of anything that is usable by $player:help()) is any object having the following two verbs:",
     "",
     "  :find_topics(string)",
@@ -1099,6 +1099,6 @@ object BUILTIN_FUNCTION_HELP [
     "  {\"*index*\"}",
     "     - returns a list of all topics in this database, arranged in columns."
   };
-  override index_cache = {"builtin-index"};
-  override object_size = {89775, 1084848672};
+  override index_cache (owner: HACKER, flags: "r") = {"builtin-index"};
+  override object_size (owner: HACKER, flags: "r") = {89775, 1084848672};
 endobject

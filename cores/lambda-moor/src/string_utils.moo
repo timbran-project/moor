@@ -13,11 +13,11 @@ object STRING_UTILS [
   property use_article_a (owner: HACKER, flags: "r") = {"unit", "unix", "one", "once", "utility"};
   property use_article_an (owner: HACKER, flags: "r") = {};
 
-  override aliases = {"string", "utils"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"string", "utils"};
+  override description (owner: #2, flags: "rc") = {
     "This is the string utilities utility package.  See `help $string_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "For a complete description of a given verb, do `help $string_utils:verbname'",
     "",
     "    Conversion routines:",
@@ -116,7 +116,7 @@ object STRING_UTILS [
     "Suspended versions (with _suspended at end of name) for",
     "     :print     :from_value     :columnize/se      :match"
   };
-  override object_size = {76712, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {76712, 1084848672};
 
   method space owner: HACKER
     "space(len,fill) returns a string of length abs(len) consisting of copies of fill.  If len is negative, fill is anchored on the right instead of the left.";

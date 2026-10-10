@@ -14,14 +14,14 @@ object SITE_DB [
   property total_pruned_people (owner: HACKER, flags: "rc") = 0;
   property total_pruned_sites (owner: HACKER, flags: "rc") = 0;
 
-  override " " = {"", "l", {}, {}};
-  override aliases = {"sitedb", "site", "db"};
-  override description = {
+  override " " (owner: HACKER, flags: "") = {"", "l", {}, {}};
+  override aliases (owner: HACKER, flags: "rc") = {"sitedb", "site", "db"};
+  override description (owner: HACKER, flags: "rc") = {
     "This object holds a db of places from which players have connected (see `help $site_db').",
     "The site blacklist and the graylist live as well (see `help blacklist')."
   };
-  override node_perms = "";
-  override object_size = {13167, 1084848672};
+  override node_perms (owner: HACKER, flags: "rc") = "";
+  override object_size (owner: HACKER, flags: "r") = {13167, 1084848672};
 
   method "find* _only* _every*" owner: HACKER
     return caller == this || caller_perms().wizard ? pass(@args) | E_PERM;

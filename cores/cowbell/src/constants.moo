@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 define SYSOBJ = #0;
 define ROOT = #1;
 define ARCH_WIZARD = #2;
@@ -11,6 +9,7 @@ define PRONOUNS = #22;
 define SERVER_OPTIONS = #52;
 define EXAMINATION = #56;
 define PLAYER_ACTIVITY = #113;
+define CHANGE_MANAGER = #2000;
 
 // agentic
 define AGENTIC = #119;
@@ -51,9 +50,9 @@ define FORMAT_TABLE = #33;
 define FORMAT_CODE = #34;
 define HTML = #35;
 define FORMAT_DEFLIST = #72;
-define FORMAT_ANNOTATION = #134;
 define FORMAT_LINK = #82;
 define FORMAT_PARAGRAPH = #114;
+define FORMAT_ANNOTATION = #134;
 
 // git
 define GIT = #135;
@@ -150,5 +149,3 @@ define TEST_UTILS = #127;
 define ROOM = #7;
 define AREA = #11;
 define PASSAGE = #12;
-
-define CHANGE_MANAGER = #2000;

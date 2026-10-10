@@ -35,12 +35,12 @@ object FRAND_CLASS [
   property whisper_refused_msg (owner: HACKER, flags: "rc") = "%N refuses your whisper.";
 
   override aliases (owner: #2, flags: "r") = {"Frand's player class", "player class"};
-  override description = "You see a player who should type '@describe me as ...'.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override help = FRAND_HELP;
-  override mail_notify (owner: HACKER, flags: "rc");
-  override object_size = {69955, 1084848672};
-  override size_quota = {50000, 0, 0, 1};
+  override description (owner: HACKER, flags: "rc") = "You see a player who should type '@describe me as ...'.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override help (owner: HACKER, flags: "rc") = FRAND_HELP;
+  override mail_notify (owner: HACKER, flags: "rc") clear;
+  override object_size (owner: HACKER, flags: "r") = {69955, 1084848672};
+  override size_quota (owner: HACKER, flags: "") = {50000, 0, 0, 1};
 
   verb "@rooms" (none none none) owner: HACKER flags: "rxd"
     "'@rooms' - List the rooms which are known by name.";

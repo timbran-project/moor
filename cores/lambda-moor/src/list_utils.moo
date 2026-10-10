@@ -8,11 +8,11 @@ object LIST_UTILS [
 
   property nonstring_tell_lines (owner: HACKER, flags: "r") = {};
 
-  override aliases = {"list_utilities"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"list_utilities"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the list utilities utility package.  See `help $list_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "append            (list,list,..) => result of concatenating the given lists",
     "reverse           (list)         => reversed list",
     "remove_duplicates (list)         => list with all duplicates removed",
@@ -59,7 +59,7 @@ object LIST_UTILS [
     "sort_suspended          iassoc_suspended          sort_alist_suspended",
     "reverse_suspended       randomly_permute_suspended"
   };
-  override object_size = {29031, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {29031, 1084848672};
 
   method make owner: HACKER
     ":make(n[,elt]) => a list of n elements, each of which == elt. elt defaults to 0.";

@@ -174,11 +174,11 @@ object WIZ_UTILS [
   property system_chars (owner: #2, flags: "rc") = {HACKER, NO_ONE, HOUSEKEEPER};
   property wizards (owner: #2, flags: "rc") = {#2};
 
-  override aliases = {"Wizard Utilities"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"Wizard Utilities"};
+  override description (owner: #2, flags: "rc") = {
     "This is the Wizard Utilities utility package.  See `help $wiz_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "Wizard Utilities",
     "----------------",
     "The following functions are substitutes for various server builtins.",
@@ -216,7 +216,7 @@ object WIZ_UTILS [
     "    *all descendants*.  property ownership is changed on descendants ",
     "    where necessary."
   };
-  override object_size = {55744, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {55744, 1084848672};
 
   method set_programmer owner: #2
     ":set_programmer(victim[,mail from])  => 1 or error.";

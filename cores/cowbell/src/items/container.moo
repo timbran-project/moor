@@ -462,29 +462,20 @@ object CONTAINER [
     let actions = {};
     for action in (pass(who))
       const id = action["id"];
-      if ((id == "open" && (this.open || this.locked)) || (id == "close" && !this.open)
-        || (id == "lock" && (this.open || this.locked)) || (id == "unlock" && !this.locked))
+      if (id == "open" && (this.open || this.locked) || (id == "close" && !this.open) || (id == "lock" && (this.open || this.locked)) || (id == "unlock" && !this.locked))
         continue;
       endif
       actions = {@actions, action};
     endfor
     if (this.open)
       const ref = tostr(this);
-      actions = {@actions,
-        ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + ref,
-          "action" -> $container:command_action("put", this:name()),
-          "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Find a carried item…",
-            "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "inventory"]]],
-        ["id" -> "take_from", "label" -> "Take from", "command" -> "get {input} from " + ref,
-          "action" -> $container:command_action("get", this:name()),
-          "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Find an item inside…",
-            "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "contents"]]]};
+      actions = {@actions, ["id" -> "put", "label" -> "Put inside", "command" -> "put {input} in " + ref, "action" -> $container:command_action("put", this:name()), "input" -> ["label" -> "What are you putting inside?", "placeholder" -> "Find a carried item\u2026", "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "inventory"]]], ["id" -> "take_from", "label" -> "Take from", "command" -> "get {input} from " + ref, "action" -> $container:command_action("get", this:name()), "input" -> ["label" -> "What are you taking out?", "placeholder" -> "Find an item inside\u2026", "suggestions" -> ["provider" -> $url_utils:to_curie_str(this), "source" -> "contents"]]]};
     endif
     return actions;
   endmethod
 
   verb "get take steal grab" (any from this) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["label" -> "Take", "prefix" -> "Take from", "arguments" -> ["dobj" -> "Item"]]
+    ui -> ["arguments" -> ["dobj" -> "Item"], "label" -> "Take", "prefix" -> "Take from"]
   ]
     "Take an object from this container";
     const actor = caller_perms();
@@ -537,7 +528,7 @@ object CONTAINER [
   endverb
 
   verb put (any any this) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["label" -> "Put inside", "arguments" -> ["dobj" -> "Item"]]
+    ui -> ["arguments" -> ["dobj" -> "Item"], "label" -> "Put inside"]
   ]
     "Put an object in/on this container.";
     const actor = caller_perms();

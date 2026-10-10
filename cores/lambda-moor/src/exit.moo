@@ -17,8 +17,8 @@ object EXIT [
   property onogo_msg (owner: #2, flags: "rc") = 0;
   property source (owner: #2, flags: "rc") = #-1;
 
-  override aliases = {"generic exit"};
-  override object_size = {7191, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic exit"};
+  override object_size (owner: HACKER, flags: "r") = {7191, 1084848672};
 
   method invoke owner: #2
     set_task_perms(caller_perms());

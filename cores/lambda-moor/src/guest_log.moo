@@ -8,8 +8,8 @@ object GUEST_LOG [
   property connections (owner: #2, flags: "") = {};
   property max_entries (owner: #2, flags: "") = 511;
 
-  override aliases = {"Guest Log"};
-  override object_size = {3738, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Guest Log"};
+  override object_size (owner: HACKER, flags: "r") = {3738, 1084848672};
 
   method enter owner: #2
     ":enter(who,islogin,time,site)";

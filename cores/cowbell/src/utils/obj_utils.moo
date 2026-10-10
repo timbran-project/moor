@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object OBJ_UTILS [
   import_export_id -> "obj_utils",
   import_export_hierarchy -> {"utils"}
@@ -28,11 +26,7 @@ object OBJ_UTILS [
         continue;
       endif
       const parsed = parse_command(strsub(command, "{input}", "#-2"), {}, false);
-      if ((direct == "this" && parsed['dobjstr] != tostr(receiver))
-        || (indirect == "this" && parsed['iobjstr] != tostr(receiver))
-        || (direct == "none" && parsed['dobjstr]) || (indirect == "none" && parsed['iobjstr])
-        || (prep_spec == "none" && parsed['prepstr])
-        || (!(prep_spec in {"none", "any"}) && !(parsed['prepstr] in prep_spec:split("/"))))
+      if (direct == "this" && parsed['dobjstr] != tostr(receiver) || (indirect == "this" && parsed['iobjstr] != tostr(receiver)) || (direct == "none" && parsed['dobjstr]) || (indirect == "none" && parsed['iobjstr]) || (prep_spec == "none" && parsed['prepstr]) || (!(prep_spec in {"none", "any"}) && !(parsed['prepstr] in prep_spec:split("/"))))
         continue;
       endif
       maphaskey(action, "action") && (hint = action["action"]);
@@ -62,8 +56,7 @@ object OBJ_UTILS [
             template = template + " " + tostr(receiver);
           elseif (constraint == "any")
             template = template + " {" + slot + "}";
-            fields[slot] = ["label" -> prompt, "expectedKind" -> "object", "required" -> direct == "this" || indirect == "this" || prep_spec != "none",
-              "suggestions" -> ["provider" -> $url_utils:to_curie_str(viewer), "source" -> "nearby"]];
+            fields[slot] = ["label" -> prompt, "expectedKind" -> "object", "required" -> direct == "this" || indirect == "this" || prep_spec != "none", "suggestions" -> ["provider" -> $url_utils:to_curie_str(viewer), "source" -> "nearby"]];
           endif
         endfor
       endif
@@ -95,7 +88,7 @@ object OBJ_UTILS [
     const {invocation, receiver, name, definer, viewer} = args;
     const linked = maphaskey(invocation.descriptor, "action") ? invocation | invocation:with_action(definer:command_action(name));
     !viewer.programmer && return linked;
-    return $format.paragraph:inline(linked, " ", $format.annotation:verb(receiver, name, "↗", definer));
+    return $format.paragraph:inline(linked, " ", $format.annotation:verb(receiver, name, "\u2197", definer));
   endmethod
 
   method format_verb_signature owner: ARCH_WIZARD

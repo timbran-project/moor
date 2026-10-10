@@ -461,11 +461,11 @@ object MATH_UTILS [
     {15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
   };
 
-  override aliases = {"Math Utilities", "Math_Utils", "trigonometric utilites", "trig_utils"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Math Utilities", "Math_Utils", "trigonometric utilites", "trig_utils"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the Math Utilities utility package.  See `help $math_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Trigonometric/Exponential functions:",
     "  sin(a),cos(a),tan(a) -- returns 10000*(the value of the corresponding",
     "       trigonometric function) angle a is in degrees.",
@@ -523,7 +523,7 @@ object MATH_UTILS [
     "  BlFromInt(d) -- converts a decimal number d to a list of 1's and 0's, 32-bit",
     "  IntFromBl(b) -- converts a list of 1's and 0's (any precision) to decimal"
   };
-  override object_size = {36400, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {36400, 1084848672};
 
   method xsin owner: HACKER
     "xsin(INT x) -- calculates the taylor approximation for the sine function";

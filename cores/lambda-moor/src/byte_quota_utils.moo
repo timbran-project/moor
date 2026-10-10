@@ -22,11 +22,11 @@ object BYTE_QUOTA_UTILS [
   property unmeasured_multiplier (owner: HACKER, flags: "rc") = 100;
   property working (owner: HACKER, flags: "rc") = #2;
 
-  override aliases = {"Byte Quota Utilities"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Byte Quota Utilities"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the Byte Quota Utilities utility package.  See `help $quota_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Verbs a user might want to call from a program:",
     " :bi_create -- built-in create() call, takes same args.",
     "",
@@ -94,7 +94,7 @@ object BYTE_QUOTA_UTILS [
     "",
     "And don't forget $object_quota_utils, which has the object based implementation."
   };
-  override object_size = {32429, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {32429, 1084848672};
 
   method initialize_quota owner: HACKER
     if (!caller_perms().wizard)

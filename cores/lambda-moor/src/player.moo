@@ -55,9 +55,9 @@ object PLAYER [
   property size_quota (owner: HACKER, flags: "") = {};
   property verb_subs (owner: #2, flags: "rc") = {};
 
-  override aliases = {"generic player"};
-  override description = "You see a player who should type '@describe me as ...'.";
-  override object_size = {97774, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic player"};
+  override description (owner: #2, flags: "rc") = "You see a player who should type '@describe me as ...'.";
+  override object_size (owner: HACKER, flags: "r") = {97774, 1084848672};
 
   method init_for_core owner: #2
     if (caller_perms().wizard)

@@ -6,11 +6,11 @@ object OBJECT_UTILS [
   owner: #2
   readable: true
 
-  override aliases = {"object utilities"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"object utilities"};
+  override description (owner: #2, flags: "rc") = {
     "This is the object utilities utility package.  See `help $object_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "These routines are useful for finding out information about individual objects.",
     "",
     "Examining everything an object has defined on it:",
@@ -57,7 +57,7 @@ object OBJECT_UTILS [
     "   all_properties_suspended           ",
     "   descendants_with_property_suspended"
   };
-  override object_size = {21564, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {21564, 1084848672};
 
   method has_property owner: #2
     "Syntax:  has_property(OBJ, STR) => INT 0|1";

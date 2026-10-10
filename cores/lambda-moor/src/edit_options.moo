@@ -17,12 +17,12 @@ object EDIT_OPTIONS [
   };
   property show_quiet_insert (owner: HACKER, flags: "rc") = {"Report line numbers on insert or append.", "No echo on insert or append."};
 
-  override _namelist = "!quiet_insert!eval_subs!local!no_parens!parens!noisy_insert!";
-  override aliases = {"Edit Options"};
-  override extras = {"parens", "noisy_insert"};
-  override names = {"quiet_insert", "eval_subs", "local", "no_parens"};
-  override namewidth = 20;
-  override object_size = {1856, 1084848672};
+  override _namelist (owner: HACKER, flags: "r") = "!quiet_insert!eval_subs!local!no_parens!parens!noisy_insert!";
+  override aliases (owner: HACKER, flags: "rc") = {"Edit Options"};
+  override extras (owner: HACKER, flags: "r") = {"parens", "noisy_insert"};
+  override names (owner: HACKER, flags: "r") = {"quiet_insert", "eval_subs", "local", "no_parens"};
+  override namewidth (owner: HACKER, flags: "rc") = 20;
+  override object_size (owner: HACKER, flags: "r") = {1856, 1084848672};
 
   method actual owner: HACKER
     if (i = args[1] in {"parens", "noisy_insert"})

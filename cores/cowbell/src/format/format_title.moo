@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object FORMAT_TITLE [
   import_export_id -> "format_title",
   import_export_hierarchy -> {"format"}

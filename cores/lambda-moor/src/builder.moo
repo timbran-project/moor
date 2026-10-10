@@ -9,11 +9,11 @@ object BUILDER [
 
   property build_options (owner: #2, flags: "rc") = {};
 
-  override aliases = {"generic builder"};
-  override description = "You see a player who should type '@describe me as ...'.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override help = BUILDER_HELP;
-  override object_size = {36256, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic builder"};
+  override description (owner: #2, flags: "rc") = "You see a player who should type '@describe me as ...'.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override help (owner: #2, flags: "rc") = BUILDER_HELP;
+  override object_size (owner: HACKER, flags: "r") = {36256, 1084848672};
 
   verb "@quota" (any none none) owner: #2 flags: "rd"
     set_task_perms(player);

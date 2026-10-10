@@ -6,9 +6,9 @@ object LAST_HUH [
   owner: #2
   readable: true
 
-  override aliases = {"Player Last_huh Verbs"};
-  override description = "A repository of last-resort player verbs to be called by $player:last_huh";
-  override object_size = {4598, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Player Last_huh Verbs"};
+  override description (owner: #2, flags: "rc") = "A repository of last-resort player verbs to be called by $player:last_huh";
+  override object_size (owner: HACKER, flags: "r") = {4598, 1084848672};
 
   method "@*" owner: #2
     "{last_huh}  @<msg_name> <object> is [<text>]";

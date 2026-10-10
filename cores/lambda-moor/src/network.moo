@@ -42,8 +42,8 @@ object NETWORK [
   property valid_email_regexp (owner: #2, flags: "rc") = "^[-a-z0-9_!.%+$'=/]*[-a-z0-9_!%+$'=]$";
   property valid_host_regexp (owner: #2, flags: "rc") = "^%([-_a-z0-9]+%.%)+%(gov%|edu%|com%|org%|int%|mil%|net%|%nato%|arpa%|name%|info%|[a-z][a-z]%)$";
 
-  override aliases = {"Network Utilities"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"Network Utilities"};
+  override description (owner: #2, flags: "rc") = {
     "Utilities for dealing with network connections",
     "---------------",
     "Creating & tracking hosts:",
@@ -119,7 +119,7 @@ object NETWORK [
     "",
     "                "
   };
-  override object_size = {22932, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {22932, 1084848672};
 
   method parse_address owner: #2
     "Given an email address, return {userid, site}.";

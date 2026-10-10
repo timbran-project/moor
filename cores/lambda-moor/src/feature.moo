@@ -12,14 +12,14 @@ object FEATURE [
   property help_msg (owner: HACKER, flags: "rc") = "The Generic Feature Object--not to be used as a feature object.";
   property warehouse (owner: HACKER, flags: "r") = FEATURE_WAREHOUSE;
 
-  override aliases = {
+  override aliases (owner: HACKER, flags: "rc") = {
     "Generic Feature Object",
     "Generic .Features_Huh Object",
     "Feature Object",
     ".Features_Huh Object"
   };
-  override description = "This is the Generic Feature Object.  It is not meant to be used as a feature object itself, but is handy for making new feature objects.";
-  override object_size = {6698, 1084848672};
+  override description (owner: HACKER, flags: "rc") = "This is the Generic Feature Object.  It is not meant to be used as a feature object itself, but is handy for making new feature objects.";
+  override object_size (owner: HACKER, flags: "r") = {6698, 1084848672};
 
   method help_msg owner: HACKER
     all_help = this.help_msg;

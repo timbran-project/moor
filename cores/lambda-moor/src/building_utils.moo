@@ -22,11 +22,11 @@ object BUILDING_UTILS [
     GENERIC_OPTIONS
   };
 
-  override aliases = {"building", "utils"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"building", "utils"};
+  override description (owner: #2, flags: "rc") = {
     "This is the building utilities utility package.  See `help $building_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "Verbs useful for building.  For a complete description of a given verb, do `help $building_utils:verbname'.",
     "",
     "make_exit(spec,source,dest[,don't-really-create]) => a new exit",
@@ -41,7 +41,7 @@ object BUILDING_UTILS [
     "recreate(object, newparent) - effectively recycle and recreate object",
     "          as a child of newparent"
   };
-  override object_size = {12705, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {12705, 1084848672};
 
   method make_exit owner: #2
     "make_exit(spec, source, dest[, use-$recycler-pool [, kind]])";

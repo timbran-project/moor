@@ -26,11 +26,11 @@ object PROG_OPTIONS [
   };
   property "type_@prop_flags" (owner: HACKER, flags: "rc") = {2};
 
-  override _namelist = "!list_all_parens!list_no_numbers!list_show_permissions!eval_time!copy_expert!list_numbers!verb_args!@prop_flags!rmverb_mail_backup!";
-  override aliases = {"Programmer Options"};
-  override description = {"Option package for $prog commands.  See `help @prog-options'."};
-  override extras = {"list_numbers"};
-  override names = {
+  override _namelist (owner: HACKER, flags: "r") = "!list_all_parens!list_no_numbers!list_show_permissions!eval_time!copy_expert!list_numbers!verb_args!@prop_flags!rmverb_mail_backup!";
+  override aliases (owner: HACKER, flags: "rc") = {"Programmer Options"};
+  override description (owner: HACKER, flags: "rc") = {"Option package for $prog commands.  See `help @prog-options'."};
+  override extras (owner: HACKER, flags: "r") = {"list_numbers"};
+  override names (owner: HACKER, flags: "r") = {
     "list_all_parens",
     "list_no_numbers",
     "eval_time",
@@ -40,7 +40,7 @@ object PROG_OPTIONS [
     "list_show_permissions",
     "rmverb_mail_backup"
   };
-  override object_size = {5196, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {5196, 1084848672};
 
   method actual owner: HACKER
     if (i = args[1] in {"list_numbers"})

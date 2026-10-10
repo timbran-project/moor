@@ -6,10 +6,10 @@ object FEATURE_WAREHOUSE [
   owner: HACKER
   readable: true
 
-  override aliases = {"Feature Warehouse", "warehouse"};
-  override dark = 0;
-  override object_size = {1594, 1084848672};
-  override opened = 1;
+  override aliases (owner: HACKER, flags: "rc") = {"Feature Warehouse", "warehouse"};
+  override dark (owner: #2, flags: "r") = 0;
+  override object_size (owner: HACKER, flags: "r") = {1594, 1084848672};
+  override opened (owner: #2, flags: "r") = 1;
 
   verb list (any in this) owner: HACKER flags: "rxd"
     "Copied from Features Feature Object (#24300):list by Joe (#2612) Mon Oct 10 21:07:35 1994 PDT";

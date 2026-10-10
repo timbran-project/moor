@@ -11,11 +11,11 @@ object GENERIC_BIGLIST_HOME [
   property _mgr (owner: HACKER, flags: "rc") = BIGLIST;
   property mowner (owner: HACKER, flags: "rc") = HACKER;
 
-  override aliases = {"biglist", "resident", "gblr"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"biglist", "resident", "gblr"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the object you want to use as a parent in order to @create a place for your biglists to live.  Suitably sick souls may wish to reimplement :_genprop and :_kill to reclaim unused properties (this :_kill just throws them away and this :_genprop just relentlessly advances....  who cares).  Anyway, you'll need to look at $biglist before this will make sense."
   };
-  override object_size = {3606, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {3606, 1084848672};
 
   method _make owner: #2
     ":_make(...) => new node with value {...}";

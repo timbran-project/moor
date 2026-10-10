@@ -13,8 +13,8 @@ object GOPHER [
   property frozen (owner: #2, flags: "rc") = 0;
   property limit (owner: #2, flags: "rc") = 2000;
 
-  override aliases = {"Gopher utilities"};
-  override description = {
+  override aliases (owner: #2, flags: "rc") = {"Gopher utilities"};
+  override description (owner: #2, flags: "rc") = {
     "An interface to Gopher internet services.",
     "Copyright (c) 1992,1993 Grump,JoeFeedback@LambdaMOO.",
     "",
@@ -46,7 +46,7 @@ object GOPHER [
     "   $gopher:type(\"I\") => \"image\"",
     ""
   };
-  override object_size = {15578, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {15578, 1084848672};
 
   method get_now owner: #2
     "Usage:  get_now(site, port, message)";

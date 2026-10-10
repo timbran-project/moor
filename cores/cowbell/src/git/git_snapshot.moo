@@ -7,7 +7,7 @@ object GIT_SNAPSHOT [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Local Git directory data with repository, commit, tree, path, complete, and entries slots. Lookup never fetches missing data.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Local Git directory data with repository, commit, tree, path, complete, and entries slots. Lookup never fetches missing data.";
 
   method mk owner: HACKER
     "Wrap a directory result. Complete means recursive contents from snapshot, rather than a tree listing.";
@@ -22,8 +22,7 @@ object GIT_SNAPSHOT [
     for record in (raw_entries)
       entries = {@entries, $git_entry:mk(record, repository, commit, complete)};
     endfor
-    return toflyweight($git_snapshot, ['repository -> repository, 'commit -> commit,
-      'tree -> tree, 'path -> path, 'complete -> complete, 'entries -> entries]);
+    return toflyweight($git_snapshot, ['repository -> repository, 'commit -> commit, 'tree -> tree, 'path -> path, 'complete -> complete, 'entries -> entries]);
   endmethod
 
   method entry owner: HACKER

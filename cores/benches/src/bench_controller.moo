@@ -388,11 +388,10 @@ object BENCH_CONTROLLER [
     total_appends = writer_count * appends_per_writer;
     server_log("Initial string bytes: " + tostr(total_initial_bytes));
     server_log("Total measured appends: " + tostr(total_appends));
-
     entry = this:make_history_entry(entry_bytes);
     this.subscribers = {};
     for writer_number in [1..writer_count]
-      seed_history = {this:make_numbered_history_entry(entry, entry_bytes, writer_number, entry_number) for entry_number in [1..initial_entries]};
+      seed_history = { this:make_numbered_history_entry(entry, entry_bytes, writer_number, entry_number) for entry_number in [1..initial_entries] };
       writer = create(#667, #2);
       writer.history_entry = this:make_numbered_history_entry(entry, entry_bytes, writer_number, 0);
       writer.history_append_width = append_width;
@@ -402,7 +401,6 @@ object BENCH_CONTROLLER [
       this.subscribers = {@this.subscribers, writer};
       commit();
     endfor
-
     "Exclude initial property persistence from the measured counters.";
     suspend(settle_seconds);
     counter_before = this:capture_perf_counters();
@@ -410,7 +408,6 @@ object BENCH_CONTROLLER [
     for writer in (this.subscribers)
       writer:start_string_history_appends(appends_per_writer, append_delay);
     endfor
-
     deadline = time() + 300;
     running = writer_count;
     while (running > 0 && time() < deadline)
@@ -431,7 +428,6 @@ object BENCH_CONTROLLER [
         raise(E_QUOTA, "A history writer did not complete all appends.");
       endif
     endfor
-
     elapsed = ftime(true) - started_at;
     suspend(settle_seconds);
     counter_after = this:capture_perf_counters();

@@ -43,13 +43,13 @@ object PLAYER_DB [
     "here"
   };
 
-  override " " = {"", "Hen", {"Wizard"}, {#2}};
-  override aliases = {"player_db", "plyrdb", "pdb"};
-  override description = {
+  override " " (owner: HACKER, flags: "") = {"", "Hen", {"Wizard"}, {#2}};
+  override aliases (owner: HACKER, flags: "rc") = {"player_db", "plyrdb", "pdb"};
+  override description (owner: HACKER, flags: "rc") = {
     "A database containing all player names and aliases.  ",
     "See `help $player_db' for more information."
   };
-  override object_size = {8069, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {8069, 1084848672};
 
   method load owner: HACKER
     ":load() -- reloads the player_db with the names of all existing players.";

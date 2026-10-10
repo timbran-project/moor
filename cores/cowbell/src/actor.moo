@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object ACTOR [
   import_export_id -> "actor"
 ]
@@ -38,7 +36,7 @@ object ACTOR [
   endverb
 
   verb "give hand" (any at this) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["prefix" -> "Give to", "arguments" -> ["dobj" -> "Item"]]
+    ui -> ["arguments" -> ["dobj" -> "Item"], "prefix" -> "Give to"]
   ]
     "Give a carried object to a nearby actor through the command parser.";
     const actor = caller_perms();
@@ -80,10 +78,8 @@ object ACTOR [
     this:acceptable(item) || raise(E_PERM, "That recipient can't accept the item.");
     "Policy callbacks may suspend; possession and proximity must still hold.";
     valid(item) && item.location == who || raise(E_PERM, "You no longer have that to give.");
-    valid(who) && who.location == room && this.location == room
-      || raise(E_PERM, "That recipient is no longer within reach.");
-    (!is_thing || item.drop_rule == policy)
-      || raise(E_PERM, "The item's access rules changed. Please try again.");
+    valid(who) && who.location == room && this.location == room || raise(E_PERM, "That recipient is no longer within reach.");
+    !is_thing || item.drop_rule == policy || raise(E_PERM, "The item's access rules changed. Please try again.");
     const moved = item:moveto(this);
     typeof(moved) == TYPE_ERR && raise(moved);
     item.location == this || raise(E_INVARG, "Item movement did not reach its destination");
@@ -443,5 +439,4 @@ object ACTOR [
     endif
     return details;
   endmethod
-
 endobject

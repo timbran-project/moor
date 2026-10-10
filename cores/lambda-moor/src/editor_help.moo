@@ -403,8 +403,8 @@ object EDITOR_HELP [
     "The second form expands an arbitrary list of recipients, for if e.g., you're curious about the members of particular mailing list."
   };
 
-  override aliases = {"Editor Help"};
-  override description = 0;
-  override index_cache = {"edit-index"};
-  override object_size = {21862, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Editor Help"};
+  override description (owner: HACKER, flags: "rc") = 0;
+  override index_cache (owner: HACKER, flags: "r") = {"edit-index"};
+  override object_size (owner: HACKER, flags: "r") = {21862, 1084848672};
 endobject

@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object PROG_FEATURES [
   import_export_id -> "prog_features",
   import_export_hierarchy -> {"features"}
@@ -61,9 +59,7 @@ object PROG_FEATURES [
     return true;
   endmethod
 
-  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["label" -> "Edit"]
-  ]
+  verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd" [ ui -> ["label" -> "Edit"] ]
     "HINT: <object>:<verb> or <object>.<property> -- Edit a verb or property.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -150,9 +146,7 @@ object PROG_FEATURES [
     endif
   endverb
 
-  verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["label" -> "Browse"]
-  ]
+  verb "@browse" (any any any) owner: ARCH_WIZARD flags: "rd" [ ui -> ["label" -> "Browse"] ]
     "HINT: <object> -- Browse an object in the object browser.";
     this:_challenge_command_perms();
     set_task_perms(player);
@@ -2184,10 +2178,8 @@ object PROG_FEATURES [
       blocks = {@blocks, $format.title:mk("Queued Tasks", 3), "(none)"};
     endif
     const schedule_rows = $prog_features:_schedule_rows();
-    blocks = {@blocks, $format.title:mk("Schedules", 3),
-      length(schedule_rows) ? $prog_features:_schedule_table(schedule_rows) | "(none)"};
-    const summary = tostr(length(active)) + " active, " + tostr(length(queued)) + " queued, "
-      + tostr(length(schedule_rows)) + " scheduled";
+    blocks = {@blocks, $format.title:mk("Schedules", 3), length(schedule_rows) ? $prog_features:_schedule_table(schedule_rows) | "(none)"};
+    const summary = tostr(length(active)) + " active, " + tostr(length(queued)) + " queued, " + tostr(length(schedule_rows)) + " scheduled";
     blocks = {@blocks, "", summary};
     const output = $format.block:mk(@blocks);
     player:inform_current($event:mk_info(player, output));
@@ -2201,12 +2193,8 @@ object PROG_FEATURES [
       try
         const info = schedule_info(id);
         if (!info["retired"])
-          const timing = info["kind"] == "at" ? "once" |
-            (info["adaptive"] ? "adaptive, base " | "every ") + tostr(info["interval"]) + "s";
-          rows = {@rows, {tostr(id), tostr(info["owner"]),
-            tostr(info["target"]) + ":" + info["verb"], timing,
-            $prog_features:_schedule_next(info),
-            info["running_task"] ? tostr(info["running_task"]) | "-"}};
+          const timing = info["kind"] == "at" ? "once" | (info["adaptive"] ? "adaptive, base " | "every ") + tostr(info["interval"]) + "s";
+          rows = {@rows, {tostr(id), tostr(info["owner"]), tostr(info["target"]) + ":" + info["verb"], timing, $prog_features:_schedule_next(info), info["running_task"] ? tostr(info["running_task"]) | "-"}};
         endif
       except (E_INVARG)
         "A schedule can disappear between listing its ID and reading its diagnostics.";
@@ -2246,10 +2234,7 @@ object PROG_FEATURES [
     this:_challenge_command_perms();
     set_task_perms(player);
     const rows = $prog_features:_schedule_rows();
-    const output = $format.block:mk($format.title:mk("Schedules", 3),
-      length(rows) ? $prog_features:_schedule_table(rows) | "(none)",
-      tostr(length(rows)) + " scheduled",
-      "Use @schedule <id> for details or @stop-schedule <id> to stop future firings.");
+    const output = $format.block:mk($format.title:mk("Schedules", 3), length(rows) ? $prog_features:_schedule_table(rows) | "(none)", tostr(length(rows)) + " scheduled", "Use @schedule <id> for details or @stop-schedule <id> to stop future firings.");
     player:inform_current($event:mk_info(player, output));
   endverb
 
@@ -2266,24 +2251,8 @@ object PROG_FEATURES [
     endtry
     try
       const info = schedule_info(id);
-      const rows = {
-        {"Owner", tostr(info["owner"])},
-        {"Verb", tostr(info["target"]) + ":" + info["verb"]},
-        {"Arguments", toliteral(info["args"])},
-        {"Kind", info["kind"] == "at" ? "once" | "recurring"},
-        {"Base interval", tostr(info["interval"]) + "s"},
-        {"Adaptive", info["adaptive"] ? "yes" | "no"},
-        {"Next", $prog_features:_schedule_next(info)},
-        {"Running task", info["running_task"] ? tostr(info["running_task"]) | "-"},
-        {"Runs / faults", tostr(info["run_count"]) + " / " + tostr(info["fault_count"])},
-        {"Missed / overlap", tostr(info["missed_count"]) + " / " + tostr(info["overlap_count"])},
-        {"Catchup / overlap policy", info["catchup"] + " / " + info["overlap"]},
-        {"State", toliteral(info["state"])},
-        {"Last fault", toliteral(info["last_fault"])},
-        {"Status", info["retired"] ? "retired: " + info["retire_reason"] | "live"}
-      };
-      player:inform_current($event:mk_info(player, $format.block:mk(
-        $format.title:mk("Schedule " + tostr(id), 3), $format.table:mk({"Field", "Value"}, rows))));
+      const rows = {{"Owner", tostr(info["owner"])}, {"Verb", tostr(info["target"]) + ":" + info["verb"]}, {"Arguments", toliteral(info["args"])}, {"Kind", info["kind"] == "at" ? "once" | "recurring"}, {"Base interval", tostr(info["interval"]) + "s"}, {"Adaptive", info["adaptive"] ? "yes" | "no"}, {"Next", $prog_features:_schedule_next(info)}, {"Running task", info["running_task"] ? tostr(info["running_task"]) | "-"}, {"Runs / faults", tostr(info["run_count"]) + " / " + tostr(info["fault_count"])}, {"Missed / overlap", tostr(info["missed_count"]) + " / " + tostr(info["overlap_count"])}, {"Catchup / overlap policy", info["catchup"] + " / " + info["overlap"]}, {"State", toliteral(info["state"])}, {"Last fault", toliteral(info["last_fault"])}, {"Status", info["retired"] ? "retired: " + info["retire_reason"] | "live"}};
+      player:inform_current($event:mk_info(player, $format.block:mk($format.title:mk("Schedule " + tostr(id), 3), $format.table:mk({"Field", "Value"}, rows))));
     except (E_INVARG)
       player:inform_current($event:mk_error(player, "No such schedule: " + tostr(id)));
     except (E_PERM)
@@ -2304,8 +2273,7 @@ object PROG_FEATURES [
     endtry
     try
       if (schedule_stop(id))
-        player:inform_current($event:mk_info(player, "Stopped schedule " + tostr(id)
-          + ". Running firings are unchanged; use @kill <task-id> to stop one."));
+        player:inform_current($event:mk_info(player, "Stopped schedule " + tostr(id) + ". Running firings are unchanged; use @kill <task-id> to stop one."));
       else
         player:inform_current($event:mk_info(player, "No live schedule: " + tostr(id)));
       endif

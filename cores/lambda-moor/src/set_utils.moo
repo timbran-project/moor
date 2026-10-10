@@ -6,11 +6,11 @@ object SET_UTILS [
   owner: HACKER
   readable: true
 
-  override aliases = {"Set Utilities", "set_utilities"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Set Utilities", "set_utilities"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the Set Utilities utility package.  See `help $set_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "This object is useful for operations that treat lists as sets (i.e.,",
     "without concern about order and assuming no duplication).",
     "",
@@ -34,7 +34,7 @@ object SET_UTILS [
     " equal(set1, set2)",
     "        => true if and only if set1 and set2 are equal"
   };
-  override object_size = {5574, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {5574, 1084848672};
 
   method union owner: HACKER
     "Returns the set union of all of the lists provided as arguments.";

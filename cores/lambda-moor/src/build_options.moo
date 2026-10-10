@@ -18,10 +18,10 @@ object BUILD_OPTIONS [
   property type_dig_exit (owner: HACKER, flags: "rc") = {1};
   property type_dig_room (owner: HACKER, flags: "rc") = {1};
 
-  override _namelist = "!dig_room!dig_exit!create_flags!bi_create!audit_bytes!audit_float!";
-  override aliases = {"Builder Options"};
-  override description = {"Option package for $builder commands.  See `help @build-options'."};
-  override names = {
+  override _namelist (owner: HACKER, flags: "r") = "!dig_room!dig_exit!create_flags!bi_create!audit_bytes!audit_float!";
+  override aliases (owner: HACKER, flags: "rc") = {"Builder Options"};
+  override description (owner: HACKER, flags: "rc") = {"Option package for $builder commands.  See `help @build-options'."};
+  override names (owner: HACKER, flags: "r") = {
     "dig_room",
     "dig_exit",
     "create_flags",
@@ -29,8 +29,8 @@ object BUILD_OPTIONS [
     "audit_bytes",
     "audit_float"
   };
-  override namewidth = 20;
-  override object_size = {3690, 1084848672};
+  override namewidth (owner: HACKER, flags: "rc") = 20;
+  override object_size (owner: HACKER, flags: "r") = {3690, 1084848672};
 
   method check_create_flags owner: HACKER
     value = args[1];

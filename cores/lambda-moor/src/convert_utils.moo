@@ -402,9 +402,9 @@ object CONVERT_UTILS [
   property year (owner: HACKER, flags: "r") = "365.24219879 day";
   property yr (owner: HACKER, flags: "r") = "year";
 
-  override aliases = {"Conversion Utils"};
-  override description = "This is a utilities package for converting from one unit of measurement to another. Type 'help #770' for more details.";
-  override help_msg = {
+  override aliases (owner: HACKER, flags: "rc") = {"Conversion Utils"};
+  override description (owner: HACKER, flags: "rc") = "This is a utilities package for converting from one unit of measurement to another. Type 'help #770' for more details.";
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Utility verbs for converting from one unit of measure to another.",
     "",
     "Unusual conversions:",
@@ -426,7 +426,7 @@ object CONVERT_UTILS [
     "            multiplicative conversion factor. See the verb help for details",
     "            and input format.\""
   };
-  override object_size = {30721, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {30721, 1084848672};
 
   method "dd_to_dms dh_to_hms" owner: HACKER
     ":dd_to_dms(INT|FLOAT <degrees>) => LIST {INT <degrees>, INT <minutes>, FLOAT <seconds>}";

@@ -61,12 +61,12 @@ object GENERIC_EDITOR [
   property texts (owner: #96, flags: "") = {};
   property times (owner: #96, flags: "r") = {};
 
-  override aliases = {"Generic Editor", "gedit", "edit"};
-  override blessed_task = 1399008566;
-  override description = {};
-  override entrances = {#5751};
-  override object_size = {51968, 1084848672};
-  override who_location_msg = "%L [editing]";
+  override aliases (owner: #96, flags: "rc") = {"Generic Editor", "gedit", "edit"};
+  override blessed_task (owner: #96, flags: "rc") = 1399008566;
+  override description (owner: #96, flags: "rc") = {};
+  override entrances (owner: #96, flags: "c") = {#5751};
+  override object_size (owner: HACKER, flags: "r") = {51968, 1084848672};
+  override who_location_msg (owner: #96, flags: "rc") = "%L [editing]";
 
   verb say (any any any) owner: #96 flags: "rxd"
     if (caller != player && caller_perms() != player)

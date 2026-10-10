@@ -8,8 +8,8 @@ object PARANOID_DB [
 
   property max_lines (owner: #2, flags: "r") = 30;
 
-  override aliases = {"@paranoid database", "paranoid"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"@paranoid database", "paranoid"};
+  override description (owner: HACKER, flags: "rc") = {
     "",
     "This object stores the @paranoid data from :tell.  Normally it is not necessary to access these things directly.  All verbs are controlled by a caller_perms() check.  All data is stored in the old .responsible format.",
     "",
@@ -30,7 +30,7 @@ object PARANOID_DB [
     "   :ensure_props_exist(who,linesname,dataname):  creates the above",
     "   :GC() --- loops over all data and verifies they're for players."
   };
-  override object_size = {5921, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {5921, 1084848672};
 
   method ensure_props_exist owner: HACKER
     "*Must* be called with PDATA first, and LINES second.";

@@ -13,16 +13,16 @@ object GUEST [
   property request (owner: #2, flags: "") = 0;
 
   override aliases (owner: #2, flags: "r") = {"Generic Guest"};
-  override description = {"By definition, guests appear nondescript."};
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override linelen = 79;
-  override lines = 30;
-  override mail_forward = "%t (%[#t]) is a guest character.";
-  override mail_notify (owner: HACKER, flags: "rc");
-  override object_size = {12606, 1084848672};
-  override paranoid = 1;
-  override password = 0;
-  override size_quota = {0, 0, 0, 0};
+  override description (owner: HACKER, flags: "rc") = {"By definition, guests appear nondescript."};
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override linelen (owner: HACKER, flags: "r") = 79;
+  override lines (owner: HACKER, flags: "c") = 30;
+  override mail_forward (owner: HACKER, flags: "rc") = "%t (%[#t]) is a guest character.";
+  override mail_notify (owner: HACKER, flags: "rc") clear;
+  override object_size (owner: HACKER, flags: "r") = {12606, 1084848672};
+  override paranoid (owner: HACKER, flags: "rc") = 1;
+  override password (owner: #2, flags: "") = 0;
+  override size_quota (owner: HACKER, flags: "") = {0, 0, 0, 0};
 
   method boot owner: #2
     if (!caller_perms().wizard)

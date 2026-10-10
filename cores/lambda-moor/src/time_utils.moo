@@ -75,11 +75,11 @@ object TIME_UTILS [
     {{"gmt"}, 28800}
   };
 
-  override aliases = {"time utilities", "time"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"time utilities", "time"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the time utilities utility package.  See `help $time_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "    Converting from seconds-since-1970    ",
     "dhms          (time)                 => string ...DD:HH:MM:SS",
     "english_time  (time[, reference time)=> string of y, m, d, h, m, s",
@@ -111,7 +111,7 @@ object TIME_UTILS [
     "sun           ([time])               => angle between sun and zenith",
     "dst_midnight  (time)                 "
   };
-  override object_size = {22076, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {22076, 1084848672};
 
   verb day (none none none) owner: HACKER flags: "rxd"
     "Given a time() or ctime()-style date, this returns the full name of the day.";

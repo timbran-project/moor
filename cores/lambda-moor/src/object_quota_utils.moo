@@ -8,12 +8,12 @@ object OBJECT_QUOTA_UTILS [
 
   property byte_based (owner: HACKER, flags: "rc") = 0;
 
-  override aliases = {"Object Quota Utilities"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Object Quota Utilities"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the Object Quota Utilities utility package.  See `help $object_quota_utils' for more details."
   };
-  override help_msg = "This is the default package that interfaces to the $player/$prog quota manipulation verbs.";
-  override object_size = {6728, 1084848672};
+  override help_msg (owner: HACKER, flags: "rc") = "This is the default package that interfaces to the $player/$prog quota manipulation verbs.";
+  override object_size (owner: HACKER, flags: "r") = {6728, 1084848672};
 
   method initialize_quota owner: HACKER
     if (!caller_perms().wizard)

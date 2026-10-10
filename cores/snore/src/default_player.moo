@@ -27,7 +27,7 @@ object DEFAULT_PLAYER [
   override description (owner: HACKER, flags: "rc") = "You see a player who should type '@describe me as ...'.";
   override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK, UTILITY_FEATURE};
   override help (owner: HACKER, flags: "rc") = DEFAULT_PLAYER_HELP;
-  override mail_notify (owner: HACKER, flags: "rc");
+  override mail_notify (owner: HACKER, flags: "rc") clear;
   override object_size (owner: HACKER, flags: "r") = {69955, 1084848672};
   override size_quota (owner: HACKER, flags: "") = {50000, 0, 0, 1};
 

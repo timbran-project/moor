@@ -7,11 +7,11 @@ object NEWT_LOG [
   owner: #2
 
   override aliases (owner: HACKER, flags: "r") = {"Site-Locks"};
-  override description = "Notes on annoying sites.";
-  override mail_forward = {};
-  override mail_notify = {#2};
-  override moderated = 1;
-  override object_size = {1042, 1084848672};
+  override description (owner: #2, flags: "rc") = "Notes on annoying sites.";
+  override mail_forward (owner: HACKER, flags: "r") = {};
+  override mail_notify (owner: HACKER, flags: "r") = {#2};
+  override moderated (owner: #2, flags: "rc") = 1;
+  override object_size (owner: HACKER, flags: "r") = {1042, 1084848672};
 
   method init_for_core owner: #2
     if (caller_perms().wizard)

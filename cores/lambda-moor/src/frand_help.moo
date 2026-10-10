@@ -387,7 +387,7 @@ object FRAND_HELP [
     "If you are leaving your name out of the messages, and relying on its being inserted automatically, you have to be careful about the substitutions you use. If Frand has an oself_port message \"jumps to %<to room>.\", for example, and Frand teleports to Frand's MOOhome, the message printed will be \"jumps to Frand's MOOhome.\" My name is there, so it isn't added in. If you want to include your name as a substitution, the one to use is %t, 'this'. \"%t jumps to %<to room>.\" will work."
   };
 
-  override aliases = {"Frand Help DB"};
-  override index_cache = {"frand-index"};
-  override object_size = {26603, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Frand Help DB"};
+  override index_cache (owner: HACKER, flags: "r") = {"frand-index"};
+  override object_size (owner: HACKER, flags: "r") = {26603, 1084848672};
 endobject

@@ -11,9 +11,9 @@ object NOTE [
   property text (owner: #2, flags: "c") = {};
   property writers (owner: #2, flags: "rc") = {};
 
-  override aliases = {"generic note"};
-  override description = "There appears to be some writing on the note ...";
-  override object_size = {6265, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic note"};
+  override description (owner: #2, flags: "rc") = "There appears to be some writing on the note ...";
+  override object_size (owner: HACKER, flags: "r") = {6265, 1084848672};
 
   verb "r*ead" (this none none) owner: #2 flags: "rxd"
     if (!this:is_readable_by(valid(caller_perms()) ? caller_perms() | player))

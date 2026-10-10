@@ -16,7 +16,7 @@ object GUEST [
   override description (owner: HACKER, flags: "rc") = {"By definition, guests appear nondescript."};
   override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK, UTILITY_FEATURE};
   override mail_forward (owner: HACKER, flags: "rc") = "%t (%[#t]) is a guest character.";
-  override mail_notify (owner: HACKER, flags: "rc");
+  override mail_notify (owner: HACKER, flags: "rc") clear;
   override object_size (owner: HACKER, flags: "r") = {12606, 1084848672};
   override paranoid (owner: HACKER, flags: "rc") = 1;
   override password (owner: #2, flags: "") = 0;

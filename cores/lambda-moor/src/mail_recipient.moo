@@ -26,9 +26,9 @@ object MAIL_RECIPIENT [
   property validation_password (owner: HACKER, flags: "") = "";
   property writers (owner: HACKER, flags: "rc") = {};
 
-  override aliases = {"Generic Mail Recipient"};
-  override description = "This can either be a mailing list or a mail folder, depending on what mood you're in...";
-  override object_size = {30900, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Generic Mail Recipient"};
+  override description (owner: HACKER, flags: "rc") = "This can either be a mailing list or a mail folder, depending on what mood you're in...";
+  override object_size (owner: HACKER, flags: "r") = {30900, 1084848672};
 
   method set_aliases owner: HACKER
     "For changing mailing list aliases, we check to make sure that none of the aliases match existing mailing list aliases.  Aliases containing spaces are not used in addresses and so are not subject to this restriction ($mail_agent:match will not match on them, however, so they only match if used in the immediate room, e.g., with match_object() or somesuch).";

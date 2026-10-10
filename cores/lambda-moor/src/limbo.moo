@@ -6,8 +6,8 @@ object LIMBO [
   owner: #2
   readable: true
 
-  override aliases = {"The Body Bag"};
-  override object_size = {2330, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"The Body Bag"};
+  override object_size (owner: HACKER, flags: "r") = {2330, 1084848672};
 
   method acceptable owner: #2
     what = args[1];

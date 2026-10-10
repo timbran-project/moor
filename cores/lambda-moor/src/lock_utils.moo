@@ -12,9 +12,9 @@ object LOCK_UTILS [
   property input_string (owner: #2, flags: "rc") = "";
   property player (owner: #2, flags: "rc") = 0;
 
-  override aliases = {"lock utilities"};
-  override description = "This the lock utilities package, used by the MOOwide locking mechanisms. See `help $lock_utils' for more details.";
-  override help_msg = {
+  override aliases (owner: #2, flags: "rc") = {"lock utilities"};
+  override description (owner: #2, flags: "rc") = "This the lock utilities package, used by the MOOwide locking mechanisms. See `help $lock_utils' for more details.";
+  override help_msg (owner: #2, flags: "rc") = {
     "These routines are used when locking objects, and when testing an object's lock before allowing use (such as in an exit).",
     "",
     ":parse_keyexp   (string keyexpression, object player)",
@@ -29,7 +29,7 @@ object LOCK_UTILS [
     "",
     "For more information on keys and locking, read `help locking', `help keys', and `help @lock'."
   };
-  override object_size = {9664, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {9664, 1084848672};
 
   method init_scanner owner: #2
     this.input_string = args[1];

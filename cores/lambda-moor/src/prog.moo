@@ -12,12 +12,12 @@ object PROG [
   property eval_ticks (owner: HACKER, flags: "r") = 3;
   property prog_options (owner: #2, flags: "rc") = {};
 
-  override aliases = {"generic", "programmer"};
-  override description = "You see a player who is too experienced to have any excuse for not having a description.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override help = {PROG_HELP, BUILTIN_FUNCTION_HELP, VERB_HELP, CORE_HELP};
-  override mail_notify (owner: #2, flags: "rc");
-  override object_size = {59612, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic", "programmer"};
+  override description (owner: #2, flags: "rc") = "You see a player who is too experienced to have any excuse for not having a description.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override help (owner: #2, flags: "rc") = {PROG_HELP, BUILTIN_FUNCTION_HELP, VERB_HELP, CORE_HELP};
+  override mail_notify (owner: #2, flags: "rc") clear;
+  override object_size (owner: HACKER, flags: "r") = {59612, 1084848672};
 
   verb "@prop*erty" (any any any) owner: #2 flags: "rd"
     set_task_perms(player);

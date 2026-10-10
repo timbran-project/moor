@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object ROOT [
   import_export_id -> "root",
   import_export_hierarchy -> {}
@@ -14,6 +12,7 @@ object ROOT [
   property description (owner: HACKER, flags: "rc") = "Root prototype object from which all other objects inherit.";
   property object_documentation (owner: HACKER, flags: "rc") = 0;
   property revoked_capability_jtis (owner: ARCH_WIZARD, flags: "rc") = [];
+  property thumbnail (owner: HACKER, flags: "rc") = false;
 
   method reference_kind owner: HACKER
     "Semantic identity for object links, inspection, and completion choices.";
@@ -41,8 +40,6 @@ object ROOT [
     endif
     return hint;
   endmethod
-
-  property thumbnail (owner: HACKER, flags: "rc") = false;
 
   method create owner: ARCH_WIZARD
     "Create a child of this object.";
@@ -791,8 +788,7 @@ object ROOT [
   method inspection owner: ARCH_WIZARD
     "Describe an object and its command suggestions for a viewer. Availability is advisory.";
     const {?who = player} = args;
-    return ["title" -> this:name(), "objectKind" -> this:reference_kind(), "description" -> this:description(),
-      "state" -> this:inspection_state(who), "actions" -> this:inspection_actions(who)];
+    return ["title" -> this:name(), "objectKind" -> this:reference_kind(), "description" -> this:description(), "state" -> this:inspection_state(who), "actions" -> this:inspection_actions(who)];
   endmethod
 
   method inspection_state owner: ARCH_WIZARD
@@ -803,9 +799,7 @@ object ROOT [
   method inspection_actions owner: ARCH_WIZARD
     "Return labelled commands; command parsing and execution remain authoritative.";
     const {?who = player} = args;
-    return {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + tostr(this),
-      "action" -> $player:command_action("examine", this:name())],
-      @this:inspection_commands(who)};
+    return {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + tostr(this), "action" -> $player:command_action("examine", this:name())], @this:inspection_commands(who)};
   endmethod
 
   method inspection_commands owner: ARCH_WIZARD
@@ -852,8 +846,7 @@ object ROOT [
         else
           input_label = "Object";
         endif
-        action["input"] = ["label" -> input_label, "placeholder" -> "Find an item…",
-          "suggestions" -> ["provider" -> $url_utils:to_curie_str(who), "source" -> "nearby"]];
+        action["input"] = ["label" -> input_label, "placeholder" -> "Find an item\u2026", "suggestions" -> ["provider" -> $url_utils:to_curie_str(who), "source" -> "nearby"]];
       endif
       actions = {@actions, action};
     endfor

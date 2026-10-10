@@ -22,7 +22,7 @@ object PROG [
     PROGRAMMER_FEATURE
   };
   override help (owner: #2, flags: "rc") = {PROG_HELP, BUILTIN_FUNCTION_HELP, VERB_HELP, CORE_HELP};
-  override mail_notify (owner: #2, flags: "rc");
+  override mail_notify (owner: #2, flags: "rc") clear;
   override object_size (owner: HACKER, flags: "r") = {59612, 1084848672};
 
   method _kill_task_message owner: #2

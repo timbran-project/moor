@@ -18,9 +18,9 @@ object MAIL_RECIPIENT_CLASS [
   property messages_going (owner: #2, flags: "c") = {};
   property messages_kept (owner: #2, flags: "rc") = {};
 
-  override aliases = {"Generic Mail Receiving Player"};
-  override help = MAIL_HELP;
-  override object_size = {71323, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Generic Mail Receiving Player"};
+  override help (owner: #2, flags: "rc") = MAIL_HELP;
+  override object_size (owner: HACKER, flags: "r") = {71323, 1084848672};
 
   method mail_forward owner: #2
     if (typeof(mf = this.(verb)) == TYPE_STR)

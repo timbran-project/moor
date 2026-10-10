@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object SOCIAL_FEATURES [
   import_export_id -> "social_features",
   import_export_hierarchy -> {"features"}

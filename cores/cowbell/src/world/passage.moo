@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object PASSAGE [
   import_export_id -> "passage",
   import_export_hierarchy -> {"world"}

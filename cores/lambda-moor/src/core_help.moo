@@ -1679,10 +1679,10 @@ object CORE_HELP [
     "Otherwise return {1, @actual_rcpts} indicating what mail was sent."
   };
 
-  override aliases = {"Core Utility Help"};
-  override description = "Help database for LambdaCore utility objects and generics.";
-  override index_cache = {"core-index"};
-  override object_size = {105976, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Core Utility Help"};
+  override description (owner: HACKER, flags: "rc") = "Help database for LambdaCore utility objects and generics.";
+  override index_cache (owner: HACKER, flags: "r") = {"core-index"};
+  override object_size (owner: HACKER, flags: "r") = {105976, 1084848672};
 
   method find_topics owner: HACKER
     if (!args)

@@ -541,8 +541,8 @@ object MAIL_HELP [
   };
   property "zombie-messages" (owner: HACKER, flags: "rc") = {"*forward*", "@unrmmail"};
 
-  override aliases = {"Mail Commands Help Db"};
-  override description = "This help database contains topics relating to the general use of the mail system.";
-  override index_cache = {"mail-index"};
-  override object_size = {36642, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Mail Commands Help Db"};
+  override description (owner: HACKER, flags: "rc") = "This help database contains topics relating to the general use of the mail system.";
+  override index_cache (owner: HACKER, flags: "r") = {"mail-index"};
+  override object_size (owner: HACKER, flags: "r") = {36642, 1084848672};
 endobject

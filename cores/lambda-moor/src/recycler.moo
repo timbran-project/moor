@@ -13,9 +13,9 @@ object RECYCLER [
   property nhist (owner: HACKER, flags: "") = 50;
   property orphans (owner: HACKER, flags: "r") = {};
 
-  override aliases = {"Recycling Center", "Center"};
-  override description = "Object creation/recycling API. Call $recycler:_create() to create an object, $recycler:_recycle() to recycle. When .enabled is false (default), objects are created fresh and recycling destroys them. When .enabled is true, recycled objects are pooled for reuse. Pooling is disabled by default since UUID objects make it unnecessary.";
-  override object_size = {11836, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Recycling Center", "Center"};
+  override description (owner: HACKER, flags: "rc") = "Object creation/recycling API. Call $recycler:_create() to create an object, $recycler:_recycle() to recycle. When .enabled is false (default), objects are created fresh and recycling destroys them. When .enabled is true, recycled objects are pooled for reuse. Pooling is disabled by default since UUID objects make it unnecessary.";
+  override object_size (owner: HACKER, flags: "r") = {11836, 1084848672};
 
   method _recreate owner: #2
     "Return a toad (child of #1, owned by $hacker) from this.contents.  Move it to #-1.  Recreate as a child of args[1], or of #1 if no args are given.  Chown to caller_perms() or args[2] if present.";

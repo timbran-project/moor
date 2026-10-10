@@ -6,8 +6,8 @@ object PLAYER_START [
   owner: HACKER
   readable: true
 
-  override description = "This is all there is right now.";
-  override object_size = {4407, 1084848672};
+  override description (owner: HACKER, flags: "rc") = "This is all there is right now.";
+  override object_size (owner: HACKER, flags: "r") = {4407, 1084848672};
 
   method disfunc owner: #2
     "Copied from The Coat Closet (#11):disfunc by Haakon (#2) Mon May  8 10:41:04 1995 PDT";

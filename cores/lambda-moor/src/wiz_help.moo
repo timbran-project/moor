@@ -477,8 +477,8 @@ object WIZ_HELP [
   property spooflist (owner: HACKER, flags: "rc") = {"*forward*", "blacklist"};
   property "wiz-index" (owner: HACKER, flags: "rc") = {"*index*", "Wizard Help Topics"};
 
-  override aliases = {"Wizard Help"};
-  override description = {"This describes the various commands available on $wiz."};
-  override index_cache = {"wiz-index"};
-  override object_size = {31466, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Wizard Help"};
+  override description (owner: HACKER, flags: "rc") = {"This describes the various commands available on $wiz."};
+  override index_cache (owner: HACKER, flags: "r") = {"wiz-index"};
+  override object_size (owner: HACKER, flags: "r") = {31466, 1084848672};
 endobject

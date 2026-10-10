@@ -126,7 +126,7 @@ object CONTAINER [
   method tell_contents owner: #2
     "Send contents as one multiline message, or show the empty-container message.";
     if (this.contents)
-      const lines = {tostr("  ", item:title()) for item in (this:contents())};
+      const lines = { tostr("  ", item:title()) for item in (this:contents()) };
       player:tell_lines({"Contents:", @lines});
       return;
     endif

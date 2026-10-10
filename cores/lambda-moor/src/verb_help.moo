@@ -32,9 +32,9 @@ object VERB_HELP [
     "----"
   };
 
-  override aliases = {"verbhelp", "vh"};
-  override description = "A `help database' that knows about all of the documented verbs.";
-  override object_size = {3958, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"verbhelp", "vh"};
+  override description (owner: HACKER, flags: "rc") = "A `help database' that knows about all of the documented verbs.";
+  override object_size (owner: HACKER, flags: "r") = {3958, 1084848672};
 
   method find_topics owner: HACKER
     if ($code_utils:parse_verbref(what = args[1]))

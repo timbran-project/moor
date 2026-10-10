@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object SITTABLE [
   import_export_id -> "sittable",
   import_export_hierarchy -> {"items"}
@@ -152,9 +150,7 @@ object SITTABLE [
     "```"
   };
 
-  verb "sit climb" (none on this) owner: HACKER flags: "rxd" [
-    ui -> ["prefix" -> "Sit on"]
-  ]
+  verb "sit climb" (none on this) owner: HACKER flags: "rxd" [ ui -> ["prefix" -> "Sit on"] ]
     "Handle 'sit on <furniture>' command.";
     if (player in this.sitting)
       event = $event:mk_error(player, @this.already_sitting_msg):with_this(this);
@@ -190,9 +186,7 @@ object SITTABLE [
     endif
   endverb
 
-  verb stand (none from this) owner: HACKER flags: "rxd" [
-    ui -> ["prefix" -> "Stand up from"]
-  ]
+  verb stand (none from this) owner: HACKER flags: "rxd" [ ui -> ["prefix" -> "Stand up from"] ]
     "Handle 'stand from <furniture>' command.";
     if (!(player in this.sitting))
       event = $event:mk_error(player, @this.not_sitting_msg):with_this(this);

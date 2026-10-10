@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object HELP_UTILS [
   import_export_id -> "help_utils",
   import_export_hierarchy -> {"help"}
@@ -17,7 +15,7 @@ object HELP_UTILS [
     const {content, viewer} = args;
     set_task_perms(caller_perms());
     valid(viewer) || return content;
-    const environment = {@viewer:command_environment(), @viewer.contents, @(`viewer.location.contents ! E_INVIND => {}')};
+    const environment = {@viewer:command_environment(), @viewer.contents, @`viewer.location.contents ! E_INVIND => {}'};
     let parts = {};
     let cursor = 1;
     let resolved = [];
@@ -218,7 +216,7 @@ object HELP_UTILS [
     if (inventory && length(inventory) > 0)
       inv_names = {};
       for item in (inventory)
-        inv_names = {@inv_names, @(length(inv_names) ? {", "} | {}), $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
+        inv_names = {@inv_names, @length(inv_names) ? {", "} | {}, $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
       endfor
       content = {@content, $format.paragraph:mk("You are carrying ", @inv_names, ".")};
     endif
@@ -238,7 +236,7 @@ object HELP_UTILS [
           endif
           {label, description, ambient} = info;
           if (label)
-            exit_labels = {@exit_labels, @(length(exit_labels) ? {", "} | {}), $format.annotation:exit(location, label)};
+            exit_labels = {@exit_labels, @length(exit_labels) ? {", "} | {}, $format.annotation:exit(location, label)};
           endif
         endfor
         if (exit_labels && length(exit_labels) > 0)
@@ -257,7 +255,7 @@ object HELP_UTILS [
     if (nearby_items && length(nearby_items) > 0)
       nearby_names = {};
       for item in (nearby_items)
-        nearby_names = {@nearby_names, @(length(nearby_names) ? {", "} | {}), $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
+        nearby_names = {@nearby_names, @length(nearby_names) ? {", "} | {}, $format.annotation:object(item, `item:display_name() ! ANY => "something"')};
       endfor
       content = {@content, $format.paragraph:mk("Around you there is ", @nearby_names, ".")};
     endif

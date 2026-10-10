@@ -97,10 +97,10 @@ object ROOM [
   method tell_contents owner: #2
     "Send supplied contents in one message using layout 0..3, unless this room is dark.";
     const {contents, layout} = args;
-    (this.dark || contents == {}) && return;
+    this.dark || contents == {} && return;
     let lines = {};
     if (layout == 0)
-      lines = {"Contents:", @{tostr("  ", object:title()) for object in (contents)}};
+      lines = {"Contents:", @{ tostr("  ", object:title()) for object in (contents) }};
     elseif (layout == 1)
       for object in (contents)
         if (is_player(object))

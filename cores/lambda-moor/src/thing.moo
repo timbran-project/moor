@@ -16,8 +16,8 @@ object THING [
   property take_failed_msg (owner: #2, flags: "rc") = "You can't pick that up.";
   property take_succeeded_msg (owner: #2, flags: "rc") = "You take %t.";
 
-  override aliases = {"generic thing"};
-  override object_size = {4787, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic thing"};
+  override object_size (owner: HACKER, flags: "r") = {4787, 1084848672};
 
   verb "g*et t*ake" (this none none) owner: #2 flags: "rxd"
     set_task_perms(callers() ? caller_perms() | player);

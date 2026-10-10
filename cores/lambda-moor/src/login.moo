@@ -6,7 +6,6 @@ object LOGIN [
   owner: #2
   readable: true
 
-  property oauth2_identity_version (owner: #2, flags: "") = 0;
   property blacklist (owner: #2, flags: "") = {{}, {}};
   property blank_command (owner: #2, flags: "r") = "welcome";
   property bogus_command (owner: #2, flags: "r") = "?";
@@ -60,6 +59,7 @@ object LOGIN [
   property max_player_name (owner: #2, flags: "rc") = 40;
   property newt_registration_string (owner: #2, flags: "rc") = "Your character is temporarily hosed.";
   property newted (owner: #2, flags: "") = {};
+  property oauth2_identity_version (owner: #2, flags: "") = 0;
   property print_lag (owner: #2, flags: "rc") = 0;
   property redlist (owner: #2, flags: "") = {{}, {}};
   property registration_address (owner: #2, flags: "rc") = "";
@@ -75,9 +75,9 @@ object LOGIN [
   property welcome_message_content_type (owner: #2, flags: "rc") = "text/djot";
   property who_masks_wizards (owner: #2, flags: "") = 0;
 
-  override aliases = {"Login Commands"};
-  override description = "This provides everything needed by #0:do_login_command.  See `help $login' on $core_help for details.";
-  override object_size = {42064, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Login Commands"};
+  override description (owner: #2, flags: "rc") = "This provides everything needed by #0:do_login_command.  See `help $login' on $core_help for details.";
+  override object_size (owner: HACKER, flags: "r") = {42064, 1084848672};
 
   verb "?" (any none any) owner: #2 flags: "rxd"
     if (caller != #0 && caller != this)
@@ -340,7 +340,7 @@ object LOGIN [
     "$login:oauth2_check(provider, external_id)";
     " => 0 (for not found)";
     " => objnum (for existing OAuth2 identity)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     try
       {provider, external_id} = args;
     except (E_ARGS)
@@ -361,7 +361,7 @@ object LOGIN [
     "$login:oauth2_create(provider, external_id, email, name, username, player_name)";
     " => 0 (for failed creation)";
     " => objnum (for successful creation)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     if ($no_connect_message)
       notify(player, $no_connect_message);
       return 0;
@@ -415,7 +415,7 @@ object LOGIN [
     "$login:oauth2_connect(provider, external_id, email, name, username, existing_name, existing_password)";
     " => 0 (for failed connection)";
     " => objnum (for successful link)";
-    (caller == #0 && callers()[1][2] == "do_oauth_login") || raise(E_PERM);
+    caller == #0 && callers()[1][2] == "do_oauth_login" || raise(E_PERM);
     try
       {provider, external_id, email, name, username, existing_name, existing_password} = args;
       server_log(tostr("OAUTH2 CONNECT ATTEMPT: provider=", provider, " external_id=", external_id, " existing_name=", existing_name, " args_count=", length(args)));
@@ -490,7 +490,6 @@ object LOGIN [
     endif
     if (!args)
       return {this.blank_command, @args};
-
     elseif (args[1] in {"oauth2_check", "oauth2_create", "oauth2_connect", "do_oauth_login"})
       return {this.bogus_command, @args};
     elseif ((verb = args[1]) && !$string_utils:is_numeric(verb))
@@ -586,7 +585,7 @@ object LOGIN [
         for identity in (candidate.oauth2_identities)
           if (typeof(identity) == TYPE_LIST && length(identity) == 2)
             if (strcmp(identity[1], provider) == 0 && strcmp(identity[2], external_id) == 0)
-              (valid(found) && found != candidate) && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
+              valid(found) && found != candidate && raise(E_INVARG, "OAuth identity is linked to multiple accounts.");
               found = candidate;
             endif
           endif
@@ -1137,12 +1136,13 @@ object LOGIN [
       notify(player, "");
     endif
   endmethod
+
   method _oauth_admitted owner: #2
     "Apply account lockout and connection limits to a verified OAuth login without suspending.";
     "Expired temporary newts are eligible; the password path retains its cleanup and audit mail.";
-    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    caller == this && caller_perms().wizard || raise(E_PERM);
     const {candidate} = args;
-    (is_player(candidate) && $object_utils:isa(candidate, $player) && !$object_utils:isa(candidate, $guest)) || return false;
+    is_player(candidate) && $object_utils:isa(candidate, $player) && !$object_utils:isa(candidate, $guest) || return false;
     is_clear_property(candidate, "password") && return false;
     if ($no_connect_message && !candidate.wizard)
       notify(player, $no_connect_message);
@@ -1166,15 +1166,14 @@ object LOGIN [
   method _claim_oauth_identity owner: #2
     "Bind one verified identity to one account; only wizard-owned login methods may call this.";
     "The shared revision makes concurrent claims conflict. This method does not suspend.";
-    (caller == this && caller_perms().wizard) || raise(E_PERM);
+    caller == this && caller_perms().wizard || raise(E_PERM);
     const {account, provider, external_id} = args;
     this.oauth2_identity_version = this.oauth2_identity_version + 1;
     const linked = this:find_by_oauth2(provider, external_id);
-    (valid(linked) && linked != account) && raise(E_INVARG, "OAuth identity is already linked to another account.");
+    valid(linked) && linked != account && raise(E_INVARG, "OAuth identity is already linked to another account.");
     linked == account && return false;
     const identities = `account.oauth2_identities ! E_PROPNF => {}';
     account.oauth2_identities = {@identities, {provider, external_id}};
     return true;
   endmethod
-
 endobject

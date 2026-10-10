@@ -6,11 +6,11 @@ object SEQ_UTILS [
   owner: HACKER
   readable: true
 
-  override aliases = {"sequence utilities", "seq_utils", "squ"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"sequence utilities", "seq_utils", "squ"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the sequence utilities utility package.  See `help $seq_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "A sequence is a set of integers (*)",
     "This package supplies the following verbs:",
     "",
@@ -50,7 +50,7 @@ object SEQ_UTILS [
     "(*) i.e., integers in the range [$minint+1..$maxint].  The implementation depends on $minint never being included in a sequence.",
     ""
   };
-  override object_size = {17130, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {17130, 1084848672};
 
   method "add remove" owner: HACKER
     "   add(seq,start[,end]) => seq with range added.";

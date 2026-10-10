@@ -195,7 +195,7 @@ object PLAYER [
     "Send carried-object titles as one multiline message.";
     const {contents} = args;
     !contents && return;
-    const lines = {tostr(" ", thing:title()) for thing in (contents)};
+    const lines = { tostr(" ", thing:title()) for thing in (contents) };
     player:tell_lines({"Carrying:", @lines});
   endmethod
 
@@ -263,8 +263,7 @@ object PLAYER [
       elseif (this.paranoid == 2)
         const source = this:whodunnit(frames, {this, $no_one}, {})[3];
         if (multiline)
-          lines = {tostr("[start text by ", source.name, " (", source, ")]"), @lines,
-                   tostr("[end text by ", source.name, " (", source, ")]")};
+          lines = {tostr("[start text by ", source.name, " (", source, ")]"), @lines, tostr("[end text by ", source.name, " (", source, ")]")};
         else
           lines = {tostr("(", source.name, " ", source, ") ", lines[1])};
         endif
@@ -510,7 +509,7 @@ object PLAYER [
     endif
     if (result[1] == $ambiguous_match)
       $wiz_utils:missed_help(topic_name, result);
-      const topics = {tostr("   ", line) for line in ($help:columnize(@$help:sort_topics(result[2])))};
+      const topics = { tostr("   ", line) for line in ($help:columnize(@$help:sort_topics(result[2]))) };
       player:tell_current_lines({tostr("Sorry, but the topic-name `", topic_name, "' is ambiguous.  I don't know which of the following topics you mean:"), @topics});
       return;
     endif
@@ -523,12 +522,9 @@ object PLAYER [
       return;
     endif
     if (!text)
-      return player:tell_current_lines({@heading,
-        tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."),
-        tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard.")});
+      return player:tell_current_lines({@heading, tostr("Help DB ", database, " thinks it knows about `", topic_name, "' but something's messed up."), tostr("Tell ", database.owner.wizard ? "" | tostr(database.owner.name, " (", database.owner, ") or "), "a wizard.")});
     endif
-    const lines = {typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard."
-                   for line in (typeof(text) == TYPE_LIST ? text | {text})};
+    const lines = { typeof(line) == TYPE_STR ? line | "Odd results from help -- complain to a wizard." for line in (typeof(text) == TYPE_LIST ? text | {text}) };
     player:tell_current_lines({@heading, @lines});
   endverb
 

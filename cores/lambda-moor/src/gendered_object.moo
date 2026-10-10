@@ -19,8 +19,8 @@ object GENDERED_OBJECT [
   property ps (owner: #2, flags: "rc") = "it";
   property psc (owner: #2, flags: "rc") = "It";
 
-  override aliases = {"Generic Gendered Object"};
-  override object_size = {2378, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Generic Gendered Object"};
+  override object_size (owner: HACKER, flags: "r") = {2378, 1084848672};
 
   method set_gender owner: #2
     "set_gender(newgender) attempts to change this.gender to newgender";

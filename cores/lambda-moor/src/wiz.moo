@@ -16,13 +16,13 @@ object WIZ [
   property toad_msg (owner: #2, flags: "rc") = "%n @toads %d (%[#d])";
   property toad_victim_msg (owner: #2, flags: "rc") = "Have a nice life...";
 
-  override aliases = {"player"};
-  override description = "You see a wizard who chooses not to reveal its true appearance.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override help = WIZ_HELP;
-  override mail_notify (owner: #2, flags: "rc");
-  override object_size = {56607, 1084848672};
-  override password = "really impossible password to type";
+  override aliases (owner: #2, flags: "rc") = {"player"};
+  override description (owner: #2, flags: "rc") = "You see a wizard who chooses not to reveal its true appearance.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override help (owner: #2, flags: "rc") = WIZ_HELP;
+  override mail_notify (owner: #2, flags: "rc") clear;
+  override object_size (owner: HACKER, flags: "r") = {56607, 1084848672};
+  override password (owner: #2, flags: "") = "really impossible password to type";
 
   verb "@chown*#" (any any any) owner: #2 flags: "rd"
     if (!player.wizard || player != this)

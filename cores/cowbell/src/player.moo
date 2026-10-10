@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object PLAYER [
   import_export_id -> "player"
 ]
@@ -31,14 +29,14 @@ object PLAYER [
   property llm_usage_log (owner: ARCH_WIZARD, flags: "") = {};
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
   property object_gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
-  property password (owner: ARCH_WIZARD, flags: "c");
+  property password (owner: ARCH_WIZARD, flags: "c") clear;
   property profile_picture (owner: ARCH_WIZARD, flags: "rc") = false;
   property suggestions_llm_client (owner: ARCH_WIZARD, flags: "") = 0;
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "You see a player who should get around to describing themself.";
 
   verb "l*ook" (any none none) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["prefix" -> "Look at", "arguments" -> ["dobj" -> "Object"]]
+    ui -> ["arguments" -> ["dobj" -> "Object"], "prefix" -> "Look at"]
   ]
     "Look at an object or passage direction.";
     caller == this || raise(E_PERM);
@@ -460,14 +458,14 @@ object PLAYER [
     const scope = `context['scope] ! E_RANGE => "nearby"';
     const target = `context['target] ! E_RANGE => $nothing';
     if (scope == "inventory")
-      return {item for item in (this:contents()) if (item != target)};
+      return { item for item in (this:contents()) if item != target };
     elseif (scope == "contents")
       valid(target) && (target.location == this || $thing:take_reachable(target, this)) || return {};
       return target:match_scope_for(this, context);
     endif
     scope == "nearby" || raise(E_INVARG, "Unknown matching scope");
-    const carried = {carried_item for carried_item in (this:contents()) if (valid(carried_item))};
-    const worn = {worn_item for worn_item in (this.wearing) if (valid(worn_item))};
+    const carried = { carried_item for carried_item in (this:contents()) if valid(carried_item) };
+    const worn = { worn_item for worn_item in (this.wearing) if valid(worn_item) };
     let env = {this, @carried, @worn};
     const mailbox = this:find_mailbox();
     valid(mailbox) && (env = {@env, mailbox});
@@ -795,7 +793,7 @@ object PLAYER [
   endverb
 
   verb "help what" (any any any) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["prefix" -> "Help with", "arguments" -> ["dobj" -> "Topic"]]
+    ui -> ["arguments" -> ["dobj" -> "Topic"], "prefix" -> "Help with"]
   ]
     "Tell the player where they are and what's around.";
     "Display available commands and actions. If a target object is specified, show help for that object.";
@@ -923,7 +921,7 @@ object PLAYER [
       if (!topics || typeof(topics) != TYPE_LIST)
         lines = {@lines, "(No topics)"};
       else
-        const topic_links = { $format.paragraph:mk($format.annotation:help(src, topic_entry.name), " — ", topic_entry.summary) for topic_entry in (topics) };
+        const topic_links = { $format.paragraph:mk($format.annotation:help(src, topic_entry.name), " \u2014 ", topic_entry.summary) for topic_entry in (topics) };
         lines = {@lines, $format.list:mk(topic_links, false, true)};
       endif
       lines = {@lines, "", "Tip: `help <topic> from " + src.name + "`"};
@@ -1518,8 +1516,7 @@ object PLAYER [
     before + query + after == command || return [];
     const template = before + "{input}" + after;
     const context = $match:input_context(template);
-    return ["before" -> before, "after" -> after, "query" -> query, "label" -> slot == "dobj" ? "direct object" | "indirect object",
-      "source" -> ["provider" -> $url_utils:to_curie_str(player), "source" -> "nearby", "context" -> context]];
+    return ["before" -> before, "after" -> after, "query" -> query, "label" -> slot == "dobj" ? "direct object" | "indirect object", "source" -> ["provider" -> $url_utils:to_curie_str(player), "source" -> "nearby", "context" -> context]];
   endmethod
 
   method suggestion_candidates owner: ARCH_WIZARD
@@ -1530,10 +1527,9 @@ object PLAYER [
     source != "commands" && return pass(@args);
     let result = {};
     for entry in (this:verb_suggestions())
-      const names = {strsub(alias, "*", "") for alias in (entry['verb]:words())};
+      const names = { strsub(alias, "*", "") for alias in (entry['verb]:words()) };
       const name = names[1];
-      result = {@result, ["id" -> name, "label" -> name, "value" -> name,
-        "detail" -> entry['hint], "keys" -> names]};
+      result = {@result, ["id" -> name, "label" -> name, "value" -> name, "detail" -> entry['hint], "keys" -> names]};
     endfor
     return result;
   endmethod
@@ -1716,9 +1712,7 @@ object PLAYER [
     return true;
   endmethod
 
-  verb reply (any any any) owner: ARCH_WIZARD flags: "rd" [
-    ui -> ["prefix" -> "Reply to"]
-  ]
+  verb reply (any any any) owner: ARCH_WIZARD flags: "rd" [ ui -> ["prefix" -> "Reply to"] ]
     "Reply to the last person who DM'd you.";
     "Usage: reply <message>";
     caller == this || raise(E_PERM);
@@ -2460,7 +2454,7 @@ object PLAYER [
   endmethod
 
   verb "walk go_to goto" (any any any) owner: ARCH_WIZARD flags: "rxd" [
-    ui -> ["label" -> "Go", "prefix" -> "Go to", "arguments" -> ["dobj" -> "Destination"]]
+    ui -> ["arguments" -> ["dobj" -> "Destination"], "label" -> "Go", "prefix" -> "Go to"]
   ]
     "Walk automatically to a destination room.";
     "Usage: walk [to] <destination> | walk stop";
@@ -3519,9 +3513,7 @@ object PLAYER [
     const ref = tostr(this);
     const actions = {["id" -> "examine", "label" -> "Examine", "command" -> "examine " + ref, "action" -> $player:command_action("examine", this:name())]};
     who == this && return actions;
-    return {@actions, ["id" -> "message", "label" -> "Send message", "command" -> "dm " + ref + " {input}",
-      "action" -> $player:command_action("dm", this:name()),
-      "input" -> ["label" -> "Message", "placeholder" -> "Write a private message"]]};
+    return {@actions, ["id" -> "message", "label" -> "Send message", "command" -> "dm " + ref + " {input}", "action" -> $player:command_action("dm", this:name()), "input" -> ["label" -> "Message", "placeholder" -> "Write a private message"]]};
   endmethod
 
   method test_help_environment_includes_global_player_and_features owner: HACKER

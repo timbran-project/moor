@@ -27,7 +27,7 @@ object WIZ [
     WIZARD_FEATURE
   };
   override help (owner: #2, flags: "rc") = WIZ_HELP;
-  override mail_notify (owner: #2, flags: "rc");
+  override mail_notify (owner: #2, flags: "rc") clear;
   override object_size (owner: HACKER, flags: "r") = {56607, 1084848672};
   override password (owner: #2, flags: "") = "really impossible password to type";
 

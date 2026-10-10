@@ -998,6 +998,7 @@ object WIZ_FEATURES [
     player:inform_current($event:mk_info(player, content));
     player:inform_current($event:mk_info(player, tostr("Time: ", elapsed, "s")));
   endverb
+
   verb "@changes" (any any any) owner: ARCH_WIZARD flags: "rd"
     "Review and apply program updates. Use @changes help for commands.";
     this == $wiz_features || raise(E_PERM);

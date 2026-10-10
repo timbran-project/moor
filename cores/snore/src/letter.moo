@@ -14,13 +14,13 @@ object LETTER [
 
   override aliases (owner: HACKER, flags: "rc") = {"generic letter"};
   override description (owner: HACKER, flags: "rc") = "Some writing on the letter explains that you should 'read letter', and when you've finished, 'burn letter'.";
-  override encryption_key (owner: HACKER, flags: "c");
-  override key (owner: HACKER, flags: "c");
+  override encryption_key (owner: HACKER, flags: "c") clear;
+  override key (owner: HACKER, flags: "c") clear;
   override object_size (owner: HACKER, flags: "r") = {2373, 1084848672};
-  override otake_failed_msg (owner: HACKER, flags: "rc");
-  override otake_succeeded_msg (owner: HACKER, flags: "rc");
+  override otake_failed_msg (owner: HACKER, flags: "rc") clear;
+  override otake_succeeded_msg (owner: HACKER, flags: "rc") clear;
   override take_failed_msg (owner: HACKER, flags: "rc") = "This is a private letter.";
-  override take_succeeded_msg (owner: HACKER, flags: "rc");
+  override take_succeeded_msg (owner: HACKER, flags: "rc") clear;
 
   verb burn (this none none) owner: #2 flags: "rd"
     "Usage: burn letter. Destroy a letter the caller controls or may read.";

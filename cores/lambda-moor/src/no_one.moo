@@ -11,14 +11,14 @@ object NO_ONE [
   property queued_task_limit (owner: #2, flags: "r") = 0;
 
   override aliases (owner: #2, flags: "r") = {"Everyman", "everyone", "no_one", "noone"};
-  override description = "The character used for \"safe\" evals.";
-  override home = #-1;
-  override last_disconnect_time = 2147483647;
-  override mail_forward = "Everyman ($no_one) can not receive mail.";
-  override object_size = {5625, 1084848672};
-  override ownership_quota = -10000;
-  override page_echo_msg = "... no one out there to see it.";
-  override size_quota = {0, 0, 1084781037, 0};
+  override description (owner: HACKER, flags: "rc") = "The character used for \"safe\" evals.";
+  override home (owner: HACKER, flags: "rc") = #-1;
+  override last_disconnect_time (owner: #2, flags: "r") = 2147483647;
+  override mail_forward (owner: HACKER, flags: "rc") = "Everyman ($no_one) can not receive mail.";
+  override object_size (owner: HACKER, flags: "r") = {5625, 1084848672};
+  override ownership_quota (owner: HACKER, flags: "") = -10000;
+  override page_echo_msg (owner: HACKER, flags: "rc") = "... no one out there to see it.";
+  override size_quota (owner: HACKER, flags: "") = {0, 0, 1084781037, 0};
 
   method eval owner: #2
     "eval(code)";

@@ -59,8 +59,8 @@ object SERVER_OPTIONS [
   property queued_task_limit (owner: #2, flags: "rc") = 300;
   property support_numeric_verbname_strings (owner: HACKER, flags: "r") = 0;
 
-  override aliases = {"Server Options"};
-  override object_size = {6853, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Server Options"};
+  override object_size (owner: HACKER, flags: "r") = {6853, 1084848672};
 
   method help_msg owner: HACKER
     output = {"On $server_options, the following settings have been established by the wizards:", ""};

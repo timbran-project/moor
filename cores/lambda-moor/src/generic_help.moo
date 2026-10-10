@@ -10,9 +10,9 @@ object GENERIC_HELP [
   property index (owner: HACKER, flags: "rc") = {};
   property index_cache (owner: HACKER, flags: "r") = {};
 
-  override aliases = {"Generic Help Database"};
-  override description = "A help database of the standard form in need of a description. See `help $generic_help'...";
-  override object_size = {9501, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Generic Help Database"};
+  override description (owner: HACKER, flags: "rc") = "A help database of the standard form in need of a description. See `help $generic_help'...";
+  override object_size (owner: HACKER, flags: "r") = {9501, 1084848672};
 
   method find_topics owner: #2
     "WIZARDLY";

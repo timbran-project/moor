@@ -28,15 +28,15 @@ object MAIL_AGENT [
   property reserved_patterns (owner: HACKER, flags: "r") = {};
   property time_collisions (owner: HACKER, flags: "r") = {0, 0};
 
-  override aliases = {"Mail Distribution Center", "Postmaster"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Mail Distribution Center", "Postmaster"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the database of mailing-list/mail-folder objects.",
     "The basic procedure for creating a new list/folder is to create a child of $mail_recipient (Generic Mail Recipient) assign it a suitable name&aliases, set a suitable .mail_forward/.mail_notify (or create suitable :mail_forward() and :mail_notify() verbs) and then teleport it here.",
     "",
     "Avaliable aliases:",
     ""
   };
-  override object_size = {50262, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {50262, 1084848672};
 
   method resolve_addr owner: HACKER
     "resolve(name,from,seen,prevrcpts,prevnotifs) => {rcpts,notifs} or E_INVARG";

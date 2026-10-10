@@ -12,8 +12,8 @@ object BIG_MAIL_RECIPIENT [
   property mowner (owner: HACKER, flags: "r") = HACKER;
   property summary_uses_body (owner: HACKER, flags: "rc") = 0;
 
-  override aliases = {"Generic Large-Capacity Mail Recipient"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Generic Large-Capacity Mail Recipient"};
+  override description (owner: HACKER, flags: "rc") = {
     "Generic Large Capacity Mail Recipient",
     "-------------------------------------",
     "Since any modifications to large lists entail copying the entire list over, operations on ordinary mail recipients having large numbers of messages, that actually change the content of .messages will take inordinately long.  Thus we have this version which makes use of the $biglist package, scattering the messages onto numerous properties so that write operations involving only a few messages will not require recopying of the entire list.",
@@ -56,7 +56,7 @@ object BIG_MAIL_RECIPIENT [
     "",
     "Calling #OBJ:restore_from(...) COMPLETELY AND IRREVOCABLY REMOVES ALL MESSAGES from the object that it is run on (#OBJ); you MUST be sure to EITHER have made a copy of #OBJ OR be doing the restore to a DIFFERENT object."
   };
-  override object_size = {37437, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {37437, 1084848672};
 
   method _genprop owner: HACKER
     gp = this._genprop;

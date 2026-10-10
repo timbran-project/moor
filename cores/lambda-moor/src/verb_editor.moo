@@ -9,11 +9,11 @@ object VERB_EDITOR [
   property objects (owner: #96, flags: "") = {};
   property verbnames (owner: #96, flags: "") = {};
 
-  override aliases = {"Verb Editor", "vedit", "verbedit", "verb edit"};
-  override blessed_task = 665095404;
-  override change_msg = "You have changed the verb since last successful compile.";
-  override commands = {{"e*dit", "<obj>:<verb>"}, {"com*pile", "[as <obj>:<verb>]"}};
-  override commands2 = {
+  override aliases (owner: #96, flags: "rc") = {"Verb Editor", "vedit", "verbedit", "verb edit"};
+  override blessed_task (owner: #96, flags: "rc") = 665095404;
+  override change_msg (owner: #96, flags: "rc") = "You have changed the verb since last successful compile.";
+  override commands (owner: #96, flags: "rc") = {{"e*dit", "<obj>:<verb>"}, {"com*pile", "[as <obj>:<verb>]"}};
+  override commands2 (owner: #96, flags: "rc") = {
     {
       "say",
       "emote",
@@ -30,21 +30,21 @@ object VERB_EDITOR [
     },
     {"y*ank", "w*hat", "e*dit", "com*pile", "abort", "q*uit,done,pause"}
   };
-  override depart_msg = "You hear the bips of keyclick, the sliding of mice and the hum of computers in the distance as %n fades slowly out of view, heading towards them.";
-  override entrances = {#5749};
-  override help = {};
-  override no_change_msg = "The verb has no pending changes.";
-  override no_littering_msg = {
+  override depart_msg (owner: #96, flags: "rc") = "You hear the bips of keyclick, the sliding of mice and the hum of computers in the distance as %n fades slowly out of view, heading towards them.";
+  override entrances (owner: #96, flags: "c") = {#5749};
+  override help (owner: #96, flags: "rc") = {};
+  override no_change_msg (owner: #96, flags: "rc") = "The verb has no pending changes.";
+  override no_littering_msg (owner: #96, flags: "rc") = {
     "Keeping your verb for later work.  ",
     "To return, give the `@edit' command with no arguments.",
     "Please come back and COMPILE or ABORT if you don't intend to be working on this verb in the immediate future.  Keep Our MOO Clean!  No Littering!"
   };
-  override no_text_msg = "Verb body is empty.";
-  override nothing_loaded_msg = "First, you have to select a verb to edit with the EDIT command.";
-  override object_size = {13962, 1084848672};
-  override previous_session_msg = "You need to either COMPILE or ABORT this verb before you can start on another.";
-  override return_msg = "There are the light bips of keyclick and the sliding of mice as %n fades into view, shoving %r away from the console, which promptly fades away.";
-  override stateprops = {
+  override no_text_msg (owner: #96, flags: "rc") = "Verb body is empty.";
+  override nothing_loaded_msg (owner: #96, flags: "rc") = "First, you have to select a verb to edit with the EDIT command.";
+  override object_size (owner: HACKER, flags: "r") = {13962, 1084848672};
+  override previous_session_msg (owner: #96, flags: "rc") = "You need to either COMPILE or ABORT this verb before you can start on another.";
+  override return_msg (owner: #96, flags: "rc") = "There are the light bips of keyclick and the sliding of mice as %n fades into view, shoving %r away from the console, which promptly fades away.";
+  override stateprops (owner: #96, flags: "r") = {
     {"objects", 0},
     {"verbnames", 0},
     {"texts", 0},
@@ -52,7 +52,7 @@ object VERB_EDITOR [
     {"inserting", 1},
     {"readable", 0}
   };
-  override who_location_msg = "%L [editing verbs]";
+  override who_location_msg (owner: #96, flags: "rc") = "%L [editing verbs]";
 
   verb "e*dit" (any none none) owner: #96 flags: "rd"
     if (!args)

@@ -10,14 +10,14 @@ object LIST_EDITOR [
   property objects (owner: #96, flags: "r") = {};
   property properties (owner: #96, flags: "r") = {};
 
-  override aliases = {"List Editor"};
-  override blessed_task = 917349705;
-  override commands = {
+  override aliases (owner: #96, flags: "rc") = {"List Editor"};
+  override blessed_task (owner: #96, flags: "rc") = 917349705;
+  override commands (owner: #96, flags: "rc") = {
     {"e*dit", "<object>.<prop>"},
     {"save", "[<object>.<prop>]"},
     {"expl*ode", "[<range>]"}
   };
-  override commands2 = {
+  override commands2 (owner: #96, flags: "rc") = {
     {
       "say",
       "emote",
@@ -32,15 +32,15 @@ object LIST_EDITOR [
     },
     {"w*hat", "abort", "q*uit,done,pause"}
   };
-  override depart_msg = "%N heads off to edit some properties.";
-  override no_littering_msg = {
+  override depart_msg (owner: #96, flags: "rc") = "%N heads off to edit some properties.";
+  override no_littering_msg (owner: #96, flags: "rc") = {
     "Partially edited list value will be here when you get back.",
     "To return, give the `@pedit' command with no arguments.",
     "Please come back and SAVE or ABORT if you don't intend to be working on this list value in the immediate future.  Keep Our MOO Clean!  No Littering!"
   };
-  override object_size = {11877, 1084848672};
-  override return_msg = "%N comes back from editing properties.";
-  override stateprops = {
+  override object_size (owner: HACKER, flags: "r") = {11877, 1084848672};
+  override return_msg (owner: #96, flags: "rc") = "%N comes back from editing properties.";
+  override stateprops (owner: #96, flags: "r") = {
     {"properties", ""},
     {"objects", #-1},
     {"texts", 0},

@@ -7,7 +7,7 @@ object GIT_ENTRY [
   owner: ARCH_WIZARD
   readable: true
 
-  override description = "Local Git entry data. Files and symlinks can contain exact bytes; directories and submodules contain object IDs only.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Local Git entry data. Files and symlinks can contain exact bytes; directories and submodules contain object IDs only.";
 
   method mk owner: HACKER
     "Validate and wrap an entry. No network access or authority is attached to the result.";
@@ -18,8 +18,7 @@ object GIT_ENTRY [
     const path = $git:field(record, "path", TYPE_STR);
     const kind = $git:field(record, "kind", TYPE_STR);
     kind in {"file", "symlink", "directory", "submodule"} || raise(E_INVARG, "Unknown Git entry kind.");
-    let slots = ['repository -> repository, 'commit -> commit, 'path -> path,
-      'kind -> tosym(kind), 'oid -> $git:oid($git:field(record, "oid", TYPE_STR))];
+    let slots = ['repository -> repository, 'commit -> commit, 'path -> path, 'kind -> tosym(kind), 'oid -> $git:oid($git:field(record, "oid", TYPE_STR))];
     if (kind in {"file", "symlink"})
       const size = $git:field(record, "size", TYPE_INT);
       size >= 0 || raise(E_INVARG, "Negative Git entry size.");

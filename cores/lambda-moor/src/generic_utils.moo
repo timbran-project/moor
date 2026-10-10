@@ -11,7 +11,7 @@ object GENERIC_UTILS [
     "This is the Generic Utility Object.  One presumes it should have text in it explaining the use of the utility object in question."
   };
 
-  override aliases = {"Generic Utilities Package"};
-  override description = "This is a placeholder parent for all the $..._utils packages, to more easily find them and manipulate them. At present this object defines no useful verbs or properties. (Filfre.)";
-  override object_size = {579, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"Generic Utilities Package"};
+  override description (owner: #2, flags: "rc") = "This is a placeholder parent for all the $..._utils packages, to more easily find them and manipulate them. At present this object defines no useful verbs or properties. (Filfre.)";
+  override object_size (owner: HACKER, flags: "r") = {579, 1084848672};
 endobject

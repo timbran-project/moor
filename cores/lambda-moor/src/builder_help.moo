@@ -592,10 +592,10 @@ object BUILDER_HELP [
     "@resident -- listing or changing the residents of your rooms"
   };
 
-  override aliases = {"Builder Help DB", "BHD"};
-  override description = "This help database contains topics about the generic builder and building commands.";
-  override index_cache = {"builder-index"};
-  override object_size = {39390, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Builder Help DB", "BHD"};
+  override description (owner: HACKER, flags: "rc") = "This help database contains topics about the generic builder and building commands.";
+  override index_cache (owner: HACKER, flags: "r") = {"builder-index"};
+  override object_size (owner: HACKER, flags: "r") = {39390, 1084848672};
 
   method init_for_core owner: #2
     if (!caller_perms().wizard)

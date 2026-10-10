@@ -25,9 +25,9 @@ object PASSWORD_VERIFIER [
   property minimum_password_length (owner: #2, flags: "r") = 0;
   property require_funky_characters (owner: #2, flags: "r") = 0;
 
-  override aliases = {"password verifier", "password", "verifier", "pwd"};
-  override description = "The password verifier verifies passwords.";
-  override object_size = {10921, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"password verifier", "password", "verifier", "pwd"};
+  override description (owner: #2, flags: "rc") = "The password verifier verifies passwords.";
+  override object_size (owner: HACKER, flags: "r") = {10921, 1084848672};
 
   method help_msg owner: HACKER
     if (typeof(base = this.(verb)) == TYPE_STR)

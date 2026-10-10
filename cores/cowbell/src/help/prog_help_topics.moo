@@ -40,14 +40,6 @@ object PROG_HELP_TOPICS [
     "programming",
     {"building"}
   };
-  property topic_programming_tasks (owner: ARCH_WIZARD, flags: "rc") = {
-    "@ps",
-    "@ps - Tasks and schedules",
-    "`@ps` (alias `@tasks`) lists active tasks, queued tasks, and live schedules.\n`@schedules` lists schedules only. Programmers see their own schedules; wizards see all owners.\n\n`@schedule ID` shows callback arguments, timing, running task, and fault diagnostics.\n`@stop-schedule ID` (alias `@kill-schedule`) stops future firings. It does not kill a firing already running. Use `@kill TASK-ID` for that task. Schedule IDs and task IDs are separate.\n\nOnly a schedule's owner or a wizard may inspect or stop it. A stopped or expired ID is harmless to stop again.",
-    {"@tasks", "@schedules", "@schedule", "@stop-schedule", "@kill-schedule", "@kill", "@kill-task", "tasks", "schedules"},
-    "programming",
-    {}
-  };
   property topic_programming_program (owner: ARCH_WIZARD, flags: "rc") = {
     "@program",
     "@program - Program a verb",
@@ -61,6 +53,24 @@ object PROG_HELP_TOPICS [
     "@show - Display object info",
     "@show <object>[selectors] -- Display object information.\n\n**Selectors:**\n  `.`   Local properties only\n  `..`  All properties (including inherited)\n  `:`   Local verbs only\n  `::`  All verbs (including inherited)\n\n**Examples:**\n  `@show #1`       Show summary with counts and hints\n  `@show #1.`      Show local properties\n  `@show #1..`     Show all properties (+ inherited)\n  `@show #1:`      Show local verbs\n  `@show #1::`     Show all verbs (+ inherited)\n  `@show #1.name`  Show specific property\n  `@show #1:tell`  Show specific verb\n  `@show #1.:`     Show local props + local verbs\n  `@show #1..:`    Show all props + local verbs\n  `@show #1.::`    Show local props + all verbs\n  `@show #1..::`   Show all props + all verbs\n\nAlias: `@display`",
     {"@display", "show", "display"},
+    "programming",
+    {}
+  };
+  property topic_programming_tasks (owner: ARCH_WIZARD, flags: "rc") = {
+    "@ps",
+    "@ps - Tasks and schedules",
+    "`@ps` (alias `@tasks`) lists active tasks, queued tasks, and live schedules.\n`@schedules` lists schedules only. Programmers see their own schedules; wizards see all owners.\n\n`@schedule ID` shows callback arguments, timing, running task, and fault diagnostics.\n`@stop-schedule ID` (alias `@kill-schedule`) stops future firings. It does not kill a firing already running. Use `@kill TASK-ID` for that task. Schedule IDs and task IDs are separate.\n\nOnly a schedule's owner or a wizard may inspect or stop it. A stopped or expired ID is harmless to stop again.",
+    {
+      "@tasks",
+      "@schedules",
+      "@schedule",
+      "@stop-schedule",
+      "@kill-schedule",
+      "@kill",
+      "@kill-task",
+      "tasks",
+      "schedules"
+    },
     "programming",
     {}
   };

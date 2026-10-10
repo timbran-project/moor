@@ -13,9 +13,9 @@ object REGISTRATION_DB [
   property total_pruned_characters (owner: HACKER, flags: "rc") = 0;
   property total_pruned_people (owner: HACKER, flags: "rc") = 0;
 
-  override aliases = {"Registration Database"};
-  override node_perms = "";
-  override object_size = {8549, 1084848672};
+  override aliases (owner: HACKER, flags: "rc") = {"Registration Database"};
+  override node_perms (owner: HACKER, flags: "rc") = "";
+  override object_size (owner: HACKER, flags: "r") = {8549, 1084848672};
 
   method "find* _only* _every*" owner: HACKER
     return caller == this || caller_perms().wizard ? pass(@args) | E_PERM;

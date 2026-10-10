@@ -27,8 +27,8 @@ object CONTAINER [
   property remove_fail_msg (owner: #2, flags: "rc") = "You can't remove that.";
   property remove_msg (owner: #2, flags: "rc") = "You remove %d from %i.";
 
-  override aliases = {"generic container"};
-  override object_size = {9415, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"generic container"};
+  override object_size (owner: HACKER, flags: "r") = {9415, 1084848672};
 
   verb "p*ut in*sert d*rop" (any in this) owner: #2 flags: "rxd"
     if (this.location != player && this.location != player.location)

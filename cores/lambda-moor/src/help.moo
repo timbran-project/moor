@@ -1140,7 +1140,7 @@ object HELP [
     "Adds a line of text to the named note or letter.  Only the owner of a note may do this."
   };
 
-  override description = {
+  override description (owner: HACKER, flags: "rc") = {
     "The object $help is the main help database.  For every help topic there is a corresponding property on $help, interpreted as follows:",
     "",
     "$help.(topic) = string           - one-line help text.",
@@ -1151,8 +1151,8 @@ object HELP [
     "",
     "See the description of $generic_help for more detail."
   };
-  override index_cache = {"gen-index"};
-  override object_size = {82127, 1084848672};
+  override index_cache (owner: HACKER, flags: "r") = {"gen-index"};
+  override object_size (owner: HACKER, flags: "r") = {82127, 1084848672};
 
   method player_quota owner: #2
     return $player.ownership_quota;

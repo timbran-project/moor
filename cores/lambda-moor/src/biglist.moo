@@ -25,11 +25,11 @@ object BIGLIST [
   };
   property maxfanout (owner: HACKER, flags: "rc") = 7;
 
-  override aliases = {"ghblu", "biglist_utils"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"ghblu", "biglist_utils"};
+  override description (owner: HACKER, flags: "rc") = {
     "This is the Generic BigList Utilities utility package.  See `help $biglist' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: HACKER, flags: "rc") = {
     "Generic BigList Utilities",
     "----------------------------",
     "This is a package for maintaining huge persistent (sorted) lists in a format that is less likely to spam the server (which runs into a certain amount of trouble dealing with long ordinary lists --- btw we use `biglist' to refer to the huge data structure we're about to describe and `list' to refer to ordinary MOO lists {...}).  The biglist in question lives on a particular object, to which we will refer in the discussion below as the `home' object, and its various elements appear as leaves of a tree whose nodes are kept in properties of the home object.  It should be noted that the home object does not need to be (and in fact should *not* be) a descendant of this one; this object merely provides utilities for manipulating the properties on the home object that are used in a particular biglist manipulation.  ",
@@ -104,7 +104,7 @@ object BIGLIST [
     "     destroys all nodes used by biglist.  ",
     "     Calls home:leafkiller on each element."
   };
-  override object_size = {22666, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {22666, 1084848672};
 
   method length owner: HACKER
     ":length(tree) => number of leaves in tree.";

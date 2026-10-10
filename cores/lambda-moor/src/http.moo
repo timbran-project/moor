@@ -25,8 +25,8 @@ object HTTP [
   property master_key (owner: #2, flags: "rc") = "902894a52d08e5cf3c45812a321cac36";
   property nonalpha (owner: #2, flags: "rc") = " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
-  override aliases = {"HTTP Server"};
-  override object_size = {7309, 1529542623};
+  override aliases (owner: #2, flags: "rc") = {"HTTP Server"};
+  override object_size (owner: HACKER, flags: "r") = {7309, 1529542623};
 
   method handle_connection owner: #2
     "HTTP Server";

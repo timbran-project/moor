@@ -9,10 +9,10 @@ object COMMAND_UTILS [
   property feature_task (owner: HACKER, flags: "") = {388912170, "@abort", {}, "", #-1, "", "", #-1, ""};
   property lag_samples (owner: #2, flags: "r") = {};
 
-  override description = {
+  override description (owner: #2, flags: "rc") = {
     "This is the command utilities utility package.  See `help $command_utils' for more details."
   };
-  override help_msg = {
+  override help_msg (owner: #2, flags: "rc") = {
     "$command_utils is the repository for verbs that are of general usefulness to authors of all sorts of commands.  For more details about any of these verbs, use `help $command_utils:<verb-name>'.",
     "",
     "Detecting and Handling Failures in Matching",
@@ -52,7 +52,7 @@ object COMMAND_UTILS [
     "-----------------------------------",
     ":suspend(args)  -- Handle PREFIX and SUFFIX for clients in long commands."
   };
-  override object_size = {18931, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {18931, 1084848672};
 
   method object_match_failed owner: #2
     "Usage: object_match_failed(object, string)";

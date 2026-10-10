@@ -10,8 +10,8 @@ object FTP [
   property port (owner: #2, flags: "rc") = 21;
   property trusted (owner: #2, flags: "rc") = 1;
 
-  override aliases = {"FTP utilities"};
-  override object_size = {9099, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"FTP utilities"};
+  override object_size (owner: HACKER, flags: "r") = {9099, 1084848672};
 
   method open owner: #2
     if (!this:trusted(caller_perms()))

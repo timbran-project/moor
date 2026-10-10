@@ -7,15 +7,15 @@ object STAGE_TALK [
   fertile: true
   readable: true
 
-  override aliases = {"Stage-Talk Feature"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"Stage-Talk Feature"};
+  override description (owner: HACKER, flags: "rc") = {
     "This feature contains various verbs used in stage talk, which allows players to describe their actions in terms of stage directions instead of prose."
   };
-  override feature_verbs = {"`", "[", "]", "-", "<"};
-  override help_msg = {
+  override feature_verbs (owner: HACKER, flags: "r") = {"`", "[", "]", "-", "<"};
+  override help_msg (owner: HACKER, flags: "rc") = {
     "This feature contains various verbs used in stage talk, which allows players to describe their actions in terms of stage directions instead of prose."
   };
-  override object_size = {4109, 1084848672};
+  override object_size (owner: HACKER, flags: "r") = {4109, 1084848672};
 
   verb "stage `* -*" (any any any) owner: HACKER flags: "rxd"
     "Say something out loud, directed at someone or something.";

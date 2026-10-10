@@ -6,39 +6,105 @@ object INTENT_MATCHER [
   owner: ARCH_WIZARD
   readable: true
 
-  property intent_word_weight (owner: ARCH_WIZARD, flags: "r") = 0.65;
-  property intent_trigram_weight (owner: ARCH_WIZARD, flags: "r") = 0.35;
-  property synonym_index (owner: ARCH_WIZARD, flags: "rw") = [];
-
   property domain_synonyms (owner: ARCH_WIZARD, flags: "r") = [
+    "browse" -> {"browse", "show", "view", "display"},
     "buy" -> {"buy", "purchase", "acquire", "order", "get", "grab"},
+    "confirm" -> {"confirm", "yes", "yeah", "yep", "sure"},
+    "decline" -> {"decline", "no", "nope", "refuse"},
+    "farewell" -> {"farewell", "goodbye", "bye"},
+    "greet" -> {"greet", "hello", "hi", "hey"},
+    "help" -> {"help", "assist", "aid", "guide"},
+    "identity" -> {"identity", "name", "self"},
+    "item" -> {"item", "thing", "object", "article", "ware"},
     "price" -> {"price", "cost", "worth", "value", "charge", "rate"},
     "sell" -> {"sell", "vend", "trade"},
-    "item" -> {"item", "thing", "object", "article", "ware"},
-    "greet" -> {"greet", "hello", "hi", "hey"},
-    "thanks" -> {"thanks", "gratitude", "obliged"},
-    "farewell" -> {"farewell", "goodbye", "bye"},
-    "identity" -> {"identity", "name", "self"},
-    "help" -> {"help", "assist", "aid", "guide"},
-    "browse" -> {"browse", "show", "view", "display"},
-    "confirm" -> {"confirm", "yes", "yeah", "yep", "sure"},
-    "decline" -> {"decline", "no", "nope", "refuse"}
+    "thanks" -> {"thanks", "gratitude", "obliged"}
   ];
-
   property intent_profiles (owner: ARCH_WIZARD, flags: "r") = [
-    "buy" -> ["speech_act" -> "request", "topic" -> "commerce", "phrases" -> {"i would like to buy a sword", "give me two health potions", "i want to purchase that", "sell me a shield", "let me buy some food"}],
-    "sell" -> ["speech_act" -> "request", "topic" -> "commerce", "phrases" -> {"i want to sell this", "can you buy my old dagger", "i would like to sell some herbs"}],
-    "price" -> ["speech_act" -> "query", "topic" -> "commerce", "phrases" -> {"how much does this cost", "what is the price", "how much for the potion", "what do you charge"}],
-    "browse" -> ["speech_act" -> "query", "topic" -> "commerce", "phrases" -> {"what do you have for sale", "show me your wares", "what are you selling"}],
-    "greet" -> ["speech_act" -> "request", "topic" -> "social", "phrases" -> {"hello there", "hi", "greetings", "good day"}],
-    "farewell" -> ["speech_act" -> "request", "topic" -> "social", "phrases" -> {"goodbye", "farewell", "i have to go", "see you later"}],
-    "identity" -> ["speech_act" -> "query", "topic" -> "identity", "phrases" -> {"who are you", "what is your name", "introduce yourself", "tell me about yourself"}],
-    "thanks" -> ["speech_act" -> "answer", "topic" -> "social", "phrases" -> {"thank you", "thanks a lot", "much obliged"}],
-    "help" -> ["speech_act" -> "query", "topic" -> "social", "phrases" -> {"can you help me", "i need help", "what can you do"}],
-    "confirm" -> ["speech_act" -> "answer", "topic" -> "confirmation", "phrases" -> {"yes", "yeah", "sure", "okay"}],
-    "decline" -> ["speech_act" -> "answer", "topic" -> "confirmation", "phrases" -> {"no", "nope", "not really", "no thanks"}],
-    "give" -> ["speech_act" -> "request", "topic" -> "social", "phrases" -> {"give me that", "hand it over", "let me have it"}]
+    "browse" -> [
+      "phrases" -> {"what do you have for sale", "show me your wares", "what are you selling"},
+      "speech_act" -> "query",
+      "topic" -> "commerce"
+    ],
+    "buy" -> [
+      "phrases" -> {
+        "i would like to buy a sword",
+        "give me two health potions",
+        "i want to purchase that",
+        "sell me a shield",
+        "let me buy some food"
+      },
+      "speech_act" -> "request",
+      "topic" -> "commerce"
+    ],
+    "confirm" -> [
+      "phrases" -> {"yes", "yeah", "sure", "okay"},
+      "speech_act" -> "answer",
+      "topic" -> "confirmation"
+    ],
+    "decline" -> [
+      "phrases" -> {"no", "nope", "not really", "no thanks"},
+      "speech_act" -> "answer",
+      "topic" -> "confirmation"
+    ],
+    "farewell" -> [
+      "phrases" -> {"goodbye", "farewell", "i have to go", "see you later"},
+      "speech_act" -> "request",
+      "topic" -> "social"
+    ],
+    "give" -> [
+      "phrases" -> {"give me that", "hand it over", "let me have it"},
+      "speech_act" -> "request",
+      "topic" -> "social"
+    ],
+    "greet" -> [
+      "phrases" -> {"hello there", "hi", "greetings", "good day"},
+      "speech_act" -> "request",
+      "topic" -> "social"
+    ],
+    "help" -> [
+      "phrases" -> {"can you help me", "i need help", "what can you do"},
+      "speech_act" -> "query",
+      "topic" -> "social"
+    ],
+    "identity" -> [
+      "phrases" -> {
+        "who are you",
+        "what is your name",
+        "introduce yourself",
+        "tell me about yourself"
+      },
+      "speech_act" -> "query",
+      "topic" -> "identity"
+    ],
+    "price" -> [
+      "phrases" -> {
+        "how much does this cost",
+        "what is the price",
+        "how much for the potion",
+        "what do you charge"
+      },
+      "speech_act" -> "query",
+      "topic" -> "commerce"
+    ],
+    "sell" -> [
+      "phrases" -> {
+        "i want to sell this",
+        "can you buy my old dagger",
+        "i would like to sell some herbs"
+      },
+      "speech_act" -> "request",
+      "topic" -> "commerce"
+    ],
+    "thanks" -> [
+      "phrases" -> {"thank you", "thanks a lot", "much obliged"},
+      "speech_act" -> "answer",
+      "topic" -> "social"
+    ]
   ];
+  property intent_trigram_weight (owner: ARCH_WIZARD, flags: "r") = 0.35;
+  property intent_word_weight (owner: ARCH_WIZARD, flags: "r") = 0.65;
+  property synonym_index (owner: ARCH_WIZARD, flags: "rw") = [];
 
   method lowercase owner: ARCH_WIZARD
     ":lowercase(STR string) => STR with ASCII letters lowercased.";
@@ -235,19 +301,13 @@ object INTENT_MATCHER [
     "  Reports ticks for a single score and wall-clock per score averaged over";
     "  many passes. Pass --test-args \"{N}\" to change the iteration count.";
     iterations = length(args) > 0 ? toint(args[1]) | 20;
-    utterances = {
-      "hey there, can you tell me the price of a health potion",
-      "who are you and what do you sell",
-      "i would like to buy two swords please"
-    };
+    utterances = {"hey there, can you tell me the price of a health potion", "who are you and what do you sell", "i would like to buy two swords please"};
     ids = mapkeys(this.intent_profiles);
     this:synonym_index();
-
     "Tick cost of a single score (deterministic).";
     t0 = ticks_left();
     this:intent_score(utterances[1], this.intent_profiles[ids[1]]);
     single_ticks = t0 - ticks_left();
-
     "Wall-clock across the whole corpus, yielding each score to reset the tick budget.";
     w0 = ftime();
     scores = 0;
@@ -263,7 +323,6 @@ object INTENT_MATCHER [
     w1 = ftime();
     elapsed_ms = (w1 - w0) * 1000.0;
     per_score_ms = scores > 0 ? elapsed_ms / scores | 0.0;
-
     server_log("BENCH_DATA bench=intent_match iterations=" + tostr(iterations) + " profiles=" + tostr(length(ids)) + " utterances=" + tostr(length(utterances)) + " scores=" + tostr(scores) + " single_score_ticks=" + tostr(single_ticks) + " total_ms=" + tostr(elapsed_ms) + " per_score_ms=" + tostr(per_score_ms));
     return ["scores" -> scores, "single_score_ticks" -> single_ticks, "total_ms" -> elapsed_ms, "per_score_ms" -> per_score_ms];
   endmethod

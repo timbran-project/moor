@@ -59,11 +59,11 @@ object MAIL_OPTIONS [
   property type_replyto (owner: HACKER, flags: "rc") = {1, {1}};
   property unsend_sequences (owner: #2, flags: "r") = {"before", "after", "since", "until", "subject", "body", "last"};
 
-  override _namelist = "!include!noinclude!all!sender!nosubject!expert!enter!sticky!@mail!manymsgs!replyto!netmail!expire!followup!resend_forw!rn_order!no_auto_forward!expert_netfwd!news!no_dupcc!no_unsend!@unsend!";
-  override aliases = {"Mail Options"};
-  override description = "Options for mailing";
-  override extras = {"noinclude", "sender"};
-  override names = {
+  override _namelist (owner: HACKER, flags: "r") = "!include!noinclude!all!sender!nosubject!expert!enter!sticky!@mail!manymsgs!replyto!netmail!expire!followup!resend_forw!rn_order!no_auto_forward!expert_netfwd!news!no_dupcc!no_unsend!@unsend!";
+  override aliases (owner: HACKER, flags: "rc") = {"Mail Options"};
+  override description (owner: HACKER, flags: "rc") = "Options for mailing";
+  override extras (owner: HACKER, flags: "r") = {"noinclude", "sender"};
+  override names (owner: HACKER, flags: "r") = {
     "include",
     "all",
     "followup",
@@ -85,8 +85,8 @@ object MAIL_OPTIONS [
     "no_unsend",
     "@unsend"
   };
-  override namewidth = 19;
-  override object_size = {14349, 1084848672};
+  override namewidth (owner: HACKER, flags: "rc") = 19;
+  override object_size (owner: HACKER, flags: "r") = {14349, 1084848672};
 
   method actual owner: HACKER
     if (i = args[1] in {"noinclude", "sender"})

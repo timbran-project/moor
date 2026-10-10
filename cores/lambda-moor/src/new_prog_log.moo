@@ -9,11 +9,11 @@ object NEW_PROG_LOG [
   property keyword (owner: #2, flags: "rc") = "PROGRAMMER";
 
   override aliases (owner: HACKER, flags: "r") = {"New-Prog-Log", "New_Prog_Log", "NPL"};
-  override description = "Record of who's been made a @programmer.";
-  override mail_forward = {};
-  override mail_notify = {#2};
-  override moderated = 1;
-  override object_size = {6043, 1084848672};
+  override description (owner: #2, flags: "rc") = "Record of who's been made a @programmer.";
+  override mail_forward (owner: HACKER, flags: "r") = {};
+  override mail_notify (owner: HACKER, flags: "r") = {#2};
+  override moderated (owner: #2, flags: "rc") = 1;
+  override object_size (owner: HACKER, flags: "r") = {6043, 1084848672};
 
   method init_for_core owner: #2
     if (caller_perms().wizard)

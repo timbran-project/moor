@@ -13102,11 +13102,11 @@ object SPELL [
   };
   property trusted (owner: HACKER, flags: "rc") = {};
 
-  override " " = {"", "Abc-deFGhIjKlmNopQrszTuvwyX", {}, {}};
-  override aliases = {"Mr. Spell", "spell"};
-  override data = 3;
-  override description = "For help on using the speller, use 'help spelling' and 'help @spell'.";
-  override object_size = {1298817, 1084848672};
+  override " " (owner: HACKER, flags: "") = {"", "Abc-deFGhIjKlmNopQrszTuvwyX", {}, {}};
+  override aliases (owner: HACKER, flags: "rc") = {"Mr. Spell", "spell"};
+  override data (owner: HACKER, flags: "r") = 3;
+  override description (owner: HACKER, flags: "rc") = "For help on using the speller, use 'help spelling' and 'help @spell'.";
+  override object_size (owner: HACKER, flags: "r") = {1298817, 1084848672};
 
   method description owner: HACKER
     return this.description + " There are " + tostr(this.entries) + " words in the online dictionary.";

@@ -1,5 +1,3 @@
-// Copyright (C) 2026 The mooR Authors
-// SPDX-License-Identifier: GPL-3.0-or-later
 object SUB [
   import_export_id -> "sub",
   import_export_hierarchy -> {"events"}

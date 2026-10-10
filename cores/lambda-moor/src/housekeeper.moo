@@ -27,26 +27,26 @@ object HOUSEKEEPER [
   property testing (owner: HOUSEKEEPER, flags: "rc") = 0;
 
   override aliases (owner: #2, flags: "r") = {"housekeeper"};
-  override description = "A very clean, neat, tidy person who doesn't mind lugging players and their gear all over the place.";
-  override features = {PASTING_FEATURE, STAGE_TALK};
-  override last_disconnect_time = 2147483647;
-  override linelen = -80;
-  override mail_forward = {#2};
-  override object_size = {21397, 1084848672};
-  override owned_objects = {HOUSEKEEPER};
-  override ownership_quota = -9993;
-  override page_absent_msg = "The housekeeper is too busy putting away all of the junk all over LambdaMoo that there isn't time to listen to pages and stuff like that so your page isn't listened to, too bad.";
-  override po = "the housekeeper";
-  override poc = "The housekeeper";
-  override pp = "the housekeeper's";
-  override ppc = "The housekeeper's";
-  override pq = "the housekeeper's";
-  override pqc = "The housekeeper's";
-  override pr = "'self";
-  override prc = "'Self";
-  override ps = "the housekeeper";
-  override psc = "The housekeeper";
-  override size_quota = {183000, 34096, 1084780981, 0};
+  override description (owner: HOUSEKEEPER, flags: "rc") = "A very clean, neat, tidy person who doesn't mind lugging players and their gear all over the place.";
+  override features (owner: HACKER, flags: "r") = {PASTING_FEATURE, STAGE_TALK};
+  override last_disconnect_time (owner: #2, flags: "r") = 2147483647;
+  override linelen (owner: HACKER, flags: "r") = -80;
+  override mail_forward (owner: HOUSEKEEPER, flags: "rc") = {#2};
+  override object_size (owner: HACKER, flags: "r") = {21397, 1084848672};
+  override owned_objects (owner: #2, flags: "r") = {HOUSEKEEPER};
+  override ownership_quota (owner: HACKER, flags: "") = -9993;
+  override page_absent_msg (owner: HOUSEKEEPER, flags: "rc") = "The housekeeper is too busy putting away all of the junk all over LambdaMoo that there isn't time to listen to pages and stuff like that so your page isn't listened to, too bad.";
+  override po (owner: HOUSEKEEPER, flags: "rc") = "the housekeeper";
+  override poc (owner: HOUSEKEEPER, flags: "rc") = "The housekeeper";
+  override pp (owner: HOUSEKEEPER, flags: "rc") = "the housekeeper's";
+  override ppc (owner: HOUSEKEEPER, flags: "rc") = "The housekeeper's";
+  override pq (owner: HOUSEKEEPER, flags: "rc") = "the housekeeper's";
+  override pqc (owner: HOUSEKEEPER, flags: "rc") = "The housekeeper's";
+  override pr (owner: HOUSEKEEPER, flags: "rc") = "'self";
+  override prc (owner: HOUSEKEEPER, flags: "rc") = "'Self";
+  override ps (owner: HOUSEKEEPER, flags: "rc") = "the housekeeper";
+  override psc (owner: HOUSEKEEPER, flags: "rc") = "The housekeeper";
+  override size_quota (owner: HACKER, flags: "") = {183000, 34096, 1084780981, 0};
 
   method look_self owner: HOUSEKEEPER
     player:tell_lines(this:description());

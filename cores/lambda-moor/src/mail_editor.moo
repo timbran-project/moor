@@ -11,9 +11,9 @@ object MAIL_EDITOR [
   property sending (owner: HACKER, flags: "") = {};
   property subjects (owner: HACKER, flags: "") = {};
 
-  override aliases = {"Mail Room"};
-  override blessed_task = 2043059065;
-  override commands = {
+  override aliases (owner: HACKER, flags: "rc") = {"Mail Room"};
+  override blessed_task (owner: HACKER, flags: "rc") = 2043059065;
+  override commands (owner: HACKER, flags: "rc") = {
     {"subj*ect", "[<text>]"},
     {"to", "[<rcpt>..]"},
     {"also-to", "[<rcpt>..]"},
@@ -23,7 +23,7 @@ object MAIL_EDITOR [
     {"send", ""},
     {"showlists,unsubscribe", ""}
   };
-  override commands2 = {
+  override commands2 (owner: HACKER, flags: "rc") = {
     {
       "say",
       "emote",
@@ -53,22 +53,22 @@ object MAIL_EDITOR [
       "q*uit,done,pause"
     }
   };
-  override depart_msg = "%N flattens out into a largish postage stamp and floats away.";
-  override entrances = {#16500};
-  override exit_on_abort = 1;
-  override help = {};
-  override no_littering_msg = {
+  override depart_msg (owner: HACKER, flags: "rc") = "%N flattens out into a largish postage stamp and floats away.";
+  override entrances (owner: HACKER, flags: "c") = {#16500};
+  override exit_on_abort (owner: HACKER, flags: "rc") = 1;
+  override help (owner: HACKER, flags: "rc") = {};
+  override no_littering_msg (owner: HACKER, flags: "rc") = {
     "Saving your message so that you can finish it later.",
     "To come back, give the `@send' command with no arguments.",
     "Please come back and SEND or ABORT if you don't intend to be working on this",
     "message in the immediate future.  Keep Our MOO Clean!  No Littering!"
   };
-  override no_text_msg = "Message body is empty.";
-  override nothing_loaded_msg = "You're not editing anything!";
-  override object_size = {22248, 1084848672};
-  override previous_session_msg = "You need to either SEND it or ABORT it before you can start another message.";
-  override return_msg = "A largish postage stamp floats into the room and fattens up into %n.";
-  override stateprops = {
+  override no_text_msg (owner: HACKER, flags: "rc") = "Message body is empty.";
+  override nothing_loaded_msg (owner: HACKER, flags: "rc") = "You're not editing anything!";
+  override object_size (owner: HACKER, flags: "r") = {22248, 1084848672};
+  override previous_session_msg (owner: HACKER, flags: "rc") = "You need to either SEND it or ABORT it before you can start another message.";
+  override return_msg (owner: HACKER, flags: "rc") = "A largish postage stamp floats into the room and fattens up into %n.";
+  override stateprops (owner: #96, flags: "r") = {
     {"sending", 0},
     {"replytos", {}},
     {"recipients", {}},
@@ -78,7 +78,7 @@ object MAIL_EDITOR [
     {"inserting", 1},
     {"readable", 0}
   };
-  override who_location_msg = "%L [mailing]";
+  override who_location_msg (owner: HACKER, flags: "rc") = "%L [mailing]";
 
   method working_on owner: HACKER
     return this:ok(who = args[1]) && tostr("a letter ", this:sending(who) ? "(in transit) " | "", "to ", this:recipient_names(who), (subject = `this.subjects[who] ! ANY') && tostr(" entitled \"", subject, "\""));

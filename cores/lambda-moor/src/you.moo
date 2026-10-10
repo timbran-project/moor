@@ -26,22 +26,22 @@ object YOU [
     "Everyone else sees:  Munchkin waves happily to Frebblebit and Bob."
   };
 
-  override aliases = {"you"};
-  override description = {
+  override aliases (owner: HACKER, flags: "rc") = {"you"};
+  override description (owner: HACKER, flags: "rc") = {
     "An object useful for pronoun substitution for switching between third and second person.  See `help $you' for details."
   };
-  override gender = "2nd";
-  override object_size = {4737, 1084848672};
-  override po = "you";
-  override poc = "You";
-  override pp = "your";
-  override ppc = "Your";
-  override pq = "yours";
-  override pqc = "Yours";
-  override pr = "yourself";
-  override prc = "Yourself";
-  override ps = "you";
-  override psc = "You";
+  override gender (owner: HACKER, flags: "rc") = "2nd";
+  override object_size (owner: HACKER, flags: "r") = {4737, 1084848672};
+  override po (owner: HACKER, flags: "rc") = "you";
+  override poc (owner: HACKER, flags: "rc") = "You";
+  override pp (owner: HACKER, flags: "rc") = "your";
+  override ppc (owner: HACKER, flags: "rc") = "Your";
+  override pq (owner: HACKER, flags: "rc") = "yours";
+  override pqc (owner: HACKER, flags: "rc") = "Yours";
+  override pr (owner: HACKER, flags: "rc") = "yourself";
+  override prc (owner: HACKER, flags: "rc") = "Yourself";
+  override ps (owner: HACKER, flags: "rc") = "you";
+  override psc (owner: HACKER, flags: "rc") = "You";
 
   method verb_sub owner: HACKER
     "$you:verb_sub(STR verbspec) -> returns verbspec conjugated for singular use as if `you' were saying it.";

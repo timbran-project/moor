@@ -172,13 +172,13 @@ object SYSOBJ [
   property wiz_utils (owner: #2, flags: "rc") = WIZ_UTILS;
   property you (owner: HACKER, flags: "r") = YOU;
 
-  override aliases = {"The System Object"};
-  override description = "The known universe.";
-  override object_size = {23528, 1084848672};
+  override aliases (owner: #2, flags: "rc") = {"The System Object"};
+  override description (owner: #2, flags: "rc") = "The known universe.";
+  override object_size (owner: HACKER, flags: "r") = {23528, 1084848672};
 
-  method do_oauth_login owner: #2 flags: "rxd"
+  method do_oauth_login owner: #2
     "Daemon entry for verified OAuth identities; require a root call for an unauthenticated connection.";
-    (!callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player) || raise(E_PERM);
+    !callers() && `toint(player) ! E_TYPE, E_INVARG => 0' < 0 && caller == player || raise(E_PERM);
     connection_name(player);
     const {operation, @parameters} = args;
     operation in {"oauth2_check", "oauth2_create", "oauth2_connect"} || raise(E_INVARG);
