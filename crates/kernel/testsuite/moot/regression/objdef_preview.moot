@@ -1,0 +1,33 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+@wizard
+; return load_object({"object #9200", "owner: #3", "verb test (this none this) owner: #3 flags: \"rxd\"", "return 1;", "endverb", "endobject"});
+#9200
+
+; add_property(#0, "review_source", {["label" -> "test.moo", "text" -> {"object #9200", "owner: #3", "verb test (this none this) owner: #3 flags: \"rxd\"", "return 2;", "endverb", "endobject"}]}, {player, ""});
+> add_property(#0, "review_request", ["schema" -> 1, "operation" -> "update", "objects" -> {#9200}, "fields" -> {"program"}], {player, ""});
+> add_property(#0, "preview", preview_objdef_changes(#0.review_source, #0.review_request), {player, ""});
+
+; return {#0.preview["rows"][1]["classification"], #0.preview["rows"][1]["eligible"], #9200:test(), verb_metadata(#9200, "test", "objdef_base")};
+{"unbased", false, 1, {}}
+
+; let request = #0.review_request; request["operation"] = "adopt"; const report = preview_objdef_changes(#0.review_source, request); return report["rows"][1]["eligible"];
+true
+
+; let request = #0.review_request; request["force"] = true; return preview_objdef_changes(#0.review_source, request);
+E_INVARG
+
+@programmer
+; return preview_objdef_changes({}, []);
+E_PERM

@@ -691,7 +691,36 @@ fn bf_reload_object(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_obj(result.loaded_objects[0])))
 }
 
+/// Usage: `map preview_objdef_changes(list sources, map request [, map choices])`
+/// Compare scoped verb programs and validate edited choices without writing.
+/// Requires wizard authority or a builtin grant, plus access to the selected definitions.
+fn bf_preview_objdef_changes(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if !(2..=3).contains(&bf_args.args.len()) {
+        return Err(BfErr::ErrValue(
+            E_ARGS.msg("preview_objdef_changes() takes 2 or 3 arguments"),
+        ));
+    }
+    bf_args.require_wizard_or_builtin_call()?;
+    with_current_transaction(|world| {
+        moor_objdef::review::preview(
+            world,
+            &bf_args.task_permissions(),
+            &bf_args.config.compile_options(),
+            &bf_args.args[0],
+            &bf_args.args[1],
+            (bf_args.args.len() == 3).then(|| &bf_args.args[2]),
+        )
+    })
+    .map(Ret)
+    .map_err(|error| match error {
+        moor_objdef::review::ReviewError::World(error) => world_state_bf_err(error),
+        moor_objdef::review::ReviewError::Parse(error) if error.is_retry() => BfErr::Rollback,
+        other => BfErr::ErrValue(E_INVARG.msg(other.to_string())),
+    })
+}
+
 pub(crate) fn register_bf_obj_load(builtins: &mut [BuiltinFunction]) {
+    builtins[offset_for_builtin("preview_objdef_changes")] = bf_preview_objdef_changes;
     builtins[offset_for_builtin("dump_object")] = bf_dump_object;
     builtins[offset_for_builtin("load_object")] = bf_load_object;
     builtins[offset_for_builtin("reload_object")] = bf_reload_object;

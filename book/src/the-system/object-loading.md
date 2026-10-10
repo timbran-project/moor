@@ -763,3 +763,56 @@ except error (ANY)
     player:tell("Unexpected error: ", error[2]);
 endtry
 ```
+
+## Read-only program review
+
+`preview_objdef_changes(sources, request [, choices])` compares existing verb programs without
+changing content or baseline metadata. It requires wizard authority or an explicit builtin grant,
+plus permission to read the selected definitions.
+
+Each source unit has a diagnostic `label` and `text`. Text can be a string or a list of lines.
+Labels grant no filesystem access. Source input is limited to 4,096 units and 16 MiB in total.
+Reports contain at most 8,192 program rows.
+
+```moo
+sources = {["label" -> "login.moo", "text" -> incoming_lines]};
+request = ["schema" -> 1, "operation" -> "update",
+           "objects" -> {$login}, "fields" -> {"program"}];
+report = preview_objdef_changes(sources, request);
+```
+
+`objects` explicitly selects installation-local object addresses. Optional `constants` supplies
+constant substitutions. Source export identities must match live identities when supplied. Ambiguous
+verb declarations remain unsupported. Unknown keys and duplicate normalized keys fail.
+
+Each row contains an opaque `id`, target `object`, verb `names`, source label, and field name. It
+also contains `base`, `live`, and `incoming` fingerprints, classification, eligibility, allowed
+choices, default action, and blockers. An empty base list means that the baseline is unknown.
+Classifications are `unchanged`, `upstream`, `local`, `converged`, `conflict`, and `unbased`.
+Unbased updates require adoption. An `adopt` request inspects source-derived baseline enrollment.
+Neither operation writes during preview.
+
+Optional `details` selects row IDs whose live and incoming program text the report includes. Detail
+selection does not change review evidence. Clients must compare returned evidence with the saved
+review before showing newly read text under an old approval.
+
+The report's `evidence` binds the source, scope, compilation options, target identities, authority,
+live programs, and baselines. Evidence grants no permission. Property and definition fields remain
+unmanaged; diagnostics identify unsupported declarations and fields.
+
+Choices are a map from row ID to a map containing `choice`. Supported values are `incoming`,
+`local`, `edited`, and `defer`. Adoption permits only `incoming` and `defer`. An edited choice also
+contains `program`, a string or list of lines. Preview compiles the draft and returns `validation`
+rows with a fingerprint and validation token, or compiler diagnostics with result-pane coordinates.
+Drafts remain separate from incoming source. Changing draft text invalidates its validation token.
+
+Program baselines use the metadata key `objdef_base`, with `schema` and `program` entries. The
+schema is `objdef-v1:program:sha256`. Its fingerprint uses decompiled program structure and separate
+typed literals, encoded with CBOR and hashed with SHA-256. Layout is ignored. String case, literal
+types, execution order, finite floating-point bits, and installed object references remain
+significant. Symbols use Unicode case-folded names. Map entries sort by encoded key; flyweight slots
+sort by folded name. Captured lambda values and non-finite floats are unsupported.
+
+These rules describe content equality, not behavioral equivalence. A hash cannot recover old source.
+Unknown baseline schemas block updates until explicit re-adoption. Automatic eligibility requires
+administrator-owned objects and verbs whose content and metadata are not publicly writable.

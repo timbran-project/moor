@@ -37,6 +37,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `kernel`:
 
+- Add `preview_objdef_changes()` for read-only program comparison and edited-draft validation.
+  Reports include field fingerprints, target identity guards, and per-row eligibility.
+
 - Native scheduled tasks: `schedule_at(obj, verb, when [, args] [, options])` and
   `schedule_every(obj, verb, interval [, args] [, options])` arrange for a verb to run later, once
   or on a drift-free cadence, with each firing a fresh background task and no task suspended in

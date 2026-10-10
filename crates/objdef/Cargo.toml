@@ -29,4 +29,5 @@ tracing.workspace = true
 
 # Utilities & Helpers
 semver.workspace = true
+sha2.workspace = true
 uuid.workspace = true

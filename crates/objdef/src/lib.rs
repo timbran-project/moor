@@ -15,7 +15,9 @@
 
 mod collect;
 mod dump;
+pub mod fingerprint;
 mod load;
+pub mod review;
 mod set;
 mod write;
 
