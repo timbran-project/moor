@@ -180,6 +180,11 @@ impl LoaderInterface for DbWorldState {
         Ok(())
     }
 
+    fn clear_property_value(&mut self, obj: &Obj, name: Symbol) -> Result<(), WorldStateError> {
+        let (definition, _, _, _) = self.get_tx().resolve_property(obj, name)?;
+        self.get_tx_mut().clear_property(obj, definition.uuid())
+    }
+
     fn set_object_metadata(
         &mut self,
         objid: &Obj,
@@ -256,11 +261,11 @@ impl LoaderInterface for DbWorldState {
         self.get_tx().get_properties(objid)
     }
 
-    fn get_existing_property_value(
+    fn get_existing_property_state(
         &self,
         obj: &Obj,
         propname: Symbol,
-    ) -> Result<Option<(Var, PropPerms)>, WorldStateError> {
+    ) -> Result<Option<(Option<Var>, PropPerms)>, WorldStateError> {
         if !self.object_exists(obj)? {
             return Ok(None);
         }
@@ -270,13 +275,7 @@ impl LoaderInterface for DbWorldState {
             Ok((propdef, _, _, _)) => {
                 // Now retrieve the property value using the UUID
                 match self.get_tx().retrieve_property(obj, propdef.uuid()) {
-                    Ok((value, perms)) => {
-                        if let Some(value) = value {
-                            Ok(Some((value, perms)))
-                        } else {
-                            Ok(None)
-                        }
-                    }
+                    Ok(state) => Ok(Some(state)),
                     Err(WorldStateError::PropertyNotFound(_, _)) => Ok(None),
                     Err(e) => Err(e),
                 }

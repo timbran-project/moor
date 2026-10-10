@@ -63,6 +63,24 @@ case-only differences. Local permissions and property metadata are preserved ind
 value. A clear property continues to inherit its value after reimport; an explicit override remains
 local when the parent later changes.
 
+### Clear Property Values
+
+The `clear` clause removes a property's local value so it inherits from its parent. It follows any
+permissions and metadata, without an equals sign:
+
+```objdef
+override description (owner: #3, flags: "rw") [note -> "updated"] clear;
+```
+
+The same clause works in a `property` declaration. During a merge, declarations without a value or a
+`clear` clause preserve the existing value. A new property without a value starts clear.
+
+`clear` remains a valid constant, property name, and identifier in verb code. An assignment such as
+`override description = clear;` still refers to a constant named `clear`.
+
+Exports use the clause for clear values, so merging an export also restores those clear values.
+Older importers cannot read this clause. The new importer still accepts existing objdef files.
+
 ### Loading Objects
 
 The `load_object` function recreates objects from their text definitions:

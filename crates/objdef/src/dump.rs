@@ -200,6 +200,7 @@ pub(crate) fn collect_export_object(
                 )));
             };
             definition.property_definitions.push(ObjPropDef {
+                clear_value: property.value.is_none(),
                 name,
                 perms,
                 value: property.value,
@@ -207,6 +208,7 @@ pub(crate) fn collect_export_object(
             });
         } else {
             definition.property_overrides.push(ObjPropOverride {
+                clear_value: property.value.is_none(),
                 name,
                 perms_update: property.permissions,
                 value: property.value,
@@ -915,6 +917,56 @@ mod tests {
         assert!(child.contains("override permissions"));
         assert!(child.contains("override metadata"));
         assert!(child.contains("override cleared"));
+        assert!(
+            child
+                .lines()
+                .any(|line| line.contains("override cleared") && line.ends_with(" clear;"))
+        );
+        assert!(
+            child
+                .lines()
+                .any(|line| line.contains("override metadata") && line.ends_with(" clear;"))
+        );
+
+        // Merge the exported clear state over stale local values, including metadata-only rows.
+        let mut loader = db.loader_client().unwrap();
+        for name in ["cleared", "metadata", "permissions"] {
+            loader
+                .set_property(
+                    &Obj::mk_id(1),
+                    Symbol::mk(name),
+                    None,
+                    None,
+                    Some(v_int(99)),
+                )
+                .unwrap();
+        }
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .load_single_object(&child, CompileOptions::default(), Default::default())
+            .unwrap();
+        loader.commit().unwrap();
+        let ws = db.new_world_state().unwrap();
+        for name in ["cleared", "metadata", "permissions"] {
+            assert!(
+                ws.is_property_clear(&system_permissions(), &Obj::mk_id(1), Symbol::mk(name))
+                    .unwrap()
+            );
+            assert_eq!(
+                ws.retrieve_property(&system_permissions(), &Obj::mk_id(1), Symbol::mk(name))
+                    .unwrap(),
+                v_int(1)
+            );
+        }
+        assert_eq!(
+            ws.get_property_metadata(
+                &system_permissions(),
+                &Obj::mk_id(1),
+                Symbol::mk("metadata"),
+                Symbol::mk("source")
+            )
+            .unwrap(),
+            Some(v_str("child"))
+        );
     }
 
     #[test]

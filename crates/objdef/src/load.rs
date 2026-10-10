@@ -247,6 +247,33 @@ impl<'a> ObjectDefinitionLoader<'a> {
         (should_proceed, Some(conflict_record))
     }
 
+    /// Compare an explicit assignment or clear clause with the current local value.
+    /// Preserve the existing policy that a clear local value has no value conflict.
+    fn check_property_value_conflict(
+        &self,
+        obj: &Obj,
+        name: Symbol,
+        current: Option<Var>,
+        incoming: &Option<Var>,
+        clear_value: bool,
+        options: &ObjDefLoaderOptions,
+    ) -> (bool, Option<(Obj, ConflictEntity)>) {
+        if incoming.is_none() && !clear_value {
+            return (true, None);
+        }
+        let Some(current) = current else {
+            return (true, None);
+        };
+        self.check_conflict(
+            obj,
+            Entity::PropertyValue(name),
+            Some(Some(current.clone())),
+            incoming,
+            |_| ConflictEntity::PropertyValue(name, current),
+            options,
+        )
+    }
+
     /// Recursively collect all .moo files in a directory tree
     fn collect_moo_files_recursive(path: &Path) -> std::io::Result<Vec<PathBuf>> {
         let mut files = Vec::new();
@@ -806,7 +833,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 // Check if property already exists
                 let existing_value = self
                     .loader
-                    .get_existing_property_value(obj, pd.name)
+                    .get_existing_property_state(obj, pd.name)
                     .map_err(|wse| {
                         ObjdefLoaderError::CouldNotDefineProperty(
                             path.clone(),
@@ -820,21 +847,18 @@ impl<'a> ObjectDefinitionLoader<'a> {
                     // Property exists - check for conflicts
                     let mut should_proceed = true;
 
-                    // Check value conflict if we're defining a value
-                    if let Some(new_value) = &pd.value {
-                        let (proceed_value, conflict) = self.check_conflict(
-                            obj,
-                            Entity::PropertyValue(pd.name),
-                            Some(existing_val.clone()),
-                            new_value,
-                            |current| ConflictEntity::PropertyValue(pd.name, current),
-                            options,
-                        );
-                        if let Some(conflict) = conflict {
-                            self.conflicts.push(conflict);
-                        }
-                        should_proceed &= proceed_value;
+                    let (proceed_value, conflict) = self.check_property_value_conflict(
+                        obj,
+                        pd.name,
+                        existing_val,
+                        &pd.value,
+                        pd.clear_value,
+                        options,
+                    );
+                    if let Some(conflict) = conflict {
+                        self.conflicts.push(conflict);
                     }
+                    should_proceed &= proceed_value;
 
                     // Check permissions conflict
                     let (proceed_perms, conflict) = self.check_conflict(
@@ -905,6 +929,18 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            if prop_def.clear_value {
+                self.loader
+                    .clear_property_value(&obj, prop_def.name)
+                    .map_err(|error| {
+                        ObjdefLoaderError::CouldNotDefineProperty(
+                            path.clone(),
+                            obj,
+                            prop_def.name.to_string(),
+                            error,
+                        )
+                    })?;
+            }
             self.apply_property_metadata(&path, &obj, prop_def.name, &prop_def.metadata)?;
         }
 
@@ -942,7 +978,7 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 // Check existing property value for conflicts
                 let existing_value = self
                     .loader
-                    .get_existing_property_value(obj, pv.name)
+                    .get_existing_property_state(obj, pv.name)
                     .map_err(|wse| {
                         ObjdefLoaderError::CouldNotOverrideProperty(
                             path.clone(),
@@ -955,21 +991,18 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 let mut should_proceed = true;
 
                 if let Some((existing_val, existing_perms)) = existing_value {
-                    // Check value conflict if we're setting a new value
-                    if let Some(new_value) = &pv.value {
-                        let (proceed_value, conflict) = self.check_conflict(
-                            obj,
-                            Entity::PropertyValue(pv.name),
-                            Some(existing_val),
-                            new_value,
-                            |current| ConflictEntity::PropertyValue(pv.name, current),
-                            options,
-                        );
-                        if let Some(conflict) = conflict {
-                            self.conflicts.push(conflict);
-                        }
-                        should_proceed &= proceed_value;
+                    let (proceed_value, conflict) = self.check_property_value_conflict(
+                        obj,
+                        pv.name,
+                        existing_val,
+                        &pv.value,
+                        pv.clear_value,
+                        options,
+                    );
+                    if let Some(conflict) = conflict {
+                        self.conflicts.push(conflict);
                     }
+                    should_proceed &= proceed_value;
 
                     // Check permissions conflict if we're updating permissions
                     if let Some(pu) = &pv.perms_update {
@@ -1017,6 +1050,18 @@ impl<'a> ObjectDefinitionLoader<'a> {
                         wse,
                     )
                 })?;
+            if prop_override.clear_value {
+                self.loader
+                    .clear_property_value(&obj, prop_override.name)
+                    .map_err(|error| {
+                        ObjdefLoaderError::CouldNotOverrideProperty(
+                            path.clone(),
+                            obj,
+                            prop_override.name.to_string(),
+                            error,
+                        )
+                    })?;
+            }
             self.apply_property_metadata(&path, &obj, prop_override.name, &prop_override.metadata)?;
         }
         Ok(())

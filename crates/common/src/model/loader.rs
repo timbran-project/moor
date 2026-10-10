@@ -181,6 +181,9 @@ pub trait LoaderInterface: Send {
         value: Option<Var>,
     ) -> Result<(), WorldStateError>;
 
+    /// Remove a property's local value without changing its permissions or metadata.
+    fn clear_property_value(&mut self, obj: &Obj, name: Symbol) -> Result<(), WorldStateError>;
+
     /// Set metadata attached directly to an object.
     fn set_object_metadata(
         &mut self,
@@ -233,7 +236,19 @@ pub trait LoaderInterface: Send {
         &self,
         obj: &Obj,
         propname: Symbol,
-    ) -> Result<Option<(Var, PropPerms)>, WorldStateError>;
+    ) -> Result<Option<(Var, PropPerms)>, WorldStateError> {
+        Ok(self
+            .get_existing_property_state(obj, propname)?
+            .and_then(|(value, perms)| value.map(|value| (value, perms))))
+    }
+
+    /// Read a property's local value and permissions. The outer `None` means the property
+    /// does not exist; an inner `None` means its local value is clear.
+    fn get_existing_property_state(
+        &self,
+        obj: &Obj,
+        propname: Symbol,
+    ) -> Result<Option<(Option<Var>, PropPerms)>, WorldStateError>;
 
     /// Find an existing verb by its name(s)
     fn get_existing_verb_by_names(

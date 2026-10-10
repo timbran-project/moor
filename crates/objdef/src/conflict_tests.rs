@@ -103,6 +103,152 @@ mod tests {
     }
 
     #[test]
+    fn explicit_clear_obeys_conflict_modes_and_dry_run() {
+        for (mode, dry_run, force, cleared) in [
+            (ConflictMode::Clobber, false, false, true),
+            (ConflictMode::Skip, false, false, false),
+            (ConflictMode::Skip, false, true, true),
+            (ConflictMode::Clobber, true, false, false),
+        ] {
+            let db = setup_objects().unwrap();
+            let child = Obj::mk_id(2);
+            let names = [Symbol::mk("description"), Symbol::mk("child_prop")];
+            let source = r#"
+                object #2
+                    parent: #1
+                    owner: #1
+                    override description (owner: #1, flags: "rc") [note -> "clear"] clear;
+                    property child_prop (owner: #2, flags: "rw") [note -> "clear"] clear;
+                endobject
+            "#;
+            let mut loader = db.loader_client().unwrap();
+            let results = ObjectDefinitionLoader::new(loader.as_mut())
+                .load_single_object(
+                    source,
+                    CompileOptions::default(),
+                    ObjDefLoaderOptions {
+                        conflict_mode: mode,
+                        dry_run,
+                        overrides: if force {
+                            names
+                                .iter()
+                                .map(|name| (child, Entity::PropertyValue(*name)))
+                                .collect()
+                        } else {
+                            vec![]
+                        },
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            for name in names {
+                assert!(results.conflicts.iter().any(|(obj, conflict)|
+                    *obj == child && matches!(conflict, crate::ConflictEntity::PropertyValue(n, _) if *n == name)
+                ));
+            }
+            loader.commit().unwrap();
+            let ws = db.new_world_state().unwrap();
+            for name in names {
+                assert_eq!(
+                    ws.is_property_clear(&system_permissions(), &child, name)
+                        .unwrap(),
+                    cleared
+                );
+                assert_eq!(
+                    ws.get_property_metadata(
+                        &system_permissions(),
+                        &child,
+                        name,
+                        Symbol::mk("note")
+                    )
+                    .unwrap(),
+                    cleared.then(|| v_str("clear"))
+                );
+            }
+            assert_eq!(
+                ws.retrieve_property(&system_permissions(), &child, names[0])
+                    .unwrap(),
+                v_str(if cleared {
+                    "initial value"
+                } else {
+                    "child overridden"
+                })
+            );
+            drop(ws);
+
+            if cleared {
+                // Repeating a clear must recognize an existing property, not redefine it.
+                let mut loader = db.loader_client().unwrap();
+                let results = ObjectDefinitionLoader::new(loader.as_mut())
+                    .load_single_object(
+                        source,
+                        CompileOptions::default(),
+                        ObjDefLoaderOptions::default(),
+                    )
+                    .unwrap();
+                assert!(!results.conflicts.iter().any(|(_, conflict)| matches!(
+                    conflict,
+                    crate::ConflictEntity::PropertyValue(_, _)
+                )));
+                for name in names {
+                    assert!(
+                        loader
+                            .get_existing_property_state(&child, name)
+                            .unwrap()
+                            .unwrap()
+                            .0
+                            .is_none()
+                    );
+                }
+                loader.commit().unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn omitted_property_values_preserve_local_values() {
+        let db = setup_objects().unwrap();
+        let mut loader = db.loader_client().unwrap();
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .load_single_object(
+                r#"
+                object #2
+                    parent: #1
+                    override description;
+                    override description (owner: #1, flags: "r") [note -> 1];
+                    property child_prop (owner: #2, flags: "r") [note -> 1];
+                endobject
+            "#,
+                CompileOptions::default(),
+                ObjDefLoaderOptions::default(),
+            )
+            .unwrap();
+        loader.commit().unwrap();
+        let ws = db.new_world_state().unwrap();
+        for (name, expected) in [
+            ("description", "child overridden"),
+            ("child_prop", "child only"),
+        ] {
+            let name = Symbol::mk(name);
+            assert_eq!(
+                ws.retrieve_property(&system_permissions(), &Obj::mk_id(2), name)
+                    .unwrap(),
+                v_str(expected)
+            );
+            assert_eq!(
+                ws.get_property_metadata(
+                    &system_permissions(),
+                    &Obj::mk_id(2),
+                    name,
+                    Symbol::mk("note")
+                )
+                .unwrap(),
+                Some(v_int(1))
+            );
+        }
+    }
+
+    #[test]
     fn test_property_conflict_skip_mode() -> Result<(), Box<dyn std::error::Error>> {
         let db = setup_objects()?;
         let mut loader = db.loader_client()?;

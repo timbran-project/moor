@@ -345,6 +345,8 @@ fn write_property_definition<W: Write>(
     if let Some(value) = &pd.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
+    } else if pd.clear_value {
+        write!(writer, " clear")?;
     }
     writeln!(writer, ";")?;
     Ok(())
@@ -368,6 +370,8 @@ fn write_property_override<W: Write>(
     if let Some(value) = &ps.value {
         let value = to_literal_objsub(value, index_names, 2);
         write!(writer, " = {value}")?;
+    } else if ps.clear_value {
+        write!(writer, " clear")?;
     }
     writeln!(writer, ";")?;
     Ok(())

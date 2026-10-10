@@ -144,6 +144,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+`objdef`:
+
+- Add a contextual `clear` clause to property declarations and overrides. It removes the local value
+  while allowing permission and metadata updates in the same declaration. Exports now write this
+  clause for clear values. Existing files remain accepted, but older importers cannot read the new
+  clause. `clear` remains valid as an identifier or constant, including after `=`.
+
 `kernel`:
 
 - New `moor-vm` crate extracted from `moor-kernel`, separating pure VM types (activations, frames,

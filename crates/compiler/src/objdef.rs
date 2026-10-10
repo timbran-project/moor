@@ -104,6 +104,8 @@ pub struct ObjVerbDef {
 
 #[derive(Clone)]
 pub struct ObjPropDef {
+    /// An explicit `clear` clause removes the local value, including during a merge.
+    pub clear_value: bool,
     pub name: Symbol,
     pub perms: PropPerms,
     pub value: Option<Var>,
@@ -112,6 +114,8 @@ pub struct ObjPropDef {
 
 #[derive(Clone)]
 pub struct ObjPropOverride {
+    /// An explicit `clear` clause removes the local value; omission preserves it.
+    pub clear_value: bool,
     pub name: Symbol,
     pub perms_update: Option<PropPerms>,
     pub value: Option<Var>,
@@ -468,6 +472,66 @@ mod tests {
             panic!("Expected string value");
         };
         assert_eq!(s, "test");
+    }
+
+    #[test]
+    fn clear_clause_preserves_identifiers_and_constants() {
+        let object = compile_single_object(
+            r#"
+            define clear = 42;
+            define clearance = 43;
+            object #1 [clear -> clear]
+                property clear (owner: #1, flags: "rw") = clear;
+                property empty (owner: #1, flags: "rw") clear;
+                property omitted (owner: #1, flags: "rw");
+                override clear = clear;
+                override prefix = clearance;
+                override inherited (owner: #1, flags: "r") [clear -> clear] clear;
+                override bare clear;
+                override untouched [clear -> clear];
+                method clear owner: #1
+                    clear = 7;
+                    return clear;
+                endmethod
+            endobject
+        "#,
+        );
+        assert_eq!(object.property_definitions[0].name, Symbol::mk("clear"));
+        assert_eq!(object.property_definitions[0].value, Some(v_int(42)));
+        assert!(!object.property_definitions[0].clear_value);
+        assert!(object.property_definitions[1].clear_value);
+        assert!(object.property_definitions[1].value.is_none());
+        assert!(!object.property_definitions[2].clear_value);
+        assert_eq!(object.property_overrides[0].value, Some(v_int(42)));
+        assert_eq!(object.property_overrides[1].value, Some(v_int(43)));
+        assert!(!object.property_overrides[0].clear_value);
+        assert!(object.property_overrides[2].clear_value);
+        assert!(object.property_overrides[3].clear_value);
+        assert!(!object.property_overrides[4].clear_value);
+        assert_eq!(
+            object.property_overrides[2].metadata,
+            [(Symbol::mk("clear"), v_int(42))]
+        );
+        assert_eq!(object.verbs[0].names, [Symbol::mk("clear")]);
+    }
+
+    #[test]
+    fn clear_clause_rejects_values_and_keyword_prefixes() {
+        for declaration in [
+            "override foo clear = 1;",
+            "override foo = 1 clear;",
+            "override foo clearance;",
+            "property foo (owner: #1, flags: \"rw\") clear = 1;",
+            "property foo (owner: #1, flags: \"rw\") = 1 clear;",
+        ] {
+            assert!(
+                compile_single_object_opt(&format!("object #1 {declaration} endobject")).is_err()
+            );
+        }
+        assert!(matches!(
+            compile_single_object_opt("object #1 override foo = clear; endobject"),
+            Err(ObjDefParseError::ConstantNotFound(_))
+        ));
     }
 
     #[test]

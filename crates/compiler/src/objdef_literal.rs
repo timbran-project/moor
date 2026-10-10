@@ -1133,8 +1133,11 @@ impl<'a> LiteralParser<'a> {
             None
         };
         self.skip_trivia();
+        let clear_value = value.is_none() && self.eat_keyword("clear");
+        self.skip_trivia();
         let _ = self.eat_char(';');
         Ok(ObjPropDef {
+            clear_value,
             name,
             perms,
             value,
@@ -1160,8 +1163,11 @@ impl<'a> LiteralParser<'a> {
             None
         };
         self.skip_trivia();
+        let clear_value = value.is_none() && self.eat_keyword("clear");
+        self.skip_trivia();
         let _ = self.eat_char(';');
         Ok(ObjPropOverride {
+            clear_value,
             name,
             perms_update,
             value,

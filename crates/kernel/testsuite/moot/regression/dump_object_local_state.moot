@@ -30,3 +30,25 @@
 
 ; return {#9002.title, #9002.case_value, is_clear_property(#9002, "title"), is_clear_property(#9002, "case_value"), #9002.annotated, is_clear_property(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
 {"Hello", "hello", 0, 0, 2, 1, "local metadata"}
+
+// Merge a clear export over a stale local value, retaining its metadata.
+; #9002.annotated = 99;
+
+; return load_object(#0.dump_state, [], #9002);
+#9002
+
+; return {#9002.annotated, is_clear_property(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
+{2, 1, "local metadata"}
+
+// A constant and a program variable named clear still work.
+; return load_object({"define clear = 42;", "object #9002", "parent: #9000", "owner: #3", "override annotated = clear;", "method clear owner: #3", "clear = 7; return clear;", "endmethod", "endobject"});
+#9002
+
+; return {#9002.annotated, #9002:clear()};
+{42, 7}
+
+; return load_object({"object #9002", "parent: #9000", "owner: #3", "override annotated (owner: #3, flags: \"r\") [note -> \"updated\"] clear;", "endobject"});
+#9002
+
+; return {#9002.annotated, is_clear_property(#9002, "annotated"), property_info(#9002, "annotated"), property_metadata(#9002, "annotated", "note")};
+{2, 1, {#3, "r"}, "updated"}
