@@ -16,6 +16,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       EXAMINATION, ADMIN_FEATURES, BUILDER_FEATURES, MAIL_FEATURES, PROG_FEATURES, SOCIAL_FEATURES,
       WIZ_FEATURES, ANSI, FORMAT, FORMAT_ANNOTATION, FORMAT_BLOCK, FORMAT_CODE,
       FORMAT_DEFLIST, FORMAT_LINK, FORMAT_LIST, FORMAT_PARAGRAPH, FORMAT_TABLE, FORMAT_TITLE,
+      GIT, GIT_REPOSITORY, GIT_SNAPSHOT, GIT_ENTRY,
       HTML, HACKER, ADMIN_HELP_TOPICS, BUILDER_HELP_TOPICS, HELP, HELP_SOURCE,
       HELP_TOPICS, HELP_UTILS, PROG_HELP_TOPICS, WIZARD_HELP_TOPICS, ARCH_WIZARD_MAILBOX, BRASS_KEY,
       CAT_KIBBLE, COUCH, FIRST_AREA, FIRST_AREA_PASSAGES, FIRST_ROOM, HENRI,
@@ -148,9 +149,15 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       "ROOM" -> #7,
       "AREA" -> #11,
       "PASSAGE" -> #12,
+      "GIT" -> GIT,
+      "GIT_REPOSITORY" -> GIT_REPOSITORY,
+      "GIT_SNAPSHOT" -> GIT_SNAPSHOT,
+      "GIT_ENTRY" -> GIT_ENTRY,
       "CHANGE_MANAGER" -> #2000
     ],
-    "upstream" -> "",
+    "upstream" -> ["transport" -> "git",
+      "repository" -> "https://github.com/timbran-project/moor.git",
+      "revision" -> ["ref" -> "refs/heads/main"], "path" -> "cores/cowbell/src"],
     "active" -> 0
   ]];
   property pending (owner: ARCH_WIZARD, flags: "") = [];
@@ -211,14 +218,14 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
     "Return status without source, drafts, or program bodies.";
     caller == this || raise(E_PERM);
     const {record} = args;
-    return ["schema" -> 1, "review_id" -> record["id"], "generation" -> record["generation"], "package" -> record["package"], "status" -> record["status"], "task" -> record["task"], "error" -> record["error"]];
+    return ["schema" -> 1, "review_id" -> record["id"], "generation" -> record["generation"], "package" -> record["package"], "status" -> record["status"], "task" -> record["task"], "error" -> record["error"], "provenance" -> record["provenance"]];
   endmethod
 
   method capabilities owner: ARCH_WIZARD
     "Describe the versioned review API and its limits.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
-    return ["schema" -> 1, "operations" -> {"packages", "configure", "upstream", "stage", "status", "review", "diagnostics", "details", "resolve", "apply", "refresh", "discard"}, "fields" -> {"program"}, "choices" -> {"incoming", "local", "edited", "defer"}, "transports" -> {"upload", "http"}, "authorization" -> "administrator", "default_package" -> this.default_package, "max_source_bytes" -> 4194304, "max_pending_bytes" -> 33554432, "max_packages" -> 32, "page_rows" -> 50, "max_detail_bytes" -> 524288, "max_page_bytes" -> 262144, "receipt_decisions" -> 50];
+    return ["schema" -> 1, "operations" -> {"packages", "configure", "upstream", "stage", "status", "review", "diagnostics", "details", "resolve", "apply", "refresh", "discard"}, "fields" -> {"program"}, "choices" -> {"incoming", "local", "edited", "defer"}, "transports" -> {"upload", "http", "git"}, "git_authorization" -> "wizard", "authorization" -> "administrator", "default_package" -> this.default_package, "max_source_bytes" -> 4194304, "max_pending_bytes" -> 33554432, "max_packages" -> 32, "page_rows" -> 50, "max_detail_bytes" -> 524288, "max_page_bytes" -> 262144, "receipt_decisions" -> 50];
   endmethod
 
   method packages owner: ARCH_WIZARD
@@ -242,7 +249,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       typeof(owner) == TYPE_OBJ && valid(owner) && !(owner in owner_set) || raise(E_INVARG);
       owner_set = {@owner_set, owner};
     endfor
-    this:_url(url);
+    const upstream = this:_upstream(url);
     let seen = {};
     for object in (objects)
       typeof(object) == TYPE_OBJ && valid(object) && !(object in seen) || raise(E_INVARG);
@@ -264,7 +271,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       length(this.packages) < 32 || raise(E_QUOTA);
     endif
     generation == expected || this:_error("stale_generation", "Package settings changed.");
-    const package = ["schema" -> 1, "generation" -> generation + 1, "objects" -> objects, "fields" -> {"program"}, "constants" -> constants, "trusted_owners" -> trusted_owners, "upstream" -> url, "active" -> 0];
+    const package = ["schema" -> 1, "generation" -> generation + 1, "objects" -> objects, "fields" -> {"program"}, "constants" -> constants, "trusted_owners" -> trusted_owners, "upstream" -> upstream, "active" -> 0];
     this.packages[name] = package;
     return package;
   endmethod
@@ -280,13 +287,101 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
   endmethod
 
   method upstream owner: ARCH_WIZARD
-    "Conditionally set the URL for one self-contained text bundle.";
+    "Conditionally set an HTTP bundle URL or a Git repository source map.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
     const {name, url, expected} = args;
     maphaskey(this.packages, name) || raise(E_INVARG);
     const package = this.packages[name];
     return this:configure(name, package["objects"], package["constants"], url, expected, package["trusted_owners"]);
+  endmethod
+
+  method _keys owner: ARCH_WIZARD
+    "Normalize source-setting keys and reject duplicates or unknown fields.";
+    caller == this || raise(E_PERM);
+    const {input, allowed} = args;
+    typeof(input) == TYPE_MAP || raise(E_TYPE);
+    let result = [];
+    for key in (mapkeys(input))
+      typeof(key) in {TYPE_STR, TYPE_SYM} || raise(E_TYPE);
+      const name = tostr(key);
+      name in allowed && !maphaskey(result, name) || raise(E_INVARG, "Unknown or duplicate upstream field.");
+      result[name] = input[key];
+    endfor
+    return result;
+  endmethod
+
+  method _upstream owner: ARCH_WIZARD
+    "Validate HTTP bundle URLs and Git source descriptors without network access.";
+    caller == this || raise(E_PERM);
+    const {source} = args;
+    if (typeof(source) == TYPE_STR)
+      this:_url(source);
+      return source;
+    endif
+    const spec = this:_keys(source, {"transport", "repository", "revision", "path"});
+    for key in ({"transport", "repository", "revision"})
+      maphaskey(spec, key) || raise(E_INVARG, "Missing upstream field: " + key);
+    endfor
+    spec["transport"] == "git" || raise(E_INVARG, "Unknown upstream transport.");
+    const url = spec["repository"];
+    this:_url(url);
+    url != "" && !index(url, "?") && !index(url, "#") || raise(E_INVARG, "Expected a Git HTTP(S) URL without a query or fragment.");
+    const revision = this:_keys(spec["revision"], {"ref", "commit"});
+    length(revision) == 1 || raise(E_INVARG, "Specify one full Git ref or commit.");
+    if (maphaskey(revision, "commit"))
+      $git:oid(revision["commit"]);
+    else
+      const ref = revision["ref"];
+      typeof(ref) == TYPE_STR || raise(E_TYPE);
+      index(ref, "refs/", 1) == 1 && length(ref) > 5 && length(ref) <= 1024 || raise(E_INVARG, "Use a full Git ref, such as refs/heads/main.");
+    endif
+    const path = `spec["path"] ! E_RANGE => ""';
+    typeof(path) == TYPE_STR && length(path) <= 4096 || raise(E_INVARG);
+    !index(path, "\\") || raise(E_INVARG, "Git paths use forward slashes.");
+    if (path != "")
+      for part in (explode(path, "/", true))
+        !(part in {"", ".", ".."}) || raise(E_INVARG, "Git paths must be relative without dot segments.");
+      endfor
+    endif
+    return ["transport" -> "git", "repository" -> url, "revision" -> revision, "path" -> path];
+  endmethod
+
+  method _git_sources owner: ARCH_WIZARD
+    "Convert local snapshot files to objdef units. Package constants remain the authoritative bindings.";
+    caller == this || raise(E_PERM);
+    const {snapshot} = args;
+    snapshot.complete || raise(E_INVARG, "Git staging requires a complete snapshot.");
+    let sources = {};
+    let bytes = 0;
+    for entry in (snapshot.entries)
+      if (entry.kind in {'symlink, 'submodule})
+        this:_error("unsupported_git_entry", "Git source trees cannot contain symlinks or submodules: " + entry.path);
+      endif
+      if (entry.kind != 'file || length(entry.path) < 4)
+        continue;
+      endif
+      if (strcmp(entry.path[length(entry.path) - 3..$], ".moo") != 0)
+        continue;
+      endif
+      const parts = explode(entry.path, "/", true);
+      // Source addresses must not replace the package's live object bindings.
+      if (strcmp(parts[$], "constants.moo") == 0)
+        continue;
+      endif
+      let text = "";
+      try
+        text = binary_to_str(entry.content);
+      except failure (E_INVARG)
+        this:_error("invalid_git_utf8", "Git objdef source is not UTF-8: " + entry.path);
+      endtry
+      const unit = ["label" -> entry.path, "text" -> text];
+      bytes = bytes + value_bytes(unit);
+      bytes <= 4194304 || raise(E_QUOTA, "Source exceeds the service limit.");
+      sources = {@sources, unit};
+    endfor
+    length(sources) > 0 || this:_error("missing_source", "Git subtree contains no objdef object files.");
+    return sources;
   endmethod
 
   method _save_ready owner: ARCH_WIZARD
@@ -312,7 +407,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
   endmethod
 
   method stage owner: ARCH_WIZARD
-    "Stage an uploaded source set, or start an HTTP fetch when sources are omitted.";
+    "Stage uploaded source, or fetch the configured upstream. Git fetches require an actual wizard.";
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
     const {name, ?sources = {}, ?operation = "update"} = args;
@@ -323,11 +418,14 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
     length(this.pending) < 8 || raise(E_QUOTA);
     typeof(sources) == TYPE_LIST || raise(E_TYPE);
     if (!sources && !package["upstream"])
-      this:_error("missing_source", "Upload source units or configure an HTTP upstream.");
+      this:_error("missing_source", "Upload source units or configure an upstream.");
+    endif
+    if (!sources && typeof(package["upstream"]) == TYPE_MAP)
+      auth[1].wizard || raise(E_PERM, "Git staging requires wizard authority.");
     endif
     const id = this.next_review;
     this.next_review = id + 1;
-    let record = ["id" -> id, "generation" -> 1, "actor" -> auth[1], "authority" -> auth[2], "package" -> name, "package_generation" -> package["generation"], "status" -> "fetching", "task" -> 0, "error" -> [], "sources" -> {}, "report" -> [], "choices" -> [], "provenance" -> [], "request" -> ["schema" -> 1, "operation" -> operation, "objects" -> package["objects"], "fields" -> package["fields"], "constants" -> package["constants"], "trusted_owners" -> package["trusted_owners"]]];
+    let record = ["id" -> id, "generation" -> 1, "actor" -> auth[1], "authority" -> auth[2], "package" -> name, "package_generation" -> package["generation"], "upstream" -> package["upstream"], "status" -> "fetching", "task" -> 0, "error" -> [], "sources" -> {}, "report" -> [], "choices" -> [], "provenance" -> [], "request" -> ["schema" -> 1, "operation" -> operation, "objects" -> package["objects"], "fields" -> package["fields"], "constants" -> package["constants"], "trusted_owners" -> package["trusted_owners"]]];
     this.packages[name]["active"] = id;
     this.pending[id] = record;
     if (sources)
@@ -384,13 +482,27 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
   endmethod
 
   method _fetch owner: ARCH_WIZARD
-    "Fetch one bounded UTF-8 bundle; recheck authorization and request identity after suspension.";
+    "Fetch saved upstream settings; recheck authority and job identity before saving any source.";
     caller == this || raise(E_PERM);
     const {id, generation} = args;
     let record = this:_job(id, generation, "fetching");
     set_task_perms(record["authority"]);
     try
-      const url = this.packages[record["package"]]["upstream"];
+      const upstream = `record["upstream"] ! E_RANGE => this.packages[record["package"]]["upstream"]';
+      if (typeof(upstream) == TYPE_MAP)
+        record["actor"].wizard || raise(E_PERM, "Git staging requires wizard authority.");
+        const repository = $git:repository(upstream["repository"],
+          ['max_entries -> 4096, 'max_file_bytes -> 4194304, 'max_total_bytes -> 4194304]);
+        const snapshot = repository:snapshot(upstream["revision"], upstream["path"]);
+        record = this:_job(id, generation, "fetching");
+        record["actor"].wizard || raise(E_PERM, "Git staging requires wizard authority.");
+        const sources = this:_git_sources(snapshot);
+        this:_save_ready(record, sources, ["transport" -> "git", "repository" -> upstream["repository"],
+          "revision" -> upstream["revision"], "commit" -> snapshot.commit,
+          "tree" -> snapshot.tree, "path" -> snapshot.path]);
+        return;
+      endif
+      const url = upstream;
       const response = worker_request("curl", {"GET", url, "", {}, ["max_bytes" -> 4194304, "strict_utf8" -> true, "include_url" -> true]}, ["timeout_seconds" -> 30.0]);
       record = this:_job(id, generation, "fetching");
       length(response) == 4 && response[1] == 200 || this:_error("http_failure", "HTTP bundle fetch did not return status 200.");
@@ -617,6 +729,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       // Do not call MOO helpers after installation: this package may have updated their code.
       let receipt = ["schema" -> 1, "review_id" -> id, "generation" -> record["generation"], "package" -> record["package"], "status" -> record["status"], "task" -> 0, "error" -> []];
       receipt["actor"] = record["actor"];
+      receipt["provenance"] = record["provenance"];
       receipt["decision_count"] = length(result["decisions"]);
       receipt["decisions"] = result["decisions"][1..min(50, length(result["decisions"]))];
       receipt["source_digest"] = record["report"]["source_digest"];
@@ -657,11 +770,24 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
     const auth = this:_entry(caller_perms());
     set_task_perms(auth[2]);
     let {words} = args;
-    const usage = {"@changes packages", "@changes package NAME #OBJECT ...", "@changes upstream [NAME] HTTP-BUNDLE-URL", "@changes stage [NAME] | adopt [NAME]", "@changes status ID", "@changes diff ID [OFFSET]", "@changes source ID GENERATION ROW live|incoming [OFFSET]", "@changes resolve ID GENERATION ROW incoming|local|defer", "@changes resolve ID GENERATION ROW edited PROGRAM", "@changes apply ID GENERATION | refresh ID GENERATION | discard ID GENERATION", "Uploads: $change_manager:stage(NAME, {[\"label\" -> \"file.moo\", \"text\" -> LINES]})."};
+    const usage = {"@changes packages", "@changes package NAME #OBJECT ...", "@changes upstream [NAME] HTTP-BUNDLE-URL", "@changes upstream [NAME] git REPOSITORY FULL-REF-OR-COMMIT [PATH]", "@changes stage [NAME] | adopt [NAME]", "@changes status ID", "@changes diff ID [OFFSET]", "@changes source ID GENERATION ROW live|incoming [OFFSET]", "@changes resolve ID GENERATION ROW incoming|local|defer", "@changes resolve ID GENERATION ROW edited PROGRAM", "@changes apply ID GENERATION | refresh ID GENERATION | discard ID GENERATION", "Uploads: $change_manager:stage(NAME, {[\"label\" -> \"file.moo\", \"text\" -> LINES]})."};
     if (!words || words[1] == "help")
       return usage;
     endif
     const action = words[1];
+    if (action == "upstream" && length(words) >= 2)
+      const git_index = words[2] == "git" ? 2 | 3;
+      if (length(words) >= git_index && words[git_index] == "git")
+        length(words) in {git_index + 2, git_index + 3} || raise(E_INVARG, "Expected Git repository, full ref or commit, and optional path.");
+        const name = git_index == 2 ? this.default_package | words[2];
+        const revision = words[git_index + 2];
+        const key = index(revision, "sha1:", 1) == 1 ? "commit" | "ref";
+        const path = length(words) == git_index + 3 ? words[git_index + 3] | "";
+        this:upstream(name, ["transport" -> "git", "repository" -> words[git_index + 1],
+          "revision" -> [key -> revision], "path" -> path], this.packages[name]["generation"]);
+        return {"Git upstream configured."};
+      endif
+    endif
     if (action in {"stage", "adopt"} && length(words) == 1)
       words = {@words, this.default_package};
     elseif (action == "upstream" && length(words) == 2)
@@ -671,7 +797,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       let output = {"Change packages:"};
       for name in (mapkeys(this.packages))
         const package = this.packages[name];
-        output = {@output, tostr(name, " generation=", package["generation"], " objects=", length(package["objects"]), " active=", package["active"], " upstream=", package["upstream"])};
+        output = {@output, tostr(name, " generation=", package["generation"], " objects=", length(package["objects"]), " active=", package["active"], " upstream=", toliteral(package["upstream"]))};
       endfor
       return output;
     endif
@@ -712,7 +838,7 @@ object CHANGE_MANAGER [import_export_id -> "change_manager"]
       const status = this:status(id);
       const offset = length(words) == 3 ? toint(words[3]) | 1;
       const page = this:review(id, status["generation"], {id, status["generation"], offset});
-      let output = {tostr("Review ", id, " generation ", status["generation"], " (", page["total"], " rows)")};
+      let output = {tostr("Review ", id, " generation ", status["generation"], " (", page["total"], " rows)"), tostr("Source: ", toliteral(page["provenance"]))};
       for row in (page["rows"])
         output = {@output, tostr(row["id"], " ", row["classification"], " eligible=", row["eligible"], " default=", row["default"], " choice=", toliteral(row["choice"]), " blockers=", toliteral(row["blockers"]))};
       endfor

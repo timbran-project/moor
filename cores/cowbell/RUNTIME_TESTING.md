@@ -13,6 +13,9 @@ directories.
 `make -C cores/cowbell test-git-worker` checks Git access through the daemon, telnet host, and Git worker.
 It uses a temporary local HTTP repository and requires the Git CLI for the fixture.
 It checks binary contents, symlinks, tree metadata, worker errors, and reads pinned to a commit after a branch moves.
+It also stages and applies Git `@changes` reviews, checks saved source after a branch moves, and
+tests discard, changed settings, and wizard revocation during a fetch. A full Cowbell subtree review
+checks installed constants and preserves local package settings through apply.
 The method suite also checks wizard-only dispatch, forged descriptors, local lookup, and malformed responses.
 
 `make -C cores/cowbell` exports the shipped core. `make rebuild` first checks export stability, then

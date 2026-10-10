@@ -504,6 +504,35 @@ configured entirely through rules and reactions.
 
 ### Git repositories
 
+Cowbell's default `@changes` package points to `https://github.com/timbran-project/moor.git`,
+at `refs/heads/main`, under `cores/cowbell/src`. With the Git worker running, a wizard can start a review:
+
+```text
+@changes stage
+@changes status 1
+@changes diff 1
+@changes apply 1 1
+```
+
+Use the review ID and generation returned by your commands. Staging saves the source, resolved commit,
+and tree. Apply uses that saved source even if the branch moves. Refresh checks the same source against
+the current world; discard and stage again to fetch a newer revision.
+
+To change the upstream, use a full ref or a `sha1:` commit ID:
+
+```text
+@changes upstream git https://github.com/timbran-project/moor.git refs/heads/main cores/cowbell/src
+```
+
+Insert a package name after `upstream` to configure another package. Git staging requires an actual
+wizard; administrator delegation alone does not permit Git fetches. Uploaded source and HTTP bundles
+retain their existing permission checks.
+
+Staging reads `.moo` files recursively and uses the package's installed object bindings.
+It skips `constants.moo` and rejects symlinks, submodules, and invalid UTF-8 source.
+Local package settings survive program updates. Existing databases keep their saved upstream;
+use the command above to select Git explicitly.
+
 Cowbell provides `$git` for read-only repository access through `moor-git-worker`.
 Start the worker as described in the [server configuration](../../book/src/the-system/server-configuration.md#git-worker).
 The worker currently supports public HTTP(S) repositories and SHA-1 object IDs.

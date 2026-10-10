@@ -39,6 +39,19 @@ def run(bin_dir, core_dir):
         )
         assert count == 1
         arch.write_text(source)
+        (core / "git_probe.moo").write_text(
+            'object #9500 [import_export_id -> "git_probe"]\n'
+            'name: "Git Probe"\nparent: #1\nowner: #2\n'
+            'property local_state (owner: #2, flags: "r") = 7;\n'
+            'method value owner: #2\n"Fixture value.";\nreturn 1;\nendmethod\nendobject\n'
+        )
+        (core / "git_actor.moo").write_text(
+            'object #9501\nname: "Git Actor"\nparent: #1\nowner: #9501\n'
+            "wizard: true\nprogrammer: true\n"
+            'method stage owner: #9501\n"Stage as this wizard.";\n'
+            'player = this;\nreturn $change_manager:stage("git_probe");\n'
+            "endmethod\nendobject\n"
+        )
         repo = root / "repo.git"
         repo.mkdir()
         git_env = dict(
@@ -68,9 +81,24 @@ def run(bin_dir, core_dir):
         (repo / "src/Readme").write_bytes(b"Original\r\n")
         (repo / "src/README").write_bytes(b"\x00\xff\r\n")
         (repo / "src/link").symlink_to("../outside")
+        package = repo / "package"
+        package.mkdir()
+        (package / "constants.moo").write_text("define PROBE = #9999;\n")
+        incoming = (
+            'object PROBE [import_export_id -> "git_probe"]\n'
+            'property local_state (owner: #2, flags: "r") = 0;\n'
+            'method value owner: #2\n"Fixture value.";\nreturn 2;\nendmethod\nendobject\n'
+        )
+        (package / "probe.moo").write_text(incoming)
+        # Use the real shipped source layout for the default-package scenario.
+        shutil.copytree(core_dir, repo / "cores/cowbell/src")
         git("add", ".")
         git("commit", "-m", "Initial fixture")
         initial = "sha1:" + git("rev-parse", "HEAD")
+
+        fetch_started = threading.Event()
+        fetch_release = threading.Event()
+        fetch_release.set()
 
         class GitHTTP(BaseHTTPRequestHandler):
             def log_message(self, *_args):
@@ -81,6 +109,11 @@ def run(bin_dir, core_dir):
                 self.connection.settimeout(15)
 
             def do_GET(self):
+                if not fetch_release.is_set():
+                    fetch_started.set()
+                    assert fetch_release.wait(20), (
+                        "Test did not release the Git request"
+                    )
                 body = b""
                 if self.headers.get("Transfer-Encoding", "").lower() == "chunked":
                     while True:
@@ -296,6 +329,9 @@ def run(bin_dir, core_dir):
                 "PIN_AND_ERROR_OK",
                 timeout=40,
             )
+            check_changes(
+                client, url, package, incoming, git, fetch_started, fetch_release
+            )
             print(
                 "PASS Cowbell Git capabilities, refs, tree, snapshot, binary data, commit pin, and errors",
                 flush=True,
@@ -305,6 +341,7 @@ def run(bin_dir, core_dir):
                 print(f"{log.name}:\n{log.read_text()[-8000:]}", flush=True)
             raise
         finally:
+            fetch_release.set()
             if client is not None:
                 client.close()
             for process, _ in reversed(processes):
@@ -318,6 +355,133 @@ def run(bin_dir, core_dir):
             http.shutdown()
             http.server_close()
             thread.join(timeout=5)
+
+
+def check_changes(client, url, package, incoming, git, fetch_started, fetch_release):
+    """Review a subtree, move its ref, apply saved source, and reject stale jobs."""
+
+    def check(code, marker):
+        client.eval_marker(
+            code + f' notify(connection(), "{marker}");', marker, timeout=45
+        )
+
+    def wait_for(status):
+        client.eval_marker(
+            "for attempt in [1..600] "
+            'const status = $change_manager:status($git_review["review_id"]); '
+            'if (!(status["status"] in {"fetching", "applying"})) '
+            f'notify(connection(), status["status"] == "{status}" ? "REVIEW_OK" | toliteral(status)); '
+            'return; endif suspend(0.05); endfor raise(E_ASSERT, "Review timed out.");',
+            "REVIEW_OK",
+            timeout=45,
+        )
+
+    check(
+        'add_property(#0, "git_review", [], {player, ""}); '
+        'add_property(#0, "git_provenance", [], {player, ""}); '
+        f'$change_manager:configure("git_probe", {{#9500}}, ["PROBE" -> #9500], '
+        f'["transport" -> "git", "repository" -> {json.dumps(url)}, '
+        '"revision" -> ["ref" -> "refs/heads/main"], "path" -> "package"]); '
+        '#0.git_review = $change_manager:stage("git_probe");',
+        "REVIEW_STARTED",
+    )
+    wait_for("ready")
+    check(
+        'const page = $change_manager:review($git_review["review_id"], 1); '
+        'page["diagnostic_count"] == 1 && page["diagnostics"][1]["code"] == "property_fields_unmanaged" || raise(E_ASSERT, toliteral(page)); '
+        'page["rows"][1]["classification"] == "upstream" || raise(E_ASSERT, toliteral(page)); '
+        '#0.git_provenance = page["provenance"]; '
+        '$git_provenance["path"] == "package" || raise(E_ASSERT); '
+        "#9500.local_state = 8;",
+        "REVIEW_SAVED",
+    )
+    (package / "probe.moo").write_text(incoming.replace("return 2;", "return 3;"))
+    git("add", ".")
+    git("commit", "-m", "Move reviewed source")
+    check(
+        '$change_manager:refresh($git_review["review_id"], 1); '
+        '$change_manager:review($git_review["review_id"], 2)["provenance"] == $git_provenance || raise(E_ASSERT); '
+        '$change_manager:apply($git_review["review_id"], 2);',
+        "APPLY_STARTED",
+    )
+    wait_for("complete")
+    check(
+        "#9500:value() == 2 && #9500.local_state == 8 || raise(E_ASSERT); "
+        '$change_manager:status($git_review["review_id"])["provenance"] == $git_provenance || raise(E_ASSERT); '
+        '#0.git_review = $change_manager:stage("git_probe");',
+        "SAVED_BYTES_APPLIED",
+    )
+    wait_for("ready")
+    check(
+        'const page = $change_manager:review($git_review["review_id"], 1); '
+        'page["provenance"]["commit"] != $git_provenance["commit"] || raise(E_ASSERT); '
+        'page["rows"][1]["classification"] == "upstream" || raise(E_ASSERT, toliteral(page)); '
+        '$change_manager:discard($git_review["review_id"], 1);',
+        "NEW_REF_SEEN",
+    )
+
+    # A discarded request must not resurrect its saved review after HTTP completes.
+    fetch_started.clear()
+    fetch_release.clear()
+    check('#0.git_review = $change_manager:stage("git_probe");', "SLOW_FETCH_STARTED")
+    assert fetch_started.wait(10), "Git request did not reach HTTP fixture"
+    check('$change_manager:discard($git_review["review_id"], 1);', "FETCH_DISCARDED")
+    fetch_release.set()
+    check(
+        'for attempt in [1..600] if (!valid_task($git_review["task"])) '
+        '!maphaskey($change_manager.pending, $git_review["review_id"]) || raise(E_ASSERT); '
+        'notify(connection(), "DISCARD_STAYS_DISCARDED"); return; endif suspend(0.05); endfor '
+        'raise(E_ASSERT, "Discarded fetch did not end.");',
+        "DISCARD_STAYS_DISCARDED",
+    )
+
+    # A response cannot use settings or authority that changed while it was away.
+    for scenario, stage, invalidate in (
+        (
+            "STALE_PACKAGE",
+            '$change_manager:stage("git_probe")',
+            '$change_manager.packages["git_probe"]["generation"] = '
+            '$change_manager.packages["git_probe"]["generation"] + 1;',
+        ),
+        ("REVOKED_WIZARD", "#9501:stage()", "#9501.wizard = false;"),
+    ):
+        fetch_started.clear()
+        fetch_release.clear()
+        check(f"#0.git_review = {stage};", scenario + "_STARTED")
+        assert fetch_started.wait(10), "Git request did not reach HTTP fixture"
+        check(invalidate, scenario + "_INVALIDATED")
+        fetch_release.set()
+        wait_for("failed")
+        check(
+            '$change_manager.pending[$git_review["review_id"]]["sources"] == {} || raise(E_ASSERT); '
+            '$change_manager:discard($git_review["review_id"], $change_manager:status($git_review["review_id"])["generation"]);',
+            scenario + "_REJECTED",
+        )
+
+    # Stage the real Cowbell subtree with its installed bindings and local upstream override.
+    check(
+        f'$change_manager:command({{"upstream", "git", {json.dumps(url)}, "refs/heads/main", "cores/cowbell/src"}}); '
+        '#0.git_review = $change_manager:stage("cowbell");',
+        "CORE_FETCH_STARTED",
+    )
+    wait_for("ready")
+    check(
+        'const page = $change_manager:review($git_review["review_id"], 1); '
+        'for diagnostic in ($change_manager.pending[$git_review["review_id"]]["report"]["diagnostics"]) diagnostic["code"] in {"property_fields_unmanaged", "definition_fields_unmanaged"} || raise(E_ASSERT, toliteral(diagnostic)); endfor '
+        'for row in ($change_manager.pending[$git_review["review_id"]]["report"]["rows"]) '
+        'row["classification"] == "unchanged" || raise(E_ASSERT, toliteral(row)); endfor '
+        '$change_manager:apply($git_review["review_id"], 1);',
+        "CORE_APPLY_STARTED",
+    )
+    wait_for("complete")
+    check(
+        f'$change_manager:packages()["packages"]["cowbell"]["upstream"]["repository"] == {json.dumps(url)} || raise(E_ASSERT);',
+        "LOCAL_UPSTREAM_PRESERVED",
+    )
+    print(
+        "PASS Git @changes saved review, pinned apply, constants, local state, discard, stale settings, revoked authority, and Cowbell subtree",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,60 @@
+// Git source settings, permissions, and local snapshot conversion.
+@wizard
+; const package = $change_manager:packages()["packages"]["cowbell"]; return {package["upstream"], {$git, $git_repository, $git_snapshot, $git_entry}:all({o} => o in package["objects"] != 0), package["constants"]["GIT"] == $git};
+{["transport" -> "git", "repository" -> "https://github.com/timbran-project/moor.git", "revision" -> ["ref" -> "refs/heads/main"], "path" -> "cores/cowbell/src"], true, true}
+
+; return $change_manager:capabilities()["git_authorization"];
+"wizard"
+
+; return $change_manager:command({"upstream", "git", "https://example.invalid/repo.git", "refs/heads/main", "core/src"});
+{"Git upstream configured."}
+
+; const source = $change_manager:packages()["packages"]["cowbell"]["upstream"]; return {source["path"], source["revision"]};
+{"core/src", ["ref" -> "refs/heads/main"]}
+
+; return $change_manager:upstream("cowbell", ['transport -> "git", 'repository -> "https://example.invalid/repo.git", 'revision -> ['commit -> "sha1:0123456789abcdef0123456789abcdef01234567"]], 2)["upstream"]["path"];
+""
+
+; return `$change_manager:upstream("cowbell", "https://example.invalid/bundle.moo", 2) ! ANY => "stale"';
+"stale"
+
+; const source = ["transport" -> "git", "repository" -> "https://example.invalid/repo.git", "revision" -> ["ref" -> "main"]]; return `$change_manager:upstream("cowbell", source, 3) ! E_INVARG => "short ref rejected"';
+"short ref rejected"
+
+; let source = $change_manager:packages()["packages"]["cowbell"]["upstream"]; source["path"] = "../outside"; return `$change_manager:upstream("cowbell", source, 3) ! E_INVARG => "path rejected"';
+"path rejected"
+
+; let source = $change_manager:packages()["packages"]["cowbell"]["upstream"]; source['path] = "duplicate"; return `$change_manager:upstream("cowbell", source, 3) ! E_INVARG => "duplicate rejected"';
+"duplicate rejected"
+
+// Existing delegated administration does not grant Git fetching authority.
+; #90101.admin_features = {$admin_features}; $admin_features.sudo_delegates[#90101] = player; $admin_features.sudo_allowed[#90101] = {"@changes"}; return 1;
+1
+@programmer
+; return $change_manager:stage("cowbell");
+E_PERM
+@wizard
+; return {length($change_manager.pending), $change_manager:packages()["packages"]["cowbell"]["active"]};
+{0, 0}
+
+// A test-only bridge exercises conversion with complete local values and no worker.
+; add_verb($change_manager, {player, "rxd", "git_test_sources"}, {"this", "none", "this"}); set_verb_code($change_manager, "git_test_sources", {"return this:_git_sources(args[1]);"}); return 1;
+1
+
+; const snapshot = toflyweight($git_snapshot, ['complete -> true, 'entries -> {toflyweight($git_entry, ['kind -> 'file, 'path -> "constants.moo", 'content -> decode_base64("/w==")]), toflyweight($git_entry, ['kind -> 'file, 'path -> "notes.txt", 'content -> decode_base64("/w==")]), toflyweight($git_entry, ['kind -> 'file, 'path -> "nested/object.moo", 'content -> binary_from_str("object #9500\nendobject")])}]); return $change_manager:git_test_sources(snapshot);
+{["label" -> "nested/object.moo", "text" -> "object #9500\nendobject"]}
+
+; const snapshot = toflyweight($git_snapshot, ['complete -> true, 'entries -> {toflyweight($git_entry, ['kind -> 'file, 'path -> "broken.moo", 'content -> decode_base64("/w==")])}]); try $change_manager:git_test_sources(snapshot); except error (E_INVARG) return error[3]["code"]; endtry return "not rejected";
+"invalid_git_utf8"
+
+; const snapshot = toflyweight($git_snapshot, ['complete -> true, 'entries -> {toflyweight($git_entry, ['kind -> 'symlink, 'path -> "link.moo"])}]); try $change_manager:git_test_sources(snapshot); except error (E_INVARG) return error[3]["code"]; endtry return "not rejected";
+"unsupported_git_entry"
+
+; const snapshot = toflyweight($git_snapshot, ['complete -> true, 'entries -> {toflyweight($git_entry, ['kind -> 'submodule, 'path -> "nested"])}]); try $change_manager:git_test_sources(snapshot); except error (E_INVARG) return error[3]["code"]; endtry return "not rejected";
+"unsupported_git_entry"
+
+; try $change_manager:git_test_sources(toflyweight($git_snapshot, ['complete -> true, 'entries -> {}])); except error (E_INVARG) return error[3]["code"]; endtry return "not rejected";
+"missing_source"
+
+; delete_verb($change_manager, "git_test_sources"); return 1;
+1

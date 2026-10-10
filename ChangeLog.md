@@ -30,6 +30,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 `Cowbell`:
 
+- Add Git sources to `@changes`, with wizard-only fetching and saved commit provenance. Apply uses
+  the reviewed source even if a branch moves. New imports configure Cowbell's upstream to the mooR
+  repository, `refs/heads/main`, under `cores/cowbell/src`. Existing package settings are preserved.
 - Add `$git` repository access with wizard-only network operations. Repository, snapshot, and entry
   flyweights support commit-pinned reads, local lookup, exact binary contents, and explicit UTF-8
   decoding.

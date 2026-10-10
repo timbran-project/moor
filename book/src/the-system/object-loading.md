@@ -209,7 +209,27 @@ with an `@changes` allowlist entry. Each API call and background job checks that
 Source, drafts, and saved reviews are private administrator data.
 
 Each core declares its default package and object bindings in its own source. Fresh import already
-establishes program baselines. Configure an upstream and stage an update:
+establishes program baselines. Cowbell defaults to the mooR GitHub repository, `refs/heads/main`,
+and the `cores/cowbell/src` subtree. With `moor-git-worker` running, a wizard can use
+`@changes stage` without configuring an upstream. Existing databases retain their saved package
+settings.
+
+Cowbell accepts this command to select a Git upstream:
+
+```text
+@changes upstream git https://github.com/timbran-project/moor.git refs/heads/main cores/cowbell/src
+```
+
+Supply a package name before `git` to configure another package. The revision must be a full ref or
+a `sha1:` commit ID. The optional path selects a subtree. Git staging requires an actual wizard;
+Cowbell administrator delegation does not grant Git fetch access.
+
+Git staging collects `.moo` files recursively and retains their relative paths. It uses the
+package's installed constants and skips `constants.moo`. Symlinks, submodules, and invalid UTF-8
+source cause staging to fail. The saved review and receipt record the repository, requested
+revision, resolved commit, tree, subtree, and source digest.
+
+Both cores also accept HTTP bundle URLs. Configure one and stage an update:
 
 ```text
 @changes upstream https://example.org/releases/core.moo
@@ -258,9 +278,19 @@ It returns counts and up to 50 rows within 256 KiB. `diagnostics()` pages throug
 KiB. Compile errors identify the source or row, pane, and line/column range. Service errors carry a
 schema-1 map in the raised error value.
 
+In Cowbell, the upstream argument also accepts a Git source map:
+
+```moo
+source = ["transport" -> "git", "repository" -> "https://github.com/timbran-project/moor.git",
+          "revision" -> ["ref" -> "refs/heads/main"], "path" -> "cores/cowbell/src"];
+package = $change_manager:packages()["packages"]["cowbell"];
+$change_manager:upstream("cowbell", source, package["generation"]);
+```
+
 Only one review can be active per package. The service permits eight pending reviews, 4 MiB of
 source per review, and 32 MiB of pending storage. Choice writes, refresh, discard, and apply require
-the displayed review generation. Refresh creates new evidence and clears old approvals.
+the displayed review generation. Refresh creates new evidence and clears old approvals. It uses the
+saved source without fetching again. To review newer upstream source, discard and stage again.
 
 Fetch and apply return promptly and run as background tasks. Poll `status()` for the committed
 result. Apply writes programs, baselines, and its receipt in one transaction. Repeated apply calls
