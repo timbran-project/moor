@@ -18,6 +18,8 @@ use moor_git_worker::{
 };
 use moor_var::{Associative, Var, v_bool, v_int, v_str};
 use std::{
+    ffi::{OsStr, OsString},
+    fmt::Debug,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -30,7 +32,7 @@ use std::{
 };
 use tiny_http::{Header, Response, Server, StatusCode};
 
-fn git(directory: &Path, arguments: &[&str]) -> String {
+fn git<A: AsRef<OsStr> + Debug>(directory: &Path, arguments: &[A]) -> String {
     let output = Command::new("git")
         .current_dir(directory)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -529,12 +531,21 @@ async fn hostile_names_and_missing_objects_are_explicit_errors() {
     use std::os::unix::ffi::OsStringExt;
     let fixture = Fixture::new();
     let repo = fixture.root.path().join("repo.git");
-    std::fs::write(
-        repo.join(std::ffi::OsString::from_vec(vec![b'x', 255])),
-        "bad name",
-    )
-    .unwrap();
-    git(&repo, &["add", "."]);
+    // Git stores any bytes in a name, but APFS refuses a non-UTF-8 one on disk, so the entry
+    // goes straight into the index.
+    let blob = git(&repo, &["hash-object", "-w", "sub/file.txt"]);
+    let mut entry = format!("100644,{blob},").into_bytes();
+    entry.extend([b'x', 255]);
+    let entry = OsString::from_vec(entry);
+    git(
+        &repo,
+        &[
+            OsStr::new("update-index"),
+            OsStr::new("--add"),
+            OsStr::new("--cacheinfo"),
+            &entry,
+        ],
+    );
     git(&repo, &["commit", "-m", "non UTF-8 path"]);
     let executor = fixture.executor(Limits::default());
     let value = executor

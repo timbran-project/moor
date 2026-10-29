@@ -199,6 +199,9 @@ pub fn child_main(directory: &Path) -> eyre::Result<()> {
     }
     let request: Request = serde_json::from_slice(&input)?;
     request.limits.validate().map_err(eyre::Report::msg)?;
+    // macOS refuses RLIMIT_AS with EINVAL (it is an alias for the unenforced RLIMIT_RSS), which
+    // would fail every job, so the memory limit applies only where the kernel enforces it.
+    #[cfg(not(target_vendor = "apple"))]
     set_limit(libc::RLIMIT_AS, request.limits.max_memory_bytes as u64)?;
     // gix receives one pack per request. Limit the pack and every other individual temporary file.
     set_limit(libc::RLIMIT_FSIZE, request.limits.max_fetch_bytes as u64)?;
@@ -209,7 +212,13 @@ pub fn child_main(directory: &Path) -> eyre::Result<()> {
     std::io::stdout().write_all(&encode_var_cbor(&result)?)?;
     Ok(())
 }
-fn set_limit(resource: libc::__rlimit_resource_t, value: u64) -> std::io::Result<()> {
+/// The type `setrlimit` takes its resource as: glibc's own enum alias, a plain int elsewhere.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+type Resource = libc::__rlimit_resource_t;
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+type Resource = libc::c_int;
+
+fn set_limit(resource: Resource, value: u64) -> std::io::Result<()> {
     let limit = libc::rlimit {
         rlim_cur: value as libc::rlim_t,
         rlim_max: value as libc::rlim_t,
