@@ -30,6 +30,11 @@ use crate::{
 pub struct Str(ArcStr);
 
 impl Str {
+    /// Whether both share the same storage. See `Var::is_identical`.
+    pub fn is_identical(&self, other: &Self) -> bool {
+        ArcStr::ptr_eq(&self.0, &other.0)
+    }
+
     pub fn mk_str(s: &str) -> Self {
         Str(ArcStr::from(s))
     }
