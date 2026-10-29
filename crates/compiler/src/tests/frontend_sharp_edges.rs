@@ -830,6 +830,16 @@ fn preserves_direct_sysverb_call_shape() {
 }
 
 #[test]
+fn range_end_minus_needs_no_spaces() {
+    // `-1` straight after `$` is a subtraction, as in LambdaMOO, not a negative literal.
+    assert_eq!(
+        parse_shape("b = a[1..$-1];"),
+        parse_shape("b = a[1..$ - 1];")
+    );
+    assert_eq!(parse_shape("b = a[$-1];"), parse_shape("b = a[$ - 1];"));
+}
+
+#[test]
 fn preserves_indexed_range_end_shape() {
     let shape = parse_shape("a = {1, 2, 3}; b = a[2..$];");
     let expected = r#"

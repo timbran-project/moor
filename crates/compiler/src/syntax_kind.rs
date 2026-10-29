@@ -197,6 +197,9 @@ impl SyntaxKind {
                 | Self::RParen
                 | Self::RBracket
                 | Self::RBrace
+                // A `$` still before the next token is the range end, as in `x[1..$-1]`; `$name`
+                // ends in the name instead.
+                | Self::Dollar
         )
     }
 }
