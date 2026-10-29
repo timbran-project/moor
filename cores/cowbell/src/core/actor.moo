@@ -12,6 +12,8 @@ object ACTOR [
   property performing (owner: ARCH_WIZARD, flags: "rc") = "{}";
   property pronouns (owner: ARCH_WIZARD, flags: "rc") = <PRONOUNS, .po = "them", .display = "they/them", .verb_be = "are", .ps = "they", .pr = "themselves", .pq = "theirs", .pp = "their", .is_plural = true, .verb_have = "have">;
   property wearing (owner: ARCH_WIZARD, flags: "rc") = {};
+  property plan (owner: ARCH_WIZARD, flags: "r") = 0;
+  property plan_schedule (owner: ARCH_WIZARD, flags: "r") = 0;
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
 

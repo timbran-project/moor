@@ -175,6 +175,10 @@ define REACTION = #69;
 define BEHAVIOR_SCHEMA = #3010;
 define CONDITION = #3011;
 define WORLD_FACTS = #3012;
+define PLAYBOOK = #3013;
+define PLANNER = #3014;
+define ERRANDS = #3015;
+define PLAN_FAILURES = #3016;
 
 // types
 define VERB = #54;

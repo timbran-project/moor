@@ -31,6 +31,13 @@ Cowbell entries.
   acting. Registered actions with a `requires` condition are denied with that reason before their
   service runs. The built-in container, item, seat and clothing actions have contracts; new world
   facts `within_reach` and `wearing` support them.
+- Owned NPCs can pursue goals. A playbook (`$playbook`) holds goals and the approaches that
+  achieve them, as conditions and steps in the rule language. `$planner:pursue(npc, playbook, goal,
+  inputs)` gives an NPC a plan that takes one action per tick, checks each action's requirement
+  first, tries another approach when a step fails, and remembers failures for a while.
+  `$planner:why(npc)` says what the NPC is doing and why. The `$errands` playbook walks NPCs to
+  rooms and fetches items. New world facts `location_of` and `next_step` and the action `go`
+  support travel.
 - `$wiz_features:grant_wizard(target, ?tools)` makes a player a wizard as `@wizard` does and returns
   what they had before; `revoke_wizard(target, ?before)` takes wizard status back and, given that
   record, restores the player.

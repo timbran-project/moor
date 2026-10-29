@@ -326,6 +326,45 @@ planning, and explanations, and tests keep them in agreement with the actions. T
 have no contract yet. The world facts `within_reach(actor, object)` and `wearing(actor, item)`
 support the built-in contracts.
 
+## Goals, approaches, and plans
+
+An owned NPC can work towards a goal over many steps. A **playbook**, a child of `$playbook`, holds
+goals and the approaches that achieve them:
+
+- A **goal** has a name and typed inputs, such as `fetch(item, to)`. Every goal also receives
+  `actor`, the NPC pursuing it.
+- An **approach** is one way to achieve a goal: a condition over the goal's inputs, whose bindings
+  feed its steps, and up to 16 steps. Each step is an action or another goal, with arguments written
+  as values such as `binding.Where`. A step's `actor` defaults to the NPC.
+- A playbook's `settings` are values its conditions and steps read as `parameter.NAME`.
+
+```moo
+$playbook:define_goal(book, 'fetch, ['item -> 'object, 'to -> 'object], "Bring an item to a room.");
+$playbook:define_approach(book, 'fetch, 'carry, "location_of(object: input.item) -> (location: Where)",
+  {{'goal, 'go_to, ['place -> "binding.Where"]}, {'action, 'get, ['target -> "input.item"]},
+   {'goal, 'go_to, ['place -> "input.to"]}, {'action, 'drop, ['target -> "input.item"]}});
+```
+
+Approaches are validated when defined and stored as text, so a playbook can also be written as
+objdef data; the parsed form is cached until the text changes. `$errands` is the core playbook:
+`go_to(place)` walks through open exits, `open_up(box)` opens a container if needed, and
+`fetch(item, to)` brings an item from a room or a container.
+
+`$planner:pursue(npc, playbook, goal, inputs)` gives an NPC a **plan**: a stack of open goals, each
+with its chosen approach, bindings, and step, kept in the NPC's `plan` property. `abandon(npc)`
+stops it, and `why(npc)` describes it. One scheduled tick per NPC advances the plan by at most one
+action. A goal takes the first approach, in defined order, whose condition holds, with its first
+match that has not recently failed. Before an action runs, its requirement is checked against the
+world as it is. A step that is unmet, denied, or fails records its approach and matches in
+`$plan_failures` for five minutes, and the goal chooses again on the next tick. When no approach
+applies, the goal fails and its parent's approach fails in turn. The NPC hears `on_plan_done` or
+`on_plan_failed` when its plan ends.
+
+Steps run with the NPC owner's permissions, and every action checks its caller. A plan can use
+playbooks owned by the NPC's owner or by a wizard, and stops if the owner changes. Players do not
+run plans. Plans are at most 32 goals deep. The world facts `location_of(object) -> (location)` and
+`next_step(from, to) -> (exit, room)` and the action `go(target, exit)` support travel.
+
 ## Fact changes, lifetimes, and provenance
 
 A reaction can start when a fact is recorded in, or forgotten from, one relation. Its trigger is

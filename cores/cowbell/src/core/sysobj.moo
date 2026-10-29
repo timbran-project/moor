@@ -48,6 +48,7 @@ object SYSOBJ [
   property document_template (owner: HACKER, flags: "r") = DOCUMENT_TEMPLATE;
   property drink (owner: ARCH_WIZARD, flags: "r") = DRINK;
   property dump_interval (owner: ARCH_WIZARD, flags: "r") = 3600;
+  property errands (owner: HACKER, flags: "r") = ERRANDS;
   property event (owner: HACKER, flags: "r") = EVENT;
   property event_receiver (owner: HACKER, flags: "r") = EVENT_RECEIVER;
   property examination (owner: HACKER, flags: "r") = EXAMINATION;
@@ -134,6 +135,9 @@ object SYSOBJ [
   property package (owner: HACKER, flags: "r") = package::PACKAGE_CLASS;
   property passage (owner: HACKER, flags: "r") = PASSAGE;
   property password (owner: HACKER, flags: "r") = PASSWORD;
+  property plan_failures (owner: HACKER, flags: "r") = PLAN_FAILURES;
+  property planner (owner: HACKER, flags: "r") = PLANNER;
+  property playbook (owner: HACKER, flags: "r") = PLAYBOOK;
   property player (owner: HACKER, flags: "r") = PLAYER;
   property player_activity (owner: ARCH_WIZARD, flags: "rc") = PLAYER_ACTIVITY;
   property presence_listeners (owner: ARCH_WIZARD, flags: "") = {};

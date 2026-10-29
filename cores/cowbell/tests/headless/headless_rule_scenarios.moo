@@ -52,4 +52,86 @@ object HEADLESS_RULE_SCENARIOS [
     endtry
     return true;
   endmethod
+
+  method _errand_world owner: core::ARCH_WIZARD
+    "Three rooms in a row, an NPC in the first, and a closed cupboard holding wine in the last.";
+    const area = create($area);
+    const rooms = { area:make_room_in($room) for i in [1..3] };
+    for i in [1..2]
+      area:create_passage(rooms[i], rooms[i + 1], $passage:mk(rooms[i], "east", {"east"}, "", true, rooms[i + 1], "west", {"west"}, "", true, true));
+    endfor
+    const npc = create($actor);
+    const cupboard = create($container);
+    const wine = create($thing);
+    move(npc, rooms[1]);
+    move(cupboard, rooms[3]);
+    cupboard.open = false;
+    cupboard.locked = false;
+    move(wine, cupboard);
+    return ['area -> area, 'rooms -> rooms, 'npc -> npc, 'cupboard -> cupboard, 'wine -> wine];
+  endmethod
+
+  method _await_plan owner: core::ARCH_WIZARD
+    "Wait for an NPC's plan to end and return how it ended.";
+    const {npc} = args;
+    for attempt in [1..400]
+      if (npc.plan['status] != 'running)
+        break;
+      endif
+      suspend(0.02);
+    endfor
+    return npc.plan['status];
+  endmethod
+
+  method _clear_errand_world owner: core::ARCH_WIZARD
+    "Remove an errand world.";
+    const {world} = args;
+    for thing in ({world['wine], world['cupboard], world['npc], @world['rooms], world['area]})
+      valid(thing) && thing:destroy();
+    endfor
+  endmethod
+
+  method test_headless_npc_runs_an_errand owner: core::ARCH_WIZARD
+    "An NPC walks two rooms to a closed cupboard, opens it, takes the wine, brings it back and drops it, one action per tick.";
+    const tick = $planner.tick_seconds;
+    $planner.tick_seconds = 0.01;
+    const world = this:_errand_world();
+    try
+      const {npc, wine} = {world['npc], world['wine]};
+      const home = world['rooms][1];
+      $planner:pursue(npc, $errands, 'fetch, ['item -> wine, 'to -> home]);
+      $test_utils:assert_eq(this:_await_plan(npc), 'done, "The errand finishes: " + toliteral($planner:why(npc)));
+      $test_utils:assert_eq(wine.location, home, "The wine is home");
+      $test_utils:assert_eq(npc.location, home, "The NPC came back");
+      $test_utils:assert_true(world['cupboard].open, "The NPC opened the cupboard on the way");
+    finally
+      $planner.tick_seconds = tick;
+      this:_clear_errand_world(world);
+    endtry
+    return true;
+  endmethod
+
+  method test_headless_npc_gives_up_and_says_why owner: core::ARCH_WIZARD
+    "When the cupboard is locked, every approach fails in turn; the plan ends failed, with the reason, and the NPC hears it.";
+    const tick = $planner.tick_seconds;
+    $planner.tick_seconds = 0.01;
+    const world = this:_errand_world();
+    try
+      const {npc, wine, cupboard} = {world['npc], world['wine], world['cupboard]};
+      cupboard.locked = true;
+      add_property(npc, "failures", 0, {npc.owner, "r"});
+      $reaction:install(npc, "plan_failed_reaction", $reaction:mk('on_plan_failed, 0, {{'increment, 'failures}}));
+      $planner:pursue(npc, $errands, 'fetch, ['item -> wine, 'to -> world['rooms][1]]);
+      $test_utils:assert_eq(this:_await_plan(npc), 'failed, "A locked cupboard defeats the errand");
+      $test_utils:assert_eq(wine.location, cupboard, "The wine stays put");
+      $test_utils:assert_eq(npc.failures, 1, "The NPC hears that its plan failed");
+      const why = $planner:why(npc);
+      $test_utils:assert_true(index(why:join(" "), "No approach to fetch") > 0, "The plan says why: " + toliteral(why));
+      $test_utils:assert_true($plan_failures:member({npc, 'open_up, 'open_it, value_hash([])}), "The failed approach is remembered");
+    finally
+      $planner.tick_seconds = tick;
+      this:_clear_errand_world(world);
+    endtry
+    return true;
+  endmethod
 endobject

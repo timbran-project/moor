@@ -17,6 +17,16 @@ object CONDITION [
     return tree;
   endmethod
 
+  method parse_value owner: HACKER
+    "Parse one complete value, such as binding.Where or input.count + 1.";
+    const {text} = args;
+    const tokens = this:_tokens(text, true);
+    length(tokens) > 0 || raise(E_INVARG, "Empty value");
+    const {value, next} = this:_parse_value(tokens, 1, 0);
+    next > length(tokens) || raise(E_INVARG, "Unexpected token at character " + tostr(tokens[next]['start]));
+    return value;
+  endmethod
+
   method _tokens owner: HACKER
     "Tokenize quoted literals, names, punctuation, and comparison operators without evaluation. With arithmetic, + * / are tokens of their own.";
     const {text, ?arithmetic = false} = args;

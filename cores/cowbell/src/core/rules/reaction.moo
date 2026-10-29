@@ -49,7 +49,9 @@ object REACTION [
     'on_sit,
     'on_stand,
     'on_sittable_squeeze,
-    'on_sittable_dump
+    'on_sittable_dump,
+    'on_plan_done,
+    'on_plan_failed
   };
 
   override description (owner: HACKER, flags: "rc") = "Flyweight delegate for reactive behaviors on objects.";
@@ -100,6 +102,7 @@ object REACTION [
       'close_exit -> ['description -> "Close a passage door at the target room's named exit.", 'inputs -> exit],
       'lock_exit -> ['description -> "Lock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
       'unlock_exit -> ['description -> "Unlock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
+      'go -> ['description -> "Travel through a named exit of the room the actor is in.", 'inputs -> exit, 'requires -> "location_is(object: input.actor, location: input.target)"],
       'take_from -> ['description -> "Take an item from a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND contains(container: input.target, item: input.item)", 'changes -> "location_is(object: input.item, location: input.actor)"],
       'put_into -> ['description -> "Put a carried item in a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND location_is(object: input.item, location: input.actor)", 'changes -> "contains(container: input.target, item: input.item)"],
       'get -> ['description -> "Pick up a nearby item.", 'inputs -> basic, 'requires -> here, 'changes -> "location_is(object: input.target, location: input.actor)"],
@@ -254,6 +257,14 @@ object REACTION [
       const {target, who} = {arguments['target], arguments['actor]};
       valid(target) || raise(E_INVARG, "The action's target no longer exists.");
       $root:check_actor(who);
+      if (name == 'go)
+        isa(target, $room) || raise(E_INVARG, "Travel needs a room as its target.");
+        who.location == target || return ['status -> 'denied, 'reason -> {"The actor is not in that room."}];
+        const passage = $room:find_passage(target, arguments['exit]);
+        typeof(passage) in {TYPE_OBJ, TYPE_FLYWEIGHT} || return ['status -> 'denied, 'reason -> {"That room has no such exit."}];
+        passage:travel_from(who, target, []) || return ['status -> 'denied, 'reason -> {"The way is blocked."}];
+        return ['status -> 'applied, 'reason -> {}];
+      endif
       if (name in {'open_exit, 'close_exit, 'lock_exit, 'unlock_exit})
         isa(target, $room) || raise(E_INVARG, "An exit action needs a room as its target.");
         const passage = $room:find_passage(target, arguments['exit]);
