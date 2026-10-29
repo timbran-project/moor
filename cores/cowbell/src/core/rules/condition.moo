@@ -379,6 +379,11 @@ object CONDITION [
         const relation = this:relation_target(tree['relation], parameters);
         const schema = $relation:schema(relation, `tree['fields] ! E_RANGE => 0');
         tree['fields] = schema['types];
+        for field in (mapkeys($relation.meta_fields))
+          if (maphaskey(tree['arguments], field) || maphaskey(tree['bind], field))
+            tree['fields][field] = $relation.meta_fields[field];
+          endif
+        endfor
       endif
     endif
     return tree;

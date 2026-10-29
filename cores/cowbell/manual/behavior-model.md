@@ -297,6 +297,42 @@ Legacy reads already remove duplicates from results. The first mutation collapse
 and rebuilds indexes, retaining an original identity for each fact. Owners can call `repair()`
 explicitly before that first mutation. Repair does not suspend or commit partial batches.
 
+## Fact changes, lifetimes, and provenance
+
+A reaction can start when a fact is recorded in, or forgotten from, one relation. Its trigger is
+`{'fact, relation, 'recorded}` or `{'fact, relation, 'forgotten}`. The condition sees the fact's
+fields as inputs, by their field names, with `Relation` and `Actor`: the principal that recorded
+or forgot the fact, or `#-1` when it expired. A field cannot be named `This`, `Location`, `Actor`,
+or `Relation`. Installing such a reaction requires read access to the relation and adds the host to
+the relation's `watchers`.
+
+A reaction runs only after the task that changed the fact commits. A task that rolls back, or is
+retried after a conflict, wakes no one. Each watched relation has one listener task. It receives
+changes with `task_send` and `task_recv`, which deliver a message only when its sender commits, and
+runs the matching reactions one change at a time, each in its own transaction. Reactions to one
+relation therefore never run concurrently with each other. A change made while no listener is
+running waits in the relation's `backlog` until one starts. A fact recorded by a reaction carries
+that reaction's chain, so a chain through fact changes still stops after four steps. Only the
+relation's own listener can run fact reactions.
+
+Recording a fact can give it a lifetime: `relation:assert(tuple, relation, seconds)`, or
+`{'record, relation, arguments, types, seconds}` in a reaction. An expired fact leaves `query`,
+`member`, `select`, `tuples`, and `count` at once. One scheduled sweep per relation removes expired
+facts at their expiry and announces each as forgotten. Recording a fact again replaces its
+lifetime; recording it without one makes it permanent. Recording an expired fact again counts as a
+new fact. A relation that has never held a fact with a lifetime skips the expiry checks.
+
+`$relation:keep_provenance(relation, true)` makes a relation remember who recorded each fact and
+when. Conditions read these as the fields `recorded_by` (the recording principal), `recorded_at`,
+and `expires_at` (zero for a permanent fact):
+
+```text
+relation(#123, site: input.Site) -> (recorded_at: Checked) AND binding.Checked > input.Now - 3600
+```
+
+These names are reserved: `define_fields` rejects them. Lifetimes and provenance are stored beside
+each fact, in properties only wizards can change. The relation's owner can still delete them.
+
 ## Implemented authoring commands
 
 The builder command service is `$builder_features:author(command, text, actor)`. It authenticates

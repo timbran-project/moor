@@ -110,4 +110,62 @@ object RULES_BENCH [
     return true;
   endmethod
 
+
+  method test_bench_facts owner: core::ARCH_WIZARD
+    "Time recording facts with watchers, lifetimes, and provenance, and how long notifications take to arrive.";
+    const host = create($thing, $hacker, 2);
+    add_property(host, "seen", 0, {$hacker, "r"});
+    let relations = [];
+    try
+      for kind in ({'plain, 'watched, 'lifetime, 'provenance})
+        const relation = create($relation, $hacker, 2);
+        relations[kind] = relation;
+        $relation:define_fields(relation, {'group, 'member}, ['group -> 'integer, 'member -> 'integer]);
+      endfor
+      $relation:keep_provenance(relations['provenance], true);
+      $reaction:install(host, "seen_reaction", $reaction:mk({'fact, relations['watched], 'recorded}, 0, {{'increment, 'seen}}));
+      const plain = relations['plain];
+      const watched = relations['watched];
+      const lifetime = relations['lifetime];
+      const provenance = relations['provenance];
+      this:_measure("assert_plain", {} => plain:assert({random(10), random(1000000000)}));
+      this:_measure("assert_watched", {} => watched:assert({random(10), random(1000000000)}));
+      "Each call queued one change; wait until the listener has delivered them.";
+      while (host.seen < watched:count())
+        suspend(0.05);
+      endwhile
+      this:_measure("assert_lifetime", {} => lifetime:assert({random(10), random(1000000000)}, lifetime, 3600));
+      this:_measure("assert_provenance", {} => provenance:assert({random(10), random(1000000000)}));
+      for kind in ({'plain, 'lifetime, 'provenance})
+        const rule = $rule_engine:parse_expression("relation(" + tostr(relations[kind]) + ", group: 7) -> (member: M)");
+        this:_measure("rule_relation_" + tostr(kind), {} => $rule_engine:evaluate(rule));
+      endfor
+      const echo = create($relation, $hacker, 2);
+      relations['echo] = echo;
+      $relation:define_fields(echo, {'member}, ['member -> 'integer]);
+      $reaction:install(host, "echo_reaction", $reaction:mk({'fact, lifetime, 'recorded}, 0, {{'record, echo, ['member -> ['kind -> 'input, 'name -> 'member]]}}));
+      for case in ({{"notify_counter_200", watched}, {"notify_echo_200", lifetime}})
+        const {name, relation} = case;
+        const before = name == "notify_counter_200" ? host.seen | echo:count();
+        suspend(0);
+        const start = ftime();
+        for i in [1..200]
+          relation:assert({-1, i});
+        endfor
+        suspend(0);
+        let delivered = 0;
+        while (delivered < 200 && ftime() - start < 60.0)
+          suspend(0.01);
+          delivered = (name == "notify_counter_200" ? host.seen | echo:count()) - before;
+        endwhile
+        server_log("BENCH_DATA bench=rules case=" + name + " ticks=0 per_call_ms=" + floatstr((ftime() - start) * 1000.0 / 200.0, 4) + " calls=" + tostr(delivered));
+      endfor
+    finally
+      for relation in (mapvalues(relations))
+        relation:destroy();
+      endfor
+      host:destroy();
+    endtry
+    return true;
+  endmethod
 endobject

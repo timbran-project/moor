@@ -321,4 +321,68 @@ object HEADLESS_RELATION_SCENARIOS [
     endtry
     return true;
   endmethod
+
+  method test_headless_fact_triggers_follow_commits owner: core::ARCH_WIZARD
+    "Fact reactions run after the recording task commits, never for a rolled-back one, and expired facts are forgotten on time.";
+    const rel = $relation:create(true);
+    $relation:define_fields(rel, {'item}, ['item -> 'string]);
+    const host = $thing:create(true);
+    add_property(host, "seen", 0, {host.owner, "r"});
+    add_property(host, "gone", 0, {host.owner, "r"});
+    $reaction:install(host, "recorded_reaction", $reaction:mk({'fact, rel, 'recorded}, 0, {{'increment, 'seen}}));
+    $reaction:install(host, "forgotten_reaction", $reaction:mk({'fact, rel, 'forgotten}, "input.item == \"plum\"", {{'increment, 'gone}}));
+    rel:assert({"apple"});
+    $test_utils:assert_eq(host.seen, 0, "Nothing runs before the change commits");
+    for attempt in [1..40]
+      if (host.seen > 0)
+        break;
+      endif
+      suspend(0.05);
+    endfor
+    $test_utils:assert_eq(host.seen, 1, "The reaction runs once the change commits");
+    fork (0)
+      rel:assert({"pear"});
+      rollback();
+    endfork
+    suspend(0.5);
+    $test_utils:assert_false(rel:member({"pear"}), "The rolled-back task's fact is gone");
+    $test_utils:assert_eq(host.seen, 1, "A rolled-back fact wakes no one");
+    rel.listener = 999999;
+    rel:assert({"quince"});
+    for attempt in [1..40]
+      if (host.seen > 1)
+        break;
+      endif
+      suspend(0.05);
+    endfor
+    $test_utils:assert_eq(host.seen, 2, "A change sent while the listener is gone starts a new one");
+    $test_utils:assert_true(rel.listener != 999999, "The new listener replaces the stale one");
+    rel:assert({"plum"}, rel, 1);
+    for attempt in [1..60]
+      if (host.gone > 0)
+        break;
+      endif
+      suspend(0.05);
+    endfor
+    $test_utils:assert_eq(host.gone, 1, "An expired fact is forgotten and announced");
+    $test_utils:assert_false(rel:member({"plum"}), "The expired fact is gone");
+    return true;
+  endmethod
+
+  method test_headless_fact_chains_stop owner: core::ARCH_WIZARD
+    "A reaction that records facts its own relation reacts to stops after four steps.";
+    const rel = $relation:create(true);
+    $relation:define_fields(rel, {'n}, ['n -> 'integer]);
+    const host = $thing:create(true);
+    add_property(host, "seen", 0, {host.owner, "r"});
+    const next = ['n -> ['kind -> 'arith, 'op -> 'add, 'left -> ['kind -> 'input, 'name -> 'n], 'right -> ['kind -> 'literal, 'value -> 1]]];
+    $reaction:install(host, "echo_reaction", $reaction:mk({'fact, rel, 'recorded}, 0, {{'increment, 'seen}, {'record, rel, next}}));
+    rel:assert({1});
+    for attempt in [1..40]
+      suspend(0.05);
+    endfor
+    $test_utils:assert_true(host.seen >= 2 && host.seen <= 4, "The chain runs, then stops: " + tostr(host.seen));
+    $test_utils:assert_true(rel:count() <= 5, "The chain stops recording facts: " + tostr(rel:count()));
+    return true;
+  endmethod
 endobject

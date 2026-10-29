@@ -19,6 +19,13 @@ Cowbell entries.
   a predicate is registered or removed. Rules built before this change, or edited by hand, are
   validated in full each time as before. `$rule_engine:forget_validations()` makes every rule
   validate again after a change to the condition language.
+- A reaction can start when a fact is recorded in or forgotten from a relation, with the trigger
+  `{'fact, relation, 'recorded}` or `{'fact, relation, 'forgotten}`. It runs only after the change
+  is saved, never for a task that rolled back, and one change at a time for each relation.
+  `relation:assert(tuple, relation, seconds)` records a fact that expires; expired facts disappear
+  from queries at once and are announced as forgotten. `$relation:keep_provenance(relation, true)`
+  keeps who recorded each fact and when, which conditions read as `recorded_by`, `recorded_at` and
+  `expires_at`. Relations can no longer define fields with those names.
 - `$wiz_features:grant_wizard(target, ?tools)` makes a player a wizard as `@wizard` does and returns
   what they had before; `revoke_wizard(target, ?before)` takes wizard status back and, given that
   record, restores the player.

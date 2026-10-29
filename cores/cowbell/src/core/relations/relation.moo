@@ -10,6 +10,15 @@ object RELATION [
 
   property fact_schema (owner: HACKER, flags: "rc") = ['columns -> {}, 'types -> []];
   property set_version (owner: HACKER, flags: "rc") = 0;
+  property watchers (owner: ARCH_WIZARD, flags: "r") = {};
+  property fact_lifetimes (owner: ARCH_WIZARD, flags: "r") = false;
+  property keeps_provenance (owner: ARCH_WIZARD, flags: "r") = false;
+  property sweep_schedule (owner: ARCH_WIZARD, flags: "r") = 0;
+  property listener (owner: ARCH_WIZARD, flags: "r") = 0;
+  property starter (owner: ARCH_WIZARD, flags: "r") = 0;
+  property backlog (owner: ARCH_WIZARD, flags: "r") = {};
+  property sweep_at (owner: ARCH_WIZARD, flags: "r") = 0;
+  property meta_fields (owner: HACKER, flags: "r") = ['recorded_by -> 'object, 'recorded_at -> 'integer, 'expires_at -> 'integer];
 
   override description (owner: HACKER, flags: "rc") = "N-ary persistent data relation.";
 
@@ -25,6 +34,7 @@ object RELATION [
     let seen = {};
     for field in (columns)
       maphaskey(types, field) && !(field in seen) || raise(E_INVARG, "Declare each relation field once, in tuple order.");
+      !maphaskey($relation.meta_fields, field) || raise(E_INVARG, tostr(field) + " is reserved for when and by whom a fact was recorded.");
       seen = {@seen, field};
     endfor
     const schema = ['columns -> columns, 'types -> types];
@@ -45,7 +55,11 @@ object RELATION [
     const schema = relation.fact_schema;
     length(schema['columns]) > 0 || raise(E_INVARG, "Define this relation's fields with @facts OBJECT define FIELD:TYPE.");
     if (typeof(expected) == TYPE_MAP)
-      equal(schema['types], expected) || raise(E_INVARG, "This relation has different field names or types from those required by the condition or step.");
+      let own = expected;
+      for field in (mapkeys($relation.meta_fields))
+        maphaskey(own, field) && (own = mapdelete(own, field));
+      endfor
+      equal(schema['types], own) || raise(E_INVARG, "This relation has different field names or types from those required by the condition or step.");
     endif
     return schema;
   endmethod
@@ -64,31 +78,277 @@ object RELATION [
   method change_fact owner: ARCH_WIZARD
     "Record or forget one complete named fact under the caller's relation write authority.";
     set_task_perms(caller_perms());
-    const {relation, fields, values, operation} = args;
+    const {relation, fields, values, operation, ?options = []} = args;
     operation in {'record, 'forget} || raise(E_INVARG, "Expected record or forget.");
+    $behavior_schema:_fields(options, {}, {'lasts, 'chain}, "fact options");
+    const lasts = `options['lasts] ! E_RANGE => 0';
+    const chain = `options['chain] ! E_RANGE => {}';
     const schema = $relation:schema(relation, fields, true);
     $behavior_schema:bindings(values, schema['types], "fact fields");
     const tuple = { values[field] for field in (schema['columns]) };
-    return operation == 'record ? $relation:assert(tuple, relation) | $relation:retract(tuple, relation);
+    return operation == 'record ? $relation:assert(tuple, relation, lasts, chain) | $relation:retract(tuple, relation, chain);
   endmethod
 
   method assert owner: ARCH_WIZARD
-    "Store a tuple once and return its identity. The first write repairs legacy duplicates.";
-    const {tuple, ?relation = this} = args;
+    "Store a tuple once and return its identity. With a lifetime in seconds, the fact expires; recording it again replaces its lifetime.";
+    const {tuple, ?relation = this, ?lasts = 0, ?chain = {}} = args;
     isa(relation, $relation) || raise(E_INVARG, "Expected a relation.");
     const principal = caller_perms();
     principal == relation.owner || principal.wizard || raise(E_PERM);
     set_task_perms(principal);
     typeof(tuple) == TYPE_LIST || raise(E_TYPE);
     length(tuple) > 0 || raise(E_INVARG);
+    typeof(lasts) == TYPE_INT && lasts >= 0 || raise(E_INVARG, "A fact's lifetime must be zero or more seconds.");
+    typeof(chain) == TYPE_LIST || raise(E_INVARG, "Invalid reaction chain.");
     $relation:_check_tuple(tuple, relation.fact_schema);
     relation.set_version != 1 && $relation:repair(relation);
-    const existing = $relation:_find_tuple_id(relation, tuple);
-    existing != 0 && return existing;
-    const identity = uuid();
-    add_property(relation, "tuple_" + identity, tuple, {relation.owner, "r"});
-    $relation:_index_tuple(relation, identity, tuple);
-    return identity;
+    const recorded = $relation:_record(relation, tuple, lasts, principal);
+    recorded['appeared] && length(relation.watchers) > 0 && $relation:_announce(relation, 'recorded, tuple, principal, chain);
+    return recorded['identity];
+  endmethod
+
+  method _record owner: ARCH_WIZARD
+    "Store or renew one checked tuple. Report whether it was absent or expired before.";
+    callers()[1][4] == $relation || raise(E_PERM);
+    const {relation, tuple, lasts, principal} = args;
+    let identity = $relation:_find_tuple_id(relation, tuple);
+    let appeared = true;
+    if (identity != 0)
+      appeared = relation.fact_lifetimes && length($relation:_live(relation, {identity})) == 0;
+    else
+      identity = uuid();
+      add_property(relation, "tuple_" + identity, tuple, {relation.owner, "r"});
+      $relation:_index_tuple(relation, identity, tuple);
+    endif
+    let meta = [];
+    if (relation.keeps_provenance)
+      meta = ['by -> principal, 'at -> time()];
+    endif
+    if (lasts > 0)
+      meta['expires] = time() + lasts;
+      relation.fact_lifetimes || (relation.fact_lifetimes = true);
+      $relation:_plan_sweep(relation, meta['expires]);
+    endif
+    const name = "meta_" + identity;
+    if (length(meta) > 0)
+      try
+        relation.(name) = meta;
+      except (E_PROPNF)
+        add_property(relation, name, meta, {$arch_wizard, "r"});
+      endtry
+    elseif (relation.fact_lifetimes || relation.keeps_provenance)
+      `delete_property(relation, name) ! E_PROPNF';
+    endif
+    return ['identity -> identity, 'appeared -> appeared];
+  endmethod
+
+  method _remove owner: ARCH_WIZARD
+    "Delete one stored tuple, its indexes, and its lifetime and provenance.";
+    callers()[1][4] == $relation || raise(E_PERM);
+    const {relation, identity, tuple} = args;
+    for element in (tuple)
+      if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
+        continue;
+      endif
+      const name = $relation:_index_key(element);
+      const previous = `relation.(name) ! E_PROPNF => {}';
+      if (length(previous) == 0)
+        continue;
+      endif
+      const identities = setremove(previous, identity);
+      if (length(identities) > 0)
+        relation.(name) = identities;
+      else
+        delete_property(relation, name);
+      endif
+    endfor
+    delete_property(relation, "tuple_" + identity);
+    `delete_property(relation, "meta_" + identity) ! E_PROPNF';
+  endmethod
+
+  method _live owner: ARCH_WIZARD
+    "Keep the identities of facts that have not expired. Relations that never held an expiring fact skip the check.";
+    const {relation, identities} = args;
+    relation.fact_lifetimes || return identities;
+    const now = time();
+    let live = {};
+    for identity in (identities)
+      const meta = `relation.("meta_" + identity) ! E_PROPNF => []';
+      if (!maphaskey(meta, 'expires) || meta['expires] > now)
+        live = {@live, identity};
+      endif
+    endfor
+    return live;
+  endmethod
+
+  method _announce owner: ARCH_WIZARD
+    "Send a fact change to the relation's listener once the recording task commits. A rolled-back task sends nothing.";
+    callers()[1][4] == $relation || raise(E_PERM);
+    const {relation, operation, tuple, actor, ?chain = {}} = args;
+    length(relation.watchers) > 0 || return;
+    const change = {operation, tuple, actor, chain};
+    if (relation.listener != 0)
+      try
+        task_send(relation.listener, change);
+        return;
+      except (E_INVARG, E_QUOTA)
+      endtry
+    endif
+    "No listener is taking messages: keep the change for the next one, and start one once.";
+    relation.backlog = {@relation.backlog, change};
+    if (!schedule_valid(relation.starter))
+      relation.starter = schedule_at($relation, "_listen", ftime(), {relation}, ['pass_elapsed -> 0]);
+    endif
+  endmethod
+
+  method _listen owner: ARCH_WIZARD
+    "Deliver a relation's changes in order, one transaction each, while anyone watches it. One listener runs per relation.";
+    caller_perms().wizard || raise(E_PERM);
+    const {relation} = args;
+    valid(relation) && isa(relation, $relation) || return 0;
+    if (relation.listener != 0 && relation.listener != task_id())
+      try
+        task_send(relation.listener, 'backlog);
+        return 0;
+      except (E_QUOTA)
+        "The listener is busy; it reads the backlog once its mailbox drains. Check again in a second.";
+        return 1;
+      except (E_INVARG)
+      endtry
+    endif
+    relation.listener = task_id();
+    relation.starter = 0;
+    let queue = {};
+    while (true)
+      if (length(relation.backlog) > 0)
+        queue = {@queue, @relation.backlog};
+        relation.backlog = {};
+      endif
+      while (length(queue) > 0)
+        const change = queue[1];
+        queue = queue[2..$];
+        typeof(change) == TYPE_LIST && $relation:_deliver(relation, @change);
+        queue = {@queue, @task_recv()};
+      endwhile
+      if (!valid(relation) || length(relation.watchers) == 0)
+        break;
+      endif
+      queue = task_recv(3600);
+    endwhile
+    if (valid(relation) && relation.listener == task_id())
+      relation.listener = 0;
+    endif
+    return 0;
+  endmethod
+
+  method _deliver owner: ARCH_WIZARD
+    "Run the fact reactions of each watcher for one change.";
+    callers()[1][4] == $relation || raise(E_PERM);
+    const {relation, operation, tuple, actor, chain} = args;
+    valid(relation) && isa(relation, $relation) || return;
+    let context = ['Relation -> relation, 'Actor -> actor, '_reaction_chain -> chain];
+    const columns = relation.fact_schema['columns];
+    if (length(columns) == length(tuple))
+      for i in [1..length(columns)]
+        context[columns[i]] = tuple[i];
+      endfor
+    endif
+    const trigger = {'fact, relation, operation};
+    let stale = {};
+    for host in (relation.watchers)
+      if (!valid(host) || !$relation:_watches(host, relation))
+        stale = {@stale, host};
+        continue;
+      endif
+      try
+        $reaction:_dispatch(host, trigger, context);
+      except error (ANY)
+        server_log("Fact reaction on " + toliteral(host) + " failed: " + error[2]);
+      endtry
+    endfor
+    if (length(stale) > 0)
+      relation.watchers = { host for host in (relation.watchers) if !(host in stale) };
+    endif
+  endmethod
+
+  method _watches owner: ARCH_WIZARD
+    "Whether a host has a reaction to changes in this relation.";
+    const {host, relation} = args;
+    for reaction in ($root:_get_reactions_for(host, $arch_wizard))
+      const trigger = reaction.trigger;
+      if (typeof(trigger) == TYPE_LIST && length(trigger) == 3 && trigger[1] == 'fact && trigger[2] == relation)
+        return true;
+      endif
+    endfor
+    return false;
+  endmethod
+
+  method watch owner: ARCH_WIZARD
+    "Have a relation tell an owned host's fact reactions about its changes. The caller must be able to read the relation.";
+    const {relation, host} = args;
+    const principal = caller_perms();
+    typeof(relation) == TYPE_OBJ && valid(relation) && isa(relation, $relation) || raise(E_INVARG, "The relation no longer exists, or is not a relation.");
+    typeof(host) == TYPE_OBJ && valid(host) || raise(E_INVARG);
+    principal == host.owner || principal.wizard || raise(E_PERM);
+    principal == relation.owner || principal.wizard || relation.r || raise(E_PERM, "You cannot read this relation.");
+    host in relation.watchers || (relation.watchers = {@relation.watchers, host});
+    return true;
+  endmethod
+
+  method keep_provenance owner: ARCH_WIZARD
+    "Choose whether an owned relation records who recorded each fact and when.";
+    const {relation, keep} = args;
+    const principal = caller_perms();
+    typeof(relation) == TYPE_OBJ && valid(relation) && isa(relation, $relation) || raise(E_INVARG, "The relation no longer exists, or is not a relation.");
+    principal == relation.owner || principal.wizard || raise(E_PERM);
+    typeof(keep) == TYPE_BOOL || raise(E_TYPE);
+    relation.keeps_provenance = keep;
+    return keep;
+  endmethod
+
+  method _plan_sweep owner: ARCH_WIZARD
+    "Make sure the relation's sweep runs by the given time.";
+    callers()[1][4] == $relation || raise(E_PERM);
+    const {relation, due} = args;
+    if (schedule_valid(relation.sweep_schedule) && relation.sweep_at <= due)
+      return;
+    endif
+    schedule_valid(relation.sweep_schedule) && schedule_stop(relation.sweep_schedule);
+    relation.sweep_schedule = schedule_at($relation, "_sweep", due, {relation}, ['pass_elapsed -> 0]);
+    relation.sweep_at = due;
+  endmethod
+
+  method _sweep owner: ARCH_WIZARD
+    "Remove expired facts, telling watchers, and wait for the next expiry.";
+    caller_perms().wizard || raise(E_PERM);
+    const {relation} = args;
+    valid(relation) && isa(relation, $relation) || return 0;
+    let next = 0;
+    for property in (properties(relation))
+      const name = tostr(property);
+      if (!name:starts_with("meta_"))
+        continue;
+      endif
+      const meta = `relation.(name) ! E_PROPNF => []';
+      if (!maphaskey(meta, 'expires))
+        continue;
+      endif
+      if (meta['expires] <= time())
+        const identity = name[6..$];
+        const tuple = `relation.("tuple_" + identity) ! E_PROPNF => 0';
+        if (typeof(tuple) == TYPE_LIST)
+          $relation:_remove(relation, identity, tuple);
+          $relation:_announce(relation, 'forgotten, tuple, #-1);
+        else
+          delete_property(relation, name);
+        endif
+      elseif (next == 0 || meta['expires] < next)
+        next = meta['expires];
+      endif
+      suspend_if_needed();
+    endfor
+    relation.sweep_at = next;
+    return next == 0 ? 0 | max(1, next - time());
   endmethod
 
   method _index_key owner: HACKER
@@ -153,6 +413,7 @@ object RELATION [
     for property in (names)
       if (tostr(property):starts_with("index_") || property in duplicates)
         delete_property(relation, property);
+        property in duplicates && `delete_property(relation, "meta_" + tostr(property)[7..$]) ! E_PROPNF';
       endif
     endfor
     for identity in (mapkeys(kept))
@@ -163,34 +424,21 @@ object RELATION [
   endmethod
 
   method retract owner: ARCH_WIZARD
-    "Remove a fact once. Return false when absent; repair legacy duplicates before removal.";
-    const {tuple, ?relation = this} = args;
+    "Remove a fact once. Return false when absent or expired; repair legacy duplicates before removal.";
+    const {tuple, ?relation = this, ?chain = {}} = args;
     isa(relation, $relation) || raise(E_INVARG, "Expected a relation.");
     const principal = caller_perms();
     principal == relation.owner || principal.wizard || raise(E_PERM);
     set_task_perms(principal);
     typeof(tuple) == TYPE_LIST || raise(E_TYPE);
+    typeof(chain) == TYPE_LIST || raise(E_INVARG, "Invalid reaction chain.");
     relation.set_version != 1 && $relation:repair(relation);
     const identity = $relation:_find_tuple_id(relation, tuple);
     identity == 0 && return false;
-    for element in (tuple)
-      if (typeof(element) in {TYPE_FLYWEIGHT, TYPE_LIST, TYPE_MAP})
-        continue;
-      endif
-      const name = $relation:_index_key(element);
-      const previous = `relation.(name) ! E_PROPNF => {}';
-      if (length(previous) == 0)
-        continue;
-      endif
-      const identities = setremove(previous, identity);
-      if (length(identities) > 0)
-        relation.(name) = identities;
-      else
-        delete_property(relation, name);
-      endif
-    endfor
-    delete_property(relation, "tuple_" + identity);
-    return true;
+    const live = !relation.fact_lifetimes || length($relation:_live(relation, {identity})) > 0;
+    $relation:_remove(relation, identity, tuple);
+    length(relation.watchers) > 0 && $relation:_announce(relation, 'forgotten, tuple, principal, chain);
+    return live;
   endmethod
 
   method member owner: ARCH_WIZARD
@@ -198,7 +446,8 @@ object RELATION [
     set_task_perms(caller_perms());
     const {tuple} = args;
     typeof(tuple) == TYPE_LIST || raise(E_TYPE);
-    return $relation:_find_tuple_id(this, tuple) != 0;
+    const identity = $relation:_find_tuple_id(this, tuple);
+    return identity != 0 && (!this.fact_lifetimes || length($relation:_live(this, {identity})) > 0);
   endmethod
 
   method select owner: ARCH_WIZARD
@@ -226,7 +475,8 @@ object RELATION [
       endfor
       return selected;
     endif
-    const identities = `relation.($relation:_index_key(value)) ! E_PROPNF => {}';
+    let identities = `relation.($relation:_index_key(value)) ! E_PROPNF => {}';
+    relation.fact_lifetimes && (identities = $relation:_live(relation, identities));
     let result = {};
     for identity in (identities)
       const tuple = relation.("tuple_" + identity);
@@ -244,7 +494,13 @@ object RELATION [
     "Return distinct stored facts, including before legacy storage has been repaired.";
     const {?relation = this} = args;
     set_task_perms(caller_perms());
-    const tuples = { relation.(name) for name in (properties(relation)) if tostr(name):starts_with("tuple_") };
+    let tuples;
+    if (relation.fact_lifetimes)
+      const identities = { tostr(name)[7..$] for name in (properties(relation)) if tostr(name):starts_with("tuple_") };
+      tuples = { relation.("tuple_" + identity) for identity in ($relation:_live(relation, identities)) };
+    else
+      tuples = { relation.(name) for name in (properties(relation)) if tostr(name):starts_with("tuple_") };
+    endif
     const matched = term_match({'var, 'Tuple}, tuples, [], ['case_sensitive -> true, 'dedupe -> true, 'max_solutions -> max(1, length(tuples)), 'max_steps -> max(1, length(tuples))]);
     return { row['Tuple] for row in (matched) };
   endmethod
@@ -262,18 +518,27 @@ object RELATION [
       typeof(tuple) == TYPE_LIST && length(tuple) > 0 || raise(E_TYPE);
       $relation:_check_tuple(tuple, relation.fact_schema);
     endfor
-    strcmp(toliteral($relation:tuples(relation)), toliteral(snapshot)) == 0 || return false;
+    const current = $relation:tuples(relation);
+    strcmp(toliteral(current), toliteral(snapshot)) == 0 || return false;
     "No callbacks or suspension between removing old tuples and installing validated replacements.";
     for property in (properties(relation))
       const name = tostr(property);
-      if (name:starts_with("tuple_") || name:starts_with("index_"))
+      if (name:starts_with("tuple_") || name:starts_with("index_") || name:starts_with("meta_"))
         delete_property(relation, property);
       endif
     endfor
     relation.set_version = 1;
     for tuple in (replacement)
-      $relation:assert(tuple, relation);
+      $relation:_record(relation, tuple, 0, principal);
     endfor
+    if (length(relation.watchers) > 0)
+      for tuple in (current)
+        tuple in replacement || $relation:_announce(relation, 'forgotten, tuple, principal);
+      endfor
+      for tuple in (replacement)
+        tuple in current || $relation:_announce(relation, 'recorded, tuple, principal);
+      endfor
+    endif
     return true;
   endmethod
 
@@ -282,13 +547,17 @@ object RELATION [
     const principal = caller_perms();
     principal == this.owner || principal.wizard || raise(E_PERM);
     set_task_perms(principal);
+    const forgotten = length(this.watchers) > 0 ? $relation:tuples(this) | {};
     for property in (properties(this))
       const name = tostr(property);
-      if (name:starts_with("tuple_") || name:starts_with("index_"))
+      if (name:starts_with("tuple_") || name:starts_with("index_") || name:starts_with("meta_"))
         delete_property(this, property);
       endif
     endfor
     this.set_version = 1;
+    for tuple in (forgotten)
+      $relation:_announce(this, 'forgotten, tuple, principal);
+    endfor
     return true;
   endmethod
 
@@ -459,6 +728,75 @@ object RELATION [
     {#990039, #990040, "south"} in from_39 || raise(E_ASSERT, "Missing south passage (pos 1)");
   endmethod
 
+  method test_fact_lifetimes owner: ARCH_WIZARD
+    "An expired fact leaves every read at once; recording it again renews it, and the sweep removes it.";
+    const rel = $relation:create(true);
+    $relation:define_fields(rel, {'site}, ['site -> 'string]);
+    const identity = rel:assert({"north"}, rel, 60);
+    $test_utils:assert_true(rel:member({"north"}), "A fact with a lifetime is there until it expires");
+    $test_utils:assert_true(schedule_valid(rel.sweep_schedule), "Recording a lifetime plans a sweep");
+    rel.("meta_" + identity) = ['expires -> time() - 1];
+    $test_utils:assert_false(rel:member({"north"}), "An expired fact is not a member");
+    $test_utils:assert_eq(rel:tuples(), {}, "An expired fact is not listed");
+    $test_utils:assert_eq(rel:select(1, "north"), {}, "An expired fact is not selected");
+    $test_utils:assert_eq($relation:query_rows(rel, ['site -> 'string], [], 10)['rows], {}, "An expired fact does not match");
+    $test_utils:assert_eq(rel:assert({"north"}), identity, "Recording an expired fact again keeps its identity");
+    $test_utils:assert_true(rel:member({"north"}), "Recording without a lifetime makes the fact permanent");
+    $test_utils:assert_eq(`rel.("meta_" + identity) ! E_PROPNF => 0', 0, "A permanent fact keeps no lifetime");
+    const south = rel:assert({"south"}, rel, 60);
+    rel.("meta_" + south) = ['expires -> time() - 1];
+    $test_utils:assert_false(rel:retract({"south"}), "Forgetting an expired fact reports it absent");
+    rel:assert({"east"}, rel, 60);
+    const west = rel:assert({"west"}, rel, 60);
+    rel.("meta_" + west) = ['expires -> time() - 1];
+    $test_utils:assert_true($relation:_sweep(rel) > 0, "The sweep waits for the next expiry");
+    $test_utils:assert_eq(length(rel:tuples()), 2, "The sweep removes only expired facts");
+    $test_utils:assert_eq(`rel.("tuple_" + west) ! E_PROPNF => 0', 0, "The sweep deletes the expired fact");
+    return true;
+  endmethod
+
+  method test_fact_provenance owner: HACKER
+    "A relation that keeps provenance answers who recorded each fact and when.";
+    const rel = $relation:create(0);
+    try
+      $relation:define_fields(rel, {'site}, ['site -> 'string]);
+      $test_utils:assert_raises(E_INVARG, $relation, "define_fields", {rel, {'recorded_at}, ['recorded_at -> 'integer]}, "Provenance field names are reserved");
+      const fields = ['site -> 'string, 'recorded_by -> 'object, 'recorded_at -> 'integer];
+      $test_utils:assert_raises(E_INVARG, $relation, "query_rows", {rel, fields, [], 10}, "A relation without provenance has no recorder");
+      $relation:keep_provenance(rel, true);
+      const before = time();
+      rel:assert({"north"});
+      const rows = $relation:query_rows(rel, fields, [], 10)['rows];
+      $test_utils:assert_eq(rows[1]['recorded_by], task_perms()[1], "The recorder is the recording task's principal");
+      $test_utils:assert_true(rows[1]['recorded_at] >= before, "The recording time is kept");
+      const fresh = $rule_engine:parse_expression("relation(" + tostr(rel) + ") -> (site: S, recorded_at: T) AND binding.T >= " + tostr(before));
+      $test_utils:assert_true($rule_engine:evaluate(fresh)['success], "A rule can ask how fresh a fact is");
+      const stale = $rule_engine:parse_expression("relation(" + tostr(rel) + ") -> (site: S, recorded_at: T) AND binding.T < " + tostr(before));
+      $test_utils:assert_false($rule_engine:evaluate(stale)['success], "A rule can tell a fresh fact from a stale one");
+    finally
+      $test_utils:destroy_if_valid(rel);
+    endtry
+    return true;
+  endmethod
+
+  method test_fact_triggers owner: ARCH_WIZARD
+    "Installing a fact reaction watches its relation; only the relation's own tasks deliver changes.";
+    const rel = $relation:create(true);
+    $relation:define_fields(rel, {'item}, ['item -> 'string]);
+    const host = $test_utils:anonymous($thing);
+    add_property(host, "seen", 0, {host.owner, "r"});
+    $test_utils:assert_raises(E_INVARG, $reaction, "mk", {{'fact, rel, 'changed}}, "A fact trigger watches recorded or forgotten facts");
+    const clash = $relation:create(true);
+    $relation:define_fields(clash, {'Actor}, ['Actor -> 'object]);
+    $test_utils:assert_raises(E_INVARG, $reaction, "mk", {{'fact, clash, 'recorded}}, "A field cannot take an event value's name");
+    $reaction:install(host, "fact_reaction", $reaction:mk({'fact, rel, 'recorded}, "input.item == \"apple\"", {{'increment, 'seen}}));
+    $test_utils:assert_eq(rel.watchers, {host}, "Installing a fact reaction watches the relation");
+    $test_utils:assert_raises(E_PERM, $relation, "_listen", {rel}, "Other code cannot deliver facts");
+    $test_utils:assert_raises(E_PERM, $relation, "_deliver", {rel, 'recorded, {"apple"}, player, {}}, "Other code cannot run fact reactions");
+    $test_utils:assert_raises(E_PERM, $relation, "_sweep", {rel}, "Other code cannot sweep a relation");
+    return true;
+  endmethod
+
   method query_result owner: ARCH_WIZARD
     "Return distinct binding maps and whether the requested scope was searched completely.";
     set_task_perms(caller_perms());
@@ -474,16 +812,18 @@ object RELATION [
     for field in (mapkeys(values))
       $behavior_schema:_type(values[field], fields[field], "relation input " + tostr(field));
     endfor
-    const columns = schema['columns];
+    const meta = { field for field in (mapkeys($relation.meta_fields)) if maphaskey(fields, field) };
+    length(meta) == 0 || relation.keeps_provenance || raise(E_INVARG, "This relation does not record who recorded its facts.");
+    const columns = {@schema['columns], @meta};
     const pattern = { {'var, column} for column in (columns) };
     const types = { fields[field_name] for field_name in (columns) };
-    return $relation:_query_result(relation, pattern, values, ['max_solutions -> limit], types);
+    return $relation:_query_result(relation, pattern, values, ['max_solutions -> limit], types, meta);
   endmethod
 
   method _query_result owner: ARCH_WIZARD
     "Match stored facts with explicit result completeness. This method does not mutate or suspend.";
     set_task_perms(caller_perms());
-    let {relation, pattern, ?bindings = [], ?options = [], ?types = {}} = args;
+    let {relation, pattern, ?bindings = [], ?options = [], ?types = {}, ?meta = {}} = args;
     isa(relation, $relation) || raise(E_INVARG, "Expected a relation");
     typeof(pattern) == TYPE_LIST || raise(E_TYPE);
     typeof(bindings) == TYPE_MAP || raise(E_TYPE);
@@ -496,7 +836,7 @@ object RELATION [
     term_variables(pattern);
     let identities = 0;
     if (relation.set_version == 1)
-      for value in (pattern)
+      for value in (pattern[1..length(pattern) - length(meta)])
         let bound = value;
         if (typeof(value) == TYPE_LIST && length(value) == 2 && value[1] == 'var)
           bound = `bindings[value[2]] ! E_RANGE => {}';
@@ -511,8 +851,17 @@ object RELATION [
       const names = properties(relation);
       identities = { tostr(name)[7..length(tostr(name))] for name in (names) if tostr(name):starts_with("tuple_") };
     endif
+    relation.fact_lifetimes && (identities = $relation:_live(relation, identities));
     length(identities) <= 4096 || raise(E_QUOTA, "Relation query needs a narrower input scope");
-    const candidates = { relation.("tuple_" + identity) for identity in (identities) };
+    let candidates = { relation.("tuple_" + identity) for identity in (identities) };
+    if (length(meta) > 0)
+      const keys = ['recorded_by -> 'by, 'recorded_at -> 'at, 'expires_at -> 'expires];
+      const defaults = ['by -> #-1, 'at -> 0, 'expires -> 0];
+      for i in [1..length(identities)]
+        const recorded = mapmerge(defaults, `relation.("meta_" + identities[i]) ! E_PROPNF => []');
+        candidates[i] = {@candidates[i], @{ recorded[keys[field]] for field in (meta) }};
+      endfor
+    endif
     for tuple in (candidates)
       typeof(tuple) == TYPE_LIST && length(tuple) > 0 || raise(E_INVARG, "Invalid stored relation fact");
       if (length(types) > 0)

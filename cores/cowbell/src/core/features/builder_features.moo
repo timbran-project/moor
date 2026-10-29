@@ -2674,6 +2674,7 @@ object BUILDER_FEATURES [
         endif
         parts = {@parts, tostr(field) + "=" + $builder_features:_author_value_text(expression)};
       endfor
+      kind == 'record && `effect.lasts ! E_PROPNF => 0' > 0 && (parts = {@parts, "for", tostr(effect.lasts), "seconds"});
       return parts:join(" ");
     elseif (kind == 'move)
       return "move to " + tostr(effect.destination);
@@ -2694,6 +2695,9 @@ object BUILDER_FEATURES [
     if (typeof(trigger) == TYPE_SYM)
       const name = tostr(trigger);
       return "after " + (name:starts_with("on_") ? name[4..$] | name);
+    endif
+    if (length(trigger) == 3 && trigger[1] == 'fact)
+      return "after a fact is " + tostr(trigger[3]) + " in " + $builder_features:_author_value_text(['kind -> 'literal, 'value -> trigger[2]]);
     endif
     const ops = ['eq -> "=", 'ne -> "!=", 'lt -> "<", 'le -> "<=", 'gt -> ">", 'ge -> ">="];
     return "when " + tostr(trigger[2]) + " " + ops[trigger[3]] + " " + toliteral(trigger[4]);

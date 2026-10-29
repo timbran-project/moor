@@ -233,6 +233,16 @@ object REACTION [
     if (typeof(trigger) == TYPE_SYM)
       return true;
     endif
+    "Fact trigger - {'fact, relation, 'recorded or 'forgotten}";
+    if (typeof(trigger) == TYPE_LIST && length(trigger) == 3 && trigger[1] == 'fact)
+      const {_, relation, change} = trigger;
+      typeof(relation) == TYPE_OBJ && valid(relation) && isa(relation, $relation) || raise(E_INVARG, "A fact trigger needs a relation.");
+      change in {'recorded, 'forgotten} || raise(E_INVARG, "A fact trigger watches recorded or forgotten facts.");
+      for field in (relation.fact_schema['columns])
+        !(field in {'This, 'Location, 'Actor, 'Relation}) || raise(E_INVARG, "The relation field " + tostr(field) + " has the name of an event value.");
+      endfor
+      return true;
+    endif
     "Threshold trigger - {'when, 'prop, 'op, value}";
     if (typeof(trigger) == TYPE_LIST)
       length(trigger) == 4 || raise(E_INVARG, "Threshold trigger must be {'when, 'prop, 'op, value}");
@@ -242,7 +252,7 @@ object REACTION [
       op in this.comparison_ops || raise(E_INVARG, "Invalid comparison operator: " + tostr(op));
       return true;
     endif
-    raise(E_INVARG, "Trigger must be symbol or {'when, 'prop, 'op, value}");
+    raise(E_INVARG, "Trigger must be symbol, {'when, 'prop, 'op, value}, or {'fact, relation, 'recorded}");
   endmethod
 
   method message_bindings owner: HACKER
@@ -308,11 +318,16 @@ object REACTION [
       return <$reaction, .type = 'cancel, .name = name>;
     endif
     if (kind in {'record, 'forget})
-      const {_, target, arguments, ?required = 0} = spec;
+      const {_, target, arguments, ?required = 0, ?lasts = 0} = spec;
+      typeof(lasts) == TYPE_INT && lasts >= 0 || raise(E_INVARG, "A fact's lifetime must be zero or more seconds.");
+      kind == 'record || lasts == 0 || raise(E_INVARG, "Only recorded facts have a lifetime.");
       const reference = typeof(target) == TYPE_OBJ ? ['kind -> 'literal, 'value -> target] | target;
       const fields = typeof(required) == TYPE_MAP ? required | $relation:schema($condition:relation_target(reference, []))['types];
       $behavior_schema:_types(fields, "fact fields");
       $behavior_schema:_fields(arguments, mapkeys(fields), {}, "fact arguments");
+      if (lasts > 0)
+        return <$reaction, .type = kind, .relation = reference, .fields = fields, .arguments = arguments, .lasts = lasts>;
+      endif
       return <$reaction, .type = kind, .relation = reference, .fields = fields, .arguments = arguments>;
     endif
     const {_, name, arguments} = spec;
@@ -409,6 +424,10 @@ object REACTION [
       host.(name) = reaction;
     endif
     $reaction:_cancel_installation_timers(host, name);
+    const trigger = reaction.trigger;
+    if (typeof(trigger) == TYPE_LIST && length(trigger) == 3 && trigger[1] == 'fact)
+      $relation:watch(trigger[2], host);
+    endif
     return reaction;
   endmethod
 
@@ -529,14 +548,17 @@ object REACTION [
   method _dispatch owner: ARCH_WIZARD
     "Dispatch only after the trigger entry or mutation method authenticates its caller.";
     const source = callers()[1];
-    source[4] == $root && source[2] == "fire_trigger" || (source[4] == $reaction && source[2] == "change") || (source[4] == $container && source[2] == "_operate") || (source[4] == $passage && source[2] == "operate") || (source[4] == $thing && source[2] == "transfer") || (source[4] == $wearable && source[2] in {"do_wear", "do_remove"}) || raise(E_PERM);
+    source[4] == $root && source[2] == "fire_trigger" || (source[4] == $relation && source[2] == "_deliver") || (source[4] == $reaction && source[2] == "change") || (source[4] == $container && source[2] == "_operate") || (source[4] == $passage && source[2] == "operate") || (source[4] == $thing && source[2] == "transfer") || (source[4] == $wearable && source[2] in {"do_wear", "do_remove"}) || raise(E_PERM);
     const {host, trigger_name, initial_context, ?transition = {}} = args;
     let context = initial_context;
     const chain = `context['_reaction_chain] ! E_RANGE => {}';
     typeof(chain) == TYPE_LIST || raise(E_INVARG, "Invalid reaction chain.");
     const depth = length({ frame for frame in (callers()) if frame[4] == $reaction && frame[2] == "_dispatch" });
     length(chain) < 4 && depth < 4 || raise(E_QUOTA, "Reaction chain stopped after 4 steps: " + chain:join(" -> "));
-    const event = length(transition) == 0 ? tostr(trigger_name) | "change " + tostr(transition[1]);
+    let event = length(transition) == 0 ? tostr(trigger_name) | "change " + tostr(transition[1]);
+    if (typeof(trigger_name) == TYPE_LIST)
+      event = "fact " + tostr(trigger_name[3]) + " in " + trigger_name[2].name;
+    endif
     context['_reaction_chain] = {@chain, host.name + " / " + event};
     context['This] = host;
     if (!maphaskey(context, 'Location))
@@ -954,7 +976,9 @@ object REACTION [
         values[name] = $condition:resolve(effect.arguments[name], environment);
       endfor
       if (effect.type in {'record, 'forget})
-        return $relation:change_fact($condition:resolve(effect.relation, environment), effect.fields, values, effect.type);
+        let options = ['chain -> `context['_reaction_chain] ! E_RANGE => {}'];
+        effect.type == 'record && (options['lasts] = `effect.lasts ! E_PROPNF => 0');
+        return $relation:change_fact($condition:resolve(effect.relation, environment), effect.fields, values, effect.type, options);
       endif
       const result = $reaction:perform_action(effect.action, values, context);
       if (result['status] == 'error)

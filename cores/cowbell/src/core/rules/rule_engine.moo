@@ -74,6 +74,9 @@ object RULE_ENGINE [
       trigger in {'on_enter, 'on_exit} && (inputs['Who] = 'object);
       trigger in {'on_consume, 'on_empty} && (inputs['Amount] = 'integer);
       trigger == 'on_fed && (inputs['Food] = 'object);
+    elseif (typeof(trigger) == TYPE_LIST && length(trigger) == 3 && trigger[1] == 'fact)
+      inputs['Relation] = 'object;
+      inputs = mapmerge(inputs, trigger[2].fact_schema['types]);
     endif
     return this:scope(inputs, [], state_types);
   endmethod
