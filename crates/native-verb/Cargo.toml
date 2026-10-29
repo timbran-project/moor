@@ -1,0 +1,16 @@
+[package]
+name = "moor-native-verb"
+version = "2.0.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license = "LGPL-3.0-or-later"
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The interface between the mooR daemon and native verb libraries, and helpers for writing them."
+
+[[example]]
+name = "sum_library"
+crate-type = ["cdylib"]

@@ -27,6 +27,7 @@ pub const KIND_VERB: u64 = 1;
 pub const KIND_LAMBDA: u64 = 2;
 pub const KIND_BUILTIN: u64 = 3;
 pub const KIND_EVAL: u64 = 4;
+pub const KIND_NATIVE: u64 = 5;
 
 /// The identity of a frame: its kind and three kind-specific values.
 #[derive(
@@ -113,11 +114,16 @@ impl Names {
                 Some(name) => format!("{name}()"),
                 None => format!("builtin {}", key.a),
             },
-            KIND_VERB | KIND_LAMBDA => {
+            KIND_VERB | KIND_LAMBDA | KIND_NATIVE => {
                 let definer = format_obj(key.a);
+                let native = if key.kind == KIND_NATIVE {
+                    " (native)"
+                } else {
+                    ""
+                };
                 match name {
-                    Some(name) => format!("{definer}:{name}"),
-                    None => format!("{definer}:{}", Uuid::from_u64_pair(key.b, key.c)),
+                    Some(name) => format!("{definer}:{name}{native}"),
+                    None => format!("{definer}:{}{native}", Uuid::from_u64_pair(key.b, key.c)),
                 }
             }
             kind => format!("kind {kind}"),
@@ -237,7 +243,10 @@ pub fn rows(snapshot: &Snapshot, hz: u32, names: &Names, view: View) -> Vec<Row>
     let scale = Scale::new(snapshot, hz);
     let mut rows = match view {
         View::Verbs => frame_rows(snapshot, &scale, names, |k| {
-            matches!(k.kind, KIND_VERB | KIND_LAMBDA | KIND_EVAL | KIND_NONE)
+            matches!(
+                k.kind,
+                KIND_VERB | KIND_LAMBDA | KIND_NATIVE | KIND_EVAL | KIND_NONE
+            )
         }),
         View::Builtins => frame_rows(snapshot, &scale, names, |k| k.kind == KIND_BUILTIN),
         View::Tasks => task_rows(snapshot, &scale, names),

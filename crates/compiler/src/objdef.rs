@@ -1313,6 +1313,68 @@ mod tests {
     }
 
     #[test]
+    fn native_verbs_name_a_library_and_function() {
+        let spec = r#"
+                object #1
+                    parent: #-1
+                    name: "Test Object"
+                    location: #-1
+                    owner: #0
+
+                    native column owner: #1 "terrain" "column" [ note -> "fast" ]
+                    native "fill fill_*" (this none this) owner: #1 flags: "rd" "terrain" "fill"
+                    property after (owner: #1, flags: "r") = 1;
+                endobject"#;
+        let odef = compile_single_object(spec);
+
+        let expected = |function: &str| {
+            ProgramType::Native(moor_var::program::NativeProgram {
+                library: Symbol::mk("terrain"),
+                function: Symbol::mk(function),
+            })
+        };
+        assert_eq!(odef.verbs.len(), 2);
+        assert_eq!(odef.verbs[0].names, vec![Symbol::mk("column")]);
+        assert_eq!(odef.verbs[0].argspec, VerbArgsSpec::this_none_this());
+        assert_eq!(odef.verbs[0].flags, VerbFlag::rxd());
+        assert_eq!(odef.verbs[0].program, expected("column"));
+        assert_eq!(
+            odef.verbs[0].metadata,
+            vec![(Symbol::mk("note"), v_str("fast"))]
+        );
+        assert_eq!(
+            odef.verbs[1].names,
+            vec![Symbol::mk("fill"), Symbol::mk("fill_*")]
+        );
+        assert_eq!(odef.verbs[1].flags, VerbFlag::parse_str("rd").unwrap());
+        assert_eq!(odef.verbs[1].program, expected("fill"));
+        assert_eq!(
+            odef.property_definitions.len(),
+            1,
+            "the next member follows"
+        );
+    }
+
+    #[test]
+    fn native_verbs_need_a_library_and_function() {
+        for line in [
+            r#"native column owner: #1"#,
+            r#"native column owner: #1 "terrain""#,
+            r#"native column owner: #1 "" "column""#,
+        ] {
+            let spec = format!(
+                "object #1\n  parent: #-1\n  name: \"x\"\n  location: #-1\n  owner: #0\n  {line}\nendobject"
+            );
+            let mut context = ObjFileContext::new();
+            assert!(
+                compile_object_definitions(&spec, &CompileOptions::default(), &mut context)
+                    .is_err(),
+                "{line}"
+            );
+        }
+    }
+
+    #[test]
     fn method_decl_explicit_flags() {
         let spec = r#"
                 object #1
@@ -1400,7 +1462,9 @@ mod tests {
             &mut context,
         )
         .unwrap();
-        let ProgramType::MooR(program) = &objects[0].verbs[0].program;
+        let ProgramType::MooR(program) = &objects[0].verbs[0].program else {
+            panic!("expected MOO code");
+        };
         let literal = crate::compile("return #1:name();", CompileOptions::default()).unwrap();
         assert_eq!(program, &literal, "the constant compiles to its object");
 

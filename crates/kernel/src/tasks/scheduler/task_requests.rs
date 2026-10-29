@@ -149,11 +149,13 @@ impl Scheduler {
         options: moor_objdef::ObjDefLoaderOptions,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
         self.run_objdef_operation(|loader| {
-            moor_objdef::ObjectDefinitionLoader::new(loader).load_single_object(
-                &object_definition,
-                self.config.features.compile_options(),
-                options.clone(),
-            )
+            moor_objdef::ObjectDefinitionLoader::new(loader)
+                .allow_native_verbs()
+                .load_single_object(
+                    &object_definition,
+                    self.config.features.compile_options(),
+                    options.clone(),
+                )
         })
     }
 
@@ -177,12 +179,14 @@ impl Scheduler {
         target_obj: Option<Obj>,
     ) -> Result<moor_objdef::ObjDefLoaderResults, SchedulerError> {
         self.run_objdef_operation(|loader| {
-            moor_objdef::ObjectDefinitionLoader::new(loader).reload_single_object(
-                &object_definition,
-                self.config.features.compile_options(),
-                constants.clone(),
-                target_obj,
-            )
+            moor_objdef::ObjectDefinitionLoader::new(loader)
+                .allow_native_verbs()
+                .reload_single_object(
+                    &object_definition,
+                    self.config.features.compile_options(),
+                    constants.clone(),
+                    target_obj,
+                )
         })
     }
 

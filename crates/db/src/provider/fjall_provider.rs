@@ -374,8 +374,8 @@ use moor_common::{
     model::{ObjFlag, ObjSet, PropDefs, PropPerms, VerbDefs},
     util::BitEnum,
 };
-use moor_schema::convert::{encode_db_var, stored_to_program, var_from_db_flatbuffer_ref};
-use moor_schema::convert_program::encode_program_to_fb;
+use moor_schema::convert::{encode_db_var, var_from_db_flatbuffer_ref};
+use moor_schema::convert_program::{decode_program_type_ref, encode_program_type_to_fb};
 use moor_var::{Obj, Symbol, program::ProgramType};
 // Per-type encoding implementations
 // Each type can be encoded regardless of whether it's used as Domain or Codomain
@@ -575,41 +575,21 @@ impl EncodeFor<ProgramType> for FjallCodec {
     type Stored = ByteView;
 
     fn encode(&self, program: &ProgramType) -> Result<Self::Stored, Error> {
-        match program {
-            ProgramType::MooR(prog) => {
-                let stored = encode_program_to_fb(prog)
-                    .map_err(|e| Error::StorageFailure(format!("Failed to encode program: {e}")))?;
-                Ok(encode_flatbuffer(stored))
-            }
-        }
+        let stored = encode_program_type_to_fb(program)
+            .map_err(|e| Error::StorageFailure(format!("Failed to encode program: {e}")))?;
+        Ok(encode_flatbuffer(stored))
     }
 
     fn decode(&self, stored: Self::Stored) -> Result<ProgramType, Error> {
-        use moor_var::program::stored_program::StoredProgram;
-
-        let stored_program = StoredProgram::from(stored);
-
-        // Read the FlatBuffer and extract the language union
         use moor_schema::program as fb;
+        use moor_var::program::stored_program::StoredProgram;
         use planus::ReadAsRoot;
 
+        let stored_program = StoredProgram::from(stored);
         let fb_program = fb::StoredProgramRef::read_as_root(stored_program.as_bytes())
             .map_err(|e| Error::StorageFailure(format!("Failed to read program: {e}")))?;
-
-        let language = fb_program
-            .language()
-            .map_err(|e| Error::StorageFailure(format!("Failed to read language union: {e}")))?;
-
-        // Match on language variant and construct appropriate ProgramType
-        match language {
-            fb::StoredProgramLanguageRef::StoredMooRProgram(_moor_ref) => {
-                // Decode the full program using the existing function
-                let program = stored_to_program(&stored_program).map_err(|e| {
-                    Error::StorageFailure(format!("Failed to decode MooR program: {e}"))
-                })?;
-                Ok(ProgramType::MooR(program))
-            }
-        }
+        decode_program_type_ref(fb_program)
+            .map_err(|e| Error::StorageFailure(format!("Failed to decode program: {e}")))
     }
 }
 
@@ -707,14 +687,9 @@ impl EncodeFjallValue<ProgramType> for FjallCodec {
         timestamp: Timestamp,
         _encoder: &mut BatchEncoder,
     ) -> Result<Slice, Error> {
-        match program {
-            ProgramType::MooR(program) => {
-                let stored = encode_program_to_fb(program).map_err(|error| {
-                    Error::StorageFailure(format!("Failed to encode program: {error}"))
-                })?;
-                Ok(frame_flatbuffer(stored, timestamp))
-            }
-        }
+        let stored = encode_program_type_to_fb(program)
+            .map_err(|error| Error::StorageFailure(format!("Failed to encode program: {error}")))?;
+        Ok(frame_flatbuffer(stored, timestamp))
     }
 }
 
@@ -958,5 +933,16 @@ mod tests {
         assert_eq!(&stored[..payload_len], &*encoded_value);
         assert_eq!(&stored[payload_len..], &456_u64.to_le_bytes());
         assert_eq!(provider.get(&key).unwrap(), Some((Timestamp(456), value)));
+    }
+
+    #[test]
+    fn native_programs_survive_storage() {
+        let native = ProgramType::Native(moor_var::program::NativeProgram {
+            library: Symbol::mk("terrain"),
+            function: Symbol::mk("column"),
+        });
+        let encoded = FjallCodec.encode(&native).unwrap();
+        let decoded: ProgramType = FjallCodec.decode(encoded).unwrap();
+        assert_eq!(decoded, native);
     }
 }

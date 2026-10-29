@@ -32,7 +32,7 @@ use crate::{
     dash::{self, Figure},
     metrics::{History, KEPT, Query, Window, duration, short},
     record::Recorder,
-    snapshot::{KIND_VERB, Names, Snapshot, Summary, View, rows, summary},
+    snapshot::{KIND_NATIVE, KIND_VERB, Names, Snapshot, Summary, View, rows, summary},
     trace::{Trace, TraceEvent},
 };
 
@@ -95,7 +95,7 @@ impl App {
         let verb_calls: u64 = snapshot
             .calls
             .iter()
-            .filter(|(k, _)| k.kind == KIND_VERB)
+            .filter(|(k, _)| matches!(k.kind, KIND_VERB | KIND_NATIVE))
             .map(|(_, n)| n)
             .sum();
         if self.cpu.len() == KEPT {

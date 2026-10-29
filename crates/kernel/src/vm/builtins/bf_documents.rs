@@ -890,6 +890,7 @@ mod tests {
             args: &args,
             exec_state: host.vm_exec_state_mut(),
             config: &config,
+            native_verbs: &crate::native_verbs::NativeVerbs::default(),
         };
 
         match bf_to_xml(&mut call) {
@@ -1081,6 +1082,7 @@ mod tests {
             args: &args,
             exec_state: host.vm_exec_state_mut(),
             config: &config,
+            native_verbs: &crate::native_verbs::NativeVerbs::default(),
         };
         bf(&mut call)
     }

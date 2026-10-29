@@ -24,6 +24,8 @@ use sha2::{Digest, Sha256};
 
 /// Persistent schema identifier for program baselines. Changes require new vectors and a new version.
 pub const PROGRAM_SCHEMA: &str = "objdef-v1:program:sha256";
+/// The schema of a native verb's fingerprint, which hashes its library and function names.
+pub const NATIVE_PROGRAM_SCHEMA: &str = "objdef-v1:native:sha256";
 
 /// Hash an exact typed projection with deterministic map and identifier normalization.
 pub fn digest(value: &Var) -> Result<String, String> {
@@ -131,7 +133,18 @@ fn exact_projection(value: &Var, depth: usize) -> Result<Var, String> {
 
 /// Hash normalized compiled structure and exact literals; unsupported representations fail.
 pub fn program_fingerprint(program: &ProgramType) -> Result<String, String> {
-    let ProgramType::MooR(program) = program;
+    let program = match program {
+        ProgramType::MooR(program) => program,
+        ProgramType::Native(native) => {
+            // Names compare without case, as symbols do.
+            let projection = v_list(&[
+                v_str(NATIVE_PROGRAM_SCHEMA),
+                v_str(&native.library.as_arc_str().to_lowercase()),
+                v_str(&native.function.as_arc_str().to_lowercase()),
+            ]);
+            return Ok(format!("{NATIVE_PROGRAM_SCHEMA}:{}", digest(&projection)?));
+        }
+    };
     let tree = program_to_tree(program).map_err(|e| e.to_string())?;
     let (structure, literals) = unparse_for_comparison(&tree).map_err(|e| e.to_string())?;
     let projection = v_list(&[v_str(PROGRAM_SCHEMA), v_str(&structure), v_list(&literals)]);
@@ -170,8 +183,13 @@ pub(crate) fn same_compiled_program(left: &ProgramType, right: &ProgramType) -> 
             .all(|(a, b)| exact_payloads(a, b))
     }
 
-    let (ProgramType::MooR(left), ProgramType::MooR(right)) = (left, right);
-    left == right && exact_payloads(left, right)
+    match (left, right) {
+        (ProgramType::MooR(left), ProgramType::MooR(right)) => {
+            left == right && exact_payloads(left, right)
+        }
+        (ProgramType::Native(left), ProgramType::Native(right)) => left == right,
+        _ => false,
+    }
 }
 
 #[cfg(test)]

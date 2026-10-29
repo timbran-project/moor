@@ -5,19 +5,19 @@ const _: () = ::planus::check_version_compatibility("planus-1.3.0");
 /// The root namespace
 ///
 /// Generated from these locations:
-/// * File `connections/connections.fbs`
+/// * File `connections.fbs`
 #[no_implicit_prelude]
 #[allow(clippy::needless_lifetimes)]
 mod root {
     /// The namespace `MoorConnections`
     ///
     /// Generated from these locations:
-    /// * File `connections/connections.fbs`
+    /// * File `connections.fbs`
     pub mod moor_connections {
         /// The table `StoredClient` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `StoredClient` in the file `connections/connections.fbs:37`
+        /// * Table `StoredClient` in the file `connections.fbs:37`
         #[derive(
             Clone,
             Debug,
@@ -1308,7 +1308,7 @@ mod root {
         /// The table `StoredAttribute` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `StoredAttribute` in the file `connections/connections.fbs:62`
+        /// * Table `StoredAttribute` in the file `connections.fbs:62`
         #[derive(
             Clone,
             Debug,
@@ -1612,7 +1612,7 @@ mod root {
         /// The table `ByteArray` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ByteArray` in the file `connections/connections.fbs:72`
+        /// * Table `ByteArray` in the file `connections.fbs:72`
         #[derive(
             Clone,
             Debug,
@@ -1865,7 +1865,7 @@ mod root {
         /// The table `ClientAttribute` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttribute` in the file `connections/connections.fbs:77`
+        /// * Table `ClientAttribute` in the file `connections.fbs:77`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientAttribute {
             /// The field `key` in the table `ClientAttribute`
@@ -2153,7 +2153,7 @@ mod root {
         /// The table `ConnectionRecord` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionRecord` in the file `connections/connections.fbs:83`
+        /// * Table `ConnectionRecord` in the file `connections.fbs:83`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionRecord {
             /// The field `client_id_high` in the table `ConnectionRecord`
@@ -3070,7 +3070,7 @@ mod root {
         /// The table `ConnectionsRecords` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionsRecords` in the file `connections/connections.fbs:102`
+        /// * Table `ConnectionsRecords` in the file `connections.fbs:102`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionsRecords {
             /// The field `connections` in the table `ConnectionsRecords`
@@ -3338,12 +3338,12 @@ mod root {
     /// The namespace `MoorCommon`
     ///
     /// Generated from these locations:
-    /// * File `../../schema/schema/common.fbs`
+    /// * File `../../../schema/schema/common.fbs`
     pub mod moor_common {
         /// The table `VarBytes` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VarBytes` in the file `../../schema/schema/common.fbs:30`
+        /// * Table `VarBytes` in the file `../../../schema/schema/common.fbs:30`
         #[derive(
             Clone,
             Debug,
@@ -3592,7 +3592,7 @@ mod root {
         /// The table `Symbol` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Symbol` in the file `../../schema/schema/common.fbs:34`
+        /// * Table `Symbol` in the file `../../../schema/schema/common.fbs:34`
         #[derive(
             Clone,
             Debug,
@@ -3841,7 +3841,7 @@ mod root {
         /// The table `Uuid` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Uuid` in the file `../../schema/schema/common.fbs:38`
+        /// * Table `Uuid` in the file `../../../schema/schema/common.fbs:38`
         #[derive(
             Clone,
             Debug,
@@ -4090,7 +4090,7 @@ mod root {
         /// The union `ObjUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `ObjUnion` in the file `../../schema/schema/common.fbs:46`
+        /// * Union `ObjUnion` in the file `../../../schema/schema/common.fbs:46`
         #[derive(
             Clone,
             Debug,
@@ -4346,7 +4346,7 @@ mod root {
         /// The table `ObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjId` in the file `../../schema/schema/common.fbs:52`
+        /// * Table `ObjId` in the file `../../../schema/schema/common.fbs:52`
         #[derive(
             Clone,
             Debug,
@@ -4604,7 +4604,7 @@ mod root {
         /// The table `UuObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UuObjId` in the file `../../schema/schema/common.fbs:56`
+        /// * Table `UuObjId` in the file `../../../schema/schema/common.fbs:56`
         #[derive(
             Clone,
             Debug,
@@ -4866,7 +4866,7 @@ mod root {
         /// The table `AnonymousObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AnonymousObjId` in the file `../../schema/schema/common.fbs:61`
+        /// * Table `AnonymousObjId` in the file `../../../schema/schema/common.fbs:61`
         #[derive(
             Clone,
             Debug,
@@ -5137,7 +5137,7 @@ mod root {
         /// The table `Obj` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Obj` in the file `../../schema/schema/common.fbs:66`
+        /// * Table `Obj` in the file `../../../schema/schema/common.fbs:66`
         #[derive(
             Clone,
             Debug,
@@ -5377,7 +5377,7 @@ mod root {
         /// The enum `ErrorCode` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Enum `ErrorCode` in the file `../../schema/schema/common.fbs:74`
+        /// * Enum `ErrorCode` in the file `../../../schema/schema/common.fbs:74`
         #[derive(
             Copy,
             Clone,
@@ -5639,7 +5639,7 @@ mod root {
         /// The table `Error` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Error` in the file `../../schema/schema/common.fbs:97`
+        /// * Table `Error` in the file `../../../schema/schema/common.fbs:97`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Error {
             /// The field `err_type` in the table `Error`
@@ -6058,7 +6058,7 @@ mod root {
         /// The table `NarrativeEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEvent` in the file `../../schema/schema/common.fbs:108`
+        /// * Table `NarrativeEvent` in the file `../../../schema/schema/common.fbs:108`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEvent {
             /// The field `event_id` in the table `NarrativeEvent`
@@ -6417,7 +6417,7 @@ mod root {
         /// The union `EventUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `EventUnion` in the file `../../schema/schema/common.fbs:115`
+        /// * Union `EventUnion` in the file `../../../schema/schema/common.fbs:115`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum EventUnion {
             /// The variant of type `NotifyEvent` in the union `EventUnion`
@@ -6801,7 +6801,7 @@ mod root {
         /// The table `EventMetadata` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `EventMetadata` in the file `../../schema/schema/common.fbs:123`
+        /// * Table `EventMetadata` in the file `../../../schema/schema/common.fbs:123`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EventMetadata {
             /// The field `key` in the table `EventMetadata`
@@ -7073,7 +7073,7 @@ mod root {
         /// The table `NotifyEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `NotifyEvent` in the file `../../schema/schema/common.fbs:128`
+        /// * Table `NotifyEvent` in the file `../../../schema/schema/common.fbs:128`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NotifyEvent {
             /// The field `value` in the table `NotifyEvent`
@@ -7534,7 +7534,7 @@ mod root {
         /// The table `PresentEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PresentEvent` in the file `../../schema/schema/common.fbs:136`
+        /// * Table `PresentEvent` in the file `../../../schema/schema/common.fbs:136`
         #[derive(
             Clone,
             Debug,
@@ -7790,7 +7790,7 @@ mod root {
         /// The table `UnpresentEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnpresentEvent` in the file `../../schema/schema/common.fbs:140`
+        /// * Table `UnpresentEvent` in the file `../../../schema/schema/common.fbs:140`
         #[derive(
             Clone,
             Debug,
@@ -8045,7 +8045,7 @@ mod root {
         /// The table `TracebackEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `TracebackEvent` in the file `../../schema/schema/common.fbs:144`
+        /// * Table `TracebackEvent` in the file `../../../schema/schema/common.fbs:144`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TracebackEvent {
             /// The field `exception` in the table `TracebackEvent`
@@ -8291,7 +8291,7 @@ mod root {
         /// The table `DataEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DataEvent` in the file `../../schema/schema/common.fbs:148`
+        /// * Table `DataEvent` in the file `../../../schema/schema/common.fbs:148`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DataEvent {
             /// The field `domain` in the table `DataEvent`
@@ -8647,7 +8647,7 @@ mod root {
         /// The table `ClientDataMessage` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ClientDataMessage` in the file `../../schema/schema/common.fbs:158`
+        /// * Table `ClientDataMessage` in the file `../../../schema/schema/common.fbs:158`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientDataMessage {
             /// The field `kind` in the table `ClientDataMessage`
@@ -8933,7 +8933,7 @@ mod root {
         /// The table `Event` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Event` in the file `../../schema/schema/common.fbs:163`
+        /// * Table `Event` in the file `../../../schema/schema/common.fbs:163`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Event {
             /// The field `event` in the table `Event`
@@ -9165,7 +9165,7 @@ mod root {
         /// The table `Presentation` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Presentation` in the file `../../schema/schema/common.fbs:167`
+        /// * Table `Presentation` in the file `../../../schema/schema/common.fbs:167`
         #[derive(
             Clone,
             Debug,
@@ -9562,7 +9562,7 @@ mod root {
         /// The table `PresentationAttribute` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationAttribute` in the file `../../schema/schema/common.fbs:175`
+        /// * Table `PresentationAttribute` in the file `../../../schema/schema/common.fbs:175`
         #[derive(
             Clone,
             Debug,
@@ -9871,7 +9871,7 @@ mod root {
         /// The table `Exception` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Exception` in the file `../../schema/schema/common.fbs:180`
+        /// * Table `Exception` in the file `../../../schema/schema/common.fbs:180`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Exception {
             /// The field `error` in the table `Exception`
@@ -10194,7 +10194,7 @@ mod root {
         /// The table `CompileContext` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `CompileContext` in the file `../../schema/schema/common.fbs:190`
+        /// * Table `CompileContext` in the file `../../../schema/schema/common.fbs:190`
         #[derive(
             Clone,
             Debug,
@@ -10496,7 +10496,7 @@ mod root {
         /// The table `StringLexError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `StringLexError` in the file `../../schema/schema/common.fbs:195`
+        /// * Table `StringLexError` in the file `../../../schema/schema/common.fbs:195`
         #[derive(
             Clone,
             Debug,
@@ -10786,7 +10786,7 @@ mod root {
         /// The table `ParseError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ParseError` in the file `../../schema/schema/common.fbs:200`
+        /// * Table `ParseError` in the file `../../../schema/schema/common.fbs:200`
         #[derive(
             Clone,
             Debug,
@@ -11537,7 +11537,7 @@ mod root {
         /// The table `UnknownBuiltinFunction` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownBuiltinFunction` in the file `../../schema/schema/common.fbs:214`
+        /// * Table `UnknownBuiltinFunction` in the file `../../../schema/schema/common.fbs:214`
         #[derive(
             Clone,
             Debug,
@@ -11851,7 +11851,7 @@ mod root {
         /// The table `UnknownTypeConstant` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownTypeConstant` in the file `../../schema/schema/common.fbs:219`
+        /// * Table `UnknownTypeConstant` in the file `../../../schema/schema/common.fbs:219`
         #[derive(
             Clone,
             Debug,
@@ -12159,7 +12159,7 @@ mod root {
         /// The table `UnknownLoopLabel` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownLoopLabel` in the file `../../schema/schema/common.fbs:224`
+        /// * Table `UnknownLoopLabel` in the file `../../../schema/schema/common.fbs:224`
         #[derive(
             Clone,
             Debug,
@@ -12465,7 +12465,7 @@ mod root {
         /// The table `DuplicateVariable` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVariable` in the file `../../schema/schema/common.fbs:229`
+        /// * Table `DuplicateVariable` in the file `../../../schema/schema/common.fbs:229`
         #[derive(
             Clone,
             Debug,
@@ -12773,7 +12773,7 @@ mod root {
         /// The table `AssignToConst` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AssignToConst` in the file `../../schema/schema/common.fbs:234`
+        /// * Table `AssignToConst` in the file `../../../schema/schema/common.fbs:234`
         #[derive(
             Clone,
             Debug,
@@ -13065,7 +13065,7 @@ mod root {
         /// The table `DisabledFeature` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DisabledFeature` in the file `../../schema/schema/common.fbs:239`
+        /// * Table `DisabledFeature` in the file `../../../schema/schema/common.fbs:239`
         #[derive(
             Clone,
             Debug,
@@ -13371,7 +13371,7 @@ mod root {
         /// The table `BadSlotName` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `BadSlotName` in the file `../../schema/schema/common.fbs:244`
+        /// * Table `BadSlotName` in the file `../../../schema/schema/common.fbs:244`
         #[derive(
             Clone,
             Debug,
@@ -13661,7 +13661,7 @@ mod root {
         /// The table `InvalidAssignment` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidAssignment` in the file `../../schema/schema/common.fbs:249`
+        /// * Table `InvalidAssignment` in the file `../../../schema/schema/common.fbs:249`
         #[derive(
             Clone,
             Debug,
@@ -13933,7 +13933,7 @@ mod root {
         /// The table `InvalidTypeLiteralAssignment` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidTypeLiteralAssignment` in the file `../../schema/schema/common.fbs:253`
+        /// * Table `InvalidTypeLiteralAssignment` in the file `../../../schema/schema/common.fbs:253`
         #[derive(
             Clone,
             Debug,
@@ -14258,7 +14258,7 @@ mod root {
         /// The table `AssignmentToCapturedVariable` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AssignmentToCapturedVariable` in the file `../../schema/schema/common.fbs:258`
+        /// * Table `AssignmentToCapturedVariable` in the file `../../../schema/schema/common.fbs:258`
         #[derive(
             Clone,
             Debug,
@@ -14585,7 +14585,7 @@ mod root {
         /// The union `CompileErrorUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `CompileErrorUnion` in the file `../../schema/schema/common.fbs:263`
+        /// * Union `CompileErrorUnion` in the file `../../../schema/schema/common.fbs:263`
         #[derive(
             Clone,
             Debug,
@@ -15435,7 +15435,7 @@ mod root {
         /// The table `CompileError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `CompileError` in the file `../../schema/schema/common.fbs:278`
+        /// * Table `CompileError` in the file `../../../schema/schema/common.fbs:278`
         #[derive(
             Clone,
             Debug,
@@ -15682,7 +15682,7 @@ mod root {
         /// The union `ObjectRefUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `ObjectRefUnion` in the file `../../schema/schema/common.fbs:286`
+        /// * Union `ObjectRefUnion` in the file `../../../schema/schema/common.fbs:286`
         #[derive(
             Clone,
             Debug,
@@ -15965,7 +15965,7 @@ mod root {
         /// The table `ObjectRefId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefId` in the file `../../schema/schema/common.fbs:292`
+        /// * Table `ObjectRefId` in the file `../../../schema/schema/common.fbs:292`
         #[derive(
             Clone,
             Debug,
@@ -16211,7 +16211,7 @@ mod root {
         /// The table `ObjectRefSysObj` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefSysObj` in the file `../../schema/schema/common.fbs:296`
+        /// * Table `ObjectRefSysObj` in the file `../../../schema/schema/common.fbs:296`
         #[derive(
             Clone,
             Debug,
@@ -16485,7 +16485,7 @@ mod root {
         /// The table `ObjectRefMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefMatch` in the file `../../schema/schema/common.fbs:300`
+        /// * Table `ObjectRefMatch` in the file `../../../schema/schema/common.fbs:300`
         #[derive(
             Clone,
             Debug,
@@ -16739,7 +16739,7 @@ mod root {
         /// The table `ObjectRef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRef` in the file `../../schema/schema/common.fbs:304`
+        /// * Table `ObjectRef` in the file `../../../schema/schema/common.fbs:304`
         #[derive(
             Clone,
             Debug,
@@ -16985,7 +16985,7 @@ mod root {
         /// The union `WorldStateErrorUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateErrorUnion` in the file `../../schema/schema/common.fbs:312`
+        /// * Union `WorldStateErrorUnion` in the file `../../../schema/schema/common.fbs:312`
         #[derive(
             Clone,
             Debug,
@@ -18331,7 +18331,7 @@ mod root {
         /// The table `ObjectNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectNotFound` in the file `../../schema/schema/common.fbs:335`
+        /// * Table `ObjectNotFound` in the file `../../../schema/schema/common.fbs:335`
         #[derive(
             Clone,
             Debug,
@@ -18578,7 +18578,7 @@ mod root {
         /// The table `ObjectAlreadyExists` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectAlreadyExists` in the file `../../schema/schema/common.fbs:339`
+        /// * Table `ObjectAlreadyExists` in the file `../../../schema/schema/common.fbs:339`
         #[derive(
             Clone,
             Debug,
@@ -18843,7 +18843,7 @@ mod root {
         /// The table `RecursiveMove` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `RecursiveMove` in the file `../../schema/schema/common.fbs:343`
+        /// * Table `RecursiveMove` in the file `../../../schema/schema/common.fbs:343`
         #[derive(
             Clone,
             Debug,
@@ -19125,7 +19125,7 @@ mod root {
         /// The table `ObjectPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectPermissionDenied` in the file `../../schema/schema/common.fbs:348`
+        /// * Table `ObjectPermissionDenied` in the file `../../../schema/schema/common.fbs:348`
         #[derive(
             Clone,
             Debug,
@@ -19361,7 +19361,7 @@ mod root {
         /// The table `PropertyNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyNotFound` in the file `../../schema/schema/common.fbs:351`
+        /// * Table `PropertyNotFound` in the file `../../../schema/schema/common.fbs:351`
         #[derive(
             Clone,
             Debug,
@@ -19657,7 +19657,7 @@ mod root {
         /// The table `PropertyPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyPermissionDenied` in the file `../../schema/schema/common.fbs:356`
+        /// * Table `PropertyPermissionDenied` in the file `../../../schema/schema/common.fbs:356`
         #[derive(
             Clone,
             Debug,
@@ -19897,7 +19897,7 @@ mod root {
         /// The table `PropertyDefinitionNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyDefinitionNotFound` in the file `../../schema/schema/common.fbs:359`
+        /// * Table `PropertyDefinitionNotFound` in the file `../../../schema/schema/common.fbs:359`
         #[derive(
             Clone,
             Debug,
@@ -20210,7 +20210,7 @@ mod root {
         /// The table `DuplicatePropertyDefinition` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicatePropertyDefinition` in the file `../../schema/schema/common.fbs:364`
+        /// * Table `DuplicatePropertyDefinition` in the file `../../../schema/schema/common.fbs:364`
         #[derive(
             Clone,
             Debug,
@@ -20523,7 +20523,7 @@ mod root {
         /// The table `ChparentPropertyNameConflict` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ChparentPropertyNameConflict` in the file `../../schema/schema/common.fbs:369`
+        /// * Table `ChparentPropertyNameConflict` in the file `../../../schema/schema/common.fbs:369`
         #[derive(
             Clone,
             Debug,
@@ -20879,7 +20879,7 @@ mod root {
         /// The table `PropertyTypeMismatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyTypeMismatch` in the file `../../schema/schema/common.fbs:375`
+        /// * Table `PropertyTypeMismatch` in the file `../../../schema/schema/common.fbs:375`
         #[derive(
             Clone,
             Debug,
@@ -21109,7 +21109,7 @@ mod root {
         /// The table `VerbNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbNotFound` in the file `../../schema/schema/common.fbs:378`
+        /// * Table `VerbNotFound` in the file `../../../schema/schema/common.fbs:378`
         #[derive(
             Clone,
             Debug,
@@ -21389,7 +21389,7 @@ mod root {
         /// The table `InvalidVerb` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidVerb` in the file `../../schema/schema/common.fbs:383`
+        /// * Table `InvalidVerb` in the file `../../../schema/schema/common.fbs:383`
         #[derive(
             Clone,
             Debug,
@@ -21651,7 +21651,7 @@ mod root {
         /// The table `VerbDecodeError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDecodeError` in the file `../../schema/schema/common.fbs:387`
+        /// * Table `VerbDecodeError` in the file `../../../schema/schema/common.fbs:387`
         #[derive(
             Clone,
             Debug,
@@ -21949,7 +21949,7 @@ mod root {
         /// The table `VerbPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbPermissionDenied` in the file `../../schema/schema/common.fbs:392`
+        /// * Table `VerbPermissionDenied` in the file `../../../schema/schema/common.fbs:392`
         #[derive(
             Clone,
             Debug,
@@ -22179,7 +22179,7 @@ mod root {
         /// The table `DuplicateVerb` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVerb` in the file `../../schema/schema/common.fbs:395`
+        /// * Table `DuplicateVerb` in the file `../../../schema/schema/common.fbs:395`
         #[derive(
             Clone,
             Debug,
@@ -22461,7 +22461,7 @@ mod root {
         /// The table `FailedMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `FailedMatch` in the file `../../schema/schema/common.fbs:400`
+        /// * Table `FailedMatch` in the file `../../../schema/schema/common.fbs:400`
         #[derive(
             Clone,
             Debug,
@@ -22714,7 +22714,7 @@ mod root {
         /// The table `AmbiguousMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AmbiguousMatch` in the file `../../schema/schema/common.fbs:404`
+        /// * Table `AmbiguousMatch` in the file `../../../schema/schema/common.fbs:404`
         #[derive(
             Clone,
             Debug,
@@ -22968,7 +22968,7 @@ mod root {
         /// The table `InvalidRenumber` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidRenumber` in the file `../../schema/schema/common.fbs:408`
+        /// * Table `InvalidRenumber` in the file `../../../schema/schema/common.fbs:408`
         #[derive(
             Clone,
             Debug,
@@ -23237,7 +23237,7 @@ mod root {
         /// The table `WorldStateDatabaseError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateDatabaseError` in the file `../../schema/schema/common.fbs:412`
+        /// * Table `WorldStateDatabaseError` in the file `../../../schema/schema/common.fbs:412`
         #[derive(
             Clone,
             Debug,
@@ -23519,7 +23519,7 @@ mod root {
         /// The table `RollbackRetry` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `RollbackRetry` in the file `../../schema/schema/common.fbs:416`
+        /// * Table `RollbackRetry` in the file `../../../schema/schema/common.fbs:416`
         #[derive(
             Clone,
             Debug,
@@ -23730,7 +23730,7 @@ mod root {
         /// The table `WorldStateError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateError` in the file `../../schema/schema/common.fbs:419`
+        /// * Table `WorldStateError` in the file `../../../schema/schema/common.fbs:419`
         #[derive(
             Clone,
             Debug,
@@ -23992,7 +23992,7 @@ mod root {
         /// The table `PropInfo` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropInfo` in the file `../../schema/schema/common.fbs:427`
+        /// * Table `PropInfo` in the file `../../../schema/schema/common.fbs:427`
         #[derive(
             Clone,
             Debug,
@@ -24471,7 +24471,7 @@ mod root {
         /// The table `VerbInfo` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbInfo` in the file `../../schema/schema/common.fbs:437`
+        /// * Table `VerbInfo` in the file `../../../schema/schema/common.fbs:437`
         #[derive(
             Clone,
             Debug,
@@ -24999,7 +24999,7 @@ mod root {
         /// The enum `ArgSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Enum `ArgSpec` in the file `../../schema/schema/common.fbs:453`
+        /// * Enum `ArgSpec` in the file `../../../schema/schema/common.fbs:453`
         #[derive(
             Copy,
             Clone,
@@ -25169,7 +25169,7 @@ mod root {
         /// The table `PrepSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PrepSpec` in the file `../../schema/schema/common.fbs:461`
+        /// * Table `PrepSpec` in the file `../../../schema/schema/common.fbs:461`
         #[derive(
             Clone,
             Debug,
@@ -25427,7 +25427,7 @@ mod root {
         /// The table `VerbArgsSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbArgsSpec` in the file `../../schema/schema/common.fbs:467`
+        /// * Table `VerbArgsSpec` in the file `../../../schema/schema/common.fbs:467`
         #[derive(
             Clone,
             Debug,
@@ -25787,7 +25787,7 @@ mod root {
         /// The table `VerbDef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDef` in the file `../../schema/schema/common.fbs:474`
+        /// * Table `VerbDef` in the file `../../../schema/schema/common.fbs:474`
         #[derive(
             Clone,
             Debug,
@@ -26214,7 +26214,7 @@ mod root {
         /// The table `PropDef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropDef` in the file `../../schema/schema/common.fbs:484`
+        /// * Table `PropDef` in the file `../../../schema/schema/common.fbs:484`
         #[derive(
             Clone,
             Debug,
@@ -26562,7 +26562,7 @@ mod root {
         /// The table `VerbDefs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDefs` in the file `../../schema/schema/common.fbs:492`
+        /// * Table `VerbDefs` in the file `../../../schema/schema/common.fbs:492`
         #[derive(
             Clone,
             Debug,
@@ -26814,7 +26814,7 @@ mod root {
         /// The table `PropDefs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropDefs` in the file `../../schema/schema/common.fbs:497`
+        /// * Table `PropDefs` in the file `../../../schema/schema/common.fbs:497`
         #[derive(
             Clone,
             Debug,
@@ -27066,7 +27066,7 @@ mod root {
         /// The table `ObjAttrs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjAttrs` in the file `../../schema/schema/common.fbs:502`
+        /// * Table `ObjAttrs` in the file `../../../schema/schema/common.fbs:502`
         #[derive(
             Clone,
             Debug,
@@ -27469,12 +27469,12 @@ mod root {
     /// The namespace `MoorVar`
     ///
     /// Generated from these locations:
-    /// * File `../../schema/schema/var.fbs`
+    /// * File `../../../schema/schema/var.fbs`
     pub mod moor_var {
         /// The union `VarUnion` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Union `VarUnion` in the file `../../schema/schema/var.fbs:27`
+        /// * Union `VarUnion` in the file `../../../schema/schema/var.fbs:27`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum VarUnion {
             /// The variant of type `VarNone` in the union `VarUnion`
@@ -28285,7 +28285,7 @@ mod root {
         /// The table `VarNone` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarNone` in the file `../../schema/schema/var.fbs:49`
+        /// * Table `VarNone` in the file `../../../schema/schema/var.fbs:49`
         #[derive(
             Clone,
             Debug,
@@ -28492,7 +28492,7 @@ mod root {
         /// The table `VarBool` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarBool` in the file `../../schema/schema/var.fbs:52`
+        /// * Table `VarBool` in the file `../../../schema/schema/var.fbs:52`
         #[derive(
             Clone,
             Debug,
@@ -28750,7 +28750,7 @@ mod root {
         /// The table `VarInt` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarInt` in the file `../../schema/schema/var.fbs:56`
+        /// * Table `VarInt` in the file `../../../schema/schema/var.fbs:56`
         #[derive(
             Clone,
             Debug,
@@ -29008,7 +29008,7 @@ mod root {
         /// The table `VarFloat` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarFloat` in the file `../../schema/schema/var.fbs:60`
+        /// * Table `VarFloat` in the file `../../../schema/schema/var.fbs:60`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarFloat {
             /// The field `value` in the table `VarFloat`
@@ -29256,7 +29256,7 @@ mod root {
         /// The table `VarStr` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarStr` in the file `../../schema/schema/var.fbs:64`
+        /// * Table `VarStr` in the file `../../../schema/schema/var.fbs:64`
         #[derive(
             Clone,
             Debug,
@@ -29505,7 +29505,7 @@ mod root {
         /// The table `VarObj` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarObj` in the file `../../schema/schema/var.fbs:68`
+        /// * Table `VarObj` in the file `../../../schema/schema/var.fbs:68`
         #[derive(
             Clone,
             Debug,
@@ -29747,7 +29747,7 @@ mod root {
         /// The table `VarErr` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarErr` in the file `../../schema/schema/var.fbs:72`
+        /// * Table `VarErr` in the file `../../../schema/schema/var.fbs:72`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarErr {
             /// The field `error` in the table `VarErr`
@@ -29988,7 +29988,7 @@ mod root {
         /// The table `VarSym` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarSym` in the file `../../schema/schema/var.fbs:76`
+        /// * Table `VarSym` in the file `../../../schema/schema/var.fbs:76`
         #[derive(
             Clone,
             Debug,
@@ -30239,7 +30239,7 @@ mod root {
         /// The table `VarBinary` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarBinary` in the file `../../schema/schema/var.fbs:80`
+        /// * Table `VarBinary` in the file `../../../schema/schema/var.fbs:80`
         #[derive(
             Clone,
             Debug,
@@ -30492,7 +30492,7 @@ mod root {
         /// The table `VarList` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarList` in the file `../../schema/schema/var.fbs:84`
+        /// * Table `VarList` in the file `../../../schema/schema/var.fbs:84`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarList {
             /// The field `elements` in the table `VarList`
@@ -30734,7 +30734,7 @@ mod root {
         /// The table `VarMapPair` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarMapPair` in the file `../../schema/schema/var.fbs:88`
+        /// * Table `VarMapPair` in the file `../../../schema/schema/var.fbs:88`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarMapPair {
             /// The field `key` in the table `VarMapPair`
@@ -31005,7 +31005,7 @@ mod root {
         /// The table `VarMap` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarMap` in the file `../../schema/schema/var.fbs:93`
+        /// * Table `VarMap` in the file `../../../schema/schema/var.fbs:93`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarMap {
             /// The field `pairs` in the table `VarMap`
@@ -31250,7 +31250,7 @@ mod root {
         /// The table `FlyweightSlot` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `FlyweightSlot` in the file `../../schema/schema/var.fbs:97`
+        /// * Table `FlyweightSlot` in the file `../../../schema/schema/var.fbs:97`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct FlyweightSlot {
             /// The field `name` in the table `FlyweightSlot`
@@ -31522,7 +31522,7 @@ mod root {
         /// The table `VarFlyweight` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarFlyweight` in the file `../../schema/schema/var.fbs:102`
+        /// * Table `VarFlyweight` in the file `../../../schema/schema/var.fbs:102`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarFlyweight {
             /// The field `delegate` in the table `VarFlyweight`
@@ -31830,7 +31830,7 @@ mod root {
         /// The table `VarLambda` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarLambda` in the file `../../schema/schema/var.fbs:108`
+        /// * Table `VarLambda` in the file `../../../schema/schema/var.fbs:108`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarLambda {
             /// The field `params` in the table `VarLambda`
@@ -32205,7 +32205,7 @@ mod root {
         /// The table `VarAnonymous` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarAnonymous` in the file `../../schema/schema/var.fbs:115`
+        /// * Table `VarAnonymous` in the file `../../../schema/schema/var.fbs:115`
         #[derive(
             Clone,
             Debug,
@@ -32452,7 +32452,7 @@ mod root {
         /// The table `Var` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `Var` in the file `../../schema/schema/var.fbs:119`
+        /// * Table `Var` in the file `../../../schema/schema/var.fbs:119`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Var {
             /// The field `variant` in the table `Var`
@@ -32682,12 +32682,12 @@ mod root {
     /// The namespace `MoorProgram`
     ///
     /// Generated from these locations:
-    /// * File `../../schema/schema/moor_program.fbs`
+    /// * File `../../../schema/schema/moor_program.fbs`
     pub mod moor_program {
         /// The table `StoredName` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredName` in the file `../../schema/schema/moor_program.fbs:35`
+        /// * Table `StoredName` in the file `../../../schema/schema/moor_program.fbs:35`
         #[derive(
             Clone,
             Debug,
@@ -33045,7 +33045,7 @@ mod root {
         /// The table `StoredJumpLabel` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredJumpLabel` in the file `../../schema/schema/moor_program.fbs:41`
+        /// * Table `StoredJumpLabel` in the file `../../../schema/schema/moor_program.fbs:41`
         #[derive(
             Clone,
             Debug,
@@ -33429,7 +33429,7 @@ mod root {
         /// The enum `StoredDeclType` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Enum `StoredDeclType` in the file `../../schema/schema/moor_program.fbs:48`
+        /// * Enum `StoredDeclType` in the file `../../../schema/schema/moor_program.fbs:48`
         #[derive(
             Copy,
             Clone,
@@ -33636,7 +33636,7 @@ mod root {
         /// The union `StoredVarNameUnion` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredVarNameUnion` in the file `../../schema/schema/moor_program.fbs:61`
+        /// * Union `StoredVarNameUnion` in the file `../../../schema/schema/moor_program.fbs:61`
         #[derive(
             Clone,
             Debug,
@@ -33860,7 +33860,7 @@ mod root {
         /// The table `StoredNamedVar` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNamedVar` in the file `../../schema/schema/moor_program.fbs:66`
+        /// * Table `StoredNamedVar` in the file `../../../schema/schema/moor_program.fbs:66`
         #[derive(
             Clone,
             Debug,
@@ -34116,7 +34116,7 @@ mod root {
         /// The table `StoredRegisterVar` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredRegisterVar` in the file `../../schema/schema/moor_program.fbs:70`
+        /// * Table `StoredRegisterVar` in the file `../../../schema/schema/moor_program.fbs:70`
         #[derive(
             Clone,
             Debug,
@@ -34403,7 +34403,7 @@ mod root {
         /// The table `StoredVariable` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredVariable` in the file `../../schema/schema/moor_program.fbs:75`
+        /// * Table `StoredVariable` in the file `../../../schema/schema/moor_program.fbs:75`
         #[derive(
             Clone,
             Debug,
@@ -34741,7 +34741,7 @@ mod root {
         /// The table `StoredDecl` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredDecl` in the file `../../schema/schema/moor_program.fbs:82`
+        /// * Table `StoredDecl` in the file `../../../schema/schema/moor_program.fbs:82`
         #[derive(
             Clone,
             Debug,
@@ -35178,7 +35178,7 @@ mod root {
         /// The table `StoredNameDeclPair` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNameDeclPair` in the file `../../schema/schema/moor_program.fbs:91`
+        /// * Table `StoredNameDeclPair` in the file `../../../schema/schema/moor_program.fbs:91`
         #[derive(
             Clone,
             Debug,
@@ -35476,7 +35476,7 @@ mod root {
         /// The table `StoredNames` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNames` in the file `../../schema/schema/moor_program.fbs:96`
+        /// * Table `StoredNames` in the file `../../../schema/schema/moor_program.fbs:96`
         #[derive(
             Clone,
             Debug,
@@ -35792,7 +35792,7 @@ mod root {
         /// The union `StoredScatterLabelUnion` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredScatterLabelUnion` in the file `../../schema/schema/moor_program.fbs:105`
+        /// * Union `StoredScatterLabelUnion` in the file `../../../schema/schema/moor_program.fbs:105`
         #[derive(
             Clone,
             Debug,
@@ -36084,7 +36084,7 @@ mod root {
         /// The table `StoredScatterRequired` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterRequired` in the file `../../schema/schema/moor_program.fbs:111`
+        /// * Table `StoredScatterRequired` in the file `../../../schema/schema/moor_program.fbs:111`
         #[derive(
             Clone,
             Debug,
@@ -36360,7 +36360,7 @@ mod root {
         /// The table `StoredScatterOptional` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterOptional` in the file `../../schema/schema/moor_program.fbs:115`
+        /// * Table `StoredScatterOptional` in the file `../../../schema/schema/moor_program.fbs:115`
         #[derive(
             Clone,
             Debug,
@@ -36745,7 +36745,7 @@ mod root {
         /// The table `StoredScatterRest` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterRest` in the file `../../schema/schema/moor_program.fbs:121`
+        /// * Table `StoredScatterRest` in the file `../../../schema/schema/moor_program.fbs:121`
         #[derive(
             Clone,
             Debug,
@@ -37017,7 +37017,7 @@ mod root {
         /// The table `StoredScatterLabel` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterLabel` in the file `../../schema/schema/moor_program.fbs:125`
+        /// * Table `StoredScatterLabel` in the file `../../../schema/schema/moor_program.fbs:125`
         #[derive(
             Clone,
             Debug,
@@ -37281,7 +37281,7 @@ mod root {
         /// The table `StoredScatterArgs` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterArgs` in the file `../../schema/schema/moor_program.fbs:129`
+        /// * Table `StoredScatterArgs` in the file `../../../schema/schema/moor_program.fbs:129`
         #[derive(
             Clone,
             Debug,
@@ -37609,7 +37609,7 @@ mod root {
         /// The table `StoredForSequenceOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredForSequenceOperand` in the file `../../schema/schema/moor_program.fbs:134`
+        /// * Table `StoredForSequenceOperand` in the file `../../../schema/schema/moor_program.fbs:134`
         #[derive(
             Clone,
             Debug,
@@ -38058,7 +38058,7 @@ mod root {
         /// The table `StoredForRangeOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredForRangeOperand` in the file `../../schema/schema/moor_program.fbs:141`
+        /// * Table `StoredForRangeOperand` in the file `../../../schema/schema/moor_program.fbs:141`
         #[derive(
             Clone,
             Debug,
@@ -38448,7 +38448,7 @@ mod root {
         /// The table `StoredRangeComprehend` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredRangeComprehend` in the file `../../schema/schema/moor_program.fbs:147`
+        /// * Table `StoredRangeComprehend` in the file `../../../schema/schema/moor_program.fbs:147`
         #[derive(
             Clone,
             Debug,
@@ -38820,7 +38820,7 @@ mod root {
         /// The table `StoredListComprehend` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredListComprehend` in the file `../../schema/schema/moor_program.fbs:153`
+        /// * Table `StoredListComprehend` in the file `../../../schema/schema/moor_program.fbs:153`
         #[derive(
             Clone,
             Debug,
@@ -39222,7 +39222,7 @@ mod root {
         /// The table `StoredErrorOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredErrorOperand` in the file `../../schema/schema/moor_program.fbs:164`
+        /// * Table `StoredErrorOperand` in the file `../../../schema/schema/moor_program.fbs:164`
         #[derive(
             Clone,
             Debug,
@@ -39560,7 +39560,7 @@ mod root {
         /// The table `ForkVector` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkVector` in the file `../../schema/schema/moor_program.fbs:173`
+        /// * Table `ForkVector` in the file `../../../schema/schema/moor_program.fbs:173`
         #[derive(
             Clone,
             Debug,
@@ -39853,7 +39853,7 @@ mod root {
         /// The enum `DeclarationKind` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Enum `DeclarationKind` in the file `../../schema/schema/moor_program.fbs:182`
+        /// * Enum `DeclarationKind` in the file `../../../schema/schema/moor_program.fbs:182`
         #[derive(
             Copy,
             Clone,
@@ -40022,7 +40022,7 @@ mod root {
         /// The struct `DeclarationSite` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Struct `DeclarationSite` in the file `../../schema/schema/moor_program.fbs:185`
+        /// * Struct `DeclarationSite` in the file `../../../schema/schema/moor_program.fbs:185`
         #[derive(
             Copy,
             Clone,
@@ -40226,7 +40226,7 @@ mod root {
         /// The table `DeclarationSites` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `DeclarationSites` in the file `../../schema/schema/moor_program.fbs:191`
+        /// * Table `DeclarationSites` in the file `../../../schema/schema/moor_program.fbs:191`
         #[derive(
             Clone,
             Debug,
@@ -40498,7 +40498,7 @@ mod root {
         /// The table `SourceDeclarations` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `SourceDeclarations` in the file `../../schema/schema/moor_program.fbs:195`
+        /// * Table `SourceDeclarations` in the file `../../../schema/schema/moor_program.fbs:195`
         #[derive(
             Clone,
             Debug,
@@ -40811,7 +40811,7 @@ mod root {
         /// The table `StoredMooRProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredMooRProgram` in the file `../../schema/schema/moor_program.fbs:201`
+        /// * Table `StoredMooRProgram` in the file `../../../schema/schema/moor_program.fbs:201`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredMooRProgram {
             /// The field `version` in the table `StoredMooRProgram`
@@ -42837,14 +42837,323 @@ mod root {
             }
         }
 
+        /// The table `StoredNativeProgram` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `StoredNativeProgram` in the file `../../../schema/schema/moor_program.fbs:271`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct StoredNativeProgram {
+            /// The field `library` in the table `StoredNativeProgram`
+            pub library: ::planus::alloc::string::String,
+            /// The field `function` in the table `StoredNativeProgram`
+            pub function: ::planus::alloc::string::String,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for StoredNativeProgram {
+            fn default() -> Self {
+                Self {
+                    library: ::core::default::Default::default(),
+                    function: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl StoredNativeProgram {
+            /// Creates a [StoredNativeProgramBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StoredNativeProgramBuilder<()> {
+                StoredNativeProgramBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_library: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_function: impl ::planus::WriteAs<::planus::Offset<str>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_library = field_library.prepare(builder);
+                let prepared_function = field_function.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<str>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_library);
+                        object_writer.write::<_, _, 4>(&prepared_function);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredNativeProgram>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StoredNativeProgram> for StoredNativeProgram {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                StoredNativeProgram::create(builder, &self.library, &self.function)
+            }
+        }
+
+        /// Builder for serializing an instance of the [StoredNativeProgram] type.
+        ///
+        /// Can be created using the [StoredNativeProgram::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StoredNativeProgramBuilder<State>(State);
+
+        impl StoredNativeProgramBuilder<()> {
+            /// Setter for the [`library` field](StoredNativeProgram#structfield.library).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn library<T0>(self, value: T0) -> StoredNativeProgramBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                StoredNativeProgramBuilder((value,))
+            }
+        }
+
+        impl<T0> StoredNativeProgramBuilder<(T0,)> {
+            /// Setter for the [`function` field](StoredNativeProgram#structfield.function).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn function<T1>(self, value: T1) -> StoredNativeProgramBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                let (v0,) = self.0;
+                StoredNativeProgramBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> StoredNativeProgramBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredNativeProgram].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram>
+            where
+                Self: ::planus::WriteAsOffset<StoredNativeProgram>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StoredNativeProgram>>
+            for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredNativeProgram>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredNativeProgram>>
+            for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredNativeProgram>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredNativeProgram>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StoredNativeProgram> for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                let (v0, v1) = &self.0;
+                StoredNativeProgram::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [StoredNativeProgram].
+        #[derive(Copy, Clone)]
+        pub struct StoredNativeProgramRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> StoredNativeProgramRef<'a> {
+            /// Getter for the [`library` field](StoredNativeProgram#structfield.library).
+            #[inline]
+            pub fn library(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "StoredNativeProgram", "library")
+            }
+
+            /// Getter for the [`function` field](StoredNativeProgram#structfield.function).
+            #[inline]
+            pub fn function(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(1, "StoredNativeProgram", "function")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for StoredNativeProgramRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StoredNativeProgramRef");
+                f.field("library", &self.library());
+                f.field("function", &self.function());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StoredNativeProgramRef<'a>> for StoredNativeProgram {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: StoredNativeProgramRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    library: ::core::convert::Into::into(value.library()?),
+                    function: ::core::convert::Into::into(value.function()?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StoredNativeProgramRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StoredNativeProgramRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StoredNativeProgramRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Value = ::planus::Offset<StoredNativeProgram>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StoredNativeProgram>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StoredNativeProgramRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[StoredNativeProgramRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The union `StoredProgramLanguage` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredProgramLanguage` in the file `../../schema/schema/moor_program.fbs:270`
+        /// * Union `StoredProgramLanguage` in the file `../../../schema/schema/moor_program.fbs:277`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum StoredProgramLanguage {
             /// The variant of type `StoredMooRProgram` in the union `StoredProgramLanguage`
             StoredMooRProgram(::planus::alloc::boxed::Box<self::StoredMooRProgram>),
+
+            /// The variant of type `StoredNativeProgram` in the union `StoredProgramLanguage`
+            StoredNativeProgram(::planus::alloc::boxed::Box<self::StoredNativeProgram>),
         }
 
         impl StoredProgramLanguage {
@@ -42861,6 +43170,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_stored_native_program(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::StoredNativeProgram>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<StoredProgramLanguage> for StoredProgramLanguage {
@@ -42869,6 +43186,9 @@ mod root {
                 match self {
                     Self::StoredMooRProgram(value) => {
                         Self::create_stored_moo_r_program(builder, value)
+                    }
+                    Self::StoredNativeProgram(value) => {
+                        Self::create_stored_native_program(builder, value)
                     }
                 }
             }
@@ -42900,6 +43220,18 @@ mod root {
             ) -> StoredProgramLanguageBuilder<::planus::Initialized<1, T>>
             where
                 T: ::planus::WriteAsOffset<self::StoredMooRProgram>,
+            {
+                StoredProgramLanguageBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`StoredNativeProgram` variant](StoredProgramLanguage#variant.StoredNativeProgram).
+            #[inline]
+            pub fn stored_native_program<T>(
+                self,
+                value: T,
+            ) -> StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+            where
+                T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
             {
                 StoredProgramLanguageBuilder(::planus::Initialized(value))
             }
@@ -42946,11 +43278,39 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<StoredProgramLanguage>
+            for StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<StoredProgramLanguage> {
+                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<StoredProgramLanguage>
+            for StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<StoredProgramLanguage>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [StoredProgramLanguage].
         #[derive(Copy, Clone, Debug)]
         pub enum StoredProgramLanguageRef<'a> {
             StoredMooRProgram(self::StoredMooRProgramRef<'a>),
+            StoredNativeProgram(self::StoredNativeProgramRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<StoredProgramLanguageRef<'a>> for StoredProgramLanguage {
@@ -42960,6 +43320,12 @@ mod root {
                 ::core::result::Result::Ok(match value {
                     StoredProgramLanguageRef::StoredMooRProgram(value) => {
                         Self::StoredMooRProgram(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    StoredProgramLanguageRef::StoredNativeProgram(value) => {
+                        Self::StoredNativeProgram(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -42975,6 +43341,9 @@ mod root {
             ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
                 match tag {
                     1 => ::core::result::Result::Ok(Self::StoredMooRProgram(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    2 => ::core::result::Result::Ok(Self::StoredNativeProgram(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -42993,7 +43362,7 @@ mod root {
         /// The table `StoredProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredProgram` in the file `../../schema/schema/moor_program.fbs:276`
+        /// * Table `StoredProgram` in the file `../../../schema/schema/moor_program.fbs:283`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredProgram {
             /// The field `language` in the table `StoredProgram`
@@ -43230,7 +43599,7 @@ mod root {
         /// The table `LineSpan` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `LineSpan` in the file `../../schema/schema/moor_program.fbs:280`
+        /// * Table `LineSpan` in the file `../../../schema/schema/moor_program.fbs:287`
         #[derive(
             Clone,
             Debug,
@@ -43533,7 +43902,7 @@ mod root {
         /// The table `ForkLineSpans` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkLineSpans` in the file `../../schema/schema/moor_program.fbs:285`
+        /// * Table `ForkLineSpans` in the file `../../../schema/schema/moor_program.fbs:292`
         #[derive(
             Clone,
             Debug,

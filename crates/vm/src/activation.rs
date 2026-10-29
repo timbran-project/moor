@@ -22,8 +22,8 @@ use moor_common::{
 };
 use moor_compiler::{BuiltinId, Program, ScatterLabel};
 use moor_var::{
-    Error, Lambda, List, NOTHING, Obj, Symbol, Var, v_empty_list, v_empty_str, v_list, v_obj,
-    v_str, v_symbol_str,
+    Error, Lambda, List, NOTHING, Obj, Symbol, Var, v_empty_list, v_empty_str, v_list, v_none,
+    v_obj, v_str, v_symbol_str,
 };
 
 use crate::{
@@ -31,7 +31,7 @@ use crate::{
     scatter_assign::scatter_assign,
 };
 use moor_var::program::{
-    ProgramType,
+    NativeProgram, ProgramType,
     names::{GlobalName, Name},
 };
 
@@ -120,6 +120,7 @@ pub struct Activation {
 pub enum Frame {
     Moo(MooStackFrame),
     Bf(BuiltinFrame),
+    Native(NativeFrame),
 }
 
 impl Frame {
@@ -127,7 +128,7 @@ impl Frame {
     pub fn find_line_no(&self) -> Option<usize> {
         match self {
             Frame::Moo(frame) => frame.find_line_no(frame.pc),
-            Frame::Bf(_) => None,
+            Frame::Bf(_) | Frame::Native(_) => None,
         }
     }
 
@@ -140,6 +141,9 @@ impl Frame {
             Frame::Bf(_) => {
                 panic!("set_variable called for a built-in function frame")
             }
+            Frame::Native(_) => {
+                panic!("set_variable called for a native verb frame")
+            }
         }
     }
 
@@ -148,6 +152,9 @@ impl Frame {
             Frame::Moo(frame) => frame.set_gvar(gname, value),
             Frame::Bf(_) => {
                 panic!("set_global_variable called for a built-in function frame")
+            }
+            Frame::Native(_) => {
+                panic!("set_global_variable called for a native verb frame")
             }
         }
     }
@@ -159,6 +166,9 @@ impl Frame {
             }
             Frame::Bf(bf_frame) => {
                 bf_frame.return_value = Some(value);
+            }
+            Frame::Native(native_frame) => {
+                native_frame.return_value = Some(value);
             }
         }
     }
@@ -176,9 +186,51 @@ impl Frame {
                 };
                 return_value.clone()
             }
+            Frame::Native(native_frame) => {
+                let Some(return_value) = native_frame.return_value.as_ref() else {
+                    panic!(
+                        "missing return value for native verb frame '{}:{}'",
+                        native_frame.program.library, native_frame.program.function
+                    )
+                };
+                return_value.clone()
+            }
         }
     }
 }
+
+/// A native verb's activation. The verb runs in steps: it is first called at step 0, and each
+/// time it asks to call a verb or builtin it names the step to resume at and a value to carry,
+/// and is called again there with the callee's result. What it carries between steps is all of
+/// its state, so the frame survives suspension like any other.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NativeFrame {
+    /// The library function that implements the verb.
+    pub program: NativeProgram,
+    /// The verb's `caller`, as a MOO verb's would be.
+    pub caller: Var,
+    /// The verb's arguments.
+    pub args: List,
+    /// The step to run next: 0 at first, then whatever the verb asked to resume at.
+    pub step: u32,
+    /// The value the verb carries to its next step, if it asked for one.
+    pub state: Option<Var>,
+    /// The result of the verb or builtin the verb called, when it resumes.
+    pub return_value: Option<Var>,
+    /// The command's parsing globals, in the order of `PARSING_GLOBALS`, which verbs the native
+    /// verb calls inherit as they would from a MOO verb.
+    pub parsing: Vec<Var>,
+}
+
+/// The parsing globals a verb inherits from the verb that called it.
+pub const PARSING_GLOBALS: [GlobalName; 6] = [
+    GlobalName::argstr,
+    GlobalName::dobj,
+    GlobalName::dobjstr,
+    GlobalName::prepstr,
+    GlobalName::iobj,
+    GlobalName::iobjstr,
+];
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BuiltinFrame {
@@ -304,6 +356,22 @@ impl Activation {
         self.authority = authority;
     }
 
+    /// The parsing globals this activation passes to the verbs it calls, in the order of
+    /// `PARSING_GLOBALS`: a MOO verb's own, or those a native verb carries. A builtin passes
+    /// none.
+    pub fn parsing(&self) -> Option<Vec<Var>> {
+        match &self.frame {
+            Frame::Moo(frame) => Some(
+                PARSING_GLOBALS
+                    .iter()
+                    .map(|name| frame.get_gvar(*name).cloned().unwrap_or_else(v_none))
+                    .collect(),
+            ),
+            Frame::Native(frame) => Some(frame.parsing.clone()),
+            Frame::Bf(_) => None,
+        }
+    }
+
     pub fn is_builtin_frame(&self) -> bool {
         matches!(self.frame, Frame::Bf(_))
     }
@@ -315,6 +383,7 @@ impl Activation {
                 .and_then(Var::as_list)
                 .expect("MOO activation missing list-valued args global"),
             Frame::Bf(frame) => &frame.args,
+            Frame::Native(frame) => &frame.args,
         }
     }
 
@@ -337,13 +406,13 @@ impl Activation {
         // Check if we have a Moo frame to inherit parsing globals from
         let source_frame = current_activation.and_then(|a| match &a.frame {
             Frame::Moo(frame) => Some(frame),
-            Frame::Bf(_) => None,
+            Frame::Bf(_) | Frame::Native(_) => None,
         });
         let player_var = v_obj(player);
         let verb_var = v_symbol_str(verb_name);
         debug_assert!(args.as_list().is_some(), "call args must be a list");
 
-        let moo_frame = match (program, source_frame) {
+        let mut moo_frame = match (program, source_frame) {
             (CallProgram::Materialized(program), Some(source)) => {
                 let ProgramType::MooR(program) = program else {
                     unimplemented!("Only MOO programs are supported")
@@ -395,6 +464,16 @@ impl Activation {
                 )
             }
         };
+        // A native caller hands on the parsing globals it carries, as a MOO caller would.
+        if let Some(Activation {
+            frame: Frame::Native(native),
+            ..
+        }) = current_activation
+        {
+            for (name, value) in PARSING_GLOBALS.iter().zip(&native.parsing) {
+                moo_frame.set_gvar(*name, value.clone());
+            }
+        }
         let frame = Frame::Moo(moo_frame);
 
         Self {
@@ -635,6 +714,39 @@ impl Activation {
             verbdef,
             verb_name: *EVAL_SYMBOL,
             authority: TaskPermissions::new(authority_principal, authority_flags),
+        }
+    }
+
+    /// An activation for a native verb, which runs with its owner's permissions as a MOO verb
+    /// does.
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_native_call(
+        resolved_verb: ResolvedVerb,
+        permissions_flags: BitEnum<ObjFlag>,
+        verb_name: Symbol,
+        this: Var,
+        player: Obj,
+        args: List,
+        caller: Var,
+        program: NativeProgram,
+        parsing: Vec<Var>,
+    ) -> Self {
+        let verb_owner = resolved_verb.owner();
+        Self {
+            frame: Frame::Native(NativeFrame {
+                program,
+                caller,
+                args,
+                step: 0,
+                state: None,
+                return_value: None,
+                parsing,
+            }),
+            this,
+            player,
+            verbdef: resolved_verb,
+            verb_name,
+            authority: TaskPermissions::new(verb_owner, permissions_flags),
         }
     }
 
