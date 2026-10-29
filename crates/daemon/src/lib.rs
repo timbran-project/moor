@@ -249,7 +249,9 @@ fn perform_import(
     // or our own exploded objdef format.
     let commit = match &config.import_export.import_format {
         ImportFormat::Objdef => {
-            let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
+            // The administrator chose this import; it may define native verbs.
+            let mut od =
+                ObjectDefinitionLoader::new(loader_interface.as_mut()).allow_native_verbs();
             let options = moor_objdef::ObjDefLoaderOptions::default();
             let prepared = moor_objdef::ObjDefSet::read_directory_with_baseline(
                 &config.features.compile_options(),

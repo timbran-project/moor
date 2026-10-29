@@ -41,7 +41,7 @@ use moor_compiler::{
 use moor_var::{
     E_ARGS, E_INVARG, E_INVIND, E_PERM, E_TYPE, E_VERBNF, Error, IndexMode, List, Obj, Sequence,
     Symbol, Var, Variant,
-    program::{ProgramType, names::GlobalName},
+    program::{NativeProgram, ProgramType, names::GlobalName},
     v_empty_list, v_list, v_list_iter, v_map_iter, v_obj, v_str, v_string, v_sym,
 };
 
@@ -353,11 +353,10 @@ fn verb_code_var(bf_args: &BfCallState<'_>, obj: &Obj, verb: &VerbDef) -> Result
         return Ok(v_empty_list());
     }
 
-    #[allow(irrefutable_let_patterns)]
-    let ProgramType::MooR(program) = &verb_info.0 else {
-        return Err(BfErr::ErrValue(
-            E_INVARG.msg("verb_code_hash: verb program is not Moo"),
-        ));
+    let program = match &verb_info.0 {
+        ProgramType::MooR(program) => program,
+        // A native verb's binding stands for its code, so rebinding it changes the hash.
+        ProgramType::Native(native) => return Ok(v_list(&[v_str(&native_line(native))])),
     };
     let decompiled = match program_to_tree(program) {
         Ok(decompiled) => decompiled,
@@ -624,11 +623,10 @@ fn bf_verb_code(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Ok(Ret(v_empty_list()));
     }
 
-    #[allow(irrefutable_let_patterns)]
     let ProgramType::MooR(program) = &verb_info.0 else {
-        return Err(BfErr::ErrValue(
-            E_INVARG.msg("verb_code: verb program is not Moo"),
-        ));
+        return Err(BfErr::ErrValue(E_INVARG.msg(
+            "verb_code(): the verb is native and has no MOO code; verb_native() shows its binding",
+        )));
     };
     let decompiled = match program_to_tree(program) {
         Ok(decompiled) => decompiled,
@@ -856,10 +854,9 @@ fn bf_disassemble(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Ok(Ret(v_empty_list()));
     }
 
-    #[allow(irrefutable_let_patterns)]
     let ProgramType::MooR(program) = &program else {
         return Err(BfErr::ErrValue(
-            E_INVARG.msg("disassemble(): verb program is not Moo"),
+            E_INVARG.msg("disassemble(): the verb is native and has no MOO code"),
         ));
     };
 
@@ -1128,6 +1125,102 @@ fn bf_prepositions(_bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_list(&result)))
 }
 
+/// A native verb's binding as one line, which `verb_code_hash()` hashes in place of code.
+fn native_line(native: &NativeProgram) -> String {
+    format!(
+        "native {} {}",
+        to_literal(&v_str(&native.library.as_arc_str())),
+        to_literal(&v_str(&native.function.as_arc_str()))
+    )
+}
+
+/// Usage: `none set_verb_native(obj object, str|int verb_desc, str library, str function)`
+/// Makes the verb native: calling it runs `function` in the native verb library `library`, both
+/// named as the library declares them. The library must be one the server loaded at startup.
+/// Only wizards may do this. Setting the verb's code again makes it a MOO verb.
+fn bf_set_verb_native(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 4 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    bf_args.require_wizard_msg("set_verb_native() requires wizard permissions")?;
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let native = NativeProgram {
+        library: bf_args.args[2].as_symbol().map_err(BfErr::ErrValue)?,
+        function: bf_args.args[3].as_symbol().map_err(BfErr::ErrValue)?,
+    };
+    // Bind only to functions a loaded library declares.
+    bf_args
+        .native_verbs
+        .function(&native)
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(e.message())))?;
+    let update_attrs = VerbAttrs {
+        definer: None,
+        owner: None,
+        names: None,
+        flags: None,
+        args_spec: None,
+        program: Some(ProgramType::Native(native)),
+    };
+    with_current_transaction_mut(|world_state| {
+        world_state.update_verb_with_id(
+            &bf_args.task_permissions(),
+            &obj,
+            verbdef.uuid(),
+            update_attrs,
+        )
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(RetNil)
+}
+
+/// Usage: `list verb_native(obj object, str|int verb_desc)`
+/// Returns `{library, function}` for a native verb, or `{}` for a MOO verb. Reading it needs the
+/// same permission as reading the verb's code.
+fn bf_verb_native(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 2 {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    let Some(obj) = bf_args.args[0].as_object() else {
+        return Err(BfErr::Code(E_TYPE));
+    };
+    if !with_current_transaction(|world_state| world_state.valid(&obj))
+        .map_err(world_state_bf_err)?
+    {
+        return Err(BfErr::Code(E_INVARG));
+    }
+    let verbdef = get_verbdef(&obj, bf_args.args[1].clone(), bf_args)?;
+    let (program, _) = with_current_transaction(|world_state| {
+        world_state.retrieve_verb(&bf_args.task_permissions(), &obj, verbdef.uuid())
+    })
+    .map_err(world_state_bf_err)?;
+    Ok(Ret(match program {
+        ProgramType::Native(native) => v_list(&[
+            v_str(&native.library.as_arc_str()),
+            v_str(&native.function.as_arc_str()),
+        ]),
+        ProgramType::MooR(_) => v_empty_list(),
+    }))
+}
+
+/// Usage: `list native_libraries()`
+/// The native verb libraries the server loaded at startup, each `{name, version, functions}`.
+/// Empty unless the server was started with native libraries. Only wizards may call it.
+fn bf_native_libraries(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if !bf_args.args.is_empty() {
+        return Err(BfErr::Code(E_ARGS));
+    }
+    bf_args.require_wizard_msg("native_libraries() requires wizard permissions")?;
+    Ok(Ret(bf_args.native_verbs.describe()))
+}
+
 pub(crate) fn register_bf_verbs(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("verb_info")] = bf_verb_info;
     builtins[offset_for_builtin("set_verb_info")] = bf_set_verb_info;
@@ -1147,6 +1240,9 @@ pub(crate) fn register_bf_verbs(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("disassemble")] = bf_disassemble;
     builtins[offset_for_builtin("respond_to")] = bf_respond_to;
     builtins[offset_for_builtin("prepositions")] = bf_prepositions;
+    builtins[offset_for_builtin("set_verb_native")] = bf_set_verb_native;
+    builtins[offset_for_builtin("verb_native")] = bf_verb_native;
+    builtins[offset_for_builtin("native_libraries")] = bf_native_libraries;
 }
 
 #[cfg(test)]

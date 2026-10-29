@@ -47,8 +47,8 @@ use moor_vm::{
     Activation as KernelActivation, BuiltinFrame as KernelBuiltinFrame,
     CatchType as KernelCatchType, ExecState as KernelExecState,
     FinallyReason as KernelFinallyReason, Frame as KernelFrame,
-    MooStackFrame as KernelMooStackFrame, PcType as KernelPcType, Scope as KernelScope,
-    ScopeType as KernelScopeType,
+    MooStackFrame as KernelMooStackFrame, NativeFrame as KernelNativeFrame, PcType as KernelPcType,
+    Scope as KernelScope, ScopeType as KernelScopeType,
 };
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
@@ -1261,6 +1261,104 @@ pub(crate) fn bf_frame_from_ref(
     ))
 }
 
+pub(crate) fn native_frame_to_flatbuffer(
+    frame: &KernelNativeFrame,
+) -> Result<fb::NativeFrame, TaskConversionError> {
+    let encode = |value: &Var, what: &str| {
+        var_to_db_flatbuffer(value)
+            .map_err(|e| TaskConversionError::VarError(format!("Error encoding {what}: {e}")))
+    };
+    Ok(fb::NativeFrame {
+        library: Box::new(convert_schema::symbol_to_flatbuffer_struct(
+            &frame.program.library,
+        )),
+        function: Box::new(convert_schema::symbol_to_flatbuffer_struct(
+            &frame.program.function,
+        )),
+        caller: Box::new(encode(&frame.caller, "caller")?),
+        step: frame.step,
+        state: frame
+            .state
+            .as_ref()
+            .map(|v| encode(v, "state"))
+            .transpose()?
+            .map(Box::new),
+        return_value: frame
+            .return_value
+            .as_ref()
+            .map(|v| encode(v, "return_value"))
+            .transpose()?
+            .map(Box::new),
+        parsing: Some(
+            frame
+                .parsing
+                .iter()
+                .map(|v| encode(v, "parsing"))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+    })
+}
+
+pub(crate) fn native_frame_from_ref(
+    fb: fb::NativeFrameRef<'_>,
+) -> Result<KernelNativeFrame, TaskConversionError> {
+    let decoding =
+        |what: &str, e: String| TaskConversionError::DecodingError(format!("{what}: {e}"));
+    let library = fb
+        .library()
+        .map_err(|e| decoding("library", e.to_string()))
+        .and_then(|s| {
+            convert_schema::symbol_from_ref(s).map_err(|e| decoding("library", e.to_string()))
+        })?;
+    let function = fb
+        .function()
+        .map_err(|e| decoding("function", e.to_string()))
+        .and_then(|s| {
+            convert_schema::symbol_from_ref(s).map_err(|e| decoding("function", e.to_string()))
+        })?;
+    let caller =
+        var_from_db_flatbuffer_ref(fb.caller().map_err(|e| decoding("caller", e.to_string()))?)
+            .map_err(|e| TaskConversionError::VarError(format!("caller: {e}")))?;
+    let state = fb
+        .state()
+        .map_err(|e| decoding("state", e.to_string()))?
+        .map(|v| var_from_db_flatbuffer_ref(v))
+        .transpose()
+        .map_err(|e| TaskConversionError::VarError(format!("state: {e}")))?;
+    let return_value = fb
+        .return_value()
+        .map_err(|e| decoding("return_value", e.to_string()))?
+        .map(|v| var_from_db_flatbuffer_ref(v))
+        .transpose()
+        .map_err(|e| TaskConversionError::VarError(format!("return_value: {e}")))?;
+    let parsing = match fb
+        .parsing()
+        .map_err(|e| decoding("parsing", e.to_string()))?
+    {
+        Some(parsing) => parsing
+            .iter()
+            .map(|v| {
+                v.map_err(|e| decoding("parsing", e.to_string()))
+                    .and_then(|v| {
+                        var_from_db_flatbuffer_ref(v)
+                            .map_err(|e| TaskConversionError::VarError(format!("parsing: {e}")))
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        None => vec![moor_var::v_none(); moor_vm::PARSING_GLOBALS.len()],
+    };
+    Ok(KernelNativeFrame {
+        program: moor_var::program::NativeProgram { library, function },
+        caller,
+        // The activation's arguments, restored with it.
+        args: moor_var::List::mk_list(&[]),
+        step: fb.step().map_err(|e| decoding("step", e.to_string()))?,
+        state,
+        return_value,
+        parsing,
+    })
+}
+
 // ============================================================================
 // Frame Conversion
 // ============================================================================
@@ -1278,6 +1376,9 @@ pub(crate) fn frame_to_flatbuffer(frame: &KernelFrame) -> Result<fb::Frame, Task
         KernelFrame::Bf(bf_frame) => {
             let fb_bf = bf_frame_to_flatbuffer(bf_frame)?;
             FrameUnion::BfFrame(Box::new(fb_bf))
+        }
+        KernelFrame::Native(native_frame) => {
+            FrameUnion::NativeFrame(Box::new(native_frame_to_flatbuffer(native_frame)?))
         }
     };
 
@@ -1302,6 +1403,9 @@ pub(crate) fn frame_from_ref(fb: fb::FrameRef<'_>) -> Result<KernelFrame, TaskCo
         FrameUnionRef::BfFrame(bf) => {
             let bf_frame = bf_frame_from_ref(bf)?;
             Ok(KernelFrame::Bf(bf_frame))
+        }
+        FrameUnionRef::NativeFrame(native) => {
+            Ok(KernelFrame::Native(native_frame_from_ref(native)?))
         }
     }
 }
@@ -1536,6 +1640,9 @@ pub(crate) fn activation_from_ref(
         KernelFrame::Bf(bf_frame) => {
             bf_frame.args = args;
         }
+        KernelFrame::Native(native_frame) => {
+            native_frame.args = args;
+        }
     }
 
     let verb_name_ref = fb
@@ -1721,6 +1828,7 @@ pub(crate) fn vm_host_from_ref(fb: fb::VmHostRef<'_>) -> Result<KernelVmHost, Ta
         max_ticks: max_ticks as usize,
         max_time: Duration::from_millis(max_time_ms),
         running: true,
+        passed_limit: None,
         unsync: Default::default(),
     })
 }
@@ -2685,5 +2793,48 @@ mod tests {
         let activation = activation_with_grants(CapabilityGrants::empty());
         let restored = roundtrip_activation(&activation);
         assert!(restored.authority_grants().is_empty());
+    }
+
+    #[test]
+    fn native_frames_survive_flatbuffer_roundtrip() {
+        let frame = KernelNativeFrame {
+            program: moor_var::program::NativeProgram {
+                library: moor_var::Symbol::mk("terrain"),
+                function: moor_var::Symbol::mk("columns"),
+            },
+            caller: v_obj(Obj::mk_id(7)),
+            args: moor_var::List::mk_list(&[v_int(1), v_str("two")]),
+            step: 3,
+            state: Some(v_str("carried")),
+            return_value: Some(v_int(42)),
+            parsing: vec![
+                v_str("apple with knife"),
+                v_obj(Obj::mk_id(17)),
+                v_str("apple"),
+                v_str("with"),
+                v_obj(Obj::mk_id(18)),
+                v_str("knife"),
+            ],
+        };
+        let mut activation = activation_with_grants(CapabilityGrants::empty());
+        activation.frame = KernelFrame::Native(frame.clone());
+        let restored = roundtrip_activation(&activation);
+        let KernelFrame::Native(restored) = restored.frame else {
+            panic!("Expected a native frame back");
+        };
+        assert_eq!(restored, frame);
+
+        // A frame that has carried nothing yet.
+        let first = KernelNativeFrame {
+            state: None,
+            return_value: None,
+            step: 0,
+            ..frame
+        };
+        activation.frame = KernelFrame::Native(first.clone());
+        let KernelFrame::Native(restored) = roundtrip_activation(&activation).frame else {
+            panic!("Expected a native frame back");
+        };
+        assert_eq!(restored, first);
     }
 }

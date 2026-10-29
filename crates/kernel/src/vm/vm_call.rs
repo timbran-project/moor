@@ -97,6 +97,7 @@ impl ExecStateBuiltinExt for ExecState {
             name: bf_name,
             args: &args,
             config: exec_args.config,
+            native_verbs: exec_args.builtin_registry.native_verbs(),
         };
 
         let bf_result = bf(&mut bf_args);
@@ -156,6 +157,7 @@ impl ExecStateBuiltinExt for ExecState {
             // TODO: avoid copy here by using List inside BfCallState
             args: &args,
             config: exec_args.config,
+            native_verbs: exec_args.builtin_registry.native_verbs(),
         };
 
         let bf_result = bf(&mut bf_args);

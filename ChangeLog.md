@@ -54,6 +54,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A lambda captures the variables it calls through. A lambda that called another held in an outer
   variable, such as `{y} => g(y)` or `{y} => handlers[i](y)`, raised `E_VARNF` for that variable
   when it ran. Verbs written that way work once recompiled; verbs that work today are unchanged.
+- The new `moor-native-verb` crate and its C header, which native verb libraries use, are licensed
+  under the GNU Lesser General Public License, version 3 or later. The new mooR Native Verb Library
+  Exception (`NATIVE-VERB-EXCEPTION.md`) lets a native verb library that uses only them be
+  distributed under its own license. mooR itself remains under the AGPL.
+- Native verbs: a verb can run a function from a native library at native speed. They are off unless
+  the daemon is started with `--native-library PATH` (or `runtime.native_libraries`); it loads those
+  libraries at startup and only their declared functions can be bound. Only wizards can bind a verb,
+  with `set_verb_native()`; `verb_native()` and `native_libraries()` show bindings and what is
+  loaded. Objdef files declare one on a single line, as
+  `native NAME owner: OWNER "library" "function"`. A native verb runs as its owner, reads and
+  changes the world through permission-checked functions, and can call verbs and builtins and carry
+  on with their results. Its values stay in the daemon, read and made through a C interface
+  (`moor_native.h`), so libraries can be written in C or, with the `moor-native-verb` crate, Rust.
+  Existing databases are unchanged.
 - Add `binary_pack()`, `binary_unpack()`, `binary_field()`, `binary_set_field()` and
   `binary_set_fields()` for unsigned integers packed into binary values at a fixed width of 1 to 32
   bits. MOO code can read and change compact grids, bitmaps and palette indices without working bit

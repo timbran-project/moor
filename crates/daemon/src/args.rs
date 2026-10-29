@@ -342,6 +342,13 @@ pub struct RuntimeArgs {
         help = "Sampling shift for hot-path timings (0 => exact, 6 => 1/64, default: 6)"
     )]
     pub perf_timing_hot_path_shift: Option<u32>,
+
+    #[arg(
+        long = "native-library",
+        value_name = "PATH",
+        help = "Load a native verb library at startup; repeat for several. Native verbs are off unless a library is listed, and only wizards can bind verbs to its functions"
+    )]
+    pub native_libraries: Vec<std::path::PathBuf>,
 }
 
 impl RuntimeArgs {
@@ -367,6 +374,12 @@ impl RuntimeArgs {
         }
         if let Some(args) = self.perf_timing_hot_path_shift {
             config.perf_timing_hot_path_shift = Some(args);
+        }
+        // Libraries named on the command line add to those the configuration file lists.
+        for path in &self.native_libraries {
+            if !config.native_libraries.contains(path) {
+                config.native_libraries.push(path.clone());
+            }
         }
         Ok(())
     }
@@ -426,6 +439,7 @@ impl Args {
         // than in each merge means a setting is validated the same way whether it came from the
         // file or the command line.
         config.validate().map_err(|e| eyre::eyre!(e))?;
+        let config = config.with_native_verbs().map_err(|e| eyre::eyre!(e))?;
         let config = Arc::new(config);
         Ok(config)
     }

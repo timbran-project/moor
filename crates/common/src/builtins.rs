@@ -1030,6 +1030,15 @@ fn mk_builtin_table() -> Vec<Builtin> {
             vec![Typed(TYPE_OBJ), Any, Typed(TYPE_STR), Any],
             true,
         ),
+        mk_builtin(
+            "set_verb_native",
+            Q(4),
+            Q(4),
+            vec![Typed(TYPE_OBJ), Any, Any, Any],
+            true,
+        ),
+        mk_builtin("verb_native", Q(2), Q(2), vec![Typed(TYPE_OBJ), Any], true),
+        mk_builtin("native_libraries", Q(0), Q(0), vec![], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "verbs");

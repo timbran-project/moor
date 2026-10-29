@@ -42,7 +42,7 @@ use crate::{
     },
 };
 
-use moor_common::tasks::{Exception, NoopSystemControl, Session};
+use moor_common::tasks::{AbortLimitReason, Exception, NoopSystemControl, Session};
 use moor_compiler::BUILTINS;
 use moor_vm::{ExecutionResult, FinallyReason, Frame};
 
@@ -108,6 +108,7 @@ pub fn benchmark_builtin_direct_function(
                 name: bf_name,
                 args,
                 config,
+                native_verbs: &crate::native_verbs::NativeVerbs::default(),
             };
             bf(&mut bf_args)
         };
@@ -234,6 +235,20 @@ fn execute<F>(
 where
     F: FnOnce(&mut VmHost),
 {
+    execute_within_limits(world_state, session, builtins, fun)
+        .unwrap_or_else(|reason| panic!("Unexpected abort: {reason:?}"))
+}
+
+/// Run until the task completes, or until it exceeds its tick or time limit.
+fn execute_within_limits<F>(
+    world_state: Box<dyn WorldState>,
+    session: Arc<dyn Session>,
+    builtins: BuiltinRegistry,
+    fun: F,
+) -> Result<ExecResult, AbortLimitReason>
+where
+    F: FnOnce(&mut VmHost),
+{
     let mut vm_host = VmHost::new(0, 20, 90_000, Duration::from_secs(5));
 
     let _tx_guard = setup_task_context(world_state);
@@ -260,18 +275,20 @@ where
                 // For testing, execute the fork separately (sequentially)
                 // If the fork fails, propagate the error to terminate main execution
                 let fork_result = execute_fork(session.clone(), &builtins, *f, 1);
-                fork_result?;
+                if let Err(exception) = fork_result {
+                    return Ok(Err(exception));
+                }
                 // Continue main execution after successful fork dispatch
                 continue;
             }
-            VMHostResponse::AbortLimit(a) => {
-                panic!("Unexpected abort: {a:?}");
+            VMHostResponse::AbortLimit(reason) => {
+                return Err(reason);
             }
             VMHostResponse::CompleteException(e) => {
-                return Err(e.as_ref().clone());
+                return Ok(Err(e.as_ref().clone()));
             }
             VMHostResponse::CompleteSuccess(v) => {
-                return Ok(v);
+                return Ok(Ok(v));
             }
             VMHostResponse::CompleteAbort => {
                 panic!("Unexpected abort");
@@ -299,6 +316,19 @@ pub fn call_verb(
     verb_name: &str,
     args: List,
 ) -> ExecResult {
+    call_verb_within_limits(world_state, session, builtins, verb_name, args)
+        .unwrap_or_else(|reason| panic!("Unexpected abort: {reason:?}"))
+}
+
+/// Call a verb on #0 as `call_verb` does, reporting a task that exceeds its tick or time limit
+/// instead of panicking.
+pub fn call_verb_within_limits(
+    world_state: Box<dyn WorldState>,
+    session: Arc<dyn Session>,
+    builtins: BuiltinRegistry,
+    verb_name: &str,
+    args: List,
+) -> Result<ExecResult, AbortLimitReason> {
     // Set up the verb call before starting transaction context
     let verb_name = Symbol::mk(verb_name);
     let system_permissions = TaskPermissions::new(SYSTEM_OBJECT, BitEnum::new());
@@ -324,7 +354,7 @@ pub fn call_verb(
 
     // Use wizard + programmer flags for testing
     let permissions_flags = BitEnum::new_with(ObjFlag::Wizard) | ObjFlag::Programmer;
-    execute(world_state, session, builtins, |vm_host| {
+    execute_within_limits(world_state, session, builtins, |vm_host| {
         vm_host.start_call_method_verb(
             0,
             verbdef,
@@ -387,7 +417,9 @@ impl ActivationBenchResult {
 }
 
 pub fn program_slot_for_bench(program: &moor_var::program::ProgramType) -> moor_vm::ProgramSlot {
-    let moor_var::program::ProgramType::MooR(program) = program;
+    let moor_var::program::ProgramType::MooR(program) = program else {
+        panic!("benchmarks run MOO code");
+    };
     moor_vm::ProgramSlot {
         // SAFETY: the benchmark keeps the compiled program alive for the duration of the frame.
         program_ptr: unsafe { moor_vm::CachedProgramPtr::from_program(program) },

@@ -432,6 +432,20 @@ verb "look_self" (this none none) owner: WIZARD flags: "rxd"
 endverb
 ```
 
+### Native verbs
+
+A native verb's body is a function in a native verb library, so it has no code. It is declared on
+one line with `native` in place of `verb` or `method`, and has no end keyword. The library and
+function names follow the owner and flags, then any metadata:
+
+```moo
+native column owner: WIZARD "terrain" "column"
+native "fill fill_*" (this none any) owner: WIZARD flags: "rd" "terrain" "fill" [note -> 1]
+```
+
+The argument specification and flags are optional and default as for a method, to `(this none this)`
+and `"rxd"`. Loading a native verb needs wizard authority. See [Native Verbs](native-verbs.md).
+
 ### Constants in verb code
 
 Verb code can name an object constant of a package qualified, even inside that package:
