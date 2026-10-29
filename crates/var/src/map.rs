@@ -26,6 +26,11 @@ use std::{cmp::Ordering, hash::Hash};
 pub struct Map(Box<imbl::OrdMap<Var, Var>>);
 
 impl Map {
+    /// Whether both share the same storage. See `Var::is_identical`.
+    pub fn is_identical(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+
     // Construct from an Iterator of pairs
     pub(crate) fn build<'a, I: Iterator<Item = &'a (Var, Var)>>(pairs: I) -> Var {
         let map = pairs

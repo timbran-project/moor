@@ -45,6 +45,23 @@ pub enum ListAppendError {
 }
 
 impl List {
+    /// Whether both share the same storage, or are small lists of identical items: never true
+    /// for lists that differ. See `Var::is_identical`.
+    pub fn is_identical(&self, other: &Self) -> bool {
+        if self.0.ptr_eq(&other.0) {
+            return true;
+        }
+        // A small list is held inline, so no copy shares its storage; its few items decide.
+        self.0.is_inline()
+            && other.0.is_inline()
+            && self.0.len() == other.0.len()
+            && self
+                .0
+                .iter()
+                .zip(other.0.iter())
+                .all(|(a, b)| a.is_identical(b))
+    }
+
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
