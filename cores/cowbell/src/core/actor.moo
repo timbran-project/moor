@@ -14,6 +14,7 @@ object ACTOR [
   property wearing (owner: ARCH_WIZARD, flags: "rc") = {};
   property plan (owner: ARCH_WIZARD, flags: "r") = 0;
   property plan_schedule (owner: ARCH_WIZARD, flags: "r") = 0;
+  property plan_tick (owner: ARCH_WIZARD, flags: "rc") = 0;
 
   override description (owner: ARCH_WIZARD, flags: "rc") = "Generic actor prototype providing core behavior for NPCs and players including item transfer, communication, and movement.";
 

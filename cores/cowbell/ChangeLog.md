@@ -38,6 +38,9 @@ Cowbell entries.
   `$planner:why(npc)` says what the NPC is doing and why. The `$errands` playbook walks NPCs to
   rooms and fetches items. New world facts `location_of` and `next_step` and the action `go`
   support travel.
+- A goal that ends an approach replaces it on the NPC's plan, so an approach that repeats by ending
+  with its own goal, such as walking or tilling a field cell by cell, can run any number of times.
+  An actor's `plan_tick` sets how often its plan advances, instead of the planner's default.
 - `$wiz_features:grant_wizard(target, ?tools)` makes a player a wizard as `@wizard` does and returns
   what they had before; `revoke_wizard(target, ?before)` takes wizard status back and, given that
   record, restores the player.

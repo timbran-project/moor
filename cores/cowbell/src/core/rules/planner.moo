@@ -18,9 +18,9 @@ object PLANNER [
     "",
     "`pursue(npc, playbook, goal, inputs)` has an owned NPC work towards a goal, replacing its current plan. `abandon(npc)` stops it. `why(npc)` describes the plan.",
     "",
-    "Each tick the planner chooses approaches for open goals, in the order the playbook defines them, and runs at most one action. Before an action runs, its requirement is checked against the world as it is. A failed step marks its approach and matches as failed for a while, and the goal tries its next approach on the next tick. When no approach applies, the goal fails and its parent's approach fails in turn.",
+    "Each tick the planner chooses approaches for open goals, in the order the playbook defines them, and runs at most one action. A goal that is an approach's last step replaces that approach on the plan, so an approach that repeats by ending with its own goal can run any number of times. Before an action runs, its requirement is checked against the world as it is. A failed step marks its approach and matches as failed for a while, and the goal tries its next approach on the next tick. When no approach applies, the goal fails and its parent's approach fails in turn.",
     "",
-    "Steps run with the NPC owner's permissions. A plan can use playbooks owned by the NPC's owner or by a wizard. Players do not run plans. The NPC hears `on_plan_done` or `on_plan_failed` when its plan ends."
+    "An NPC's `plan_tick`, when set, replaces the planner's `tick_seconds` for it. Steps run with the NPC owner's permissions. A plan can use playbooks owned by the NPC's owner or by a wizard. Players do not run plans. The NPC hears `on_plan_done` or `on_plan_failed` when its plan ends."
   };
 
   method pursue owner: ARCH_WIZARD
@@ -122,6 +122,11 @@ object PLANNER [
         values[field] = $condition:resolve(step['arguments][field], environment);
       endfor
       if (step['kind] == 'goal)
+        if (frame['step] == length(approach['steps]))
+          "A goal that ends an approach takes its place, so a repeating approach does not deepen the plan.";
+          plan['frames][length(plan['frames])] = $planner:_frame(step['name], values);
+          continue;
+        endif
         if (length(plan['frames]) >= $planner.max_depth)
           plan = $planner:_fail_approach(npc, plan, "Goals are nested too deeply.");
           continue;
@@ -137,10 +142,10 @@ object PLANNER [
         plan = $planner:_fail_approach(npc, plan, step['text] + ": " + result['reason]);
       endif
       npc.plan = plan;
-      return $planner.tick_seconds;
+      return $planner:_tick_seconds(npc);
     endfor
     npc.plan = plan;
-    return $planner.tick_seconds;
+    return $planner:_tick_seconds(npc);
   endmethod
 
   method _choose owner: ARCH_WIZARD
@@ -234,6 +239,13 @@ object PLANNER [
       server_log("Plan reaction on " + toliteral(npc) + " failed: " + error[2]);
     endtry
     return 0;
+  endmethod
+
+  method _tick_seconds owner: HACKER
+    "How long an NPC waits between plan ticks: its own plan_tick when it sets one, else the planner's.";
+    const {npc} = args;
+    const own = `npc.plan_tick ! E_PROPNF => 0';
+    return typeof(own) in {TYPE_INT, TYPE_FLOAT} && tofloat(own) > 0.0 ? own | $planner.tick_seconds;
   endmethod
 
   method _stop owner: ARCH_WIZARD

@@ -134,4 +134,24 @@ object HEADLESS_RULE_SCENARIOS [
     endtry
     return true;
   endmethod
+
+  method test_headless_repeating_goals_stay_shallow owner: core::ARCH_WIZARD
+    "An approach that ends with its own goal repeats without deepening the plan, well past the depth limit.";
+    const tick = $planner.tick_seconds;
+    $planner.tick_seconds = 0.01;
+    const book = create($playbook);
+    const npc = create($actor);
+    try
+      $playbook:define_goal(book, 'count_down, ['n -> 'integer], "Count down to zero.");
+      $playbook:define_approach(book, 'count_down, 'zero, "input.n == 0", {});
+      $playbook:define_approach(book, 'count_down, 'more, "input.n > 0", {{'goal, 'count_down, ['n -> "input.n - 1"]}});
+      $planner:pursue(npc, book, 'count_down, ['n -> $planner.max_depth * 3]);
+      $test_utils:assert_eq(this:_await_plan(npc), 'done, "The countdown finishes: " + toliteral($planner:why(npc)));
+    finally
+      $planner.tick_seconds = tick;
+      npc:destroy();
+      book:destroy();
+    endtry
+    return true;
+  endmethod
 endobject
