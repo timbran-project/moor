@@ -779,6 +779,22 @@ object RELATION [
     return true;
   endmethod
 
+  method test_fields_may_be_named_source owner: HACKER
+    "A field named source is an ordinary field in conditions, as an input and as an output, though syntax records use the name for positions.";
+    const rel = $relation:create(0);
+    try
+      $relation:define_fields(rel, {'source, 'target}, ['source -> 'integer, 'target -> 'integer]);
+      rel:assert({1, 2});
+      const by_input = $rule_engine:parse_expression("relation(" + tostr(rel) + ", source: 1) -> (target: T)");
+      $test_utils:assert_eq($rule_engine:evaluate(by_input)['bindings], ['T -> 2], "source as an input");
+      const by_output = $rule_engine:parse_expression("relation(" + tostr(rel) + ", target: 2) -> (source: S)");
+      $test_utils:assert_eq($rule_engine:evaluate(by_output)['bindings], ['S -> 1], "source as an output");
+    finally
+      $test_utils:destroy_if_valid(rel);
+    endtry
+    return true;
+  endmethod
+
   method test_fact_triggers owner: ARCH_WIZARD
     "Installing a fact reaction watches its relation; only the relation's own tasks deliver changes.";
     const rel = $relation:create(true);
@@ -808,7 +824,7 @@ object RELATION [
     set_task_perms(caller_perms());
     const {relation, fields, values, limit} = args;
     const schema = $relation:schema(relation, fields);
-    $behavior_schema:_fields(values, {}, mapkeys(fields), "relation inputs");
+    $behavior_schema:_names(values, {}, mapkeys(fields), "relation inputs");
     for field in (mapkeys(values))
       $behavior_schema:_type(values[field], fields[field], "relation input " + tostr(field));
     endfor

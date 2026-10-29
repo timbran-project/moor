@@ -448,7 +448,7 @@ object REACTION [
       const reference = typeof(target) == TYPE_OBJ ? ['kind -> 'literal, 'value -> target] | target;
       const fields = typeof(required) == TYPE_MAP ? required | $relation:schema($condition:relation_target(reference, []))['types];
       $behavior_schema:_types(fields, "fact fields");
-      $behavior_schema:_fields(arguments, mapkeys(fields), {}, "fact arguments");
+      $behavior_schema:_names(arguments, mapkeys(fields), {}, "fact arguments");
       if (lasts > 0)
         return <$reaction, .type = kind, .relation = reference, .fields = fields, .arguments = arguments, .lasts = lasts>;
       endif
@@ -457,7 +457,7 @@ object REACTION [
     const {_, name, arguments} = spec;
     const schemas = $reaction:action_schemas();
     maphaskey(schemas, name) || raise(E_INVARG, "Unknown action: " + tostr(name));
-    $behavior_schema:_fields(arguments, mapkeys(schemas[name]['inputs]), {}, "action arguments");
+    $behavior_schema:_names(arguments, mapkeys(schemas[name]['inputs]), {}, "action arguments");
     return <$reaction, .type = 'action, .action = name, .arguments = arguments>;
   endmethod
 

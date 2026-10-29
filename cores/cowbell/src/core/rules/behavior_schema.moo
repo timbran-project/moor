@@ -139,7 +139,7 @@ object BEHAVIOR_SCHEMA [
         $behavior_schema:_compatible($behavior_schema:expression(node['relation], scope), 'object, path);
         $behavior_schema:_types(node['fields], path + ".fields");
         length(node['fields]) > 0 || raise(E_INVARG, path + ": declare relation fields first");
-        $behavior_schema:_fields(node['arguments], {}, mapkeys(node['fields]), path + ".arguments");
+        $behavior_schema:_names(node['arguments], {}, mapkeys(node['fields]), path + ".arguments");
         let inputs = [];
         for field in (mapkeys(node['arguments]))
           inputs[field] = node['fields][field];
@@ -150,7 +150,7 @@ object BEHAVIOR_SCHEMA [
         predicate = $behavior_schema:_entry(predicates, node['name], path);
       endif
       nodes = $behavior_schema:_arguments(node['arguments], predicate['inputs], scope, path, nodes, predicates);
-      $behavior_schema:_fields(node['bind], {}, mapkeys(predicate['outputs]), path + ".bind");
+      $behavior_schema:_names(node['bind], {}, mapkeys(predicate['outputs]), path + ".bind");
       for output in (mapkeys(node['bind]))
         const name = node['bind][output];
         $behavior_schema:_name(name, path + ".bind");
@@ -264,7 +264,7 @@ object BEHAVIOR_SCHEMA [
     "Validate actual input, parameter, or state values against a type map. Return values unchanged.";
     const {values, types, ?path = "bindings"} = args;
     $behavior_schema:_types(types, path + ".types");
-    $behavior_schema:_fields(values, mapkeys(types), {}, path);
+    $behavior_schema:_names(values, mapkeys(types), {}, path);
     for name in (mapkeys(types))
       $behavior_schema:_type(values[name], types[name], path + "." + tostr(name));
     endfor
@@ -324,7 +324,7 @@ object BEHAVIOR_SCHEMA [
   method _arguments owner: HACKER
     "Validate named argument expressions against an operation's complete input schema. Inside a condition, values may count conditions.";
     const {arguments, inputs, scope, path, count, ?predicates = 0} = args;
-    $behavior_schema:_fields(arguments, mapkeys(inputs), {}, path + ".arguments");
+    $behavior_schema:_names(arguments, mapkeys(inputs), {}, path + ".arguments");
     for name in (mapkeys(inputs))
       const actual = $behavior_schema:expression(arguments[name], scope, path + ".arguments." + tostr(name), predicates);
       $behavior_schema:_compatible(actual, inputs[name], path + ".arguments." + tostr(name));
@@ -350,8 +350,8 @@ object BEHAVIOR_SCHEMA [
     return entries[name];
   endmethod
 
-  method _fields owner: HACKER
-    "Require exact symbol-keyed records. Validate source positions when the shape permits them.";
+  method _names owner: HACKER
+    "Require a symbol-keyed map with every required name and no names beyond the optional ones. The names are the map's own: a name such as source carries no meaning here.";
     const {record, required, optional, path} = args;
     typeof(record) == TYPE_MAP || raise(E_INVARG, path + ": expected record");
     for name in (required)
@@ -360,6 +360,12 @@ object BEHAVIOR_SCHEMA [
     for name in (mapkeys(record))
       typeof(name) == TYPE_SYM && name in {@required, @optional} || raise(E_INVARG, path + ": unknown field " + toliteral(name));
     endfor
+  endmethod
+
+  method _fields owner: HACKER
+    "Require exact symbol-keyed records. Validate source positions when the shape permits them. For maps keyed by declared names, such as arguments and bindings, use _names.";
+    const {record, required, optional, path} = args;
+    $behavior_schema:_names(record, required, optional, path);
     if ('source in optional && maphaskey(record, 'source))
       const source = record['source];
       $behavior_schema:_fields(source, {'start, 'end}, {}, path + ".source");

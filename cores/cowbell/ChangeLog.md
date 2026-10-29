@@ -347,6 +347,8 @@ Cowbell entries.
 
 ### Fixed
 
+- Predicates, relations and actions can have a field named `source`. Conditions that used one failed
+  to validate with "expected record", because the name was read as the parser's source positions.
 - A room's `show_arrival`, `on_contents_enter` and `on_contents_exit`, and a thing's
   `on_location_enter` and `on_location_exit`, that raise an error are logged with where they failed.
   They failed silently before. A failing hook still does not stop the others.
