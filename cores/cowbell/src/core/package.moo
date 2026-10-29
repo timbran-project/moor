@@ -44,6 +44,7 @@ define ADMIN_FEATURES = #87;
 define MAIL_FEATURES = #97;
 
 // format
+define ANSI = #26;
 define FORMAT = #29;
 define FORMAT_BLOCK = #30;
 define FORMAT_TITLE = #31;

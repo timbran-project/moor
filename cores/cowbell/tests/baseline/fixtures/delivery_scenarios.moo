@@ -146,7 +146,6 @@ object DELIVERY_SCENARIOS [
     for component in ({$document, $document_node, $document_template, $document_resolver, $document_renderer, $document_schema, $format.djot})
       $test_utils:assert_true(component in package["objects"] != 0, "document component is managed");
     endfor
-    $test_utils:assert_false(maphaskey(package["constants"], "ANSI"), "obsolete terminal API removed");
     $test_utils:assert_false(maphaskey(package["constants"], "HTML"), "obsolete markup API removed");
     return true;
   endmethod

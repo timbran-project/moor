@@ -11,6 +11,7 @@ object SYSOBJ [
   property agent_building_tools (owner: HACKER, flags: "r") = AGENT_BUILDING_TOOLS;
   property agent_room (owner: ARCH_WIZARD, flags: "rc") = AGENT_ROOM;
   property ambiguous_match (owner: HACKER, flags: "r") = #-2;
+  property ansi (owner: HACKER, flags: "r") = ANSI;
   property arch_wizard (owner: HACKER, flags: "r") = ARCH_WIZARD;
   property architects_compass (owner: HACKER, flags: "r") = ARCHITECTS_COMPASS;
   property area (owner: HACKER, flags: "r") = AREA;

@@ -350,6 +350,9 @@ Cowbell entries.
 
 ### Fixed
 
+- `$ansi` is back, as it was before document delivery removed it: colours and styles, 256-colour
+  and RGB codes, `colorize`, `wrap` and `strip`. Document rendering already passes ANSI style
+  sequences through to clients that show them.
 - Predicates, relations and actions can have a field named `source`. Conditions that used one failed
   to validate with "expected record", because the name was read as the parser's source positions.
 - A room's `show_arrival`, `on_contents_enter` and `on_contents_exit`, and a thing's
