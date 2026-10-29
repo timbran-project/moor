@@ -19,7 +19,11 @@ use moor_compiler::{
     NAMESPACE_SEPARATOR, ObjPropDef, ObjPropOverride, ObjVerbDef, ObjectDefinition,
     PackageDeclaration, program_to_tree, to_literal, to_literal_objsub, unparse_objsub,
 };
-use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType, v_arc_str, v_str, v_string};
+use moor_var::{
+    NOTHING, Obj, Symbol, Var,
+    program::{NativeProgram, ProgramType},
+    v_arc_str, v_str, v_string,
+};
 use std::{collections::HashMap, io::Write, path::Path};
 
 pub(crate) struct DumpLines {
@@ -332,7 +336,12 @@ fn write_verb<W: Write>(
         to_literal(&v_string(joined_names.clone()))
     };
 
-    let ProgramType::MooR(program) = &v.program;
+    let program = match &v.program {
+        ProgramType::Native(native) => {
+            return write_native_verb(index_names, indent, v, &names, native, options, writer);
+        }
+        ProgramType::MooR(program) => program,
+    };
     let decompiled = program_to_tree(program).map_err(|e| ObjectDumpError::DecompileError {
         obj: *obj,
         verb_name: joined_names.clone(),
@@ -398,6 +407,53 @@ fn write_verb<W: Write>(
         }
         writeln!(writer, "{indent}endverb")?;
     }
+    Ok(())
+}
+
+/// A native verb on one line, `native NAMES [(ARGSPEC)] owner: OWNER [flags: "FLAGS"] "library"
+/// "function"`, leaving out the method defaults `(this none this)` and `"rxd"`.
+fn write_native_verb<W: Write>(
+    index_names: &HashMap<Obj, String>,
+    indent: &str,
+    v: &ObjVerbDef,
+    names: &str,
+    native: &NativeProgram,
+    options: ObjectDumpOptions,
+    writer: &mut W,
+) -> Result<(), ObjectDumpError> {
+    let owner = canon_name(&v.owner, index_names);
+    let mut header = format!("{indent}native {names}");
+    if v.argspec != VerbArgsSpec::this_none_this() {
+        let prepspec = match v.argspec.prep {
+            PrepSpec::Any => "any".to_string(),
+            PrepSpec::None => "none".to_string(),
+            PrepSpec::Other(p) => p.to_string_single().to_string(),
+        };
+        header.push_str(&format!(
+            " ({} {prepspec} {})",
+            v.argspec.dobj.to_string(),
+            v.argspec.iobj.to_string()
+        ));
+    }
+    header.push_str(&format!(" owner: {owner}"));
+    if v.flags != VerbFlag::rxd() {
+        header.push_str(&format!(" flags: \"{}\"", verb_perms_string(v.flags)));
+    }
+    header.push_str(&format!(
+        " {} {}",
+        to_literal(&v_str(&native.library.to_string())),
+        to_literal(&v_str(&native.function.to_string())),
+    ));
+    write!(writer, "{header}")?;
+    write_metadata_suffix(
+        index_names,
+        indent,
+        header.len(),
+        &v.metadata,
+        options,
+        writer,
+    )?;
+    writeln!(writer)?;
     Ok(())
 }
 
@@ -643,6 +699,48 @@ mod tests {
         );
         assert!(text.contains("method test owner: #1\n"));
         assert_eq!(crate::dump_object(&HashMap::new(), object).unwrap(), full);
+    }
+
+    #[test]
+    fn native_verbs_dump_their_binding_and_read_back() {
+        let source = r#"
+            object #1
+                native column owner: #1 "terrain" "column" [ note -> 1 ]
+                native "fill" (this none any) owner: #1 flags: "rd" "terrain" "fill"
+            endobject
+        "#;
+        let mut context = moor_compiler::ObjFileContext::new();
+        let definitions =
+            moor_compiler::compile_object_definitions(source, &Default::default(), &mut context)
+                .unwrap();
+        let text = crate::dump_object(&HashMap::new(), &definitions[0])
+            .unwrap()
+            .iter()
+            .map(|line| line.as_string().unwrap().to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            text.contains("native column owner: #1 \"terrain\" \"column\" ["),
+            "{text}"
+        );
+        assert!(
+            text.contains(
+                "native fill (this none any) owner: #1 flags: \"rd\" \"terrain\" \"fill\""
+            ),
+            "{text}"
+        );
+        assert!(
+            !text.contains("endmethod") && !text.contains("endverb"),
+            "{text}"
+        );
+        let mut context = moor_compiler::ObjFileContext::new();
+        let parsed =
+            moor_compiler::compile_object_definitions(&text, &Default::default(), &mut context)
+                .unwrap();
+        for (read_back, original) in parsed[0].verbs.iter().zip(&definitions[0].verbs) {
+            assert_eq!(read_back.program, original.program);
+            assert_eq!(read_back.metadata, original.metadata);
+        }
     }
 
     #[test]

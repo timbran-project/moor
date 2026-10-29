@@ -23,6 +23,7 @@
 //! - lambda (2): the identity of the verb that defines it; the name is the lambda's
 //! - builtin (3): `a` is the builtin ID
 //! - eval (4): no identity
+//! - native (5): a verb implemented by a native library; identity as for a verb
 //! - none (0): the stack is empty
 //!
 //! `name_ptr` and `name_len` give the name as UTF-8, valid for the duration of the probe. The book
@@ -38,6 +39,7 @@ const FRAME_VERB: u64 = 1;
 const FRAME_LAMBDA: u64 = 2;
 const FRAME_BUILTIN: u64 = 3;
 const FRAME_EVAL: u64 = 4;
+const FRAME_NATIVE: u64 = 5;
 
 struct FrameIdentity<'a> {
     kind: u64,
@@ -81,6 +83,7 @@ impl<'a> FrameIdentity<'a> {
             }
             Frame::Moo(frame) if matches!(frame.pc_type, PcType::Lambda(_)) => FRAME_LAMBDA,
             Frame::Moo(_) => FRAME_VERB,
+            Frame::Native(_) => FRAME_NATIVE,
         };
         let (b, c) = activation.verbdef.uuid().as_u64_pair();
         Self {

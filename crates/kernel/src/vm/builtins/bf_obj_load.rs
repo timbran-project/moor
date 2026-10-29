@@ -263,9 +263,14 @@ fn direct_import(bf_args: &mut BfCallState<'_>, reload: bool) -> Result<BfRet, B
     let source = source_text(&bf_args.args[0])?;
     let options = direct_options(bf_args, reload)?;
     let compile_options = bf_args.config.compile_options();
+    // A builtin grant does not reach native verbs; only a wizard may define them.
+    let wizard = bf_args.require_wizard_msg("").is_ok();
     let mut mutation_started = false;
     let result = with_loader_interface(|loader| {
         let mut loader = moor_objdef::ObjectDefinitionLoader::new(loader);
+        if wizard {
+            loader = loader.allow_native_verbs();
+        }
         let result = if reload {
             let target = match options.object_kind {
                 Some(ObjectKind::Objid(obj)) => Some(obj),

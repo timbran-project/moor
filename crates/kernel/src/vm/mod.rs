@@ -189,6 +189,21 @@ fn extract_anonymous_refs_from_activation(
                 extract_anonymous_refs_from_var(return_value, refs);
             }
         }
+        Frame::Native(native_frame) => {
+            extract_anonymous_refs_from_var(&native_frame.caller, refs);
+            for arg in native_frame.args.iter() {
+                extract_anonymous_refs_from_var(&arg, refs);
+            }
+            for value in &native_frame.parsing {
+                extract_anonymous_refs_from_var(value, refs);
+            }
+            for value in [&native_frame.state, &native_frame.return_value]
+                .into_iter()
+                .flatten()
+            {
+                extract_anonymous_refs_from_var(value, refs);
+            }
+        }
     }
 
     // 2. Scan activation-level variables

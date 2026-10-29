@@ -14,6 +14,7 @@
 //! Testing utilities and mocks for the kernel crate
 
 pub mod language_test;
+pub mod native_verb_test;
 pub mod scheduler_test_utils;
 pub mod vm_test;
 pub mod vm_test_utils;

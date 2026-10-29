@@ -110,8 +110,8 @@ machine with several cores.
 
 The time is **self time**: a verb's row counts only the time spent running that verb's own code.
 Time in a verb it calls, or in a builtin it calls, goes to that verb's or builtin's row. Lambdas
-count as part of the verb that defines them. Time spent committing goes to the commits line, not to
-the verb.
+count as part of the verb that defines them. [Native verbs](native-verbs.md) appear as verbs, marked
+`(native)`. Time spent committing goes to the commits line, not to the verb.
 
 Samples only see work on a CPU. A task that is suspended, or waiting for input or for a worker,
 costs nothing and doesn't appear. `mootop` shows where CPU goes, not why a command is slow to
@@ -173,10 +173,10 @@ scripts, `perf`, or other USDT tools.
 | `metric`        | `name_ptr, name_len, labels_ptr, labels_len, kind, part, value, bound` | Once per metric value, between `metrics_begin` and `metrics_end`                                      |
 | `metrics_end`   | none                                                                   | After the last value                                                                                  |
 
-`kind` is 0 for no frame (an empty stack), 1 for a verb, 2 for a lambda, 3 for a builtin, and 4 for
-an eval. For a verb or a lambda, `a` is the definer object and `b` and `c` are the verb ID's two
-halves; for a builtin, `a` is the builtin's number. `name_ptr` and `name_len` give the name, valid
-only while the probe runs.
+`kind` is 0 for no frame (an empty stack), 1 for a verb, 2 for a lambda, 3 for a builtin, 4 for an
+eval, and 5 for a native verb. For a verb, a lambda or a native verb, `a` is the definer object and
+`b` and `c` are the verb ID's two halves; for a builtin, `a` is the builtin's number. `name_ptr` and
+`name_len` give the name, valid only while the probe runs.
 
 For `metric`, `labels` are `key=value` pairs joined by commas. `kind` is 0 for a counter, 1 for a
 gauge, 2 for a histogram. `part` says what `value` is: 0 an integer, 1 the bits of a float, 2 a

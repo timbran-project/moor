@@ -548,6 +548,7 @@ async fn main() -> Result<(), eyre::Error> {
         max_webhook_calls: None,
         perf_timing_enabled: None,
         perf_timing_hot_path_shift: None,
+        native_libraries: vec![],
     };
     let features_config = FeaturesConfig {
         anonymous_objects: true, // Enable anonymous objects for this load test

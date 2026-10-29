@@ -334,13 +334,16 @@ impl WorldStateActionExecutor {
                     return Ok(WorldStateResult::VerbCode(verbdef, Vec::new()));
                 }
 
-                #[allow(irrefutable_let_patterns)]
-                let ProgramType::MooR(program) = program else {
-                    return Err(SchedulerError::VerbRetrievalFailed(
-                        WorldStateError::DatabaseError(format!(
-                            "Could not decompile verb binary, expected Moo program, got {program:?}"
-                        )),
-                    ));
+                let program = match program {
+                    ProgramType::MooR(program) => program,
+                    ProgramType::Native(native) => {
+                        return Err(SchedulerError::VerbRetrievalFailed(
+                            WorldStateError::DatabaseError(format!(
+                                "The verb is native, bound to {} {}, and has no MOO code",
+                                native.library, native.function
+                            )),
+                        ));
+                    }
                 };
 
                 let decompiled = program_to_tree(&program).map_err(|e| {
@@ -702,13 +705,16 @@ fn execute_single_action(
                 return Ok(WorldStateResult::VerbCode(verbdef, Vec::new()));
             }
 
-            #[allow(irrefutable_let_patterns)]
-            let ProgramType::MooR(program) = program else {
-                return Err(SchedulerError::VerbRetrievalFailed(
-                    WorldStateError::DatabaseError(format!(
-                        "Could not decompile verb binary, expected Moo program, got {program:?}"
-                    )),
-                ));
+            let program = match program {
+                ProgramType::MooR(program) => program,
+                ProgramType::Native(native) => {
+                    return Err(SchedulerError::VerbRetrievalFailed(
+                        WorldStateError::DatabaseError(format!(
+                            "The verb is native, bound to {} {}, and has no MOO code",
+                            native.library, native.function
+                        )),
+                    ));
+                }
             };
 
             let decompiled = program_to_tree(&program).map_err(|e| {

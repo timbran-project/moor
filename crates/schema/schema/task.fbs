@@ -365,7 +365,8 @@ table MooStackFrame {
 
 union FrameUnion {
     MooFrame,
-    BfFrame
+    BfFrame,
+    NativeFrame
 }
 
 table MooFrame {
@@ -374,6 +375,17 @@ table MooFrame {
 
 table BfFrameWrapper {
     frame: BfFrame (required);
+}
+
+// A native verb's frame, saved between the steps it runs in.
+table NativeFrame {
+    library: MoorCommon.Symbol (required);
+    function: MoorCommon.Symbol (required);
+    caller: MoorVar.Var (required);
+    step: uint32;
+    state: MoorVar.Var;  // Optional - absent if the verb carries nothing
+    return_value: MoorVar.Var;  // Optional - absent before the verb's first call returns
+    parsing: [MoorVar.Var];  // argstr, dobj, dobjstr, prepstr, iobj, iobjstr; absent as none
 }
 
 table Frame {

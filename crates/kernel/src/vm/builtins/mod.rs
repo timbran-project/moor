@@ -18,6 +18,7 @@ use std::{
 };
 use thiserror::Error;
 
+use crate::native_verbs::NativeVerbs;
 use crate::vm::builtins::bf_connection::register_bf_connection;
 use crate::vm::builtins::bf_obj_load::register_bf_obj_load;
 use crate::vm::builtins::bf_task::register_bf_task;
@@ -234,6 +235,8 @@ fn should_sample_bf_timer(stride_mask: u64) -> bool {
 pub struct BuiltinRegistry {
     // The set of built-in functions, indexed by their Name offset in the variable stack.
     pub(crate) builtins: Arc<[BuiltinFunction]>,
+    /// The native verb libraries the daemon loaded at startup; empty unless configured.
+    pub(crate) native_verbs: Arc<NativeVerbs>,
 }
 
 impl Default for BuiltinRegistry {
@@ -267,7 +270,20 @@ impl BuiltinRegistry {
 
         BuiltinRegistry {
             builtins: Arc::from(builtins),
+            native_verbs: Arc::new(NativeVerbs::default()),
         }
+    }
+
+    /// The builtins, with the native verb libraries the daemon loaded.
+    pub fn with_native_verbs(native_verbs: Arc<NativeVerbs>) -> Self {
+        Self {
+            native_verbs,
+            ..Self::new()
+        }
+    }
+
+    pub(crate) fn native_verbs(&self) -> &NativeVerbs {
+        &self.native_verbs
     }
 
     pub(crate) fn builtin_for(&self, id: &BuiltinId) -> &BuiltinFunction {
@@ -287,6 +303,8 @@ pub(crate) struct BfCallState<'a> {
     pub(crate) exec_state: &'a mut ExecState,
     /// Config
     pub(crate) config: &'a FeaturesConfig,
+    /// The native verb libraries the daemon loaded.
+    pub(crate) native_verbs: &'a NativeVerbs,
 }
 
 pub(crate) struct BuiltinTickBudget<'a> {

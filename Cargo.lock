@@ -4088,6 +4088,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libloading"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4642,6 +4652,7 @@ dependencies = [
  "humantime",
  "iana-time-zone",
  "libc",
+ "libloading",
  "log",
  "md-5",
  "micromeasure",
@@ -4650,6 +4661,7 @@ dependencies = [
  "moor-compiler",
  "moor-db",
  "moor-moot",
+ "moor-native-verb",
  "moor-objdef",
  "moor-schema",
  "moor-textdump",
@@ -4737,6 +4749,10 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "moor-native-verb"
+version = "2.0.0-dev"
 
 [[package]]
 name = "moor-objdef"

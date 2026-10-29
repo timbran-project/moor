@@ -376,6 +376,12 @@ impl ExecState {
 }
 
 impl ExecState {
+    /// Push an activation that is ready to run, telling tracers it started.
+    pub fn push_activation(&mut self, activation: Activation) {
+        probes::probe_frame_enter(self.task_id, &activation);
+        self.stack.push(activation);
+    }
+
     /// Entry point from scheduler for actually beginning the dispatch of a method execution
     /// (verb-to-verb call) in this VM.
     /// Actually creates the activation record and puts it on the stack.

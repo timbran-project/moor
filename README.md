@@ -345,7 +345,10 @@ the world data or creative content you host with it.
 
 This applies to the main mooR software in this repository. Documentation in `book/`, core database
 content in `cores/`, and separately published client and schema libraries in `clients/` and
-`crates/schema/schema/` have separate licensing terms; see those directories for details.
+`crates/schema/schema/` have separate licensing terms; see those directories for details. The
+`moor-native-verb` crate, with its C header, is licensed under the GNU Lesser General Public
+License, version 3 or later, and [NATIVE-VERB-EXCEPTION.md](./NATIVE-VERB-EXCEPTION.md) lets native
+verb libraries that use only it carry licenses of their own.
 
 If your intended use of mooR requires different licensing terms, contact Ryan Daum, operating as
 Timbran Consulting. Alternative licensing arrangements may be possible on a case-by-case basis.
