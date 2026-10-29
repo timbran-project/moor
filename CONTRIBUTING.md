@@ -204,7 +204,7 @@ mooR is organized as a Rust workspace with multiple crates:
 - **Formatting**: Use the project's specific formatting rules:
   ```bash
   # Use the provided script (recommended)
-  ./format-rust.sh
+  ./scripts/format-rust.sh
 
   # Or manually with nightly toolchain
   cargo +nightly fmt -- --config reorder_imports=true,imports_indent=Block,imports_layout=Mixed
@@ -421,7 +421,8 @@ cargo test -p moor-kernel js_execute::tests::test_simple_js_execution
 2. **Run linters**: `cargo clippy --workspace --all-targets --all-features` (ALL RUST CODE MUST BE
    CLIPPY CLEAN)
 3. **Format code**:
-   - Rust: Run `./format-rust.sh` or ensure formatting is correct with `./format-rust.sh --check`
+   - Rust: Run `./scripts/format-rust.sh` or ensure formatting is correct with
+     `./scripts/format-rust.sh --check`
    - TypeScript/JSON/Markdown: Run `dprint fmt`
 4. **Check license headers**: Ensure all source files have GPLv3 headers (use `.licensure.yml` tool)
 5. **Update documentation**: If your changes affect user-facing behavior
@@ -439,8 +440,8 @@ cargo test -p moor-kernel js_execute::tests::test_simple_js_execution
      characters.
    - Use `!` or a `BREAKING CHANGE:` footer to mark breaking changes.
    - Squash incidental formatting changes into main commit
-4. **Submit your PR**: Push your branch to your fork on Codeberg and create a pull request from
-   there to the main repository
+4. **Submit your PR**: Push your branch to your fork on GitHub and create a pull request from there
+   to `timbran-project/moor`
 
 ### Commit Message Hook
 
@@ -471,7 +472,7 @@ When creating a pull request, include the following information:
 - **Testing**: Describe what testing was performed, including:
   - Results of `cargo test --workspace`
   - Confirmation that all Rust code passes clippy checks
-  - Verification that Rust files are formatted with `./format-rust.sh --check`
+  - Verification that Rust files are formatted with `./scripts/format-rust.sh --check`
   - Verification that TypeScript/JSON/Markdown files are formatted with `dprint fmt`
   - Manual testing scenarios if applicable
 - **Related Issues**: Links to any relevant issues or discussions
