@@ -8,6 +8,7 @@ object RULE_ENGINE [
   readable: true
 
   property predicate_providers (owner: ARCH_WIZARD, flags: "r") = [];
+  property validation_key (owner: ARCH_WIZARD, flags: "") = "";
 
   override description (owner: HACKER, flags: "rc") = "Evaluate explicit condition trees over named, typed predicates.";
   override object_documentation (owner: HACKER, flags: "rc") = {
@@ -97,6 +98,7 @@ object RULE_ENGINE [
     typeof(provider) == TYPE_OBJ && valid(provider) && typeof(method) == TYPE_STR || raise(E_INVARG, "Invalid predicate provider");
     $behavior_schema:_vocabulary(['triggers -> [], 'actions -> [], 'predicates -> [name -> schema]]);
     $rule_engine.predicate_providers[name] = ['schema -> schema, 'provider -> provider, 'method -> method];
+    this:forget_validations();
   endmethod
 
   method unregister_predicate owner: ARCH_WIZARD
@@ -106,6 +108,37 @@ object RULE_ENGINE [
     if (maphaskey($rule_engine.predicate_providers, name))
       $rule_engine.predicate_providers = mapdelete($rule_engine.predicate_providers, name);
     endif
+    this:forget_validations();
+  endmethod
+
+  method forget_validations owner: ARCH_WIZARD
+    "Invalidate every rule's validation stamp, so each rule validates in full on its next use. Call this after changing the condition language or the core predicates.";
+    caller_perms().wizard || raise(E_PERM);
+    $rule_engine.validation_key = value_hash(random_bytes(32));
+  endmethod
+
+  method stamp_rule owner: ARCH_WIZARD
+    "Validate a rule and return it carrying a stamp, so later uses skip validation while the predicates stay the same.";
+    const {rule} = args;
+    const validation = $rule_engine:validate_rule(rule);
+    validation['valid] || raise(E_INVARG, validation['warnings]:join("; "));
+    const bindings = validation['bindings];
+    $rule_engine.validation_key || ($rule_engine.validation_key = value_hash(random_bytes(32)));
+    const stamp = string_hmac(value_hash({rule.condition, rule.scope, bindings}), $rule_engine.validation_key);
+    return <$rule, .name = rule.name, .condition = rule.condition, .scope = rule.scope, .bindings = bindings, .validation = stamp>;
+  endmethod
+
+  method _stamped_bindings owner: ARCH_WIZARD
+    "The bindings recorded by a rule's stamp, or false if the rule carries no stamp that holds.";
+    const {rule} = args;
+    const slots = flyslots(rule);
+    if (!(maphaskey(slots, 'validation) && maphaskey(slots, 'bindings) && $rule_engine.validation_key && typeof(slots['validation]) == TYPE_STR))
+      return false;
+    endif
+    if (slots['validation] != string_hmac(value_hash({slots['condition], slots['scope], slots['bindings]}), $rule_engine.validation_key))
+      return false;
+    endif
+    return slots['bindings];
   endmethod
 
   method parse_expression owner: ARCH_WIZARD
@@ -120,6 +153,12 @@ object RULE_ENGINE [
     const {rule, ?scope = rule.scope} = args;
     try
       typeof(rule) == TYPE_FLYWEIGHT && rule.delegate == $rule || raise(E_INVARG, "Expected a canonical rule");
+      if (scope == rule.scope)
+        const stamped = $rule_engine:_stamped_bindings(rule);
+        if (typeof(stamped) == TYPE_MAP)
+          return ['valid -> true, 'warnings -> {}, 'bindings -> stamped];
+        endif
+      endif
       $behavior_schema:_fields(scope, {'input, 'parameter, 'state, 'binding}, {}, "scope");
       for namespace in ({'input, 'parameter, 'state, 'binding})
         $behavior_schema:_types(scope[namespace], "scope." + tostr(namespace));
@@ -214,6 +253,29 @@ object RULE_ENGINE [
     const parts = result['explanation]['children];
     {parts[1]['matches], parts[2]['matches]} == {1, 0} || raise(E_ASSERT, "Explanation: " + toliteral(result['explanation]));
     !maphaskey(this:evaluate(rule), 'explanation) || raise(E_ASSERT, "An unexplained evaluation carried an explanation");
+    return true;
+  endmethod
+
+  method test_stamped_rules_skip_validation owner: ARCH_WIZARD
+    "A built rule carries a stamp that holds only for its own condition, scope, and the current predicates.";
+    const rule = this:parse_expression("1 + 2 == 3");
+    typeof($rule_engine:_stamped_bindings(rule)) == TYPE_MAP || raise(E_ASSERT, "A built rule carried no stamp");
+    const forged = <$rule, .name = rule.name, .condition = ['kind -> 'bogus], .scope = rule.scope, .bindings = rule.bindings, .validation = rule.validation>;
+    $rule_engine:_stamped_bindings(forged) == false || raise(E_ASSERT, "A stamp held for another condition");
+    $rule_engine:validate_rule(forged)['valid] && raise(E_ASSERT, "A forged rule passed validation");
+    let scope = rule.scope;
+    scope['input]['Extra] = 'integer;
+    const checked = $rule_engine:validate_rule(rule, scope);
+    checked['valid] || raise(E_ASSERT, "Another scope failed: " + toliteral(checked));
+    const schema = ['description -> "A test predicate.", 'inputs -> [], 'outputs -> []];
+    this:register_predicate('stamp_test, schema, this, "query");
+    this:unregister_predicate('stamp_test);
+    $rule_engine:_stamped_bindings(rule) == false || raise(E_ASSERT, "A predicate change kept the stamp");
+    this:evaluate(rule)['success] || raise(E_ASSERT, "An unstamped rule failed to evaluate");
+    const restamped = this:stamp_rule(rule);
+    typeof($rule_engine:_stamped_bindings(restamped)) == TYPE_MAP || raise(E_ASSERT, "Restamping failed");
+    this:forget_validations();
+    $rule_engine:_stamped_bindings(restamped) == false || raise(E_ASSERT, "Forgetting validations kept the stamp");
     return true;
   endmethod
 endobject

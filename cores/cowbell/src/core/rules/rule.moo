@@ -14,10 +14,7 @@ object RULE [
     set_task_perms(caller_perms());
     const {name, condition, ?scope = $rule_engine:scope(), ?parameters = []} = args;
     const tree = $condition:prepare_relations(condition, parameters);
-    const rule = <$rule, .name = tosym(name), .condition = tree, .scope = scope>;
-    const validation = $rule_engine:validate_rule(rule);
-    validation['valid] || raise(E_INVARG, validation['warnings]:join("; "));
-    return rule;
+    return $rule_engine:stamp_rule(<$rule, .name = tosym(name), .condition = tree, .scope = scope>);
   endmethod
 
   method evaluate owner: ARCH_WIZARD

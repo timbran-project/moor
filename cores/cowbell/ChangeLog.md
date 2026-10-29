@@ -15,6 +15,10 @@ Cowbell entries.
   `$rule_engine:evaluate(..., explain)` returns an explanation of which parts of a condition held.
   `$condition` and `$rule_engine` call their own methods through `this`, so subclasses can
   replace how conditions find facts.
+- Rules built with `$rule:mk` carry a validation stamp, so evaluating them skips validation until
+  a predicate is registered or removed. Rules built before this change, or edited by hand, are
+  validated in full each time as before. `$rule_engine:forget_validations()` makes every rule
+  validate again after a change to the condition language.
 - `$wiz_features:grant_wizard(target, ?tools)` makes a player a wizard as `@wizard` does and returns
   what they had before; `revoke_wizard(target, ?before)` takes wizard status back and, given that
   record, restores the player.
