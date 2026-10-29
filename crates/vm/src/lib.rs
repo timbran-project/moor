@@ -28,7 +28,7 @@ pub(crate) mod moo_frame;
 pub(crate) mod scatter_assign;
 pub(crate) mod vm_unwind;
 
-pub use activation::{Activation, BuiltinFrame, CallProgram, Frame};
+pub use activation::{Activation, BuiltinFrame, CallProgram, Frame, NativeFrame, PARSING_GLOBALS};
 pub use config::FeaturesConfig;
 pub use environment::Environment;
 pub use moo_execute::{

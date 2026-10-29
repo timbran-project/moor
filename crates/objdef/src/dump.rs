@@ -1021,6 +1021,27 @@ mod tests {
     }
 
     #[test]
+    fn only_trusted_loads_define_native_verbs() {
+        let source = "object #1\n  name: \"native\"\n  parent: #-1\n  owner: #-1\n  location: #-1\n\n  native column owner: #-1 \"terrain\" \"column\"\nendobject\n";
+        let (db, _) = TxDB::try_open(None, DatabaseConfig::default()).unwrap();
+        let mut loader = db.loader_client().unwrap();
+        let refused = ObjectDefinitionLoader::new(loader.as_mut()).load_single_object(
+            source,
+            CompileOptions::default(),
+            Default::default(),
+        );
+        assert!(refused.err().is_some_and(|e| {
+            e.to_string()
+                .contains("only a wizard may define native verbs")
+        }));
+        let mut loader = db.loader_client().unwrap();
+        ObjectDefinitionLoader::new(loader.as_mut())
+            .allow_native_verbs()
+            .load_single_object(source, CompileOptions::default(), Default::default())
+            .unwrap();
+    }
+
+    #[test]
     fn packages_export_to_their_own_directories_and_round_trip() {
         let object = |constant: &str, id: &str, parent: &str| {
             format!(

@@ -290,6 +290,40 @@ colored = format_compile_error(err, 2, 2);
   the location of the verb and its names
 - If the caller doesn't control the object but the verb exists: (true) `1`
 
+### `set_verb_native`
+
+**Description:** Makes a verb native: calling it runs a function in a native verb library the server
+loaded at startup. See [Native Verbs](../../the-system/native-verbs.md).\
+**Arguments:**
+
+- `object`: The object that has the verb
+- `verb-desc`: Either the verb name or a positive integer representing the verb's position (1-based)
+- `library`: The library's name, as the library declares it
+- `function`: The function's name, as the library declares it
+
+**Returns:** Nothing\
+**Note:** Only wizards may call it. Raises `E_INVARG` if the library is not loaded or has no such
+function. This is a mooR extension.
+
+### `verb_native`
+
+**Description:** Shows a native verb's binding.\
+**Arguments:**
+
+- `object`: The object that has the verb
+- `verb-desc`: Either the verb name or a positive integer representing the verb's position (1-based)
+
+**Returns:** `{library, function}` for a native verb, or `{}` for a MOO verb\
+**Note:** Needs the same permission as reading the verb's code. This is a mooR extension.
+
+### `native_libraries`
+
+**Description:** Lists the native verb libraries the server loaded at startup.\
+**Arguments:** None\
+**Returns:** A list of `{name, version, functions}`, empty when the server loads no native
+libraries\
+**Note:** Only wizards may call it. This is a mooR extension.
+
 ## Verb Permissions Explained
 
 Verbs in this system use a permission model based on the following flags:

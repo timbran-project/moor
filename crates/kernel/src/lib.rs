@@ -41,6 +41,8 @@ pub(crate) fn get_server_symmetric_key() -> Option<&'static [u8; 32]> {
 }
 
 pub mod config;
+mod native_api;
+pub mod native_verbs;
 pub mod task_context;
 pub mod tasks;
 pub mod vm;

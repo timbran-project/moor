@@ -24,13 +24,13 @@ use moor_common::{
     util::BitEnum,
 };
 use moor_compiler::{CompileOptions, Program, compile};
-use moor_var::{E_MAXREC, List, Obj, Symbol, Var, v_none};
+use moor_var::{E_MAXREC, List, NOTHING, Obj, Symbol, Var, v_empty_str, v_none, v_obj, v_str};
 use moor_vm::ExecState;
 
 use crate::{
     config::FeaturesConfig,
     task_context::with_current_transaction,
-    tasks::task_program_cache::TaskProgramCache,
+    tasks::task_program_cache::{ResolvedVerbProgram, TaskProgramCache},
     vm::{
         FinallyReason, Fork, VMHostResponse,
         VMHostResponse::{AbortLimit, ContinueOk, DispatchFork, Suspend},
@@ -42,7 +42,8 @@ use crate::{
 use moor_common::{matching::ParsedCommand, tasks::Session};
 use moor_var::program::{ProgramType, names::Name};
 use moor_vm::{
-    CallProgram, Frame, FrameExecutionContext, PhantomUnsync, VmHost as _, moo_frame_execute,
+    Activation, CallProgram, Frame, FrameExecutionContext, PARSING_GLOBALS, PhantomUnsync,
+    VmHost as _, moo_frame_execute,
 };
 
 pub(crate) use moor_vm::ExecutionResult;
@@ -59,6 +60,9 @@ pub struct VmHost {
     /// The maximum amount of time allotted to this task
     pub(crate) max_time: Duration,
     pub(crate) running: bool,
+    /// A limit a native verb's step passed, which aborts the task before the step's outcome
+    /// takes effect.
+    pub(crate) passed_limit: Option<AbortLimitReason>,
 
     pub(crate) unsync: PhantomUnsync,
 }
@@ -92,6 +96,7 @@ impl VmHost {
             max_ticks,
             max_time,
             running: false,
+            passed_limit: None,
             unsync: Default::default(),
         }
     }
@@ -116,6 +121,23 @@ impl VmHost {
         self.vm_exec_state.maximum_time = Some(self.max_time);
         self.vm_exec_state.tick_count = 0;
         self.vm_exec_state.task_id = task_id;
+        self.running = true;
+        if let ProgramType::Native(native) = program {
+            let parsing = command_parsing(&command);
+            let args = command.args.into_iter().collect();
+            self.vm_exec_state.stack.push(Activation::for_native_call(
+                resolved_verb,
+                permissions_flags,
+                verb_name,
+                this,
+                player,
+                args,
+                caller,
+                native,
+                parsing,
+            ));
+            return;
+        }
         self.vm_exec_state.exec_command_request(
             permissions_flags,
             resolved_verb,
@@ -126,7 +148,6 @@ impl VmHost {
             command,
             CallProgram::Materialized(program),
         );
-        self.running = true;
     }
 
     /// Setup for executing a method call in this VM.
@@ -148,6 +169,21 @@ impl VmHost {
         self.vm_exec_state.maximum_time = Some(self.max_time);
         self.vm_exec_state.tick_count = 0;
         self.vm_exec_state.task_id = task_id;
+        self.running = true;
+        if let ProgramType::Native(native) = program {
+            self.vm_exec_state.stack.push(Activation::for_native_call(
+                resolved_verb,
+                permissions_flags,
+                verb_name,
+                this,
+                player,
+                args,
+                caller,
+                native,
+                parsing_with(argstr),
+            ));
+            return;
+        }
         self.vm_exec_state.exec_call_request(
             permissions_flags,
             resolved_verb,
@@ -159,7 +195,6 @@ impl VmHost {
             argstr,
             CallProgram::Materialized(program),
         );
-        self.running = true;
     }
 
     /// Start execution of a fork request in the hosted VM.
@@ -242,7 +277,12 @@ impl VmHost {
         };
         while self.is_running() {
             match result {
-                ExecutionResult::More => return ContinueOk,
+                ExecutionResult::More => {
+                    if let Some(reason) = self.passed_limit.take() {
+                        return AbortLimit(reason);
+                    }
+                    return ContinueOk;
+                }
                 ExecutionResult::PushError(e) => {
                     result = self.vm_exec_state.push_error(e);
                     continue;
@@ -274,7 +314,27 @@ impl VmHost {
                             exec_request.program_key.verb_uuid,
                         )
                     }) {
-                        Ok(program_slot) => program_slot,
+                        Ok(ResolvedVerbProgram::Moo(program_slot)) => program_slot,
+                        Ok(ResolvedVerbProgram::Native(native)) => {
+                            // From the caller, as a MOO verb would inherit them.
+                            let parsing = self
+                                .vm_exec_state
+                                .top()
+                                .parsing()
+                                .unwrap_or_else(|| parsing_with(exec_request.argstr.clone()));
+                            self.vm_exec_state.stack.push(Activation::for_native_call(
+                                exec_request.resolved_verb,
+                                exec_request.activation_authority_flags(),
+                                exec_request.verb_name,
+                                exec_request.this,
+                                exec_request.player,
+                                exec_request.args,
+                                exec_request.caller,
+                                native,
+                                parsing,
+                            ));
+                            return ContinueOk;
+                        }
                         Err(moor_common::model::WorldStateError::RollbackRetry) => {
                             return VMHostResponse::RollbackRetry;
                         }
@@ -320,7 +380,24 @@ impl VmHost {
                             exec_request.program_key.verb_uuid,
                         )
                     }) {
-                        Ok(program_slot) => program_slot,
+                        Ok(ResolvedVerbProgram::Moo(program_slot)) => program_slot,
+                        Ok(ResolvedVerbProgram::Native(native)) => {
+                            let flags = exec_request.activation_authority_flags();
+                            let mut command = exec_request.command;
+                            let parsing = command_parsing(&command);
+                            self.vm_exec_state.stack.push(Activation::for_native_call(
+                                exec_request.resolved_verb,
+                                flags,
+                                exec_request.verb_name,
+                                exec_request.this,
+                                exec_request.player,
+                                std::mem::take(&mut command.args).into_iter().collect(),
+                                exec_request.caller,
+                                native,
+                                parsing,
+                            ));
+                            return ContinueOk;
+                        }
                         Err(moor_common::model::WorldStateError::RollbackRetry) => {
                             return VMHostResponse::RollbackRetry;
                         }
@@ -506,10 +583,37 @@ impl VmHost {
                     .reenter_builtin_function(vm_exec_params, session);
                 (result, tick_count)
             }
+            Frame::Native(_) => {
+                let result = vm_exec_params
+                    .builtin_registry
+                    .native_verbs
+                    .run_frame(&mut self.vm_exec_state, vm_exec_params.config);
+                // A native step cannot be stopped while it runs, so its limits are checked once
+                // it ends, before what it ended with takes effect: a result that would finish
+                // the task, or a call to a builtin such as suspend().
+                match self.limit_passed() {
+                    Some(reason) => {
+                        self.passed_limit = Some(reason);
+                        (ExecutionResult::More, self.vm_exec_state.tick_count)
+                    }
+                    None => (result, self.vm_exec_state.tick_count),
+                }
+            }
         };
         self.vm_exec_state.tick_count = new_tick_count;
 
         result
+    }
+
+    /// The tick or time limit the task has passed, if any.
+    fn limit_passed(&self) -> Option<AbortLimitReason> {
+        if self.vm_exec_state.tick_count >= self.max_ticks {
+            return Some(AbortLimitReason::Ticks(self.vm_exec_state.tick_count));
+        }
+        self.vm_exec_state
+            .elapsed_runtime()
+            .filter(|elapsed| *elapsed > self.max_time)
+            .map(AbortLimitReason::Time)
     }
 
     /// Resume what you were doing after suspension.
@@ -646,4 +750,24 @@ impl VmHost {
     pub fn args(&self) -> &List {
         self.vm_exec_state.top().args()
     }
+}
+
+/// A command's parsing globals, as a command verb sees them, in the order of `PARSING_GLOBALS`.
+fn command_parsing(command: &ParsedCommand) -> Vec<Var> {
+    vec![
+        v_str(&command.argstr),
+        v_obj(command.dobj.unwrap_or(NOTHING)),
+        command.dobjstr.as_deref().map_or_else(v_empty_str, v_str),
+        command.prepstr.as_deref().map_or_else(v_empty_str, v_str),
+        v_obj(command.iobj.unwrap_or(NOTHING)),
+        command.iobjstr.as_deref().map_or_else(v_empty_str, v_str),
+    ]
+}
+
+/// The parsing globals of a call with no command behind it: its argstr, and nothing else, as a
+/// MOO verb called that way has.
+fn parsing_with(argstr: Var) -> Vec<Var> {
+    let mut parsing = vec![v_none(); PARSING_GLOBALS.len()];
+    parsing[0] = argstr;
+    parsing
 }

@@ -14,6 +14,7 @@
 //! Config is created by the host daemon, and passed through the scheduler, whereupon it is
 //! available to all components. Used to hold things typically configured by CLI flags, etc.
 
+use crate::native_verbs::{NativeVerbs, NativeVerbsError};
 use moor_common::{config::MAX_CAPTURE_DEADLINE, threading::TaskPoolPinningMode};
 use moor_db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,9 @@ pub struct Config {
     pub features: Arc<FeaturesConfig>,
     pub import_export: ImportExportConfig,
     pub runtime: RuntimeConfig,
+    /// The native verb libraries loaded from `runtime.native_libraries` at startup.
+    #[serde(skip)]
+    pub native_verbs: Arc<NativeVerbs>,
 }
 
 /// Configuration for runtime/scheduler behavior
@@ -55,6 +59,10 @@ pub struct RuntimeConfig {
     /// A request asking for more than this is rejected. If None, defaults to 60s.
     #[serde(deserialize_with = "parse_duration")]
     pub max_capture_deadline: Option<Duration>,
+    /// Native verb libraries to load at startup. Native verbs are off unless libraries are
+    /// listed; only these can be bound to verbs, and only by wizards.
+    #[serde(default)]
+    pub native_libraries: Vec<PathBuf>,
 }
 
 /// Deadline used for captured verb calls when the configuration does not set one.
@@ -91,6 +99,15 @@ impl RuntimeConfig {
 }
 
 impl Config {
+    /// Load the native verb libraries `runtime.native_libraries` lists. Startup stops if any
+    /// cannot be loaded, rather than running with some verbs that cannot work.
+    pub fn with_native_verbs(mut self) -> Result<Self, NativeVerbsError> {
+        if !self.runtime.native_libraries.is_empty() {
+            self.native_verbs = Arc::new(NativeVerbs::load(&self.runtime.native_libraries)?);
+        }
+        Ok(self)
+    }
+
     /// Check settings that only make sense within a range, whatever source they came from.
     pub fn validate(&self) -> Result<(), String> {
         self.import_export.validate()?;

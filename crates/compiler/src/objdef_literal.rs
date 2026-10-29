@@ -29,7 +29,7 @@ use moor_common::{
 };
 use moor_var::{
     AnonymousObjid, ErrorCode, List, NOTHING, Obj, Symbol, UuObjid, Var,
-    program::{ProgramType, names::Name, opcode::Op},
+    program::{NativeProgram, ProgramType, names::Name, opcode::Op},
     v_binary, v_bool, v_err, v_error, v_float, v_flyweight, v_int, v_list, v_map, v_none, v_obj,
     v_str, v_sym,
 };
@@ -1127,6 +1127,10 @@ impl<'a> LiteralParser<'a> {
                 objdef.verbs.push(self.parse_verb_decl(options)?);
                 continue;
             }
+            if self.eat_keyword("native") {
+                objdef.verbs.push(self.parse_native_decl()?);
+                continue;
+            }
             if self.eat_keyword("property") {
                 objdef.property_definitions.push(self.parse_property_def()?);
                 continue;
@@ -1478,14 +1482,7 @@ impl<'a> LiteralParser<'a> {
 
         let (_, source_column) = self.line_col(self.pos);
         let (statements_text, verb_start_line) = self.parse_verb_body_until_endverb()?;
-        let mut verb_options = compile_options.clone();
-        verb_options.package_constants = Some(self.context.package_constants());
-        let program = compile(statements_text.as_str(), verb_options).map_err(|e| {
-            ObjDefParseError::VerbCompileError(
-                offset_compile_error(e, verb_start_line.saturating_sub(1)),
-                statements_text.clone(),
-            )
-        })?;
+        let program = self.verb_program(compile_options, &statements_text, verb_start_line)?;
 
         Ok(ObjVerbDef {
             source: Some(crate::objdef::ObjVerbSource {
@@ -1497,9 +1494,101 @@ impl<'a> LiteralParser<'a> {
             argspec: VerbArgsSpec { dobj, prep, iobj },
             owner,
             flags,
-            program: ProgramType::MooR(program),
+            program,
             metadata,
         })
+    }
+
+    /// A native verb: `native NAMES [(ARGSPEC)] owner: OWNER [flags: "FLAGS"] "library"
+    /// "function" [METADATA]`. It binds the verb to a function a native library declares and has
+    /// no body. Like a method, it defaults to `(this none this)` and `"rxd"`.
+    fn parse_native_decl(&mut self) -> Result<ObjVerbDef, ObjDefParseError> {
+        let names = self.parse_verb_names(false)?;
+
+        self.skip_trivia();
+        let argspec = if self.peek_char() == Some('(') {
+            self.bump_char();
+            let args_start = self.pos;
+            while !self.is_eof() && self.peek_char() != Some(')') {
+                self.bump_char();
+            }
+            self.expect_char(')', "expected ')' after verb argspec")?;
+            let args_text = self.source[args_start..self.pos - 1].trim();
+            let parts = args_text.split_whitespace().collect::<Vec<_>>();
+            let bad = || ObjDefParseError::BadVerbArgspec(args_text.to_string());
+            let [dobj, prep, iobj] = parts.as_slice() else {
+                return Err(bad());
+            };
+            VerbArgsSpec {
+                dobj: ArgSpec::from_string(dobj).ok_or_else(bad)?,
+                prep: PrepSpec::parse(prep).ok_or_else(bad)?,
+                iobj: ArgSpec::from_string(iobj).ok_or_else(bad)?,
+            }
+        } else {
+            VerbArgsSpec::this_none_this()
+        };
+
+        self.skip_trivia();
+        if !self.eat_keyword("owner") {
+            return Err(self.parse_error("expected owner attribute in native verb"));
+        }
+        self.skip_trivia();
+        self.expect_char(':', "expected ':' after owner")?;
+        self.skip_trivia();
+        let owner = self.parse_object_attr_value()?;
+
+        self.skip_horizontal_whitespace();
+        let flags = if self.eat_keyword("flags") {
+            self.skip_horizontal_whitespace();
+            self.expect_char(':', "expected ':' after flags")?;
+            self.skip_horizontal_whitespace();
+            self.parse_verb_flags_value()?
+        } else {
+            VerbFlag::rxd()
+        };
+
+        self.skip_horizontal_whitespace();
+        if self.peek_char() != Some('"') {
+            return Err(self.parse_error("a native verb names a library and a function"));
+        }
+        let library = self.parse_string_value()?;
+        self.skip_horizontal_whitespace();
+        let function = self.parse_string_value()?;
+        if library.is_empty() || function.is_empty() {
+            return Err(self.parse_error("a native verb names a library and a function"));
+        }
+        let metadata = self.parse_optional_metadata_map()?;
+
+        Ok(ObjVerbDef {
+            source: None,
+            names,
+            argspec,
+            owner,
+            flags,
+            program: ProgramType::Native(NativeProgram {
+                library: Symbol::mk(&library),
+                function: Symbol::mk(&function),
+            }),
+            metadata,
+        })
+    }
+
+    /// A verb's compiled body.
+    fn verb_program(
+        &mut self,
+        compile_options: &CompileOptions,
+        statements_text: &str,
+        verb_start_line: usize,
+    ) -> Result<ProgramType, ObjDefParseError> {
+        let mut verb_options = compile_options.clone();
+        verb_options.package_constants = Some(self.context.package_constants());
+        let program = compile(statements_text, verb_options).map_err(|e| {
+            ObjDefParseError::VerbCompileError(
+                offset_compile_error(e, verb_start_line.saturating_sub(1)),
+                statements_text.to_string(),
+            )
+        })?;
+        Ok(ProgramType::MooR(program))
     }
 
     fn parse_method_decl(
@@ -1542,14 +1631,7 @@ impl<'a> LiteralParser<'a> {
         let (_, source_column) = self.line_col(self.pos);
         let (statements_text, verb_start_line) =
             self.parse_verb_body_until_end_keyword("endmethod", "missing endmethod")?;
-        let mut verb_options = compile_options.clone();
-        verb_options.package_constants = Some(self.context.package_constants());
-        let program = compile(statements_text.as_str(), verb_options).map_err(|e| {
-            ObjDefParseError::VerbCompileError(
-                offset_compile_error(e, verb_start_line.saturating_sub(1)),
-                statements_text.clone(),
-            )
-        })?;
+        let program = self.verb_program(compile_options, &statements_text, verb_start_line)?;
 
         Ok(ObjVerbDef {
             source: Some(crate::objdef::ObjVerbSource {
@@ -1561,7 +1643,7 @@ impl<'a> LiteralParser<'a> {
             argspec: VerbArgsSpec::this_none_this(),
             owner,
             flags,
-            program: ProgramType::MooR(program),
+            program,
             metadata,
         })
     }

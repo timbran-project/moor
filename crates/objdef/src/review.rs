@@ -46,7 +46,7 @@ use moor_common::model::{
 };
 use moor_compiler::{
     CompileOptions, NAMESPACE_SEPARATOR, ObjFileContext, compile, compile_object_definitions,
-    program_to_tree, unparse,
+    program_to_tree, to_literal, unparse,
 };
 use moor_var::{
     Associative, ByteSized, Symbol, Var, program::ProgramType, v_bool, v_int, v_list, v_map, v_obj,
@@ -460,7 +460,16 @@ pub(crate) fn read_baseline(value: Option<Var>) -> Result<Option<String>, Review
 }
 
 fn program_text(program: &ProgramType) -> Result<Var, ReviewError> {
-    let ProgramType::MooR(program) = program;
+    let program = match program {
+        ProgramType::MooR(program) => program,
+        ProgramType::Native(native) => {
+            return Ok(v_str(&format!(
+                "native {} {}",
+                to_literal(&v_str(&native.library.to_string())),
+                to_literal(&v_str(&native.function.to_string())),
+            )));
+        }
+    };
     let tree = program_to_tree(program).map_err(|e| e.to_string())?;
     Ok(v_str(
         &unparse(&tree, false, true)
@@ -1661,6 +1670,26 @@ pub fn apply(
         // Let callers describe edited-program effects without running preview again.
         ("validation", v_list(&validation)),
     ]);
+    // A builtin grant does not reach native verbs; only a wizard may apply them.
+    let native = |program: &ProgramType| matches!(program, ProgramType::Native(_));
+    let applies_native = actions.iter().any(|action| {
+        action.program.as_ref().is_some_and(native)
+            || match &action.target {
+                ChangeTarget::AddVerb(verb) => native(&verb.program),
+                ChangeTarget::AddObject(object) => {
+                    object.verbs.iter().any(|verb| native(&verb.program))
+                }
+                _ => false,
+            }
+    });
+    if applies_native
+        && !world
+            .flags_of(&permissions.principal())
+            .map_err(ReviewError::from)?
+            .contains(ObjFlag::Wizard)
+    {
+        return Err(ReviewError::Invalid("only a wizard may apply native verbs".into()).into());
+    }
     write_actions(world, permissions, actions)?;
     Ok(receipt)
 }
