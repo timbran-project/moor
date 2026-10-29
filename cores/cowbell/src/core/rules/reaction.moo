@@ -10,6 +10,7 @@ object REACTION [
   readable: true
 
   property action_sources (owner: HACKER, flags: "r") = [];
+  property contracts (owner: ARCH_WIZARD, flags: "r") = [];
   property comparison_ops (owner: HACKER, flags: "rc") = {'eq, 'ne, 'gt, 'lt, 'ge, 'le};
   property effect_types (owner: HACKER, flags: "rc") = {
     'set,
@@ -67,6 +68,7 @@ object REACTION [
     "",
     "`$reaction:action_schemas()` lists supported actions and their required named arguments. Action argument values use the same literal, input, state, and binding expressions as conditions.",
     "`$reaction:perform_action(name, arguments)` takes actual values and returns an applied, denied, or error result. A missing argument or unknown action is an error.",
+    "An action schema can say what the action needs, as `requires`, and what it changes, as `changes`, both in the condition language over `input.NAME`. `check_action(name, arguments)` answers whether the requirement holds and names the failed part, without acting. `check_outcome(name, arguments)` checks the changes. `action_contract(name)` returns both. A requirement is necessary, not sufficient: object rules can still refuse.",
     "Wizards can register a MOO action service with `register_action(name, schema, provider, method)`. The service receives named values and a reaction context. It must check its caller’s authority, preserve the context for chained actions, and return a structured result. Preview must never call the service.",
     "",
     "## State and time",
@@ -81,12 +83,32 @@ object REACTION [
   };
 
   method _builtin_action_schemas owner: HACKER
-    "Describe supported actions and their named arguments for validation and authoring help.";
+    "Describe supported actions, their named arguments, and what they need and change, for validation, authoring help, and planning.";
     const basic = ['target -> 'object, 'actor -> 'object];
     const item = mapmerge(basic, ['item -> 'object]);
     const key = mapmerge(basic, ['key -> 'object]);
     const exit = mapmerge(basic, ['exit -> 'string]);
-    return ['open -> ['description -> "Open a nearby container.", 'inputs -> basic], 'close -> ['description -> "Close a nearby container.", 'inputs -> basic], 'lock -> ['description -> "Lock a container with a carried key.", 'inputs -> key], 'unlock -> ['description -> "Unlock a container with a carried key.", 'inputs -> key], 'open_exit -> ['description -> "Open a passage door at the target room's named exit.", 'inputs -> exit], 'close_exit -> ['description -> "Close a passage door at the target room's named exit.", 'inputs -> exit], 'lock_exit -> ['description -> "Lock a passage door using the actor's access rule and carried keys.", 'inputs -> exit], 'unlock_exit -> ['description -> "Unlock a passage door using the actor's access rule and carried keys.", 'inputs -> exit], 'take_from -> ['description -> "Take an item from a container.", 'inputs -> item], 'put_into -> ['description -> "Put a carried item in a container.", 'inputs -> item], 'get -> ['description -> "Pick up a nearby item.", 'inputs -> basic], 'drop -> ['description -> "Drop a carried item.", 'inputs -> basic], 'sit -> ['description -> "Sit on nearby furniture.", 'inputs -> basic], 'stand -> ['description -> "Stand up from furniture.", 'inputs -> basic], 'wear -> ['description -> "Put on a carried wearable item.", 'inputs -> basic], 'remove -> ['description -> "Take off a worn item.", 'inputs -> basic]];
+    const reach = "within_reach(actor: input.actor, object: input.target)";
+    const here = reach + " AND NOT location_is(object: input.target, location: input.actor)";
+    const carried_key = "location_is(object: input.key, location: input.actor)";
+    return [
+      'open -> ['description -> "Open a nearby container.", 'inputs -> basic, 'requires -> reach + " AND NOT is_open(object: input.target) AND NOT is_locked(object: input.target)", 'changes -> "is_open(object: input.target)"],
+      'close -> ['description -> "Close a nearby container.", 'inputs -> basic, 'requires -> reach + " AND is_open(object: input.target)", 'changes -> "NOT is_open(object: input.target)"],
+      'lock -> ['description -> "Lock a container with a carried key.", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND NOT is_locked(object: input.target)", 'changes -> "is_locked(object: input.target)"],
+      'unlock -> ['description -> "Unlock a container with a carried key.", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND is_locked(object: input.target)", 'changes -> "NOT is_locked(object: input.target)"],
+      'open_exit -> ['description -> "Open a passage door at the target room's named exit.", 'inputs -> exit],
+      'close_exit -> ['description -> "Close a passage door at the target room's named exit.", 'inputs -> exit],
+      'lock_exit -> ['description -> "Lock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
+      'unlock_exit -> ['description -> "Unlock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
+      'take_from -> ['description -> "Take an item from a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND contains(container: input.target, item: input.item)", 'changes -> "location_is(object: input.item, location: input.actor)"],
+      'put_into -> ['description -> "Put a carried item in a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND location_is(object: input.item, location: input.actor)", 'changes -> "contains(container: input.target, item: input.item)"],
+      'get -> ['description -> "Pick up a nearby item.", 'inputs -> basic, 'requires -> here, 'changes -> "location_is(object: input.target, location: input.actor)"],
+      'drop -> ['description -> "Drop a carried item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor)", 'changes -> "NOT location_is(object: input.target, location: input.actor)"],
+      'sit -> ['description -> "Sit on nearby furniture.", 'inputs -> basic, 'requires -> here + " AND NOT sitting(actor: input.actor, seat: input.target)", 'changes -> "sitting(actor: input.actor, seat: input.target)"],
+      'stand -> ['description -> "Stand up from furniture.", 'inputs -> basic, 'requires -> "sitting(actor: input.actor, seat: input.target)", 'changes -> "NOT sitting(actor: input.actor, seat: input.target)"],
+      'wear -> ['description -> "Put on a carried wearable item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND NOT wearing(actor: input.actor, item: input.target)", 'changes -> "wearing(actor: input.actor, item: input.target)"],
+      'remove -> ['description -> "Take off a worn item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND wearing(actor: input.actor, item: input.target)", 'changes -> "NOT wearing(actor: input.actor, item: input.target)"]
+    ];
   endmethod
 
   method action_schemas owner: HACKER
@@ -107,7 +129,9 @@ object REACTION [
     $behavior_schema:_vocabulary(['triggers -> [], 'predicates -> [], 'actions -> [name -> schema]]);
     typeof(provider) == TYPE_OBJ && valid(provider) && typeof(method) == TYPE_STR || raise(E_INVARG, "Invalid action service.");
     respond_to(provider, tosym(method)) || raise(E_VERBNF, "The action service method does not exist.");
+    const contract = $reaction:_compile_contract(name, schema['inputs], `schema['requires] ! E_RANGE => ""', `schema['changes] ! E_RANGE => ""');
     $reaction.action_sources[name] = ['schema -> schema, 'provider -> provider, 'method -> method];
+    $reaction.contracts[name] = contract;
   endmethod
 
   method unregister_action owner: ARCH_WIZARD
@@ -117,6 +141,91 @@ object REACTION [
     if (maphaskey($reaction.action_sources, name))
       $reaction.action_sources = mapdelete($reaction.action_sources, name);
     endif
+    if (maphaskey($reaction.contracts, name))
+      $reaction.contracts = mapdelete($reaction.contracts, name);
+    endif
+  endmethod
+
+  method action_contract owner: ARCH_WIZARD
+    "Return what an action requires, as a rule over its inputs, and what it changes, as facts that start or stop holding.";
+    const {name} = args;
+    const schemas = $reaction:action_schemas();
+    maphaskey(schemas, name) || raise(E_INVARG, "Unknown action: " + tostr(name));
+    const schema = schemas[name];
+    const texts = {`schema['requires] ! E_RANGE => ""', `schema['changes] ! E_RANGE => ""'};
+    const cached = `$reaction.contracts[name] ! E_RANGE => 0';
+    if (typeof(cached) == TYPE_MAP && equal(cached['texts], texts))
+      return cached;
+    endif
+    const contract = $reaction:_compile_contract(name, schema['inputs], @texts);
+    $reaction.contracts[name] = contract;
+    return contract;
+  endmethod
+
+  method _compile_contract owner: ARCH_WIZARD
+    "Parse and validate an action's requirement and changes against its inputs.";
+    const {name, inputs, requires, changes} = args;
+    const scope = $rule_engine:scope(inputs);
+    const rule = requires == "" ? 0 | $rule_engine:parse_expression(requires, tosym(tostr(name) + "_requires"), scope);
+    let outcome = 0;
+    let facts = {};
+    if (changes != "")
+      outcome = $rule:mk(tosym(tostr(name) + "_changes"), $condition:parse(changes), scope);
+      const tree = outcome.condition;
+      for part in (tree['kind] == 'all ? tree['children] | {tree})
+        const holds = part['kind] != 'not;
+        const fact = holds ? part | part['child];
+        fact['kind] in {'predicate, 'relation} && length(fact['bind]) == 0 || raise(E_INVARG, "Action changes must be facts that start or stop holding, joined by AND.");
+        facts = {@facts, ['holds -> holds, 'fact -> fact, 'text -> $condition:print(part)]};
+      endfor
+    endif
+    return ['texts -> {requires, changes}, 'requires -> rule, 'changes -> facts, 'outcome -> outcome];
+  endmethod
+
+  method check_action owner: ARCH_WIZARD
+    "Answer whether an action's requirement holds for these arguments, and if not, which part failed. Never acts.";
+    set_task_perms(caller_perms());
+    const {name, arguments} = args;
+    return $reaction:_check_contract(name, arguments, 'requires);
+  endmethod
+
+  method check_outcome owner: ARCH_WIZARD
+    "Answer whether an action's declared changes hold now, such as after it was applied, and if not, which part does not.";
+    set_task_perms(caller_perms());
+    const {name, arguments} = args;
+    return $reaction:_check_contract(name, arguments, 'outcome);
+  endmethod
+
+  method _check_contract owner: ARCH_WIZARD
+    "Evaluate one part of an action's contract with explanation under the caller's permissions.";
+    set_task_perms(caller_perms());
+    const {name, arguments, part} = args;
+    const schemas = $reaction:action_schemas();
+    maphaskey(schemas, name) || raise(E_INVARG, "Unknown action: " + tostr(name));
+    $behavior_schema:bindings(arguments, schemas[name]['inputs], "action " + tostr(name));
+    const rule = $reaction:action_contract(name)[part];
+    if (rule == 0)
+      return ['ok -> true, 'unmet -> {}, 'bindings -> []];
+    endif
+    try
+      const result = $rule_engine:evaluate(rule, arguments, [], [], false, true);
+      if (result['success])
+        return ['ok -> true, 'unmet -> {}, 'bindings -> result['bindings]];
+      endif
+      const trace = result['explanation];
+      let unmet = trace['condition];
+      if (rule.condition['kind] == 'all)
+        for child in (trace['children])
+          if (child['matches] == 0)
+            unmet = child['condition];
+            break;
+          endif
+        endfor
+      endif
+      return ['ok -> false, 'unmet -> {unmet}, 'bindings -> []];
+    except problem (E_INVARG, E_TYPE, E_PERM, E_PROPNF)
+      return ['ok -> false, 'unmet -> {problem[2]}, 'bindings -> []];
+    endtry
   endmethod
 
   method perform_action owner: ARCH_WIZARD
@@ -128,6 +237,10 @@ object REACTION [
       maphaskey(schemas, name) || raise(E_INVARG, "Unknown action: " + tostr(name));
       $behavior_schema:bindings(arguments, schemas[name]['inputs], "action " + tostr(name));
       if (maphaskey($reaction.action_sources, name))
+        const check = $reaction:check_action(name, arguments);
+        if (!check['ok])
+          return ['status -> 'denied, 'reason -> { "This needs " + part + "." for part in (check['unmet]) }, 'unmet -> check['unmet]];
+        endif
         const service = $reaction.action_sources[name];
         const result = service['provider]:(service['method])(arguments, context);
         typeof(result) == TYPE_MAP && maphaskey(result, 'status) && result['status] in {'applied, 'denied, 'error} || raise(E_INVARG, "The action service returned an invalid result.");
@@ -1180,6 +1293,75 @@ object REACTION [
     target.ready = true;
     target:fire_trigger('on_ready, ['Actor -> player]);
     $test_utils:assert_true(target.fired, "successful when clause should allow effects");
+    return true;
+  endmethod
+
+  method test_builtin_action_contracts owner: HACKER
+    "A built-in action applies only when its requirement holds, is denied when it does not, and its changes hold afterwards. Object rules can still refuse a met requirement.";
+    const room = $test_utils:anonymous($room);
+    const actor = $test_utils:anonymous($actor);
+    const box = $test_utils:anonymous($container);
+    const key = $test_utils:anonymous($thing);
+    const coin = $test_utils:anonymous($thing);
+    const chair = $test_utils:anonymous($sittable);
+    const hat = $test_utils:anonymous($wearable);
+    for placed in ({{actor, room}, {box, room}, {chair, room}, {key, actor}, {coin, actor}, {hat, actor}})
+      move(@placed);
+    endfor
+    box.open = false;
+    box.locked = false;
+    for operation in ({'lock_rule, 'unlock_rule})
+      box.(tostr(operation)) = $rule_engine:parse_expression("location_is(object: input.Key, location: input.Accessor)", 'carried_key, $rule_engine:policy_scope(operation));
+    endfor
+    const steps = {{'open, ['target -> box]}, {'open, ['target -> box]}, {'close, ['target -> box]}, {'lock, ['target -> box, 'key -> key]}, {'open, ['target -> box]}, {'unlock, ['target -> box, 'key -> key]}, {'unlock, ['target -> box, 'key -> key]}, {'open, ['target -> box]}, {'put_into, ['target -> box, 'item -> coin]}, {'take_from, ['target -> box, 'item -> coin]}, {'take_from, ['target -> box, 'item -> coin]}, {'drop, ['target -> coin]}, {'drop, ['target -> coin]}, {'get, ['target -> coin]}, {'sit, ['target -> chair]}, {'sit, ['target -> chair]}, {'stand, ['target -> chair]}, {'wear, ['target -> hat]}, {'remove, ['target -> hat]}, {'remove, ['target -> hat]}};
+    let denials = 0;
+    for step in (steps)
+      const {name, values} = step;
+      const arguments = mapmerge(values, ['actor -> actor]);
+      const check = $reaction:check_action(name, arguments);
+      const result = $reaction:perform_action(name, arguments);
+      result['status] != 'error || raise(E_ASSERT, tostr(name) + " failed: " + toliteral(result['error]));
+      (result['status] == 'applied) == check['ok] || raise(E_ASSERT, tostr(name) + ": the contract said " + toliteral(check) + " but the action was " + tostr(result['status]));
+      if (check['ok])
+        const outcome = $reaction:check_outcome(name, arguments);
+        outcome['ok] || raise(E_ASSERT, tostr(name) + " left changes unmet: " + toliteral(outcome['unmet]));
+      else
+        denials = denials + 1;
+      endif
+    endfor
+    $test_utils:assert_eq(denials, 7, "The sequence exercises both outcomes");
+    const unmet = $reaction:check_action('open, ['target -> box, 'actor -> actor])['unmet];
+    $test_utils:assert_true(length(unmet) == 1 && index(unmet[1], "is_open") > 0, "An unmet requirement names its failed part: " + toliteral(unmet));
+    return true;
+  endmethod
+
+  method test_registered_action_requirements owner: ARCH_WIZARD
+    "A registered action is denied with the failed part of its requirement before its service runs; a bad contract is refused.";
+    const service = $test_utils:anonymous($thing);
+    add_verb(service, {$arch_wizard, "rxd", "act"}, {"this", "none", "this"});
+    set_verb_code(service, "act", {"return ['status -> 'applied, 'reason -> {}];"});
+    const box = $test_utils:anonymous($container);
+    const actor = $test_utils:anonymous($actor);
+    box.open = false;
+    const inputs = ['target -> 'object, 'actor -> 'object];
+    try
+      $reaction:register_action('probe_bad_contract, ['description -> "Probe.", 'inputs -> inputs, 'requires -> "no_such_fact(object: input.target)"], service, "act");
+      raise(E_ASSERT, "A contract over unknown facts was registered");
+    except error (E_INVARG)
+    endtry
+    $test_utils:assert_false(maphaskey($reaction.action_sources, 'probe_bad_contract), "A refused contract registers nothing");
+    $reaction:register_action('probe_open_box, ['description -> "Probe.", 'inputs -> inputs, 'requires -> "is_open(object: input.target)", 'changes -> "is_open(object: input.target)"], service, "act");
+    try
+      const denied = $reaction:perform_action('probe_open_box, ['target -> box, 'actor -> actor]);
+      $test_utils:assert_eq(denied['status], 'denied, "An unmet requirement denies the action");
+      $test_utils:assert_true(index(denied['unmet][1], "is_open") > 0, "The denial names the failed part");
+      box.open = true;
+      $test_utils:assert_eq($reaction:perform_action('probe_open_box, ['target -> box, 'actor -> actor])['status], 'applied, "A met requirement runs the service");
+      $test_utils:assert_eq($reaction:action_contract('probe_open_box)['changes][1]['holds], true, "Changes are kept as facts that start holding");
+    finally
+      $reaction:unregister_action('probe_open_box);
+    endtry
+    $test_utils:assert_false(maphaskey($reaction.contracts, 'probe_open_box), "Unregistering forgets the contract");
     return true;
   endmethod
 

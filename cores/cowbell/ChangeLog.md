@@ -26,6 +26,11 @@ Cowbell entries.
   from queries at once and are announced as forgotten. `$relation:keep_provenance(relation, true)`
   keeps who recorded each fact and when, which conditions read as `recorded_by`, `recorded_at` and
   `expires_at`. Relations can no longer define fields with those names.
+- Actions can say what they need and what they change. `$reaction:check_action(name, arguments)`
+  answers whether an action would work and, if not, which part of its requirement failed, without
+  acting. Registered actions with a `requires` condition are denied with that reason before their
+  service runs. The built-in container, item, seat and clothing actions have contracts; new world
+  facts `within_reach` and `wearing` support them.
 - `$wiz_features:grant_wizard(target, ?tools)` makes a player a wizard as `@wizard` does and returns
   what they had before; `revoke_wizard(target, ?before)` takes wizard status back and, given that
   record, restores the player.

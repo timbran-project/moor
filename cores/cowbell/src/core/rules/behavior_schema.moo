@@ -306,7 +306,10 @@ object BEHAVIOR_SCHEMA [
         $behavior_schema:_name(name, path);
         const entry = vocabulary[category][name];
         const fields = category == 'predicates ? {'description, 'inputs, 'outputs} | {'description, 'inputs};
-        $behavior_schema:_fields(entry, fields, {}, path);
+        $behavior_schema:_fields(entry, fields, category == 'actions ? {'requires, 'changes} | {}, path);
+        for part in ({'requires, 'changes})
+          maphaskey(entry, part) && $behavior_schema:_type(entry[part], 'string, path + "." + tostr(part));
+        endfor
         $behavior_schema:_type(entry['description], 'string, path + ".description");
         $behavior_schema:_types(entry['inputs], path + ".inputs");
         if (category == 'predicates)

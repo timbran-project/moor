@@ -2723,6 +2723,8 @@ object BUILDER_FEATURES [
         const entry = schemas[name];
         const arguments = { tostr(field) + "=" + tostr(entry['inputs][field]) for field in (mapkeys(entry['inputs])) };
         lines = {@lines, (topic == "actions" ? "do " | "fact ") + tostr(name) + " " + arguments:join(" ") + " — " + entry['description]};
+        maphaskey(entry, 'requires) && (lines = {@lines, "  needs " + entry['requires]});
+        maphaskey(entry, 'changes) && (lines = {@lines, "  then " + entry['changes]});
       endfor
       return lines;
     elseif (topic == "conditions")

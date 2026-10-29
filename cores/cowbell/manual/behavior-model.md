@@ -297,6 +297,35 @@ Legacy reads already remove duplicates from results. The first mutation collapse
 and rebuilds indexes, retaining an original identity for each fact. Owners can call `repair()`
 explicitly before that first mutation. Repair does not suspend or commit partial batches.
 
+## Action contracts
+
+An action's schema can state what the action needs and what it changes, in the condition language
+over its inputs:
+
+```moo
+['description -> "Unlock a container with a carried key.",
+ 'inputs -> ['target -> 'object, 'actor -> 'object, 'key -> 'object],
+ 'requires -> "within_reach(actor: input.actor, object: input.target) AND location_is(object: input.key, location: input.actor) AND is_locked(object: input.target)",
+ 'changes -> "NOT is_locked(object: input.target)"]
+```
+
+`requires` is one condition. `changes` joins facts with `AND`; `NOT` marks a fact that stops
+holding. Both are parsed and validated when the action is registered, and cached as rules.
+
+- `$reaction:check_action(name, arguments)` returns `ok`, and `unmet`: the first part of the
+  requirement that failed, in printed form. It never acts.
+- `$reaction:check_outcome(name, arguments)` checks the changes the same way, such as after the
+  action applied.
+- `$reaction:action_contract(name)` returns the requirement rule and the list of changes.
+
+A requirement is necessary, not sufficient: an object's own rules, such as a container's
+`lock_rule`, can still refuse. `perform_action` checks a registered action's requirement before it
+calls the service and returns `denied` with `unmet` when it fails. Built-in actions run their own
+checks first, so objects keep their authored refusal messages; their contracts serve checking,
+planning, and explanations, and tests keep them in agreement with the actions. The exit actions
+have no contract yet. The world facts `within_reach(actor, object)` and `wearing(actor, item)`
+support the built-in contracts.
+
 ## Fact changes, lifetimes, and provenance
 
 A reaction can start when a fact is recorded in, or forgotten from, one relation. Its trigger is
