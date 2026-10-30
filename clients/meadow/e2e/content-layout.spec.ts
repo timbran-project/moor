@@ -26,6 +26,32 @@ async function narrative(page: Page, html: string, width = 800) {
     await page.addStyleTag({ content: styles });
 }
 
+test("room panel categories share a row with their contents", async ({ page }) => {
+    await page.setViewportSize({ width: 646, height: 400 });
+    const chip = (label: string) => `<li><p><span class="semantic-annotation">${label}</span></p></li>`;
+    await page.setContent(
+        `<div class="room_look_panel" style="width:620px"><div class="top_dock_panel_content">`
+            + `<span class="content-renderer"><span class="content-html">`
+            + `<p>Welcome to Cowbell.</p>\n<p>A second paragraph.</p>\n`
+            + `<h4>Exits</h4>\n<ul class="reference-columns">${chip("examples")}</ul>\n`
+            + `<h4>Things</h4>\n<ul class="reference-columns">${chip("a compass")}\n${chip("a box")}</ul>\n`
+            + `<h4>People</h4>\n<p><span>Mr. Welcome</span> is here.<br>\n<span>Test_Player</span> is asleep.</p>`
+            + `</span></span></div></div>`,
+    );
+    await page.addStyleTag({ content: styles });
+    const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
+    const prose = await box(".content-html > p:first-child");
+    const labels = page.locator(".content-html > h4");
+    for (let i = 0; i < 3; i++) {
+        const label = (await labels.nth(i).boundingBox())!;
+        const value = (await page.locator(".content-html > h4 + *").nth(i).boundingBox())!;
+        expect(value.x).toBeGreaterThanOrEqual(label.x + label.width);
+        expect(value.y).toBeLessThanOrEqual(label.y + label.height);
+        expect(label.x).toBeCloseTo(prose.x, 0);
+    }
+    expect(prose.width).toBeGreaterThan(500);
+});
+
 test("HTML source whitespace does not add blank lines to room descriptions", async ({ page }) => {
     const blocks = [
         "<h3>The garden</h3>",
