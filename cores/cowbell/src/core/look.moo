@@ -271,7 +271,8 @@ object LOOK [
   endmethod
 
   method panel owner: HACKER
-    "Render a panel from the captured description and entry groups. Its title stays separate.";
+    "Build a panel from the captured description and entry groups. Its title stays separate.";
+    "The encoded document is canonical. The body serves clients that cannot read the document.";
     const {view, ?format = 'text_html} = args;
     let blocks = flycontents(view['description]);
     for section in ({{"Exits", view['exits]}, {"Things", {@view['actions], @view['things]}}})
@@ -285,7 +286,18 @@ object LOOK [
     if (length(people))
       blocks = {@blocks, $document_node:mk('heading, $format:literal_inline("People"), ['level -> 4]), @$look:_lines_block(people)};
     endif
-    const result = $document:render($document:mk(blocks), format);
-    return ["room" -> view['room_ref], "title" -> view['title_text], "content" -> result['body], "content_type" -> strsub(tostr(format), "_", "/", 1), "annotations" -> result['annotations]];
+    const batch = $document:render_many($document:mk(blocks), {['format -> format]});
+    for diagnostic in (batch['diagnostics])
+      $look:_panel_error(diagnostic);
+    endfor
+    const result = batch['results][1];
+    return ["room" -> view['room_ref], "title" -> view['title_text], "document" -> batch['document], "content" -> result['body], "content_type" -> strsub(tostr(format), "_", "/", 1), "annotations" -> result['annotations]];
+  endmethod
+
+  method _panel_error owner: ARCH_WIZARD
+    "Log a reference dropped from a panel without granting panel callers wizard permissions.";
+    caller == $look || raise(E_PERM);
+    const {message} = args;
+    server_log("Room panel: " + message);
   endmethod
 endobject

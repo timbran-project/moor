@@ -318,11 +318,12 @@ object EVENT_RECEIVER [
     is_player(this) && valid(room) && isa(room, $room) || return;
     this.location == room || return;
     "Panel state is transient; disconnected players need no capture or rendering.";
-    length(this:_connections()) || return false;
+    const connections = this:_connections();
+    length(connections) || return false;
     const view = typeof(captured) == TYPE_MAP ? captured | this:_capture_room(room);
     view['viewer] == this && view['room_ref] == room || raise(E_INVARG, "Room view mismatch");
     view['exit_revision] == room.exit_revision || return false;
-    const snapshot = $look:panel(view);
+    const snapshot = $look:panel(view, $format:shared_connection_format({ entry[4] for entry in (connections) }));
     this.location == room || return;
     view['exit_revision] == room.exit_revision || return false;
     "Panel state is superseded by the next snapshot, so it is not kept in history.";

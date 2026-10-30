@@ -8,6 +8,9 @@ Cowbell entries.
 
 ### Added
 
+- Room panel snapshots carry the panel's `document` beside its rendered body, so a client can lay
+  out the room itself. The `room_snapshot` body now uses a format every attached connection can
+  read, not always HTML. A panel reference that fails validation keeps its label and is logged.
 - Rule and reaction conditions can compute values with `+`, `-`, `*`, `/`, `abs`, `min`, and
   `max`, such as `abs(binding.X - input.X) < 8`. `count(...)` gives the number of matches,
   `exists(...)` checks for a match without keeping its bindings, and `best(..., by: value, limit: n)`

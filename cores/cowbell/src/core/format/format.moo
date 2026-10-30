@@ -39,6 +39,29 @@ object FORMAT [
     raise(E_INVARG, "Connection has no supported narrative content type");
   endmethod
 
+  method shared_connection_format owner: HACKER
+    "Select a format for one payload sent to several connections: the best the least capable reads.";
+    const {offers} = args;
+    typeof(offers) == TYPE_LIST || raise(E_TYPE);
+    const formats = {'text_html, 'text_djot, 'text_plain};
+    let selected = 1;
+    for offered in (offers)
+      const format = `$format:connection_format(offered) ! E_INVARG => 'text_plain';
+      selected = max(selected, format in formats);
+    endfor
+    return formats[selected];
+  endmethod
+
+  method test_shared_connection_format owner: HACKER
+    "One payload uses the least capable connection's best format; unsupported offers read plain text.";
+    $test_utils:assert_eq($format:shared_connection_format({{'text_html, 'text_djot, 'text_plain}}), 'text_html, "web connections read HTML");
+    $test_utils:assert_eq($format:shared_connection_format({{'text_html, 'text_djot}, {'text_djot, 'text_plain}}), 'text_djot, "a Djot connection lowers the shared format");
+    $test_utils:assert_eq($format:shared_connection_format({{'text_html}, {'text_plain}}), 'text_plain, "a plain connection lowers it further");
+    $test_utils:assert_eq($format:shared_connection_format({{'text_html}, {"unknown"}}), 'text_plain, "an unsupported offer reads plain text");
+    $test_utils:assert_eq($format:shared_connection_format({}), 'text_html, "no connection leaves the richest format");
+    return true;
+  endmethod
+
   method authored owner: HACKER
     "Convert an explicitly selected source kind to inline or block content. Never infer markup.";
     const {kind, source} = args;

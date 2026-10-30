@@ -50,6 +50,10 @@ object LOOK_SCENARIOS [
       const document = narrative:resolve(#90102);
       const original = $document:render(document, 'text_html);
       $test_utils:assert_true(index(before["content"], expected) > 0, "panel uses the captured document");
+      const panel_blocks = before["document"]["blocks"];
+      $test_utils:assert_eq(before["document"]["version"], 1, "panel carries a versioned document");
+      $test_utils:assert_eq(panel_blocks[1..length($document:encode(view['description])["blocks"])], $document:encode(view['description])["blocks"], "panel document starts with the captured description");
+      $test_utils:assert_eq($document:render($document:decode(before["document"]), 'text_html)['body], before["content"], "panel body renders the panel document");
       const description_blocks = $document:encode(view['description])["blocks"];
       const narrative_blocks = $document:encode(document)["blocks"];
       $test_utils:assert_eq(narrative_blocks[2..length(description_blocks) + 1], description_blocks, "narrative uses the same captured blocks, independent of serialization anchors");
