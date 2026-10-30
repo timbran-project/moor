@@ -302,6 +302,12 @@ object ACTOR [
     return thing.owner == actor;
   endmethod
 
+  method action_started owner: ARCH_WIZARD
+    "The planner began an action of this NPC's plan that takes seconds, with its named arguments; the action runs when the time is up. Override it to show the work, such as turning to it.";
+    callers()[1][4] == $planner || raise(E_PERM);
+    return 0;
+  endmethod
+
   method action_go owner: ARCH_WIZARD
     "Move this actor through a local passage under the invoking principal's authority.";
     const principal = caller_perms();

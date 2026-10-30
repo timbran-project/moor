@@ -20,7 +20,7 @@ object PLANNER [
     "",
     "Each tick the planner chooses approaches for open goals, in the order the playbook defines them, and runs at most one action. A goal that is an approach's last step replaces that approach on the plan, so an approach that repeats by ending with its own goal can run any number of times. Before an action runs, its requirement is checked against the world as it is. A failed step marks its approach and matches as failed for a while, and the goal tries its next approach on the next tick. When no approach applies, the goal fails and its parent's approach fails in turn.",
     "",
-    "An NPC's `plan_tick`, when set, replaces the planner's `tick_seconds` for it. Steps run with the NPC owner's permissions. A plan can use playbooks owned by the NPC's owner or by a wizard. Players do not run plans. The NPC hears `on_plan_done` or `on_plan_failed` when its plan ends."
+    "An NPC's `plan_tick`, when set, replaces the planner's `tick_seconds` for it. An action whose schema declares `seconds` takes that long: its requirement is checked, the NPC hears `action_started(name, arguments, seconds)`, and the action runs, its requirement checked again, when the time is up. Steps run with the NPC owner's permissions. A plan can use playbooks owned by the NPC's owner or by a wizard. Players do not run plans. The NPC hears `on_plan_done` or `on_plan_failed` when its plan ends."
   };
 
   method pursue owner: ARCH_WIZARD
@@ -134,9 +134,29 @@ object PLANNER [
         plan['frames] = {@plan['frames], $planner:_frame(step['name], values)};
         continue;
       endif
+      const seconds = $reaction:action_seconds(step['name]);
+      if (tofloat(seconds) > 0.0 && `frame['working] ! E_RANGE => 0' != frame['step])
+        "Work that takes time begins only if it could be done now, and the NPC hears it begin; the action runs when the time is up.";
+        const check = $planner:_check(plan['owner], step['name], values);
+        if (check['ok])
+          frame['working] = frame['step];
+          plan['frames][length(plan['frames])] = frame;
+          npc.plan = plan;
+          try
+            npc:action_started(step['name], values, seconds);
+          except error (ANY)
+            server_log("Work start on " + toliteral(npc) + " failed: " + error[2]);
+          endtry
+          return seconds;
+        endif
+        plan = $planner:_fail_approach(npc, plan, step['text] + ": it needs " + check['unmet]:join(", "));
+        npc.plan = plan;
+        return $planner:_tick_seconds(npc);
+      endif
       const result = $planner:_act(npc, plan['owner], step['name], values);
       if (result['status] == 'applied)
         frame['step] = frame['step] + 1;
+        frame['working] = 0;
         plan['frames][length(plan['frames])] = frame;
       else
         plan = $planner:_fail_approach(npc, plan, step['text] + ": " + result['reason]);
@@ -181,6 +201,14 @@ object PLANNER [
     endtry
   endmethod
 
+  method _check owner: ARCH_WIZARD
+    "Check an action's requirement against the world as it is, as the NPC's owner.";
+    callers()[1][4] == $planner || raise(E_PERM);
+    const {owner, name, values} = args;
+    set_task_perms(owner);
+    return $reaction:check_action(name, values);
+  endmethod
+
   method _act owner: ARCH_WIZARD
     "Check an action's requirement against the world as it is, then perform it as the NPC's owner.";
     callers()[1][4] == $planner || raise(E_PERM);
@@ -208,6 +236,7 @@ object PLANNER [
     frame['approach] = 0;
     frame['bindings] = [];
     frame['step] = 1;
+    frame['working] = 0;
     plan['frames][length(plan['frames])] = frame;
     plan['setback] = reason;
     return plan;
@@ -276,7 +305,7 @@ object PLANNER [
   method _frame owner: HACKER
     "A new open goal on a plan's stack.";
     const {goal, inputs} = args;
-    return ['goal -> goal, 'inputs -> inputs, 'approach -> 0, 'bindings -> [], 'step -> 1];
+    return ['goal -> goal, 'inputs -> inputs, 'approach -> 0, 'bindings -> [], 'step -> 1, 'working -> 0];
   endmethod
 
   method _call_text owner: HACKER

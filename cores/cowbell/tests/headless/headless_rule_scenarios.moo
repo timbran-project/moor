@@ -154,4 +154,39 @@ object HEADLESS_RULE_SCENARIOS [
     endtry
     return true;
   endmethod
+
+  method test_headless_work_takes_time owner: core::ARCH_WIZARD
+    "An action that takes seconds begins, the NPC hears it begin, and it runs only when the time is up.";
+    const tick = $planner.tick_seconds;
+    $planner.tick_seconds = 0.01;
+    const service = create($thing);
+    add_property(service, "done_at", 0.0, {$arch_wizard, "r"});
+    add_verb(service, {$arch_wizard, "rxd", "act"}, {"this", "none", "this"});
+    set_verb_code(service, "act", {"this.done_at = ftime();", "return ['status -> 'applied, 'reason -> {}];"});
+    const book = create($playbook);
+    const npc = create($actor);
+    add_property(npc, "began", {}, {$arch_wizard, "r"});
+    add_verb(npc, {$arch_wizard, "rxd", "action_started"}, {"this", "none", "this"});
+    set_verb_code(npc, "action_started", {"this.began = {@args, ftime()};"});
+    try
+      $reaction:register_action('probe_slow_work, ['description -> "Probe.", 'inputs -> ['actor -> 'object], 'seconds -> 0.3], service, "act");
+      $test_utils:assert_eq($reaction:action_seconds('probe_slow_work), 0.3, "The schema says how long the work takes");
+      $test_utils:assert_eq($reaction:action_seconds('open), 0, "Built-in actions take no time");
+      $playbook:define_goal(book, 'labour, [], "Do some slow work.");
+      $playbook:define_approach(book, 'labour, 'by_hand, "", {{'action, 'probe_slow_work, []}});
+      const started = ftime();
+      $planner:pursue(npc, book, 'labour, []);
+      $test_utils:assert_eq(this:_await_plan(npc), 'done, "The work finishes: " + toliteral($planner:why(npc)));
+      $test_utils:assert_eq(npc.began[1..3], {'probe_slow_work, ['actor -> npc], 0.3}, "The NPC hears the work begin, with its arguments and seconds");
+      $test_utils:assert_true(npc.began[4] < service.done_at, "The work begins before it is done");
+      $test_utils:assert_true(service.done_at - npc.began[4] >= 0.25, "The action runs when the time is up: " + toliteral(service.done_at - npc.began[4]));
+    finally
+      $reaction:unregister_action('probe_slow_work);
+      $planner.tick_seconds = tick;
+      npc:destroy();
+      book:destroy();
+      service:destroy();
+    endtry
+    return true;
+  endmethod
 endobject

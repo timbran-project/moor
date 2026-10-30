@@ -71,7 +71,7 @@ object REACTION [
     "`$reaction:action_schemas()` lists supported actions and their required named arguments. Action argument values use the same literal, input, state, and binding expressions as conditions.",
     "`$reaction:perform_action(name, arguments)` takes actual values and returns an applied, denied, or error result. A missing argument or unknown action is an error.",
     "An action schema can say what the action needs, as `requires`, and what it changes, as `changes`, both in the condition language over `input.NAME`. `check_action(name, arguments)` answers whether the requirement holds and names the failed part, without acting. `check_outcome(name, arguments)` checks the changes. `action_contract(name)` returns both. A requirement is necessary, not sufficient: object rules can still refuse.",
-    "Wizards can register a MOO action service with `register_action(name, schema, provider, method)`. The service receives named values and a reaction context. It must check its caller’s authority, preserve the context for chained actions, and return a structured result. Preview must never call the service.",
+    "Wizards can register a MOO action service with `register_action(name, schema, provider, method)`. The service receives named values and a reaction context. It must check its caller’s authority, preserve the context for chained actions, and return a structured result. A schema may declare `seconds`, how long the action takes; a plan waits that long before running it. Preview must never call the service.",
     "",
     "## State and time",
     "",
@@ -121,6 +121,13 @@ object REACTION [
       schemas[name] = $reaction.action_sources[name]['schema];
     endfor
     return schemas;
+  endmethod
+
+  method action_seconds owner: HACKER
+    "How long an action takes, in seconds, as its schema declares; 0 for one that takes no time, as the built-in actions do.";
+    const {name} = args;
+    maphaskey($reaction.action_sources, name) || return 0;
+    return `$reaction.action_sources[name]['schema]['seconds] ! E_RANGE => 0';
   endmethod
 
   method register_action owner: ARCH_WIZARD

@@ -306,10 +306,13 @@ object BEHAVIOR_SCHEMA [
         $behavior_schema:_name(name, path);
         const entry = vocabulary[category][name];
         const fields = category == 'predicates ? {'description, 'inputs, 'outputs} | {'description, 'inputs};
-        $behavior_schema:_fields(entry, fields, category == 'actions ? {'requires, 'changes} | {}, path);
+        $behavior_schema:_fields(entry, fields, category == 'actions ? {'requires, 'changes, 'seconds} | {}, path);
         for part in ({'requires, 'changes})
           maphaskey(entry, part) && $behavior_schema:_type(entry[part], 'string, path + "." + tostr(part));
         endfor
+        if (maphaskey(entry, 'seconds))
+          typeof(entry['seconds]) in {TYPE_INT, TYPE_FLOAT} && tofloat(entry['seconds]) >= 0.0 || raise(E_INVARG, path + ".seconds: an action takes zero or more seconds");
+        endif
         $behavior_schema:_type(entry['description], 'string, path + ".description");
         $behavior_schema:_types(entry['inputs], path + ".inputs");
         if (category == 'predicates)
