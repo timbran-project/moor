@@ -284,7 +284,7 @@ object LOOK [
     "People read as the narrative does, so a crowd of sleepers is counted, not listed.";
     const people = $look:_actor_lines(view);
     if (length(people))
-      blocks = {@blocks, $document_node:mk('heading, $format:literal_inline("People"), ['level -> 4]), @$look:_lines_block(people)};
+      blocks = {@blocks, $document_node:mk('heading, $format:literal_inline("Who"), ['level -> 4]), @$look:_lines_block(people)};
     endif
     const batch = $document:render_many($document:mk(blocks), {['format -> format]});
     for diagnostic in (batch['diagnostics])
