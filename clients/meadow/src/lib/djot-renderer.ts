@@ -468,17 +468,29 @@ export function renderHtmlContent(html: string, enableEmoji: boolean = false, an
     // Convert links and tables
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = sanitizedHtml;
-    convertLinksAndTables(tempDiv);
+    return finishContentElement(tempDiv, enableEmoji, annotations);
+}
+
+/**
+ * Applies link/table conversion, URL detection, ANSI codes, syntax highlighting, and annotations
+ * to an element whose contents are already safe.
+ */
+export function finishContentElement(
+    container: HTMLElement,
+    enableEmoji: boolean = false,
+    annotations?: AnnotationTable,
+): string {
+    convertLinksAndTables(container);
 
     // Detect plain text URLs in text nodes and convert to clickable spans
-    processTextNodesForUrls(tempDiv);
+    processTextNodesForUrls(container);
 
     // Process ANSI and syntax highlighting
     const ansi_up = new AnsiUp();
-    processCodeBlocks(tempDiv, ansi_up);
-    processTextNodesForAnsi(tempDiv, ansi_up, enableEmoji);
+    processCodeBlocks(container, ansi_up);
+    processTextNodesForAnsi(container, ansi_up, enableEmoji);
 
-    return bindAnnotationMarkers(tempDiv.innerHTML, annotations);
+    return bindAnnotationMarkers(container.innerHTML, annotations);
 }
 
 /**

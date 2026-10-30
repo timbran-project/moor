@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Meadow draws the room panel from the document Cowbell sends, which keeps list numbering, table
+  alignment and captions, task checkboxes and strikethrough that the HTML body lost. It uses the
+  rendered body if the document is missing or not valid.
 - `term_match()` takes a list of binding maps as well as one, matching each against every value, so
   a list of partial answers can be joined with a list of records in one call. `term_query()` finds
   facts through an index on their first two elements instead of trying every fact for every goal,

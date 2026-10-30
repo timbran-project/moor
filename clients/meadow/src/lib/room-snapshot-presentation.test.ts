@@ -40,6 +40,12 @@ describe("captured room presentations", () => {
         expect(presentation?.content).toBe("*literal*");
         expect(presentation?.content_type).toBe(type);
     });
+    it("keeps the document beside the body and rejects a document without a body", () => {
+        const document = { version: 1, blocks: [] };
+        expect(roomSnapshotToPresentation({ ...snapshot, document })?.document).toBe(document);
+        expect(roomSnapshotToPresentation(snapshot)?.document).toBeUndefined();
+        expect(roomSnapshotToPresentation({ ...snapshot, content: undefined, document })).toBeNull();
+    });
     it("rejects raw descriptions and unsupported bodies instead of inventing a representation", () => {
         expect(roomSnapshotToPresentation({ room: 10, title: "Hall", description: "raw" })).toBeNull();
         expect(roomSnapshotToPresentation({ ...snapshot, content_type: "text/unknown" })).toBeNull();

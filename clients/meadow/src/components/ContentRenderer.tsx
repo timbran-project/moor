@@ -16,6 +16,7 @@ import type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAnnotationActivation } from "../context/AnnotationContext";
 import { useArgumentCoordinator } from "../context/ArgumentContext";
+import { renderCowbellDocument } from "../lib/cowbell-document";
 import { renderDjot, renderHtmlContent, renderPlainText } from "../lib/djot-renderer";
 
 export type { WsEventMetadata as EventMetadata } from "@moor/web-sdk";
@@ -31,6 +32,8 @@ interface ContentRendererProps {
     isStale?: boolean;
     enableEmoji?: boolean;
     eventMetadata?: EventMetadata;
+    /** Encoded document to format here. The content stays as the fallback for the whole body. */
+    cowbellDocument?: unknown;
 }
 
 export function normalizeEmbeddedUri(uri: string, baseUrl: string = window.location.href): string | null {
@@ -52,13 +55,19 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     isStale = false,
     enableEmoji = false,
     eventMetadata,
+    cowbellDocument,
 }) => {
     const activateAnnotation = useAnnotationActivation();
     const coordinator = useArgumentCoordinator();
     const container = useRef<HTMLSpanElement>(null);
-    const annotations = eventMetadata?.annotations;
+    const formatted = useMemo(
+        () => cowbellDocument === undefined ? null : renderCowbellDocument(cowbellDocument, enableEmoji),
+        [cowbellDocument, enableEmoji],
+    );
+    const annotations = formatted ? formatted.annotations : eventMetadata?.annotations;
     const source = Array.isArray(content) ? content.join(contentType === "text/x-uri" ? "" : "\n") : String(content);
     const html = useMemo(() => {
+        if (formatted) return formatted.html;
         if (contentType === "text/html") return renderHtmlContent(source, enableEmoji, annotations);
         if (contentType === "text/djot") {
             try {
@@ -73,7 +82,7 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
             }
         }
         return renderPlainText(source, enableEmoji);
-    }, [source, contentType, enableEmoji, annotations]);
+    }, [formatted, source, contentType, enableEmoji, annotations]);
 
     useEffect(() => {
         const releases: (() => void)[] = [];
@@ -112,8 +121,10 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     }, [activate]);
 
     const staleClass = isStale ? " content-stale" : "";
-    if (contentType === "text/traceback") return <pre className={`traceback_narrative${staleClass}`}>{source}</pre>;
-    if (contentType === "text/x-uri") {
+    if (!formatted && contentType === "text/traceback") {
+        return <pre className={`traceback_narrative${staleClass}`}>{source}</pre>;
+    }
+    if (!formatted && contentType === "text/x-uri") {
         const uri = normalizeEmbeddedUri(source.trim());
         return uri
             ? <iframe src={uri} className="content-iframe" title="Embedded content" sandbox="allow-scripts" />
@@ -122,8 +133,8 @@ export const ContentRenderer: React.FC<ContentRendererProps> = ({
     return (
         <span ref={container} className="content-renderer">
             <span
-                className={`${contentType === "text/plain" ? "content-text" : "content-html"}${
-                    contentType === "text/djot" ? " text_djot" : ""
+                className={`${!formatted && contentType === "text/plain" ? "content-text" : "content-html"}${
+                    !formatted && contentType === "text/djot" ? " text_djot" : ""
                 }${staleClass}`}
                 dangerouslySetInnerHTML={{ __html: html }}
                 onClick={activate}

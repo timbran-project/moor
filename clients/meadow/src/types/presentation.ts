@@ -13,7 +13,11 @@
 
 import type { AnnotationTable, PresentationContentType, PresentationData as SdkPresentationData } from "@moor/web-sdk";
 
-export type PresentationData = SdkPresentationData & { eventId?: string; annotations?: AnnotationTable };
+export type PresentationData = SdkPresentationData & {
+    eventId?: string;
+    annotations?: AnnotationTable;
+    document?: unknown;
+};
 
 export interface Presentation {
     readonly annotations?: AnnotationTable;
@@ -22,6 +26,7 @@ export interface Presentation {
     readonly title: string;
     readonly content: string | string[];
     readonly contentType: PresentationContentType;
+    readonly document?: unknown;
     readonly attrs: Readonly<{ [key: string]: string }>;
 }
 

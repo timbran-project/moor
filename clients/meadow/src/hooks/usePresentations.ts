@@ -100,6 +100,7 @@ export const usePresentations = () => {
             content: data.content,
             annotations: data.annotations,
             contentType,
+            document: data.document,
             attrs,
         };
 

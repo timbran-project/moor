@@ -104,3 +104,52 @@ describe("ContentRenderer semantic references", () => {
         expect(container.querySelectorAll("[data-url]")).toHaveLength(1);
     });
 });
+
+describe("ContentRenderer documents", () => {
+    const annotation = { kind: "object", ref: "oid:2" } as const;
+    const cowbellDocument = {
+        version: 1,
+        blocks: [{
+            kind: "paragraph",
+            children: [{ kind: "reference", descriptor: annotation, children: [{ kind: "text", text: "From tree" }] }],
+        }],
+    };
+    const body = "<p><span data-moor-annotation=\"a1\">From body</span></p>";
+
+    function renderWith(document: unknown, activate = vi.fn()) {
+        render(
+            <AnnotationContext.Provider value={activate}>
+                <ContentRenderer
+                    content={body}
+                    contentType="text/html"
+                    cowbellDocument={document}
+                    eventMetadata={{ annotations: { a1: { kind: "object", ref: "oid:1" } } }}
+                />
+            </AnnotationContext.Provider>,
+        );
+        return activate;
+    }
+
+    it("renders the document with its own annotations in place of the body", () => {
+        const activate = renderWith(cowbellDocument);
+        expect(screen.queryByText("From body")).toBeNull();
+        fireEvent.click(screen.getByText("From tree"));
+        expect(activate).toHaveBeenCalledWith(expect.objectContaining({ annotation, label: "From tree" }));
+    });
+
+    it("renders the whole body with its annotations when the document is invalid", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const activate = renderWith({ version: 2, blocks: [] });
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+        fireEvent.click(screen.getByText("From body"));
+        expect(activate).toHaveBeenCalledWith(
+            expect.objectContaining({ annotation: { kind: "object", ref: "oid:1" }, label: "From body" }),
+        );
+    });
+
+    it("renders the body when no document is supplied", () => {
+        renderWith(undefined);
+        expect(screen.getByText("From body")).toBeDefined();
+    });
+});

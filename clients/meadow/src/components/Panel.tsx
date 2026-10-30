@@ -124,6 +124,7 @@ export const Panel: React.FC<PanelProps> = ({
                     content={presentation.content}
                     eventMetadata={{ annotations: presentation.annotations }}
                     contentType={presentation.contentType}
+                    cowbellDocument={presentation.document}
                     onLinkClick={onLinkClick}
                 />
             </div>

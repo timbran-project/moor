@@ -29,6 +29,7 @@ export function roomSnapshotToPresentation(payload: unknown): PresentationData |
         target: "top",
         content_type: contentType,
         content: snapshot.content,
+        document: snapshot.document,
         annotations: decodeAnnotations(snapshot.annotations),
         attributes: [["title", snapshot.title], ["kind", "room_look"], ["room", room]],
     };
