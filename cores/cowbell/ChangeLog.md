@@ -357,6 +357,10 @@ Cowbell entries.
 
 ### Fixed
 
+- A room refreshes its panels once it has been still for `panel_refresh_delay` seconds, 0.5 by
+  default, instead of rendering one for every player on every arrival and departure. A crowd
+  arriving costs one round of renders, and a panel can update up to that much later. A room that
+  never goes still doesn't refresh until it does.
 - Players entering and leaving a room at the same time no longer conflict over its `visitors` and
   `engagements`. Rooms with `brief_revisits` now record who has seen them on the player, in
   `rooms_seen`, and still honor names already in `visitors`.
