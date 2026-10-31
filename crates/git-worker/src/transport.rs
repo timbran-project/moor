@@ -82,7 +82,7 @@ impl<R: Read> Read for Counted<R> {
         if self
             .budget
             .remaining
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
                 remaining.checked_sub(count)
             })
             .is_err()

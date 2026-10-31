@@ -89,7 +89,7 @@ impl LiveTaskRegistry {
         let generation = self
             .tasks
             .next_generation
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
             .expect("Live task registration generation exhausted");
         self.tasks.entries.pin().insert(task_id, generation);
         LiveTaskRegistration {

@@ -22,7 +22,7 @@ impl WorldStateSource for FailingDatabase {
     fn new_world_state(&self) -> Result<Box<dyn WorldState>, WorldStateError> {
         let remaining = self
             .successful_world_states_before_failure
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |remaining| {
                 Some(match remaining {
                     usize::MAX | 0 => usize::MAX,
                     _ => remaining - 1,
