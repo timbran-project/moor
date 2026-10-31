@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::program::{names::Variable, program::Program};
+use crate::{
+    Symbol,
+    program::{names::Variable, program::Program},
+};
 
 pub mod labels;
 pub mod names;
@@ -24,12 +27,24 @@ pub mod program;
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramType {
     MooR(Program),
+    /// A verb whose body is a function in a native library the daemon loaded at startup.
+    Native(NativeProgram),
+}
+
+/// A native verb's binding: a function in a native library the daemon loads at startup. Both
+/// are the names the library declares for itself, never file names or linker symbols, so a
+/// database moves between machines that install the same libraries.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NativeProgram {
+    pub library: Symbol,
+    pub function: Symbol,
 }
 
 impl ProgramType {
     pub fn is_empty(&self) -> bool {
         match self {
             ProgramType::MooR(p) => p.main_vector().is_empty(),
+            ProgramType::Native(_) => false,
         }
     }
 }

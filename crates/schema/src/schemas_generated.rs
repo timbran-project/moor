@@ -123029,14 +123029,323 @@ mod root {
             }
         }
 
+        /// The table `StoredNativeProgram` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `StoredNativeProgram` in the file `moor_program.fbs:271`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct StoredNativeProgram {
+            /// The field `library` in the table `StoredNativeProgram`
+            pub library: ::planus::alloc::string::String,
+            /// The field `function` in the table `StoredNativeProgram`
+            pub function: ::planus::alloc::string::String,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for StoredNativeProgram {
+            fn default() -> Self {
+                Self {
+                    library: ::core::default::Default::default(),
+                    function: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl StoredNativeProgram {
+            /// Creates a [StoredNativeProgramBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StoredNativeProgramBuilder<()> {
+                StoredNativeProgramBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_library: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_function: impl ::planus::WriteAs<::planus::Offset<str>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_library = field_library.prepare(builder);
+                let prepared_function = field_function.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<str>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_library);
+                        object_writer.write::<_, _, 4>(&prepared_function);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredNativeProgram>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StoredNativeProgram> for StoredNativeProgram {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                StoredNativeProgram::create(builder, &self.library, &self.function)
+            }
+        }
+
+        /// Builder for serializing an instance of the [StoredNativeProgram] type.
+        ///
+        /// Can be created using the [StoredNativeProgram::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StoredNativeProgramBuilder<State>(State);
+
+        impl StoredNativeProgramBuilder<()> {
+            /// Setter for the [`library` field](StoredNativeProgram#structfield.library).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn library<T0>(self, value: T0) -> StoredNativeProgramBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                StoredNativeProgramBuilder((value,))
+            }
+        }
+
+        impl<T0> StoredNativeProgramBuilder<(T0,)> {
+            /// Setter for the [`function` field](StoredNativeProgram#structfield.function).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn function<T1>(self, value: T1) -> StoredNativeProgramBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                let (v0,) = self.0;
+                StoredNativeProgramBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> StoredNativeProgramBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredNativeProgram].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram>
+            where
+                Self: ::planus::WriteAsOffset<StoredNativeProgram>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<StoredNativeProgram>>
+            for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredNativeProgram>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredNativeProgram>>
+            for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredNativeProgram>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredNativeProgram>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<StoredNativeProgram> for StoredNativeProgramBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredNativeProgram> {
+                let (v0, v1) = &self.0;
+                StoredNativeProgram::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [StoredNativeProgram].
+        #[derive(Copy, Clone)]
+        pub struct StoredNativeProgramRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> StoredNativeProgramRef<'a> {
+            /// Getter for the [`library` field](StoredNativeProgram#structfield.library).
+            #[inline]
+            pub fn library(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "StoredNativeProgram", "library")
+            }
+
+            /// Getter for the [`function` field](StoredNativeProgram#structfield.function).
+            #[inline]
+            pub fn function(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(1, "StoredNativeProgram", "function")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for StoredNativeProgramRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StoredNativeProgramRef");
+                f.field("library", &self.library());
+                f.field("function", &self.function());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StoredNativeProgramRef<'a>> for StoredNativeProgram {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: StoredNativeProgramRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    library: ::core::convert::Into::into(value.library()?),
+                    function: ::core::convert::Into::into(value.function()?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StoredNativeProgramRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StoredNativeProgramRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StoredNativeProgramRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StoredNativeProgram>> for StoredNativeProgram {
+            type Value = ::planus::Offset<StoredNativeProgram>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StoredNativeProgram>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StoredNativeProgramRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[StoredNativeProgramRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The union `StoredProgramLanguage` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:270`
+        /// * Union `StoredProgramLanguage` in the file `moor_program.fbs:277`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum StoredProgramLanguage {
             /// The variant of type `StoredMooRProgram` in the union `StoredProgramLanguage`
             StoredMooRProgram(::planus::alloc::boxed::Box<self::StoredMooRProgram>),
+
+            /// The variant of type `StoredNativeProgram` in the union `StoredProgramLanguage`
+            StoredNativeProgram(::planus::alloc::boxed::Box<self::StoredNativeProgram>),
         }
 
         impl StoredProgramLanguage {
@@ -123053,6 +123362,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_stored_native_program(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::StoredNativeProgram>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<StoredProgramLanguage> for StoredProgramLanguage {
@@ -123061,6 +123378,9 @@ mod root {
                 match self {
                     Self::StoredMooRProgram(value) => {
                         Self::create_stored_moo_r_program(builder, value)
+                    }
+                    Self::StoredNativeProgram(value) => {
+                        Self::create_stored_native_program(builder, value)
                     }
                 }
             }
@@ -123092,6 +123412,18 @@ mod root {
             ) -> StoredProgramLanguageBuilder<::planus::Initialized<1, T>>
             where
                 T: ::planus::WriteAsOffset<self::StoredMooRProgram>,
+            {
+                StoredProgramLanguageBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`StoredNativeProgram` variant](StoredProgramLanguage#variant.StoredNativeProgram).
+            #[inline]
+            pub fn stored_native_program<T>(
+                self,
+                value: T,
+            ) -> StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+            where
+                T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
             {
                 StoredProgramLanguageBuilder(::planus::Initialized(value))
             }
@@ -123138,11 +123470,39 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<StoredProgramLanguage>
+            for StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<StoredProgramLanguage> {
+                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<StoredProgramLanguage>
+            for StoredProgramLanguageBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::StoredNativeProgram>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<StoredProgramLanguage>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [StoredProgramLanguage].
         #[derive(Copy, Clone, Debug)]
         pub enum StoredProgramLanguageRef<'a> {
             StoredMooRProgram(self::StoredMooRProgramRef<'a>),
+            StoredNativeProgram(self::StoredNativeProgramRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<StoredProgramLanguageRef<'a>> for StoredProgramLanguage {
@@ -123152,6 +123512,12 @@ mod root {
                 ::core::result::Result::Ok(match value {
                     StoredProgramLanguageRef::StoredMooRProgram(value) => {
                         Self::StoredMooRProgram(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    StoredProgramLanguageRef::StoredNativeProgram(value) => {
+                        Self::StoredNativeProgram(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -123167,6 +123533,9 @@ mod root {
             ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
                 match tag {
                     1 => ::core::result::Result::Ok(Self::StoredMooRProgram(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    2 => ::core::result::Result::Ok(Self::StoredNativeProgram(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -123185,7 +123554,7 @@ mod root {
         /// The table `StoredProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredProgram` in the file `moor_program.fbs:276`
+        /// * Table `StoredProgram` in the file `moor_program.fbs:283`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredProgram {
             /// The field `language` in the table `StoredProgram`
@@ -123422,7 +123791,7 @@ mod root {
         /// The table `LineSpan` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `LineSpan` in the file `moor_program.fbs:280`
+        /// * Table `LineSpan` in the file `moor_program.fbs:287`
         #[derive(
             Clone,
             Debug,
@@ -123725,7 +124094,7 @@ mod root {
         /// The table `ForkLineSpans` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkLineSpans` in the file `moor_program.fbs:285`
+        /// * Table `ForkLineSpans` in the file `moor_program.fbs:292`
         #[derive(
             Clone,
             Debug,
@@ -142272,6 +142641,9 @@ mod root {
 
             /// The variant of type `BfFrame` in the union `FrameUnion`
             BfFrame(::planus::alloc::boxed::Box<self::BfFrame>),
+
+            /// The variant of type `NativeFrame` in the union `FrameUnion`
+            NativeFrame(::planus::alloc::boxed::Box<self::NativeFrame>),
         }
 
         impl FrameUnion {
@@ -142296,6 +142668,14 @@ mod root {
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
             }
+
+            #[inline]
+            pub fn create_native_frame(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::NativeFrame>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
+            }
         }
 
         impl ::planus::WriteAsUnion<FrameUnion> for FrameUnion {
@@ -142304,6 +142684,7 @@ mod root {
                 match self {
                     Self::MooFrame(value) => Self::create_moo_frame(builder, value),
                     Self::BfFrame(value) => Self::create_bf_frame(builder, value),
+                    Self::NativeFrame(value) => Self::create_native_frame(builder, value),
                 }
             }
         }
@@ -142340,6 +142721,15 @@ mod root {
             pub fn bf_frame<T>(self, value: T) -> FrameUnionBuilder<::planus::Initialized<2, T>>
             where
                 T: ::planus::WriteAsOffset<self::BfFrame>,
+            {
+                FrameUnionBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`NativeFrame` variant](FrameUnion#variant.NativeFrame).
+            #[inline]
+            pub fn native_frame<T>(self, value: T) -> FrameUnionBuilder<::planus::Initialized<3, T>>
+            where
+                T: ::planus::WriteAsOffset<self::NativeFrame>,
             {
                 FrameUnionBuilder(::planus::Initialized(value))
             }
@@ -142411,12 +142801,39 @@ mod root {
                 ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
             }
         }
+        impl<T> ::planus::WriteAsUnion<FrameUnion> for FrameUnionBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::NativeFrame>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<FrameUnion> {
+                ::planus::UnionOffset::new(3, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<FrameUnion>
+            for FrameUnionBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::NativeFrame>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<FrameUnion>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
 
         /// Reference to a deserialized [FrameUnion].
         #[derive(Copy, Clone, Debug)]
         pub enum FrameUnionRef<'a> {
             MooFrame(self::MooFrameRef<'a>),
             BfFrame(self::BfFrameRef<'a>),
+            NativeFrame(self::NativeFrameRef<'a>),
         }
 
         impl<'a> ::core::convert::TryFrom<FrameUnionRef<'a>> for FrameUnion {
@@ -142432,6 +142849,12 @@ mod root {
 
                     FrameUnionRef::BfFrame(value) => {
                         Self::BfFrame(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    FrameUnionRef::NativeFrame(value) => {
+                        Self::NativeFrame(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -142452,6 +142875,9 @@ mod root {
                     2 => ::core::result::Result::Ok(Self::BfFrame(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
+                    3 => ::core::result::Result::Ok(Self::NativeFrame(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
                     _ => {
                         ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
                             tag,
@@ -142468,7 +142894,7 @@ mod root {
         /// The table `MooFrame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `MooFrame` in the file `task.fbs:371`
+        /// * Table `MooFrame` in the file `task.fbs:372`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MooFrame {
             /// The field `frame` in the table `MooFrame`
@@ -142700,7 +143126,7 @@ mod root {
         /// The table `BfFrameWrapper` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `BfFrameWrapper` in the file `task.fbs:375`
+        /// * Table `BfFrameWrapper` in the file `task.fbs:376`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BfFrameWrapper {
             /// The field `frame` in the table `BfFrameWrapper`
@@ -142943,10 +143369,539 @@ mod root {
             }
         }
 
+        /// The table `NativeFrame` in the namespace `MoorTask`
+        ///
+        /// Generated from these locations:
+        /// * Table `NativeFrame` in the file `task.fbs:381`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct NativeFrame {
+            /// The field `library` in the table `NativeFrame`
+            pub library: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
+            /// The field `function` in the table `NativeFrame`
+            pub function: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
+            /// The field `caller` in the table `NativeFrame`
+            pub caller: ::planus::alloc::boxed::Box<super::moor_var::Var>,
+            /// The field `step` in the table `NativeFrame`
+            pub step: u32,
+            /// The field `state` in the table `NativeFrame`
+            pub state: ::core::option::Option<::planus::alloc::boxed::Box<super::moor_var::Var>>,
+            /// The field `return_value` in the table `NativeFrame`
+            pub return_value:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_var::Var>>,
+            /// The field `parsing` in the table `NativeFrame`
+            pub parsing: ::core::option::Option<::planus::alloc::vec::Vec<super::moor_var::Var>>,
+        }
+
+        impl NativeFrame {
+            /// Creates a [NativeFrameBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> NativeFrameBuilder<()> {
+                NativeFrameBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_library: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+                field_function: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+                field_caller: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+                field_step: impl ::planus::WriteAsDefault<u32, u32>,
+                field_state: impl ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+                field_return_value: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<super::moor_var::Var>,
+                >,
+                field_parsing: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_library = field_library.prepare(builder);
+                let prepared_function = field_function.prepare(builder);
+                let prepared_caller = field_caller.prepare(builder);
+                let prepared_step = field_step.prepare(builder, &0);
+                let prepared_state = field_state.prepare(builder);
+                let prepared_return_value = field_return_value.prepare(builder);
+                let prepared_parsing = field_parsing.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<18> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(0);
+                table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(1);
+                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(2);
+                if prepared_step.is_some() {
+                    table_writer.write_entry::<u32>(3);
+                }
+                if prepared_state.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(4);
+                }
+                if prepared_return_value.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(5);
+                }
+                if prepared_parsing.is_some() {
+                    table_writer
+                        .write_entry::<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>(
+                            6,
+                        );
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_library);
+                        object_writer.write::<_, _, 4>(&prepared_function);
+                        object_writer.write::<_, _, 4>(&prepared_caller);
+                        if let ::core::option::Option::Some(prepared_step) = prepared_step {
+                            object_writer.write::<_, _, 4>(&prepared_step);
+                        }
+                        if let ::core::option::Option::Some(prepared_state) = prepared_state {
+                            object_writer.write::<_, _, 4>(&prepared_state);
+                        }
+                        if let ::core::option::Option::Some(prepared_return_value) =
+                            prepared_return_value
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_return_value);
+                        }
+                        if let ::core::option::Option::Some(prepared_parsing) = prepared_parsing {
+                            object_writer.write::<_, _, 4>(&prepared_parsing);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<NativeFrame>> for NativeFrame {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NativeFrame> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<NativeFrame>> for NativeFrame {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<NativeFrame>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<NativeFrame> for NativeFrame {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NativeFrame> {
+                NativeFrame::create(
+                    builder,
+                    &self.library,
+                    &self.function,
+                    &self.caller,
+                    self.step,
+                    &self.state,
+                    &self.return_value,
+                    &self.parsing,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [NativeFrame] type.
+        ///
+        /// Can be created using the [NativeFrame::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct NativeFrameBuilder<State>(State);
+
+        impl NativeFrameBuilder<()> {
+            /// Setter for the [`library` field](NativeFrame#structfield.library).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn library<T0>(self, value: T0) -> NativeFrameBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            {
+                NativeFrameBuilder((value,))
+            }
+        }
+
+        impl<T0> NativeFrameBuilder<(T0,)> {
+            /// Setter for the [`function` field](NativeFrame#structfield.function).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn function<T1>(self, value: T1) -> NativeFrameBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            {
+                let (v0,) = self.0;
+                NativeFrameBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> NativeFrameBuilder<(T0, T1)> {
+            /// Setter for the [`caller` field](NativeFrame#structfield.caller).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn caller<T2>(self, value: T2) -> NativeFrameBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            {
+                let (v0, v1) = self.0;
+                NativeFrameBuilder((v0, v1, value))
+            }
+        }
+
+        impl<T0, T1, T2> NativeFrameBuilder<(T0, T1, T2)> {
+            /// Setter for the [`step` field](NativeFrame#structfield.step).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn step<T3>(self, value: T3) -> NativeFrameBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsDefault<u32, u32>,
+            {
+                let (v0, v1, v2) = self.0;
+                NativeFrameBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`step` field](NativeFrame#structfield.step) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn step_as_default(
+                self,
+            ) -> NativeFrameBuilder<(T0, T1, T2, ::planus::DefaultValue)> {
+                self.step(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3> NativeFrameBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`state` field](NativeFrame#structfield.state).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn state<T4>(self, value: T4) -> NativeFrameBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                NativeFrameBuilder((v0, v1, v2, v3, value))
+            }
+
+            /// Sets the [`state` field](NativeFrame#structfield.state) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn state_as_null(self) -> NativeFrameBuilder<(T0, T1, T2, T3, ())> {
+                self.state(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> NativeFrameBuilder<(T0, T1, T2, T3, T4)> {
+            /// Setter for the [`return_value` field](NativeFrame#structfield.return_value).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn return_value<T5>(self, value: T5) -> NativeFrameBuilder<(T0, T1, T2, T3, T4, T5)>
+            where
+                T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            {
+                let (v0, v1, v2, v3, v4) = self.0;
+                NativeFrameBuilder((v0, v1, v2, v3, v4, value))
+            }
+
+            /// Sets the [`return_value` field](NativeFrame#structfield.return_value) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn return_value_as_null(self) -> NativeFrameBuilder<(T0, T1, T2, T3, T4, ())> {
+                self.return_value(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5> NativeFrameBuilder<(T0, T1, T2, T3, T4, T5)> {
+            /// Setter for the [`parsing` field](NativeFrame#structfield.parsing).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn parsing<T6>(self, value: T6) -> NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+            where
+                T6: ::planus::WriteAsOptional<
+                        ::planus::Offset<[::planus::Offset<super::moor_var::Var>]>,
+                    >,
+            {
+                let (v0, v1, v2, v3, v4, v5) = self.0;
+                NativeFrameBuilder((v0, v1, v2, v3, v4, v5, value))
+            }
+
+            /// Sets the [`parsing` field](NativeFrame#structfield.parsing) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn parsing_as_null(self) -> NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, ())> {
+                self.parsing(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6> NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, T6)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [NativeFrame].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<NativeFrame>
+            where
+                Self: ::planus::WriteAsOffset<NativeFrame>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsDefault<u32, u32>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAs<::planus::Offset<NativeFrame>>
+            for NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+        {
+            type Prepared = ::planus::Offset<NativeFrame>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NativeFrame> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsDefault<u32, u32>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<NativeFrame>>
+            for NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+        {
+            type Prepared = ::planus::Offset<NativeFrame>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<NativeFrame>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+            T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsDefault<u32, u32>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T5: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            T6: ::planus::WriteAsOptional<::planus::Offset<[::planus::Offset<super::moor_var::Var>]>>,
+        > ::planus::WriteAsOffset<NativeFrame>
+            for NativeFrameBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<NativeFrame> {
+                let (v0, v1, v2, v3, v4, v5, v6) = &self.0;
+                NativeFrame::create(builder, v0, v1, v2, v3, v4, v5, v6)
+            }
+        }
+
+        /// Reference to a deserialized [NativeFrame].
+        #[derive(Copy, Clone)]
+        pub struct NativeFrameRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> NativeFrameRef<'a> {
+            /// Getter for the [`library` field](NativeFrame#structfield.library).
+            #[inline]
+            pub fn library(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
+                self.0.access_required(0, "NativeFrame", "library")
+            }
+
+            /// Getter for the [`function` field](NativeFrame#structfield.function).
+            #[inline]
+            pub fn function(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
+                self.0.access_required(1, "NativeFrame", "function")
+            }
+
+            /// Getter for the [`caller` field](NativeFrame#structfield.caller).
+            #[inline]
+            pub fn caller(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
+                self.0.access_required(2, "NativeFrame", "caller")
+            }
+
+            /// Getter for the [`step` field](NativeFrame#structfield.step).
+            #[inline]
+            pub fn step(&self) -> ::planus::Result<u32> {
+                ::core::result::Result::Ok(self.0.access(3, "NativeFrame", "step")?.unwrap_or(0))
+            }
+
+            /// Getter for the [`state` field](NativeFrame#structfield.state).
+            #[inline]
+            pub fn state(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_var::VarRef<'a>>> {
+                self.0.access(4, "NativeFrame", "state")
+            }
+
+            /// Getter for the [`return_value` field](NativeFrame#structfield.return_value).
+            #[inline]
+            pub fn return_value(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_var::VarRef<'a>>> {
+                self.0.access(5, "NativeFrame", "return_value")
+            }
+
+            /// Getter for the [`parsing` field](NativeFrame#structfield.parsing).
+            #[inline]
+            pub fn parsing(
+                &self,
+            ) -> ::planus::Result<
+                ::core::option::Option<
+                    ::planus::Vector<'a, ::planus::Result<super::moor_var::VarRef<'a>>>,
+                >,
+            > {
+                self.0.access(6, "NativeFrame", "parsing")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for NativeFrameRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("NativeFrameRef");
+                f.field("library", &self.library());
+                f.field("function", &self.function());
+                f.field("caller", &self.caller());
+                f.field("step", &self.step());
+                if let ::core::option::Option::Some(field_state) = self.state().transpose() {
+                    f.field("state", &field_state);
+                }
+                if let ::core::option::Option::Some(field_return_value) =
+                    self.return_value().transpose()
+                {
+                    f.field("return_value", &field_return_value);
+                }
+                if let ::core::option::Option::Some(field_parsing) = self.parsing().transpose() {
+                    f.field("parsing", &field_parsing);
+                }
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<NativeFrameRef<'a>> for NativeFrame {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: NativeFrameRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    library: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.library()?,
+                    )?),
+                    function: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.function()?,
+                    )?),
+                    caller: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.caller()?,
+                    )?),
+                    step: ::core::convert::TryInto::try_into(value.step()?)?,
+                    state: if let ::core::option::Option::Some(state) = value.state()? {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(state)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    return_value: if let ::core::option::Option::Some(return_value) =
+                        value.return_value()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(return_value)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    parsing: if let ::core::option::Option::Some(parsing) = value.parsing()? {
+                        ::core::option::Option::Some(parsing.to_vec_result()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for NativeFrameRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for NativeFrameRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[NativeFrameRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<NativeFrame>> for NativeFrame {
+            type Value = ::planus::Offset<NativeFrame>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<NativeFrame>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for NativeFrameRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[NativeFrameRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `Frame` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Frame` in the file `task.fbs:379`
+        /// * Table `Frame` in the file `task.fbs:391`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Frame {
             /// The field `frame` in the table `Frame`
@@ -143178,7 +144133,7 @@ mod root {
         /// The enum `CapabilityGrantKind` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Enum `CapabilityGrantKind` in the file `task.fbs:390`
+        /// * Enum `CapabilityGrantKind` in the file `task.fbs:402`
         #[derive(
             Copy,
             Clone,
@@ -143425,7 +144380,7 @@ mod root {
         /// The table `CapabilityGrant` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `CapabilityGrant` in the file `task.fbs:410`
+        /// * Table `CapabilityGrant` in the file `task.fbs:422`
         #[derive(
             Clone,
             Debug,
@@ -143943,7 +144898,7 @@ mod root {
         /// The table `Activation` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Activation` in the file `task.fbs:422`
+        /// * Table `Activation` in the file `task.fbs:434`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Activation {
             /// The field `frame` in the table `Activation`
@@ -144513,7 +145468,7 @@ mod root {
         /// The table `VMExecState` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VMExecState` in the file `task.fbs:438`
+        /// * Table `VMExecState` in the file `task.fbs:450`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmExecState {
             /// The field `activation_stack` in the table `VMExecState`
@@ -144933,7 +145888,7 @@ mod root {
         /// The table `VmHost` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VmHost` in the file `task.fbs:447`
+        /// * Table `VmHost` in the file `task.fbs:459`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmHost {
             /// The field `task_id` in the table `VmHost`
@@ -145362,7 +146317,7 @@ mod root {
         /// The table `Task` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Task` in the file `task.fbs:459`
+        /// * Table `Task` in the file `task.fbs:471`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Task {
             /// The field `version` in the table `Task`
@@ -146214,7 +147169,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:482`
+        /// * Table `SuspendedTask` in the file `task.fbs:494`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`
@@ -146530,7 +147485,7 @@ mod root {
         /// The table `ScheduleFiring` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScheduleFiring` in the file `task.fbs:496`
+        /// * Table `ScheduleFiring` in the file `task.fbs:508`
         #[derive(
             Clone,
             Debug,
@@ -146908,7 +147863,7 @@ mod root {
         /// The table `Schedule` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Schedule` in the file `task.fbs:502`
+        /// * Table `Schedule` in the file `task.fbs:514`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Schedule {
             /// The field `version` in the table `Schedule`

@@ -267,6 +267,7 @@ impl CombinedConfig {
             features: Arc::new(features),
             import_export: self.import_export,
             runtime: self.runtime,
+            native_verbs: Default::default(),
         };
 
         (Arc::new(config), self.services)
@@ -400,6 +401,13 @@ async fn run() -> Result<(), Report> {
     apply_cli_overrides(&args, &mut combined_config);
     let (config, services_config) = combined_config.into_parts();
     config.validate().map_err(|e| eyre!(e))?;
+    let config = Arc::new(
+        config
+            .as_ref()
+            .clone()
+            .with_native_verbs()
+            .map_err(|e| eyre!(e))?,
+    );
 
     prepare_config_dir()?;
     std::fs::create_dir_all(&args.data_dir)?;

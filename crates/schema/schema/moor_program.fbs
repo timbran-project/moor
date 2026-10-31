@@ -266,10 +266,17 @@ table StoredMooRProgram {
     lambda_entry_scope_count: ushort;
 }
 
-// Union for different program language implementations
+// A native verb: a function a native library declares, both named as the library declares
+// them. The daemon resolves them against the libraries it loaded at startup.
+table StoredNativeProgram {
+    library: string (required);
+    function: string (required);
+}
+
+// Union for different program language implementations. Append new members only.
 union StoredProgramLanguage {
-    StoredMooRProgram
-    // Future: StoredJavaScriptProgram, StoredLuaProgram, etc.
+    StoredMooRProgram,
+    StoredNativeProgram
 }
 
 // Top-level program wrapper matching Rust ProgramType enum

@@ -411,6 +411,22 @@ runtime:
 moor-daemon --max-capture-deadline-seconds 30 ...
 ```
 
+## Native Verb Libraries
+
+Native verbs are verbs whose bodies are functions in native libraries. They are off unless libraries
+are listed here; the daemon loads each at startup and refuses to start if one cannot be loaded. See
+[Native Verbs](native-verbs.md).
+
+| Setting          | Command Line              | Default | Description                                          |
+| ---------------- | ------------------------- | ------- | ---------------------------------------------------- |
+| Native libraries | `--native-library <PATH>` | none    | A native verb library to load; repeat it for several |
+
+```yaml
+runtime:
+  native_libraries:
+    - /opt/moor/lib/libterrain.so
+```
+
 ## Example Configuration
 
 Here's an example configuration file:

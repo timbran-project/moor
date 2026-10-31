@@ -61,6 +61,7 @@ pub struct ObjectDefinitionLoader<'a> {
     loader: &'a mut dyn LoaderInterface,
     restore_tracking: bool,
     mutation_started: bool,
+    allow_native_verbs: bool,
 }
 
 /// Options controlling objdef apply behavior.
@@ -145,7 +146,11 @@ fn validate_relocation(
             || metadata(&property.metadata);
     }
     for verb in &def.verbs {
-        let moor_var::program::ProgramType::MooR(program) = &verb.program;
+        // A native verb's binding names no objects.
+        let moor_var::program::ProgramType::MooR(program) = &verb.program else {
+            references |= verb.owner == def.oid || metadata(&verb.metadata);
+            continue;
+        };
         let tree = moor_compiler::program_to_tree(program)
             .map_err(|e| ObjdefLoaderError::InvalidRelocation(e.to_string()))?;
         let (_, literals) = moor_compiler::unparse_for_comparison(&tree)
@@ -172,7 +177,15 @@ impl<'a> ObjectDefinitionLoader<'a> {
             loader,
             restore_tracking: false,
             mutation_started: false,
+            allow_native_verbs: false,
         }
+    }
+
+    /// Accept native verbs, which bind verbs to functions in native libraries. Only loads a
+    /// wizard or the server's administrator makes may define them; others refuse them.
+    pub fn allow_native_verbs(mut self) -> Self {
+        self.allow_native_verbs = true;
+        self
     }
 
     /// Whether a failed operation requires discarding its enclosing transaction.
@@ -408,6 +421,13 @@ impl<'a> ObjectDefinitionLoader<'a> {
                 let error = |e| {
                     ObjdefLoaderError::CouldNotDefineVerb(path.clone(), *obj, verb.names.clone(), e)
                 };
+                if !self.allow_native_verbs
+                    && matches!(verb.program, moor_var::program::ProgramType::Native(_))
+                {
+                    return Err(error(WorldStateError::DatabaseError(
+                        "only a wizard may define native verbs".into(),
+                    )));
+                }
                 if !seen.insert((verb.names.clone(), verb.argspec)) {
                     return Err(error(WorldStateError::DatabaseError(
                         "duplicate verb declaration".into(),

@@ -66,6 +66,14 @@ impl ExecState {
                     v_obj(a.player()),
                     line_no,
                 ])),
+                Frame::Native(_) => stack_list.push(v_list(&[
+                    a.this.clone(),
+                    v_str(&a.verb_name.as_string()),
+                    v_obj(a.authority_principal()),
+                    v_obj(a.verb_definer()),
+                    v_obj(a.player()),
+                    v_int(0),
+                ])),
                 Frame::Bf(bf_frame) => {
                     let bf_name = BUILTINS.name_of(bf_frame.bf_id).unwrap();
                     stack_list.push(v_list(&[
@@ -93,6 +101,16 @@ impl ExecState {
             match &a.frame {
                 Frame::Moo(_) => {
                     let _ = write!(&mut piece, "{}:{}", a.verb_definer(), a.verb_name);
+                }
+                Frame::Native(native) => {
+                    let _ = write!(
+                        &mut piece,
+                        "{}:{} (native {}:{})",
+                        a.verb_definer(),
+                        a.verb_name,
+                        native.program.library,
+                        native.program.function
+                    );
                 }
                 Frame::Bf(bf_frame) => {
                     let bf_name = BUILTINS.name_of(bf_frame.bf_id).unwrap();
@@ -336,7 +354,7 @@ impl ExecState {
     fn unwind_activation(activation: &mut Activation, why: &FinallyReason) -> ActivationUnwind {
         match &mut activation.frame {
             Frame::Moo(frame) => Self::unwind_moo_frame(frame, why),
-            Frame::Bf(_) => ActivationUnwind::PopActivation,
+            Frame::Bf(_) | Frame::Native(_) => ActivationUnwind::PopActivation,
         }
     }
 

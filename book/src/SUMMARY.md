@@ -56,6 +56,7 @@
   - [Docker Compose Setup](the-system/docker-compose-setup.md)
   - [Alternative Installation Methods](the-system/alternative-installation-methods.md)
   - [Server Configuration](the-system/server-configuration.md)
+  - [Native Verbs](the-system/native-verbs.md)
   - [Performance and Concurrency](the-system/performance-and-concurrency.md)
   - [Clustered Deployment](the-system/clustered-deployment.md)
   - [File Worker](the-system/file-worker.md)

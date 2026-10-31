@@ -20,12 +20,22 @@ use moor_common::model::{
     TaskPermissions, VerbProgramCacheToken, VerbProgramKey, WorldState, WorldStateError,
 };
 use moor_compiler::Program;
-use moor_var::{Obj, program::ProgramType};
+use moor_var::{
+    Obj,
+    program::{NativeProgram, ProgramType},
+};
 pub use moor_vm::{CachedProgramPtr, ProgramSlot};
 
 #[derive(Debug)]
 struct CachedProgramSlot {
     program: Program,
+}
+
+/// A verb's program, resolved for a call: MOO code in a cache slot, or a native verb's binding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ResolvedVerbProgram {
+    Moo(ResolveVerbSlotResult),
+    Native(NativeProgram),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -101,6 +111,8 @@ pub fn program_cache_global_stats() -> ProgramCacheGlobalSnapshot {
 pub struct TaskProgramCache {
     slots: Vec<Option<Box<CachedProgramSlot>>>,
     cache: HashMap<VerbProgramKey, usize, std::hash::BuildHasherDefault<AHasher>>,
+    /// Native verbs' bindings, which take no slot.
+    natives: HashMap<VerbProgramKey, NativeProgram, std::hash::BuildHasherDefault<AHasher>>,
     token: Option<VerbProgramCacheToken>,
     local_hits: i64,
     local_misses: i64,
@@ -116,28 +128,34 @@ impl TaskProgramCache {
         authorization_obj: &Obj,
         verb_definer: &Obj,
         verb_uuid: uuid::Uuid,
-    ) -> Result<ResolveVerbSlotResult, WorldStateError> {
+    ) -> Result<ResolvedVerbProgram, WorldStateError> {
         let token = world_state.verb_program_cache_token();
         if self.token != Some(token) {
             // New calls must see the current transaction's programs. Active and retry frames
             // still hold pointers into old slots, which remain allocated until reclamation.
             self.cache.clear();
+            self.natives.clear();
             self.token = Some(token);
         }
         let key = VerbProgramKey {
             verb_definer: *verb_definer,
             verb_uuid,
         };
+        if let Some(native) = self.natives.get(&key) {
+            self.local_hits += 1;
+            PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Hits);
+            return Ok(ResolvedVerbProgram::Native(native.clone()));
+        }
         if let Some(slot) = self.cache.get(&key).copied()
             && self.program_for_slot(slot).is_some()
         {
             self.local_hits += 1;
             PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Hits);
-            return Ok(ResolveVerbSlotResult {
+            return Ok(ResolvedVerbProgram::Moo(ResolveVerbSlotResult {
                 slot: self.slot_info(slot),
                 cache_hit: true,
                 inserted: false,
-            });
+            }));
         }
         self.cache.remove(&key);
         self.local_misses += 1;
@@ -149,7 +167,13 @@ impl TaskProgramCache {
             verb_definer,
             verb_uuid,
         )?;
-        let ProgramType::MooR(program) = program;
+        let program = match program {
+            ProgramType::MooR(program) => program,
+            ProgramType::Native(native) => {
+                self.natives.insert(key, native.clone());
+                return Ok(ResolvedVerbProgram::Native(native));
+            }
+        };
         let entry = CachedProgramSlot { program };
 
         let slot = if let Some(reuse_slot) = self.slots.iter().position(|entry| entry.is_none()) {
@@ -164,11 +188,11 @@ impl TaskProgramCache {
         self.local_inserts += 1;
         PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Inserts);
         PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::LiveSlots);
-        Ok(ResolveVerbSlotResult {
+        Ok(ResolvedVerbProgram::Moo(ResolveVerbSlotResult {
             slot: self.slot_info(slot),
             cache_hit: false,
             inserted: true,
-        })
+        }))
     }
 
     pub fn program_for_slot(&self, slot: usize) -> Option<&Program> {
@@ -267,6 +291,7 @@ mod tests {
         let mut cache = TaskProgramCache {
             slots: vec![Some(p1_slot), Some(p2_slot)],
             cache: HashMap::default(),
+            natives: HashMap::default(),
             token: None,
             local_hits: 0,
             local_misses: 0,

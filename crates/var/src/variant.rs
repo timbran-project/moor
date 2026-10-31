@@ -679,6 +679,50 @@ impl Var {
         self.tag == other.tag && matches!(self.tag, TAG_INT | TAG_FLOAT | TAG_OBJ)
     }
 
+    /// Whether both are the very same value: the same scalar, or values sharing storage rather
+    /// than equal copies, as a value read twice from an unchanged property is. Never true for
+    /// values that differ, but it may be false for equal ones made separately, so it suits
+    /// checking cheaply whether something computed from a value still holds.
+    pub fn is_identical(&self, other: &Self) -> bool {
+        if self.tag != other.tag {
+            return false;
+        }
+        if self.tag & COMPLEX_FLAG == 0 {
+            return self.data == other.data;
+        }
+        match (self.variant(), other.variant()) {
+            (Variant::Str(a), Variant::Str(b)) => a.is_identical(b),
+            (Variant::List(a), Variant::List(b)) => a.is_identical(b),
+            (Variant::Map(a), Variant::Map(b)) => a.is_identical(b),
+            (Variant::Lambda(a), Variant::Lambda(b)) => triomphe::Arc::ptr_eq(&a.0, &b.0),
+            (Variant::Binary(a), Variant::Binary(b)) => {
+                let (a, b) = (a.as_bytes(), b.as_bytes());
+                std::ptr::eq(a.as_ptr(), b.as_ptr()) && a.len() == b.len()
+            }
+            (Variant::Flyweight(a), Variant::Flyweight(b)) => {
+                a.delegate() == b.delegate()
+                    && a.slots_storage().len() == b.slots_storage().len()
+                    && a.slots_storage()
+                        .iter()
+                        .zip(b.slots_storage())
+                        .all(|((n, x), (m, y))| n == m && x.is_identical(y))
+                    && a.contents().is_identical(b.contents())
+            }
+            // Error equality ignores messages and compares payloads without case, so compare
+            // every part exactly.
+            (Variant::Err(a), Variant::Err(b)) => {
+                a.err_type() == b.err_type()
+                    && a.msg() == b.msg()
+                    && match (a.value(), b.value()) {
+                        (Some(x), Some(y)) => x.is_identical(y),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            _ => self.data == other.data,
+        }
+    }
+
     // Str, List, Map, Lambda: data contains transmuted value
     #[inline(always)]
     pub fn as_str(&self) -> Option<&string::Str> {
@@ -2274,5 +2318,43 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, E_RANGE);
         assert!(err.message().contains("Index 3 out of bounds"));
+    }
+
+    #[test]
+    fn identical_values_share_storage() {
+        let big = v_list_iter((0..100).map(v_int));
+        assert!(big.is_identical(&big.clone()), "a clone shares the list");
+        let rebuilt = v_list_iter((0..100).map(v_int));
+        assert_eq!(big, rebuilt);
+        assert!(
+            !big.is_identical(&rebuilt),
+            "an equal list made apart does not"
+        );
+        let changed = big.as_list().unwrap().clone().push_owned(&v_int(100));
+        assert!(!big.is_identical(&changed));
+
+        // Small lists are held inline, so their items decide.
+        assert!(v_list(&[v_int(1), v_int(2)]).is_identical(&v_list(&[v_int(1), v_int(2)])));
+        assert!(!v_list(&[v_int(1), v_int(2)]).is_identical(&v_list(&[v_int(1), v_int(3)])));
+
+        let text = v_str("some text");
+        assert!(text.is_identical(&text.clone()));
+        assert!(!text.is_identical(&v_str("some text")));
+
+        let map = v_map(&[(v_str("a"), v_int(1))]);
+        assert!(map.is_identical(&map.clone()));
+        assert!(!map.is_identical(&v_map(&[(v_str("a"), v_int(1))])));
+
+        assert!(v_int(5).is_identical(&v_int(5)));
+        assert!(!v_int(5).is_identical(&v_float(5.0)));
+
+        // Errors equal as MOO compares them, but with other messages or payloads, differ.
+        let (upper, lower) = (v_str("ABC"), v_str("abc"));
+        let error = |message: &str, payload: &Var| {
+            v_error(E_INVARG.with_msg_and_value(|| message.to_string(), payload.clone()))
+        };
+        assert!(error("first", &upper).is_identical(&error("first", &upper)));
+        assert!(!error("first", &upper).is_identical(&error("second", &upper)));
+        assert!(!error("first", &upper).is_identical(&error("first", &lower)));
     }
 }

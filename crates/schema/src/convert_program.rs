@@ -37,7 +37,9 @@ define_enum_mapping! {
 use crate::convert::var_from_db_flatbuffer_ref;
 use byteview::ByteView;
 use moor_common::builtins::{builtin_signature_for_ids, legacy_builtin_signature_matches};
+use moor_var::Symbol;
 use moor_var::program::{
+    NativeProgram, ProgramType,
     labels::{JumpLabel, Label, Offset},
     names::{Name, VarName},
     opcode::{BuiltinId, ForSequenceOperand, Op, ScatterArgs, ScatterLabel},
@@ -417,6 +419,7 @@ pub fn decode_stored_program_struct(stored: &fb::StoredProgram) -> Result<Progra
 
     match language {
         fb::StoredProgramLanguageRef::StoredMooRProgram(moor_ref) => decode_fb_program(moor_ref),
+        fb::StoredProgramLanguageRef::StoredNativeProgram(_) => Err(not_moor_code()),
     }
 }
 
@@ -429,6 +432,52 @@ pub fn decode_stored_program_ref(fb_ref: fb::StoredProgramRef<'_>) -> Result<Pro
 
     match language {
         fb::StoredProgramLanguageRef::StoredMooRProgram(moor_ref) => decode_fb_program(moor_ref),
+        fb::StoredProgramLanguageRef::StoredNativeProgram(_) => Err(not_moor_code()),
+    }
+}
+
+fn not_moor_code() -> DecodeError {
+    DecodeError::DecodeFailed("the program is a native verb, not MOO code".to_string())
+}
+
+/// Encode a verb program of either kind, MOO code or a native verb, in FlatBuffer form.
+pub fn encode_program_type_to_fb(program: &ProgramType) -> Result<fb::StoredProgram, EncodeError> {
+    match program {
+        ProgramType::MooR(program) => encode_program_to_fb(program),
+        ProgramType::Native(native) => Ok(fb::StoredProgram {
+            language: fb::StoredProgramLanguage::StoredNativeProgram(Box::new(
+                fb::StoredNativeProgram {
+                    library: native.library.as_arc_str().to_string(),
+                    function: native.function.as_arc_str().to_string(),
+                },
+            )),
+        }),
+    }
+}
+
+/// Decode a verb program of either kind from its FlatBuffer form.
+pub fn decode_program_type_ref(
+    fb_ref: fb::StoredProgramRef<'_>,
+) -> Result<ProgramType, DecodeError> {
+    let language = fb_ref
+        .language()
+        .map_err(|e| DecodeError::DecodeFailed(format!("Failed to read language union: {e}")))?;
+    match language {
+        fb::StoredProgramLanguageRef::StoredMooRProgram(moor_ref) => {
+            decode_fb_program(moor_ref).map(ProgramType::MooR)
+        }
+        fb::StoredProgramLanguageRef::StoredNativeProgram(native) => {
+            let library = native.library().map_err(|e| {
+                DecodeError::DecodeFailed(format!("Failed to read native library: {e}"))
+            })?;
+            let function = native.function().map_err(|e| {
+                DecodeError::DecodeFailed(format!("Failed to read native function: {e}"))
+            })?;
+            Ok(ProgramType::Native(NativeProgram {
+                library: Symbol::mk(library),
+                function: Symbol::mk(function),
+            }))
+        }
     }
 }
 
@@ -459,6 +508,7 @@ pub fn stored_to_program(stored: &StoredProgram) -> Result<Program, DecodeError>
     // 3. Match on union variant and decode
     match language {
         fb::StoredProgramLanguageRef::StoredMooRProgram(moor_ref) => decode_fb_program(moor_ref),
+        fb::StoredProgramLanguageRef::StoredNativeProgram(_) => Err(not_moor_code()),
     }
 }
 
@@ -1425,6 +1475,7 @@ mod tests {
             .ok()
             .and_then(|stored| match stored.language().ok()? {
                 fb::StoredProgramLanguageRef::StoredMooRProgram(p) => p.builtin_signature().ok(),
+                fb::StoredProgramLanguageRef::StoredNativeProgram(_) => None,
             })
             .unwrap();
         assert!(moor_common::builtins::legacy_builtin_signature_matches(

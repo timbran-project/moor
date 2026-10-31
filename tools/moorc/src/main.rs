@@ -31,7 +31,7 @@ use moor_compiler::emit_compile_error;
 use moor_db::{Database, DatabaseConfig, TxDB};
 use moor_kernel::{
     SchedulerClient,
-    config::{Config, FeaturesConfig},
+    config::{Config, FeaturesConfig, RuntimeConfig},
     tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
 };
 use moor_moot::MootOptions;
@@ -106,6 +106,10 @@ pub struct Args {
 
     #[command(flatten)]
     feature_args: Option<FeatureArgs>,
+
+    /// Load a native verb library, so tests can call its functions; repeat for several.
+    #[arg(long = "native-library", value_name = "PATH")]
+    native_libraries: Vec<PathBuf>,
 
     #[clap(
         long,
@@ -444,7 +448,7 @@ fn main() -> Result<(), eyre::Report> {
         info!("Committed. Total time: {:?}", start.elapsed());
     } else if let Some(objdef_dir) = args.src_objdef_dir {
         let start = std::time::Instant::now();
-        let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut());
+        let mut od = ObjectDefinitionLoader::new(loader_interface.as_mut()).allow_native_verbs();
 
         let options = moor_objdef::ObjDefLoaderOptions::default();
         let compile_options = make_compile_options();
@@ -647,8 +651,17 @@ fn main() -> Result<(), eyre::Report> {
 
     let config = Config {
         features: Arc::new(features),
+        runtime: RuntimeConfig {
+            native_libraries: args.native_libraries.clone(),
+            ..Default::default()
+        },
         ..Default::default()
-    };
+    }
+    .with_native_verbs()
+    .unwrap_or_else(|e| {
+        error!("Unable to load native verb libraries: {e}");
+        std::process::exit(1);
+    });
     let scheduler = Scheduler::new(
         test_version,
         db,
