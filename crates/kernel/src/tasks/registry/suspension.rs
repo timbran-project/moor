@@ -470,6 +470,8 @@ impl SuspensionQ {
         let task_id = task.task.task_id;
         let input_player = task.task.player();
         self.register_wake(&mut task, input_player);
+        // It came from a record, which stays until it wakes.
+        self.saved.insert(task_id);
 
         let registration = self.live_tasks.register(task_id);
         self.tasks.insert(
@@ -903,9 +905,6 @@ mod tests {
             fn delete_task(&self, _: TaskId) -> Result<(), TasksDbError> {
                 Ok(())
             }
-            fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
-                Ok(())
-            }
             fn compact(&self) {}
         }
         struct Factory;
@@ -1140,9 +1139,6 @@ mod tests {
             self.0.lock().deleted.push(task_id);
             Ok(())
         }
-        fn delete_all_tasks(&self) -> Result<(), crate::tasks::TasksDbError> {
-            Ok(())
-        }
         fn compact(&self) {}
     }
 
@@ -1258,6 +1254,60 @@ mod tests {
         suspend(&mut queue, 5, message_wait());
         queue.save_tasks();
         assert_eq!(events.lock().saved, vec![5]);
+    }
+
+    #[test]
+    fn restored_tasks_keep_their_records_until_they_wake() {
+        struct LoadingDb(
+            parking_lot::Mutex<Vec<SuspendedTask>>,
+            Arc<parking_lot::Mutex<PersistenceEvents>>,
+        );
+        impl TasksDb for LoadingDb {
+            fn load_tasks(&self) -> Result<Vec<SuspendedTask>, crate::tasks::TasksDbError> {
+                Ok(std::mem::take(&mut *self.0.lock()))
+            }
+            fn save_task(
+                &self,
+                task: &crate::tasks::convert_task::SavedTask,
+            ) -> Result<(), crate::tasks::TasksDbError> {
+                self.1.lock().saved.push(task.task_id());
+                Ok(())
+            }
+            fn delete_task(&self, task_id: TaskId) -> Result<(), crate::tasks::TasksDbError> {
+                self.1.lock().deleted.push(task_id);
+                Ok(())
+            }
+            fn compact(&self) {}
+        }
+        struct Factory;
+        impl moor_common::tasks::SessionFactory for Factory {
+            fn mk_background_session(
+                self: Arc<Self>,
+                _: &Obj,
+            ) -> Result<Arc<dyn Session>, moor_common::tasks::SessionError> {
+                Ok(mock_session())
+            }
+        }
+        let events = Arc::new(parking_lot::Mutex::new(PersistenceEvents::default()));
+        let tasks = [1, 2]
+            .map(|id| SuspendedTask::new(WakeCondition::Never, mock_task(id), mock_session(), None))
+            .into_iter()
+            .collect();
+        let mut queue = SuspensionQ::new(Box::new(LoadingDb(
+            parking_lot::Mutex::new(tasks),
+            events.clone(),
+        )));
+        assert_eq!(queue.load_tasks(Arc::new(Factory)), Some(2));
+        queue.save_due_tasks(Instant::now() + Duration::from_secs(60));
+        queue.writer.wait_until_written();
+        {
+            let events = events.lock();
+            assert!(events.saved.is_empty(), "their records are still good");
+            assert!(events.deleted.is_empty(), "they haven't woken");
+        }
+        assert!(queue.remove_task(1).is_some());
+        queue.writer.wait_until_written();
+        assert_eq!(events.lock().deleted, vec![1], "only the one that woke");
     }
 
     #[test]

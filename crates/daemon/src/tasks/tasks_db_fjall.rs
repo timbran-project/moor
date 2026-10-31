@@ -150,19 +150,6 @@ impl TasksDb for FjallTasksDB {
         Ok(())
     }
 
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
-        for entry in self.tasks_partition.iter() {
-            let (key, _) = entry
-                .into_inner()
-                .map_err(|_| TasksDbError::CouldNotDeleteTask)?;
-            self.tasks_partition.remove(key).map_err(|e| {
-                handle_fjall_error(&e, "delete_all_tasks");
-                TasksDbError::CouldNotDeleteTask
-            })?;
-        }
-        Ok(())
-    }
-
     fn load_schedules(&self) -> Result<Vec<ScheduleEntry>, TasksDbError> {
         let mut out = vec![];
         for entry in self.schedules_partition.iter() {

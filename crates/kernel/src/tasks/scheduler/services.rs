@@ -179,7 +179,7 @@ impl Drop for SchedulerStartup {
             return;
         };
         // No service loop has run, so there are no GC or maintenance jobs to drain.
-        // Restoration removes persisted continuations; save them again on failure.
+        // Restored tasks keep their records; this also saves any that have changed.
         self.gate.resolve(StartupOutcome::Aborted);
         let scheduler = services.scheduler.as_ref().unwrap();
         {
@@ -577,9 +577,6 @@ mod tests {
             Ok(())
         }
         fn delete_task(&self, _: TaskId) -> Result<(), TasksDbError> {
-            Ok(())
-        }
-        fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
             Ok(())
         }
         fn compact(&self) {}
