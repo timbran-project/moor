@@ -42,11 +42,13 @@ use std::{sync::Arc, time::Duration};
 use tracing::{error, info};
 
 /// How often to look for suspended tasks that are due to be saved.
-pub(super) const SAVE_PASS_INTERVAL: Duration = Duration::from_secs(1);
+pub(super) const SAVE_PASS_INTERVAL: Duration = Duration::from_millis(250);
 
 /// How long a task must wait on its mailbox or a timer before it is saved. Tasks doing these
-/// often wake soon, and many do so again and again.
-pub(super) const MESSAGE_OR_TIMER_SAVE_DELAY: Duration = Duration::from_secs(5);
+/// often wake soon, and many do so again and again. This needs to outlast the gaps in such loops:
+/// in a load test of mailbox loops, saves went from about 1 a second at 500 ms to about 190 a
+/// second at 250 ms.
+pub(super) const MESSAGE_OR_TIMER_SAVE_DELAY: Duration = Duration::from_secs(1);
 
 /// The most tasks to copy out in one pass, to keep the time holding the lifecycle lock short. Any
 /// more wait for the next pass.
