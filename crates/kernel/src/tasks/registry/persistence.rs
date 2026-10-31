@@ -26,6 +26,9 @@
 //! `MESSAGE_OR_TIMER_SAVE_DELAY` plus `SAVE_PASS_INTERVAL`, along with the writes still queued.
 //! A clean shutdown saves everything.
 //!
+//! Restored tasks keep their records, so a crash soon after a restart doesn't lose them. A record
+//! is deleted when its task wakes, as for any task that was saved.
+//!
 //! This module preserves the existing error policy. Load and session-construction errors panic
 //! during startup. Save and bulk-deletion errors are logged and do not reverse in-memory changes.
 //! Individual deletion errors are ignored. A deletion failure can therefore leave a stale record
@@ -76,10 +79,6 @@ impl SuspensionQ {
                 .expect("Unable to create new background session for suspended task");
 
             self.register_restored_task(task);
-        }
-        // Now delete them from the database.
-        if let Err(e) = self.tasks_db().delete_all_tasks() {
-            error!(?e, "Could not delete suspended tasks from tasks database");
         }
         info!(?num_tasks, "Loaded suspended tasks from tasks database");
         max_task_id

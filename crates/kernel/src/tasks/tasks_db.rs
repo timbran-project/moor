@@ -38,7 +38,6 @@ pub trait TasksDb: Send + Sync {
     fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError>;
     fn save_task(&self, task: &SavedTask) -> Result<(), TasksDbError>;
     fn delete_task(&self, task_id: TaskId) -> Result<(), TasksDbError>;
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError>;
 
     /// Native schedules (`ScheduleQ` entries with `persist` set). Stored
     /// separately from suspended tasks: a schedule has no VM state, only a
@@ -85,10 +84,6 @@ impl TasksDb for NoopTasksDb {
     }
 
     fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
-        Ok(())
-    }
-
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
         Ok(())
     }
 

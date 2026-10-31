@@ -34,10 +34,6 @@ impl TasksDb for LoadedTasksDb {
         Ok(())
     }
 
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
-        Ok(())
-    }
-
     fn compact(&self) {}
 }
 

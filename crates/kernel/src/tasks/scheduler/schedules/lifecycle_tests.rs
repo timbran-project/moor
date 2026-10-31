@@ -105,10 +105,6 @@ impl TasksDb for ScheduleIdTasksDb {
         Ok(())
     }
 
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
-        Ok(())
-    }
-
     fn load_next_schedule_id(&self) -> Result<Option<ScheduleId>, TasksDbError> {
         Ok(*self.0.lock())
     }
@@ -175,10 +171,6 @@ impl TasksDb for RestoredScheduleDb {
     }
 
     fn delete_task(&self, _task_id: TaskId) -> Result<(), TasksDbError> {
-        Ok(())
-    }
-
-    fn delete_all_tasks(&self) -> Result<(), TasksDbError> {
         Ok(())
     }
 

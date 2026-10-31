@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Suspended tasks restored at startup keep their saved copies until they wake. They had none until
+  the next clean shutdown, so a crash soon after a restart lost them however long they had been
+  waiting, and a restored one-shot schedule firing would fire again.
 - Suspending a task no longer writes it to the tasks database at once, which took about 17% of the
   daemon's CPU in a test with many tasks looping on `task_recv()`, while holding the scheduler's
   lock. A task waiting on its mailbox or a timer is saved after 1 second, by a separate thread, and
