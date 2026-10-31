@@ -34,7 +34,7 @@ use crate::{
 #[derive(Clone)]
 pub struct ZmqHostServices {
     zmq_context: r0z_async::Context,
-    rpc_address: String,
+    rpc_client: Arc<RpcClient>,
     events_address: String,
     curve_keys: Option<(String, String, String)>,
 }
@@ -46,26 +46,27 @@ impl ZmqHostServices {
         events_address: String,
         curve_keys: Option<(String, String, String)>,
     ) -> Self {
-        Self {
-            zmq_context,
+        let rpc_client = Arc::new(RpcClient::new_with_defaults(
+            Arc::new(zmq_context.clone()),
             rpc_address,
-            events_address,
-            curve_keys,
-        }
-    }
-
-    pub fn rpc_client(&self) -> RpcClient {
-        RpcClient::new_with_defaults(
-            Arc::new(self.zmq_context.clone()),
-            self.rpc_address.clone(),
-            self.curve_keys
+            curve_keys
                 .as_ref()
                 .map(|(client_secret, client_public, server_public)| CurveKeys {
                     client_secret: client_secret.clone(),
                     client_public: client_public.clone(),
                     server_public: server_public.clone(),
                 }),
-        )
+        ));
+        Self {
+            zmq_context,
+            rpc_client,
+            events_address,
+            curve_keys,
+        }
+    }
+
+    pub fn rpc_client(&self) -> RpcClient {
+        self.rpc_client.as_ref().clone()
     }
 
     fn subscriber(
@@ -97,7 +98,7 @@ impl ZmqHostServices {
 
 impl HostServices for ZmqHostServices {
     fn runtime_client(&self) -> Arc<dyn RuntimeClient> {
-        Arc::new(self.rpc_client())
+        self.rpc_client.clone()
     }
 
     fn client_subscriptions(
@@ -140,7 +141,7 @@ impl HostServices for ZmqHostServices {
             Box::new(RecoveringClientEventSubscription::new(
                 client_id,
                 live,
-                Arc::new(self.rpc_client()),
+                self.runtime_client(),
                 client_token,
             )),
             Box::new(ZmqClientBroadcastSubscription::new(broadcast_sub)),

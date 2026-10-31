@@ -21,6 +21,8 @@ use r0z_async::{
 };
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -37,7 +39,15 @@ const RECEIVE_TIMEOUT_MARGIN_MS: i32 = 15000;
 /// Configuration for the RPC client
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
+    /// Maximum idle sockets retained across client and host-control calls.
     pub max_pool_size: usize,
+    /// Maximum sockets, including idle sockets, owned by this client and its clones.
+    pub max_sockets: usize,
+    /// Part of max_sockets reserved exclusively for host-control calls.
+    pub host_reserved_sockets: usize,
+    /// Maximum queued calls in each class. Zero disables queueing.
+    pub max_waiters: usize,
+    pub acquire_timeout_ms: u64,
     pub connect_timeout_ms: i32,
     pub receive_timeout_ms: i32,
 }
@@ -46,6 +56,10 @@ impl Default for RpcConfig {
     fn default() -> Self {
         Self {
             max_pool_size: 10,
+            max_sockets: 64,
+            host_reserved_sockets: 4,
+            max_waiters: 128,
+            acquire_timeout_ms: 5000,
             connect_timeout_ms: DEFAULT_SOCK_CONNECT_TIMEOUT_MS,
             receive_timeout_ms: DEFAULT_SOCK_RECEIVE_TIMEOUT_MS,
         }
@@ -61,23 +75,53 @@ pub struct CurveKeys {
 }
 
 /// RPC client with connection pooling and cancellation safety
+#[derive(Clone)]
 pub struct RpcClient {
+    inner: Arc<RpcClientInner>,
+}
+
+struct RpcClientInner {
     zmq_context: Arc<r0z_async::Context>,
     rpc_addr: String,
     curve_keys: Option<CurveKeys>,
     config: RpcConfig,
-    connection_pool: Mutex<VecDeque<RequestReply>>,
+    connection_pool: Mutex<[VecDeque<RequestReply>; 2]>,
+    admission: [Admission; 2],
 }
 
-impl Clone for RpcClient {
-    fn clone(&self) -> Self {
+#[derive(Clone, Copy)]
+enum CallClass {
+    Client = 0,
+    Host = 1,
+}
+
+struct Admission {
+    slots: Semaphore,
+    waiters: Semaphore,
+}
+
+impl Admission {
+    fn new(slots: usize, waiters: usize) -> Self {
         Self {
-            zmq_context: self.zmq_context.clone(),
-            rpc_addr: self.rpc_addr.clone(),
-            curve_keys: self.curve_keys.clone(),
-            config: self.config.clone(),
-            connection_pool: Mutex::new(VecDeque::new()), // New pool for clone
+            slots: Semaphore::new(slots),
+            waiters: Semaphore::new(waiters),
         }
+    }
+
+    async fn acquire(&self, timeout_ms: u64) -> Result<SemaphorePermit<'_>, RpcError> {
+        if let Ok(permit) = self.slots.try_acquire() {
+            return Ok(permit);
+        }
+        let _waiter = self
+            .waiters
+            .try_acquire()
+            .map_err(|_| RpcError::Recoverable("RPC admission queue is full".to_string()))?;
+        tokio::time::timeout(Duration::from_millis(timeout_ms), self.slots.acquire())
+            .await
+            .map_err(|_| {
+                RpcError::Recoverable(format!("RPC admission timed out after {timeout_ms}ms"))
+            })?
+            .map_err(|_| RpcError::Recoverable("RPC admission is closed".to_string()))
     }
 }
 
@@ -85,31 +129,31 @@ impl Clone for RpcClient {
 struct SocketGuard<'a> {
     client: &'a RpcClient,
     socket: Option<RequestReply>,
-    /// Whether the socket belongs to the pool. A socket built for one long deadline is discarded
-    /// afterwards rather than handed to an unrelated caller that expects the shorter default.
-    pooled: bool,
+    class: CallClass,
+    // Return or discard the socket before releasing admission, including on cancellation.
+    _permit: SemaphorePermit<'a>,
 }
 
 impl<'a> SocketGuard<'a> {
     /// Create a new socket guard, acquiring a socket from the pool
-    async fn new(client: &'a RpcClient) -> Result<Self, RpcError> {
-        let socket = client.acquire_socket().await?;
-        Ok(Self {
-            client,
-            socket: Some(socket),
-            pooled: true,
-        })
-    }
-
-    /// Create a socket guard over a socket built for a single call with its own receive timeout.
-    async fn dedicated(client: &'a RpcClient, receive_timeout_ms: i32) -> Result<Self, RpcError> {
-        let socket = client
-            .create_socket_with_timeout(receive_timeout_ms)
+    async fn new(
+        client: &'a RpcClient,
+        class: CallClass,
+        receive_timeout_ms: i32,
+    ) -> Result<Self, RpcError> {
+        let permit = client.inner.admission[class as usize]
+            .acquire(client.inner.config.acquire_timeout_ms)
             .await?;
+        let socket = client.acquire_socket(class)?;
+        socket
+            .get_socket()
+            .set_rcvtimeo(receive_timeout_ms)
+            .map_err(|e| RpcError::CouldNotReceive(e.to_string()))?;
         Ok(Self {
             client,
             socket: Some(socket),
-            pooled: false,
+            class,
+            _permit: permit,
         })
     }
 
@@ -123,26 +167,50 @@ impl Drop for SocketGuard<'_> {
         let Some(socket) = self.socket.take() else {
             return;
         };
-        if self.pooled && socket.state() == RequestReplyState::SendReady {
-            self.client.return_socket(socket);
+        if socket.state() == RequestReplyState::SendReady {
+            self.client.return_socket(self.class, socket);
         }
     }
 }
 
 impl RpcClient {
     /// Create a new managed RPC client
+    ///
+    /// Clones share the pool and admission limits. A new client owns a separate pool.
+    ///
+    /// # Panics
+    /// Panics if either call class has zero capacity or a semaphore limit exceeds
+    /// [`Semaphore::MAX_PERMITS`].
     pub fn new(
         zmq_context: Arc<r0z_async::Context>,
         rpc_addr: String,
         curve_keys: Option<CurveKeys>,
         config: RpcConfig,
     ) -> Self {
+        assert!(
+            config.host_reserved_sockets > 0,
+            "host-control capacity must be positive"
+        );
+        assert!(
+            config.max_sockets > config.host_reserved_sockets,
+            "client capacity must be positive"
+        );
+        let admission = [
+            Admission::new(
+                config.max_sockets - config.host_reserved_sockets,
+                config.max_waiters,
+            ),
+            Admission::new(config.host_reserved_sockets, config.max_waiters),
+        ];
         Self {
-            zmq_context,
-            rpc_addr,
-            curve_keys,
-            config,
-            connection_pool: Mutex::new(VecDeque::new()),
+            inner: Arc::new(RpcClientInner {
+                zmq_context,
+                rpc_addr,
+                curve_keys,
+                config,
+                connection_pool: Mutex::new(Default::default()),
+                admission,
+            }),
         }
     }
 
@@ -161,13 +229,12 @@ impl RpcClient {
         client_id: Uuid,
         rpc_msg: moor_rpc::HostClientToDaemonMessage,
     ) -> Result<Vec<u8>, RpcError> {
-        // Use a guard pattern to ensure socket cleanup regardless of cancellation
-        let mut socket_guard = match required_receive_timeout_ms(&rpc_msg) {
-            Some(timeout_ms) if timeout_ms > self.config.receive_timeout_ms => {
-                SocketGuard::dedicated(self, timeout_ms).await?
-            }
-            _ => SocketGuard::new(self).await?,
+        let configured_timeout = self.inner.config.receive_timeout_ms;
+        let receive_timeout = match required_receive_timeout_ms(&rpc_msg) {
+            Some(timeout_ms) if configured_timeout >= 0 => timeout_ms.max(configured_timeout),
+            _ => configured_timeout,
         };
+        let mut socket_guard = SocketGuard::new(self, CallClass::Client, receive_timeout).await?;
         Self::perform_rpc_call(socket_guard.socket_mut(), client_id, rpc_msg).await
     }
 
@@ -178,52 +245,46 @@ impl RpcClient {
         rpc_message: moor_rpc::HostToDaemonMessage,
     ) -> Result<Vec<u8>, RpcError> {
         // Use a guard pattern to ensure socket cleanup regardless of cancellation
-        let mut socket_guard = SocketGuard::new(self).await?;
+        let mut socket_guard =
+            SocketGuard::new(self, CallClass::Host, self.inner.config.receive_timeout_ms).await?;
         Self::perform_host_rpc_call(socket_guard.socket_mut(), host_id, rpc_message).await
     }
 
     /// Acquire a socket from the pool or create a new one
-    async fn acquire_socket(&self) -> Result<RequestReply, RpcError> {
-        let socket = self.connection_pool.lock().unwrap().pop_front();
+    // A class permit must be held before checkout. Always reuse an idle socket before creating
+    // one, and return it before releasing the permit. This bounds idle plus borrowed sockets by
+    // the class capacity. Separate idle lists keep client calls out of the host reservation.
+    fn acquire_socket(&self, class: CallClass) -> Result<RequestReply, RpcError> {
+        let socket = self.inner.connection_pool.lock().unwrap()[class as usize].pop_front();
         if let Some(socket) = socket {
             debug!("Reusing socket from pool");
             return Ok(socket);
         }
-        self.create_socket().await
+        self.create_socket()
     }
 
     /// Return a socket to the pool, discarding if pool is full
-    fn return_socket(&self, socket: RequestReply) {
-        let mut pool = self.connection_pool.lock().unwrap();
+    fn return_socket(&self, class: CallClass, socket: RequestReply) {
+        let mut pool = self.inner.connection_pool.lock().unwrap();
 
-        if pool.len() < self.config.max_pool_size {
-            pool.push_back(socket);
+        if pool.iter().map(VecDeque::len).sum::<usize>() < self.inner.config.max_pool_size {
+            pool[class as usize].push_back(socket);
         } else {
             drop(socket);
         }
     }
 
     /// Create a new socket with proper configuration
-    async fn create_socket(&self) -> Result<RequestReply, RpcError> {
-        self.create_socket_with_timeout(self.config.receive_timeout_ms)
-            .await
-    }
-
-    /// Create a new socket that waits `receive_timeout_ms` for its reply.
-    async fn create_socket_with_timeout(
-        &self,
-        receive_timeout_ms: i32,
-    ) -> Result<RequestReply, RpcError> {
-        let mut socket_builder = r0z_async::request(&self.zmq_context)
-            .set_rcvtimeo(receive_timeout_ms)
-            .set_sndtimeo(self.config.connect_timeout_ms)
+    fn create_socket(&self) -> Result<RequestReply, RpcError> {
+        let mut socket_builder = r0z_async::request(&self.inner.zmq_context)
+            .set_sndtimeo(self.inner.config.connect_timeout_ms)
             // Fail immediately if no connection instead of queuing messages indefinitely
             .set_immediate(true)
             // Don't linger on close - drop queued messages immediately
             .set_linger(0);
 
         // Configure CURVE encryption if keys provided
-        if let Some(curve_keys) = &self.curve_keys {
+        if let Some(curve_keys) = &self.inner.curve_keys {
             socket_builder = super::configure_curve_client(
                 socket_builder,
                 &curve_keys.client_secret,
@@ -234,8 +295,15 @@ impl RpcClient {
         }
 
         socket_builder
-            .connect(&self.rpc_addr)
-            .map_err(|e| RpcError::Fatal(format!("Failed to connect to RPC server: {}", e)))
+            .connect(&self.inner.rpc_addr)
+            .map_err(|e| match e {
+                // Native close is asynchronous, and non-RPC sockets also consume context capacity.
+                // Leave retries to the caller; no request has been sent at this point.
+                r0z_async::TmqError::Zmq(r0z::Error::EMFILE) => {
+                    RpcError::Recoverable(format!("RPC socket capacity exhausted: {e}"))
+                }
+                _ => RpcError::Fatal(format!("Failed to connect to RPC server: {e}")),
+            })
     }
 
     /// Perform an RPC call with guaranteed socket cleanup
@@ -294,14 +362,16 @@ impl RpcClient {
 
     /// Get current pool size for monitoring
     pub async fn pool_size(&self) -> usize {
-        let pool = self.connection_pool.lock().unwrap();
-        pool.len()
+        let pool = self.inner.connection_pool.lock().unwrap();
+        pool.iter().map(VecDeque::len).sum()
     }
 
     /// Clear the connection pool (useful for cleanup)
     pub async fn clear_pool(&self) {
-        let mut pool = self.connection_pool.lock().unwrap();
-        pool.clear();
+        let mut pool = self.inner.connection_pool.lock().unwrap();
+        for sockets in pool.iter_mut() {
+            sockets.clear();
+        }
         debug!("Cleared RPC connection pool");
     }
 }
@@ -388,12 +458,14 @@ fn capture_deadline_ms(mode: &moor_rpc::InvocationMode) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::{SinkExt, StreamExt};
     use moor_runtime_api::{
         AuthToken, ClientToken, mk_command_capture_msg, mk_eval_capture_msg,
         mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
         mk_invoke_welcome_message_msg, mk_list_objects_msg,
     };
     use moor_var::Symbol;
+    use planus::ReadAsRoot;
     use std::time::Duration;
 
     fn auth_token() -> AuthToken {
@@ -570,7 +642,10 @@ mod tests {
             assert!(matches!(error, RpcError::CouldNotReceive(_)));
             assert_eq!(client.pool_size().await, 0);
             timed_out.send(()).unwrap();
-            client.config.receive_timeout_ms = 1000;
+            Arc::get_mut(&mut client.inner)
+                .unwrap()
+                .config
+                .receive_timeout_ms = 1000;
             let reply = client
                 .make_client_rpc_call(Uuid::new_v4(), mk_list_objects_msg(&auth_token()))
                 .await
@@ -626,22 +701,409 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unused_socket_is_reusable_but_dedicated_socket_is_not_pooled() {
+    async fn borrowed_sockets_reset_receive_timeout_and_reuse_the_same_socket() {
         let (client, _server) = socket_fixture(RpcConfig::default());
-        drop(SocketGuard::new(&client).await.unwrap());
+        let mut original_fd = None;
+        for timeout in [5000, 120_000, 5000, -1, 5000] {
+            let mut guard = SocketGuard::new(&client, CallClass::Client, timeout)
+                .await
+                .unwrap();
+            let socket = guard.socket_mut().get_socket();
+            assert_eq!(socket.get_rcvtimeo().unwrap(), timeout);
+            let fd = socket.get_fd().unwrap();
+            assert_eq!(*original_fd.get_or_insert(fd), fd);
+            drop(guard);
+            assert_eq!(client.pool_size().await, 1);
+        }
+    }
+
+    fn small_config() -> RpcConfig {
+        RpcConfig {
+            max_sockets: 2,
+            host_reserved_sockets: 1,
+            max_waiters: 1,
+            acquire_timeout_ms: 30,
+            ..RpcConfig::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn clones_share_bounded_admission_and_cancelled_waiters_release_capacity() {
+        let (client, _server) = socket_fixture(small_config());
+        let clone = client.clone();
+        let held = SocketGuard::new(&client, CallClass::Client, 5000)
+            .await
+            .unwrap();
+        let admission = &client.inner.admission[CallClass::Client as usize];
+        {
+            let waiting = SocketGuard::new(&clone, CallClass::Client, 5000);
+            tokio::pin!(waiting);
+            assert!(futures_util::poll!(&mut waiting).is_pending());
+            assert_eq!(admission.waiters.available_permits(), 0);
+            assert!(matches!(
+                SocketGuard::new(&client, CallClass::Client, 5000).await,
+                Err(RpcError::Recoverable(message)) if message.contains("queue is full")
+            ));
+        }
+        assert_eq!(admission.waiters.available_permits(), 1);
+        assert!(matches!(
+            SocketGuard::new(&clone, CallClass::Client, 5000).await,
+            Err(RpcError::Recoverable(message)) if message.contains("timed out")
+        ));
+        assert_eq!(admission.waiters.available_permits(), 1);
+        let waiting = SocketGuard::new(&clone, CallClass::Client, 5000);
+        tokio::pin!(waiting);
+        assert!(futures_util::poll!(&mut waiting).is_pending());
+        let fd = held.socket.as_ref().unwrap().get_socket().get_fd().unwrap();
+        drop(held);
+        let mut admitted = waiting.await.unwrap();
+        assert_eq!(admitted.socket_mut().get_socket().get_fd().unwrap(), fd);
+        drop(admitted);
         assert_eq!(client.pool_size().await, 1);
-        let dedicated = SocketGuard::dedicated(&client, 120_000).await.unwrap();
-        assert_eq!(
-            dedicated
-                .socket
-                .as_ref()
-                .unwrap()
-                .get_socket()
-                .get_rcvtimeo()
-                .unwrap(),
-            120_000
+        clone.clear_pool().await;
+        assert_eq!(client.pool_size().await, 0);
+    }
+
+    #[tokio::test]
+    async fn idle_and_borrowed_sockets_share_the_limit() {
+        let (client, _server) = socket_fixture(RpcConfig {
+            max_sockets: 4,
+            host_reserved_sockets: 1,
+            max_waiters: 0,
+            max_pool_size: 100,
+            ..RpcConfig::default()
+        });
+        let mut originals = Vec::new();
+        let mut guards = Vec::new();
+        for class in [
+            CallClass::Client,
+            CallClass::Client,
+            CallClass::Client,
+            CallClass::Host,
+        ] {
+            let mut guard = SocketGuard::new(&client, class, 5000).await.unwrap();
+            originals.push(guard.socket_mut().get_socket().get_fd().unwrap());
+            guards.push(guard);
+        }
+        for class in [CallClass::Client, CallClass::Host] {
+            assert!(matches!(
+                SocketGuard::new(&client, class, 5000).await,
+                Err(RpcError::Recoverable(_))
+            ));
+        }
+        drop(guards);
+        assert_eq!(client.pool_size().await, 4);
+        for _ in 0..3 {
+            let mut borrowed = Vec::new();
+            for class in [
+                CallClass::Client,
+                CallClass::Client,
+                CallClass::Client,
+                CallClass::Host,
+            ] {
+                let mut guard = SocketGuard::new(&client, class, 5000).await.unwrap();
+                assert!(originals.contains(&guard.socket_mut().get_socket().get_fd().unwrap()));
+                borrowed.push(guard);
+            }
+            assert_eq!(client.pool_size().await, 0);
+            drop(borrowed);
+            assert_eq!(client.pool_size().await, 4);
+        }
+    }
+
+    #[tokio::test]
+    async fn host_services_share_clients_but_keep_distinct_endpoints_and_credentials_separate() {
+        use moor_runtime_api::api::HostServices;
+        let context = r0z::Context::new();
+        let services = crate::ZmqHostServices::new(
+            context.clone(),
+            "inproc://shared".into(),
+            String::new(),
+            None,
         );
-        drop(dedicated);
+        let clone = services.clone();
+        assert!(Arc::ptr_eq(
+            &services.runtime_client(),
+            &clone.runtime_client()
+        ));
+        let client = services.rpc_client();
+        let other = clone.rpc_client();
+        assert!(Arc::ptr_eq(&client.inner, &other.inner));
+        let held = SocketGuard::new(&client, CallClass::Client, 5000)
+            .await
+            .unwrap();
+        drop(held);
+        assert_eq!(other.pool_size().await, 1);
+        for (address, keys) in [
+            ("inproc://different", None),
+            (
+                "inproc://shared",
+                Some(("secret".into(), "public".into(), "server".into())),
+            ),
+        ] {
+            let separate =
+                crate::ZmqHostServices::new(context.clone(), address.into(), String::new(), keys);
+            assert!(!Arc::ptr_eq(&client.inner, &separate.rpc_client().inner));
+            assert_eq!(separate.rpc_client().pool_size().await, 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn long_and_ordinary_calls_reuse_a_socket_across_clones() {
+        let (client, mut server) = socket_fixture(RpcConfig::default());
+        let clone = client.clone();
+        let peer = async {
+            for _ in 0..3 {
+                server.recv().await.unwrap();
+                server.send(vec!["reply"].into()).await.unwrap();
+            }
+        };
+        let calls = async {
+            let mut original_fd = None;
+            for long in [false, true, false] {
+                let msg = if long {
+                    mk_invoke_system_handler_msg(
+                        &Uuid::new_v4(),
+                        "http",
+                        vec![],
+                        None,
+                        Some(Duration::from_secs(30)),
+                    )
+                    .unwrap()
+                } else {
+                    mk_list_objects_msg(&auth_token())
+                };
+                let active = if long { &clone } else { &client };
+                assert_eq!(
+                    active
+                        .make_client_rpc_call(Uuid::new_v4(), msg)
+                        .await
+                        .unwrap(),
+                    b"reply"
+                );
+                let pool = client.inner.connection_pool.lock().unwrap();
+                assert_eq!(pool[0].len(), 1);
+                let socket = pool[0][0].get_socket();
+                let fd = socket.get_fd().unwrap();
+                assert_eq!(*original_fd.get_or_insert(fd), fd);
+                assert_eq!(
+                    socket.get_rcvtimeo().unwrap(),
+                    if long { 45_000 } else { 5000 }
+                );
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::join!(peer, calls);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_calls_reuse_bounded_sockets_without_mixing_replies() {
+        use std::collections::HashSet;
+        let context = Arc::new(r0z::Context::new());
+        let endpoint = format!("inproc://rpc-concurrent-{}", Uuid::new_v4());
+        let mut server = r0z_async::router(&context).bind(&endpoint).unwrap();
+        let client = RpcClient::new(
+            context,
+            endpoint,
+            None,
+            RpcConfig {
+                max_sockets: 4,
+                host_reserved_sockets: 1,
+                max_waiters: 32,
+                acquire_timeout_ms: 2000,
+                ..RpcConfig::default()
+            },
+        );
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut tasks = tokio::task::JoinSet::new();
+            for _ in 0..32 {
+                let client = client.clone();
+                tasks.spawn(async move {
+                    let id = Uuid::new_v4();
+                    let reply = client
+                        .make_client_rpc_call(id, mk_list_objects_msg(&auth_token()))
+                        .await
+                        .unwrap();
+                    let message = moor_rpc::MessageTypeRef::read_as_root(&reply).unwrap();
+                    let moor_rpc::MessageTypeUnionRef::HostClientToDaemonMsg(message) =
+                        message.message().unwrap()
+                    else {
+                        panic!("expected client discriminator");
+                    };
+                    assert_eq!(message.client_data().unwrap(), id.as_bytes());
+                });
+            }
+            // Fill every client slot before replying, so the other calls must queue.
+            let mut pending = VecDeque::new();
+            for _ in 0..3 {
+                pending.push_back(server.next().await.unwrap().unwrap());
+            }
+            let mut identities = HashSet::new();
+            for _ in 0..32 {
+                let request = match pending.pop_front() {
+                    Some(request) => request,
+                    None => server.next().await.unwrap().unwrap(),
+                };
+                identities.insert(request[0].to_vec());
+                server
+                    .send(Multipart::from(vec![
+                        request[0].to_vec(),
+                        vec![],
+                        request[2].to_vec(),
+                    ]))
+                    .await
+                    .unwrap();
+            }
+            while let Some(result) = tasks.join_next().await {
+                result.unwrap();
+            }
+            assert_eq!(identities.len(), 3);
+            assert_eq!(client.pool_size().await, 3);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn host_control_completes_while_client_calls_and_queue_are_full() {
+        use moor_runtime_api::{mk_host_pong_msg, mk_register_host_msg};
+        let context = Arc::new(r0z::Context::new());
+        let endpoint = format!("inproc://rpc-control-{}", Uuid::new_v4());
+        let mut server = r0z_async::router(&context).bind(&endpoint).unwrap();
+        let client = RpcClient::new(
+            context,
+            endpoint,
+            None,
+            RpcConfig {
+                acquire_timeout_ms: 1000,
+                ..small_config()
+            },
+        );
+        tokio::time::timeout(Duration::from_secs(2), async {
+            let long_msg =
+                mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None).unwrap();
+            {
+                let long = client.make_client_rpc_call(Uuid::new_v4(), long_msg);
+                tokio::pin!(long);
+                tokio::select! {
+                    result = &mut long => panic!("long call completed: {result:?}"),
+                    request = server.next() => { request.unwrap().unwrap(); }
+                }
+                let queued =
+                    client.make_client_rpc_call(Uuid::new_v4(), mk_list_objects_msg(&auth_token()));
+                tokio::pin!(queued);
+                assert!(futures_util::poll!(&mut queued).is_pending());
+                assert!(matches!(
+                    client
+                        .make_client_rpc_call(Uuid::new_v4(), mk_list_objects_msg(&auth_token()))
+                        .await,
+                    Err(RpcError::Recoverable(_))
+                ));
+                let host_id = Uuid::new_v4();
+                for msg in [
+                    mk_register_host_msg(host_id, 0, &[], vec![]),
+                    mk_host_pong_msg(host_id, 0, &[], vec![]),
+                ] {
+                    let control = client.make_host_rpc_call(host_id, msg);
+                    let peer = async {
+                        let request = server.next().await.unwrap().unwrap();
+                        server
+                            .send(Multipart::from(vec![
+                                request[0].to_vec(),
+                                vec![],
+                                b"ack".to_vec(),
+                            ]))
+                            .await
+                            .unwrap();
+                    };
+                    let (result, ()) = tokio::join!(control, peer);
+                    assert_eq!(result.unwrap(), b"ack");
+                }
+            }
+            // Cancelling both the queued and sent call releases their admission. The host socket
+            // remains pooled; the unanswered client socket must be discarded.
+            assert_eq!(client.pool_size().await, 1);
+            assert_eq!(client.inner.admission[0].slots.available_permits(), 1);
+            assert_eq!(client.inner.admission[0].waiters.available_permits(), 1);
+            let next =
+                client.make_client_rpc_call(Uuid::new_v4(), mk_list_objects_msg(&auth_token()));
+            let peer = async {
+                let request = server.next().await.unwrap().unwrap();
+                server
+                    .send(Multipart::from(vec![
+                        request[0].to_vec(),
+                        vec![],
+                        b"fresh".to_vec(),
+                    ]))
+                    .await
+                    .unwrap();
+            };
+            let (result, ()) = tokio::join!(next, peer);
+            assert_eq!(result.unwrap(), b"fresh");
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn socket_exhaustion_is_recoverable_and_does_not_leak_admission() {
+        let context = Arc::new(r0z::Context::new());
+        context.set_max_sockets(4).unwrap();
+        let mut occupied = Vec::new();
+        loop {
+            match context.socket(r0z::PAIR) {
+                Ok(socket) => {
+                    socket.set_linger(0).unwrap();
+                    occupied.push(socket);
+                }
+                Err(r0z::Error::EMFILE) => break,
+                Err(error) => panic!("unexpected socket error: {error}"),
+            }
+        }
+        let client = RpcClient::new(context, "inproc://exhaustion".into(), None, small_config());
+        assert!(matches!(
+            client
+                .make_client_rpc_call(Uuid::new_v4(), mk_list_objects_msg(&auth_token()))
+                .await,
+            Err(RpcError::Recoverable(_))
+        ));
+        assert_eq!(client.inner.admission[0].slots.available_permits(), 1);
+        drop(occupied);
+        // libzmq reclaims closed sockets asynchronously. Only retry creation, never an exchange.
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                match SocketGuard::new(&client, CallClass::Client, 5000).await {
+                    Ok(guard) => {
+                        drop(guard);
+                        break;
+                    }
+                    Err(RpcError::Recoverable(_)) => {
+                        tokio::time::sleep(Duration::from_millis(1)).await
+                    }
+                    Err(error) => panic!("unexpected recovery error: {error}"),
+                }
+            }
+        })
+        .await
+        .unwrap();
         assert_eq!(client.pool_size().await, 1);
+    }
+
+    #[tokio::test]
+    async fn configuration_errors_remain_fatal_and_release_admission() {
+        let client = RpcClient::new(
+            Arc::new(r0z::Context::new()),
+            "invalid://address".into(),
+            None,
+            small_config(),
+        );
+        assert!(matches!(
+            SocketGuard::new(&client, CallClass::Client, 5000).await,
+            Err(RpcError::Fatal(_))
+        ));
+        assert_eq!(client.inner.admission[0].slots.available_permits(), 1);
     }
 }
