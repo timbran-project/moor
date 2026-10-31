@@ -1769,6 +1769,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn regression_non_ascii_outside_strings_is_a_parse_error() {
+        use moor_common::model::CompileError;
+
+        for source in [
+            "é = 1;",
+            "x = 日本!;",
+            "x = 1; é",
+            "x = é + 1;",
+            "return é;",
+            "日本",
+            "x = {1, é, 2};",
+            "this:é();",
+            "this.é = 1;",
+            "🦀",
+            "x = 1 🦀 2;",
+        ] {
+            let result = compile(source, CompileOptions::default());
+            assert!(
+                matches!(result, Err(CompileError::ParseError { .. })),
+                "Expected ParseError for {source:?}, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_ascii_in_strings_and_comments_compiles() {
+        for source in ["x = \"é\";", "/* é */ x = 1;", "// é\nx = 1;"] {
+            let result = compile(source, CompileOptions::default());
+            assert!(
+                result.is_ok(),
+                "Expected {source:?} to compile, got {result:?}"
+            );
+        }
+    }
+
     /// Test that assigning to a captured variable in a lambda produces a compile error.
     /// Lambdas capture by value, so mutation would not propagate to the outer scope.
     #[test]

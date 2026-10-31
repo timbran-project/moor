@@ -1823,7 +1823,7 @@ fn inner_scatter_pattern(expr: ScatterExpr) -> ScatterExpr {
 fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     let mut line = 1usize;
     let mut column = 1usize;
-    for ch in source[..offset.min(source.len())].chars() {
+    for ch in source[..source.floor_char_boundary(offset)].chars() {
         if ch == '\n' {
             line += 1;
             column = 1;

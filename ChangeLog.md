@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The compiler reports a parse error for a non-ASCII character outside a string or comment, such as
+  `é = 1;`. It used to panic.
 - Added the wizard-only `task_local()` and `set_task_local()` from ToastStunt, for a value shared by
   every verb in a task. The value survives suspends and restarts and returns to its last committed
   state on a conflict retry. A forked task starts with an empty map. Existing saved tasks still
